@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -363,6 +363,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_190000) do
     t.uuid "confirmed_by_id"
     t.datetime "created_at", null: false
     t.datetime "last_used_at"
+    t.datetime "rejected_at"
+    t.uuid "rejected_by_id"
     t.uuid "replaced_by_id"
     t.uuid "source_id"
     t.string "source_type"
@@ -376,6 +378,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_190000) do
     t.uuid "workspace_id", null: false
     t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
     t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
+    t.index ["rejected_by_id"], name: "index_chat_memories_on_rejected_by_id"
     t.index ["replaced_by_id"], name: "index_chat_memories_on_replaced_by_id"
     t.index ["source_type", "source_id"], name: "index_chat_memories_on_source"
     t.index ["subject_type", "subject_id"], name: "index_chat_memories_on_subject"
@@ -1730,6 +1733,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_190000) do
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
