@@ -6,13 +6,17 @@ import type { ResourceMapLink, ResourceMapResource } from "@/types/serializers"
 
 export const NODE_WIDTH = 216
 export const NODE_HEIGHT = 64
-const GROUP_PADDING = 28
-const GROUP_HEADER = 36
+const GROUP_PADDING = 20
+const GROUP_HEADER = 44
 
 export interface Account {
   key: string
-  label: string
+  providerKey: string
   providerName: string
+  providerMark?: string
+  providerColor?: string
+  account: string
+  environment?: string
 }
 
 export interface Placed {
@@ -21,8 +25,15 @@ export interface Placed {
 }
 
 export function accountOf(resource: ResourceMapResource): Account {
-  const parts = [ resource.providerName, resource.account, resource.environment ].filter(Boolean)
-  return { key: `${resource.provider}:${resource.account}`, label: parts.join(" · "), providerName: resource.providerName }
+  return {
+    key: `${resource.provider}:${resource.account}`,
+    providerKey: resource.provider,
+    providerName: resource.providerName,
+    providerMark: resource.providerMark,
+    providerColor: resource.providerColor,
+    account: resource.account,
+    environment: resource.environment,
+  }
 }
 
 export function matchesFilters(resource: ResourceMapResource, filters: MapFilters): boolean {
@@ -72,9 +83,10 @@ function step(link: ResourceMapLink, frontier: string[], direction: Direction): 
   return null
 }
 
-// Each account is laid out on its own, left to right in the direction things depend, and drawn as a box around its
-// resources. The boxes are then stacked top to bottom as a graph of their own, linked where their resources are, so no
-// two overlap and the map reads down the page the way the screen is shaped.
+// Everything reads top to bottom in the direction things depend, so resources in the same tier sit side by side and a
+// link always runs down between tiers rather than through a card. Each account is laid out on its own and drawn as a
+// box around its resources, then the boxes are laid out as a graph of their own, linked where their resources are, so
+// no two overlap.
 export function layout(resources: ResourceMapResource[], links: ResourceMapLink[]): Placed {
   const byAccount = new Map<string, { account: Account; resources: ResourceMapResource[] }>()
   for (const resource of resources) {
@@ -86,7 +98,7 @@ export function layout(resources: ResourceMapResource[], links: ResourceMapLink[
 
   const inner = new Map([ ...byAccount.values() ].map((group) => [ group.account.key, { account: group.account, ...layoutAccount(group.resources, links) } ]))
   const outer = new dagre.graphlib.Graph()
-  outer.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 56, marginx: 16, marginy: 16 })
+  outer.setGraph({ rankdir: "TB", nodesep: 48, ranksep: 80, marginx: 16, marginy: 16 })
   outer.setDefaultEdgeLabel(() => ({}))
   for (const [ key, box ] of inner) {
     outer.setNode(key, { width: box.width, height: box.height })
@@ -117,7 +129,7 @@ export function layout(resources: ResourceMapResource[], links: ResourceMapLink[
 // One account's resources, positioned inside its box with room for the header.
 function layoutAccount(resources: ResourceMapResource[], links: ResourceMapLink[]) {
   const graph = new dagre.graphlib.Graph()
-  graph.setGraph({ rankdir: "LR", nodesep: 12, ranksep: 72 })
+  graph.setGraph({ rankdir: "TB", nodesep: 16, ranksep: 56 })
   graph.setDefaultEdgeLabel(() => ({}))
   const ids = new Set(resources.map((resource) => resource.id))
   for (const resource of resources) {

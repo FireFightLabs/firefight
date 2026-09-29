@@ -56,12 +56,16 @@ export function MapCanvas({ resources, links, focusedId = null, onPick }: MapCan
 function drawing(resources: ResourceMapResource[], links: ResourceMapLink[], focusedId: string | null) {
   const placed = layout(resources, links)
   const linked = new Set(links.flatMap((link) => [ link.fromId, link.toId ]))
+  const counts = new Map<string, number>()
+  for (const each of placed.resources) {
+    counts.set(each.accountKey, (counts.get(each.accountKey) ?? 0) + 1)
+  }
 
   const accounts: AccountFlowNode[] = placed.accounts.map(({ account, x, y, width, height }) => ({
     id: `account:${account.key}`,
     type: ACCOUNT_NODE,
     position: { x, y },
-    data: { label: account.label, width, height },
+    data: { ...account, count: counts.get(account.key) ?? 0, width, height },
     selectable: false,
     zIndex: -1,
   }))
@@ -71,39 +75,30 @@ function drawing(resources: ResourceMapResource[], links: ResourceMapLink[], foc
     position: { x, y },
     data: { resource, focused: resource.id === focusedId, alone: !linked.has(resource.id) },
   }))
-  const where = new Map(placed.resources.map((each) => [ each.resource.id, each ]))
-  const edges: Edge[] = links.map((link) => ({
-    id: link.id,
-    ...handles(where.get(link.fromId), where.get(link.toId)),
-    type: ConnectionLineType.SmoothStep,
-    pathOptions: { borderRadius: 14 },
-    source: link.fromId,
-    target: link.toId,
-    label: RELATION_WORDS[link.relation],
-    markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-    style: link.unconfirmed
-      ? { stroke: "var(--primary)", strokeDasharray: "5 5", strokeWidth: 1.5 }
-      : { stroke: "var(--muted-foreground)", strokeWidth: 1.5 },
-    labelStyle: { fill: "var(--muted-foreground)", fontSize: 11 },
-    labelBgStyle: { fill: "var(--card)" },
-    labelBgPadding: [ 6, 3 ] as [number, number],
-    labelBgBorderRadius: 8,
-  }))
+
+  // Several links into one resource for the same reason share their last stretch, so only one carries the word.
+  const labelled = new Set<string>()
+  const edges: Edge[] = links.map((link) => {
+    const group = `${link.toId}:${link.relation}`
+    const label = labelled.has(group) ? undefined : RELATION_WORDS[link.relation]
+    labelled.add(group)
+    const tone = link.unconfirmed ? "var(--primary)" : "color-mix(in oklch, var(--muted-foreground) 70%, transparent)"
+    return {
+      id: link.id,
+      type: ConnectionLineType.Bezier,
+      source: link.fromId,
+      target: link.toId,
+      sourceHandle: HANDLES.OUT,
+      targetHandle: HANDLES.IN,
+      label,
+      markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: tone },
+      style: { stroke: tone, strokeWidth: 1.4, strokeDasharray: link.unconfirmed ? "5 5" : undefined },
+      labelStyle: { fill: "var(--muted-foreground)", fontSize: 10.5, fontWeight: 500 },
+      labelBgStyle: { fill: "var(--background)", stroke: "var(--border)", strokeWidth: 1 },
+      labelBgPadding: [ 7, 3 ] as [number, number],
+      labelBgBorderRadius: 999,
+    }
+  })
 
   return { nodes: [ ...accounts, ...nodes ], edges }
-}
-
-interface Spot {
-  x: number
-  y: number
-  accountKey: string
-}
-
-function handles(from: Spot | undefined, to: Spot | undefined) {
-  if (!from || !to || from.accountKey === to.accountKey) {
-    return { sourceHandle: HANDLES.OUT_RIGHT, targetHandle: HANDLES.IN_LEFT }
-  }
-  return from.y < to.y
-    ? { sourceHandle: HANDLES.OUT_BOTTOM, targetHandle: HANDLES.IN_TOP }
-    : { sourceHandle: HANDLES.OUT_TOP, targetHandle: HANDLES.IN_BOTTOM }
 }

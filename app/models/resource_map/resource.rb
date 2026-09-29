@@ -16,6 +16,23 @@ class ResourceMap::Resource < ApplicationRecord
 
   scope :present, -> { where(removed_at: nil) }
 
+  # How a provider's own status word reads at a glance. Providers name their states differently, so the words each one
+  # uses are gathered here and anything else is unknown rather than guessed.
+  HEALTH_OK = "ok".freeze
+  HEALTH_BUSY = "busy".freeze
+  HEALTH_FAILING = "failing".freeze
+  HEALTH_UNKNOWN = "unknown".freeze
+  HEALTHS = [ HEALTH_OK, HEALTH_BUSY, HEALTH_FAILING, HEALTH_UNKNOWN ].freeze
+  STATUS_HEALTH = {
+    HEALTH_OK => %w[completed ready success running healthy active deployed sleeping],
+    HEALTH_BUSY => %w[in_progress pending deploying building starting staging queued resizing paused],
+    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy]
+  }.flat_map { |health, words| words.map { |word| [ word, health ] } }.to_h.freeze
+
+  def health = STATUS_HEALTH.fetch(status.to_s.downcase, HEALTH_UNKNOWN)
+
+  def status_label = status&.tr("_", " ")&.capitalize
+
   NEIGHBORHOOD_DEPTH = 2
   NEIGHBORHOOD_LIMIT = 100
 

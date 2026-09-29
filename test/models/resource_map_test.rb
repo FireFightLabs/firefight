@@ -58,6 +58,16 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_equal [ [ "Plan", "nf-compute-100-2" ], [ "Running commit", "c4e4267" ], [ "Production", "Yes" ] ], facts
   end
 
+  test "a provider's status reads as healthy, busy, failing or unknown, and in words" do
+    resource = ResourceMap::Resource.new(status: "in_progress")
+
+    assert_equal ResourceMap::Resource::HEALTH_BUSY, resource.health
+    assert_equal "In progress", resource.status_label
+    assert_equal ResourceMap::Resource::HEALTH_OK, ResourceMap::Resource.new(status: "COMPLETED").health
+    assert_equal ResourceMap::Resource::HEALTH_FAILING, ResourceMap::Resource.new(status: "failed").health
+    assert_equal ResourceMap::Resource::HEALTH_UNKNOWN, ResourceMap::Resource.new(status: "sleepy").health
+  end
+
   test "a resource two connections report is one resource" do
     other = connection("northflank_two")
     ResourceMap.record!(@row, snapshot(repository))
