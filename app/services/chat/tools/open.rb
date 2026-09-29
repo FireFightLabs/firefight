@@ -78,7 +78,7 @@ class Chat::Tools::Open < RubyLLM::Tool
     fitting = Chat::Skill.available_to(@agent_run.workspace).select { |skill| sources.include?(skill.source) && (skill.tools & entries.map(&:handle)).any? }
     return if fitting.empty?
 
-    "Skills with the steps for these tools. Load the one that fits the question with use_skill before calling them:\n" \
+    "Skills with the steps for these tools. Load the one that fits the question with use_skill first, which also loads the tools it needs:\n" \
       "#{fitting.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
   end
 
@@ -92,9 +92,13 @@ class Chat::Tools::Open < RubyLLM::Tool
 
   def large?(view) = view.entries.size > LARGE_GROUP
 
+  # A skill loads the tools it names, so a large group points at its skills before asking for names.
   def listed_first(view)
-    "#{listing(view.entries)}\n" \
-      "This group is large, so nothing was loaded. Call #{name} again with this group and tools, and name the ones you need."
+    [
+      "#{listing(view.entries)}\n" \
+        "This group is large, so nothing was loaded. Call #{name} again with this group and tools, and name the ones you need.",
+      skills_for(view.entries)
+    ].compact.join("\n\n")
   end
 
   def nothing_connected(view)

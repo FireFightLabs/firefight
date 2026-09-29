@@ -36,9 +36,22 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     in_chat = Chat::Tools::Open.new(turn, offer: ->(_tools) { }, skills: true).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
     in_run = Chat::Tools::Open.new(turn, offer: ->(_tools) { }).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
 
-    assert_includes in_chat, "Load the one that fits the question with use_skill before calling them"
+    assert_includes in_chat, "Load the one that fits the question with use_skill first"
     assert_includes in_chat, "declaring: "
     assert_not_includes in_run, "use_skill"
+  end
+
+  test "a group too large to open whole still points at its skills, which load the tools themselves" do
+    entries = (1..(Chat::Tools::Open::LARGE_GROUP + 1)).map do |number|
+      Chat::Tools::Entry.new(name: "declare_incident_#{number}", description: "Declare", state: Chat::Tools::STATE_READY, tool: nil,
+                             group: Chat::Tools::Groups::INCIDENT_RESPONSE, source: Chat::Skill::SOURCE_FIREFIGHT, handle: "declare_incident")
+    end
+    Chat::Tools.stubs(:catalog).returns(entries)
+
+    answer = Chat::Tools::Open.new(turn, offer: ->(_tools) { }, skills: true).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
+
+    assert_includes answer, "This group is large, so nothing was loaded"
+    assert_includes answer, "declaring: "
   end
 
   test "someone who may not start a run is refused, in their name" do
