@@ -27,6 +27,10 @@ module Integrations
       client_for(environment_row.integration, environment_row).ping
     end
 
+    # A remote server lists tools, not what it reaches, so an MCP connection puts nothing on the map until its provider
+    # has a map reader.
+    def self.map_of(_environment_row) = nil
+
     def self.client_for(integration, environment_row)
       McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row))
     end

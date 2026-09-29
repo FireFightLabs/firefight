@@ -103,5 +103,10 @@ module Integrations
     # The default accepts so a pack without a probe still connects.
     def check_health!(environment_row)
     end
+
+    # What the connection reaches, as a ResourceMap::Snapshot, for the resource map. nil means the pack puts nothing on
+    # the map.
+    def map_of(environment_row)
+    end
   end
 end

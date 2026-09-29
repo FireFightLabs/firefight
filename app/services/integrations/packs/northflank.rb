@@ -8,12 +8,16 @@ module Integrations
       PROJECT = "project".freeze
 
       PROVIDER = "Northflank".freeze
+      PROVIDER_KEY = "northflank".freeze
+      GITHUB = "github".freeze
+      DNS = "dns".freeze
       APP_ROOT = "https://app.northflank.com".freeze
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
       OBSERVE_METRICS = "metrics".freeze
       KIND_SERVICES = "services".freeze
       KIND_ADDONS = "addons".freeze
+      KIND_JOBS = "jobs".freeze
 
       LOG_TYPES = %w[runtime build ingress mesh cdn backup restore].freeze
       DEFAULT_LOG_TYPE = LOG_TYPES.first
@@ -290,7 +294,7 @@ module Integrations
         rows = api(environment_row).jobs(project).map do |job|
           [ "#{job['name']} (#{job['id']})", "#{job['jobType']} job", ("suspended" if job["suspended"]) ].compact.join(", ")
         end
-        link = project_link(environment_row, "jobs")
+        link = project_link(environment_row, KIND_JOBS)
         return Telemetry.result("Project #{project} has no jobs.", link: link) if rows.empty?
 
         Telemetry.result("Project #{project}, #{rows.size} jobs.\n#{rows.join("\n")}", link: link)
@@ -305,7 +309,7 @@ module Integrations
         fail! "No job called #{arguments['job']} in this project. list_jobs shows what there is." unless job
 
         runs = api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
-        link = project_link(environment_row, "jobs", job["id"], "runs")
+        link = project_link(environment_row, KIND_JOBS, job["id"], "runs")
         return Telemetry.result("#{job['name']} has no runs.", link: link) if runs.empty?
 
         rows = runs.map do |run|
@@ -331,6 +335,107 @@ module Integrations
         asked = "the builds of #{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
         link = resource_link(environment_row, resource, "builds", arguments["build"].presence)
         Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: line_limit), link: link)
+      end
+
+      # The project on the resource map: its services, build services, databases and jobs, the repositories they build
+      # from and the domains they serve, with the links Northflank declares between them. A list the token may not read
+      # is a gap in the map, not a failed sweep.
+      def map_of(environment_row)
+        project = project_of(environment_row)
+        api = api(environment_row)
+        details = api.services(project).map { |listed| api.service(project, listed["id"]).presence || listed }
+        team = details.filter_map { |service| team_of(service["appId"]) }.first
+        account = [ team, project ].compact.join("/")
+        mapping = MapReading.new(account) { |kind, id| app_link(environment_row, team, kind, id)&.url }
+
+        details.each { |service| mapping.service(service) }
+        api.addons(project).each { |addon| mapping.database(addon) }
+        gaps = []
+        begin
+          api.jobs(project).each { |job| mapping.job(job) }
+        rescue NorthflankApi::Error => error
+          gaps << "Jobs could not be read: #{error.message}"
+        end
+        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps)
+      end
+
+      # Builds the snapshot for map_of, one resource at a time.
+      class MapReading
+        SERVICE_KINDS = { "build" => ResourceMap::KIND_BUILD_SERVICE }.freeze
+
+        attr_reader :resources, :links
+
+        # page_of answers a resource's page in Northflank's app, given the path segment its kind uses and its id.
+        def initialize(account, &page_of)
+          @account = account
+          @page_of = page_of
+          @resources = []
+          @links = []
+        end
+
+        def service(service)
+          kind = SERVICE_KINDS.fetch(service["serviceType"].to_s, ResourceMap::KIND_SERVICE)
+          internal = service.dig("deployment", "internal") || {}
+          status = service.dig("status", "deployment", "status") || service.dig("status", "build", "status")
+          found = add(kind, service["id"], service["name"], status: status&.downcase, page: [ KIND_SERVICES, service["id"] ],
+                      details: {
+                        "type" => service["serviceType"], "instances" => service.dig("deployment", "instances"),
+                        "plan" => service.dig("billing", "deploymentPlan"), "deployed_commit" => internal["deployedSHA"],
+                        "branch" => internal["branch"]
+                      }.compact)
+
+          built = internal["nfObjectId"]
+          link(found, key(ResourceMap::KIND_BUILD_SERVICE, built), ResourceMap::RELATION_RUNS_BUILDS_OF) if built.present? && built != service["id"]
+          repository(found, service["vcsData"])
+          Array(service["ports"]).select { |port| port["public"] }.flat_map { |port| Array(port["domains"]) }.uniq.each { |host| domain(found, host) }
+        end
+
+        def database(addon)
+          add(ResourceMap::KIND_DATABASE, addon["id"], addon["name"], status: addon["status"].to_s.downcase.presence,
+              page: [ KIND_ADDONS, addon["id"] ], details: { "type" => addon.dig("spec", "type") }.compact)
+        end
+
+        def job(job)
+          add(ResourceMap::KIND_JOB, job["id"], job["name"], page: [ KIND_JOBS, job["id"] ],
+              details: { "type" => job["jobType"], "suspended" => job["suspended"] }.compact)
+        end
+
+        private
+
+        def add(kind, id, name, page:, status: nil, details: {})
+          url = @page_of.call(*page)
+          found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: @account, kind: kind, external_id: id.to_s,
+                                         name: name.presence || id.to_s, status: status, url: url, details: details)
+          @resources << found
+          found.key
+        end
+
+        def key(kind, id) = [ PROVIDER_KEY, @account, kind, id.to_s ]
+
+        def link(from, to, relation)
+          @links << ResourceMap::FoundLink.new(from: from, to: to, relation: relation)
+        end
+
+        # The repository a service builds from, read off its vcsData. Only GitHub's addresses are read.
+        def repository(from, source)
+          url = source.to_h["projectUrl"].to_s
+          path = URI.parse(url).path.to_s.delete_prefix("/").delete_suffix(".git") if url.start_with?("https://github.com/")
+          return if path.blank?
+
+          owner = path.split("/").first
+          found = ResourceMap::Found.new(provider: GITHUB, account: owner, kind: ResourceMap::KIND_REPOSITORY, external_id: path,
+                                         name: path, url: "https://github.com/#{path}")
+          @resources << found
+          link(from, found.key, ResourceMap::RELATION_BUILT_FROM)
+        end
+
+        def domain(from, host)
+          apex = host.split(".").last(2).join(".")
+          found = ResourceMap::Found.new(provider: DNS, account: apex, kind: ResourceMap::KIND_DOMAIN, external_id: host, name: host,
+                                         url: "https://#{host}")
+          @resources << found
+          link(from, found.key, ResourceMap::RELATION_SERVES)
+        end
       end
 
       def check_health!(environment_row)

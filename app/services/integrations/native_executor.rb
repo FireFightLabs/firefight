@@ -13,5 +13,9 @@ module Integrations
     def self.check_health!(environment_row)
       NativePack.fetch!(environment_row.integration).check_health!(environment_row)
     end
+
+    def self.map_of(environment_row)
+      NativePack.fetch!(environment_row.integration).map_of(environment_row)
+    end
   end
 end
