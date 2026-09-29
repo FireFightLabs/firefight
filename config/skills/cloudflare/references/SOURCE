@@ -1,5 +1,4 @@
 mcp/cloudflare-api-mcp.md https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/index.md
-api/token-permissions.md https://developers.cloudflare.com/fundamentals/api/reference/permissions/index.md
 api/limits.md https://developers.cloudflare.com/fundamentals/api/reference/limits/index.md
 security/ip-access-rules.md https://developers.cloudflare.com/waf/tools/ip-access-rules/index.md
 security/ip-access-rules-create.md https://developers.cloudflare.com/waf/tools/ip-access-rules/create/index.md
