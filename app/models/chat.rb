@@ -91,6 +91,11 @@ class Chat < ApplicationRecord
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))
   end
 
+  # The calls the model still sees, since a compacted chat no longer holds what its archived messages said.
+  def calls_in_play
+    RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: sent_messages.select(:id))
+  end
+
   def awaiting_decision = tool_calls.where(approval: APPROVAL_REQUESTED).order(:created_at)
 
   def request_decisions!(tool_call_ids)

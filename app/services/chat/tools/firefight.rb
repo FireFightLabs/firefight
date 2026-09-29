@@ -58,7 +58,8 @@ class Chat::Tools::Firefight < RubyLLM::Tool
       Chat::Tools.mark_failed(@agent_run, tool_call_id) if response.error?
       text_of(response)
     end
-    Chat::Tools.hand_over(@agent_run, name, said)
+    reminder = Chat::Tools::SkillReminder.for(@agent_run, source: Chat::Skill::SOURCE_FIREFIGHT, handle: name.to_s, tool_call_id: tool_call_id)
+    [ Chat::Tools.hand_over(@agent_run, name, said), reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     failed(tool_call_id, @agent_run.refusal(action_key))
   rescue AbilityGateway::PendingApproval => pending
