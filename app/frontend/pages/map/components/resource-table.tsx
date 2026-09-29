@@ -84,14 +84,14 @@ function linkCounts(links: ResourceMapLink[]): Map<string, Count> {
 }
 
 function ResourceRow({ resource, count, onPick }: { resource: ResourceMapResource; count?: Count; onPick: (resourceId: string) => void }) {
-  const incident = resource.openIncidents[0]
+  const burning = resource.openIncidents.length > 0
 
   function pick() {
     onPick(resource.id)
   }
 
   return (
-    <TableRow className={incident ? "bg-destructive/5" : undefined}>
+    <TableRow className={burning ? "bg-destructive/5" : undefined}>
       <TableCell>
         <button type="button" onClick={pick} className="font-semibold hover:underline">
           {resource.name}
@@ -110,10 +110,14 @@ function ResourceRow({ resource, count, onPick }: { resource: ResourceMapResourc
         {resource.lastChange ? `${changeLabel(resource.lastChange)}, ${shortAgo(resource.lastChange.happenedAt)} ago` : "-"}
       </TableCell>
       <TableCell>
-        {incident ? (
-          <Link href={incidentPath(incident.id)} className="rounded-md bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground">
-            {incident.identifier} open
-          </Link>
+        {burning ? (
+          <span className="flex flex-wrap gap-1.5">
+            {resource.openIncidents.map((incident) => (
+              <Link key={incident.id} href={incidentPath(incident.id)} className="rounded-md bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground">
+                {incident.identifier} open
+              </Link>
+            ))}
+          </span>
         ) : (
           <span className="text-muted-foreground">-</span>
         )}

@@ -35,7 +35,7 @@ class ResourceMap::Resource < ApplicationRecord
     found = {}
     depth.times do |hop|
       links = ResourceMap::Link.standing.where(from_resource_id: frontier).or(ResourceMap::Link.standing.where(to_resource_id: frontier))
-                               .includes(:from_resource, :to_resource).limit(NEIGHBORHOOD_LIMIT)
+                               .includes(:from_resource, :to_resource, integration_environment: :integration).limit(NEIGHBORHOOD_LIMIT)
       frontier = links.flat_map do |link|
         found[link.id] ||= [ link, hop + 1 ]
         [ link.from_resource_id, link.to_resource_id ].reject { |each| hops.key?(each) }.each { |each| hops[each] = hop + 1 }

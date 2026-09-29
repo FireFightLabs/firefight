@@ -58,6 +58,8 @@ module ResourceMap
     workspace_id = environment_row.integration.workspace_id
 
     ActiveRecord::Base.transaction do
+      # One sweep of a connection at a time, so the hourly run and a Sync now cannot interleave their writes.
+      environment_row.lock!
       ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at) ] }
       gone = Resource.where(integration_environment_id: environment_row.id, removed_at: nil).where.not(id: ids.values)
       gone.pluck(:id).each { |id| Change.create!(workspace_id: workspace_id, resource_id: id, kind: Change::KIND_REMOVED, happened_at: at) }
@@ -101,10 +103,12 @@ module ResourceMap
   end
 
   def self.upsert_resource(workspace_id, environment_row, found, at)
-    resource = Resource.find_or_initialize_by(workspace_id: workspace_id, provider: found.provider, account: found.account,
-                                              kind: found.kind, external_id: found.external_id)
-    changes = changes_of(resource, found)
-    resource.first_seen_at ||= at
+    identity = { workspace_id: workspace_id, provider: found.provider, account: found.account, kind: found.kind, external_id: found.external_id }
+    # Two connections can report the same repository at once, so creating it tolerates losing that race.
+    resource = Resource.find_by(identity) || Resource.create_or_find_by!(identity) do |fresh|
+      fresh.assign_attributes(name: found.name, integration_environment: environment_row, first_seen_at: at, last_seen_at: at)
+    end
+    changes = resource.previously_new_record? ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, found)
     resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
                      details: found.details, last_seen_at: at, removed_at: nil)
     changes.each { |kind, from, to| resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, happened_at: at) }
@@ -113,7 +117,7 @@ module ResourceMap
   private_class_method :upsert_resource
 
   def self.changes_of(resource, found)
-    return [ [ Change::KIND_APPEARED, nil, nil ] ] if resource.new_record? || resource.removed_at
+    return [ [ Change::KIND_APPEARED, nil, nil ] ] if resource.removed_at
 
     before = resource.details[DEPLOYED_COMMIT]
     after = found.details[DEPLOYED_COMMIT]

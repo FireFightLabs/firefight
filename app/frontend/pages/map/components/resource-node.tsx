@@ -33,6 +33,7 @@ export function ResourceNode({ data }: NodeProps<ResourceFlowNode>) {
   const { resource, focused, alone } = data
   const KindIcon = KIND_ICONS[resource.kind]
   const incident = resource.openIncidents[0]
+  const moreIncidents = resource.openIncidents.length - 1
 
   return (
     <div
@@ -57,7 +58,7 @@ export function ResourceNode({ data }: NodeProps<ResourceFlowNode>) {
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="truncate text-[13.5px] font-semibold text-foreground">{resource.name}</span>
         <span className={cn("truncate text-xs", incident ? "text-destructive" : "text-muted-foreground")}>
-          {incident ? `${incident.identifier} open` : subtitle(resource)}
+          {incident ? `${incident.identifier} open${moreIncidents > 0 ? ` +${moreIncidents}` : ""}` : subtitle(resource)}
         </span>
       </span>
       <Handle id={HANDLES.OUT_RIGHT} type="source" position={Position.Right} className={HANDLE_CLASS} isConnectable={false} />
