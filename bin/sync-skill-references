@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+# Copies each provider's guides listed in config/skill_references.yml into config/skills/<provider>/references/,
+# replacing what is there, with the repository's license and the commit it came from. Run by hand or by the weekly
+# workflow, which opens a pull request when anything changed.
+require "yaml"
+require "fileutils"
+require "tmpdir"
+
+root = File.expand_path("..", __dir__)
+sources = YAML.safe_load_file(File.join(root, "config/skill_references.yml"))
+
+sources.each do |provider, source|
+  Dir.mktmpdir do |dir|
+    system("git", "clone", "--quiet", "--depth", "1", source.fetch("repository"), dir, exception: true)
+    commit = `git -C #{dir} rev-parse HEAD`.strip
+    target = File.join(root, "config/skills", provider, "references")
+    FileUtils.rm_rf(target)
+    FileUtils.mkdir_p(target)
+
+    source.fetch("paths").each do |from, to|
+      Dir[File.join(dir, from, "*.md")].each do |file|
+        FileUtils.mkdir_p(File.join(target, to))
+        FileUtils.cp(file, File.join(target, to, File.basename(file)))
+      end
+    end
+    FileUtils.cp(File.join(dir, source.fetch("license")), File.join(target, "LICENSE"))
+    File.write(File.join(target, "SOURCE"), "#{source.fetch('repository')}\n#{commit}\n")
+    puts "#{provider}: #{source.fetch('repository')} at #{commit}"
+  end
+end

@@ -14,7 +14,8 @@ class SkillCheckJobTest < ActiveJob::TestCase
     problem = Chat::SkillProblem.find_by!(skill: "planetscale_query_errors")
     assert_equal "planetscale", problem.provider
     assert_equal [ "planetscale_get_postgres_logs" ], problem.missing_tools
-    assert_equal 1, Chat::SkillProblem.count
+    naming = Chat::Skill.all.select { |skill| skill.tools.include?("planetscale_get_postgres_logs") }.map(&:name)
+    assert_equal naming.sort, Chat::SkillProblem.pluck(:skill).sort
   end
 
   test "a skill that is fixed drops out, and one whose provider nobody connected is never recorded" do

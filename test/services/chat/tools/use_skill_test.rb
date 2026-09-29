@@ -61,6 +61,18 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     assert_includes answer, "search_logs is not switched on for Northflank in this workspace"
   end
 
+  test "a skill names the guides it has, and reading one hands over the provider's text with a note on what can run" do
+    @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale")
+
+    steps = use_skill.call("skill" => "planetscale_connections")
+    guide = use_skill.call("skill" => "planetscale_connections", "reference" => "postgres/ps-connections.md")
+
+    assert_includes steps, "Guides you can read when you need the detail, with use_skill, this skill and reference: postgres/ps-connections.md"
+    assert guide.start_with?(Chat::Tools::UseSkill::GUIDE_NOTE)
+    assert_includes guide, "PgBouncer"
+    assert_includes use_skill.call("skill" => "planetscale_connections", "reference" => "../../firefight/x.md"), "There is no guide called"
+  end
+
   private
 
   def connect_northflank(tools)
