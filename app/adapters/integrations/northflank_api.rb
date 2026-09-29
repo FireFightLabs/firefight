@@ -23,6 +23,33 @@ module Integrations
       get("/projects/#{segment(project_id)}/services/#{segment(service_id)}/build", "per_page" => limit).dig("data", "builds") || []
     end
 
+    def service(project_id, service_id) = get("/projects/#{segment(project_id)}/services/#{segment(service_id)}")["data"] || {}
+
+    def addon(project_id, addon_id) = get("/projects/#{segment(project_id)}/addons/#{segment(addon_id)}")["data"] || {}
+
+    def deployments(project_id, service_id, limit:)
+      get("/projects/#{segment(project_id)}/services/#{segment(service_id)}/deployments", "per_page" => limit).dig("data", "deployments") || []
+    end
+
+    # kind is services or addons, the two that run containers.
+    def containers(project_id, kind, resource_id, limit:)
+      get("/projects/#{segment(project_id)}/#{kind}/#{segment(resource_id)}/containers", "per_page" => limit).dig("data", "containers") || []
+    end
+
+    def backups(project_id, addon_id, limit:)
+      get("/projects/#{segment(project_id)}/addons/#{segment(addon_id)}/backups", "per_page" => limit).dig("data", "backups") || []
+    end
+
+    def jobs(project_id) = list("/projects/#{segment(project_id)}/jobs", "jobs")
+
+    def job_runs(project_id, job_id, limit:)
+      get("/projects/#{segment(project_id)}/jobs/#{segment(job_id)}/runs", "per_page" => limit).dig("data", "runs") || []
+    end
+
+    def build_logs(project_id, service_id, query)
+      get("/projects/#{segment(project_id)}/services/#{segment(service_id)}/build-logs", { "queryType" => "range" }.merge(query))["data"] || []
+    end
+
     # kind is services or addons, the two things that run and log in a project. query uses Northflank's own parameter
     # names, such as startTime and textIncludes.
     def logs(project_id, kind, resource_id, query)

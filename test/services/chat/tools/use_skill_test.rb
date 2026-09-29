@@ -45,16 +45,16 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
   end
 
   test "a provider's skill makes its tools callable under the names the connection gives them" do
-    connect_northflank(%w[list_resources query_metrics search_logs])
+    connect_northflank(%w[describe_resource query_metrics list_containers search_logs])
 
     answer = use_skill.call("skill" => "northflank_resources")
 
-    assert_includes answer, "Call `northflank_list_resources` for the exact name"
-    assert_equal %w[northflank_list_resources northflank_query_metrics northflank_search_logs], @offered.flatten.map(&:name).sort
+    assert_includes answer, "Call `northflank_describe_resource` for the plan"
+    assert_equal %w[northflank_describe_resource northflank_list_containers northflank_query_metrics northflank_search_logs], @offered.flatten.map(&:name).sort
   end
 
   test "a provider's tool that is not switched on is named, so the agent says why a step cannot run" do
-    connect_northflank(%w[list_resources query_metrics])
+    connect_northflank(%w[describe_resource query_metrics list_containers])
 
     answer = use_skill.call("skill" => "northflank_resources")
 

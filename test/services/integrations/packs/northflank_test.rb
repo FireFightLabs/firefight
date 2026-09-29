@@ -94,6 +94,82 @@ module Integrations
         assert_match "list_resources shows what there is", error.message
       end
 
+      test "a service is described with its rollout, what it runs, its health checks and ports" do
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "web").returns(
+          "serviceType" => "combined", "billing" => { "deploymentPlan" => "nf-compute-100-2" },
+          "status" => { "deployment" => { "status" => "COMPLETED", "reason" => "DEPLOYING", "lastTransitionTime" => "2026-09-24T13:06:48Z" } },
+          "deployment" => { "instances" => 2, "storage" => { "ephemeralStorage" => { "storageSize" => 1024 } },
+                            "internal" => { "repository" => "https://github.com/acme/app", "branch" => "main", "deployedSHA" => "c4e4267d" } },
+          "healthChecks" => [ { "type" => "readinessProbe", "protocol" => "HTTP", "port" => 80, "path" => "/up", "periodSeconds" => 60,
+                                "timeoutSeconds" => 10, "failureThreshold" => 3 } ],
+          "ports" => [ { "name" => "p01", "internalPort" => 80, "protocol" => "HTTP", "public" => true } ]
+        )
+
+        text = call(:describe_resource, "resource" => "web")
+
+        assert_match "COMPLETED means the latest deployment rolled out and is serving", text
+        assert_match "Instances: 2, plan nf-compute-100-2", text
+        assert_match "Runs https://github.com/acme/app, branch main, deployed commit c4e4267d", text
+        assert_match "readinessProbe: HTTP port 80 /up, every 60s, timeout 10s, fails after 3 misses", text
+        assert_match "Ports: p01 80 HTTP, public", text
+      end
+
+      test "a service without health checks says what that costs" do
+        NorthflankApi.any_instance.stubs(:service).returns("serviceType" => "combined", "deployment" => {}, "healthChecks" => [])
+
+        assert_match "Health checks: none, so Northflank cannot tell a hung process from a healthy one", call(:describe_resource, "resource" => "web")
+      end
+
+      test "a database is described with its status, storage and latest backups" do
+        NorthflankApi.any_instance.stubs(:addon).with("firefight", "db").returns(
+          "status" => "running",
+          "spec" => { "type" => "postgresql", "config" => { "versionTag" => "16", "lifecycleStatus" => "active",
+                                                             "deployment" => { "replicas" => 2, "storageSize" => 4096, "storageClass" => "nvme", "planId" => "nf-compute-20" },
+                                                             "networking" => { "tlsEnabled" => true, "externalAccessEnabled" => false } } }
+        )
+        NorthflankApi.any_instance.stubs(:backups).returns([ { "createdAt" => "2026-09-28T02:00:00Z", "status" => "completed" } ])
+
+        text = call(:describe_resource, "resource" => "db")
+
+        assert_match "db, postgresql 16 database", text
+        assert_match "Replicas: 2, storage 4096 MB nvme, plan nf-compute-20. Storage and replicas can only grow.", text
+        assert_match "Latest backups: 2026-09-28T02:00:00Z completed", text
+      end
+
+      test "deployments say when, what and why, newest first" do
+        NorthflankApi.any_instance.stubs(:deployments).with("firefight", "web", limit: 20).returns([
+          { "createdAt" => "2026-09-24T13:05:25Z", "active" => true, "instances" => 1,
+            "commit" => { "sha" => "c4e4267d46e638ac", "message" => "Argue with an answer\nmore", "author" => "ada" },
+            "reason" => { "id" => "service-updated", "user" => { "name" => "Ada" } } }
+        ])
+
+        text = call(:list_deployments, "resource" => "web")
+
+        assert_match "2026-09-24T13:05:25Z, active, 1 instances, c4e4267d46e6 \"Argue with an answer\" by ada, reason service-updated by Ada", text
+      end
+
+      test "containers are listed newest first in words, with how many run and failed" do
+        NorthflankApi.any_instance.stubs(:containers).returns([
+          { "name" => "web-old", "createdAt" => 1_790_000_000, "updatedAt" => 1_790_000_100, "status" => "TASK_FAILED" },
+          { "name" => "web-new", "createdAt" => 1_790_000_200, "updatedAt" => 1_790_000_220, "status" => "TASK_RUNNING" }
+        ])
+
+        text = call(:list_containers, "resource" => "web")
+
+        assert_match "web: 1 running, 1 failed, 2 listed, newest first.\nweb-new, running", text
+        assert_match "web-old, failed", text
+      end
+
+      test "a job's runs are found by its name, and an unknown job says what to do" do
+        NorthflankApi.any_instance.stubs(:jobs).returns([ { "id" => "nightly", "name" => "Nightly export", "jobType" => "cron" } ])
+        NorthflankApi.any_instance.stubs(:job_runs).with("firefight", "nightly", limit: 20).returns([
+          { "startedAt" => "2026-09-28T02:00:00Z", "concludedAt" => "2026-09-28T02:30:00Z", "status" => "FAILED", "failed" => 3 }
+        ])
+
+        assert_match "2026-09-28T02:00:00Z, failed, finished 2026-09-28T02:30:00Z, 3 failed attempts", call(:job_runs, "job" => "nightly export")
+        assert_raises(NativePack::Error) { call(:job_runs, "job" => "weekly") }
+      end
+
       test "only services have builds" do
         error = assert_raises(NativePack::Error) { call(:recent_builds, "resource" => "db") }
 
