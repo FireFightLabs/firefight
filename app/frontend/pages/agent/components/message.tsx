@@ -10,7 +10,7 @@ interface MessageProps {
 export function Message({ turn }: MessageProps) {
   if (turn.kind === TURN_KINDS.PERSON) {
     return (
-      <p className="max-w-[75%] self-end whitespace-pre-wrap rounded-[18px] bg-accent-tint px-4 py-2 text-[14px] leading-relaxed text-ink">
+      <p className="max-w-[85%] self-end whitespace-pre-wrap rounded-[18px] rounded-br-md bg-accent-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink [overflow-wrap:anywhere] sm:max-w-[75%]">
         {turn.body}
       </p>
     )
@@ -20,7 +20,7 @@ export function Message({ turn }: MessageProps) {
   const cards = turn.steps.filter((step) => step.card !== null)
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-3">
       {turn.steps.length > 0 && <AgentSteps steps={turn.steps} />}
       {turn.bodies.map((body) => (
         <AnswerText key={body.id} text={body.text} />

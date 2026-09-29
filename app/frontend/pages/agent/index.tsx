@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Head, Link, usePage } from "@inertiajs/react"
+import { IconChevronLeft } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { ChatList } from "@/pages/agent/components/chat-list"
@@ -14,7 +15,7 @@ import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycl
 import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
 
-const BACK_LINK_CLASS = "px-4 pt-3 text-left text-[13px] text-ink-2 md:hidden"
+const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control py-1.5 pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink md:hidden"
 
 export default function AgentPage() {
   const { conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages } = usePage<AgentPageProps>().props
@@ -67,11 +68,12 @@ export default function AgentPage() {
           className={listClass}
           onNewChat={beginNewChat}
         />
-        <section className={`agent-thread min-w-0 ${threadClass}`}>
+        <section className={`agent-thread min-w-0 grid-cols-[minmax(0,1fr)] ${threadClass}`}>
           <div className="flex min-h-0 flex-col">
             {conversation ? (
               <>
                 <Link href={agentChatsPath()} {...OPEN_CHAT_VISIT} onClick={backToList} className={BACK_LINK_CLASS}>
+                  <IconChevronLeft className="size-4" />
                   All chats
                 </Link>
                 <Thread
@@ -85,6 +87,7 @@ export default function AgentPage() {
             ) : (
               <>
                 <button type="button" onClick={backToList} className={BACK_LINK_CLASS}>
+                  <IconChevronLeft className="size-4" />
                   All chats
                 </button>
                 <StartHeading />
