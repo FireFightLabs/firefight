@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -355,6 +355,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_110000) do
     t.integer "tokens_freed", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id"], name: "index_chat_compactions_on_chat_id"
+  end
+
+  create_table "chat_memories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "added_by_id"
+    t.datetime "confirmed_at"
+    t.uuid "confirmed_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "last_used_at"
+    t.uuid "replaced_by_id"
+    t.uuid "source_id"
+    t.string "source_type"
+    t.string "state", null: false
+    t.text "state_reason"
+    t.uuid "subject_id"
+    t.string "subject_type"
+    t.text "text", null: false
+    t.datetime "updated_at", null: false
+    t.integer "use_count", default: 0, null: false
+    t.uuid "workspace_id", null: false
+    t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
+    t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
+    t.index ["replaced_by_id"], name: "index_chat_memories_on_replaced_by_id"
+    t.index ["source_type", "source_id"], name: "index_chat_memories_on_source"
+    t.index ["subject_type", "subject_id"], name: "index_chat_memories_on_subject"
+    t.index ["workspace_id", "state"], name: "index_chat_memories_on_workspace_id_and_state"
   end
 
   create_table "chat_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1702,6 +1727,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_110000) do
   add_foreign_key "catalog_types", "workspaces"
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
+  add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "workspaces"
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
