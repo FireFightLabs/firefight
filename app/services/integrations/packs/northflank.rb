@@ -7,8 +7,11 @@ module Integrations
       API_TOKEN = "api_token".freeze
       PROJECT = "project".freeze
 
+      PROVIDER = "Northflank".freeze
       APP_ROOT = "https://app.northflank.com".freeze
       OBSERVE = "observe".freeze
+      OBSERVE_LOGS = "logs".freeze
+      OBSERVE_METRICS = "metrics".freeze
       KIND_SERVICES = "services".freeze
       KIND_ADDONS = "addons".freeze
 
@@ -199,9 +202,10 @@ module Integrations
         rows = resources(environment_row).map do |resource|
           "#{resource[:name]} (#{resource[:id]}), #{resource[:type]}, #{resource[:status]}"
         end
-        return Telemetry.result("Project #{project} has no services or databases.") if rows.empty?
+        link = project_link(environment_row)
+        return Telemetry.result("Project #{project} has no services or databases.", link: link) if rows.empty?
 
-        Telemetry.result("Project #{project}, #{rows.size} services and databases.\n#{rows.join("\n")}")
+        Telemetry.result("Project #{project}, #{rows.size} services and databases.\n#{rows.join("\n")}", link: link)
       end
 
       def search_logs(environment_row:, arguments:)
@@ -216,7 +220,8 @@ module Integrations
         lines = api(environment_row).logs(project_of(environment_row), resource[:kind], resource[:id], query).map do |line|
           Telemetry::LogLine.new(at: Telemetry.parse_time(line["ts"]) || ended, source: line["containerId"].to_s, text: line["log"])
         end
-        Telemetry.result(Telemetry.logs_text(lines, asked: "#{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}", limit: limit))
+        link = observe_link(environment_row, resource, OBSERVE_LOGS, log_search(arguments).merge(range_query(started, ended)))
+        Telemetry.result(Telemetry.logs_text(lines, asked: "#{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}", limit: limit), link: link)
       end
 
       def query_metrics(environment_row:, arguments:)
@@ -226,8 +231,9 @@ module Integrations
         asked = DEFAULT_METRICS if asked.empty?
         query = { "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "metricTypes" => asked }
         data = api(environment_row).metrics(project_of(environment_row), resource[:kind], resource[:id], query)
-        charts = asked.filter_map { |metric| chart(environment_row, resource, metric, data[metric], started, ended) if data[metric] }
-        Telemetry.result("#{resource[:name]}\n#{Telemetry.charts_text(charts)}", charts: charts)
+        link = observe_link(environment_row, resource, OBSERVE_METRICS, range_query(started, ended))
+        charts = asked.filter_map { |metric| chart(resource, metric, data[metric], started, ended, link) if data[metric] }
+        Telemetry.result("#{resource[:name]}\n#{Telemetry.charts_text(charts)}", charts: charts, link: link)
       end
 
       def recent_builds(environment_row:, arguments:)
@@ -236,19 +242,20 @@ module Integrations
 
         limit = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, BUILD_LIMIT ].min : BUILD_LIMIT
         builds = api(environment_row).builds(project_of(environment_row), resource[:id], limit: limit)
-        return Telemetry.result("#{resource[:name]} has no builds.") if builds.empty?
+        link = resource_link(environment_row, resource, "builds")
+        return Telemetry.result("#{resource[:name]} has no builds.", link: link) if builds.empty?
 
         rows = builds.map do |build|
           outcome = build["concluded"] ? (build["success"] ? "succeeded" : "failed") : build["status"].to_s.downcase
           [ build["createdAt"], outcome, build["branch"], build["sha"].to_s.first(12), build["message"].presence ].compact.join(", ")
         end
-        Telemetry.result("Latest #{rows.size} builds of #{resource[:name]}, newest first.\n#{rows.join("\n")}")
+        Telemetry.result("Latest #{rows.size} builds of #{resource[:name]}, newest first.\n#{rows.join("\n")}", link: link)
       end
 
       def describe_resource(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
         lines = resource[:kind] == KIND_SERVICES ? service_lines(environment_row, resource) : database_lines(environment_row, resource)
-        Telemetry.result(lines.compact.join("\n"))
+        Telemetry.result(lines.compact.join("\n"), link: resource_link(environment_row, resource))
       end
 
       def list_deployments(environment_row:, arguments:)
@@ -256,16 +263,18 @@ module Integrations
         fail! "#{resource[:name]} is a database, and only services have deployments." unless resource[:kind] == KIND_SERVICES
 
         deployments = api(environment_row).deployments(project_of(environment_row), resource[:id], limit: limit(arguments, DEPLOYMENT_LIMIT))
-        return Telemetry.result("#{resource[:name]} has no deployments.") if deployments.empty?
+        link = resource_link(environment_row, resource, "deployments")
+        return Telemetry.result("#{resource[:name]} has no deployments.", link: link) if deployments.empty?
 
         rows = deployments.map { |deployment| deployment_line(deployment) }
-        Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first.\n#{rows.join("\n")}")
+        Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first.\n#{rows.join("\n")}", link: link)
       end
 
       def list_containers(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
         containers = api(environment_row).containers(project_of(environment_row), resource[:kind], resource[:id], limit: limit(arguments, CONTAINER_LIMIT))
-        return Telemetry.result("#{resource[:name]} has no containers.") if containers.empty?
+        link = observe_link(environment_row, resource)
+        return Telemetry.result("#{resource[:name]} has no containers.", link: link) if containers.empty?
 
         rows = containers.sort_by { |container| -container["createdAt"].to_i }.map do |container|
           state = CONTAINER_STATES.fetch(container["status"].to_s, container["status"].to_s.downcase)
@@ -273,7 +282,7 @@ module Integrations
         end
         running = containers.count { |container| container["status"] == "TASK_RUNNING" }
         failed = containers.count { |container| container["status"] == "TASK_FAILED" }
-        Telemetry.result("#{resource[:name]}: #{running} running, #{failed} failed, #{rows.size} listed, newest first.\n#{rows.join("\n")}")
+        Telemetry.result("#{resource[:name]}: #{running} running, #{failed} failed, #{rows.size} listed, newest first.\n#{rows.join("\n")}", link: link)
       end
 
       def list_jobs(environment_row:, arguments:)
@@ -281,9 +290,10 @@ module Integrations
         rows = api(environment_row).jobs(project).map do |job|
           [ "#{job['name']} (#{job['id']})", "#{job['jobType']} job", ("suspended" if job["suspended"]) ].compact.join(", ")
         end
-        return Telemetry.result("Project #{project} has no jobs.") if rows.empty?
+        link = project_link(environment_row, "jobs")
+        return Telemetry.result("Project #{project} has no jobs.", link: link) if rows.empty?
 
-        Telemetry.result("Project #{project}, #{rows.size} jobs.\n#{rows.join("\n")}")
+        Telemetry.result("Project #{project}, #{rows.size} jobs.\n#{rows.join("\n")}", link: link)
       end
 
       def job_runs(environment_row:, arguments:)
@@ -295,13 +305,14 @@ module Integrations
         fail! "No job called #{arguments['job']} in this project. list_jobs shows what there is." unless job
 
         runs = api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
-        return Telemetry.result("#{job['name']} has no runs.") if runs.empty?
+        link = project_link(environment_row, "jobs", job["id"], "runs")
+        return Telemetry.result("#{job['name']} has no runs.", link: link) if runs.empty?
 
         rows = runs.map do |run|
           [ run["startedAt"], run["status"].to_s.downcase, ("finished #{run['concludedAt']}" if run["concludedAt"]),
             ("#{run['failed']} failed attempts" if run["failed"].to_i.positive?) ].compact.join(", ")
         end
-        Telemetry.result("Latest #{rows.size} runs of #{job['name']}, newest first.\n#{rows.join("\n")}")
+        Telemetry.result("Latest #{rows.size} runs of #{job['name']}, newest first.\n#{rows.join("\n")}", link: link)
       end
 
       def build_logs(environment_row:, arguments:)
@@ -318,7 +329,8 @@ module Integrations
           Telemetry::LogLine.new(at: Telemetry.parse_time(line["ts"]) || ended, source: arguments["build"].to_s, text: line["log"])
         end
         asked = "the builds of #{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
-        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: line_limit))
+        link = resource_link(environment_row, resource, "builds", arguments["build"].presence)
+        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: line_limit), link: link)
       end
 
       def check_health!(environment_row)
@@ -443,19 +455,50 @@ module Integrations
           "reason #{deployment.dig('reason', 'id') || 'unknown'}#{" by #{who}" if who}" ].compact.join(", ")
       end
 
-      # The resource's page in Northflank's app. appId starts with the team, as in /team/project/service. A service's
-      # charts link to its Observe page, which opens on the metrics. A database keeps its main page, since its Observe
-      # address has not been checked.
-      def page_of(environment_row, resource)
-        team = resource[:app_id].to_s.split("/").reject(&:empty?).first
-        return nil if team.blank?
-
-        segments = [ "t", team, "project", project_of(environment_row), resource[:kind], resource[:id] ].map { |part| ERB::Util.url_encode(part) }
-        segments << OBSERVE if resource[:kind] == KIND_SERVICES
-        "#{APP_ROOT}/#{segments.join('/')}"
+      # Addresses in Northflank's app, as its pages write them. appId starts with the team, as in /team/project/service.
+      # A service's logs and metrics are under its Observe page, and their address carries the search and time range.
+      # A database keeps its main page, since its Observe address has not been checked.
+      def resource_link(environment_row, resource, *rest, query: {})
+        app_link(environment_row, team_of(resource[:app_id]), resource[:kind], resource[:id], *rest, query: query)
       end
 
-      def chart(environment_row, resource, metric, data, started, ended)
+      def observe_link(environment_row, resource, tab = nil, query = {})
+        return resource_link(environment_row, resource) unless resource[:kind] == KIND_SERVICES
+
+        resource_link(environment_row, resource, OBSERVE, tab, query: query)
+      end
+
+      # A job or the project has no appId of its own here, so the team is read off any service or database in it.
+      def project_link(environment_row, *rest)
+        team = resources(environment_row).filter_map { |resource| team_of(resource[:app_id]) }.first
+        app_link(environment_row, team, *rest)
+      end
+
+      def app_link(environment_row, team, *rest, query: {})
+        return nil if team.blank?
+
+        segments = [ "t", team, "project", project_of(environment_row), *rest.compact ].map { |part| ERB::Util.url_encode(part) }
+        url = "#{APP_ROOT}/#{segments.join('/')}"
+        url = "#{url}?#{query.compact.to_query}" if query.compact.any?
+        Telemetry::Link.new(provider: PROVIDER, url: url)
+      end
+
+      def team_of(app_id) = app_id.to_s.split("/").reject(&:empty?).first
+
+      def range_query(started, ended) = { "range" => "custom", "startDate" => started.utc.iso8601(3), "endDate" => ended.utc.iso8601(3) }
+
+      # The page searches one way at a time, so the link carries the first filter the search used, in the order text,
+      # regex, exclude.
+      def log_search(arguments)
+        text, regex, exclude = arguments.values_at("text", "regex", "exclude").map(&:presence)
+        return { "searchQuery" => text, "matchType" => "match", "queryType" => "text" } if text
+        return { "searchQuery" => regex, "matchType" => "match", "queryType" => "regex" } if regex
+        return { "searchQuery" => exclude, "matchType" => "noMatch", "queryType" => "text" } if exclude
+
+        {}
+      end
+
+      def chart(resource, metric, data, started, ended, link)
         unit = UNITS.fetch(data.dig("metricInfo", "metricUnit").to_s, data.dig("metricInfo", "metricUnit").to_s)
         series = Array(data["values"]).map do |container|
           label = container.dig("metadata", "containerId").presence || container.dig("metadata", "volumeId").presence || resource[:name]
@@ -466,7 +509,7 @@ module Integrations
           Telemetry::Series.new(label: label, points: points)
         end
         Telemetry::Chart.new(title: "#{METRIC_TITLES.fetch(metric, metric)} of #{resource[:name]}", unit: unit, series: series,
-                             from: started, to: ended, link: page_of(environment_row, resource))
+                             from: started, to: ended, link: link&.url)
       end
     end
   end
