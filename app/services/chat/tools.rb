@@ -11,7 +11,9 @@ module Chat::Tools
   TITLE_LIMIT = 60
   FULL_DESCRIPTION = 2_000
 
-  Entry = Data.define(:name, :description, :state, :tool, :group)
+  # source is whose tool it is, Firefight's own or a provider's key, and handle is the name that source gives it, which a
+  # skill names since the name the agent sees depends on the connection.
+  Entry = Data.define(:name, :description, :state, :tool, :group, :source, :handle)
 
   def self.clean(text, limit)
     text.to_s.gsub(/[[:cntrl:]]/, " ").squish.truncate(limit)
@@ -200,7 +202,7 @@ module Chat::Tools
         name: tool_class.name_value, description: clean(tool_class.description_value, ONE_LINE),
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
         tool: (Firefight.new(agent_run, tool_class, actions[action_key]) if ready),
-        group: Groups.of_firefight_tool(tool_class.name_value)
+        group: Groups.of_firefight_tool(tool_class.name_value), source: Chat::Skill::SOURCE_FIREFIGHT, handle: tool_class.name_value.to_s
       )
     end
   end
@@ -215,7 +217,7 @@ module Chat::Tools
         name: tool.model_facing_name, description: clean(tool.description, ONE_LINE),
         state: ready ? STATE_READY : STATE_NOT_GRANTED,
         tool: (Connection.new(agent_run, tool) if ready),
-        group: Groups.of_connection(tool.integration)
+        group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name
       )
     end
   end

@@ -1,6 +1,9 @@
 # Loads a skill: says its steps and makes the tools it names callable, the ones this person may use. The skills travel
-# in this tool's own description, a line each, so the prompt does not grow with every recipe.
+# in this tool's own description, a line each, so the prompt does not grow with every recipe. A provider's skills are
+# offered once the workspace has connected that provider.
 class Chat::Tools::UseSkill < RubyLLM::Tool
+  CODE = /`([^`]+)`/
+
   def self.tool_name = "use_skill"
 
   def initialize(agent_run, offer:)
@@ -22,7 +25,7 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "skill" => { "type" => "string", "enum" => Chat::Skill.all.map(&:name), "description" => "The skill to load" }
+        "skill" => { "type" => "string", "enum" => skills.map(&:name), "description" => "The skill to load" }
       },
       "required" => [ "skill" ]
     }
@@ -31,22 +34,37 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
   # The arguments match the schema above, not an execute signature, so skip the base check.
   # They arrive keyed by text, as the model sent them.
   def call(tool_call: nil, **arguments)
-    skill = Chat::Skill.find(arguments.stringify_keys["skill"])
-    return "There is no skill called #{arguments.stringify_keys['skill']}. The skills are: #{Chat::Skill.all.map(&:name).join(', ')}." unless skill
+    asked = arguments.stringify_keys["skill"]
+    skill = skills.find { |each| each.name == asked.to_s }
+    return "There is no skill called #{asked}. The skills are: #{skills.map(&:name).join(', ')}." unless skill
 
-    entries = Chat::Tools.catalog(@agent_run).select { |entry| skill.tools.include?(entry.name) }
+    entries = Chat::Tools.catalog(@agent_run).select { |entry| entry.source == skill.source && skill.tools.include?(entry.handle) }
     ready, refused = entries.partition { |entry| entry.state == Chat::Tools::STATE_READY }
     @offer.call(ready.map(&:tool)) if ready.any?
 
-    [ skill.steps, refusal(refused) ].compact.join("\n\n")
+    [ steps_for(skill, entries), refusal(refused), switched_off(skill, entries) ].compact.join("\n\n")
   end
 
   private
 
+  def skills = @skills ||= Chat::Skill.available_to(@agent_run.workspace)
+
   def listing
-    Chat::Skill.all.group_by { |skill| [ skill.source, skill.domain ] }.map do |(source, domain), skills|
-      "#{source} #{domain.humanize(capitalize: false)}:\n#{skills.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
+    skills.group_by { |skill| [ skill.source, skill.domain ] }.map do |(source, domain), grouped|
+      "#{source} #{domain.humanize(capitalize: false)}:\n#{grouped.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
     end.join("\n")
+  end
+
+  # A provider's skill names a tool as the provider does. The agent calls it by the name its connection gives it, and
+  # a workspace with two connections to one provider has both.
+  def steps_for(skill, entries)
+    return skill.steps if skill.firefight?
+
+    names = entries.group_by(&:handle).transform_values { |found| found.map(&:name).uniq }
+    skill.steps.gsub(CODE) do |code|
+      called = names[Regexp.last_match(1)]
+      called ? called.map { |each| "`#{each}`" }.join(" or ") : code
+    end
   end
 
   def refusal(entries)
@@ -54,5 +72,14 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
     "#{entries.map(&:name).to_sentence} #{entries.one? ? 'is' : 'are'} not granted to whoever you are acting as, so a step that needs " \
       "#{entries.one? ? 'it' : 'them'} cannot run. Say so, and who can do it instead."
+  end
+
+  def switched_off(skill, entries)
+    missing = skill.tools - entries.map(&:handle)
+    return if skill.firefight? || missing.empty?
+
+    provider = IntegrationProvider.find(skill.source)&.name || skill.source
+    "#{missing.to_sentence} #{missing.one? ? 'is' : 'are'} not switched on for #{provider} in this workspace, so a step that needs " \
+      "#{missing.one? ? 'it' : 'them'} cannot run. An admin can switch #{missing.one? ? 'it' : 'them'} on under Integrations. Say so."
   end
 end

@@ -13,9 +13,11 @@ module Operator
     KIND_HALON_LIMIT = "halon_limit".freeze
     KIND_HALON_NOT_POSTED = "halon_not_posted".freeze
     KIND_HALON_STUCK = "halon_stuck".freeze
+    KIND_SKILL_BROKEN = "skill_broken".freeze
     KINDS = [
       KIND_WORKFLOW_FAILED, KIND_WORKFLOW_STUCK, KIND_WEBHOOK_FAILING, KIND_PLATFORM_FAILED, KIND_ALERT_STUCK,
-      KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK
+      KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK,
+      KIND_SKILL_BROKEN
     ].freeze
 
     # The page an item opens.
@@ -47,7 +49,7 @@ module Operator
 
     def items
       @items ||= [
-        *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items
+        *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items
       ].sort_by { |item| [ item.tone == IncidentProcess::TONE_BAD ? 0 : 1, -item.at.to_f ] }
     end
 
@@ -149,6 +151,19 @@ module Operator
     def halon_item(run, kind, title, detail, tone, at: nil)
       item(key: "#{kind}-#{run.id}", kind: kind, tone: tone, title: title, subject: run_label(run), place: run.workspace.name,
            detail: detail, at: at || run.completed_at || run.created_at, target: TARGET_RUN, target_id: run.id)
+    end
+
+    # A skill belongs to the install, not a workspace, and stays listed until the daily check finds it fixed.
+    def skill_items
+      return [] if @filter.workspace
+
+      Chat::SkillProblem.order(:skill).limit(PER_KIND).map do |problem|
+        provider = IntegrationProvider.find(problem.provider)&.name || problem.provider
+        item(key: "skill-#{problem.skill}", kind: KIND_SKILL_BROKEN, tone: IncidentProcess::TONE_WARN,
+             title: "Halon skill names tools #{provider} no longer offers", subject: problem.skill,
+             detail: "#{problem.missing_tools.to_sentence} gone since #{problem.created_at.to_date.iso8601}, so the steps that need them fail",
+             at: problem.checked_at, target: nil)
+      end
     end
 
     def run_label(run)

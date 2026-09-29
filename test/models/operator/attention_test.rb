@@ -75,6 +75,18 @@ class Operator::AttentionTest < ActiveSupport::TestCase
     assert_nothing_raised { Operator::Attention.new(Operator::Filter.new, jobs: nil).items }
   end
 
+  test "a skill naming tools its provider dropped is listed for the whole install until it is fixed" do
+    Chat::SkillProblem.create!(skill: "planetscale_query_errors", provider: "planetscale", missing_tools: [ "planetscale_get_postgres_logs" ], checked_at: Time.current)
+
+    everywhere = Operator::Attention.new(Operator::Filter.new, jobs: nil).items.find { |item| item.kind == Operator::Attention::KIND_SKILL_BROKEN }
+
+    assert_equal "Halon skill names tools PlanetScale no longer offers", everywhere.title
+    assert_equal "planetscale_query_errors", everywhere.subject
+    assert_match "planetscale_get_postgres_logs", everywhere.detail
+    assert_equal Operator::IncidentProcess::TONE_WARN, everywhere.tone
+    assert items.none? { |item| item.kind == Operator::Attention::KIND_SKILL_BROKEN }, "a workspace's view leaves out what belongs to the install"
+  end
+
   test "failures come before warnings" do
     run!(status: Investigation::STATUS_FAILED, error_summary: Investigation::BUDGET_SPENT)
     run!(status: Investigation::STATUS_FAILED, error_summary: "Faraday::TimeoutError")

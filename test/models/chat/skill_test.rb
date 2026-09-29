@@ -22,23 +22,47 @@ class Chat::SkillTest < ActiveSupport::TestCase
   end
 
   # A skill that names a tool or field that no longer exists would send the agent after something that is not there.
-  test "every tool a skill names exists and is offered to Halon" do
+  test "every tool one of Firefight's skills names exists and is offered to Halon" do
     offered = Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON
 
-    Chat::Skill.all.each do |skill|
+    Chat::Skill.all.select(&:firefight?).each do |skill|
       skill.tools.each { |tool| assert_includes offered, tool, "#{skill.name} names #{tool}" }
     end
   end
 
-  test "every name a skill's steps set in code is one of its tools, their parameters, a form or a form field" do
+  test "every name one of Firefight's skills sets in code is one of its tools, their parameters, a form or a form field" do
     tool_classes = Mcp::Tools.all.index_by { |tool_class| tool_class.name_value.to_s }
     known_everywhere = IncidentForm::SLUGS + IncidentSystemField.constants.grep(/\AKEY_/).map { |key| IncidentSystemField.const_get(key) }
 
-    Chat::Skill.all.each do |skill|
+    Chat::Skill.all.select(&:firefight?).each do |skill|
       parameters = skill.tools.flat_map { |tool| tool_classes.fetch(tool).input_schema_value.to_h.fetch(:properties, {}).keys.map(&:to_s) }
       known = skill.tools + parameters + known_everywhere
       skill.steps.scan(/`([^`]+)`/).flatten.each do |name|
         assert_includes known, name, "#{skill.name} sets #{name} in code, which none of its tools, parameters or forms has"
+      end
+    end
+  end
+
+  test "a provider's skills sit under that provider's key and its category" do
+    Chat::Skill.all.reject(&:firefight?).each do |skill|
+      provider = IntegrationProvider.find(skill.source)
+      assert provider, "#{skill.name} sits under #{skill.source}, which is not a provider"
+      assert_equal IntegrationProvider.category_slug(provider.category), skill.domain, "#{skill.name} sits under the wrong category"
+    end
+  end
+
+  # A native pack's tools are in this repository, so its skills are held to them here. A connected server's are
+  # checked each day by SkillCheckJob.
+  test "every tool and parameter a native provider's skill names is one its pack declares" do
+    Chat::Skill.all.reject(&:firefight?).each do |skill|
+      pack = Integrations::NativePack.for(skill.source)
+      next unless pack
+
+      definitions = pack.tool_definitions.index_by(&:name)
+      skill.tools.each { |tool| assert_includes definitions.keys, tool, "#{skill.name} names #{tool}" }
+      known = skill.tools + skill.tools.flat_map { |tool| definitions.fetch(tool).params_schema.fetch("properties", {}).keys }
+      skill.steps.scan(/`([^`]+)`/).flatten.each do |name|
+        assert_includes known, name, "#{skill.name} sets #{name} in code, which none of its tools or their parameters has"
       end
     end
   end

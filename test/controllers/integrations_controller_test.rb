@@ -77,7 +77,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     row = integration.integration_environments.sole
     assert_equal "nf-s3cret", row.credentials_hash[Integrations::Packs::Northflank::API_TOKEN]
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
-    assert_equal %w[list_resources query_metrics recent_builds search_logs], integration.tools.pluck(:name).sort
+    assert_equal Integrations::Packs::Northflank.tool_definitions.map(&:name).sort, integration.tools.pluck(:name).sort
 
     get integrations_path, headers: inertia_headers
     assert_not_includes response.body, "nf-s3cret"

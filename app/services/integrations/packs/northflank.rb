@@ -26,6 +26,15 @@ module Integrations
       MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
       BUILD_LIMIT = 10
+      DEPLOYMENT_LIMIT = 20
+      CONTAINER_LIMIT = 50
+      RUN_LIMIT = 20
+      BACKUPS_SHOWN = 3
+      # Northflank's container states, as the model should read them.
+      CONTAINER_STATES = {
+        "TASK_RUNNING" => "running", "TASK_STARTING" => "starting", "TASK_STAGING" => "scheduled", "TASK_KILLING" => "stopping",
+        "TASK_KILLED" => "stopped", "TASK_FAILED" => "failed", "TASK_FINISHED" => "finished"
+      }.freeze
 
       RANGE = {
         "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{DEFAULT_MINUTES})" },
@@ -87,10 +96,81 @@ module Integrations
            },
            read_only: true
 
+      tool :describe_resource,
+           description: "How one service or database is set up and how it stands now. A service: its rollout status, " \
+                        "instances, plan, the repository, branch and commit it runs or the image, ephemeral storage, health " \
+                        "checks and ports. A database: its type and version, status, replicas, storage, plan, network access, " \
+                        "secret rotation, pending actions and latest backups",
+           params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
+           read_only: true
+
+      tool :list_deployments,
+           description: "A service's deployments, newest first: when each went out, the commit or image, how many instances, " \
+                        "and why (such as a build, a template or release run, or a change to its settings) and by whom. " \
+                        "Use it to see what changed before something broke",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :list_containers,
+           description: "The containers of a service or database, newest first, running and past, with each one's state " \
+                        "(running, starting, stopped, failed, finished) and when it started and last changed. Many short lived " \
+                        "containers mean restarts",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "limit" => { "type" => "integer", "description" => "At most this many containers (optional, #{CONTAINER_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :list_jobs,
+           description: "The jobs in the project, cron and manual, with whether each is suspended. Use job_runs for how a job's runs went",
+           params_schema: { "type" => "object", "properties" => {} },
+           read_only: true
+
+      tool :job_runs,
+           description: "A job's runs, newest first, with each one's outcome (succeeded, running, failed), when it started and " \
+                        "finished, and how many attempts failed",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "job" => { "type" => "string", "description" => "The job, by name or id, as list_jobs shows it" },
+               "limit" => { "type" => "integer", "description" => "At most this many runs (optional, #{RUN_LIMIT})" }
+             },
+             "required" => [ "job" ]
+           },
+           read_only: true
+
+      tool :build_logs,
+           description: "Log lines from a service's builds, newest first, at most #{LOG_LIMIT}. Name a build from recent_builds " \
+                        "to read one build, such as the one that failed",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "build" => { "type" => "string", "description" => "A build's id, as recent_builds shows it (optional, every build in the range)" },
+               "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
+               "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
+               **RANGE
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read projects and view observability, and nothing else."),
+                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability, and nothing else."),
           CredentialField.new(key: PROJECT, label: "Project", secret: false, placeholder: "my-project",
                               hint: "The id of the Northflank project this environment runs in, as it appears in the project's URL.")
         ]
@@ -165,6 +245,82 @@ module Integrations
         Telemetry.result("Latest #{rows.size} builds of #{resource[:name]}, newest first.\n#{rows.join("\n")}")
       end
 
+      def describe_resource(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        lines = resource[:kind] == KIND_SERVICES ? service_lines(environment_row, resource) : database_lines(environment_row, resource)
+        Telemetry.result(lines.compact.join("\n"))
+      end
+
+      def list_deployments(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        fail! "#{resource[:name]} is a database, and only services have deployments." unless resource[:kind] == KIND_SERVICES
+
+        deployments = api(environment_row).deployments(project_of(environment_row), resource[:id], limit: limit(arguments, DEPLOYMENT_LIMIT))
+        return Telemetry.result("#{resource[:name]} has no deployments.") if deployments.empty?
+
+        rows = deployments.map { |deployment| deployment_line(deployment) }
+        Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first.\n#{rows.join("\n")}")
+      end
+
+      def list_containers(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        containers = api(environment_row).containers(project_of(environment_row), resource[:kind], resource[:id], limit: limit(arguments, CONTAINER_LIMIT))
+        return Telemetry.result("#{resource[:name]} has no containers.") if containers.empty?
+
+        rows = containers.sort_by { |container| -container["createdAt"].to_i }.map do |container|
+          state = CONTAINER_STATES.fetch(container["status"].to_s, container["status"].to_s.downcase)
+          "#{container['name']}, #{state}, started #{epoch(container['createdAt'])}, last changed #{epoch(container['updatedAt'])}"
+        end
+        running = containers.count { |container| container["status"] == "TASK_RUNNING" }
+        failed = containers.count { |container| container["status"] == "TASK_FAILED" }
+        Telemetry.result("#{resource[:name]}: #{running} running, #{failed} failed, #{rows.size} listed, newest first.\n#{rows.join("\n")}")
+      end
+
+      def list_jobs(environment_row:, arguments:)
+        project = project_of(environment_row)
+        rows = api(environment_row).jobs(project).map do |job|
+          [ "#{job['name']} (#{job['id']})", "#{job['jobType']} job", ("suspended" if job["suspended"]) ].compact.join(", ")
+        end
+        return Telemetry.result("Project #{project} has no jobs.") if rows.empty?
+
+        Telemetry.result("Project #{project}, #{rows.size} jobs.\n#{rows.join("\n")}")
+      end
+
+      def job_runs(environment_row:, arguments:)
+        project = project_of(environment_row)
+        wanted = arguments["job"].to_s.strip.downcase
+        fail! "Say which job, by name or id. list_jobs shows them." if wanted.empty?
+
+        job = api(environment_row).jobs(project).find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
+        fail! "No job called #{arguments['job']} in this project. list_jobs shows what there is." unless job
+
+        runs = api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
+        return Telemetry.result("#{job['name']} has no runs.") if runs.empty?
+
+        rows = runs.map do |run|
+          [ run["startedAt"], run["status"].to_s.downcase, ("finished #{run['concludedAt']}" if run["concludedAt"]),
+            ("#{run['failed']} failed attempts" if run["failed"].to_i.positive?) ].compact.join(", ")
+        end
+        Telemetry.result("Latest #{rows.size} runs of #{job['name']}, newest first.\n#{rows.join("\n")}")
+      end
+
+      def build_logs(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        fail! "#{resource[:name]} is a database, and only services have builds." unless resource[:kind] == KIND_SERVICES
+
+        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        line_limit = limit(arguments, LOG_LIMIT)
+        query = {
+          "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601, "lineLimit" => line_limit, "direction" => "backward",
+          "buildId" => arguments["build"].presence, "textIncludes" => arguments["text"].presence, "regexIncludes" => arguments["regex"].presence
+        }
+        lines = api(environment_row).build_logs(project_of(environment_row), resource[:id], query).map do |line|
+          Telemetry::LogLine.new(at: Telemetry.parse_time(line["ts"]) || ended, source: arguments["build"].to_s, text: line["log"])
+        end
+        asked = "the builds of #{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
+        Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: line_limit))
+      end
+
       def check_health!(environment_row)
         api(environment_row).project(project_of(environment_row))
       rescue NorthflankApi::Error => error
@@ -204,6 +360,87 @@ module Integrations
 
         found = resources(environment_row).find { |resource| [ resource[:id], resource[:name] ].compact.map(&:downcase).include?(wanted) }
         found || fail!("No service or database called #{asked} in this project. list_resources shows what there is.")
+      end
+
+      def limit(arguments, most) = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, most ].min : most
+
+      def epoch(seconds) = seconds ? Time.zone.at(seconds.to_i).utc.iso8601 : "unknown"
+
+      def service_lines(environment_row, resource)
+        service = api(environment_row).service(project_of(environment_row), resource[:id])
+        rollout = service.dig("status", "deployment") || {}
+        deployment = service["deployment"] || {}
+        source = deployment["internal"] || {}
+        [
+          "#{resource[:name]}, #{service['serviceType']} service",
+          ("Rollout: #{rollout['status']}, #{rollout['reason']}, since #{rollout['lastTransitionTime']}. COMPLETED means the latest deployment rolled out and is serving, not that the process ended." if rollout.any?),
+          "Instances: #{deployment['instances'] || 'none'}#{", plan #{service.dig('billing', 'deploymentPlan')}" if service.dig('billing', 'deploymentPlan')}",
+          running_from(source, deployment),
+          ("Ephemeral storage: #{deployment.dig('storage', 'ephemeralStorage', 'storageSize')} MB, a container writing past it is evicted" if deployment.dig("storage", "ephemeralStorage", "storageSize")),
+          health_lines(service["healthChecks"]),
+          port_lines(service["ports"])
+        ]
+      end
+
+      def running_from(source, deployment)
+        return "Runs #{source['repository']}, branch #{source['branch']}, deployed commit #{source['deployedSHA']}" if source["repository"]
+        return "Runs builds of #{source['nfObjectId']}, deployed commit #{source['deployedSHA']}" if source["nfObjectId"]
+
+        image = deployment.dig("external", "imagePath") || deployment["imageUrl"]
+        "Runs the image #{image}" if image
+      end
+
+      def health_lines(checks)
+        return "Health checks: none, so Northflank cannot tell a hung process from a healthy one." if checks.blank?
+
+        rows = checks.map do |check|
+          target = [ check["protocol"], check["port"] && "port #{check['port']}", check["path"], check["cmd"] ].compact.join(" ")
+          "#{check['type']}: #{target}, every #{check['periodSeconds']}s, timeout #{check['timeoutSeconds']}s, fails after #{check['failureThreshold']} misses"
+        end
+        "Health checks:\n#{rows.join("\n")}"
+      end
+
+      def port_lines(ports)
+        return nil if ports.blank?
+
+        rows = ports.map { |port| "#{port['name']} #{port['internalPort']} #{port['protocol']}, #{port['public'] ? 'public' : 'private'}" }
+        "Ports: #{rows.join('; ')}"
+      end
+
+      def database_lines(environment_row, resource)
+        project = project_of(environment_row)
+        addon = api(environment_row).addon(project, resource[:id])
+        config = addon.dig("spec", "config") || {}
+        deployment = config["deployment"] || {}
+        networking = config["networking"] || {}
+        rotation = config["secretRotation"]
+        pending = Array(addon.dig("spec", "pendingActions")).map { |action| "#{action['type']} since #{action['createdAt']}" }
+        [
+          "#{resource[:name]}, #{addon.dig('spec', 'type')} #{config['versionTag']} database, version #{config['lifecycleStatus'] || 'support unknown'}",
+          "Status: #{addon['status']}",
+          "Replicas: #{deployment['replicas']}, storage #{deployment['storageSize']} MB #{deployment['storageClass']}, plan #{deployment['planId']}. Storage and replicas can only grow.",
+          "TLS #{networking['tlsEnabled'] ? 'on' : 'off'}, access from outside the project #{networking['externalAccessEnabled'] ? 'on' : 'off'}",
+          ("Secret rotation: #{rotation['status']}, started #{rotation['startedAt']}#{", finished #{rotation['completedAt']}" if rotation['completedAt']}" if rotation),
+          ("Pending: #{pending.join('; ')}" if pending.any?),
+          backup_lines(environment_row, project, resource)
+        ]
+      end
+
+      def backup_lines(environment_row, project, resource)
+        backups = api(environment_row).backups(project, resource[:id], limit: BACKUPS_SHOWN)
+        return "Backups: none" if backups.empty?
+
+        "Latest backups: #{backups.map { |backup| "#{backup['createdAt']} #{backup['status']}" }.join('; ')}"
+      rescue NorthflankApi::Error => error
+        "Backups could not be read: #{error.message}"
+      end
+
+      def deployment_line(deployment)
+        commit = deployment["commit"]
+        what = commit ? "#{commit['sha'].to_s.first(12)} \"#{commit['message'].to_s.lines.first.to_s.strip}\" by #{commit['author']}" : "image #{deployment.dig('image', 'imagePath') || deployment.dig('image', 'image')}:#{deployment.dig('image', 'tag')}"
+        who = deployment.dig("reason", "user", "name")
+        [ deployment["createdAt"], ("active" if deployment["active"]), "#{deployment['instances']} instances", what,
+          "reason #{deployment.dig('reason', 'id') || 'unknown'}#{" by #{who}" if who}" ].compact.join(", ")
       end
 
       # The resource's page in Northflank's app. appId starts with the team, as in /team/project/service. A service's

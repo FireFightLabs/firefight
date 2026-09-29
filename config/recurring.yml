@@ -25,6 +25,10 @@ development:
     class: InvestigationSweepJob # hands runs whose worker died to a new one, so an incident is never stuck as being investigated
     queue: investigations
     schedule: every 2 minutes
+  skill_check:
+    class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
+    queue: background
+    schedule: at 4am every day
   refresh_model_registry:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
@@ -75,6 +79,10 @@ staging:
     class: InvestigationSweepJob # hands runs whose worker died to a new one, so an incident is never stuck as being investigated
     queue: investigations
     schedule: every 2 minutes
+  skill_check:
+    class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
+    queue: background
+    schedule: at 4am every day
   refresh_model_registry:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
@@ -125,6 +133,10 @@ production:
     class: InvestigationSweepJob # hands runs whose worker died to a new one, so an incident is never stuck as being investigated
     queue: investigations
     schedule: every 2 minutes
+  skill_check:
+    class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
+    queue: background
+    schedule: at 4am every day
   refresh_model_registry:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
