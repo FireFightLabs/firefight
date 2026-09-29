@@ -123,6 +123,13 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      # Built once up front. Otherwise each parallel worker that renders a page builds on its own, and one reads the
+      # manifest while another rewrites it, which fails random system tests with an empty page.
+      - name: Build assets
+        env:
+          RAILS_ENV: test
+        run: bin/vite build
+
       - name: Run tests
         env:
           RAILS_ENV: test
