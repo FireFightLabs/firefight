@@ -16,13 +16,18 @@ module Investigation::Seeding
   KEY_CLUES = "clues".freeze
   # What the workspace learned about what the incident touches, each a hunch to check.
   KEY_MEMORIES = "memories".freeze
+  # How people here want the agent to work on what the incident touches, never evidence.
+  KEY_INSTRUCTIONS = "instructions".freeze
 
   # Gathered once, so every turn and a resumed run read the same facts.
   def build_seed_pack!
     return seed_pack if seed_pack.present?
 
-    memories = Chat::Memory.starting_with(workspace, Chat::Memory.subjects_for(incident)).map(&:line)
-    update!(seed_pack: seeder.gather.merge(KEY_CLUES => Investigation::Clues.new(self).gather, KEY_MEMORIES => memories))
+    subjects = Chat::Memory.subjects_for(incident)
+    memories = Chat::Memory.starting_with(workspace, subjects).map(&:line)
+    instructions = Chat::Instruction.for_subjects(workspace, subjects).map(&:line)
+    update!(seed_pack: seeder.gather.merge(KEY_CLUES => Investigation::Clues.new(self).gather, KEY_MEMORIES => memories,
+                                           KEY_INSTRUCTIONS => instructions))
     seed_pack
   end
 

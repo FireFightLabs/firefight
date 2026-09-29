@@ -5,7 +5,7 @@ class ResourceMap::View
   INCIDENT_WINDOW = 30.days
   CHANGE_WINDOW = 24.hours
 
-  Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids)
+  Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids, :memories, :instructions)
 
   attr_reader :workspace
 
@@ -20,7 +20,9 @@ class ResourceMap::View
         resource: resource, entries: entries,
         open_incidents: entries.flat_map { |entry| open_incidents_by_entry.fetch(entry.id, []) }.uniq,
         recent_incident_count: entries.flat_map { |entry| recent_incident_ids_by_entry.fetch(entry.id, []) }.uniq.size,
-        last_change: last_changes[resource.id], dependent_ids: dependents.fetch(resource.id, [])
+        last_change: last_changes[resource.id], dependent_ids: dependents.fetch(resource.id, []),
+        memories: ([ resource ] + entries).flat_map { |subject| memories_by_subject.fetch([ subject.class.name, subject.id ], []) },
+        instructions: ([ resource ] + entries).flat_map { |subject| instructions_by_subject.fetch([ subject.class.name, subject.id ], []) }
       )
     end
   end
@@ -87,6 +89,18 @@ class ResourceMap::View
                                                         .where(catalog_entry_id: entry_ids, incidents: { workspace_id: workspace.id, created_at: INCIDENT_WINDOW.ago.. })
                                                         .pluck(:catalog_entry_id, :incident_id)
                                                         .group_by(&:first).transform_values { |pairs| pairs.map(&:last).uniq }
+  end
+
+  # What the workspace remembers about each resource and the catalog entries it runs, in use or flagged, never rejected.
+  def memories_by_subject
+    @memories_by_subject ||= Chat::Memory.where(workspace: workspace, state: Chat::Memory::USED_STATES + [ Chat::Memory::STATE_DISPUTED ])
+                                         .where(subject_id: resource_ids + entry_ids).most_trusted_first.to_a
+                                         .group_by { |memory| [ memory.subject_type, memory.subject_id ] }
+  end
+
+  def instructions_by_subject
+    @instructions_by_subject ||= Chat::Instruction.current.where(workspace: workspace, scope_id: resource_ids + entry_ids).includes(:scope).to_a
+                                                  .group_by { |note| [ note.scope_type, note.scope_id ] }
   end
 
   def last_changes

@@ -311,6 +311,15 @@ Rails.application.routes.draw do
     get "/catalogue/search/members", to: "catalogue#search_members", as: :catalogue_search_members
     get "/catalogue/search/channels", to: "catalogue#search_channels", as: :catalogue_search_channels
 
+    get "/memory", to: "memory#index", as: :memory
+    post "/memory/memories", to: "memory#create_memory", as: :memory_memories
+    post "/memory/memories/:id/confirm", to: "memory#confirm_memory", as: :confirm_memory
+    post "/memory/memories/:id/correct", to: "memory#correct_memory", as: :correct_memory
+    post "/memory/memories/:id/reject", to: "memory#reject_memory", as: :reject_memory
+    post "/memory/instructions", to: "memory#create_instruction", as: :memory_instructions
+    patch "/memory/instructions/:id", to: "memory#update_instruction", as: :memory_instruction
+    delete "/memory/instructions/:id", to: "memory#destroy_instruction"
+
     get "/map", to: "resource_map#index", as: :resource_map
     post "/map/sync", to: "resource_map#sync", as: :resource_map_sync
     post "/map/links", to: "resource_map#create_link", as: :resource_map_links

@@ -1,0 +1,58 @@
+# A memory as the Memory page shows it: what it says, what it is about, where it came from, and who decided on it.
+class ChatMemorySerializer < BaseSerializer
+  object_as :memory
+
+  type :string
+  def id = memory.id
+
+  type :string
+  def text = memory.text
+
+  type "ChatMemoryState"
+  def state = memory.state
+
+  type :string, optional: true
+  def about = memory.about
+
+  type :string, optional: true
+  def subject = Chat::Memory.subject_key(memory.subject)
+
+  # Where it came from, in words, such as INC-042, a chat or the person who wrote it on this page.
+  type :string
+  def source_label
+    case memory.source
+    when Incident then "#{memory.source.identifier} #{memory.source.name}"
+    when Investigation then "An investigation"
+    when Conversation then "A chat"
+    when WorkspaceMembership then "Written here"
+    else "Unknown"
+    end
+  end
+
+  type :string, optional: true
+  def source_incident_id = (memory.source_id if memory.source.is_a?(Incident))
+
+  type :string, optional: true
+  def added_by = memory.added_by&.display_name
+
+  type :string, optional: true
+  def confirmed_by = memory.confirmed_by&.display_name
+
+  type :string, optional: true
+  def confirmed_at = memory.confirmed_at&.utc&.iso8601
+
+  type :string, optional: true
+  def rejected_by = memory.rejected_by&.display_name
+
+  type :string, optional: true
+  def reason = memory.state_reason
+
+  type :string
+  def created_at = memory.created_at.utc.iso8601
+
+  type :string, optional: true
+  def last_used_at = memory.last_used_at&.utc&.iso8601
+
+  type :number
+  def use_count = memory.use_count
+end

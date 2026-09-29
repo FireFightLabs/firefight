@@ -44,6 +44,7 @@ const CHANGE_LABELS: Record<ResourceMapChangeKind, (change: ResourceMapChange) =
   appeared: (change) => `${change.resourceName} appeared`,
   removed: (change) => `${change.resourceName} is gone`,
   deployed: (change) => `${change.resourceName} deployed ${shortCommit(change.toValue)}`,
+  renamed: (change) => `${change.fromValue ?? "A resource"} was renamed ${change.toValue ?? change.resourceName}`,
   status_changed: (change) => `${change.resourceName} went from ${change.fromValue ?? "unknown"} to ${change.toValue ?? "unknown"}`,
 }
 
