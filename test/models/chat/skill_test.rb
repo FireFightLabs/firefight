@@ -66,4 +66,23 @@ class Chat::SkillTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "every guide a skill lists is one its source keeps, and a source's guides carry their license and origin" do
+    Chat::Skill.all.each do |skill|
+      skill.references.each do |path|
+        assert_includes Chat::Skill.references_of(skill.source), path, "#{skill.name} lists #{path}, which #{skill.source} does not keep"
+      end
+    end
+    Dir[Chat::Skill::DIRECTORY.join("*", Chat::Skill::REFERENCES)].each do |folder|
+      assert File.exist?(File.join(folder, "LICENSE")), "#{folder} has no LICENSE"
+      assert File.exist?(File.join(folder, "SOURCE")), "#{folder} does not say where it came from"
+    end
+  end
+
+  test "a guide is never read as a skill, and nothing outside a source's guides can be read" do
+    assert Chat::Skill.all.none? { |skill| skill.domain == Chat::Skill::REFERENCES }
+    assert_includes Chat::Skill.reference("planetscale", "postgres/ps-connections.md"), "PgBouncer"
+    assert_nil Chat::Skill.reference("planetscale", "../databases/triage.md")
+    assert_nil Chat::Skill.reference("planetscale", "../../../master.key")
+  end
 end

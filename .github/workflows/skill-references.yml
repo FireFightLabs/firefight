@@ -1,0 +1,37 @@
+# Once a week, copies each provider's guides again (bin/sync-skill-references) and opens a pull request when they
+# changed, so an update is read before Halon uses it.
+name: Skill references
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Copy the providers' guides
+        run: bin/sync-skill-references
+
+      - name: Open a pull request when they changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --quiet -- config/skills && git diff --quiet --cached -- config/skills && [ -z "$(git ls-files --others --exclude-standard config/skills)" ] && exit 0
+          branch="chore/skill-references-$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add config/skills/*/references
+          git commit -m "Update the providers' guides Halon reads"
+          git push origin "$branch"
+          gh pr create --title "Update the providers' guides Halon reads" \
+            --body "The weekly copy of each provider's guides found changes. Read what changed before merging, since Halon reads these when a skill needs the detail."

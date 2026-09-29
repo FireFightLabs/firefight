@@ -1,0 +1,9 @@
+# Provider guides kept under config/skills/<provider>/references/, copied from the provider's own repository by
+# bin/sync-skill-references. Only openly licensed repositories go here, and their license travels with the copy.
+planetscale:
+  repository: https://github.com/planetscale/database-skills
+  license: LICENSE
+  paths:
+    skills/postgres/references: postgres
+    skills/mysql/references: mysql
+    skills/vitess/references: vitess
