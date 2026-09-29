@@ -25,6 +25,10 @@ module TypescriptConstants
         "MANAGE" => IntegrationProvider::ACTION_MANAGE
       }, nil),
       Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
+      Export.new("RESOURCE_MAP_KINDS", ResourceMap::KINDS, "ResourceMapKind"),
+      Export.new("RESOURCE_MAP_RELATIONS", ResourceMap::RELATIONS, "ResourceMapRelation"),
+      Export.new("RESOURCE_MAP_ORIGINS", ResourceMap::ORIGINS, "ResourceMapOrigin"),
+      Export.new("RESOURCE_MAP_CHANGE_KINDS", ResourceMap::Change::KINDS, "ResourceMapChangeKind"),
       Export.new("INCIDENT_RELATIONSHIPS", {
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
       }, nil),

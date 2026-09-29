@@ -311,6 +311,15 @@ Rails.application.routes.draw do
     get "/catalogue/search/members", to: "catalogue#search_members", as: :catalogue_search_members
     get "/catalogue/search/channels", to: "catalogue#search_channels", as: :catalogue_search_channels
 
+    get "/map", to: "resource_map#index", as: :resource_map
+    post "/map/sync", to: "resource_map#sync", as: :resource_map_sync
+    post "/map/links", to: "resource_map#create_link", as: :resource_map_links
+    delete "/map/links/:id", to: "resource_map#destroy_link", as: :resource_map_link
+    post "/map/links/:id/confirm", to: "resource_map#confirm_link", as: :confirm_resource_map_link
+    post "/map/links/:id/dismiss", to: "resource_map#dismiss_link", as: :dismiss_resource_map_link
+    post "/map/resources/:id/entries", to: "resource_map#link_entry", as: :resource_map_resource_entries
+    delete "/map/resources/:id/entries/:entry_id", to: "resource_map#unlink_entry", as: :resource_map_resource_entry
+
     resources :webhooks, only: [ :create, :update, :destroy ] do
       member do
         post :test

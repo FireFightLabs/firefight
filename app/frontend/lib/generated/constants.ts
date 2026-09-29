@@ -40,6 +40,42 @@ export const INCIDENT_FORM_SLUGS = [
 ] as const
 export type IncidentFormSlug = (typeof INCIDENT_FORM_SLUGS)[number]
 
+export const RESOURCE_MAP_KINDS = [
+  "service",
+  "build_service",
+  "job",
+  "database",
+  "branch",
+  "repository",
+  "domain"
+] as const
+export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
+
+export const RESOURCE_MAP_RELATIONS = [
+  "runs_builds_of",
+  "built_from",
+  "served_by",
+  "branch_of",
+  "uses"
+] as const
+export type ResourceMapRelation = (typeof RESOURCE_MAP_RELATIONS)[number]
+
+export const RESOURCE_MAP_ORIGINS = [
+  "declared",
+  "matched",
+  "person",
+  "suggested"
+] as const
+export type ResourceMapOrigin = (typeof RESOURCE_MAP_ORIGINS)[number]
+
+export const RESOURCE_MAP_CHANGE_KINDS = [
+  "appeared",
+  "removed",
+  "deployed",
+  "status_changed"
+] as const
+export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
+
 export const INCIDENT_RELATIONSHIPS = {
   "RELATED": "related",
   "DUPLICATE": "duplicate"

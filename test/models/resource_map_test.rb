@@ -41,6 +41,23 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_equal [ ResourceMap::ORIGIN_PERSON ], resource("web").links_out.map(&:origin)
   end
 
+  test "a sweep records what changed: what appeared, a new running commit, a status that moved, and what is gone" do
+    ResourceMap.record!(@row, snapshot(deployed("aaa", "running")), at: 1.hour.ago)
+    ResourceMap.record!(@row, snapshot(deployed("bbb", "failed")))
+    ResourceMap.record!(@row, snapshot)
+
+    changes = resource("web").changes_seen.order(:happened_at, :kind).map { |change| [ change.kind, change.from_value, change.to_value ] }
+    assert_equal [ [ ResourceMap::Change::KIND_APPEARED, nil, nil ], [ ResourceMap::Change::KIND_DEPLOYED, "aaa", "bbb" ],
+                   [ ResourceMap::Change::KIND_STATUS_CHANGED, "running", "failed" ], [ ResourceMap::Change::KIND_REMOVED, nil, nil ] ].sort_by(&:first),
+                 changes.sort_by(&:first)
+  end
+
+  test "what a provider reported is named for a person, in reading order, with the running commit shortened" do
+    facts = ResourceMap.facts("deployed_commit" => "c4e4267d46e638ac", "plan" => "nf-compute-100-2", "production" => true, "appId" => "/team/p/web")
+
+    assert_equal [ [ "Plan", "nf-compute-100-2" ], [ "Running commit", "c4e4267" ], [ "Production", "Yes" ] ], facts
+  end
+
   test "a resource two connections report is one resource" do
     other = connection("northflank_two")
     ResourceMap.record!(@row, snapshot(repository))
@@ -57,6 +74,11 @@ class ResourceMapTest < ActiveSupport::TestCase
   end
 
   def web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web", status: "running")
+
+  def deployed(commit, status)
+    ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web",
+                           status: status, details: { "deployed_commit" => commit })
+  end
 
   def repository = ResourceMap::Found.new(provider: "github", account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/app", name: "acme/app")
 
