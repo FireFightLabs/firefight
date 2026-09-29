@@ -17,7 +17,6 @@ cloudflare:
     Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright Cloudflare, Inc.
   pages:
     mcp/cloudflare-api-mcp.md: agents/model-context-protocol/cloudflare/servers-for-cloudflare
-    api/token-permissions.md: fundamentals/api/reference/permissions
     api/limits.md: fundamentals/api/reference/limits
     security/ip-access-rules.md: waf/tools/ip-access-rules
     security/ip-access-rules-create.md: waf/tools/ip-access-rules/create
