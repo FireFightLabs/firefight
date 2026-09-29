@@ -79,6 +79,7 @@ module FirefightAi
         - If the evidence supports no cause, conclude saying that. A wrong answer costs the team more than no answer.
         - When there is no incident yet and what you found is hurting users now, set suggest_incident in conclude, so the team is offered to declare one. Leave it out for anything that can wait.
         - A reply without a tool call does nothing. Only conclude ends the run.
+        - #{Punctuation::RULE}
       PROMPT
     end
 
