@@ -39,8 +39,17 @@ module ResourceMap
   ORIGIN_MATCHED = "matched".freeze
   ORIGIN_PERSON = "person".freeze
   ORIGIN_SUGGESTED = "suggested".freeze
-  ORIGINS = [ ORIGIN_DECLARED, ORIGIN_MATCHED, ORIGIN_PERSON, ORIGIN_SUGGESTED ].freeze
+  # Firefight's own guess from clues every sweep can check, such as a service and a database named for the same
+  # project. Like Halon's suggestions, it is not a fact until a person confirms it.
+  ORIGIN_INFERRED = "inferred".freeze
+  ORIGINS = [ ORIGIN_DECLARED, ORIGIN_MATCHED, ORIGIN_PERSON, ORIGIN_SUGGESTED, ORIGIN_INFERRED ].freeze
   SWEPT_ORIGINS = [ ORIGIN_DECLARED, ORIGIN_MATCHED ].freeze
+  SUGGESTION_ORIGINS = [ ORIGIN_SUGGESTED, ORIGIN_INFERRED ].freeze
+
+  # How sure a suggestion is. Likely is two clues that agree, possible is one.
+  CERTAINTY_LIKELY = "likely".freeze
+  CERTAINTY_POSSIBLE = "possible".freeze
+  CERTAINTIES = [ CERTAINTY_LIKELY, CERTAINTY_POSSIBLE ].freeze
 
   # What one sweep of one connection saw. A resource is named by its key, the same whichever connection reports it, so a
   # repository two services build from is one resource. gaps are the parts the sweep could not read, in words.

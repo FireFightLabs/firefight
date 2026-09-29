@@ -12,12 +12,16 @@ class ResourceMap::Link < ApplicationRecord
 
   # A dismissed suggestion is kept, so the same wrong link is not suggested again, but it is no longer part of the map.
   scope :standing, -> { where(dismissed_at: nil) }
-  scope :to_review, -> { standing.where(origin: ResourceMap::ORIGIN_SUGGESTED, confirmed_at: nil) }
+  scope :to_review, -> { standing.where(origin: ResourceMap::SUGGESTION_ORIGINS, confirmed_at: nil) }
+  # Facts: every standing link except a suggestion no one has confirmed.
+  scope :facts, -> { standing.where.not(origin: ResourceMap::SUGGESTION_ORIGINS).or(standing.where.not(confirmed_at: nil)) }
+
+  validates :certainty, inclusion: { in: ResourceMap::CERTAINTIES }, allow_nil: true
 
   validates :relation, inclusion: { in: ResourceMap::RELATIONS }
   validates :origin, inclusion: { in: ResourceMap::ORIGINS }
 
-  def suggested? = origin == ResourceMap::ORIGIN_SUGGESTED
+  def suggested? = ResourceMap::SUGGESTION_ORIGINS.include?(origin)
 
   def unconfirmed? = suggested? && confirmed_at.nil?
 
@@ -27,7 +31,7 @@ class ResourceMap::Link < ApplicationRecord
     case origin
     when ResourceMap::ORIGIN_DECLARED, ResourceMap::ORIGIN_MATCHED
       "#{integration_environment&.integration&.name || 'A connection'} reports this link, so it goes when the connection stops reporting it."
-    when ResourceMap::ORIGIN_SUGGESTED
+    when *ResourceMap::SUGGESTION_ORIGINS
       "Confirm or dismiss this suggestion instead." if confirmed_at.nil?
     end
   end

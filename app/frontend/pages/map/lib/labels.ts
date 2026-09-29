@@ -1,4 +1,10 @@
-import type { ResourceMapChangeKind, ResourceMapKind, ResourceMapOrigin, ResourceMapRelation } from "@/lib/generated/constants"
+import type {
+  ResourceMapCertainty,
+  ResourceMapChangeKind,
+  ResourceMapKind,
+  ResourceMapOrigin,
+  ResourceMapRelation,
+} from "@/lib/generated/constants"
 import type { ResourceMapChange, ResourceMapLink } from "@/types/serializers"
 
 export const KIND_LABELS: Record<ResourceMapKind, string> = {
@@ -29,11 +35,21 @@ export const RELATION_WORDS: Record<ResourceMapRelation, string> = {
   uses: "uses",
 }
 
+export const CERTAINTY_LABELS: Record<ResourceMapCertainty, string> = {
+  likely: "Likely",
+  possible: "Possible",
+}
+
+function certaintyOf(link: ResourceMapLink): string {
+  return link.certainty ? `, ${CERTAINTY_LABELS[link.certainty].toLowerCase()}` : ""
+}
+
 const HOW_FOUND: Record<ResourceMapOrigin, (link: ResourceMapLink) => string> = {
   declared: (link) => `Declared by ${link.foundBy ?? "a connection"}`,
   matched: (link) => `Matched from what ${link.foundBy ?? "a connection"} reports`,
   person: () => "Added by a person",
   suggested: (link) => (link.unconfirmed ? "Suggested by Halon, not confirmed yet" : "Suggested by Halon, confirmed"),
+  inferred: (link) => (link.unconfirmed ? `Suggested by Firefight${certaintyOf(link)}, not confirmed yet` : "Suggested by Firefight, confirmed"),
 }
 
 export function howFound(link: ResourceMapLink): string {

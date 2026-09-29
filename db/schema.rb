@@ -1363,6 +1363,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_210000) do
 
   create_table "resource_map_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "added_by_id"
+    t.string "certainty"
+    t.jsonb "clues", default: [], null: false
     t.datetime "confirmed_at"
     t.uuid "confirmed_by_id"
     t.datetime "created_at", null: false

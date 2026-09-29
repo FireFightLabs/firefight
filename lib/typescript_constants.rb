@@ -35,6 +35,8 @@ module TypescriptConstants
       Export.new("RESOURCE_MAP_ORIGINS", ResourceMap::ORIGINS, "ResourceMapOrigin"),
       Export.new("RESOURCE_MAP_CHANGE_KINDS", ResourceMap::Change::KINDS, "ResourceMapChangeKind"),
       Export.new("RESOURCE_MAP_HEALTHS", ResourceMap::Resource::HEALTHS, "ResourceMapHealth"),
+      Export.new("RESOURCE_MAP_CERTAINTIES", ResourceMap::CERTAINTIES, "ResourceMapCertainty"),
+      Export.new("RESOURCE_MAP_CERTAINTY", { "LIKELY" => ResourceMap::CERTAINTY_LIKELY, "POSSIBLE" => ResourceMap::CERTAINTY_POSSIBLE }, nil),
       Export.new("INCIDENT_RELATIONSHIPS", {
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
       }, nil),

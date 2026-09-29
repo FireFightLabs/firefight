@@ -5,7 +5,8 @@ class ResourceMap::View
   INCIDENT_WINDOW = 30.days
   CHANGE_WINDOW = 24.hours
 
-  Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids, :memories, :instructions)
+  Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids, :suggested_dependent_ids,
+                    :memories, :instructions)
 
   attr_reader :workspace
 
@@ -21,6 +22,7 @@ class ResourceMap::View
         open_incidents: entries.flat_map { |entry| open_incidents_by_entry.fetch(entry.id, []) }.uniq,
         recent_incident_count: entries.flat_map { |entry| recent_incident_ids_by_entry.fetch(entry.id, []) }.uniq.size,
         last_change: last_changes[resource.id], dependent_ids: dependents.fetch(resource.id, []),
+        suggested_dependent_ids: suggested_dependents.fetch(resource.id, []) - dependents.fetch(resource.id, []),
         memories: ([ resource ] + entries).flat_map { |subject| memories_by_subject.fetch([ subject.class.name, subject.id ], []) },
         instructions: ([ resource ] + entries).flat_map { |subject| instructions_by_subject.fetch([ subject.class.name, subject.id ], []) }
       )
@@ -42,25 +44,28 @@ class ResourceMap::View
   end
 
   # Who depends on a resource, directly or through others, read along each link from the one that depends to the one it
-  # depends on. The count ranks what a failure would reach.
-  def dependents
-    @dependents ||= begin
-      needed_by = links.group_by(&:to_resource_id).transform_values { |found| found.map(&:from_resource_id) }
-      resource_ids.index_with do |id|
-        seen = Set.new
-        queue = needed_by.fetch(id, []).dup
-        until queue.empty?
-          next_id = queue.shift
-          next if next_id == id || !seen.add?(next_id)
+  # depends on. The count ranks what a failure would reach, so only facts count. What would also stop if the
+  # suggestions are right is kept apart.
+  def dependents = @dependents ||= reach(links.reject(&:unconfirmed?))
 
-          queue.concat(needed_by.fetch(next_id, []))
-        end
-        seen.to_a
-      end
-    end
-  end
+  def suggested_dependents = @suggested_dependents ||= reach(links)
 
   private
+
+  def reach(through)
+    needed_by = through.group_by(&:to_resource_id).transform_values { |found| found.map(&:from_resource_id) }
+    resource_ids.index_with do |id|
+      seen = Set.new
+      queue = needed_by.fetch(id, []).dup
+      until queue.empty?
+        next_id = queue.shift
+        next if next_id == id || !seen.add?(next_id)
+
+        queue.concat(needed_by.fetch(next_id, []))
+      end
+      seen.to_a
+    end
+  end
 
   def resources
     @resources ||= ResourceMap::Resource.present.where(workspace: workspace)

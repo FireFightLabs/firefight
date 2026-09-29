@@ -61,6 +61,10 @@ class ResourceMapResourceSerializer < BaseSerializer
   type "string[]"
   def dependent_ids = row.dependent_ids
 
+  # Resources that would also stop if the suggested links, which no one has confirmed, are right.
+  type "string[]"
+  def suggested_dependent_ids = row.suggested_dependent_ids
+
   # What the workspace remembers about it or the catalog entries it runs, as [id, state, text].
   type "string[][]"
   def memories = row.memories.map { |memory| [ memory.id, memory.state, memory.text ] }

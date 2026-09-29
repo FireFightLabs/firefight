@@ -84,7 +84,8 @@ export const RESOURCE_MAP_ORIGINS = [
   "declared",
   "matched",
   "person",
-  "suggested"
+  "suggested",
+  "inferred"
 ] as const
 export type ResourceMapOrigin = (typeof RESOURCE_MAP_ORIGINS)[number]
 
@@ -104,6 +105,17 @@ export const RESOURCE_MAP_HEALTHS = [
   "unknown"
 ] as const
 export type ResourceMapHealth = (typeof RESOURCE_MAP_HEALTHS)[number]
+
+export const RESOURCE_MAP_CERTAINTIES = [
+  "likely",
+  "possible"
+] as const
+export type ResourceMapCertainty = (typeof RESOURCE_MAP_CERTAINTIES)[number]
+
+export const RESOURCE_MAP_CERTAINTY = {
+  "LIKELY": "likely",
+  "POSSIBLE": "possible"
+} as const
 
 export const INCIDENT_RELATIONSHIPS = {
   "RELATED": "related",

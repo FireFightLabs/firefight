@@ -6,7 +6,8 @@ import { useMemo } from "react"
 import { ACCOUNT_NODE, type AccountFlowNode, AccountNode } from "@/pages/map/components/account-node"
 import { HANDLES, RESOURCE_NODE, type ResourceFlowNode, ResourceNode } from "@/pages/map/components/resource-node"
 import { layout } from "@/pages/map/lib/graph"
-import { RELATION_WORDS } from "@/pages/map/lib/labels"
+import { RESOURCE_MAP_CERTAINTY } from "@/lib/generated/constants"
+import { CERTAINTY_LABELS, RELATION_WORDS } from "@/pages/map/lib/labels"
 import type { ResourceMapLink, ResourceMapResource } from "@/types/serializers"
 
 const NODE_TYPES = { [RESOURCE_NODE]: ResourceNode, [ACCOUNT_NODE]: AccountNode }
@@ -80,7 +81,8 @@ function drawing(resources: ResourceMapResource[], links: ResourceMapLink[], foc
   const labelled = new Set<string>()
   const edges: Edge[] = links.map((link) => {
     const group = `${link.toId}:${link.relation}`
-    const label = labelled.has(group) ? undefined : RELATION_WORDS[link.relation]
+    const word = link.unconfirmed ? `${RELATION_WORDS[link.relation]}?` : RELATION_WORDS[link.relation]
+    const label = labelled.has(group) ? undefined : link.certainty && link.unconfirmed ? `${word} ${CERTAINTY_LABELS[link.certainty].toLowerCase()}` : word
     labelled.add(group)
     const tone = link.unconfirmed ? "var(--primary)" : "color-mix(in oklch, var(--muted-foreground) 70%, transparent)"
     return {
@@ -92,7 +94,7 @@ function drawing(resources: ResourceMapResource[], links: ResourceMapLink[], foc
       targetHandle: HANDLES.IN,
       label,
       markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: tone },
-      style: { stroke: tone, strokeWidth: 1.4, strokeDasharray: link.unconfirmed ? "5 5" : undefined },
+      style: { stroke: tone, strokeWidth: 1.4, strokeDasharray: dashes(link), opacity: link.unconfirmed && link.certainty === POSSIBLE ? 0.6 : 1 },
       labelStyle: { fill: "var(--muted-foreground)", fontSize: 10.5, fontWeight: 500 },
       labelBgStyle: { fill: "var(--background)", stroke: "var(--border)", strokeWidth: 1 },
       labelBgPadding: [ 7, 3 ] as [number, number],
@@ -101,4 +103,14 @@ function drawing(resources: ResourceMapResource[], links: ResourceMapLink[], foc
   })
 
   return { nodes: [ ...accounts, ...nodes ], edges }
+}
+
+const POSSIBLE = RESOURCE_MAP_CERTAINTY.POSSIBLE
+
+// A fact is a solid line. A likely suggestion is dashed, and a possible one dotted and fainter, since it rests on one clue.
+function dashes(link: ResourceMapLink): string | undefined {
+  if (!link.unconfirmed) {
+    return undefined
+  }
+  return link.certainty === POSSIBLE ? "2 5" : "6 5"
 }
