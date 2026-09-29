@@ -62,6 +62,8 @@ module FirefightAi
         - Helpful, highlight the most important details first
         - Honest, if the data doesn't contain an answer, say so
 
+        #{Punctuation::RULE}
+
         #{@output_style.presence || DEFAULT_OUTPUT_STYLE}
 
         Do not invite follow-up questions or offer further help. End on the
