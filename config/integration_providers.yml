@@ -15,6 +15,7 @@ categories:
   Errors: Error tracking tied to incidents
   Knowledge: Runbooks and documentation as context
   Databases: Read-only data checks
+  Edge: Traffic, security and caching in front of your app
   Custom: Anything with an MCP server
 
 providers:
@@ -63,6 +64,15 @@ providers:
     color: "#f46800"
     description: Reach dashboards and datasources behind your Grafana.
     server_url: ""
+  - key: cloudflare
+    name: Cloudflare
+    category: Edge
+    mark: CF
+    color: "#f38020"
+    description: Read traffic, security events, DNS and cache, and block IPs, add rules or purge the cache when you allow it.
+    server_url: https://mcp.cloudflare.com/mcp
+    # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
+    read_only_tools: [search, docs]
   - key: sentry
     name: Sentry
     category: Errors
