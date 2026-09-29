@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1290,16 +1290,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
     t.index ["template", "version"], name: "index_prompt_versions_on_template_and_version", unique: true
   end
 
-  create_table "resource_map_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "resource_map_changes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "from_value"
+    t.datetime "happened_at", null: false
+    t.string "kind", null: false
+    t.uuid "resource_id", null: false
+    t.string "to_value"
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["resource_id", "happened_at"], name: "index_resource_map_changes_on_resource_id_and_happened_at"
+    t.index ["workspace_id", "happened_at"], name: "index_resource_map_changes_on_workspace_id_and_happened_at"
+  end
+
+  create_table "resource_map_entry_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "added_by_id"
+    t.uuid "catalog_entry_id", null: false
+    t.datetime "created_at", null: false
+    t.uuid "resource_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["added_by_id"], name: "index_resource_map_entry_links_on_added_by_id"
+    t.index ["catalog_entry_id", "resource_id"], name: "index_resource_map_entry_links_identity", unique: true
+    t.index ["catalog_entry_id"], name: "index_resource_map_entry_links_on_catalog_entry_id"
+    t.index ["resource_id"], name: "index_resource_map_entry_links_on_resource_id"
+    t.index ["workspace_id"], name: "index_resource_map_entry_links_on_workspace_id"
+  end
+
+  create_table "resource_map_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "added_by_id"
+    t.datetime "confirmed_at"
+    t.uuid "confirmed_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "dismissed_at"
     t.uuid "from_resource_id", null: false
     t.uuid "integration_environment_id"
     t.datetime "last_seen_at", null: false
+    t.text "note"
     t.string "origin", null: false
     t.string "relation", null: false
     t.uuid "to_resource_id", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.index ["added_by_id"], name: "index_resource_map_links_on_added_by_id"
+    t.index ["confirmed_by_id"], name: "index_resource_map_links_on_confirmed_by_id"
     t.index ["from_resource_id", "to_resource_id", "relation"], name: "index_resource_map_links_identity", unique: true
     t.index ["from_resource_id"], name: "index_resource_map_links_on_from_resource_id"
     t.index ["integration_environment_id"], name: "index_resource_map_links_on_integration_environment_id"
@@ -1760,9 +1794,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "resource_map_changes", "resource_map_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_changes", "workspaces"
+  add_foreign_key "resource_map_entry_links", "catalog_entries", on_delete: :cascade
+  add_foreign_key "resource_map_entry_links", "resource_map_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_entry_links", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "resource_map_entry_links", "workspaces"
   add_foreign_key "resource_map_links", "integration_environments", on_delete: :nullify
   add_foreign_key "resource_map_links", "resource_map_resources", column: "from_resource_id", on_delete: :cascade
   add_foreign_key "resource_map_links", "resource_map_resources", column: "to_resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_links", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "resource_map_links", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "resource_map_links", "workspaces"
   add_foreign_key "resource_map_resources", "integration_environments", on_delete: :nullify
   add_foreign_key "resource_map_resources", "workspaces"

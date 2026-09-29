@@ -50,6 +50,7 @@ module Mcp
     UPDATE_WORKSPACE_SETTINGS = "update_workspace_settings".freeze
     LIST_INTEGRATIONS = "list_integrations".freeze
     GET_RESOURCE_MAP = "get_resource_map".freeze
+    SUGGEST_RESOURCE_LINK = "suggest_resource_link".freeze
     UPSERT_SEVERITY = "upsert_severity".freeze
     DELETE_SEVERITY = "delete_severity".freeze
     UPSERT_STATUS = "upsert_status".freeze
@@ -99,7 +100,7 @@ module Mcp
         UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
         CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
-        GetWorkspaceConfig, UpdateWorkspaceSettings, ListIntegrations, GetResourceMap,
+        GetWorkspaceConfig, UpdateWorkspaceSettings, ListIntegrations, GetResourceMap, SuggestResourceLink,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
         UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook, TestWebhook,

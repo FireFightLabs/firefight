@@ -255,6 +255,13 @@ capitalized. That is the accepted trade-off, not an oversight.
 - **Event names, step statuses, message roles, the channel name and the page's prop names are generated**, from `lib/typescript_constants.rb`. The page never spells one of them out. Prop names come from `AgentChatsController::PROPS`, since partial visits ask for them by name.
 - **The list updates in place.** It loads by the page, so a visit that asked for it again would drop every page past the first. `lib/chat-updates.ts` owns every change: opening a chat, asking, and the reload after an answer ask only for the open chat and its messages and then put that chat in its row (`replaceProp`). Rename, pin, archive and delete change the row with `router.optimistic` and ask only for the archived count, so a refusal puts the row back. The list sorts itself on `pinnedAt` and `lastActiveAt`, the same order as `in_reading_order`, so a changed row lands where a reload would put it. `index` sends `conversation: nil` and `messages: []`, so a partial visit to it clears the open chat.
 
+## The resource map
+
+- **Three views of one page** (`pages/map/`): Map, Focus and Table, with the view and the focused resource in the address (`MAP_QUERY`), so a link from a chat or a teammate opens the same place. Filters (search, environment, provider, type) apply to Map and Table.
+- **Drawn with React Flow and laid out with dagre** (`@xyflow/react`, `@dagrejs/dagre`, both MIT). `lib/graph.ts` lays each account out on its own, left to right in the direction things depend, then stacks the account boxes top to bottom as a graph of their own, so no two boxes overlap and the map reads down a tall screen. Links inside an account run left to right, and links between accounts leave from the bottom and enter from the top (`HANDLES` on `resource-node.tsx`). A suggestion no one confirmed is dashed.
+- **Focus** walks the links out from one resource, one to three hops, both ways, what it needs or what needs it (`neighborhood`), and the panel beside it says what it is, which catalog entries it runs, its open incidents, each link and how it was found, what stops if it fails and its recent changes.
+- **Labels are keyed by the generated unions** (`RESOURCE_MAP_KINDS`, `_RELATIONS`, `_ORIGINS`, `_CHANGE_KINDS`), so a new Ruby value fails `tsc` until it has words. A provider's display name comes from the server (`providerName`), never a TypeScript list.
+
 ## A run's story
 
 `components/investigations/` draws one Halon run, and is shared by the incident page's side panel and the run's own page. It knows nothing of where it is drawn: the page passes the title and names the prop that holds the run.

@@ -71,7 +71,7 @@ module Chat::Tools::Groups
       key: CATALOG, title: "Services, teams and ownership",
       covers: "search the catalog, who owns what, add or change entries and types, and the map of what runs where read off the connections",
       tools: [
-        Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::UPSERT_CATALOG_ENTRY, Mcp::Tools::DELETE_CATALOG_ENTRY,
+        Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::SUGGEST_RESOURCE_LINK, Mcp::Tools::UPSERT_CATALOG_ENTRY, Mcp::Tools::DELETE_CATALOG_ENTRY,
         Mcp::Tools::UPSERT_CATALOG_TYPE, Mcp::Tools::DELETE_CATALOG_TYPE
       ]
     ),

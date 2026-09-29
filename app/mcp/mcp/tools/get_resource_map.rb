@@ -61,9 +61,9 @@ module Mcp
         when ResourceMap::ORIGIN_DECLARED then "declared by #{link.integration_environment&.integration&.name || 'a provider'}"
         when ResourceMap::ORIGIN_MATCHED then "matched from what the providers report"
         when ResourceMap::ORIGIN_PERSON then "added by a person"
-        else "suggested by Halon, not confirmed"
+        else link.confirmed_at ? "suggested by Halon, confirmed by a person" : "suggested by Halon, not confirmed"
         end
-        "#{link.sentence} (#{how}#{', two links away' if hop > 1})"
+        "#{link.sentence} (#{how}#{', two links away' if hop > 1})#{": #{link.note}" if link.note.present?}"
       end
 
       # What each connection could not read, so a missing resource is known to be missing rather than absent.

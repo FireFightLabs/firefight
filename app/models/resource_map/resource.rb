@@ -7,6 +7,9 @@ class ResourceMap::Resource < ApplicationRecord
   belongs_to :integration_environment, optional: true
   has_many :links_out, class_name: "ResourceMap::Link", foreign_key: :from_resource_id, inverse_of: :from_resource, dependent: :delete_all
   has_many :links_in, class_name: "ResourceMap::Link", foreign_key: :to_resource_id, inverse_of: :to_resource, dependent: :delete_all
+  has_many :changes_seen, class_name: "ResourceMap::Change", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
+  has_many :entry_links, class_name: "ResourceMap::EntryLink", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
+  has_many :catalog_entries, through: :entry_links
 
   validates :provider, :account, :external_id, :name, presence: true
   validates :kind, inclusion: { in: ResourceMap::KINDS }
@@ -31,7 +34,7 @@ class ResourceMap::Resource < ApplicationRecord
     frontier = [ id ]
     found = {}
     depth.times do |hop|
-      links = ResourceMap::Link.where(from_resource_id: frontier).or(ResourceMap::Link.where(to_resource_id: frontier))
+      links = ResourceMap::Link.standing.where(from_resource_id: frontier).or(ResourceMap::Link.standing.where(to_resource_id: frontier))
                                .includes(:from_resource, :to_resource).limit(NEIGHBORHOOD_LIMIT)
       frontier = links.flat_map do |link|
         found[link.id] ||= [ link, hop + 1 ]

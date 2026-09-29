@@ -429,12 +429,12 @@ module Integrations
           link(from, found.key, ResourceMap::RELATION_BUILT_FROM)
         end
 
-        def domain(from, host)
+        def domain(service, host)
           apex = host.split(".").last(2).join(".")
           found = ResourceMap::Found.new(provider: DNS, account: apex, kind: ResourceMap::KIND_DOMAIN, external_id: host, name: host,
                                          url: "https://#{host}")
           @resources << found
-          link(from, found.key, ResourceMap::RELATION_SERVES)
+          link(found.key, service, ResourceMap::RELATION_SERVED_BY)
         end
       end
 

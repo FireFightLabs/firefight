@@ -1,0 +1,63 @@
+# One resource on the map page, with what the catalog says about it and what depends on it.
+class ResourceMapResourceSerializer < BaseSerializer
+  object_as :row
+
+  type :string
+  def id = row.resource.id
+
+  type :string
+  def name = row.resource.name
+
+  type "ResourceMapKind"
+  def kind = row.resource.kind
+
+  type :string
+  def provider = row.resource.provider
+
+  type :string
+  def provider_name = ResourceMap.provider_name(row.resource.provider)
+
+  type :string
+  def account = row.resource.account
+
+  type :string
+  def external_id = row.resource.external_id
+
+  type :string, optional: true
+  def environment = row.resource.integration_environment&.environment&.name
+
+  type :string, optional: true
+  def status = row.resource.status
+
+  type :string, optional: true
+  def url = row.resource.url
+
+  # What the provider reported, as label and value pairs a person reads.
+  type "string[][]"
+  def facts = ResourceMap.facts(row.resource.details)
+
+  type :string
+  def first_seen_at = row.resource.first_seen_at.utc.iso8601
+
+  type :string
+  def last_seen_at = row.resource.last_seen_at.utc.iso8601
+
+  type :number
+  def recent_incident_count = row.recent_incident_count
+
+  # Every resource that stops if this one fails, directly or through others.
+  type "string[]"
+  def dependent_ids = row.dependent_ids
+
+  has_many :entries, as: :catalog_entries, serializer: ResourceMapEntrySerializer do
+    row.entries
+  end
+
+  has_many :open_incidents, serializer: ResourceMapIncidentSerializer do
+    row.open_incidents
+  end
+
+  has_one :last_change, serializer: ResourceMapChangeSerializer, optional: true do
+    row.last_change
+  end
+end

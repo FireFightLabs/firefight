@@ -238,7 +238,7 @@ module Integrations
         assert_equal ResourceMap::KIND_REPOSITORY, found["acme/app"].kind
         assert_equal ResourceMap::KIND_DATABASE, found["db"].kind
         assert_not found.key?("internal.acme.dev"), "a private port's domain is not served to anyone"
-        assert_equal [ [ "web", ResourceMap::RELATION_RUNS_BUILDS_OF, "builder" ], [ "web", ResourceMap::RELATION_SERVES, "app.acme.dev" ],
+        assert_equal [ [ "web", ResourceMap::RELATION_RUNS_BUILDS_OF, "builder" ], [ "app.acme.dev", ResourceMap::RELATION_SERVED_BY, "web" ],
                        [ "builder", ResourceMap::RELATION_BUILT_FROM, "acme/app" ] ],
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
         assert_equal [ "Jobs could not be read: Northflank answered 401: needs Jobs Read" ], snapshot.gaps

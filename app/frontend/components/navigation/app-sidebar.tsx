@@ -17,6 +17,7 @@ import {
   IconListDetails,
   IconMessageChatbot,
   IconPlug,
+  IconTopologyStar3,
   IconUrgent,
   IconUsers,
   IconUserShield,
@@ -45,6 +46,7 @@ import {
   cataloguePath,
   dashboardPath,
   integrationsPath,
+  resourceMapPath,
   developerApiKeysPath,
   developerWebhooksPath,
   gatewayActivityPath,
@@ -83,6 +85,7 @@ const navSections: SidebarNavSection[] = [
     items: [
       { title: "Incidents", url: dashboardPath(), icon: IconUrgent },
       { title: "Alerts", url: settingsAlertsPath(), icon: IconBell },
+      { title: "Map", url: resourceMapPath(), icon: IconTopologyStar3 },
     ],
   },
   {
