@@ -13,6 +13,7 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     description = use_skill.description
 
     Chat::Skill.all.each { |skill| assert_includes description, "#{skill.name}: #{skill.used_when}" }
+    assert_includes description, "firefight incident response:\ndeclaring:"
     assert_equal Chat::Skill.all.map(&:name), use_skill.parameters_schema.dig("properties", "skill", "enum")
   end
 

@@ -13,8 +13,8 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
   def description
     @description ||= <<~TEXT.strip
-      Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. The skills:
-      #{Chat::Skill.all.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}
+      Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. The skills, by what they cover:
+      #{listing}
     TEXT
   end
 
@@ -42,6 +42,12 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
   end
 
   private
+
+  def listing
+    Chat::Skill.all.group_by { |skill| [ skill.source, skill.domain ] }.map do |(source, domain), skills|
+      "#{source} #{domain.humanize(capitalize: false)}:\n#{skills.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
+    end.join("\n")
+  end
 
   def refusal(entries)
     return if entries.empty?

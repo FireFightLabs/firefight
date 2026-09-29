@@ -13,6 +13,14 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
+  test "Firefight's own skills sit under the tool group they belong to" do
+    groups = Chat::Tools::Groups::FIREFIGHT.map(&:key)
+
+    Chat::Skill.all.select { |skill| skill.source == Chat::Skill::SOURCE_FIREFIGHT }.each do |skill|
+      assert_includes groups, skill.domain, "#{skill.name} sits under #{skill.domain}, which is not a tool group"
+    end
+  end
+
   # A skill that names a tool or field that no longer exists would send the agent after something that is not there.
   test "every tool a skill names exists and is offered to Halon" do
     offered = Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON
