@@ -63,7 +63,25 @@ module Chat::Tools
     @firefight_reading_names ||= Mcp::Tools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.annotations_value&.read_only_hint }.to_set
   end
 
-  Confirmation = Data.define(:tool_call_id, :question, :asked, :status)
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status)
+
+  # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
+  # whoever approves it. It is taken off before the call is made, so the tool never sees it.
+  INTENT_ARG = "intent".freeze
+  INTENT = {
+    "type" => "string",
+    "description" => "One sentence for the person asked to approve this call: what it will do and why, in plain words, " \
+                     "such as \"List the zones in the account to find the one for firefight.app\""
+  }.freeze
+
+  def self.with_intent(schema)
+    schema = schema.deep_dup
+    schema["properties"] = (schema["properties"] || {}).merge(INTENT_ARG => INTENT)
+    schema["required"] = (Array(schema["required"]) + [ INTENT_ARG ]).uniq
+    schema
+  end
+
+  def self.intent_of(arguments) = arguments.to_h.stringify_keys[INTENT_ARG].to_s.strip.presence
   CONFIRMATION_STATUSES = {
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
   }.freeze
@@ -79,9 +97,9 @@ module Chat::Tools
   def self.step(tool_name, arguments)
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
 
-    asked = shown_arguments(arguments)
+    asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG))
     Step.new(
-      title: tool_name.to_s.tr("_", " ").humanize, headline: headline_for(tool_name, asked), asked: asked,
+      title: tool_name.to_s.tr("_", " ").humanize, headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
       card: card_for(tool_name, arguments)
     )
   end
@@ -139,7 +157,7 @@ module Chat::Tools
     step = step(tool_call.name, tool_call.arguments)
     Confirmation.new(
       tool_call_id: tool_call.tool_call_id, question: "#{step&.title || tool_call.name.humanize}?",
-      asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting)
+      intent: intent_of(tool_call.arguments), asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting)
     )
   end
 

@@ -12,6 +12,12 @@ class AgentChatConfirmationSerializer < BaseSerializer
     Chat::Tools.confirmation(tool_call).question
   end
 
+  # What the call will do, in the agent's words for whoever approves it. Absent on calls saved before it was asked for.
+  type :string, optional: true
+  def intent
+    Chat::Tools.confirmation(tool_call).intent
+  end
+
   type "string[][]"
   def asked
     Chat::Tools.confirmation(tool_call).asked

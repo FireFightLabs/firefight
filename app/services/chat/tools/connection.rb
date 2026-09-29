@@ -15,11 +15,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def description = Chat::Tools.clean(@tool.description, Chat::Tools::FULL_DESCRIPTION)
 
   # The same schema an outside MCP client is handed, so a connection wired per environment is reachable from a chat.
-  def parameters_schema = @tool.offered_schema
+  # A call that waits for the person also asks for its intent, which the confirmation leads with.
+  def parameters_schema = requires_approval? ? Chat::Tools.with_intent(@tool.offered_schema) : @tool.offered_schema
 
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
-    invoke(arguments.transform_keys(&:to_s), tool_call_id: tool_call&.id)
+    invoke(arguments.transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG), tool_call_id: tool_call&.id)
   end
 
   private

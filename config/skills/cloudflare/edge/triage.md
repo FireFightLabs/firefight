@@ -1,6 +1,6 @@
 ---
 name: cloudflare_triage
-when: Starting on anything wrong with a site or API behind Cloudflare, and learning how to reach the Cloudflare API at all
+when: Any question about a domain or zone on Cloudflare, such as checking its configuration or anything wrong with a site behind it, and how to reach the Cloudflare API at all
 tools: [search, execute, docs]
 references: [mcp/cloudflare-api-mcp.md, errors/cloudflare-5xx-errors.md, origin/traffic-flow.md]
 ---

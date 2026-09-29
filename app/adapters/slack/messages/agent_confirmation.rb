@@ -13,14 +13,17 @@ module Slack
       end
 
       def self.fallback(confirmations)
-        "Waiting for you to confirm: #{confirmations.map(&:question).join(", ")}"
+        "Waiting for you to confirm: #{confirmations.map { |confirmation| confirmation.intent || confirmation.question }.join(", ")}"
       end
 
-      # The arguments came from the model, so they are escaped like any other outside text.
+      # The arguments came from the model, so they are escaped like any other outside text. The agent's sentence
+      # leads when it wrote one, and the tool and what it was given follow, so a person sees both what and how.
       def self.question_blocks(conversation_id, confirmation)
-        details = confirmation.asked.map { |name, value| "#{name}: #{Slack::Mrkdwn.escape(value)}" }.join("  ·  ")
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: "*#{Slack::Mrkdwn.escape(confirmation.question)}*" } } ]
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: details } ] } if details.present?
+        details = confirmation.asked.map { |name, value| "#{name}: #{Slack::Mrkdwn.escape(value)}" }
+        details.unshift(Slack::Mrkdwn.escape(confirmation.question.delete_suffix("?"))) if confirmation.intent
+        headline = confirmation.intent || confirmation.question
+        blocks = [ { type: "section", text: { type: "mrkdwn", text: "*#{Slack::Mrkdwn.escape(headline)}*" } } ]
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: details.join("  ·  ") } ] } if details.any?
         blocks << answer_block(conversation_id, confirmation)
       end
 
