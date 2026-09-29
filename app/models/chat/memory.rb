@@ -108,6 +108,12 @@ class Chat::Memory < ApplicationRecord
     end
   end
 
+  # A person, or a published postmortem when by is nil, vouching for it. A rejected memory stays rejected.
+  def confirm!(by:, reason: nil)
+    decide!(STATE_CONFIRMED, from: STATES - [ STATE_REJECTED, STATE_CONFIRMED ], confirmed_by_id: by&.id, confirmed_at: Time.current,
+                             state_reason: reason)
+  end
+
   def dispute!(reason)
     decide!(STATE_DISPUTED, from: [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED ], state_reason: reason)
   end

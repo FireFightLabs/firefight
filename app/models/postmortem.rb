@@ -130,6 +130,9 @@ class Postmortem < ApplicationRecord
   validates :content, presence: true
   validates :status, inclusion: { in: STATUSES }
 
+  # A completed postmortem is a person's considered account, so it is read against what the incident taught.
+  after_update_commit :learn_from_postmortem, if: -> { saved_change_to_status?(to: STATUS_COMPLETED) }
+
   def html_content
     content["html"].presence || legacy_sections_to_html
   end
@@ -146,5 +149,9 @@ class Postmortem < ApplicationRecord
       body = Commonmarker.to_html(section["body"] || "", options: { parse: { smart: true }, render: { unsafe: true } })
       "<h2>#{heading}</h2>\n#{body}"
     end.join("\n")
+  end
+
+  def learn_from_postmortem
+    IncidentLearningJob.perform_later(incident_id, true) if defined?(FirefightAi)
   end
 end

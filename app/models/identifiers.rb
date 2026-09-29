@@ -138,6 +138,8 @@ module Identifiers
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"
   AGENT_CANCEL = "agent_cancel"
+  MEMORY_CONFIRM = "memory_confirm"
+  MEMORY_REJECT = "memory_reject"
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

@@ -8,6 +8,7 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
   step :post_first_incident_walkthrough, depends_on: [ :post_resolution_message ]
   step :post_resolution_announcement_thread
   step :note_milestones
+  step :learn_from_incident
 
   def update_channel_topic(workflow:, step:, input:)
     service(workflow).update_channel_topic(workflow.subject)
@@ -52,6 +53,13 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
     return unless defined?(FirefightAi)
 
     MilestoneNotingJob.perform_later(workflow.subject.id)
+  end
+
+  # What the incident taught, for the next one to start from. A build without the AI engine skips it.
+  def learn_from_incident(workflow:, step:, input:)
+    return unless defined?(FirefightAi)
+
+    IncidentLearningJob.perform_later(workflow.subject.id)
   end
 
   private

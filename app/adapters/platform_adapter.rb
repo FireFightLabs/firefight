@@ -402,6 +402,19 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Posts what Halon learned from an ended incident in its channel, each lesson with Confirm and Not right.
+  # memories are IncidentLearningService::LearnedMemory values.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_learned_memories(channel_id:, incident_id:, incident_identifier:, memories:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws that message once someone decides on a lesson.
+  # @return [Hash] { success: true }
+  def update_learned_memories(channel_id:, message_id:, incident_id:, incident_identifier:, memories:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Redraws a confirmation message once some of its calls are answered.
   # @return [Hash] { success: true }
   def update_agent_confirmation(channel_id:, message_id:, conversation_id:, confirmations:)
