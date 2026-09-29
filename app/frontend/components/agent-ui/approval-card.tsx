@@ -16,6 +16,8 @@ import GlideMenu from "@/components/agent-ui/glide-menu";
 
 export type ApprovalQuestion = {
   q: string;
+  /** a small line above the question, such as which tool it is about */
+  eyebrow?: string;
   type: "radio" | "check";
   options: string[];
   /** what the question is about, shown under it as a list rather than run into the sentence */
@@ -149,6 +151,7 @@ export default function ApprovalCard({
   onAnswerChange,
   resettable = true,
   allowCustom = true,
+  wide = false,
 }: {
   questions?: ApprovalQuestion[];
   labels?: Partial<ApprovalLabels>;
@@ -157,6 +160,8 @@ export default function ApprovalCard({
   resettable?: boolean;
   /** the "Something else" row, off where only the given options make sense */
   allowCustom?: boolean;
+  /** room for a sentence and the code behind it, for a question someone has to read before answering */
+  wide?: boolean;
 } = {}) {
   const t = { ...DEFAULT_LABELS, ...labels };
   const [qi, setQi] = useState(0);
@@ -285,7 +290,7 @@ export default function ApprovalCard({
   }
 
   return (
-    <div className="w-full max-w-80">
+    <div className={`w-full ${wide ? "max-w-xl" : "max-w-80"}`}>
       <div className="relative overflow-hidden rounded-card bg-surface shadow-card" style={{ animation: "fade-up 380ms cubic-bezier(0.23,1,0.32,1) both" }}>
         <button
           type="button"
@@ -330,7 +335,8 @@ export default function ApprovalCard({
                     aria-hidden={active ? undefined : true}
                     style={questionStyle}
                   >
-                    <div className="pr-7 text-[14px] font-medium text-ink">{question.q}</div>
+                    {question.eyebrow && <div className="pr-7 text-[12px] font-medium text-ink-3">{question.eyebrow}</div>}
+                    <div className={`pr-7 font-medium text-ink ${question.eyebrow ? "mt-1 text-[15px]" : "text-[14px]"}`}>{question.q}</div>
                     {question.details && question.details.length > 0 && <DetailList details={question.details} className="mt-2.5" />}
                     <GlideMenu className="mt-2.5 flex flex-col gap-1" highlightClassName="inset-x-0 rounded-control bg-hover">
                       {question.options.map((option, i) => {

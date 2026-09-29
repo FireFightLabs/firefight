@@ -13,10 +13,12 @@ class Chat::Tools::Open < RubyLLM::Tool
 
   def self.tool_name = "open_tools"
 
-  def initialize(agent_run, offer:)
+  # skills is whether the agent holds use_skill. A chat does, a run does not.
+  def initialize(agent_run, offer:, skills: false)
     super()
     @agent_run = agent_run
     @offer = offer
+    @skills = skills
   end
 
   def name = self.class.tool_name
@@ -64,7 +66,20 @@ class Chat::Tools::Open < RubyLLM::Tool
     return listed_first(view) if chosen.empty?
 
     @offer.call(chosen.filter_map(&:tool))
-    listing(chosen)
+    [ listing(chosen), skills_for(chosen) ].compact.join("\n\n")
+  end
+
+  # A skill has the steps for these tools, so the agent is pointed at it here, where it is about to call them, rather
+  # than trusting a line in the prompt it read long before.
+  def skills_for(entries)
+    return unless @skills
+
+    sources = entries.map(&:source).uniq
+    fitting = Chat::Skill.available_to(@agent_run.workspace).select { |skill| sources.include?(skill.source) && (skill.tools & entries.map(&:handle)).any? }
+    return if fitting.empty?
+
+    "Skills with the steps for these tools. Load the one that fits the question with use_skill before calling them:\n" \
+      "#{fitting.map { |skill| "#{skill.name}: #{skill.used_when}" }.join("\n")}"
   end
 
   # Names only narrow a large group. A small one opens whole whatever was named, since a model

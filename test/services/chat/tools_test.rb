@@ -29,6 +29,42 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
   end
 
+  test "a call that waits for approval asks for its intent, and the tool never sees it" do
+    grant!(@tool)
+    connection = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+    connection.stubs(:requires_approval?).returns(true)
+
+    schema = connection.parameters_schema
+
+    assert_equal Chat::Tools::INTENT, schema.dig("properties", Chat::Tools::INTENT_ARG)
+    assert_includes schema["required"], Chat::Tools::INTENT_ARG
+    answer = connection.call(text: "hi", intent: "Say hi back")
+
+    assert_match "echo: hi", answer
+    assert_equal({ "text" => "hi" }, @investigation.steps.find_by!(tool_name: "fake_echo_text").params)
+  end
+
+  test "a call that goes ahead on its own is not asked for an intent" do
+    grant!(@tool)
+    connection = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    assert_nil connection.parameters_schema.dig("properties", Chat::Tools::INTENT_ARG)
+  end
+
+  test "a confirmation leads with the intent, and the intent is not listed among what the tool was given" do
+    call = Struct.new(:name, :arguments, :tool_call_id, :approval).new(
+      "cloudflare_execute", { "code" => "async () => 1", "intent" => "List the zones to find firefight.app" }, "call-1", nil
+    )
+
+    confirmation = Chat::Tools.confirmation(call)
+    step = Chat::Tools.step(call.name, call.arguments)
+
+    assert_equal "List the zones to find firefight.app", confirmation.intent
+    assert_equal "Cloudflare execute?", confirmation.question
+    assert_equal [ [ "code", "async () => 1" ] ], confirmation.asked
+    assert_equal "List the zones to find firefight.app", step.headline
+  end
+
   test "the agent starts with only the tools it always needs" do
     grant!(@tool)
 

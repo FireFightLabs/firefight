@@ -13,8 +13,10 @@ const OPTIONS = [ CONFIRM, CANCEL ]
 
 // A question left unanswered stays open, so the agent carries on only once every one is answered.
 export function ConfirmCard({ conversationId, confirmations }: ConfirmCardProps) {
+  // The agent's sentence leads when it wrote one, with the tool named above it and what it was given below.
   const questions = confirmations.map((confirmation) => ({
-    q: confirmation.question,
+    q: confirmation.intent ?? confirmation.question,
+    eyebrow: confirmation.intent ? confirmation.question.replace(/\?$/, "") : undefined,
     details: confirmation.asked.map(([ label, meta ]) => ({ label, meta })),
     type: "radio" as const,
     options: OPTIONS,
@@ -34,6 +36,7 @@ export function ConfirmCard({ conversationId, confirmations }: ConfirmCardProps)
       questions={questions}
       allowCustom={false}
       resettable={false}
+      wide
       labels={{ sentMessage: "Sent", send: "Send", skip: "Skip" }}
       onSubmitted={submit}
     />

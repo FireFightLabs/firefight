@@ -19,10 +19,14 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   def description = @tool_class.description_value.to_s
 
-  def parameters_schema = @tool_class.schema_for(@agent_run.workspace)
+  # A call that waits for the person also asks for its intent, which the confirmation leads with.
+  def parameters_schema
+    schema = @tool_class.schema_for(@agent_run.workspace)
+    requires_approval? ? Chat::Tools.with_intent(schema.deep_stringify_keys) : schema
+  end
 
   def call(tool_call: nil, **arguments)
-    invoke(arguments.symbolize_keys, tool_call_id: tool_call&.id)
+    invoke(arguments.symbolize_keys.except(Chat::Tools::INTENT_ARG.to_sym), tool_call_id: tool_call&.id)
   end
 
   private

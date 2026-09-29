@@ -27,6 +27,20 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     assert_equal [ "open_tools", "use_skill", "read_result", "start_investigation" ], names
   end
 
+  test "opening a group in a chat points at the skills with the steps for its tools, and a run is not told" do
+    Chat::Tools.stubs(:catalog).returns([
+      Chat::Tools::Entry.new(name: "declare_incident", description: "Declare", state: Chat::Tools::STATE_READY, tool: nil,
+                             group: Chat::Tools::Groups::INCIDENT_RESPONSE, source: Chat::Skill::SOURCE_FIREFIGHT, handle: "declare_incident")
+    ])
+
+    in_chat = Chat::Tools::Open.new(turn, offer: ->(_tools) { }, skills: true).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
+    in_run = Chat::Tools::Open.new(turn, offer: ->(_tools) { }).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
+
+    assert_includes in_chat, "Load the one that fits the question with use_skill before calling them"
+    assert_includes in_chat, "declaring: "
+    assert_not_includes in_run, "use_skill"
+  end
+
   test "someone who may not start a run is refused, in their name" do
     AbilityGateway.stubs(:permitted?).returns(false)
 
