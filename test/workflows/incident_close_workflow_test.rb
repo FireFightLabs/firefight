@@ -1,6 +1,8 @@
 require "test_helper"
 
 class IncidentCloseWorkflowTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @workspace.update!(incidents_channel_id: "C_INCIDENTS")
@@ -24,13 +26,21 @@ class IncidentCloseWorkflowTest < ActiveSupport::TestCase
     )
   end
 
+  test "the last step learns from the incident, after everything the channel is told" do
+    stub_all_side_effects
+
+    assert_enqueued_with(job: IncidentLearningJob, args: [ @incident.id ]) do
+      IncidentCloseWorkflow.start_inline!(@incident, context: workflow_context)
+    end
+  end
+
   test "full workflow succeeds" do
     stub_all_side_effects
 
     workflow = IncidentCloseWorkflow.start_inline!(@incident, context: workflow_context)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 7, workflow.steps.count
+    assert_equal 8, workflow.steps.count
     assert workflow.steps.all?(&:succeeded?)
   end
 

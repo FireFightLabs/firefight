@@ -33,6 +33,7 @@ module FirefightAi
       AiPurpose::MILESTONES => "MILESTONES_AI",
       AiPurpose::INVESTIGATION => "INVESTIGATION_AI",
       AiPurpose::CITATION_CHECK => "CITATION_CHECK_AI",
+      AiPurpose::LESSONS => "LESSONS_AI",
       AiPurpose::EMBEDDING => "EMBEDDING_AI"
     }.fetch(purpose)
   end

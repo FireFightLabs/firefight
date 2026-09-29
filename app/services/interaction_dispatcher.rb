@@ -64,7 +64,9 @@ class InteractionDispatcher
     Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
     Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler,
     Identifiers::AGENT_CONFIRM => Interactions::AgentConfirmationHandler,
-    Identifiers::AGENT_CANCEL => Interactions::AgentConfirmationHandler
+    Identifiers::AGENT_CANCEL => Interactions::AgentConfirmationHandler,
+    Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
+    Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {
