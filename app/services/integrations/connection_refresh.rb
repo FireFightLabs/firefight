@@ -4,7 +4,10 @@ module Integrations
   class ConnectionRefresh
     def self.run!(integration)
       DiscoveryService.sync!(integration)
-      environments(integration).each { |row| HealthCheckService.check!(row) }
+      environments(integration).each do |row|
+        HealthCheckService.check!(row)
+        MapSweepJob.perform_later(row)
+      end
       true
     rescue Integrations::Error => e
       environments(integration).each { |row| row.record_health!(false, error: e.message) }
