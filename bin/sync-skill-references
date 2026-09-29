@@ -1,30 +1,59 @@
 #!/usr/bin/env ruby
 # Copies each provider's guides listed in config/skill_references.yml into config/skills/<provider>/references/,
-# replacing what is there, with the repository's license and the commit it came from. Run by hand or by the weekly
-# workflow, which opens a pull request when anything changed.
+# replacing what is there, with the license they come under and where they came from. A provider is either a git
+# repository whose folders are copied, or a documentation site whose pages are fetched as markdown. A page that no
+# longer answers fails the run, so a moved guide is noticed. Run by hand or by the daily workflow, which opens a pull
+# request when anything changed.
 require "yaml"
 require "fileutils"
 require "tmpdir"
+require "net/http"
+require "uri"
 
 root = File.expand_path("..", __dir__)
 sources = YAML.safe_load_file(File.join(root, "config/skill_references.yml"))
 
-sources.each do |provider, source|
-  Dir.mktmpdir do |dir|
-    system("git", "clone", "--quiet", "--depth", "1", source.fetch("repository"), dir, exception: true)
-    commit = `git -C #{dir} rev-parse HEAD`.strip
-    target = File.join(root, "config/skills", provider, "references")
-    FileUtils.rm_rf(target)
-    FileUtils.mkdir_p(target)
+def fetch(url, redirects = 3)
+  response = Net::HTTP.get_response(URI(url))
+  return fetch(response["location"], redirects - 1) if response.is_a?(Net::HTTPRedirection) && redirects.positive?
+  raise "#{url} answered #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
-    source.fetch("paths").each do |from, to|
-      Dir[File.join(dir, from, "*.md")].each do |file|
-        FileUtils.mkdir_p(File.join(target, to))
-        FileUtils.cp(file, File.join(target, to, File.basename(file)))
+  response.body.force_encoding(Encoding::UTF_8)
+end
+
+sources.each do |provider, source|
+  target = File.join(root, "config/skills", provider, "references")
+  Dir.mktmpdir do |dir|
+    staged = File.join(dir, "references")
+    FileUtils.mkdir_p(staged)
+
+    if source["repository"]
+      checkout = File.join(dir, "checkout")
+      system("git", "clone", "--quiet", "--depth", "1", source.fetch("repository"), checkout, exception: true)
+      commit = `git -C #{checkout} rev-parse HEAD`.strip
+      source.fetch("paths").each do |from, to|
+        Dir[File.join(checkout, from, "*.md")].each do |file|
+          FileUtils.mkdir_p(File.join(staged, to))
+          FileUtils.cp(file, File.join(staged, to, File.basename(file)))
+        end
       end
+      FileUtils.cp(File.join(checkout, source.fetch("license")), File.join(staged, "LICENSE"))
+      File.write(File.join(staged, "SOURCE"), "#{source.fetch('repository')}\n#{commit}\n")
+      puts "#{provider}: #{source.fetch('repository')} at #{commit}"
+    else
+      urls = source.fetch("pages").map do |path, page|
+        url = "#{source.fetch('site')}/#{page}/index.md"
+        FileUtils.mkdir_p(File.dirname(File.join(staged, path)))
+        File.write(File.join(staged, path), fetch(url))
+        "#{path} #{url}"
+      end
+      File.write(File.join(staged, "LICENSE"), source.fetch("license"))
+      File.write(File.join(staged, "SOURCE"), "#{urls.join("\n")}\n")
+      puts "#{provider}: #{urls.size} pages from #{source.fetch('site')}"
     end
-    FileUtils.cp(File.join(dir, source.fetch("license")), File.join(target, "LICENSE"))
-    File.write(File.join(target, "SOURCE"), "#{source.fetch('repository')}\n#{commit}\n")
-    puts "#{provider}: #{source.fetch('repository')} at #{commit}"
+
+    FileUtils.rm_rf(target)
+    FileUtils.mkdir_p(File.dirname(target))
+    FileUtils.mv(staged, target)
   end
 end

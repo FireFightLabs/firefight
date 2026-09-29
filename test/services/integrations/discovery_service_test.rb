@@ -13,6 +13,19 @@ module Integrations
       @integration.integration_environments.create!(credentials: { authorization: "Bearer x" }.to_json)
     end
 
+    test "a tool the provider's entry names as read only is a read, whatever the server says" do
+      @integration.update!(provider: "cloudflare", settings: { "server_url" => "https://mcp.cloudflare.com/mcp" })
+      McpClient.any_instance.stubs(:tools_list).returns([
+        { "name" => "search", "description" => "Search the API spec", "annotations" => { "readOnlyHint" => false } },
+        { "name" => "execute", "description" => "Call the API", "annotations" => { "readOnlyHint" => false, "destructiveHint" => true } }
+      ])
+
+      DiscoveryService.sync!(@integration)
+
+      assert @integration.tools.find_by!(name: "search").read_only?
+      assert_not @integration.tools.find_by!(name: "execute").read_only?
+    end
+
     test "sync! upserts discovered tools disabled by default and marks vanished ones removed" do
       McpClient.any_instance.stubs(:tools_list).returns([
         { "name" => "logs.query", "description" => "Query logs",

@@ -8,8 +8,10 @@ class IntegrationProvider
   CONNECT_API_TOKEN = "api_token".freeze
   CONNECT_WITH = [ CONNECT_CONNECTION_URL, CONNECT_API_TOKEN ].freeze
 
-  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with) do
-    def initialize(connect_with: nil, **) = super
+  # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
+  # treated as reads rather than as writes that each ask to be confirmed.
+  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools) do
+    def initialize(connect_with: nil, read_only_tools: [], **) = super
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
@@ -24,7 +26,7 @@ class IntegrationProvider
         description: raw.fetch("description"), server_url: raw["server_url"].to_s,
         # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP,
-        connect_with: raw["connect_with"]
+        connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"])
       )
     end.freeze
   end
