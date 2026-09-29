@@ -76,6 +76,14 @@ export const RESOURCE_MAP_CHANGE_KINDS = [
 ] as const
 export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
 
+export const RESOURCE_MAP_HEALTHS = [
+  "ok",
+  "busy",
+  "failing",
+  "unknown"
+] as const
+export type ResourceMapHealth = (typeof RESOURCE_MAP_HEALTHS)[number]
+
 export const INCIDENT_RELATIONSHIPS = {
   "RELATED": "related",
   "DUPLICATE": "duplicate"

@@ -17,6 +17,12 @@ class ResourceMapResourceSerializer < BaseSerializer
   type :string
   def provider_name = ResourceMap.provider_name(row.resource.provider)
 
+  type :string, optional: true
+  def provider_mark = ResourceMap.provider_entry(row.resource.provider)&.mark
+
+  type :string, optional: true
+  def provider_color = ResourceMap.provider_entry(row.resource.provider)&.color
+
   type :string
   def account = row.resource.account
 
@@ -28,6 +34,12 @@ class ResourceMapResourceSerializer < BaseSerializer
 
   type :string, optional: true
   def status = row.resource.status
+
+  type :string, optional: true
+  def status_label = row.resource.status_label
+
+  type "ResourceMapHealth"
+  def health = row.resource.health
 
   type :string, optional: true
   def url = row.resource.url

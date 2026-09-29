@@ -29,6 +29,10 @@ module ResourceMap
 
   def self.provider_name(key) = IntegrationProvider.find(key)&.name || PROVIDER_NAMES.fetch(key, key.to_s.humanize)
 
+  # The registry's mark and colour, so the map draws a provider the way the Integrations page does. nil for a provider
+  # that is not a connection, such as domains.
+  def self.provider_entry(key) = IntegrationProvider.find(key)
+
   # How a link was found. Declared and matched come from sweeps and are replaced by the next one. Added by a person and
   # suggested by Halon are kept until someone removes them, and a suggestion is not a fact until it is confirmed.
   ORIGIN_DECLARED = "declared".freeze
