@@ -213,6 +213,49 @@ module Integrations
         assert_raises(NativePack::Error) { call(:job_runs, "job" => "weekly") }
       end
 
+      test "the project goes on the map with what its services build from and serve, and a list the token may not read is a gap" do
+        NorthflankApi.any_instance.stubs(:services).returns([ { "id" => "web" }, { "id" => "builder" } ])
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "web").returns(
+          "id" => "web", "name" => "web", "serviceType" => "deployment", "appId" => "/firefight-labs/firefight/web",
+          "status" => { "deployment" => { "status" => "COMPLETED" } },
+          "deployment" => { "instances" => 2, "internal" => { "nfObjectId" => "builder", "deployedSHA" => "c4e4267d", "branch" => "main" } },
+          "ports" => [ { "public" => true, "domains" => [ "app.acme.dev" ] }, { "public" => false, "domains" => [ "internal.acme.dev" ] } ]
+        )
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "builder").returns(
+          "id" => "builder", "name" => "builder", "serviceType" => "build", "appId" => "/firefight-labs/firefight/builder",
+          "status" => { "build" => { "status" => "SUCCESS" } }, "vcsData" => { "projectUrl" => "https://github.com/acme/app" }
+        )
+        NorthflankApi.any_instance.stubs(:jobs).raises(NorthflankApi::Error, "Northflank answered 401: needs Jobs Read")
+
+        snapshot = @pack.map_of(@row)
+
+        found = snapshot.resources.to_h { |resource| [ resource.external_id, resource ] }
+        assert_equal ResourceMap::KIND_SERVICE, found["web"].kind
+        assert_equal "firefight-labs/firefight", found["web"].account
+        assert_equal "completed", found["web"].status
+        assert_equal "https://app.northflank.com/t/firefight-labs/project/firefight/services/web", found["web"].url
+        assert_equal ResourceMap::KIND_BUILD_SERVICE, found["builder"].kind
+        assert_equal ResourceMap::KIND_REPOSITORY, found["acme/app"].kind
+        assert_equal ResourceMap::KIND_DATABASE, found["db"].kind
+        assert_not found.key?("internal.acme.dev"), "a private port's domain is not served to anyone"
+        assert_equal [ [ "web", ResourceMap::RELATION_RUNS_BUILDS_OF, "builder" ], [ "web", ResourceMap::RELATION_SERVES, "app.acme.dev" ],
+                       [ "builder", ResourceMap::RELATION_BUILT_FROM, "acme/app" ] ],
+                     snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
+        assert_equal [ "Jobs could not be read: Northflank answered 401: needs Jobs Read" ], snapshot.gaps
+      end
+
+      test "a sweep that cannot reach Northflank leaves the map as it was and says why" do
+        ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [
+          ResourceMap::Found.new(provider: "northflank", account: "firefight-labs/firefight", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+        ]))
+        NorthflankApi.any_instance.stubs(:services).raises(NorthflankApi::Error, "Northflank answered 503")
+
+        assert_not MapSweep.run!(@row)
+
+        assert_equal "Northflank answered 503", @row.reload.map_error
+        assert_nil ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web").removed_at
+      end
+
       test "only services have builds" do
         error = assert_raises(NativePack::Error) { call(:recent_builds, "resource" => "db") }
 

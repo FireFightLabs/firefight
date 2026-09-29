@@ -1,0 +1,16 @@
+module Integrations
+  # Reads what one connection reaches onto the resource map. A provider that cannot be read leaves the map as it was and
+  # says why on the connection, so a failed sweep never empties the map.
+  class MapSweep
+    def self.run!(environment_row)
+      snapshot = environment_row.integration.executor.map_of(environment_row)
+      return false unless snapshot
+
+      ResourceMap.record!(environment_row, snapshot)
+      true
+    rescue Integrations::Error => error
+      environment_row.update!(map_error: error.message)
+      false
+    end
+  end
+end

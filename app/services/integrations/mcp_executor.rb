@@ -27,6 +27,20 @@ module Integrations
       client_for(environment_row.integration, environment_row).ping
     end
 
+    # A remote server lists tools, not what it reaches, so a provider goes on the map through a reader written for it,
+    # which calls only the tools an admin switched on. Without a reader the connection puts nothing on the map.
+    MAP_READERS = { MapReaders::Planetscale::PROVIDER => MapReaders::Planetscale }.freeze
+
+    def self.map_of(environment_row)
+      integration = environment_row.integration
+      reader = MAP_READERS[integration.provider]
+      return unless reader
+
+      client = client_for(integration, environment_row)
+      tools = integration.tools.enabled.available.index_by(&:name)
+      reader.new { |name, arguments| tools[name] && client.call_tool(name: tools[name].remote_name, arguments: arguments) }.map
+    end
+
     def self.client_for(integration, environment_row)
       McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row))
     end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -965,6 +965,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
     t.string "health_error"
     t.string "health_status", default: "unknown", null: false
     t.uuid "integration_id", null: false
+    t.string "map_error"
+    t.jsonb "map_gaps", default: [], null: false
+    t.datetime "map_swept_at"
     t.datetime "updated_at", null: false
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
@@ -1285,6 +1288,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
     t.datetime "updated_at", null: false
     t.string "version", null: false
     t.index ["template", "version"], name: "index_prompt_versions_on_template_and_version", unique: true
+  end
+
+  create_table "resource_map_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "from_resource_id", null: false
+    t.uuid "integration_environment_id"
+    t.datetime "last_seen_at", null: false
+    t.string "origin", null: false
+    t.string "relation", null: false
+    t.uuid "to_resource_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["from_resource_id", "to_resource_id", "relation"], name: "index_resource_map_links_identity", unique: true
+    t.index ["from_resource_id"], name: "index_resource_map_links_on_from_resource_id"
+    t.index ["integration_environment_id"], name: "index_resource_map_links_on_integration_environment_id"
+    t.index ["to_resource_id"], name: "index_resource_map_links_on_to_resource_id"
+    t.index ["workspace_id"], name: "index_resource_map_links_on_workspace_id"
+  end
+
+  create_table "resource_map_resources", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "account", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "details", default: {}, null: false
+    t.string "external_id", null: false
+    t.datetime "first_seen_at", null: false
+    t.uuid "integration_environment_id"
+    t.string "kind", null: false
+    t.datetime "last_seen_at", null: false
+    t.string "name", null: false
+    t.string "provider", null: false
+    t.datetime "removed_at"
+    t.string "status"
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.uuid "workspace_id", null: false
+    t.index ["integration_environment_id"], name: "index_resource_map_resources_on_integration_environment_id"
+    t.index ["workspace_id", "provider", "account", "kind", "external_id"], name: "index_resource_map_resources_identity", unique: true
   end
 
   create_table "ruby_llm_models", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1720,6 +1760,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "resource_map_links", "integration_environments", on_delete: :nullify
+  add_foreign_key "resource_map_links", "resource_map_resources", column: "from_resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_links", "resource_map_resources", column: "to_resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_links", "workspaces"
+  add_foreign_key "resource_map_resources", "integration_environments", on_delete: :nullify
+  add_foreign_key "resource_map_resources", "workspaces"
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workspaces"
   add_foreign_key "search_embeddings", "workspaces"
