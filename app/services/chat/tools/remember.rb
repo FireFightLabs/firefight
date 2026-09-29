@@ -20,7 +20,8 @@ class Chat::Tools::Remember < RubyLLM::Tool
       "type" => "object",
       "properties" => {
         "fact" => { "type" => "string", "description" => "The fact in one plain sentence, at most #{Chat::Memory::TEXT_LIMIT} characters" },
-        "about" => { "type" => "string", "description" => "The resource on the map or catalog entry it is about, by name, such as web or Checkout. Leave it out for the whole workspace" }
+        "about" => { "type" => "string", "description" => "The resource on the map or catalog entry it is about, by name, such as web or Checkout. Leave it out for the whole workspace" },
+        "from_person" => { "type" => "boolean", "description" => "True only when the person asked you to remember this, in their own words. Leave it out for anything you worked out yourself" }
       },
       "required" => [ "fact" ]
     }
@@ -35,10 +36,14 @@ class Chat::Tools::Remember < RubyLLM::Tool
     return "A person rejected this before#{": #{known.state_reason}" if known.state_reason.present?}. It is not saved again." if known&.state == Chat::Memory::STATE_REJECTED
     return "Already remembered." if known
 
-    Chat::Memory.create!(workspace: @agent_run.workspace, text: fact, state: Chat::Memory::STATE_UNCONFIRMED, subject: subject,
-                         source: @agent_run.memory_source, added_by: @agent_run.memory_teacher)
+    # Only a chat has a person to vouch for it. In a run the flag means nothing.
+    teacher = @agent_run.memory_teacher
+    vouched = asked["from_person"] == true && teacher
+    Chat::Memory.create!(workspace: @agent_run.workspace, text: fact, subject: subject, source: @agent_run.memory_source, added_by: teacher,
+                         state: vouched ? Chat::Memory::STATE_CONFIRMED : Chat::Memory::STATE_UNCONFIRMED,
+                         confirmed_by: (teacher if vouched), confirmed_at: (Time.current if vouched))
     missing = asked["about"].present? && subject.nil? ? " Nothing called #{asked['about']} is on the map or in the catalog, so it is saved for the whole workspace." : ""
-    "Remembered, unconfirmed until a person confirms it.#{missing}"
+    "#{vouched ? "Remembered, confirmed by #{teacher.display_name}." : 'Remembered, unconfirmed until a person confirms it.'}#{missing}"
   rescue ActiveRecord::RecordInvalid => error
     { error: error.record.errors.full_messages.to_sentence }
   end

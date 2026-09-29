@@ -27,11 +27,18 @@ class Chat::Memory < ApplicationRecord
   belongs_to :source, polymorphic: true, optional: true
   belongs_to :added_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :confirmed_by, class_name: "WorkspaceMembership", optional: true
+  belongs_to :rejected_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :replaced_by, class_name: "Chat::Memory", optional: true
 
   validates :text, presence: true, length: { maximum: TEXT_LIMIT }
   validates :state, inclusion: { in: STATES }
   validates :subject_type, inclusion: { in: SUBJECT_TYPES }, allow_nil: true
+  validate :holds_no_secret
+
+  # A memory reaches every later prompt, so anything that looks like a credential is refused rather than kept. The
+  # patterns are the transcript scrubber's, plus a connection string carrying a password.
+  CREDENTIAL_URL = %r{\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s@/]+@}i
+  SECRET_PATTERNS = IncidentTranscriptMessage::Scrubbing::SECRET_PATTERNS.merge(credential_url: CREDENTIAL_URL).freeze
 
   scope :in_use, -> { where(state: USED_STATES) }
   # Confirmed first, then the newest, since a person vouched for the first and the second is the freshest guess.
@@ -84,6 +91,23 @@ class Chat::Memory < ApplicationRecord
   end
 
   # Guarded, so two people deciding on the same memory at once cannot both land.
+  # A person saying it is wrong. The memory is kept as rejected with who and why, so it is never learned again, and a
+  # correction, when they give one, replaces it as confirmed by them.
+  def reject!(by:, reason:, correction: nil)
+    transaction do
+      if !decide!(STATE_REJECTED, from: STATES - [ STATE_REJECTED ], state_reason: reason.presence, rejected_by_id: by&.id, rejected_at: Time.current)
+        nil
+      elsif correction.blank?
+        self
+      else
+        replacement = self.class.create!(workspace: workspace, text: correction, subject: subject, state: STATE_CONFIRMED, source: source,
+                                         added_by: by, confirmed_by: by, confirmed_at: Time.current)
+        update_columns(replaced_by_id: replacement.id)
+        replacement
+      end
+    end
+  end
+
   def dispute!(reason)
     decide!(STATE_DISPUTED, from: [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED ], state_reason: reason)
   end
@@ -93,6 +117,11 @@ class Chat::Memory < ApplicationRecord
   end
 
   private
+
+  def holds_no_secret
+    found = SECRET_PATTERNS.keys.find { |name| text.to_s.match?(SECRET_PATTERNS[name]) }
+    errors.add(:text, "looks like it holds a secret (#{found.to_s.humanize(capitalize: false)}), so it is not remembered") if found
+  end
 
   def decide!(state, from:, **columns)
     moved = self.class.where(id: id, state: from).update_all(columns.merge(state: state, updated_at: Time.current)) > 0

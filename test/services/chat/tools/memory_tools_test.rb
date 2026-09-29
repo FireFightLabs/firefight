@@ -41,6 +41,55 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_equal "Nothing is remembered about that yet.", Chat::Tools::Recall.new(@turn).call("about" => "Auth Service")
   end
 
+  test "a fact the person asked to remember is saved as confirmed by them, and one Halon worked out stays unconfirmed" do
+    assert_equal "Remembered, confirmed by #{@member.display_name}.",
+                 Chat::Tools::Remember.new(@turn).call("fact" => "Checkout runs in Frankfurt", "from_person" => true)
+    Chat::Tools::Remember.new(@turn).call("fact" => "Checkout retries twice")
+
+    assert_equal Chat::Memory::STATE_CONFIRMED, memory("Checkout runs in Frankfurt").state
+    assert_equal @member, memory("Checkout runs in Frankfurt").confirmed_by
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory("Checkout retries twice").state
+  end
+
+  test "a run cannot vouch for a fact, since nobody is there to" do
+    investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400)
+
+    Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt", "from_person" => true)
+
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory("Checkout runs in Frankfurt").state
+  end
+
+  test "anything that looks like a secret is never remembered" do
+    answer = Chat::Tools::Remember.new(@turn).call("fact" => "Prod is postgres://app:hunter2@db.internal:5432/app")
+
+    assert_match "looks like it holds a secret (credential url)", answer[:error]
+    assert_not Chat::Memory.exists?(workspace: @workspace)
+  end
+
+  test "a person correcting a memory rejects it with who and why, and the correction replaces it as theirs" do
+    wrong = Chat::Memory.create!(workspace: @workspace, text: "firefight-prod is the dev database", state: Chat::Memory::STATE_UNCONFIRMED)
+
+    answer = Chat::Tools::CorrectMemory.new(@turn).call("memory" => wrong.id, "reason" => "It is production", "correction" => "firefight-prod is the production database")
+
+    assert_match "Corrected", answer
+    wrong.reload
+    assert_equal Chat::Memory::STATE_REJECTED, wrong.state
+    assert_equal @member, wrong.rejected_by
+    assert_equal "It is production", wrong.state_reason
+    assert_equal Chat::Memory::STATE_CONFIRMED, wrong.replaced_by.state
+    assert_equal "firefight-prod is the production database", wrong.replaced_by.text
+    assert_equal "It was rejected already.", Chat::Tools::CorrectMemory.new(@turn).call("memory" => wrong.id, "reason" => "again")
+  end
+
+  test "forgetting rejects a memory without replacing it, and it is not learned again" do
+    stale = Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_CONFIRMED)
+
+    assert_match "Forgotten", Chat::Tools::CorrectMemory.new(@turn).call("memory" => stale.id, "reason" => "We moved off MySQL")
+
+    assert_nil stale.reload.replaced_by
+    assert_match "A person rejected this before", Chat::Tools::Remember.new(@turn).call("fact" => "Checkout uses MySQL")
+  end
+
   test "a chat starts with what the workspace remembers" do
     Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
 
@@ -49,4 +98,8 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_match "What this workspace remembers", context
     assert_match "Deploys happen from main", context
   end
+
+  private
+
+  def memory(text) = Chat::Memory.where(workspace: @workspace).to_a.find { |each| each.text == text }
 end
