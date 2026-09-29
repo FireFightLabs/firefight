@@ -25,7 +25,7 @@ export function Thread({ conversationId, confirmations, messages, waiting, strea
   }, [ messages.length, waiting.length, stream.text, stream.steps.length ])
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {turns.map((turn) => (
           <Message key={turn.id} turn={turn} />
@@ -48,7 +48,7 @@ export function Thread({ conversationId, confirmations, messages, waiting, strea
 function WaitingMessage({ body }: { body: string }) {
   return (
     <div className="flex flex-col items-end gap-1">
-      <p className="max-w-[75%] whitespace-pre-wrap rounded-[18px] bg-accent-tint px-4 py-2 text-[14px] leading-relaxed text-ink opacity-70">
+      <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md bg-accent-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink opacity-70 [overflow-wrap:anywhere] sm:max-w-[75%]">
         {body}
       </p>
       <span className="text-[12px] text-ink-3">Halon reads this at its next step</span>

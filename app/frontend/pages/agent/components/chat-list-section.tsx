@@ -14,7 +14,7 @@ export function ChatListSection({ label, chats, currentId }: ChatListSectionProp
 
   return (
     <div className="flex flex-col gap-0.5">
-      {label && <p className="px-2.5 pb-1 text-[12px] text-ink-3">{label}</p>}
+      {label && <p className="px-2.5 pb-1 text-[11.5px] font-medium text-ink-3">{label}</p>}
       {chats.map((chat) => (
         <ChatRow key={chat.id} chat={chat} current={chat.id === currentId} />
       ))}
