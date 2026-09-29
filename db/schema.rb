@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_200100) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_29_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -397,6 +397,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_200100) do
     t.string "tool_name", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
+  end
+
+  create_table "chat_skill_problems", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "checked_at", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "missing_tools", default: [], null: false
+    t.string "provider", null: false
+    t.string "skill", null: false
+    t.datetime "updated_at", null: false
+    t.index ["skill"], name: "index_chat_skill_problems_on_skill", unique: true
   end
 
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

@@ -1,21 +1,25 @@
 # A provider skill names the provider's tools. A connected server can drop or rename one, so once a day each provider
-# skill is checked against the tools its provider still offers on any connection. A native pack's tools are in this
-# repository, and a test holds its skills to them.
+# skill is checked against the tools its provider still offers on any connection, and what is gone is recorded for
+# whoever runs Firefight. A native pack's tools are in this repository, and a test holds its skills to them.
 class SkillCheckJob < ApplicationJob
   queue_as :background
 
   def perform
-    Chat::Skill.all.reject(&:firefight?).each do |skill|
-      next if Integrations::NativePack.for(skill.source)
+    skills = Chat::Skill.all.reject { |skill| skill.firefight? || Integrations::NativePack.for(skill.source) }
+    missing = skills.to_h { |skill| [ skill.name, skill.tools - offered(skill.source) ] }.reject { |_skill, tools| tools.empty? }
 
-      offered = Integration::Tool.available.joins(:integration).where(integrations: { provider: skill.source }).distinct.pluck(:name)
-      # Nobody has connected the provider, so there is nothing to check against.
-      next if offered.empty?
+    Chat::SkillProblem.record!(missing, provider_of: skills.to_h { |skill| [ skill.name, skill.source ] })
+  end
 
-      missing = skill.tools - offered
-      next if missing.empty?
+  private
 
-      Rails.logger.warn({ event: "skill.tools_missing", skill: skill.name, provider: skill.source, missing: missing }.to_json)
+  # Every tool any connection to the provider still offers. Nobody having connected it leaves nothing to check against,
+  # so it counts as offering all of them.
+  def offered(provider)
+    @offered ||= {}
+    @offered[provider] ||= begin
+      names = Integration::Tool.available.joins(:integration).where(integrations: { provider: provider }).distinct.pluck(:name)
+      names.presence || Chat::Skill.all.select { |skill| skill.source == provider }.flat_map(&:tools)
     end
   end
 end
