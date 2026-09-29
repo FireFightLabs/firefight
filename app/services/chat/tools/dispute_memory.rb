@@ -1,0 +1,36 @@
+# Marks a memory a live result contradicted, so it is not used again until a person decides.
+class Chat::Tools::DisputeMemory < RubyLLM::Tool
+  def self.tool_name = "dispute_memory"
+
+  def initialize(agent_run)
+    super()
+    @agent_run = agent_run
+  end
+
+  def name = self.class.tool_name
+
+  def description
+    "Mark a memory as disputed when a result you read contradicts it. It stops being used until a person confirms or " \
+      "rejects it. Say what showed it wrong, with the step it came from."
+  end
+
+  def parameters_schema
+    {
+      "type" => "object",
+      "properties" => {
+        "memory" => { "type" => "string", "description" => "The memory's id, as recall or the start of the chat shows it" },
+        "reason" => { "type" => "string", "description" => "What showed it wrong, in one sentence" }
+      },
+      "required" => [ "memory", "reason" ]
+    }
+  end
+
+  def call(tool_call: nil, **arguments)
+    asked = arguments.stringify_keys
+    memory = Chat::Memory.where(workspace: @agent_run.workspace).find_by(id: asked["memory"].to_s)
+    return "There is no memory #{asked['memory']}." unless memory
+    return "It is #{memory.state} already, so it is not in use." unless memory.dispute!(asked["reason"].to_s.strip)
+
+    "Disputed. It is not used again until a person confirms or rejects it."
+  end
+end

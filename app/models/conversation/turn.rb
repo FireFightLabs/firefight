@@ -33,6 +33,11 @@ class Conversation::Turn
     action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible || self_approvable?(action)
   end
 
+  # Where what the agent remembers came from, and who taught it.
+  def memory_source = conversation
+
+  def memory_teacher = asker
+
   # A chat holds use_skill, so its tool results point at the skills it has not loaded.
   def uses_skills? = true
 

@@ -2,6 +2,6 @@
 module Investigation::Tools
   def self.for(investigation, offer:)
     [ Chat::Tools::Open.new(investigation, offer: offer), Chat::Tools::ReadResult.new(investigation),
-      RecordHypothesis.new(investigation), Conclude.new(investigation) ]
+      RecordHypothesis.new(investigation), Conclude.new(investigation), *Chat::Tools.memory(investigation) ]
   end
 end

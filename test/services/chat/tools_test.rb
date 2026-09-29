@@ -70,7 +70,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
 
-    assert_equal [ "open_tools", "read_result", "record_hypothesis", "conclude" ], names
+    assert_equal [ "open_tools", "read_result", "record_hypothesis", "conclude", "remember", "recall", "dispute_memory" ], names
   end
 
   test "the map of groups travels with the tool, so the agent reads what exists rather than guessing at words" do

@@ -167,6 +167,11 @@ class Investigation < ApplicationRecord
   # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
   def confirms?(_action) = false
 
+  # Where what the agent remembers came from. Nobody taught it, since a run acts as the agent.
+  def memory_source = self
+
+  def memory_teacher = nil
+
   # Skills are chat work, so a run is never pointed at one.
   def uses_skills? = false
 

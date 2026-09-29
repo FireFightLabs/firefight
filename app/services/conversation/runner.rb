@@ -157,7 +157,7 @@ class Conversation::Runner
 
   # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
-    [ asker_line, incident_line, investigations_line ].compact.join("\n")
+    [ asker_line, incident_line, investigations_line, memories_line ].compact.join("\n")
   end
 
   def asker_line
@@ -172,6 +172,14 @@ class Conversation::Runner
     return nil unless incident
 
     "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
+  end
+
+  # What the workspace learned about what this chat touches, so it starts from what is known.
+  def memories_line
+    memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident))
+    return nil if memories.empty?
+
+    "What this workspace remembers. Each is a hunch to check, and only a confirmed one was vouched for by a person:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
   end
 
   RUNS_REMEMBERED = 5
