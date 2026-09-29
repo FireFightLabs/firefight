@@ -41,7 +41,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
       text_of(result)
     end
     keep_charts(tool_call_id, result, said.step)
-    Chat::Tools.hand_over(@agent_run, name, said)
+    reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
+    [ Chat::Tools.hand_over(@agent_run, name, said), reminder ].compact.join("\n\n")
   rescue Integration::UnknownEnvironment => error
     failed(tool_call_id, error.message)
   rescue AbilityGateway::Denied

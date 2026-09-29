@@ -167,6 +167,9 @@ class Investigation < ApplicationRecord
   # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
   def confirms?(_action) = false
 
+  # Skills are chat work, so a run is never pointed at one.
+  def uses_skills? = false
+
   def live?
     LIVE_STATUSES.include?(status)
   end

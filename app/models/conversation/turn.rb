@@ -33,6 +33,9 @@ class Conversation::Turn
     action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible || self_approvable?(action)
   end
 
+  # A chat holds use_skill, so its tool results point at the skills it has not loaded.
+  def uses_skills? = true
+
   def refusal(action_key)
     "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it."
   end
