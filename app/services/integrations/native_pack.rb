@@ -27,11 +27,11 @@ module Integrations
         nil
       end
 
-      def fetch!(integration, box_key: nil)
+      def fetch!(integration, box_key: nil, as_of: {})
         pack_class = self.for(integration.provider)
         raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class
 
-        pack_class.new(integration, box_key: box_key)
+        pack_class.new(integration, box_key: box_key, as_of: as_of)
       end
 
       def tool_definitions
@@ -75,12 +75,14 @@ module Integrations
       end
     end
 
-    # box_key names the run a call belongs to, so tools that read code share that run's sandbox.
-    attr_reader :integration, :box_key
+    # box_key names the run a call belongs to, so tools that read code share that run's sandbox. as_of maps a repository
+    # to the commit the run reads it as of, empty for every run but a rehearsal of a bug that was later fixed.
+    attr_reader :integration, :box_key, :as_of
 
-    def initialize(integration, box_key: nil)
+    def initialize(integration, box_key: nil, as_of: {})
       @integration = integration
       @box_key = box_key
+      @as_of = as_of.to_h
     end
 
     def tool_definitions

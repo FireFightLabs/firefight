@@ -51,6 +51,22 @@ module Integrations
       assert_equal "k1", box.secret
     end
 
+    test "a run reading a repository as of a commit hands the box that commit and its history, and nothing after it" do
+      first, second = Open3.capture2("git", "-C", @fixture, "rev-list", "--reverse", "main").first.split
+      CodeReading.new(key: "investigation-1", workspace: @workspace, environment_row: @row, as_of: { "Acme/App" => first })
+                 .exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+
+      Dir.mktmpdir do |dir|
+        bundle = File.join(dir, "repository.bundle")
+        File.binwrite(bundle, @pushed.sole.last)
+        heads, = Open3.capture2("git", "bundle", "list-heads", bundle)
+        assert_equal [ "#{first} HEAD", "#{first} refs/heads/main" ], heads.lines.map(&:strip).sort
+        system("git", "clone", "--quiet", bundle, File.join(dir, "clone"), exception: true)
+        _output, status = Open3.capture2e("git", "-C", File.join(dir, "clone"), "cat-file", "-e", second)
+        assert_not status.success?, "the later commit never reaches the box"
+      end
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)

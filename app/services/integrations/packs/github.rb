@@ -26,6 +26,10 @@ module Integrations
       CODEOWNERS_PATHS = [ ".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS" ].freeze
       PRODUCTION = /\Aprod/i
       REF_FORMAT = %r{\A[\w.\-/]+\z}
+      # A run reading a repository as of a commit sees nothing after it, so the lookups that list later commits, pull
+      # requests and deploys are closed, and files are read at that commit whatever ref is asked for.
+      HISTORY_CLOSED = "This run reads %<repo>s as of one commit, so its later history is closed. Read the history " \
+                       "up to that commit in the code sandbox with git_log, show_commit and diff_refs.".freeze
 
       tool :pr_lookup,
            description: "Fetch a pull request: title, state, author, merge status, and changed files",
@@ -175,6 +179,7 @@ module Integrations
 
       def pr_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
+        history_closed!(repo)
         number = Integer(arguments["number"].to_s, exception: false)
         fail! "number must be an integer" unless number
 
@@ -196,6 +201,7 @@ module Integrations
 
       def commit_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
+        history_closed!(repo)
         sha = arguments["sha"].to_s
         fail! "sha must be a commit SHA" unless sha.match?(/\A\h{6,40}\z/)
 
@@ -215,6 +221,7 @@ module Integrations
 
       def recent_deployments(environment_row:, arguments:)
         repo = repo_argument(arguments)
+        history_closed!(repo)
         token = GithubApp.installation_token(environment_row)
         deployments = GithubApp.get("/repos/#{repo}/deployments?#{deployment_query(arguments)}", token: token)
         return "No deployments recorded for #{repo}." if deployments.blank?
@@ -224,6 +231,7 @@ module Integrations
 
       def merged_pull_requests(environment_row:, arguments:)
         repo = repo_argument(arguments)
+        history_closed!(repo)
         since = since_argument(arguments)
         token = GithubApp.installation_token(environment_row)
         closed = GithubApp.get(
@@ -240,7 +248,7 @@ module Integrations
       def fetch_file(environment_row:, arguments:)
         repo = repo_argument(arguments)
         path = path_argument(arguments)
-        ref = ref_argument(arguments)
+        ref = CodeReading.as_of_commit(as_of, repo) || ref_argument(arguments)
         token = GithubApp.installation_token(environment_row)
 
         lines = read_file_lines(repo, path, ref, token)
@@ -255,6 +263,7 @@ module Integrations
 
       def running_commit(environment_row:, arguments:)
         repo = repo_argument(arguments)
+        history_closed!(repo)
         at = time_argument(arguments, "at")
         token = GithubApp.installation_token(environment_row)
 
@@ -265,6 +274,7 @@ module Integrations
       end
 
       def changes_before(environment_row:, arguments:)
+        fail! format(HISTORY_CLOSED, repo: as_of.keys.to_sentence) if as_of.present?
         started = time_argument(arguments, "at")
         hours = Integer(arguments["window_hours"].presence || DEFAULT_WINDOW_HOURS, exception: false)
         fail! "window_hours must be a whole number from 1 to #{MAX_WINDOW_HOURS}" unless hours&.between?(1, MAX_WINDOW_HOURS)
@@ -286,6 +296,7 @@ module Integrations
 
       def compare_commits(environment_row:, arguments:)
         repo = repo_argument(arguments)
+        history_closed!(repo)
         base = ref_argument(arguments, "base", required: true)
         head = ref_argument(arguments, "head", required: true)
         token = GithubApp.installation_token(environment_row)
@@ -302,7 +313,7 @@ module Integrations
         fail! "start_line and end_line must be integers" unless from && to
         fail! "line range must be ascending and at most #{LINE_LIMIT} lines" unless from <= to && (to - from) < LINE_LIMIT
 
-        ref = ref_argument(arguments)
+        ref = CodeReading.as_of_commit(as_of, repo) || ref_argument(arguments)
         token = GithubApp.installation_token(environment_row)
         ranges = blame_ranges(repo, path, ref || "HEAD", token).select { |range| range["startingLine"] <= to && range["endingLine"] >= from }
         fail! "No blame for '#{path}' at #{ref || 'the default branch'}." if ranges.empty?
@@ -349,6 +360,10 @@ module Integrations
         Time.iso8601(raw)
       rescue ArgumentError
         fail! "since must be an ISO 8601 time, for example 2026-09-12T09:00:00Z"
+      end
+
+      def history_closed!(repo)
+        fail! format(HISTORY_CLOSED, repo: repo) if CodeReading.as_of_commit(as_of, repo)
       end
 
       def merged_since?(pull, since)

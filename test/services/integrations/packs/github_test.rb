@@ -198,6 +198,43 @@ module Integrations
         assert_includes text, "https://github.com/acme/checkout/blob/a1b2c3/payment.rb#L1-L9"
       end
 
+      test "a run reading a repository as of a commit reads its files at that commit, whatever ref it asks for" do
+        pack = Github.new(@integration, as_of: { "Acme/Checkout" => "a1b2c3" })
+        GithubApp.expects(:get).with("/repos/acme/checkout/contents/payment.rb?ref=a1b2c3", token: "ghs_token")
+                 .returns("content" => Base64.encode64("  charge\n"))
+
+        text = pack.fetch_file(environment_row: @row, arguments: { "repo" => "acme/checkout", "path" => "payment.rb", "ref" => "main" })
+
+        assert_match(/at a1b2c3/, text)
+      end
+
+      test "a run reading a repository as of a commit cannot list what came after it" do
+        pack = Github.new(@integration, as_of: { "acme/checkout" => "a1b2c3" })
+        GithubApp.expects(:get).never
+
+        closed = {
+          pr_lookup: { "repo" => "acme/checkout", "number" => 412 }, commit_lookup: { "repo" => "acme/checkout", "sha" => "abc123" },
+          recent_deployments: { "repo" => "acme/checkout" }, merged_pull_requests: { "repo" => "acme/checkout" },
+          running_commit: { "repo" => "acme/checkout", "at" => "2026-09-24T08:45:47Z" },
+          compare_commits: { "repo" => "acme/checkout", "base" => "a1b2c3", "head" => "main" },
+          changes_before: { "at" => "2026-09-24T08:45:47Z" }
+        }
+        closed.each do |tool, arguments|
+          error = assert_raises(NativePack::Error, tool.to_s) { pack.public_send(tool, environment_row: @row, arguments: arguments) }
+          assert_includes error.message, "later history is closed"
+        end
+      end
+
+      test "a repository the run is not told to read as of a commit keeps its whole history" do
+        pack = Github.new(@integration, as_of: { "acme/other" => "a1b2c3" })
+        GithubApp.stubs(:get).with("/repos/acme/checkout/commits/abc123", token: "ghs_token").returns(
+          "sha" => "abc123", "commit" => { "author" => { "name" => "Ada", "date" => "2026-09-24T08:00:00Z" }, "message" => "Fix" },
+          "stats" => { "additions" => 1, "deletions" => 0 }, "files" => []
+        )
+
+        assert_includes pack.commit_lookup(environment_row: @row, arguments: { "repo" => "acme/checkout", "sha" => "abc123" }), "Commit abc123"
+      end
+
       test "fetch_file says plainly when the file is not there at that commit" do
         GithubApp.stubs(:get).raises(GithubApp::Error, "GitHub: Not Found")
 

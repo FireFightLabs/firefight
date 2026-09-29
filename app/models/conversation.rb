@@ -88,6 +88,9 @@ class Conversation < ApplicationRecord
   # One box for the whole conversation, so a follow up question reads code it already has.
   def code_box_key = "conversation-#{id}"
 
+  # A chat always reads code as it is now.
+  def code_as_of = {}
+
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.
   def ask!(question, asker: nil)

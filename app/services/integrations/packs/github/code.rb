@@ -241,7 +241,7 @@ module Integrations
 
         private
 
-        def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, environment_row: environment_row)
+        def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, environment_row: environment_row, as_of: as_of)
 
         # Commands a repository chooses reach the network, so they wait for the workspace's AI SRE switch.
         def running_commands!

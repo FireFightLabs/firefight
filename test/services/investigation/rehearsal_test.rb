@@ -69,6 +69,18 @@ class Investigation::RehearsalTest < ActiveSupport::TestCase
     assert_not_includes @incident.investigations.seen, rehearsal
   end
 
+  test "a bench case with no incident is asked as a question, reading each repository as of the commit it names" do
+    Investigation::Runner.any_instance.stubs(:run).returns(Investigation::Runner::Result.new(status: Investigation::STATUS_SUCCEEDED, error_summary: nil))
+
+    result = Investigation::Rehearsal.bench!(@workspace, said: "Clicking New agent does nothing", as_of: { "acme/app" => "a1b2c3" })
+
+    run = result.investigation
+    assert_nil run.subject
+    assert run.rehearsal?
+    assert_equal "Clicking New agent does nothing", run.question
+    assert_equal({ "acme/app" => "a1b2c3" }, run.code_as_of)
+  end
+
   test "a bench finding is scored on naming every expected text, whatever its case" do
     result = Investigation::Rehearsal::Result.new(
       investigation: nil, model: nil, status: nil, summary: "The billing controller calls require_admin!, which nothing defines",

@@ -23,12 +23,15 @@ class Investigation::Rehearsal
       finish(run)
     end
 
-    # said is what the person would have typed, which the run reads as its brief.
-    def bench!(incident, said:, model: nil, provider: nil)
-      limits = incident.workspace.investigation_limits
+    # said is what the person would have typed, which the run reads as its brief. Without an incident it is asked as a
+    # question, so no unrelated incident steers the run. as_of maps a repository to the commit before the fix, so the run
+    # reads it as it was when the bug was live and cannot find the fix in later history.
+    def bench!(workspace, said:, incident: nil, as_of: {}, model: nil, provider: nil)
+      limits = workspace.investigation_limits
       brief = Investigation::Brief.from({ Investigation::Brief::KEY_SYMPTOM => said }, source: Investigation::Brief::SOURCE_REHEARSAL)
       run = rehearse!(
-        incident.workspace, incident, brief: brief, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents, model: model, provider: provider
+        workspace, incident, brief: brief, code_as_of: as_of.to_h, max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents,
+        model: model, provider: provider
       )
       run.build_seed_pack!
       finish(run)

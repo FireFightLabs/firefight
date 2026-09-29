@@ -51,6 +51,11 @@ module Integrations
         end
       end
 
+      # Repository names on GitHub ignore case, so a run told acme/app is also read as of the commit for Acme/App.
+      def as_of_commit(as_of, repository)
+        as_of.to_h.find { |name, _commit| name.to_s.casecmp?(repository.to_s) }&.last.presence
+      end
+
       # In process memory, since one run's reads happen in the job that holds it.
       def unavailable(key)
         failed = unavailable_by_key[key]
@@ -69,12 +74,15 @@ module Integrations
       def provider_for(key) = key == Sandboxes.provider_key ? Sandboxes.provider : nil
     end
 
-    def initialize(key:, workspace:, environment_row:)
+    # as_of maps a repository to the commit it is read as of, for a rehearsal of a bug that was later fixed. The box
+    # then holds that commit and its history only, so no later commit, and so no fix, can be found.
+    def initialize(key:, workspace:, environment_row:, as_of: {})
       raise Error, "A code tool was called outside a run, so there is no box to read in." if key.blank?
 
       @key = key
       @workspace = workspace
       @environment_row = environment_row
+      @as_of = as_of
     end
 
     def exec(repository, **options)
@@ -158,10 +166,24 @@ module Integrations
         mirror = File.join(dir, "mirror.git")
         bundle = File.join(dir, "repository.bundle")
         git!(dir, "clone", "--mirror", "--quiet", remote_url(repository), mirror, authenticated: true)
+        cut_history!(dir, mirror, repository)
         git!(dir, "--git-dir", mirror, "bundle", "create", "--quiet", bundle, "--all")
         client.push(stored_name(repository), File.binread(bundle))
       end
       box.record_repository!(repository, head: pushed["head"], default_branch: pushed["default_branch"])
+    end
+
+    # Every ref is replaced by one branch at the commit, and what only a removed ref reached is pruned before bundling.
+    def cut_history!(dir, mirror, repository)
+      commit = self.class.as_of_commit(@as_of, repository)
+      return unless commit
+
+      refs, = Open3.capture2("git", "--git-dir", mirror, "for-each-ref", "--format=%(refname)")
+      refs.split("\n").each { |ref| git!(dir, "--git-dir", mirror, "update-ref", "-d", ref) }
+      git!(dir, "--git-dir", mirror, "update-ref", "refs/heads/main", commit)
+      git!(dir, "--git-dir", mirror, "symbolic-ref", "HEAD", "refs/heads/main")
+      git!(dir, "--git-dir", mirror, "reflog", "expire", "--expire=now", "--all")
+      git!(dir, "--git-dir", mirror, "gc", "--prune=now", "--quiet")
     end
 
     def remote_url(repository) = "https://github.com/#{repository}.git"

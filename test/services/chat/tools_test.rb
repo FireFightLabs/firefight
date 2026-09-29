@@ -24,7 +24,16 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
   test "a connection tool is handed the run's box key, so every code read in the run shares one sandbox" do
     grant!(@tool)
-    Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key).returns(FakeNativePack.new(@integration))
+    Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key, as_of: {}).returns(FakeNativePack.new(@integration))
+
+    Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+  end
+
+  test "a connection tool is handed the commits a rehearsal reads its repositories as of" do
+    grant!(@tool)
+    @investigation.update!(code_as_of: { "acme/app" => "a1b2c3" })
+    Integrations::NativePack.expects(:fetch!).with(@integration, box_key: @investigation.code_box_key, as_of: { "acme/app" => "a1b2c3" })
+                            .returns(FakeNativePack.new(@integration))
 
     Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
   end

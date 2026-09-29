@@ -36,7 +36,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
     ) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
-      result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
+      result = integration.executor.call(
+        tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key, as_of: @agent_run.code_as_of
+      )
       text_of(result)
     end
     keep_charts(tool_call_id, result, said.step)
