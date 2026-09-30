@@ -576,7 +576,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   test "connecting a native provider needs no server URL and reads tools from its pack" do
     native_entry = IntegrationProvider::Entry.new(
       key: "fakepack", name: "Fake Pack", category: "Custom", mark: "FP", color: "#000000",
-      description: "Test pack", server_url: "", kind: Integration::KIND_NATIVE
+      description: "Test pack", server_url: "", kind: Integration::KIND_NATIVE, source_links: IntegrationProvider::SOURCE_LINKS_FIREFIGHT
     )
     IntegrationProvider.stubs(:find).with("fakepack").returns(native_entry)
     Integrations::NativePack.stubs(:for).with("fakepack").returns(FakeNativePack)
