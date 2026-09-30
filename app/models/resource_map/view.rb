@@ -6,7 +6,7 @@ class ResourceMap::View
   CHANGE_WINDOW = 24.hours
 
   Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids, :suggested_dependent_ids,
-                    :memories, :instructions, :past_incidents)
+                    :memories, :instructions, :past_incidents, :baselines)
 
   attr_reader :workspace
 
@@ -26,7 +26,8 @@ class ResourceMap::View
         memories: ([ resource ] + entries).flat_map { |subject| memories_by_subject.fetch([ subject.class.name, subject.id ], []) },
         instructions: ([ resource ] + entries).flat_map { |subject| instructions_by_subject.fetch([ subject.class.name, subject.id ], []) },
         past_incidents: entries.flat_map { |entry| past_incidents_by_entry.fetch(entry.id, []) }.uniq
-                               .sort_by(&:ended_at).reverse.first(Incident::Outcome::PAST_SHOWN)
+                               .sort_by(&:ended_at).reverse.first(Incident::Outcome::PAST_SHOWN),
+        baselines: baselines_by_resource.fetch(resource.id, [])
       )
     end
   end
@@ -95,6 +96,10 @@ class ResourceMap::View
   def past_incidents_by_entry
     @past_incidents_by_entry ||= Incident.past_on(workspace, entry_ids).group_by(&:catalog_entry_id)
                                          .transform_values { |values| values.map(&:incident).uniq }
+  end
+
+  def baselines_by_resource
+    @baselines_by_resource ||= ResourceMap::Baseline.fresh.where(resource_id: resource_ids).order(:label).group_by(&:resource_id)
   end
 
   def recent_incident_ids_by_entry

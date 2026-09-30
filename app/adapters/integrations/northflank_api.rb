@@ -3,6 +3,9 @@ module Integrations
   # has its own client, since it runs on Firefight's token and creates services.
   class NorthflankApi
     class Error < Integrations::Error; end
+    # Asked too often, so a caller making many calls stops rather than keep being refused.
+    class RateLimited < Error; end
+    TOO_MANY_REQUESTS = 429
 
     API_ROOT = "https://api.northflank.com/v1".freeze
     PAGE_SIZE = 100
@@ -75,7 +78,8 @@ module Integrations
       body = response.body.to_s.empty? ? {} : JSON.parse(response.body)
       return body if response.code.to_i.between?(200, 299)
 
-      raise Error, "Northflank answered #{response.code}: #{body.dig('error', 'message') || body['message'] || 'no reason given'}"
+      error = response.code.to_i == TOO_MANY_REQUESTS ? RateLimited : Error
+      raise error, "Northflank answered #{response.code}: #{body.dig('error', 'message') || body['message'] || 'no reason given'}"
     rescue JSON::ParserError
       raise Error, "Northflank answered #{response.code} with something that is not JSON"
     end

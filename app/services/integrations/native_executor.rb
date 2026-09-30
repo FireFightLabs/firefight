@@ -17,5 +17,9 @@ module Integrations
     def self.map_of(environment_row)
       NativePack.fetch!(environment_row.integration).map_of(environment_row)
     end
+
+    def self.baselines_of(environment_row, resources, window)
+      NativePack.fetch!(environment_row.integration).baselines_of(environment_row, resources, window)
+    end
   end
 end

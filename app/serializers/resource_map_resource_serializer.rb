@@ -73,6 +73,10 @@ class ResourceMapResourceSerializer < BaseSerializer
   type "string[][]"
   def instructions = row.instructions.map { |note| [ note.id, note.label, note.text ] }
 
+  has_many :baselines, serializer: ResourceMapBaselineSerializer do
+    row.baselines
+  end
+
   has_many :entries, as: :catalog_entries, serializer: ResourceMapEntrySerializer do
     row.entries
   end

@@ -96,6 +96,16 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "INC-003", "Users unable to upload profile images", Incident::Outcome::SOURCE_SUMMARY ], past.values_at("identifier", "outcome", "outcomeSource")
   end
 
+  test "a resource carries what normal looks like for its metrics, each amount with its unit" do
+    now = Time.current
+    ResourceMap::Baseline.record!(@workspace, [ resource("web") ], [ ResourceMap::Baseline::Found.new(key: resource("web").key, metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ now, 0.2 ], [ now - 1.hour, 0.4 ] ]) ],
+                                  window_from: now - 7.days, window_to: now)
+
+    web = inertia_props(resource_map_path)["resources"].find { |each| each["name"] == "web" }
+
+    assert_equal [ "CPU", "0.3 vCPU", "0.39 vCPU", "0.4 vCPU" ], web["baselines"].sole.values_at("label", "typical", "high", "peak")
+  end
+
   test "someone who may not change the catalog cannot change links" do
     AbilityGateway.stubs(:permitted?).returns(false)
 

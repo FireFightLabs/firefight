@@ -41,6 +41,9 @@ module Integrations
       reader.new { |name, arguments| tools[name] && client.call_tool(name: tools[name].remote_name, arguments: arguments) }.map
     end
 
+    # No remote provider reads baselines yet, so its resources have none.
+    def self.baselines_of(_environment_row, _resources, _window) = nil
+
     def self.client_for(integration, environment_row)
       McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row))
     end

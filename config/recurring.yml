@@ -21,6 +21,10 @@ development:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  resource_baseline_sweep:
+    class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
+    queue: background
+    schedule: at 5am every day
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
@@ -65,6 +69,10 @@ staging:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  resource_baseline_sweep:
+    class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
+    queue: background
+    schedule: at 5am every day
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
@@ -123,6 +131,10 @@ production:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  resource_baseline_sweep:
+    class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
+    queue: background
+    schedule: at 5am every day
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events

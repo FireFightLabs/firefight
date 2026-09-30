@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_235000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1002,6 +1002,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_230000) do
 
   create_table "integration_environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "base_config", default: {}, null: false
+    t.string "baseline_error"
     t.uuid "catalog_entry_id"
     t.datetime "created_at", null: false
     t.text "credentials"
@@ -1333,6 +1334,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_230000) do
     t.datetime "updated_at", null: false
     t.string "version", null: false
     t.index ["template", "version"], name: "index_prompt_versions_on_template_and_version", unique: true
+  end
+
+  create_table "resource_map_baselines", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.float "high", null: false
+    t.string "label", null: false
+    t.string "metric", null: false
+    t.float "peak", null: false
+    t.integer "points", null: false
+    t.uuid "resource_id", null: false
+    t.float "typical", null: false
+    t.string "unit"
+    t.datetime "updated_at", null: false
+    t.datetime "window_from", null: false
+    t.datetime "window_to", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["resource_id", "metric"], name: "index_resource_map_baselines_on_resource_id_and_metric", unique: true
+    t.index ["workspace_id"], name: "index_resource_map_baselines_on_workspace_id"
   end
 
   create_table "resource_map_changes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1849,6 +1868,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_230000) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "resource_map_baselines", "resource_map_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_baselines", "workspaces"
   add_foreign_key "resource_map_changes", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_changes", "workspaces"
   add_foreign_key "resource_map_entry_links", "catalog_entries", on_delete: :cascade
