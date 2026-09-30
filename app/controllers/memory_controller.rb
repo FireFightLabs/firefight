@@ -1,8 +1,10 @@
 # What the workspace remembers and the instructions people give Halon, where people review, correct and write them.
 class MemoryController < InertiaController
-  authorizes Ability::Action::RESOURCE_CATALOG,
+  authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
-    update: %i[create_memory confirm_memory correct_memory reject_memory create_instruction update_instruction destroy_instruction]
+    create: %i[create_memory],
+    update: %i[confirm_memory correct_memory reject_memory]
+  authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
 
   TAB_QUERY = "tab"
   TAB_MEMORIES = "memories"

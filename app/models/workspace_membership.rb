@@ -35,10 +35,12 @@ class WorkspaceMembership < ApplicationRecord
     admin_role? || owner_role?
   end
 
-  # Responding to an incident and tidying your own chats need no grant on any surface. Configuring the workspace stays admin territory.
+  # Responding to an incident, tidying your own chats and teaching Halon what you know need no grant on any surface.
+  # Configuring the workspace stays admin territory.
   PARTICIPATION = {
     Ability::Action::RESOURCE_INCIDENTS => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze,
-    Ability::Action::RESOURCE_CHATS => [ Ability::Action::ACTION_UPDATE, Ability::Action::ACTION_DELETE ].freeze
+    Ability::Action::RESOURCE_CHATS => [ Ability::Action::ACTION_UPDATE, Ability::Action::ACTION_DELETE ].freeze,
+    Ability::Action::RESOURCE_MEMORY => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze
   }.freeze
 
   # Admins hold every catalogued ability including integration tools, since enabling one on a

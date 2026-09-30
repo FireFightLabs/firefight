@@ -96,18 +96,25 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Whole workspace already has instructions. Edit them instead.", flash[:alert]
   end
 
-  test "a member who cannot manage the catalog reads the page and changes nothing" do
+  test "a member decides on memories without a grant, and writing instructions still needs the catalog" do
     memory = remember("Auth Service runs on web")
     sign_in(users(:bob), @workspace)
-
-    get memory_path, headers: inertia_headers
-    assert_response :success
 
     post confirm_memory_path(memory)
     post memory_instructions_path, params: { text: "Anything" }
 
-    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
+    assert_equal Chat::Memory::STATE_CONFIRMED, memory.reload.state
+    assert_equal workspace_memberships(:bob_workspace_one), memory.confirmed_by
     assert_empty Chat::Instruction.where(workspace: @workspace)
+  end
+
+  test "someone the gateway refuses memory cannot decide on one" do
+    memory = remember("Auth Service runs on web")
+    AbilityGateway.stubs(:permitted?).returns(false)
+
+    post confirm_memory_path(memory)
+
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
   end
 
   private

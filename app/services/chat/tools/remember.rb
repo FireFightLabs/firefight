@@ -35,6 +35,16 @@ class Chat::Tools::Remember < RubyLLM::Tool
     # Only a chat has a person to vouch for it. In a run the flag means nothing.
     teacher = @agent_run.memory_teacher
     vouched = asked["from_person"] == true && teacher.present?
+    Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_CREATE, tool_name: name, params: asked.slice("about", "from_person"), tool_call_id: tool_call&.id) do
+      learned(fact, subject, teacher, vouched, asked["about"])
+    end
+  rescue ActiveRecord::RecordInvalid => error
+    { error: error.record.errors.full_messages.to_sentence }
+  end
+
+  private
+
+  def learned(fact, subject, teacher, vouched, about)
     learned = Chat::Memory.learn!(@agent_run.workspace, text: fact, subject: subject, source: @agent_run.memory_source, added_by: teacher, vouched: vouched)
     known = learned.memory
     case learned.outcome
@@ -44,9 +54,7 @@ class Chat::Tools::Remember < RubyLLM::Tool
       return "Already remembered."
     end
 
-    missing = asked["about"].present? && subject.nil? ? " Nothing called #{asked['about']} is on the map or in the catalog, so it is saved for the whole workspace." : ""
+    missing = about.present? && subject.nil? ? " Nothing called #{about} is on the map or in the catalog, so it is saved for the whole workspace." : ""
     "#{vouched ? "Remembered, confirmed by #{teacher.display_name}." : 'Remembered, unconfirmed until a person confirms it.'}#{missing}"
-  rescue ActiveRecord::RecordInvalid => error
-    { error: error.record.errors.full_messages.to_sentence }
   end
 end
