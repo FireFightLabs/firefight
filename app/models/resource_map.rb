@@ -9,7 +9,24 @@ module ResourceMap
   KIND_BRANCH = "branch".freeze
   KIND_REPOSITORY = "repository".freeze
   KIND_DOMAIN = "domain".freeze
-  KINDS = [ KIND_SERVICE, KIND_BUILD_SERVICE, KIND_JOB, KIND_DATABASE, KIND_BRANCH, KIND_REPOSITORY, KIND_DOMAIN ].freeze
+  # What an edge network holds: a zone, the code and sites it runs at the edge, where they keep data, and what sits in
+  # front of an origin.
+  KIND_ZONE = "zone".freeze
+  KIND_WORKER = "worker".freeze
+  KIND_SITE = "site".freeze
+  KIND_BUCKET = "bucket".freeze
+  KIND_KV_NAMESPACE = "kv_namespace".freeze
+  KIND_QUEUE = "queue".freeze
+  KIND_DATABASE_PROXY = "database_proxy".freeze
+  KIND_TUNNEL = "tunnel".freeze
+  KIND_LOAD_BALANCER = "load_balancer".freeze
+  KIND_ORIGIN_POOL = "origin_pool".freeze
+  KIND_ACCESS_APP = "access_app".freeze
+  KINDS = [
+    KIND_SERVICE, KIND_BUILD_SERVICE, KIND_JOB, KIND_DATABASE, KIND_BRANCH, KIND_REPOSITORY, KIND_DOMAIN, KIND_ZONE, KIND_WORKER,
+    KIND_SITE, KIND_BUCKET, KIND_KV_NAMESPACE, KIND_QUEUE, KIND_DATABASE_PROXY, KIND_TUNNEL, KIND_LOAD_BALANCER, KIND_ORIGIN_POOL,
+    KIND_ACCESS_APP
+  ].freeze
 
   # Read as "from runs builds of to", "from is built from to", and so on. From always depends on to, so what fails with a
   # resource is everything with a link into it.
@@ -18,14 +35,28 @@ module ResourceMap
   RELATION_SERVED_BY = "served_by".freeze
   RELATION_BRANCH_OF = "branch_of".freeze
   RELATION_USES = "uses".freeze
-  RELATIONS = [ RELATION_RUNS_BUILDS_OF, RELATION_BUILT_FROM, RELATION_SERVED_BY, RELATION_BRANCH_OF, RELATION_USES ].freeze
+  RELATION_PART_OF = "part_of".freeze
+  RELATION_PROTECTED_BY = "protected_by".freeze
+  RELATIONS = [
+    RELATION_RUNS_BUILDS_OF, RELATION_BUILT_FROM, RELATION_SERVED_BY, RELATION_BRANCH_OF, RELATION_USES, RELATION_PART_OF,
+    RELATION_PROTECTED_BY
+  ].freeze
   RELATION_WORDS = {
     RELATION_RUNS_BUILDS_OF => "runs builds of", RELATION_BUILT_FROM => "is built from", RELATION_SERVED_BY => "is served by",
-    RELATION_BRANCH_OF => "is a branch of", RELATION_USES => "uses"
+    RELATION_BRANCH_OF => "is a branch of", RELATION_USES => "uses", RELATION_PART_OF => "is part of",
+    RELATION_PROTECTED_BY => "is protected by"
   }.freeze
 
   # Providers that put things on the map without being a connection of their own, such as a domain a service serves.
-  PROVIDER_NAMES = { "dns" => "Domains" }.freeze
+  DOMAINS = "dns".freeze
+  PROVIDER_NAMES = { DOMAINS => "Domains" }.freeze
+
+  # A hostname on the map, whichever connection names it, so the one Cloudflare points at a service and the one that
+  # service serves are the same resource.
+  def self.domain(host)
+    Found.new(provider: DOMAINS, account: host.split(".").last(2).join("."), kind: KIND_DOMAIN, external_id: host, name: host,
+              url: "https://#{host}")
+  end
 
   def self.provider_name(key) = IntegrationProvider.find(key)&.name || PROVIDER_NAMES.fetch(key, key.to_s.humanize)
 
@@ -82,8 +113,10 @@ module ResourceMap
       gone.update_all(removed_at: at, updated_at: at)
 
       Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
+      # A link may end at something another connection reported, such as the hostname a DNS record points at.
+      elsewhere = present_ids(workspace_id, snapshot.links.flat_map { |found| [ found.from, found.to ] }.uniq - ids.keys)
       snapshot.links.each do |found|
-        from, to = ids.values_at(found.from, found.to)
+        from, to = [ found.from, found.to ].map { |key| ids[key] || elsewhere[key] }
         next unless from && to
 
         Link.create!(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
@@ -103,8 +136,13 @@ module ResourceMap
   # for Halon and are not shown.
   DETAIL_LABELS = {
     "type" => "Type", "plan" => "Plan", "instances" => "Instances", "engine" => "Engine", "region" => "Region",
-    "branch" => "Branch", DEPLOYED_COMMIT => "Running commit", PRODUCTION => "Production"
+    "branch" => "Branch", DEPLOYED_COMMIT => "Running commit", PRODUCTION => "Production", "record" => "Record",
+    "points_to" => "Points to", "proxied" => "Proxied", "origin" => "Origin", "origins" => "Origins", "ssl_mode" => "SSL mode",
+    "certificates" => "Certificates", "waf_rules" => "WAF custom rules", "rate_limit_rules" => "Rate limiting rules",
+    "cache_rules" => "Cache rules", "page_rules" => "Page rules", "dnssec" => "DNSSEC"
   }.freeze
+  # Settings a change to is worth recording, since a rule that moved just before an incident is a lead.
+  CONFIGURED_DETAILS = %w[ssl_mode certificates waf_rules rate_limit_rules cache_rules page_rules dnssec].freeze
 
   def self.facts(details)
     DETAIL_LABELS.filter_map do |key, label|
@@ -127,9 +165,13 @@ module ResourceMap
       fresh.assign_attributes(name: found.name, integration_environment: environment_row, first_seen_at: at, last_seen_at: at)
     end
     changes = resource.previously_new_record? ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, found)
-    resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
-                     details: found.details, last_seen_at: at, removed_at: nil)
-    changes.each { |kind, from, to| resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, happened_at: at) }
+    # A hostname several connections name keeps what each said, rather than whichever swept last.
+    details = found.provider == DOMAINS ? resource.details.merge(found.details) : found.details
+    resource.update!(integration_environment: environment_row, name: found.name, status: found.status || (resource.status if found.provider == DOMAINS),
+                     url: found.url, details: details, last_seen_at: at, removed_at: nil)
+    changes.each do |kind, from, to, detail|
+      resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: at)
+    end
     renamed = changes.find { |kind, _, _| kind == Change::KIND_RENAMED }
     Chat::Memory.flag_outdated!(resource, "#{renamed[1]} was renamed #{renamed[2]}") if renamed
     resource.id
@@ -144,8 +186,30 @@ module ResourceMap
     [
       ([ Change::KIND_RENAMED, resource.name, found.name ] if resource.name != found.name),
       ([ Change::KIND_DEPLOYED, before, after ] if after.present? && before != after),
-      ([ Change::KIND_STATUS_CHANGED, resource.status, found.status ] if resource.status != found.status && found.status.present?)
+      ([ Change::KIND_STATUS_CHANGED, resource.status, found.status ] if resource.status != found.status && found.status.present?),
+      *configured(resource.details, found.details)
     ].compact
   end
   private_class_method :changes_of
+
+  # A setting read before and read differently now. One read for the first time is not a change.
+  def self.configured(before, after)
+    CONFIGURED_DETAILS.filter_map do |key|
+      next if before[key].nil? || after[key].nil? || before[key] == after[key]
+
+      [ Change::KIND_CONFIGURED, before[key].to_s, after[key].to_s, DETAIL_LABELS.fetch(key) ]
+    end
+  end
+  private_class_method :configured
+
+  def self.present_ids(workspace_id, keys)
+    return {} if keys.empty?
+
+    found = keys.group_by { |provider, account, kind, _| [ provider, account, kind ] }.flat_map do |(provider, account, kind), grouped|
+      Resource.present.where(workspace_id: workspace_id, provider: provider, account: account, kind: kind, external_id: grouped.map(&:last))
+              .pluck(:provider, :account, :kind, :external_id, :id)
+    end
+    found.to_h { |provider, account, kind, external_id, id| [ [ provider, account, kind, external_id ], id ] }
+  end
+  private_class_method :present_ids
 end

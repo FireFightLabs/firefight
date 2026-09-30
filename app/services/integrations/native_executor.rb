@@ -14,6 +14,8 @@ module Integrations
       NativePack.fetch!(environment_row.integration).check_health!(environment_row)
     end
 
+    def self.map_every(_integration) = McpExecutor::DEFAULT_MAP_EVERY
+
     def self.map_of(environment_row)
       NativePack.fetch!(environment_row.integration).map_of(environment_row)
     end

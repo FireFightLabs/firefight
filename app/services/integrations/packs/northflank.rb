@@ -10,7 +10,6 @@ module Integrations
       PROVIDER = "Northflank".freeze
       PROVIDER_KEY = "northflank".freeze
       GITHUB = "github".freeze
-      DNS = "dns".freeze
       APP_ROOT = "https://app.northflank.com".freeze
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
@@ -461,9 +460,7 @@ module Integrations
         end
 
         def domain(service, host)
-          apex = host.split(".").last(2).join(".")
-          found = ResourceMap::Found.new(provider: DNS, account: apex, kind: ResourceMap::KIND_DOMAIN, external_id: host, name: host,
-                                         url: "https://#{host}")
+          found = ResourceMap.domain(host)
           @resources << found
           link(found.key, service, ResourceMap::RELATION_SERVED_BY)
         end

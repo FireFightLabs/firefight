@@ -6,7 +6,10 @@ module Mcp
       tool_name GET_RESOURCE_MAP
       authorize_as Ability::Action::RESOURCE_INTEGRATIONS
       description "What runs where, read off the workspace's connections: services, build services, databases and " \
-                  "branches, jobs, repositories and domains, by provider and account, with how they depend on each other. " \
+                  "branches, jobs, repositories and domains, and at the edge zones, Workers, Pages sites, buckets, KV " \
+                  "namespaces, queues, database proxies, tunnels, load balancers and their pools, and Access applications, " \
+                  "by provider and account, with how they depend on each other. A zone's details carry its SSL mode, " \
+                  "certificates and rule counts, and a change to them is recorded. " \
                   "Without a resource, the whole map, one line per resource. With a resource, its fact sheet: where it " \
                   "runs, its page, the catalog services it runs with what each is for and who owns it, what people " \
                   "confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last " \

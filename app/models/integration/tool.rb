@@ -23,6 +23,25 @@ class Integration::Tool < ApplicationRecord
     "#{integration.slug}.#{name}"
   end
 
+  # A call the resource map's sweep makes. The sweep is not a person and holds no grants, so it calls only tools an admin
+  # switched on, and each call is recorded under the map sweep with what it read, never the script. Returns the block's result.
+  def swept!(arguments, reads)
+    invocation = AbilityGateway.record!(
+      decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: SystemAgent.map_sweep,
+      action: Ability::Action.lookup(action_key, integration.workspace), action_key: action_key, workspace: integration.workspace,
+      scope: {}, params: arguments.to_h.except("code").merge({ "reads" => reads }.compact), context: { source: AbilityGateway::SOURCE_MAP_SWEEP }
+    )
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    failed = result.is_a?(Hash) && result["isError"]
+    invocation.finalize!(outcome: failed ? Ability::Invocation::OUTCOME_ERROR : Ability::Invocation::OUTCOME_SUCCESS,
+                         duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
+    result
+  rescue StandardError => error
+    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: error.class.name)
+    raise
+  end
+
   # A tool name cannot carry the dot an action key separates on.
   def model_facing_name
     action_key.tr(".", "_")

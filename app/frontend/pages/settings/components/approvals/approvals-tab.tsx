@@ -28,6 +28,7 @@ const SOURCE_LABELS: Record<string, string> = {
   api: "API",
   mcp: "MCP",
   investigation: "Investigation",
+  map_sweep: "Map sweep",
 }
 
 const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "outline"> = {

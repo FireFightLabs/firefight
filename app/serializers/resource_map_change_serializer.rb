@@ -20,6 +20,10 @@ class ResourceMapChangeSerializer < BaseSerializer
   type :string, optional: true
   def to_value = change.to_value
 
+  # Which setting moved, for a configured change.
+  type :string, optional: true
+  def detail = change.detail
+
   type :string
   def happened_at = change.happened_at.utc.iso8601
 end

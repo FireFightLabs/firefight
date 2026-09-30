@@ -17,12 +17,19 @@ class IntegrationProvider
   # These say why in source_links_note, since neither is Firefight's own code.
   SOURCE_LINKS_EXPLAINED = [ SOURCE_LINKS_SERVER, SOURCE_LINKS_NONE ].freeze
 
+  # Whether what a provider holds is on the resource map. config/integration_providers.yml says what each value means.
+  MAP_FIREFIGHT = "firefight".freeze
+  MAP_NONE = "none".freeze
+  MAP_UNCHECKED = "unchecked".freeze
+  MAPS = [ MAP_FIREFIGHT, MAP_NONE, MAP_UNCHECKED ].freeze
+  MAP_EXPLAINED = [ MAP_NONE ].freeze
+
   # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
   # treated as reads rather than as writes that each ask to be confirmed.
 
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note) do
-    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, **) = super
+                      :source_links, :source_links_note, :map, :map_note) do
+    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, **) = super
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
@@ -38,20 +45,20 @@ class IntegrationProvider
         # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP,
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
-        source_links: source_links_of(raw), source_links_note: raw["source_links_note"]
+        source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
+        map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"]
       )
     end.freeze
   end
 
-  # A provider that says nothing, or something the rule does not know, fails at load rather than linking nowhere quietly.
-  def self.source_links_of(raw)
-    declared = raw.fetch("source_links")
-    raise ArgumentError, "#{raw['key']} declares source_links #{declared.inspect}, one of #{SOURCE_LINKS.join(', ')}" unless SOURCE_LINKS.include?(declared)
-    if SOURCE_LINKS_EXPLAINED.include?(declared) && raw["source_links_note"].blank?
-      raise ArgumentError, "#{raw['key']} declares source_links #{declared} without a source_links_note saying why"
-    end
+  # A provider that says nothing, or something the rule does not know, fails at load rather than being skipped quietly.
+  # field is source_links or map, and a value that is not Firefight's own work says why in the field's note.
+  def self.declared(raw, field, allowed, explained)
+    value = raw.fetch(field)
+    raise ArgumentError, "#{raw['key']} declares #{field} #{value.inspect}, one of #{allowed.join(', ')}" unless allowed.include?(value)
+    raise ArgumentError, "#{raw['key']} declares #{field} #{value} without a #{field}_note saying why" if explained.include?(value) && raw["#{field}_note"].blank?
 
-    declared
+    value
   end
 
   def self.find(key)

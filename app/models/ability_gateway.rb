@@ -8,7 +8,9 @@ class AbilityGateway
   # Firefight's own work rather than a person's click, so the ledger names the origin.
   SOURCE_INVESTIGATION = "investigation"
   SOURCE_CONVERSATION = "conversation"
-  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION ].freeze
+  # The resource map's sweep, calling a connection's tools with Firefight's own fixed reads.
+  SOURCE_MAP_SWEEP = "map_sweep"
+  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 

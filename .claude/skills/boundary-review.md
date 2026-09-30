@@ -78,6 +78,11 @@ What a model is handed decides what it does. Each of these was found in a real c
 - **Every cited result links to its page.** A new tool or provider that returns logs, metrics, records or anything else a person would want to check says where it came from, with a link to the provider's own page. A pack passes `link:` to `Telemetry.result`. A remote provider whose results carry no links gets an `Integrations::SourceLinks` builder. A result that cannot link says why, and the provider's `source_links` in `config/integration_providers.yml` says the same.
 - **Never a guessed address.** A link comes from an address the provider returned (an `html_url`, a resource's page on the map) or one its documentation publishes. A path pieced together from how the page happened to look once is a broken link waiting to happen.
 
+## The resource map
+
+- **Every cloud is on the map.** A new provider that runs or stores something (a host, an edge network, a database service) declares `map: firefight` and ships its reader in the same PR. `none` is only for a provider that holds no infrastructure, and its `map_note` says so.
+- **A reader only reads, with Firefight's own code.** A remote server's reader never runs a script a model wrote, calls only tools an admin switched on, and records each call under the map sweep. What it could not read is a gap in words, never a quiet omission.
+
 ## Reach
 
 - **Every capability has a click path.** Name how a person reaches the new thing from a cold page, including the second time (already connected, already granted). A model plus controller plus serializer with no page is not shipped.

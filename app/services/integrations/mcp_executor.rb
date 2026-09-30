@@ -29,7 +29,14 @@ module Integrations
 
     # A remote server lists tools, not what it reaches, so a provider goes on the map through a reader written for it,
     # which calls only the tools an admin switched on. Without a reader the connection puts nothing on the map.
-    MAP_READERS = { MapReaders::Planetscale::PROVIDER => MapReaders::Planetscale }.freeze
+    MAP_READERS = { MapReaders::Planetscale::PROVIDER => MapReaders::Planetscale, MapReaders::Cloudflare::PROVIDER => MapReaders::Cloudflare }.freeze
+    # How often a reader is swept on the hourly schedule, when it says. Sync now reads it at once whatever this says.
+    DEFAULT_MAP_EVERY = 1.hour
+
+    def self.map_every(integration)
+      reader = MAP_READERS[integration.provider]
+      reader&.const_defined?(:EVERY, false) ? reader::EVERY : DEFAULT_MAP_EVERY
+    end
 
     def self.map_of(environment_row)
       integration = environment_row.integration
@@ -38,8 +45,12 @@ module Integrations
 
       client = client_for(integration, environment_row)
       tools = integration.tools.enabled.available.index_by(&:name)
-      reader.new { |name, arguments| tools[name] && client.call_tool(name: tools[name].remote_name, arguments: arguments) }.map
+      reader.new do |name, arguments, reads = nil|
+        tool = tools[name]
+        tool&.swept!(arguments, reads) { client.call_tool(name: tool.remote_name, arguments: arguments) }
+      end.map
     end
+
 
     # No remote provider reads baselines yet, so its resources have none.
     def self.baselines_of(_environment_row, _resources, _window) = nil

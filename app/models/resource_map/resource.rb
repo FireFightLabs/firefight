@@ -38,7 +38,7 @@ class ResourceMap::Resource < ApplicationRecord
   STATUS_HEALTH = {
     HEALTH_OK => %w[completed ready success running healthy active deployed sleeping],
     HEALTH_BUSY => %w[in_progress pending deploying building starting staging queued resizing paused],
-    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy]
+    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy down degraded]
   }.flat_map { |health, words| words.map { |word| [ word, health ] } }.to_h.freeze
 
   def health = STATUS_HEALTH.fetch(status.to_s.downcase, HEALTH_UNKNOWN)

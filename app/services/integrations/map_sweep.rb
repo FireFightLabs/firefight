@@ -9,6 +9,14 @@ module Integrations
       rows.size
     end
 
+    # Whether the hourly schedule should sweep it now. The slack keeps a daily reader from slipping to the next day.
+    SLACK = 10.minutes
+
+    def self.due?(environment_row)
+      swept = environment_row.map_swept_at
+      swept.nil? || swept <= environment_row.integration.executor.map_every(environment_row.integration).ago + SLACK
+    end
+
     def self.run!(environment_row)
       snapshot = environment_row.integration.executor.map_of(environment_row)
       return false unless snapshot
