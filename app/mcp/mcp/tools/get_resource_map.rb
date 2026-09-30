@@ -9,7 +9,8 @@ module Mcp
                   "branches, jobs, repositories and domains, by provider and account, with how they depend on each other. " \
                   "Without a resource, the whole map, one line per resource. With a resource, its fact sheet: where it " \
                   "runs, its page, and every link within two hops, each saying how it was found. A status is what the " \
-                  "last sweep saw, so check live state with the provider's own tools. Docs: #{Docs::MCP_SERVER}"
+                  "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
+                  "suggestion: never state it as fact, and say it is unconfirmed if you rely on it. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {
@@ -61,6 +62,8 @@ module Mcp
         when ResourceMap::ORIGIN_DECLARED then "declared by #{link.integration_environment&.integration&.name || 'a provider'}"
         when ResourceMap::ORIGIN_MATCHED then "matched from what the providers report"
         when ResourceMap::ORIGIN_PERSON then "added by a person"
+        when ResourceMap::ORIGIN_INFERRED
+          link.confirmed_at ? "suggested by Firefight, confirmed by a person" : "suggested by Firefight, #{link.certainty}, not confirmed: #{link.clues.join('. ')}"
         else link.confirmed_at ? "suggested by Halon, confirmed by a person" : "suggested by Halon, not confirmed"
         end
         "#{link.sentence} (#{how}#{', two links away' if hop > 1})#{": #{link.note}" if link.note.present?}"

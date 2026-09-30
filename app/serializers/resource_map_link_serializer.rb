@@ -27,6 +27,13 @@ class ResourceMapLinkSerializer < BaseSerializer
   type :boolean
   def unconfirmed = link.unconfirmed?
 
+  type "ResourceMapCertainty", optional: true
+  def certainty = link.certainty
+
+  # What Firefight saw that suggests the link, one sentence each.
+  type "string[]"
+  def clues = link.clues
+
   type :string, optional: true
   def removal_blocked_reason = link.removal_blocked_reason
 end

@@ -15,6 +15,7 @@ import {
 } from "@/lib/routes"
 import { CHAT_MEMORY_STATES } from "@/lib/generated/constants"
 import { STATE_LABELS, STATE_TONES } from "@/pages/memory/lib/labels"
+import { Clues } from "@/pages/map/components/clues"
 import { changeLabel, howFound, KIND_LABELS, RELATION_SENTENCES } from "@/pages/map/lib/labels"
 import { shortAgo } from "@/pages/map/lib/time"
 import type { SharedProps } from "@/types"
@@ -43,6 +44,7 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
   const byId = new Map(resources.map((each) => [ each.id, each ]))
   const own = links.filter((link) => link.fromId === resource.id || link.toId === resource.id)
   const stops = resource.dependentIds.flatMap((id) => byId.get(id) ?? [])
+  const maybe = resource.suggestedDependentIds.flatMap((id) => byId.get(id) ?? [])
   const recent = changes.filter((change) => change.resourceId === resource.id)
   const history = recent.length > 0 ? recent : resource.lastChange ? [ resource.lastChange ] : []
 
@@ -94,11 +96,12 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
       </Section>
 
       <Section title="If it fails">
-        <p className="text-sm leading-relaxed">
-          {stops.length === 0
-            ? "Nothing on the map depends on it, so a failure reaches only its own users."
-            : `${stops.length} ${stops.length === 1 ? "resource depends" : "resources depend"} on it, directly or through others: ${stops.map((each) => each.name).join(", ")}.`}
-        </p>
+        <p className="text-sm leading-relaxed">{failureSentence(stops)}</p>
+        {maybe.length > 0 && (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            If the suggested links are right, {names(maybe)} {maybe.length === 1 ? "stops" : "stop"} too.
+          </p>
+        )}
       </Section>
 
       {agentAvailable && (
@@ -118,6 +121,18 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
       </Section>
     </aside>
   )
+}
+
+function failureSentence(stops: ResourceMapResource[]): string {
+  if (stops.length === 0) {
+    return "Nothing on the map is known to depend on it, so a failure reaches only its own users."
+  }
+  const count = stops.length === 1 ? "1 resource depends" : `${stops.length} resources depend`
+  return `${count} on it, directly or through others: ${names(stops)}.`
+}
+
+function names(resources: ResourceMapResource[]): string {
+  return resources.map((each) => each.name).join(", ")
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -251,6 +266,7 @@ function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
         </button>
       </span>
       <span className="text-xs text-muted-foreground">{howFound(link)}{link.note ? `: ${link.note}` : ""}</span>
+      {link.unconfirmed && link.clues.length > 0 && <Clues clues={link.clues} />}
       {canCurate && link.unconfirmed && (
         <div className="flex gap-2 pt-1">
           <Button type="button" size="sm" onClick={confirm}>

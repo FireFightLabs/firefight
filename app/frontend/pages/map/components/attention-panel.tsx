@@ -3,7 +3,8 @@ import { IconAlertTriangle } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { confirmResourceMapLinkPath, dismissResourceMapLinkPath } from "@/lib/routes"
-import { changeLabel, RELATION_SENTENCES } from "@/pages/map/lib/labels"
+import { Clues } from "@/pages/map/components/clues"
+import { changeLabel, howFound, RELATION_SENTENCES } from "@/pages/map/lib/labels"
 import { shortAgo } from "@/pages/map/lib/time"
 import type {
   ResourceMapChange,
@@ -143,10 +144,11 @@ function Suggestion({ link, byId, canCurate }: { link: ResourceMapLink; byId: Ma
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 px-3 py-2.5 text-sm">
       <span>
-        Halon suggests <b className="font-semibold">{byId.get(link.fromId)?.name}</b> {RELATION_SENTENCES[link.relation]}{" "}
+        <b className="font-semibold">{byId.get(link.fromId)?.name}</b> {RELATION_SENTENCES[link.relation]}{" "}
         <b className="font-semibold">{byId.get(link.toId)?.name}</b>
-        {link.note ? `, from ${link.note}` : "."}
       </span>
+      <span className="text-xs text-muted-foreground">{howFound(link)}{link.note ? `: ${link.note}` : ""}</span>
+      {link.clues.length > 0 && <Clues clues={link.clues} />}
       {canCurate && (
         <div className="flex gap-2">
           <Button type="button" size="sm" onClick={confirm}>

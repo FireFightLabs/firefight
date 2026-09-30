@@ -14,6 +14,7 @@ module Integrations
       return false unless snapshot
 
       ResourceMap.record!(environment_row, snapshot)
+      ResourceMap::Matcher.new(environment_row.integration.workspace).run!
       true
     rescue Integrations::Error => error
       environment_row.update!(map_error: error.message)

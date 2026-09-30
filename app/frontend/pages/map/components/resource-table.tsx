@@ -99,7 +99,10 @@ function ResourceRow({ resource, count, onPick }: { resource: ResourceMapResourc
       </TableCell>
       <TableCell className="text-muted-foreground">{KIND_LABELS[resource.kind]}</TableCell>
       <TableCell className="text-muted-foreground">{resource.providerName} · {resource.account}</TableCell>
-      <TableCell className="text-right tabular-nums">{resource.dependentIds.length}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {resource.dependentIds.length}
+        {resource.suggestedDependentIds.length > 0 && <span className="text-primary"> +{resource.suggestedDependentIds.length} suggested</span>}
+      </TableCell>
       <TableCell className="text-right tabular-nums">
         {count ? count.facts : <span className="text-muted-foreground">None found</span>}
         {count && count.suggested > 0 && <span className="text-primary"> +{count.suggested} suggested</span>}
