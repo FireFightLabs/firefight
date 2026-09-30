@@ -61,6 +61,14 @@ class ResourceMapResourceSerializer < BaseSerializer
   type "string[]"
   def dependent_ids = row.dependent_ids
 
+  # What the workspace remembers about it or the catalog entries it runs, as [id, state, text].
+  type "string[][]"
+  def memories = row.memories.map { |memory| [ memory.id, memory.state, memory.text ] }
+
+  # People's instructions for it or the catalog entries it runs, as [where it applies, text].
+  type "string[][]"
+  def instructions = row.instructions.map { |note| [ note.label, note.text ] }
+
   has_many :entries, as: :catalog_entries, serializer: ResourceMapEntrySerializer do
     row.entries
   end

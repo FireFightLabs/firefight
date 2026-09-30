@@ -6,7 +6,8 @@ class ResourceMap::Change < ApplicationRecord
   KIND_REMOVED = "removed".freeze
   KIND_DEPLOYED = "deployed".freeze
   KIND_STATUS_CHANGED = "status_changed".freeze
-  KINDS = [ KIND_APPEARED, KIND_REMOVED, KIND_DEPLOYED, KIND_STATUS_CHANGED ].freeze
+  KIND_RENAMED = "renamed".freeze
+  KINDS = [ KIND_APPEARED, KIND_REMOVED, KIND_DEPLOYED, KIND_STATUS_CHANGED, KIND_RENAMED ].freeze
 
   belongs_to :workspace
   belongs_to :resource, class_name: "ResourceMap::Resource"

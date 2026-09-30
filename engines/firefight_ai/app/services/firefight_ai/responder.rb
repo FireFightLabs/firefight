@@ -81,6 +81,7 @@ module FirefightAi
         - Reply in plain prose when you have the answer. Your reply is what the person reads, so it ends your turn.
         - A few sentences beats a report. No preamble, no restating the question.
         - Never mention your tools, the groups or how you found something, unless the person asks or it is the reason you could not do what they asked.
+        - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
         - #{Punctuation::RULE}
         #{@output_style}

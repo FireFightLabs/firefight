@@ -292,6 +292,19 @@ class InvestigationTest < ActiveSupport::TestCase
     assert_equal [ memory.line ], pack[Investigation::Seeding::KEY_MEMORIES]
   end
 
+  test "a run starts with the instructions for the workspace and the incident's services" do
+    entry = catalog_entries(:auth_service)
+    IncidentFieldValue.create!(incident: @incident, incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
+    workspace_wide = Chat::Instruction.create!(workspace: @workspace, text: "Never restart the primary database")
+    own = Chat::Instruction.create!(workspace: @workspace, scope: entry, text: "Check the session store first")
+    Investigation::IncidentSeed.any_instance.stubs(:gather).returns({})
+    Investigation::Clues.any_instance.stubs(:gather).returns({})
+
+    pack = build_investigation.build_seed_pack!
+
+    assert_equal [ workspace_wide.line, own.line ], pack[Investigation::Seeding::KEY_INSTRUCTIONS]
+  end
+
   test "an incident subject resolves to the incident seeder" do
     assert_equal "Investigation::IncidentSeed", Investigation::Seeding::SEEDERS.fetch("Incident")
   end

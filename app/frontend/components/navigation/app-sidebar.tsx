@@ -2,6 +2,7 @@ import {
   IconAlertTriangle,
   IconBell,
   IconBook,
+  IconBrain,
   IconBook2,
   IconCategory,
   IconCreditCard,
@@ -43,6 +44,7 @@ import {
 import { SharedProps } from "@/types"
 import {
   agentChatsPath,
+  memoryPath,
   cataloguePath,
   dashboardPath,
   integrationsPath,
@@ -141,7 +143,10 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
 
   const chatSection: SidebarNavSection = {
     label: "Halon",
-    items: [ { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot } ],
+    items: [
+      { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot },
+      { title: "Memory", url: memoryPath(), icon: IconBrain },
+    ],
   }
   const sectionsWithAgent = agentAvailable ? [ chatSection, ...navSections ] : navSections
 

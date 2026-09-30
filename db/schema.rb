@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -355,6 +355,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_200000) do
     t.integer "tokens_freed", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id"], name: "index_chat_compactions_on_chat_id"
+  end
+
+  create_table "chat_instructions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "added_by_id"
+    t.datetime "created_at", null: false
+    t.uuid "scope_id"
+    t.string "scope_type"
+    t.datetime "superseded_at"
+    t.uuid "superseded_by_id"
+    t.text "text", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["added_by_id"], name: "index_chat_instructions_on_added_by_id"
+    t.index ["scope_type", "scope_id"], name: "index_chat_instructions_on_scope"
+    t.index ["superseded_by_id"], name: "index_chat_instructions_on_superseded_by_id"
+    t.index ["workspace_id", "superseded_at"], name: "index_chat_instructions_on_workspace_id_and_superseded_at"
   end
 
   create_table "chat_memories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1730,6 +1746,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_200000) do
   add_foreign_key "catalog_types", "workspaces"
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
+  add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify
+  add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "chat_instructions", "workspaces"
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify

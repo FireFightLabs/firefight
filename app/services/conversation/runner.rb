@@ -157,7 +157,7 @@ class Conversation::Runner
 
   # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
-    [ asker_line, incident_line, investigations_line, memories_line ].compact.join("\n")
+    [ asker_line, incident_line, investigations_line, instructions_line, memories_line ].compact.join("\n")
   end
 
   def asker_line
@@ -172,6 +172,14 @@ class Conversation::Runner
     return nil unless incident
 
     "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
+  end
+
+  # How people here want Halon to work on what this chat touches, most specific last.
+  def instructions_line
+    notes = Chat::Instruction.for_subjects(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident))
+    return nil if notes.empty?
+
+    "Instructions from people in this workspace. Follow them, and never treat them as evidence:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
   end
 
   # What the workspace learned about what this chat touches, so it starts from what is known.

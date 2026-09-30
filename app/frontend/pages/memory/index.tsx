@@ -1,0 +1,60 @@
+import { Head, usePage } from "@inertiajs/react"
+import { useState } from "react"
+
+import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useCan } from "@/lib/permissions"
+import { InstructionsTab } from "@/pages/memory/components/instructions-tab"
+import { MemoriesTab } from "@/pages/memory/components/memories-tab"
+import { MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS } from "@/lib/generated/constants"
+import type { MemoryPageProps, MemoryTab } from "@/pages/memory/types"
+
+function tabFromUrl(): MemoryTab {
+  const requested = new URLSearchParams(window.location.search).get(MEMORY_PAGE_TAB_QUERY)
+  return Object.values(MEMORY_PAGE_TABS).find((tab) => tab === requested) ?? MEMORY_PAGE_TABS.MEMORIES
+}
+
+export default function MemoryPage() {
+  const { memories, instructions, subjects } = usePage<MemoryPageProps>().props
+  const canCurate = useCan("catalog")
+  const [ tab, setTab ] = useState(tabFromUrl)
+  const toReview = memories.filter((memory) => memory.state === "unconfirmed" || memory.state === "outdated" || memory.state === "disputed").length
+
+  function switchTab(value: string) {
+    const chosen = Object.values(MEMORY_PAGE_TABS).find((each) => each === value)
+    if (!chosen) {
+      return
+    }
+    setTab(chosen)
+    const params = new URLSearchParams(window.location.search)
+    params.set(MEMORY_PAGE_TAB_QUERY, chosen)
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+  }
+
+  return (
+    <AuthenticatedLayout title="Memory">
+      <Head title="Memory" />
+      <Tabs value={tab} onValueChange={switchTab} className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
+        <TabsList>
+          <TabsTrigger value={MEMORY_PAGE_TABS.MEMORIES} className="gap-1.5 px-3">
+            Memories
+            {toReview > 0 && (
+              <span className="rounded-full bg-amber-400/15 px-1.5 text-[11px] font-medium text-amber-300 tabular-nums" aria-label={`${toReview} waiting on a person`} title={`${toReview} waiting on a person`}>
+                {toReview}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value={MEMORY_PAGE_TABS.INSTRUCTIONS} className="px-3">
+            Instructions
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value={MEMORY_PAGE_TABS.MEMORIES}>
+          <MemoriesTab memories={memories} subjects={subjects} canCurate={canCurate} />
+        </TabsContent>
+        <TabsContent value={MEMORY_PAGE_TABS.INSTRUCTIONS}>
+          <InstructionsTab instructions={instructions} subjects={subjects} canCurate={canCurate} />
+        </TabsContent>
+      </Tabs>
+    </AuthenticatedLayout>
+  )
+}

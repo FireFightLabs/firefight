@@ -51,6 +51,26 @@ export const RESOURCE_MAP_KINDS = [
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
+export const CHAT_MEMORY_STATES = [
+  "unconfirmed",
+  "confirmed",
+  "disputed",
+  "outdated",
+  "rejected"
+] as const
+export type ChatMemoryState = (typeof CHAT_MEMORY_STATES)[number]
+
+export const CHAT_MEMORY_TEXT_LIMIT = 500 as const
+
+export const CHAT_INSTRUCTION_TEXT_LIMIT = 2000 as const
+
+export const MEMORY_PAGE_TABS = {
+  "MEMORIES": "memories",
+  "INSTRUCTIONS": "instructions"
+} as const
+
+export const MEMORY_PAGE_TAB_QUERY = "tab" as const
+
 export const RESOURCE_MAP_RELATIONS = [
   "runs_builds_of",
   "built_from",
@@ -72,7 +92,8 @@ export const RESOURCE_MAP_CHANGE_KINDS = [
   "appeared",
   "removed",
   "deployed",
-  "status_changed"
+  "status_changed",
+  "renamed"
 ] as const
 export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
 

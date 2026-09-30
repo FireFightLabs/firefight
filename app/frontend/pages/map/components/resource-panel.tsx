@@ -1,4 +1,4 @@
-import { Link, router } from "@inertiajs/react"
+import { Link, router, usePage } from "@inertiajs/react"
 import { IconExternalLink, IconX } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -8,12 +8,16 @@ import {
   confirmResourceMapLinkPath,
   dismissResourceMapLinkPath,
   incidentPath,
+  memoryPath,
   resourceMapLinkPath,
   resourceMapResourceEntriesPath,
   resourceMapResourceEntryPath,
 } from "@/lib/routes"
+import { CHAT_MEMORY_STATES } from "@/lib/generated/constants"
+import { STATE_LABELS, STATE_TONES } from "@/pages/memory/lib/labels"
 import { changeLabel, howFound, KIND_LABELS, RELATION_SENTENCES } from "@/pages/map/lib/labels"
 import { shortAgo } from "@/pages/map/lib/time"
+import type { SharedProps } from "@/types"
 import type {
   ResourceMapChange,
   ResourceMapEntry,
@@ -35,6 +39,7 @@ interface ResourcePanelProps {
 }
 
 export function ResourcePanel({ resource, resources, links, changes, catalogEntries, canCurate, onAddLink, onPick }: ResourcePanelProps) {
+  const { agentAvailable } = usePage<SharedProps>().props
   const byId = new Map(resources.map((each) => [ each.id, each ]))
   const own = links.filter((link) => link.fromId === resource.id || link.toId === resource.id)
   const stops = resource.dependentIds.flatMap((id) => byId.get(id) ?? [])
@@ -95,6 +100,12 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
             : `${stops.length} ${stops.length === 1 ? "resource depends" : "resources depend"} on it, directly or through others: ${stops.map((each) => each.name).join(", ")}.`}
         </p>
       </Section>
+
+      {agentAvailable && (
+        <Section title="Halon remembers">
+          <Remembered resource={resource} />
+        </Section>
+      )}
 
       <Section title="Recent changes">
         {history.length === 0 && <p className="text-sm text-muted-foreground">No changes seen since it was first swept.</p>}
@@ -273,5 +284,48 @@ function RemoveLink({ reason, onRemove }: { reason?: string; onRemove: () => voi
       </TooltipTrigger>
       <TooltipContent>{reason}</TooltipContent>
     </Tooltip>
+  )
+}
+
+// What Halon knows about this resource and how it was told to work on it, both written on the Memory page.
+function Remembered({ resource }: { resource: ResourceMapResource }) {
+  if (resource.memories.length === 0 && resource.instructions.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Nothing yet. Halon learns about it from incidents, or you can{" "}
+        <Link href={memoryPath()} className="text-primary hover:underline">
+          add memories and instructions
+        </Link>
+        .
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {resource.instructions.map(([ label, text ]) => (
+        <div key={label} className="flex flex-col gap-1 rounded-lg border border-border bg-background/50 px-3 py-2">
+          <span className="text-[11px] text-muted-foreground">Instructions for {label}</span>
+          <p className="line-clamp-4 text-sm whitespace-pre-wrap">{text}</p>
+        </div>
+      ))}
+      {resource.memories.map(([ id, state, text ]) => (
+        <MemoryNote key={id} state={state} text={text} />
+      ))}
+      <Link href={memoryPath()} className="w-fit text-sm text-primary hover:underline">
+        Review on the Memory page
+      </Link>
+    </div>
+  )
+}
+
+function MemoryNote({ state, text }: { state: string; text: string }) {
+  const known = CHAT_MEMORY_STATES.find((each) => each === state)
+
+  return (
+    <div className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-background/50 px-3 py-2">
+      {known && <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATE_TONES[known]}`}>{STATE_LABELS[known]}</span>}
+      <p className="text-sm">{text}</p>
+    </div>
   )
 }

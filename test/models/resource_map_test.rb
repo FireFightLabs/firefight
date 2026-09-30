@@ -52,6 +52,30 @@ class ResourceMapTest < ActiveSupport::TestCase
                  changes.sort_by(&:first)
   end
 
+  test "a rename is recorded as a change, and what was remembered about the resource is flagged as possibly outdated" do
+    ResourceMap.record!(@row, snapshot(web), at: 1.hour.ago)
+    memory = Chat::Memory.create!(workspace: @workspace, text: "web serves checkout", subject: resource("web"), state: Chat::Memory::STATE_CONFIRMED)
+    renamed = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "storefront", status: "running")
+
+    ResourceMap.record!(@row, snapshot(renamed))
+
+    change = resource("web").changes_seen.find_by!(kind: ResourceMap::Change::KIND_RENAMED)
+    assert_equal [ "web", "storefront" ], [ change.from_value, change.to_value ]
+    assert_equal [ Chat::Memory::STATE_OUTDATED, "web was renamed storefront" ], [ memory.reload.state, memory.state_reason ]
+  end
+
+  test "what was remembered about a resource the connection stops reporting is flagged, and a rejected memory stays rejected" do
+    ResourceMap.record!(@row, snapshot(web), at: 1.hour.ago)
+    used = Chat::Memory.create!(workspace: @workspace, text: "web serves checkout", subject: resource("web"), state: Chat::Memory::STATE_UNCONFIRMED)
+    rejected = Chat::Memory.create!(workspace: @workspace, text: "web is in Frankfurt", subject: resource("web"), state: Chat::Memory::STATE_REJECTED)
+
+    ResourceMap.record!(@row, snapshot)
+
+    assert_equal Chat::Memory::STATE_OUTDATED, used.reload.state
+    assert_equal "web is no longer reported by its connection", used.state_reason
+    assert_equal Chat::Memory::STATE_REJECTED, rejected.reload.state
+  end
+
   test "what a provider reported is named for a person, in reading order, with the running commit shortened" do
     facts = ResourceMap.facts("deployed_commit" => "c4e4267d46e638ac", "plan" => "nf-compute-100-2", "production" => true, "appId" => "/team/p/web")
 

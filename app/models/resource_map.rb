@@ -66,7 +66,10 @@ module ResourceMap
       environment_row.lock!
       ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at) ] }
       gone = Resource.where(integration_environment_id: environment_row.id, removed_at: nil).where.not(id: ids.values)
-      gone.pluck(:id).each { |id| Change.create!(workspace_id: workspace_id, resource_id: id, kind: Change::KIND_REMOVED, happened_at: at) }
+      gone.each do |resource|
+        Change.create!(workspace_id: workspace_id, resource_id: resource.id, kind: Change::KIND_REMOVED, happened_at: at)
+        Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection")
+      end
       gone.update_all(removed_at: at, updated_at: at)
 
       Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
@@ -116,6 +119,8 @@ module ResourceMap
     resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
                      details: found.details, last_seen_at: at, removed_at: nil)
     changes.each { |kind, from, to| resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, happened_at: at) }
+    renamed = changes.find { |kind, _, _| kind == Change::KIND_RENAMED }
+    Chat::Memory.flag_outdated!(resource, "#{renamed[1]} was renamed #{renamed[2]}") if renamed
     resource.id
   end
   private_class_method :upsert_resource
@@ -126,6 +131,7 @@ module ResourceMap
     before = resource.details[DEPLOYED_COMMIT]
     after = found.details[DEPLOYED_COMMIT]
     [
+      ([ Change::KIND_RENAMED, resource.name, found.name ] if resource.name != found.name),
       ([ Change::KIND_DEPLOYED, before, after ] if after.present? && before != after),
       ([ Change::KIND_STATUS_CHANGED, resource.status, found.status ] if resource.status != found.status && found.status.present?)
     ].compact

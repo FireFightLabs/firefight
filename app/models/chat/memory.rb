@@ -61,6 +61,27 @@ class Chat::Memory < ApplicationRecord
       workspace.catalog_entries.active.where("lower(name) = :wanted OR lower(slug) = :wanted", wanted: name.to_s.strip.downcase).first
   end
 
+  # A subject as the dashboard names it, its type and id, such as "CatalogEntry:<id>". Instructions use the same keys.
+  def self.subject_key(subject) = subject && "#{subject.class.name}:#{subject.id}"
+
+  # The subject a key names in this workspace, nil for a blank key. Raises RecordNotFound for anything else.
+  def self.subject_for_key(workspace, key)
+    type, id = key.to_s.split(":", 2)
+    return nil if type.blank?
+
+    case type
+    when CatalogEntry.name then workspace.catalog_entries.active.find(id)
+    when ResourceMap::Resource.name then ResourceMap::Resource.present.where(workspace: workspace).find(id)
+    else raise ActiveRecord::RecordNotFound, "No subject of type #{type}"
+    end
+  end
+
+  # A fact a person wrote down themselves, so it counts as confirmed by them from the start.
+  def self.written_by!(member, text:, subject:)
+    create!(workspace: member.workspace, text: text, subject: subject, state: STATE_CONFIRMED, source: member,
+            added_by: member, confirmed_by: member, confirmed_at: Time.current)
+  end
+
   # What an incident touches: the catalog services named on it and the resources those services run on.
   def self.subjects_for(incident)
     return [] unless incident
@@ -106,6 +127,13 @@ class Chat::Memory < ApplicationRecord
         replacement
       end
     end
+  end
+
+  # What a memory is about changed on the map, renamed or gone, so what it says may no longer hold. One guarded update,
+  # and a disputed or rejected memory is left as a person left it.
+  def self.flag_outdated!(subject, reason)
+    where(subject: subject, state: [ STATE_UNCONFIRMED, STATE_CONFIRMED ])
+      .update_all(state: STATE_OUTDATED, state_reason: reason, updated_at: Time.current)
   end
 
   # A person, or a published postmortem when by is nil, vouching for it. A rejected memory stays rejected.
