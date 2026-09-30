@@ -13,4 +13,11 @@ class ResourceMapEntrySerializer < BaseSerializer
 
   type :string
   def type_slug = entry.catalog_type.slug
+
+  type :string, optional: true
+  def purpose = entry.purpose
+
+  # The teams that own it in the catalog, by name.
+  type "string[]"
+  def owners = entry.owning_teams.map(&:name)
 end

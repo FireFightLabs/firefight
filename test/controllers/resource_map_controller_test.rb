@@ -84,6 +84,18 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ [ note.id, "Auth Service (service)", "Check the session store first" ] ], web["instructions"]
   end
 
+  test "a resource carries what its catalog service is for, who owns it, and how its recent incidents ended" do
+    entry = catalog_entries(:auth_service)
+    ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: entry, resource: resource("web"))
+    IncidentFieldValue.create!(incident: incidents(:resolved_minor_ws1), incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
+
+    web = inertia_props(resource_map_path)["resources"].find { |each| each["name"] == "web" }
+
+    assert_equal [ "Handles authentication", [ "Platform Team" ] ], web["catalogEntries"].sole.values_at("purpose", "owners")
+    past = web["pastIncidents"].sole
+    assert_equal [ "INC-003", "Users unable to upload profile images", Incident::Outcome::SOURCE_SUMMARY ], past.values_at("identifier", "outcome", "outcomeSource")
+  end
+
   test "someone who may not change the catalog cannot change links" do
     AbilityGateway.stubs(:permitted?).returns(false)
 

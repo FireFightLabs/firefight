@@ -24,6 +24,7 @@ class Incident < ApplicationRecord
   include Incident::Serialization
   include Incident::Subscriptions
   include Incident::Searchable
+  include Incident::Outcome
 
   belongs_to :workspace
   # Polymorphic because an agent can declare an incident.

@@ -41,6 +41,14 @@ class CatalogEntry < ApplicationRecord
 
   def repository = CodeChange.repository_name(role_value(CatalogAttributeDefinition::ROLE_REPOSITORY))
 
+  # What it is for, in the words of whoever wrote it in the catalog.
+  def purpose = entry_attributes["description"].presence
+
+  # The teams it points at in the catalog, which is who owns it.
+  def owning_teams
+    active_outgoing_relationships.map(&:target_entry).select { |target| target.catalog_type.system_key == CatalogType::SYSTEM_KEY_TEAM }.uniq
+  end
+
   # Filters in memory when the association is loaded, preloads otherwise.
   def active_outgoing_relationships
     relationships = outgoing_relationships

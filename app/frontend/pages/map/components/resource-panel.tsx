@@ -4,6 +4,7 @@ import { IconExternalLink, IconX } from "@tabler/icons-react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
+import { formatDate } from "@/lib/formatters"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SearchableSelect } from "@/components/searchable-select"
 import {
@@ -25,6 +26,7 @@ import type {
   ResourceMapChange,
   ResourceMapEntry,
   ResourceMapLink,
+  ResourceMapPastIncident,
   ResourceMapResource,
 } from "@/types/serializers"
 
@@ -79,6 +81,16 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
               <span className="text-destructive">{incident.name}</span>
             </Link>
           ))
+        )}
+      </Section>
+
+      <Section title="Past incidents">
+        {resource.pastIncidents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so its incidents cannot be found yet." : "No incidents ended on it in the last six months."}
+          </p>
+        ) : (
+          resource.pastIncidents.map((incident) => <PastIncident key={incident.id} incident={incident} />)
         )}
       </Section>
 
@@ -196,6 +208,9 @@ function CatalogLinks({ resource, catalogEntries, canCurate }: CatalogLinksProps
           <EntryChip key={entry.id} resourceId={resource.id} entry={entry} canCurate={canCurate} />
         ))}
       </div>
+      {resource.catalogEntries.map((entry) => (
+        <EntryContext key={entry.id} entry={entry} />
+      ))}
       {canCurate && options.length > 0 && (
         <SearchableSelect
           value={null}
@@ -382,4 +397,39 @@ function MemoryNote({ state, text }: { state: string; text: string }) {
       <p className="text-sm">{text}</p>
     </div>
   )
+}
+
+// What the catalog says a service is for and who owns it, so neither has to be looked up elsewhere.
+function EntryContext({ entry }: { entry: ResourceMapEntry }) {
+  if (!entry.purpose && entry.owners.length === 0) {
+    return null
+  }
+
+  return (
+    <p className="text-sm leading-relaxed text-muted-foreground">
+      <span className="font-medium text-foreground">{entry.name}</span>
+      {entry.purpose && <span>: {asSentence(entry.purpose)}</span>}
+      {entry.owners.length > 0 && <span> Owned by {entry.owners.join(", ")}.</span>}
+    </p>
+  )
+}
+
+function PastIncident({ incident }: { incident: ResourceMapPastIncident }) {
+  return (
+    <Link href={incidentPath(incident.id)} className="flex flex-col gap-0.5 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm hover:bg-muted/40">
+      <span className="flex justify-between gap-3">
+        <span className="font-semibold">{incident.identifier}</span>
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{formatDate(incident.endedAt)}</span>
+      </span>
+      <span>{incident.name}</span>
+      <span className="text-xs text-muted-foreground">
+        {incident.outcome ? `${incident.outcome} (from the ${incident.outcomeSource})` : "Nothing was written about how it ended."}
+      </span>
+    </Link>
+  )
+}
+
+// A catalog description may be written without a full stop, and the owner follows it.
+function asSentence(text: string): string {
+  return /[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
 }
