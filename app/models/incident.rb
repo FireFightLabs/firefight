@@ -65,9 +65,11 @@ class Incident < ApplicationRecord
   scope :canceled, -> { joins(:incident_status).merge(IncidentStatus.canceled) }
   scope :terminal, -> { joins(:incident_status).merge(IncidentStatus.terminal) }
   # Canceling stamps nothing, so updated_at is the closest thing to an end.
+  ENDED_AT = "COALESCE(incidents.resolved_at, incidents.updated_at)".freeze
   scope :ended_before, ->(cutoff) {
-    terminal.where("COALESCE(incidents.resolved_at, incidents.updated_at) <= ?", cutoff)
+    terminal.where("#{ENDED_AT} <= ?", cutoff)
   }
+  scope :ended_since, ->(since) { where("#{ENDED_AT} >= ?", since) }
   scope :by_severity, -> { joins(:incident_severity).order("incident_severities.rank DESC") }
   scope :recent, -> { order(declared_at: :desc) }
   scope :search, ->(query) {

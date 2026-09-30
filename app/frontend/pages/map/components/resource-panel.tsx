@@ -5,6 +5,7 @@ import { IconExternalLink, IconX } from "@tabler/icons-react"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/formatters"
+import { PAST_INCIDENT_DAYS } from "@/lib/generated/constants"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SearchableSelect } from "@/components/searchable-select"
 import {
@@ -87,7 +88,7 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
       <Section title="Past incidents">
         {resource.pastIncidents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so its incidents cannot be found yet." : "No incidents ended on it in the last six months."}
+            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so its incidents cannot be found yet." : `No incidents ended on it in the last ${PAST_INCIDENT_DAYS} days.`}
           </p>
         ) : (
           resource.pastIncidents.map((incident) => <PastIncident key={incident.id} incident={incident} />)
@@ -408,7 +409,7 @@ function EntryContext({ entry }: { entry: ResourceMapEntry }) {
   return (
     <p className="text-sm leading-relaxed text-muted-foreground">
       <span className="font-medium text-foreground">{entry.name}</span>
-      {entry.purpose && <span>: {asSentence(entry.purpose)}</span>}
+      {entry.purpose && <span>: {entry.purpose}</span>}
       {entry.owners.length > 0 && <span> Owned by {entry.owners.join(", ")}.</span>}
     </p>
   )
@@ -423,13 +424,8 @@ function PastIncident({ incident }: { incident: ResourceMapPastIncident }) {
       </span>
       <span>{incident.name}</span>
       <span className="text-xs text-muted-foreground">
-        {incident.outcome ? `${incident.outcome} (from the ${incident.outcomeSource})` : "Nothing was written about how it ended."}
+        {incident.outcome ? `${incident.outcomeSource}: ${incident.outcome}` : "Nothing was written about how it ended."}
       </span>
     </Link>
   )
-}
-
-// A catalog description may be written without a full stop, and the owner follows it.
-function asSentence(text: string): string {
-  return /[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
 }

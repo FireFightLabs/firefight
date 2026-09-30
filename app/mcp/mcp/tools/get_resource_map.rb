@@ -63,14 +63,14 @@ module Mcp
       def self.runs(entries)
         entries.map do |entry|
           owners = entry.owning_teams.map(&:name)
-          [ "#{entry.name} (#{entry.catalog_type.name})", entry.purpose, ("owned by #{owners.to_sentence}" if owners.any?) ].compact.join(": ")
+          [ "#{entry.name} (#{entry.catalog_type.name})#{", owned by #{owners.to_sentence}" if owners.any?}", entry.purpose ].compact.join(". ")
         end
       end
 
       # What people confirmed about it or its services. Unconfirmed memories stay with recall, since they are hunches.
       def self.confirmed(resource, entries)
-        Chat::Memory.where(workspace: resource.workspace, state: Chat::Memory::STATE_CONFIRMED)
-                    .where(subject: [ resource ] + entries).includes(:subject, :confirmed_by).map(&:line)
+        Chat::Memory.where(workspace: resource.workspace, state: Chat::Memory::STATE_CONFIRMED).where(subject: [ resource ] + entries)
+                    .includes(:subject, confirmed_by: :user).most_trusted_first.limit(Chat::Memory::STARTING_LIMIT).map(&:line)
       end
 
       def self.past_incidents(workspace, entries)
@@ -78,7 +78,7 @@ module Mcp
                 .first(Incident::Outcome::PAST_SHOWN).map do |incident|
           outcome = incident.outcome
           ended = "#{incident.identifier} #{incident.name}, ended #{incident.ended_at.to_date.iso8601}"
-          outcome ? "#{ended}: #{outcome.text} (from the #{outcome.source})" : "#{ended}: nothing was written about how it ended"
+          outcome ? "#{ended}: #{outcome.text} (#{outcome.source.downcase_first})" : "#{ended}: nothing was written about how it ended"
         end
       end
 

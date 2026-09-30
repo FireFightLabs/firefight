@@ -51,6 +51,8 @@ export const RESOURCE_MAP_KINDS = [
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
+export const PAST_INCIDENT_DAYS = 180 as const
+
 export const CHAT_MEMORY_STATES = [
   "unconfirmed",
   "confirmed",

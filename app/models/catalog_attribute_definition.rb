@@ -18,6 +18,8 @@ class CatalogAttributeDefinition < ApplicationRecord
 
   # Routing and investigations ask for the role, never a slug, so a workspace can name its
   # attributes anything.
+  # The attribute every default catalog type carries for what an entry is for.
+  SLUG_DESCRIPTION = "description"
   ROLE_MEMBERS = "members"
   ROLE_MANAGER = "manager"
   ROLE_NOTIFICATION_CHANNEL = "notification_channel"

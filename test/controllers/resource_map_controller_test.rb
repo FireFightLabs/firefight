@@ -91,7 +91,7 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
 
     web = inertia_props(resource_map_path)["resources"].find { |each| each["name"] == "web" }
 
-    assert_equal [ "Handles authentication", [ "Platform Team" ] ], web["catalogEntries"].sole.values_at("purpose", "owners")
+    assert_equal [ "Handles authentication.", [ "Platform Team" ] ], web["catalogEntries"].sole.values_at("purpose", "owners")
     past = web["pastIncidents"].sole
     assert_equal [ "INC-003", "Users unable to upload profile images", Incident::Outcome::SOURCE_SUMMARY ], past.values_at("identifier", "outcome", "outcomeSource")
   end

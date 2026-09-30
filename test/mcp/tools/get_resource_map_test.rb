@@ -51,7 +51,7 @@ module Mcp
 
         sheet = call(resource: "web")[:resources].sole
 
-        assert_equal [ "Auth Service (Service): Handles authentication: owned by Platform Team" ], sheet[:runs]
+        assert_equal [ "Auth Service (Service), owned by Platform Team. Handles authentication." ], sheet[:runs]
         assert_equal 1, sheet[:confirmed].size
         assert_match "web keeps sessions in Redis", sheet[:confirmed].sole
         assert_equal [ "INC-003 Image upload broken, ended #{ended.resolved_at.to_date.iso8601}: Users unable to upload profile images (from the incident summary)" ],
