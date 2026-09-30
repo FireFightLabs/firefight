@@ -73,6 +73,11 @@ What a model is handed decides what it does. Each of these was found in a real c
 - **A component ships no demo.** Fake rows, a timer that flips states, a `variant` nobody passes. `TaskRows` shipped with all three. If a prop has a default that is sample data, delete the default.
 - **A row is keyed by its id, never its words.** Two steps with the same title shared a React key and one vanished. `row.key` is the step's own key.
 
+## Source links
+
+- **Every cited result links to its page.** A new tool or provider that returns logs, metrics, records or anything else a person would want to check says where it came from, with a link to the provider's own page. A pack passes `link:` to `Telemetry.result`. A remote provider whose results carry no links gets an `Integrations::SourceLinks` builder. A result that cannot link says why, and the provider's `source_links` in `config/integration_providers.yml` says the same.
+- **Never a guessed address.** A link comes from an address the provider returned (an `html_url`, a resource's page on the map) or one its documentation publishes. A path pieced together from how the page happened to look once is a broken link waiting to happen.
+
 ## Reach
 
 - **Every capability has a click path.** Name how a person reaches the new thing from a cold page, including the second time (already connected, already granted). A model plus controller plus serializer with no page is not shipped.

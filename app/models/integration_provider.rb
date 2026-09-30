@@ -10,8 +10,16 @@ class IntegrationProvider
 
   # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
   # treated as reads rather than as writes that each ask to be confirmed.
-  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools) do
-    def initialize(connect_with: nil, read_only_tools: [], **) = super
+  # How a result links back to its page, see config/integration_providers.yml.
+  SOURCE_LINKS_FIREFIGHT = "firefight".freeze
+  SOURCE_LINKS_SERVER = "server".freeze
+  SOURCE_LINKS_NONE = "none".freeze
+  SOURCE_LINKS_UNCHECKED = "unchecked".freeze
+  SOURCE_LINKS = [ SOURCE_LINKS_FIREFIGHT, SOURCE_LINKS_SERVER, SOURCE_LINKS_NONE, SOURCE_LINKS_UNCHECKED ].freeze
+
+  Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
+                      :source_links, :source_links_note) do
+    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, **) = super
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
@@ -26,7 +34,8 @@ class IntegrationProvider
         description: raw.fetch("description"), server_url: raw["server_url"].to_s,
         # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP,
-        connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"])
+        connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
+        source_links: raw.fetch("source_links"), source_links_note: raw["source_links_note"]
       )
     end.freeze
   end

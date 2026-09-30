@@ -5,7 +5,8 @@ module Integrations
     def self.call(tool:, environment_row:, arguments:, box_key: nil)
       result = client_for(tool.integration, environment_row)
                .call_tool(name: tool.remote_name, arguments: arguments)
-      ToolResult.normalize(result)
+      SourceLinks.attach(ToolResult.normalize(result), provider: tool.integration.provider, workspace: tool.integration.workspace,
+                                                       tool_name: tool.name, arguments: arguments)
     end
 
     # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call.
