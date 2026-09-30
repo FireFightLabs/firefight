@@ -49,6 +49,22 @@ class Chat::InstructionTest < ActiveSupport::TestCase
     assert_not_includes Chat::Instruction.connection.select_value("SELECT text FROM chat_instructions WHERE id = '#{note.id}'"), "primary"
   end
 
+  test "instructions that look like they hold a secret are refused, since they reach every prompt" do
+    note = Chat::Instruction.new(workspace: @workspace, text: "Connect with postgres://app:hunter2@db.internal/prod")
+
+    assert_not note.valid?
+    assert_match "looks like it holds a secret", note.errors.full_messages.sole
+  end
+
+  test "two first saves for one place at the same moment leave one, and the second hears why" do
+    write("Check logs first", scope: @auth)
+    racing = Chat::Instruction.new(workspace: @workspace, scope: @auth, text: "Check metrics first", added_by: @member)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) { racing.save!(validate: false) }
+    assert_equal "Auth Service (service) already has instructions. Edit them instead.", error.record.errors.full_messages.sole
+    assert_equal 1, Chat::Instruction.current.where(workspace: @workspace, scope: @auth).count
+  end
+
   private
 
   def write(text, scope: nil) = Chat::Instruction.create!(workspace: @workspace, scope: scope, text: text, added_by: @member)

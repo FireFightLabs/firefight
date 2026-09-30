@@ -1,4 +1,4 @@
-# One note of instructions with its earlier wordings, as the Memory page shows it. object is [note, history].
+# One place's instructions with their earlier wordings, as the Memory page shows it. object is [note, history].
 class ChatInstructionSerializer < BaseSerializer
   object_as :pair
 
@@ -20,7 +20,7 @@ class ChatInstructionSerializer < BaseSerializer
   type :string
   def updated_at = pair.first.created_at.utc.iso8601
 
-  # Earlier wordings, newest first, each as [when, who, text].
+  # Earlier wordings, newest first, each as [id, when, who, text].
   type "string[][]"
-  def history = pair.last.map { |note| [ note.created_at.utc.iso8601, note.added_by&.display_name.to_s, note.text ] }
+  def history = pair.last.map { |note| [ note.id, note.created_at.utc.iso8601, note.added_by&.display_name.to_s, note.text ] }
 end

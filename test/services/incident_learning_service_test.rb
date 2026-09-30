@@ -37,6 +37,17 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     assert_empty IncidentLearningService.new(@workspace).learn!(@incident)
   end
 
+  test "a lesson a person rejected on an earlier incident is not learned again, and one already known is not saved twice" do
+    earlier = incidents(:resolved_minor_ws1)
+    Chat::Memory.create!(workspace: @workspace, text: "Auth Service keeps sessions in Redis", subject: @entry, state: Chat::Memory::STATE_REJECTED, source: earlier)
+    Chat::Memory.create!(workspace: @workspace, text: "Deploys go out from main", state: Chat::Memory::STATE_CONFIRMED, source: earlier)
+    stub_lessons([ lesson("auth service keeps sessions in redis", about: @entry.name), lesson("Deploys go out from main") ])
+    @adapter.expects(:post_learned_memories).never
+
+    assert_empty IncidentLearningService.new(@workspace).learn!(@incident)
+    assert_not Chat::Memory.exists?(workspace: @workspace, source: @incident)
+  end
+
   test "a completed postmortem confirms what it agrees with and corrects what it contradicts, without posting" do
     right = Chat::Memory.create!(workspace: @workspace, text: "Sessions live in Redis", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
     wrong = Chat::Memory.create!(workspace: @workspace, text: "The cause was DNS", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)

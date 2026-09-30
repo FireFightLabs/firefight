@@ -37,7 +37,7 @@ class DashboardStats
 
     {
       label: "Avg. Resolution Time",
-      value: avg ? format_minutes(avg) : "—",
+      value: avg ? format_minutes(avg) : "-",
       trendDescription: avg ? "Avg. to resolve" : "No data yet",
       detail: "Based on resolved incidents"
     }

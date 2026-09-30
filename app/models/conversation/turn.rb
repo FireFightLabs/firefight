@@ -33,6 +33,13 @@ class Conversation::Turn
     action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible || self_approvable?(action)
   end
 
+  # A change to memory in a chat is the asker's, so it goes through the gateway and the ledger like any tool call.
+  # Returns what the block returns.
+  def memory_change(crud_action, params:, tool_name:, &)
+    tool_call(action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), params: params,
+              tool_name: tool_name, label: nil, &).value
+  end
+
   # Where what the agent remembers came from, and who taught it.
   def memory_source = conversation
 

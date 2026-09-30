@@ -29,6 +29,24 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_match "Nothing called ledger is on the map or in the catalog", Chat::Tools::Remember.new(@turn).call("fact" => "Ledger is slow on Mondays", "about" => "ledger")
   end
 
+  test "a change to memory in a chat is authorized as the asker and ledgered, without the fact's words" do
+    Chat::Tools::Remember.new(@turn).call("fact" => "Deploys happen from main", "about" => "auth service")
+
+    invocation = Ability::Invocation.where(workspace: @workspace, action_key: "memory.create").sole
+    assert_equal @member.id, invocation.principal_id
+    assert_not_includes invocation.params.to_json, "Deploys happen from main"
+  end
+
+  test "a chat whose asker the gateway refuses changes no memory and is told why" do
+    memory = Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_UNCONFIRMED)
+    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new("memory.update"))
+
+    answer = Chat::Tools::CorrectMemory.new(@turn).call("memory" => memory.id, "reason" => "It is Postgres")
+
+    assert_match "cannot use memory.update", answer
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
+  end
+
   test "recall reads memories with whether a person confirmed them, and dispute takes one out of use" do
     memory = Chat::Memory.create!(workspace: @workspace, text: "Auth Service keeps sessions in Redis", state: Chat::Memory::STATE_CONFIRMED,
                                   subject: catalog_entries(:auth_service), confirmed_by: @member)

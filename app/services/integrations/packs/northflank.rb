@@ -380,7 +380,7 @@ module Integrations
           found = add(kind, service["id"], service["name"], status: status&.downcase, page: [ KIND_SERVICES, service["id"] ],
                       details: {
                         "type" => service["serviceType"], "instances" => service.dig("deployment", "instances"),
-                        "plan" => service.dig("billing", "deploymentPlan"), "deployed_commit" => internal["deployedSHA"],
+                        "plan" => service.dig("billing", "deploymentPlan"), ResourceMap::DEPLOYED_COMMIT => internal["deployedSHA"],
                         "branch" => internal["branch"]
                       }.compact)
 

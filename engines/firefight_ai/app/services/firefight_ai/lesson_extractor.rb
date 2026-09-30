@@ -82,9 +82,9 @@ module FirefightAi
 
         Rules:
         - Only what the sources show. Never guess.
-        - At most #{MOST} lessons. An incident that taught nothing lasting should return an empty list, and that is a good answer.
+        - At most #{MOST} lessons. If the incident taught nothing lasting, return an empty list. That is a good answer.
         - Never a live value (a count, a rate, what is failing now), a secret, or anything about a person.
-        - Pick about from the names given, copied exactly, or leave it empty.
+        - Set about to one of the names given, copied exactly, or leave it empty.
         - For each lesson learned before, say whether the sources agree with it, contradict it, or say nothing about it. When they contradict it, give what is right instead.
         - Plain sentences, no markdown, no em dashes, no semicolons.
       PROMPT

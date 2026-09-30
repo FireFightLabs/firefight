@@ -26,7 +26,7 @@ class DashboardStatsTest < ActiveSupport::TestCase
     )
 
     stats = DashboardStats.new(workspace).to_a
-    assert_equal "—", stats[1][:value]
+    assert_equal "-", stats[1][:value]
   end
 
   test "mttr computes average for all resolved incidents" do
@@ -45,7 +45,7 @@ class DashboardStatsTest < ActiveSupport::TestCase
       expected = DashboardStats.new(workspace).send(:format_minutes, avg_minutes)
       assert_equal expected, stats[1][:value]
     else
-      assert_equal "—", stats[1][:value]
+      assert_equal "-", stats[1][:value]
     end
   end
 

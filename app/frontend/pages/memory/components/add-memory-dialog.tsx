@@ -54,7 +54,7 @@ export function AddMemoryDialog({ open, onOpenChange, subjects }: AddMemoryDialo
           <DialogHeader>
             <DialogTitle>Add a memory</DialogTitle>
             <DialogDescription>
-              A fact about your systems Halon should know in every incident. It counts as confirmed by you, so Halon trusts it from now on.
+              A fact about your systems Halon should know in every incident. It is saved as confirmed by you and used from Halon's next chat or investigation.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 pt-3 pb-5">

@@ -76,12 +76,12 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: entry, resource: resource("web"))
     kept = Chat::Memory.create!(workspace: @workspace, text: "web serves checkout", subject: resource("web"), state: Chat::Memory::STATE_CONFIRMED)
     Chat::Memory.create!(workspace: @workspace, text: "web is in Frankfurt", subject: resource("web"), state: Chat::Memory::STATE_REJECTED)
-    Chat::Instruction.create!(workspace: @workspace, scope: entry, text: "Check the session store first")
+    note = Chat::Instruction.create!(workspace: @workspace, scope: entry, text: "Check the session store first")
 
     web = inertia_props(resource_map_path)["resources"].find { |each| each["name"] == "web" }
 
     assert_equal [ [ kept.id, Chat::Memory::STATE_CONFIRMED, "web serves checkout" ] ], web["memories"]
-    assert_equal [ [ "Auth Service (service)", "Check the session store first" ] ], web["instructions"]
+    assert_equal [ [ note.id, "Auth Service (service)", "Check the session store first" ] ], web["instructions"]
   end
 
   test "someone who may not change the catalog cannot change links" do

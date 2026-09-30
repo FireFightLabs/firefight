@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 /* ─────────────────────────────────────────────────────────
- * THINKING — expandable agent trace
+ * THINKING, an expandable agent trace
  *
  * The trace runs while the agent works, settles, and remains expandable.
  * ───────────────────────────────────────────────────────── */

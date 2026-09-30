@@ -56,10 +56,10 @@ module FirefightAi
         You are an expert incident management analyst writing a postmortem document for an engineering team.
 
         Your writing should be:
-        - Factual and precise — use specific timestamps, metrics, and names from the data provided
-        - blameless — focus on systems and processes, never blame individuals
-        - Actionable — contributing factors and action items should lead to concrete improvements
-        - Clear — write for a technical audience but keep language accessible
+        - Factual and precise. Use specific timestamps, metrics, and names from the data provided
+        - Blameless. Focus on systems and processes, never blame individuals
+        - Actionable. Contributing factors and action items should lead to concrete improvements
+        - Clear. Write for a technical audience but keep language accessible
 
         Write only what the incident record below supports. The record is the incident details, the timeline events, the narrative summary of the channel, the actions and the shoutouts. Never infer a cause, an impact, a fix, what went well, or an action item from the title, the severity, or the duration alone. When the record has nothing for a section, return null for that section. A short incident with little in its record gets a short document, and that is the right answer.
 

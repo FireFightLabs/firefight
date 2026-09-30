@@ -140,8 +140,8 @@ function InstructionRow({ instruction, canCurate, onEdit, onRemove }: Instructio
           </button>
           {showHistory && (
             <ol className="flex flex-col gap-2 border-l border-border pl-4">
-              {instruction.history.map(([ writtenAt, writtenBy, text ]) => (
-                <li key={writtenAt} className="flex flex-col gap-0.5">
+              {instruction.history.map(([ id, writtenAt, writtenBy, text ]) => (
+                <li key={id} className="flex flex-col gap-0.5">
                   <span className="text-xs text-muted-foreground">
                     {writtenBy ? `${writtenBy}, ` : ""}
                     {formatDateTime(writtenAt)}

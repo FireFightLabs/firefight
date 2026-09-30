@@ -1,6 +1,8 @@
 import { Link, router, usePage } from "@inertiajs/react"
+import { useState } from "react"
 import { IconExternalLink, IconX } from "@tabler/icons-react"
 
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SearchableSelect } from "@/components/searchable-select"
@@ -209,8 +211,18 @@ function CatalogLinks({ resource, catalogEntries, canCurate }: CatalogLinksProps
 }
 
 function EntryChip({ resourceId, entry, canCurate }: { resourceId: string; entry: ResourceMapEntry; canCurate: boolean }) {
+  const [ asking, setAsking ] = useState(false)
+
+  function ask() {
+    setAsking(true)
+  }
+
+  function cancel() {
+    setAsking(false)
+  }
+
   function unlink() {
-    router.delete(resourceMapResourceEntryPath(resourceId, entry.id), VISIT)
+    router.delete(resourceMapResourceEntryPath(resourceId, entry.id), { ...VISIT, onFinish: cancel })
   }
 
   return (
@@ -218,10 +230,18 @@ function EntryChip({ resourceId, entry, canCurate }: { resourceId: string; entry
       <span>{entry.name}</span>
       <span className="text-xs text-muted-foreground">{entry.typeName}</span>
       {canCurate && (
-        <button type="button" onClick={unlink} aria-label={`Unlink ${entry.name}`} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+        <button type="button" onClick={ask} aria-label={`Unlink ${entry.name}`} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground">
           <IconX className="size-3.5" />
         </button>
       )}
+      <ConfirmDeleteDialog
+        open={asking}
+        title={`Unlink ${entry.name}?`}
+        description={`Its incidents stop showing on this resource, and Halon no longer reads this resource as where ${entry.name} runs.`}
+        confirmLabel="Unlink"
+        onConfirm={unlink}
+        onCancel={cancel}
+      />
     </span>
   )
 }
@@ -247,8 +267,18 @@ function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
     router.post(dismissResourceMapLinkPath(link.id), {}, VISIT)
   }
 
+  const [ removing, setRemoving ] = useState(false)
+
+  function askRemove() {
+    setRemoving(true)
+  }
+
+  function cancelRemove() {
+    setRemoving(false)
+  }
+
   function remove() {
-    router.delete(resourceMapLinkPath(link.id), VISIT)
+    router.delete(resourceMapLinkPath(link.id), { ...VISIT, onFinish: cancelRemove })
   }
 
   function pickOther() {
@@ -277,7 +307,15 @@ function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
           </Button>
         </div>
       )}
-      {canCurate && !link.unconfirmed && <RemoveLink reason={link.removalBlockedReason} onRemove={remove} />}
+      {canCurate && !link.unconfirmed && <RemoveLink reason={link.removalBlockedReason} onRemove={askRemove} />}
+      <ConfirmDeleteDialog
+        open={removing}
+        title="Remove this link?"
+        description={`The map and Halon stop treating ${from?.name ?? "it"} as depending on ${to?.name ?? "the other resource"}. You can add it again at any time.`}
+        confirmLabel="Remove link"
+        onConfirm={remove}
+        onCancel={cancelRemove}
+      />
     </div>
   )
 }
@@ -319,8 +357,8 @@ function Remembered({ resource }: { resource: ResourceMapResource }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {resource.instructions.map(([ label, text ]) => (
-        <div key={label} className="flex flex-col gap-1 rounded-lg border border-border bg-background/50 px-3 py-2">
+      {resource.instructions.map(([ id, label, text ]) => (
+        <div key={id} className="flex flex-col gap-1 rounded-lg border border-border bg-background/50 px-3 py-2">
           <span className="text-[11px] text-muted-foreground">Instructions for {label}</span>
           <p className="line-clamp-4 text-sm whitespace-pre-wrap">{text}</p>
         </div>

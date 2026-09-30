@@ -24,7 +24,7 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_includes inertia_props["subjects"].map { |subject| subject["value"] }, "CatalogEntry:#{@auth.id}"
   end
 
-  test "the page is not there until Halon is" do
+  test "the page redirects to the dashboard while Halon is unavailable" do
     Investigation.stubs(:available_for?).returns(false)
     Investigation.stubs(:unavailable_reason).returns("Halon is not turned on for this workspace.")
 
@@ -61,6 +61,18 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Rejected. Halon stops using it and does not learn it again.", flash[:notice]
   end
 
+  test "a decision the memory no longer allows says why, and the page ships the same reasons" do
+    confirmed = remember("Auth Service runs on web")
+    confirmed.confirm!(by: @member)
+
+    post confirm_memory_path(confirmed)
+    assert_equal "It is confirmed already.", flash[:alert]
+
+    get memory_path, headers: inertia_headers
+    shipped = inertia_props["memories"].sole
+    assert_equal [ "It is confirmed already.", nil, true ], shipped.values_at("confirmBlockedReason", "rejectBlockedReason", "inUse")
+  end
+
   test "instructions are written, edited and removed, each kept as history" do
     post memory_instructions_path, params: { text: "Check the worker logs first", subject: "CatalogEntry:#{@auth.id}" }
     note = Chat::Instruction.current.find_by!(workspace: @workspace, scope: @auth)
@@ -84,18 +96,25 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Whole workspace already has instructions. Edit them instead.", flash[:alert]
   end
 
-  test "a member who cannot manage the catalog reads the page and changes nothing" do
+  test "a member decides on memories without a grant, and writing instructions still needs the catalog" do
     memory = remember("Auth Service runs on web")
     sign_in(users(:bob), @workspace)
-
-    get memory_path, headers: inertia_headers
-    assert_response :success
 
     post confirm_memory_path(memory)
     post memory_instructions_path, params: { text: "Anything" }
 
-    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
+    assert_equal Chat::Memory::STATE_CONFIRMED, memory.reload.state
+    assert_equal workspace_memberships(:bob_workspace_one), memory.confirmed_by
     assert_empty Chat::Instruction.where(workspace: @workspace)
+  end
+
+  test "someone the gateway refuses memory cannot decide on one" do
+    memory = remember("Auth Service runs on web")
+    AbilityGateway.stubs(:permitted?).returns(false)
+
+    post confirm_memory_path(memory)
+
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
   end
 
   private

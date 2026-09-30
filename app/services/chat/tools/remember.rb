@@ -32,19 +32,29 @@ class Chat::Tools::Remember < RubyLLM::Tool
     asked = arguments.stringify_keys
     fact = asked["fact"].to_s.strip
     subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"])
-    known = Chat::Memory.where(workspace: @agent_run.workspace, subject: subject).to_a.find { |memory| memory.text.casecmp?(fact) }
-    return "A person rejected this before#{": #{known.state_reason}" if known.state_reason.present?}. It is not saved again." if known&.state == Chat::Memory::STATE_REJECTED
-    return "Already remembered." if known
-
     # Only a chat has a person to vouch for it. In a run the flag means nothing.
     teacher = @agent_run.memory_teacher
-    vouched = asked["from_person"] == true && teacher
-    Chat::Memory.create!(workspace: @agent_run.workspace, text: fact, subject: subject, source: @agent_run.memory_source, added_by: teacher,
-                         state: vouched ? Chat::Memory::STATE_CONFIRMED : Chat::Memory::STATE_UNCONFIRMED,
-                         confirmed_by: (teacher if vouched), confirmed_at: (Time.current if vouched))
-    missing = asked["about"].present? && subject.nil? ? " Nothing called #{asked['about']} is on the map or in the catalog, so it is saved for the whole workspace." : ""
-    "#{vouched ? "Remembered, confirmed by #{teacher.display_name}." : 'Remembered, unconfirmed until a person confirms it.'}#{missing}"
+    vouched = asked["from_person"] == true && teacher.present?
+    Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_CREATE, tool_name: name, params: asked.slice("about", "from_person"), tool_call_id: tool_call&.id) do
+      learned(fact, subject, teacher, vouched, asked["about"])
+    end
   rescue ActiveRecord::RecordInvalid => error
     { error: error.record.errors.full_messages.to_sentence }
+  end
+
+  private
+
+  def learned(fact, subject, teacher, vouched, about)
+    learned = Chat::Memory.learn!(@agent_run.workspace, text: fact, subject: subject, source: @agent_run.memory_source, added_by: teacher, vouched: vouched)
+    known = learned.memory
+    case learned.outcome
+    when Chat::Memory::LEARNED_REJECTED
+      return "A person rejected this before#{": #{known.state_reason}" if known.state_reason.present?}. It is not saved again."
+    when Chat::Memory::LEARNED_KNOWN
+      return "Already remembered."
+    end
+
+    missing = about.present? && subject.nil? ? " Nothing called #{about} is on the map or in the catalog, so it is saved for the whole workspace." : ""
+    "#{vouched ? "Remembered, confirmed by #{teacher.display_name}." : 'Remembered, unconfirmed until a person confirms it.'}#{missing}"
   end
 end

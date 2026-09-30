@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -367,6 +367,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_210000) do
     t.text "text", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.index "workspace_id, COALESCE(scope_type, ''::character varying), COALESCE(scope_id, '00000000-0000-0000-0000-000000000000'::uuid)", name: "index_chat_instructions_one_current_per_place", unique: true, where: "(superseded_at IS NULL)"
     t.index ["added_by_id"], name: "index_chat_instructions_on_added_by_id"
     t.index ["scope_type", "scope_id"], name: "index_chat_instructions_on_scope"
     t.index ["superseded_by_id"], name: "index_chat_instructions_on_superseded_by_id"

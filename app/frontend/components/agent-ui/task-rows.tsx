@@ -187,7 +187,7 @@ export default function TaskRows({
               </span>
             </button>
 
-            {/* dropdown detail — same expandable grammar as Chain of Thought */}
+            {/* dropdown detail, the same expandable grammar as Chain of Thought */}
             <div
               className="grid transition-[grid-template-rows,opacity] duration-300"
                 style={{

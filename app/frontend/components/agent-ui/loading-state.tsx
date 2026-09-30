@@ -3,21 +3,21 @@
 import { useEffect, useState } from "react";
 
 /* ─────────────────────────────────────────────────────────
- * LOADING STATE — pixel-grid loader for long-running work
+ * LOADING STATE, a pixel-grid loader for long-running work
  *
  * Variants:
- *   Drive  — square cells, chevron wavefront driving right;
+ *   Drive, square cells with a chevron wavefront driving right.
  *            the 650ms cycle is shorter than the sweep, so
  *            two fronts are always in flight
- *   Dots   — same wavefront, circular cells
- *   Orbit  — a comet lapping the grid perimeter
+ *   Dots, the same wavefront with circular cells.
+ *   Orbit, a comet lapping the grid perimeter.
  *
  * Their Surfer variant, which plays a meme video from their CDN, is not
  * vendored: an incident tool is the wrong place for it.
  *
  * Paired with a shimmering label and a live elapsed timer
  * in mono tabular figures. Reduced motion freezes the grid
- * to its dim state; the timer still ticks.
+ * to its dim state. The timer still ticks.
  * ───────────────────────────────────────────────────────── */
 
 const chevron = Array.from({ length: 9 }, (_, i) => {

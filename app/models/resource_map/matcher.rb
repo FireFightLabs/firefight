@@ -24,20 +24,22 @@ class ResourceMap::Matcher
     @workspace = workspace
   end
 
-  # Replaces the suggestions this matcher made before with the ones the map supports now. A suggestion someone
-  # confirmed or dismissed stays as they left it, and a pair already linked any other way is not suggested again.
+  # Brings the open suggestions in line with what the map supports now. One that still holds keeps its id, so a person
+  # can confirm it from a page loaded before the sweep. A suggestion someone confirmed or dismissed stays as they left
+  # it, and a pair already linked any other way is not suggested again. Every connection's sweep runs this for the
+  # whole workspace, so a lock keeps two from writing the same pair at once.
   def run!
     candidates = self.candidates
     ResourceMap::Link.transaction do
-      ResourceMap::Link.where(workspace: @workspace, origin: ResourceMap::ORIGIN_INFERRED, confirmed_at: nil, dismissed_at: nil).delete_all
-      taken = ResourceMap::Link.where(workspace: @workspace, relation: ResourceMap::RELATION_USES).pluck(:from_resource_id, :to_resource_id).to_set
-      candidates.each do |candidate|
-        next if taken.include?([ candidate.user.id, candidate.store.id ])
-
-        ResourceMap::Link.create!(workspace: @workspace, from_resource: candidate.user, to_resource: candidate.store,
-                                  relation: ResourceMap::RELATION_USES, origin: ResourceMap::ORIGIN_INFERRED,
-                                  certainty: candidate.certainty, clues: candidate.clues, last_seen_at: Time.current)
-      end
+      lock!
+      open = ResourceMap::Link.where(workspace: @workspace, origin: ResourceMap::ORIGIN_INFERRED, confirmed_at: nil, dismissed_at: nil)
+                              .index_by { |link| [ link.from_resource_id, link.to_resource_id ] }
+      taken = ResourceMap::Link.where(workspace: @workspace, relation: ResourceMap::RELATION_USES).where.not(id: open.values.map(&:id))
+                               .pluck(:from_resource_id, :to_resource_id).to_set
+      wanted = candidates.reject { |candidate| taken.include?([ candidate.user.id, candidate.store.id ]) }
+      wanted.each { |candidate| keep(open[[ candidate.user.id, candidate.store.id ]], candidate) }
+      stale = open.keys - wanted.map { |candidate| [ candidate.user.id, candidate.store.id ] }
+      ResourceMap::Link.where(id: stale.map { |pair| open[pair].id }).delete_all
     end
     candidates
   end
@@ -51,15 +53,27 @@ class ResourceMap::Matcher
 
   private
 
+  def lock!
+    key = Zlib.crc32("resource_map_matcher:#{@workspace.id}")
+    ResourceMap::Link.connection.select_value(ResourceMap::Link.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ]))
+  end
+
+  def keep(link, candidate)
+    columns = { certainty: candidate.certainty, clues: candidate.clues, last_seen_at: Time.current }
+    return link.update!(columns) if link
+
+    ResourceMap::Link.create!(workspace: @workspace, from_resource: candidate.user, to_resource: candidate.store,
+                              relation: ResourceMap::RELATION_USES, origin: ResourceMap::ORIGIN_INFERRED, **columns)
+  end
+
   # A database is matched by its own name, and linked through its production branch when the map has one, since that
   # is what a service connects to.
   def targets(resources)
     databases = resources.select { |resource| resource.kind == ResourceMap::KIND_DATABASE }
-    branches = resources.select { |resource| resource.kind == ResourceMap::KIND_BRANCH && resource.details["production"] }
-    databases.map do |database|
-      branch = branches.find { |each| each.account == database.account && each.external_id.start_with?("#{database.external_id}/") }
-      [ branch || database, database ]
-    end
+    production = resources.select { |resource| resource.kind == ResourceMap::KIND_BRANCH && resource.details[ResourceMap::PRODUCTION] }.index_by(&:id)
+    branch_of = ResourceMap::Link.standing.where(workspace: @workspace, relation: ResourceMap::RELATION_BRANCH_OF, from_resource_id: production.keys)
+                                 .pluck(:to_resource_id, :from_resource_id).to_h
+    databases.map { |database| [ production[branch_of[database.id]] || database, database ] }
   end
 
   def candidate(user, store, database)
@@ -72,7 +86,7 @@ class ResourceMap::Matcher
 
     clues = [ "Both are named for #{shared.first}" ]
     if store_environment
-      clues << (assumed ? "#{user.name} has no environment in its name, so it is taken as #{user_environment}, like #{database.name}" : "Both are #{user_environment}")
+      clues << (assumed ? "#{user.name} names no environment, so Firefight assumes #{user_environment}, like #{database.name}" : "Both are #{user_environment}")
     end
     certainty = store_environment ? ResourceMap::CERTAINTY_LIKELY : ResourceMap::CERTAINTY_POSSIBLE
     Candidate.new(user: user, store: store, certainty: certainty, clues: clues)

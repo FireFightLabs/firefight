@@ -3,6 +3,8 @@
 # marked unconfirmed, a person confirms or rejects it, and a rejected one is kept so the same wrong idea is not learned
 # again. Halon treats every memory as a hunch to check, never as proof.
 class Chat::Memory < ApplicationRecord
+  include Chat::SecretFree
+
   self.table_name = "chat_memories"
 
   STATE_UNCONFIRMED = "unconfirmed".freeze
@@ -33,23 +35,25 @@ class Chat::Memory < ApplicationRecord
   validates :text, presence: true, length: { maximum: TEXT_LIMIT }
   validates :state, inclusion: { in: STATES }
   validates :subject_type, inclusion: { in: SUBJECT_TYPES }, allow_nil: true
-  validate :holds_no_secret
+  # What each decision may move a memory from. A rejected memory stays rejected.
+  CONFIRMABLE_FROM = STATES - [ STATE_REJECTED, STATE_CONFIRMED ]
+  REJECTABLE_FROM = STATES - [ STATE_REJECTED ]
 
-  # A memory reaches every later prompt, so anything that looks like a credential is refused rather than kept. The
-  # patterns are the transcript scrubber's, plus a connection string carrying a password.
-  CREDENTIAL_URL = %r{\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s@/]+@}i
-  SECRET_PATTERNS = IncidentTranscriptMessage::Scrubbing::SECRET_PATTERNS.merge(credential_url: CREDENTIAL_URL).freeze
+  # What learning a fact came to: saved, already known, or refused because a person rejected it before.
+  LEARNED_SAVED = :saved
+  LEARNED_KNOWN = :known
+  LEARNED_REJECTED = :rejected
+  Learned = Data.define(:outcome, :memory)
 
   scope :in_use, -> { where(state: USED_STATES) }
-  # Confirmed first, then the newest, since a person vouched for the first and the second is the freshest guess.
-  scope :most_trusted_first, -> { order(Arel.sql("CASE state WHEN 'confirmed' THEN 0 ELSE 1 END"), created_at: :desc) }
+  scope :most_trusted_first, -> { order(Arel.sql(sanitize_sql_array([ "CASE state WHEN ? THEN 0 ELSE 1 END", STATE_CONFIRMED ])), created_at: :desc) }
 
   # The memories a chat or a run starts with: those about what it touches, then the workspace wide ones.
   def self.starting_with(workspace, subjects)
     about = subjects.compact.group_by { |subject| subject.class.name }.map { |type, found| where(subject_type: type, subject_id: found.map(&:id)) }
     scope = where(workspace: workspace).in_use
     relevant = about.inject(scope.where(subject_id: nil)) { |union, part| union.or(scope.merge(part)) }
-    relevant.includes(:subject).most_trusted_first.limit(STARTING_LIMIT).to_a
+    relevant.includes(:subject, :confirmed_by).most_trusted_first.limit(STARTING_LIMIT).to_a
   end
 
   # What a memory is about, named the way a person or Halon would: a resource on the map by its name or provider id,
@@ -74,6 +78,19 @@ class Chat::Memory < ApplicationRecord
     when ResourceMap::Resource.name then ResourceMap::Resource.present.where(workspace: workspace).find(id)
     else raise ActiveRecord::RecordNotFound, "No subject of type #{type}"
     end
+  end
+
+  # The one way a fact is learned, from a chat, a run or an ended incident. The same fact about the same thing is never
+  # saved twice, and one a person rejected is never learned again. A vouched fact is confirmed by whoever taught it.
+  def self.learn!(workspace, text:, subject:, source:, added_by: nil, vouched: false)
+    known = where(workspace: workspace, subject: subject).to_a.find { |memory| memory.text.casecmp?(text) }
+    return Learned.new(outcome: LEARNED_REJECTED, memory: known) if known&.state == STATE_REJECTED
+    return Learned.new(outcome: LEARNED_KNOWN, memory: known) if known
+
+    confirmer = added_by if vouched
+    memory = create!(workspace: workspace, text: text, subject: subject, source: source, added_by: added_by,
+                     state: confirmer ? STATE_CONFIRMED : STATE_UNCONFIRMED, confirmed_by: confirmer, confirmed_at: (Time.current if confirmer))
+    Learned.new(outcome: LEARNED_SAVED, memory: memory)
   end
 
   # A fact a person wrote down themselves, so it counts as confirmed by them from the start.
@@ -111,12 +128,20 @@ class Chat::Memory < ApplicationRecord
     "#{id} (#{[ about, trust ].compact.join(', ')}): #{text}"
   end
 
-  # Guarded, so two people deciding on the same memory at once cannot both land.
-  # A person saying it is wrong. The memory is kept as rejected with who and why, so it is never learned again, and a
-  # correction, when they give one, replaces it as confirmed by them.
+  # Why a person cannot confirm it now, or nil. The page and the controller ask this rather than reading the state.
+  def confirm_blocked_reason
+    return "It is confirmed already." if state == STATE_CONFIRMED
+    return "It was rejected. Add it again if it is right after all." unless CONFIRMABLE_FROM.include?(state)
+
+    nil
+  end
+
+  def reject_blocked_reason = ("It was rejected already." unless REJECTABLE_FROM.include?(state))
+
+  # A person saying it is wrong. Kept as rejected with who and why, and a correction replaces it as theirs.
   def reject!(by:, reason:, correction: nil)
     transaction do
-      if !decide!(STATE_REJECTED, from: STATES - [ STATE_REJECTED ], state_reason: reason.presence, rejected_by_id: by&.id, rejected_at: Time.current)
+      if !decide!(STATE_REJECTED, from: REJECTABLE_FROM, state_reason: reason.presence, rejected_by_id: by&.id, rejected_at: Time.current)
         nil
       elsif correction.blank?
         self
@@ -138,7 +163,7 @@ class Chat::Memory < ApplicationRecord
 
   # A person, or a published postmortem when by is nil, vouching for it. A rejected memory stays rejected.
   def confirm!(by:, reason: nil)
-    decide!(STATE_CONFIRMED, from: STATES - [ STATE_REJECTED, STATE_CONFIRMED ], confirmed_by_id: by&.id, confirmed_at: Time.current,
+    decide!(STATE_CONFIRMED, from: CONFIRMABLE_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
                              state_reason: reason)
   end
 
@@ -152,11 +177,7 @@ class Chat::Memory < ApplicationRecord
 
   private
 
-  def holds_no_secret
-    found = SECRET_PATTERNS.keys.find { |name| text.to_s.match?(SECRET_PATTERNS[name]) }
-    errors.add(:text, "looks like it holds a secret (#{found.to_s.humanize(capitalize: false)}), so it is not remembered") if found
-  end
-
+  # Guarded, so two people deciding on the same memory at once cannot both land.
   def decide!(state, from:, **columns)
     moved = self.class.where(id: id, state: from).update_all(columns.merge(state: state, updated_at: Time.current)) > 0
     reload

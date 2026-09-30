@@ -12,7 +12,7 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
   def description
     "When the person says a memory is wrong, or asks you to forget it, reject it. Give their correction when they said " \
       "what is right instead, and it replaces the memory as confirmed by them. A rejected memory is kept so it is never " \
-      "learned again. Only for what the person said, never for your own doubt, which is dispute_memory."
+      "learned again. Use it only for what the person said. For your own doubt, use dispute_memory."
   end
 
   def parameters_schema
@@ -32,10 +32,12 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
     memory = Chat::Memory.where(workspace: @agent_run.workspace).find_by(id: asked["memory"].to_s)
     return "There is no memory #{asked['memory']}." unless memory
 
-    outcome = memory.reject!(by: @agent_run.memory_teacher, reason: asked["reason"].to_s.strip, correction: asked["correction"].to_s.strip)
-    return "It was rejected already." unless outcome
+    Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
+      outcome = memory.reject!(by: @agent_run.memory_teacher, reason: asked["reason"].to_s.strip, correction: asked["correction"].to_s.strip)
+      next memory.reject_blocked_reason unless outcome
 
-    outcome == memory ? "Forgotten. It is kept as rejected, so it is not learned again." : "Corrected. The old one is rejected, and this replaces it, confirmed by #{@agent_run.memory_teacher&.display_name || 'the person'}."
+      outcome == memory ? "Forgotten. It is kept as rejected, so it is not learned again." : "Corrected. The old one is rejected, and this replaces it, confirmed by #{@agent_run.memory_teacher&.display_name || 'the person'}."
+    end
   rescue ActiveRecord::RecordInvalid => error
     { error: error.record.errors.full_messages.to_sentence }
   end

@@ -86,7 +86,6 @@ module Chat::Tools
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
   }.freeze
 
-  # What every chat and run holds to remember, read and dispute what the workspace learned.
   def self.memory(agent_run) = [ Remember.new(agent_run), Recall.new(agent_run), DisputeMemory.new(agent_run) ]
 
   # How the agent writes and finds its way, not what it looked at, so a reader is never shown them.
@@ -177,6 +176,17 @@ module Chat::Tools
   end
 
   # Read fresh, since a run's chat may have been opened after the run was loaded.
+  # A memory write as whoever the agent acts for. A refusal or a wait is text the model reads, and the call is marked.
+  # The ledger gets ids and flags only, never the fact, since a fact holding a secret is refused only after.
+  def self.memory_change(agent_run, crud_action, tool_name:, params:, tool_call_id:, &)
+    agent_run.memory_change(crud_action, params: params, tool_name: tool_name, &)
+  rescue AbilityGateway::Denied => denied
+    mark_failed(agent_run, tool_call_id)
+    agent_run.refusal(denied.action_key)
+  rescue AbilityGateway::PendingApproval
+    waiting_for_approval(Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action))
+  end
+
   def self.mark_failed(agent_run, tool_call_id)
     return if tool_call_id.blank?
 

@@ -10,8 +10,8 @@ import GlideMenu from "@/components/agent-ui/glide-menu";
  * One question at a time. The stack slides vertically as you
  * move between questions (the card's height animates to fit),
  * the step counter rolls like an odometer, and the footer uses
- * pill actions — a quiet Skip and a dark Continue with a ⏎.
- * Single-choice answers auto-advance; multi-select waits.
+ * pill actions, a quiet Skip and a dark Continue with a ⏎.
+ * Single-choice answers auto-advance. Multi-select waits.
  * ───────────────────────────────────────────────────────── */
 
 export type ApprovalQuestion = {
@@ -61,7 +61,7 @@ const DEFAULT_LABELS: ApprovalLabels = {
 const ROLL_MS = 400;
 const SLIDE = "360ms cubic-bezier(0.22, 1, 0.36, 1)";
 
-/* odometer digits — each character that changes rolls up (or down) */
+/* odometer digits, where each character that changes rolls up or down */
 function RollingDigits({ value }: { value: string }) {
   const prevRef = useRef(value);
   const [oldVal, setOldVal] = useState(value);
@@ -177,7 +177,7 @@ export default function ApprovalCard({
   const [trackY, setTrackY] = useState(0);
   const [animate, setAnimate] = useState(false);
   // Until the first question is measured, render only the active one so the
-  // initial (and SSR) height is Q1's height — not all questions stacked, which
+  // initial (and SSR) height is Q1's height, not all questions stacked, which
   // would flash to full height and then shrink on mount.
   const [ready, setReady] = useState(false);
 
@@ -398,7 +398,7 @@ export default function ApprovalCard({
           </div>
         </div>
 
-        {/* footer — step nav (rolling counter) + pill actions */}
+        {/* footer with the step nav (rolling counter) and pill actions */}
         {!single && (
         <div className="primitive-card-footer flex items-center justify-between gap-3">
           <div className="flex items-center gap-1 text-ink-3">

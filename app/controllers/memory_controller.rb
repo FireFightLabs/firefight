@@ -1,8 +1,10 @@
 # What the workspace remembers and the instructions people give Halon, where people review, correct and write them.
 class MemoryController < InertiaController
-  authorizes Ability::Action::RESOURCE_CATALOG,
+  authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
-    update: %i[create_memory confirm_memory correct_memory reject_memory create_instruction update_instruction destroy_instruction]
+    create: %i[create_memory],
+    update: %i[confirm_memory correct_memory reject_memory]
+  authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
 
   TAB_QUERY = "tab"
   TAB_MEMORIES = "memories"
@@ -30,24 +32,24 @@ class MemoryController < InertiaController
 
   def confirm_memory
     memory = memories.find(params[:id])
-    return redirect_to(memory_path, alert: "It is #{memory.state} already.") unless memory.confirm!(by: current_membership)
+    return redirect_to(memory_path, alert: memory.confirm_blocked_reason) unless memory.confirm!(by: current_membership)
 
-    redirect_to memory_path, notice: "Confirmed. Halon now trusts it."
+    redirect_to memory_path, notice: "Confirmed. Halon now reads it as confirmed by you."
   end
 
   def correct_memory
     memory = memories.find(params[:id])
     replacement = memory.reject!(by: current_membership, reason: params[:reason].to_s.strip, correction: params[:text].to_s.strip)
-    return redirect_to(memory_path, alert: "It was rejected already.") unless replacement
+    return redirect_to(memory_path, alert: memory.reject_blocked_reason) unless replacement
 
-    redirect_to memory_path, notice: "Corrected. The old memory is kept as rejected, so Halon does not learn it again."
+    redirect_to memory_path, notice: "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
   rescue ActiveRecord::RecordInvalid => error
     redirect_to memory_path, alert: error.record.errors.full_messages.to_sentence
   end
 
   def reject_memory
     memory = memories.find(params[:id])
-    return redirect_to(memory_path, alert: "It was rejected already.") unless memory.reject!(by: current_membership, reason: params[:reason].to_s.strip)
+    return redirect_to(memory_path, alert: memory.reject_blocked_reason) unless memory.reject!(by: current_membership, reason: params[:reason].to_s.strip)
 
     redirect_to memory_path, notice: "Rejected. Halon stops using it and does not learn it again."
   end

@@ -16,7 +16,7 @@ export interface MemoryPageProps extends SharedProps {
 
 export type MemoryTab = (typeof MEMORY_PAGE_TABS)[keyof typeof MEMORY_PAGE_TABS]
 
-// The views of the list. In use is what Halon reads, the rest are what waits on a person or was set aside.
+// In use is what Halon reads. The rest wait on a person or were set aside.
 export const MEMORY_FILTERS = { IN_USE: "in_use", UNCONFIRMED: "unconfirmed", OUTDATED: "outdated", DISPUTED: "disputed", REJECTED: "rejected" } as const
 export type MemoryFilter = (typeof MEMORY_FILTERS)[keyof typeof MEMORY_FILTERS]
 
