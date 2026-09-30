@@ -2,7 +2,7 @@
 module Interactions
   class MemoryDecisionHandler
     extend HandlerAuthorization
-    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_UPDATE
 
     def self.execute(interaction)
       incident_id, memory_id = interaction.action_value.to_s.split(":", 2)

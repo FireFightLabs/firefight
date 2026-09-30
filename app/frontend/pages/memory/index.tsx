@@ -16,7 +16,8 @@ function tabFromUrl(): MemoryTab {
 
 export default function MemoryPage() {
   const { memories, instructions, subjects } = usePage<MemoryPageProps>().props
-  const canCurate = useCan("catalog")
+  const canDecide = useCan("memory")
+  const canInstruct = useCan("catalog")
   const [ tab, setTab ] = useState(tabFromUrl)
   const toReview = memories.filter((memory) => !memory.confirmBlockedReason).length
 
@@ -49,10 +50,10 @@ export default function MemoryPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value={MEMORY_PAGE_TABS.MEMORIES}>
-          <MemoriesTab memories={memories} subjects={subjects} canCurate={canCurate} />
+          <MemoriesTab memories={memories} subjects={subjects} canCurate={canDecide} />
         </TabsContent>
         <TabsContent value={MEMORY_PAGE_TABS.INSTRUCTIONS}>
-          <InstructionsTab instructions={instructions} subjects={subjects} canCurate={canCurate} />
+          <InstructionsTab instructions={instructions} subjects={subjects} canCurate={canInstruct} />
         </TabsContent>
       </Tabs>
     </AuthenticatedLayout>

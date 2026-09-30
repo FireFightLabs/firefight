@@ -33,6 +33,8 @@ module Ability
     RESOURCE_INVESTIGATIONS = "investigations"
     # A person's own chats. Asking in one is investigations.create.
     RESOURCE_CHATS = "chats"
+    # What Halon remembers. Adding a fact is create, confirming, correcting, rejecting or disputing one is update.
+    RESOURCE_MEMORY = "memory"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -44,7 +46,7 @@ module Ability
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
-      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS
+      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -65,6 +67,7 @@ module Ability
       RESOURCE_INCIDENT_TRANSCRIPTS => "Incident Transcripts",
       RESOURCE_INVESTIGATIONS => "Investigations",
       RESOURCE_CHATS => "Chats",
+      RESOURCE_MEMORY => "Memory",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
