@@ -16,6 +16,14 @@ class ResourceMap::Resource < ApplicationRecord
 
   scope :present, -> { where(removed_at: nil) }
 
+  # The provider's own page for the first of places, each a kind and an id, that is on the map with one. nil when none is.
+  def self.page_of(workspace, provider:, account:, places:)
+    found = present.where(workspace: workspace, provider: provider, account: account)
+                   .where(places.map { |kind, id| sanitize_sql_array([ "(kind = ? AND external_id = ?)", kind, id ]) }.join(" OR "))
+                   .where.not(url: [ nil, "" ]).pluck(:kind, :external_id, :url)
+    places.lazy.filter_map { |kind, id| found.find { |each| each[0] == kind && each[1] == id }&.last }.first
+  end
+
   # How a provider's own status word reads at a glance. Providers name their states differently, so the words each one
   # uses are gathered here and anything else is unknown rather than guessed.
   HEALTH_OK = "ok".freeze

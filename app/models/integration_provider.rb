@@ -8,14 +8,17 @@ class IntegrationProvider
   CONNECT_API_TOKEN = "api_token".freeze
   CONNECT_WITH = [ CONNECT_CONNECTION_URL, CONNECT_API_TOKEN ].freeze
 
-  # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
-  # treated as reads rather than as writes that each ask to be confirmed.
-  # How a result links back to its page, see config/integration_providers.yml.
+  # How a result links back to its page. config/integration_providers.yml says what each value means.
   SOURCE_LINKS_FIREFIGHT = "firefight".freeze
   SOURCE_LINKS_SERVER = "server".freeze
   SOURCE_LINKS_NONE = "none".freeze
   SOURCE_LINKS_UNCHECKED = "unchecked".freeze
   SOURCE_LINKS = [ SOURCE_LINKS_FIREFIGHT, SOURCE_LINKS_SERVER, SOURCE_LINKS_NONE, SOURCE_LINKS_UNCHECKED ].freeze
+  # These say why in source_links_note, since neither is Firefight's own code.
+  SOURCE_LINKS_EXPLAINED = [ SOURCE_LINKS_SERVER, SOURCE_LINKS_NONE ].freeze
+
+  # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
+  # treated as reads rather than as writes that each ask to be confirmed.
 
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note) do
@@ -35,9 +38,20 @@ class IntegrationProvider
         # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP,
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
-        source_links: raw.fetch("source_links"), source_links_note: raw["source_links_note"]
+        source_links: source_links_of(raw), source_links_note: raw["source_links_note"]
       )
     end.freeze
+  end
+
+  # A provider that says nothing, or something the rule does not know, fails at load rather than linking nowhere quietly.
+  def self.source_links_of(raw)
+    declared = raw.fetch("source_links")
+    raise ArgumentError, "#{raw['key']} declares source_links #{declared.inspect}, one of #{SOURCE_LINKS.join(', ')}" unless SOURCE_LINKS.include?(declared)
+    if SOURCE_LINKS_EXPLAINED.include?(declared) && raw["source_links_note"].blank?
+      raise ArgumentError, "#{raw['key']} declares source_links #{declared} without a source_links_note saying why"
+    end
+
+    declared
   end
 
   def self.find(key)

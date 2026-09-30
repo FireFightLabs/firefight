@@ -7,8 +7,8 @@
 # tile until real brand assets land.
 # source_links says how a result links back to the page it came from, since a result nobody can check at its source
 # is worth little: firefight (a pack or a builder in Integrations::SourceLinks adds the link), server (the provider's
-# own results already carry one), none (there is no page, and source_links_note says why) or unchecked (not yet
-# verified against a real connection). A new provider is never unchecked.
+# own results already carry one), none (there is no page) or unchecked (not yet verified against a real connection).
+# server and none carry a source_links_note saying why. A new provider is never unchecked.
 # Section headings on the gallery. A provider naming a category that is not
 # listed here still renders, it just shows no tagline, so adding a provider
 # in a new category stays a registry edit rather than a code change.
@@ -108,6 +108,7 @@ providers:
     description: Bring runbook and architecture pages into investigations.
     server_url: https://mcp.notion.com/mcp
     source_links: server
+    source_links_note: "Its results carry each page's own address."
   - key: confluence
     name: Confluence
     category: Knowledge
