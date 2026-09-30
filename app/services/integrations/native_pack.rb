@@ -108,5 +108,10 @@ module Integrations
     # the map.
     def map_of(environment_row)
     end
+
+    # What normal looks like for the given map resources, as ResourceMap::Baseline::Found readings over window. nil means
+    # the pack reads no metrics.
+    def baselines_of(environment_row, resources, window)
+    end
   end
 end

@@ -264,6 +264,42 @@ module Integrations
 
       private
 
+      test "a week of metrics per service and database, grouped to Northflank's step, containers added up and counts made per minute" do
+        web = ResourceMap::Resource.new(provider: "northflank", account: "firefight-labs/firefight", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+        db = ResourceMap::Resource.new(provider: "northflank", account: "firefight-labs/firefight", kind: ResourceMap::KIND_DATABASE, external_id: "db", name: "db")
+        repository = ResourceMap::Resource.new(provider: "github", account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/app", name: "acme/app")
+        # Two containers reading a few seconds apart within each 5 minute step.
+        two = ->(first, second) {
+          [ { "data" => [ { "ts" => "2026-09-29T10:00:00Z", "value" => first }, { "ts" => "2026-09-29T10:05:00Z", "value" => first } ] },
+            { "data" => [ { "ts" => "2026-09-29T10:00:04Z", "value" => second }, { "ts" => "2026-09-29T10:05:04Z", "value" => second } ] } ]
+        }
+        NorthflankApi.any_instance.expects(:metrics).with("firefight", "services", "web", has_entry("metricTypes", %w[requests http4xxResponses http5xxResponses cpu memory]))
+                     .returns("requests" => { "metricInfo" => { "metricUnit" => "rps" }, "values" => two.(3, 4) },
+                              "http5xxResponses" => { "metricInfo" => { "metricUnit" => "count" }, "values" => two.(10, 20) })
+        NorthflankApi.any_instance.expects(:metrics).with("firefight", "addons", "db", has_entry("metricTypes", %w[cpu memory diskUsage]))
+                     .returns("diskUsage" => { "metricInfo" => { "metricUnit" => "mb" }, "values" => two.(400, 600) })
+
+        found = @pack.baselines_of(@row, [ web, db, repository ], 7.days.ago..Time.current)
+
+        assert_equal [ [ "Requests", "requests/s", [ 7.0, 7.0 ] ], [ "5xx responses", "per minute", [ 6.0, 6.0 ] ], [ "Disk usage", "MB", [ 600.0, 600.0 ] ] ],
+                     found.map { |each| [ each.label, each.unit, each.points.map(&:last) ] }
+        assert_equal web.key, found.first.key
+      end
+
+      test "a resource Northflank cannot read is skipped, and being asked to slow down stops the read" do
+        web = ResourceMap::Resource.new(provider: "northflank", account: "a", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+        db = ResourceMap::Resource.new(provider: "northflank", account: "a", kind: ResourceMap::KIND_DATABASE, external_id: "db", name: "db")
+        points = [ { "ts" => "2026-09-29T10:00:00Z", "value" => 0.2 }, { "ts" => "2026-09-29T10:05:00Z", "value" => 0.3 } ]
+        NorthflankApi.any_instance.stubs(:metrics).with("firefight", "services", "web", anything).raises(NorthflankApi::Error, "Northflank answered 404")
+        NorthflankApi.any_instance.stubs(:metrics).with("firefight", "addons", "db", anything)
+                     .returns("cpu" => { "metricInfo" => { "metricUnit" => "vCPU" }, "values" => [ { "data" => points } ] })
+
+        assert_equal [ "CPU" ], @pack.baselines_of(@row, [ web, db ], 7.days.ago..Time.current).map(&:label)
+
+        NorthflankApi.any_instance.stubs(:metrics).with("firefight", "services", "web", anything).raises(NorthflankApi::RateLimited, "Northflank answered 429")
+        assert_raises(NorthflankApi::RateLimited) { @pack.baselines_of(@row, [ web, db ], 7.days.ago..Time.current) }
+      end
+
       def call(tool, arguments = {})
         @pack.call(tool.to_s, environment_row: @row, arguments: arguments)["content"].sole["text"]
       end

@@ -9,7 +9,8 @@ module Mcp
                   "branches, jobs, repositories and domains, by provider and account, with how they depend on each other. " \
                   "Without a resource, the whole map, one line per resource. With a resource, its fact sheet: where it " \
                   "runs, its page, the catalog services it runs with what each is for and who owns it, what people " \
-                  "confirmed about it, how its recent incidents ended, and every link within two hops, each saying how it was found. A status is what the " \
+                  "confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last " \
+                  "week, and every link within two hops, each saying how it was found. A status is what the " \
                   "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
                   "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
@@ -55,6 +56,7 @@ module Mcp
           removed: resource.removed_at && "Not seen by its connection since #{resource.removed_at.iso8601}",
           runs: runs(entries).presence, confirmed: confirmed(resource, entries).presence,
           past_incidents: past_incidents(resource.workspace, entries).presence,
+          normal: (resource.baselines.fresh.order(:label).map(&:line).presence unless resource.removed_at),
           links: resource.neighborhood.map { |link, hop| link_line(link, hop) }
         }.compact
       end

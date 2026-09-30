@@ -16,4 +16,8 @@ class ResourceMapConnectionSerializer < BaseSerializer
 
   type "string[]"
   def gaps = row.map_gaps
+
+  # Why the last daily read of what normal looks like failed, or nil.
+  type :string, optional: true
+  def baseline_error = row.baseline_error
 end

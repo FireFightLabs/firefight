@@ -10,11 +10,15 @@ class ResourceMap::Resource < ApplicationRecord
   has_many :changes_seen, class_name: "ResourceMap::Change", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
   has_many :entry_links, class_name: "ResourceMap::EntryLink", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
   has_many :catalog_entries, through: :entry_links
+  has_many :baselines, class_name: "ResourceMap::Baseline", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
 
   validates :provider, :account, :external_id, :name, presence: true
   validates :kind, inclusion: { in: ResourceMap::KINDS }
 
   scope :present, -> { where(removed_at: nil) }
+
+  # The same identity a sweep's ResourceMap::Found carries.
+  def key = [ provider, account, kind, external_id ]
 
   # The provider's own page for the first of places, each a kind and an id, that is on the map with one. nil when none is.
   def self.page_of(workspace, provider:, account:, places:)

@@ -29,6 +29,15 @@ module Integrations
         "http5xxResponses" => "5xx responses", "networkIngress" => "Network in", "networkEgress" => "Network out",
         "tcpConnectionsOpen" => "Open TCP connections", "diskUsage" => "Disk usage", "bandwidth" => "Bandwidth"
       }.freeze
+      # What a baseline reads for each kind on the map, and where Northflank keeps that kind.
+      BASELINE_METRICS = {
+        ResourceMap::KIND_SERVICE => [ KIND_SERVICES, %w[requests http4xxResponses http5xxResponses cpu memory] ],
+        ResourceMap::KIND_DATABASE => [ KIND_ADDONS, %w[cpu memory diskUsage] ]
+      }.freeze
+      AVERAGED_UNIT = "pct".freeze
+      COUNT_UNIT = "count".freeze
+      PER_MINUTE = "per minute".freeze
+      DISK_METRIC = "diskUsage".freeze
       DEFAULT_MINUTES = 60
       MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
@@ -359,6 +368,28 @@ module Integrations
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps)
       end
 
+      # What normal looks like for its services and databases, one metrics read each. A week comes back in coarse steps,
+      # so readings are grouped to the step before containers are added up (a percentage is averaged, a disk is its
+      # fullest volume), and a count per step becomes a count per minute, which a live reading can be compared with. A
+      # resource Northflank cannot read keeps yesterday's baselines, and being asked to slow down stops the whole read.
+      def baselines_of(environment_row, resources, window)
+        project = project_of(environment_row)
+        api = api(environment_row)
+        resources.flat_map do |resource|
+          kind, metrics = BASELINE_METRICS[resource.kind]
+          next [] unless kind
+
+          query = { "startTime" => window.begin.utc.iso8601, "endTime" => window.end.utc.iso8601, "metricTypes" => metrics }
+          data = api.metrics(project, kind, resource.external_id, query)
+          metrics.filter_map { |metric| baseline(resource, metric, data[metric]) if data[metric] }
+        rescue NorthflankApi::RateLimited
+          raise
+        rescue NorthflankApi::Error => error
+          Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
+          []
+        end
+      end
+
       # Builds the snapshot for map_of, one resource at a time.
       class MapReading
         SERVICE_KINDS = { "build" => ResourceMap::KIND_BUILD_SERVICE }.freeze
@@ -601,6 +632,37 @@ module Integrations
         return { "searchQuery" => exclude, "matchType" => "noMatch", "queryType" => "text" } if exclude
 
         {}
+      end
+
+      def baseline(resource, metric, data)
+        raw_unit = data.dig("metricInfo", "metricUnit").to_s
+        series = Array(data["values"]).map do |container|
+          Array(container["data"]).filter_map do |point|
+            at = Telemetry.parse_time(point["ts"])
+            [ at.to_i, point["value"].to_f ] if at && !point["value"].nil?
+          end
+        end
+        step = step_of(series)
+        return nil unless step
+
+        by_step = series.flatten(1).group_by { |at, _| at - (at % step) }.transform_values { |points| points.map(&:last) }
+        per_minute = raw_unit == COUNT_UNIT ? 60.0 / step : 1
+        points = by_step.sort.map { |at, values| [ Time.zone.at(at), combine(metric, raw_unit, values) * per_minute ] }
+        unit = raw_unit == COUNT_UNIT ? PER_MINUTE : UNITS.fetch(raw_unit, raw_unit.presence)
+        ResourceMap::Baseline::Found.new(key: resource.key, metric: metric, label: METRIC_TITLES.fetch(metric, metric), unit: unit, points: points)
+      end
+
+      # The spacing Northflank chose for the range, as the most common gap between one container's readings.
+      def step_of(series)
+        gaps = series.flat_map { |points| points.map(&:first).sort.each_cons(2).map { |first, second| second - first } }.select(&:positive?)
+        gaps.tally.max_by(&:last)&.first
+      end
+
+      def combine(metric, raw_unit, values)
+        return values.max if metric == DISK_METRIC
+        return values.sum / values.size if raw_unit == AVERAGED_UNIT
+
+        values.sum
       end
 
       def chart(resource, metric, data, started, ended, link)
