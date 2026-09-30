@@ -1451,6 +1451,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
     t.string "name", null: false
     t.string "provider", null: false
     t.datetime "removed_at"
+    t.jsonb "sightings", default: {}, null: false
     t.string "status"
     t.datetime "updated_at", null: false
     t.string "url"

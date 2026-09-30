@@ -91,6 +91,32 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert ResourceMap::Link.exists?(from_resource: resource("edge.acme.com"), to_resource: resource("web"), integration_environment: cloudflare)
   end
 
+  test "a resource two connections report stays while either does, and each keeps what it said" do
+    web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+    app = ResourceMap.domain("app.acme.com")
+    cloudflare = connection("cloudflare_two")
+    ResourceMap.record!(@row, snapshot(web, app.with(details: { "port" => 443 })))
+    ResourceMap.record!(cloudflare, snapshot(app.with(details: { "record" => "CNAME" })))
+
+    ResourceMap.record!(@row, snapshot(web))
+    assert_nil resource("app.acme.com").removed_at
+    assert_equal({ "record" => "CNAME" }, resource("app.acme.com").details)
+
+    ResourceMap.record!(cloudflare, snapshot)
+    assert resource("app.acme.com").removed_at
+  end
+
+  test "what a sweep could not read in full is not taken as gone, nor are its links" do
+    web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+    app = ResourceMap.domain("app.acme.com")
+    ResourceMap.record!(@row, snapshot(web, app, links: [ link(app, web, ResourceMap::RELATION_SERVED_BY) ]))
+
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ web ], unread_kinds: [ ResourceMap::KIND_DOMAIN ]))
+
+    assert_nil resource("app.acme.com").removed_at
+    assert ResourceMap::Link.exists?(from_resource: resource("app.acme.com"), to_resource: resource("web"))
+  end
+
   test "a setting that moves is a change naming the setting, and one read for the first time is not" do
     first = ResourceMap::Found.new(provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_ZONE, external_id: "z1", name: "acme.com")
     ResourceMap.record!(@row, snapshot(first), at: 2.hours.ago)

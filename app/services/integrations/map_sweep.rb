@@ -15,6 +15,8 @@ module Integrations
     def self.due?(environment_row)
       swept = environment_row.map_swept_at
       swept.nil? || swept <= environment_row.integration.executor.map_every(environment_row.integration).ago + SLACK
+    rescue Integrations::Error
+      false
     end
 
     def self.run!(environment_row)

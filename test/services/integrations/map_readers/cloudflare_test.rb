@@ -9,14 +9,15 @@ module Integrations
       ANSWERS = {
         %r{path: "/accounts"} => { "items" => [ { "id" => ACCOUNT, "name" => "Acme" } ] },
         %r{path: "/zones"} => { "items" => [ { "id" => "z1", "name" => "firefight.app", "status" => "active", "plan.name" => "Pro" } ], "info" => { "page" => 1, "total_pages" => 1 } },
-        %r{/settings/ssl} => { "ssl_mode" => "strict", "certificates" => "1 active, next expiry 2026-12-01", "waf_rules" => 3, "rate_limit_rules" => 0,
-                               "cache_rules" => 1, "page_rules" => 0, "dnssec" => "active" },
+        %r{/settings/ssl} => [ { "id" => "z1", "unread" => [],
+                                 "settings" => { "ssl_mode" => "strict", "certificates" => "1 active, next expiry 2026-12-01", "waf_rules" => 3,
+                                                 "rate_limit_rules" => 0, "cache_rules" => 1, "page_rules" => 0, "dnssec" => "active" },
+                                 "routes" => [ { "pattern" => "api.firefight.app/*", "script" => "edge-api" } ],
+                                 "load_balancers" => [ { "id" => "lb1", "name" => "lb.firefight.app", "enabled" => true, "default_pools" => [ "p1" ] } ] } ],
         %r{dns_records} => { "items" => [
           { "name" => "app.firefight.app", "type" => "CNAME", "content" => "web.code.run", "proxied" => true },
           { "name" => "firefight.app", "type" => "TXT", "content" => "v=spf1" }
         ] },
-        %r{workers/routes} => { "items" => [ { "pattern" => "api.firefight.app/*", "script" => "edge-api" } ] },
-        %r{/load_balancers"} => { "items" => [ { "id" => "lb1", "name" => "lb.firefight.app", "enabled" => true, "default_pools" => [ "p1" ] } ] },
         %r{workers/scripts"} => { "items" => [ { "id" => "edge-api" } ] },
         %r{/workers/scripts/" \+ encodeURIComponent} => [ { "name" => "edge-api", "bindings" => [ { "type" => "r2_bucket", "bucket_name" => "uploads" },
                                                                                                   { "type" => "queue", "queue_name" => "emails" } ] } ],
@@ -25,7 +26,7 @@ module Integrations
         %r{r2/buckets} => { "items" => [ { "name" => "uploads", "location" => "WEUR" } ], "info" => { "cursor" => "" } },
         %r{d1/database} => { "items" => [ { "uuid" => "d1-1", "name" => "sessions" } ] },
         %r{kv/namespaces} => { "items" => [ { "id" => "kv1", "title" => "flags" } ] },
-        %r{/queues"} => { "items" => [ { "queue_name" => "emails", "consumers" => [ { "script" => "mailer" } ] } ] },
+        %r{/queues"} => { "items" => [ { "queue_name" => "emails", "consumers" => [ { "script_name" => "mailer" } ] } ] },
         %r{cfd_tunnel"} => { "items" => [ { "id" => "t1", "name" => "office", "status" => "healthy" } ] },
         %r{cfd_tunnel/" \+ id} => [ { "id" => "t1", "ingress" => [ { "hostname" => "grafana.firefight.app" }, { "hostname" => nil } ] } ],
         %r{load_balancers/pools} => { "items" => [ { "id" => "p1", "name" => "origins", "enabled" => true, "origins" => [ { "address" => "web.code.run" } ] } ] },
@@ -87,11 +88,30 @@ module Integrations
 
       test "a list Cloudflare refuses is a gap, and being asked to slow down stops the read for today" do
         refused = read(errors: { %r{d1/database} => "Cloudflare API error: 10000: Authentication error" })
-        assert_includes refused.gaps, "Cloudflare could not list the D1 databases: Cloudflare API error: 10000: Authentication error"
+        assert_includes refused.gaps, "Cloudflare could not read the D1 databases: Cloudflare API error: 10000: Authentication error"
+        assert_equal [ ResourceMap::KIND_DATABASE ], refused.unread_kinds
 
-        limited = read(errors: { %r{workers/scripts"} => "Cloudflare API error: 429 Too Many Requests" })
+        limited = read(errors: { %r{workers/scripts"} => "Cloudflare API error: 971: Please wait and consider throttling your request speed" })
         assert_includes limited.gaps, "Cloudflare asked Firefight to slow down, so the rest is read on the next sweep."
         assert_not limited.resources.any? { |found| found.kind == ResourceMap::KIND_BUCKET }
+        assert_equal ResourceMap::KINDS, limited.unread_kinds
+      end
+
+      test "an answer the server cut short keeps what it holds, and those kinds are not taken as gone" do
+        cut = { "items" => [ { "name" => "uploads" }, "--- TRUNCATED --- 40 more items" ], "--- TRUNCATED ---" => "info" }.to_json
+        snapshot = read(raw: { %r{r2/buckets} => cut })
+
+        assert snapshot.resources.any? { |found| found.name == "uploads" && found.kind == ResourceMap::KIND_BUCKET }
+        assert_includes snapshot.unread_kinds, ResourceMap::KIND_BUCKET
+        assert snapshot.gaps.any? { |gap| gap.start_with?("Cloudflare could not read the R2 buckets: Cloudflare's server cut the answer short") }
+      end
+
+      test "a zone setting that could not be read is a gap and holds nothing back, a Worker route list that could not is not" do
+        zone = { "id" => "z1", "unread" => [ "page rules", "Worker routes" ], "error" => "Cloudflare API error: 10000: Authentication error", "settings" => {} }
+        snapshot = read(raw: { %r{/settings/ssl} => [ zone ].to_json })
+
+        assert_includes snapshot.gaps, "Cloudflare could not read the page rules of firefight.app: Cloudflare API error: 10000: Authentication error"
+        assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
       end
 
       test "every product it reads, keeps as settings or leaves out is one Cloudflare's API offers" do
@@ -104,10 +124,13 @@ module Integrations
 
       private
 
-      def read(products: [], errors: {})
+      def read(products: [], errors: {}, raw: {})
         Cloudflare.new do |tool, arguments|
           code = arguments.to_h["code"].to_s
           next text_result(products) if tool == Cloudflare::SEARCH
+
+          given = raw.find { |pattern, _| code.match?(pattern) }
+          next { "content" => [ { "type" => "text", "text" => given.last } ] } if given
 
           failure = errors.find { |pattern, _| code.match?(pattern) }
           next { "isError" => true, "content" => [ { "type" => "text", "text" => failure.last } ] } if failure

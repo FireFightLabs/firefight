@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react"
 import type { AbilityInvocation } from "@/types/serializers"
 import { gatewayActivityPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
+import { LEDGER_SOURCES, type LedgerSource } from "@/lib/generated/constants"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -30,13 +31,18 @@ import {
 const ALL = "all"
 const DECISIONS = ["allow", "deny", "pending"] as const
 
-const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Partial<Record<LedgerSource, string>> = {
   web: "Dashboard",
   slack: "Slack",
   api: "API",
   mcp: "MCP",
   investigation: "Investigation",
   map_sweep: "Map sweep",
+}
+
+function sourceLabel(source: string): string {
+  const known = LEDGER_SOURCES.find((each) => each === source)
+  return (known && SOURCE_LABELS[known]) || source
 }
 
 const DECISION_VARIANT: Record<string, "default" | "destructive" | "secondary"> = {
@@ -107,7 +113,7 @@ export function ActivityTab({
                   </TableCell>
                   <TableCell>{invocation.principalLabel}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {invocation.source ? (SOURCE_LABELS[invocation.source] ?? invocation.source) : "-"}
+                    {invocation.source ? sourceLabel(invocation.source) : "-"}
                   </TableCell>
                   <TableCell>
                     <code className="text-xs">{invocation.actionKey}</code>

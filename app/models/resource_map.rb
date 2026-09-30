@@ -84,8 +84,10 @@ module ResourceMap
 
   # What one sweep of one connection saw. A resource is named by its key, the same whichever connection reports it, so a
   # repository two services build from is one resource. gaps are the parts the sweep could not read, in words.
-  Snapshot = Data.define(:resources, :links, :gaps) do
-    def initialize(resources:, links: [], gaps: []) = super
+  # unread_kinds are the kinds the sweep could not read in full, so nothing of those kinds, and no link touching one, that
+  # it did not report is taken as gone.
+  Snapshot = Data.define(:resources, :links, :gaps, :unread_kinds) do
+    def initialize(resources:, links: [], gaps: [], unread_kinds: []) = super
   end
 
   Found = Data.define(:provider, :account, :kind, :external_id, :name, :status, :url, :details) do
@@ -105,22 +107,20 @@ module ResourceMap
       # One sweep of a connection at a time, so the hourly run and a Sync now cannot interleave their writes.
       environment_row.lock!
       ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at) ] }
-      gone = Resource.where(integration_environment_id: environment_row.id, removed_at: nil).where.not(id: ids.values)
-      gone.each do |resource|
-        Change.create!(workspace_id: workspace_id, resource_id: resource.id, kind: Change::KIND_REMOVED, happened_at: at)
-        Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection")
-      end
-      gone.update_all(removed_at: at, updated_at: at)
+      forget(workspace_id, environment_row, ids.values, at, snapshot.unread_kinds)
 
-      Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
+      # A link touching a kind the sweep could not read in full is kept until a sweep can.
+      unread = Resource.where(workspace_id: workspace_id, kind: snapshot.unread_kinds).select(:id)
+      Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS)
+          .where.not(from_resource_id: unread).where.not(to_resource_id: unread).delete_all
       # A link may end at something another connection reported, such as the hostname a DNS record points at.
       elsewhere = present_ids(workspace_id, snapshot.links.flat_map { |found| [ found.from, found.to ] }.uniq - ids.keys)
       snapshot.links.each do |found|
         from, to = [ found.from, found.to ].map { |key| ids[key] || elsewhere[key] }
         next unless from && to
 
-        Link.create!(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
-                     origin: ORIGIN_DECLARED, integration_environment: environment_row, last_seen_at: at)
+        Link.find_or_initialize_by(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
+                                   origin: ORIGIN_DECLARED, integration_environment: environment_row).update!(last_seen_at: at)
       end
       environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gaps)
     end
@@ -164,11 +164,12 @@ module ResourceMap
     resource = Resource.find_by(identity) || Resource.create_or_find_by!(identity) do |fresh|
       fresh.assign_attributes(name: found.name, integration_environment: environment_row, first_seen_at: at, last_seen_at: at)
     end
-    changes = resource.previously_new_record? ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, found)
-    # A hostname several connections name keeps what each said, rather than whichever swept last.
-    details = found.provider == DOMAINS ? resource.details.merge(found.details) : found.details
-    resource.update!(integration_environment: environment_row, name: found.name, status: found.status || (resource.status if found.provider == DOMAINS),
-                     url: found.url, details: details, last_seen_at: at, removed_at: nil)
+    # A resource several connections report, such as a hostname, keeps what each said rather than whichever swept last.
+    sightings = resource.sightings.merge(environment_row.id.to_s => found.details)
+    reported = found.with(details: sightings.values.reduce({}, :merge))
+    changes = resource.previously_new_record? ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, reported)
+    resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
+                     details: reported.details, sightings: sightings, last_seen_at: at, removed_at: nil)
     changes.each do |kind, from, to, detail|
       resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: at)
     end
@@ -177,6 +178,25 @@ module ResourceMap
     resource.id
   end
   private_class_method :upsert_resource
+
+  # What this connection used to report and no longer does. A resource another connection still reports stays, with
+  # what that connection said, and one nobody reports any more is marked removed.
+  def self.forget(workspace_id, environment_row, seen_ids, at, unread_kinds)
+    row = environment_row.id.to_s
+    unseen = Resource.present.where(workspace_id: workspace_id).where.not(id: seen_ids).where.not(kind: unread_kinds)
+                     .where("resource_map_resources.integration_environment_id = :id OR resource_map_resources.sightings ? :key", id: environment_row.id, key: row)
+    unseen.each do |resource|
+      others = resource.sightings.except(row)
+      if others.any?
+        resource.update!(sightings: others, details: others.values.reduce({}, :merge), integration_environment_id: others.keys.first)
+      else
+        resource.changes_seen.create!(workspace_id: workspace_id, kind: Change::KIND_REMOVED, happened_at: at)
+        Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection")
+        resource.update!(sightings: {}, removed_at: at)
+      end
+    end
+  end
+  private_class_method :forget
 
   def self.changes_of(resource, found)
     return [ [ Change::KIND_APPEARED, nil, nil ] ] if resource.removed_at

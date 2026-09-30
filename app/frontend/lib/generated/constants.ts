@@ -568,6 +568,17 @@ export const LEDGER_DECISIONS = [
 ] as const
 export type LedgerDecision = (typeof LEDGER_DECISIONS)[number]
 
+export const LEDGER_SOURCES = [
+  "api",
+  "mcp",
+  "slack",
+  "web",
+  "investigation",
+  "conversation",
+  "map_sweep"
+] as const
+export type LedgerSource = (typeof LEDGER_SOURCES)[number]
+
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",
   "ASSISTANT": "assistant"
