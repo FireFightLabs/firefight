@@ -12,7 +12,7 @@ module Workspace::CatalogueDefaults
       description: "Teams that own and operate services",
       position: 1,
       attributes: [
-        { slug: "description", name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
+        { slug: CatalogAttributeDefinition::SLUG_DESCRIPTION, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
         { slug: "slack_channel", name: "Slack Channel", attribute_type: CatalogAttributeDefinition::TYPE_SLACK_CHANNEL, position: 2, role: CatalogAttributeDefinition::ROLE_NOTIFICATION_CHANNEL },
         { slug: "manager", name: "Manager", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBER, position: 3, role: CatalogAttributeDefinition::ROLE_MANAGER },
         { slug: "members", name: "Members", attribute_type: CatalogAttributeDefinition::TYPE_WORKSPACE_MEMBERS, position: 4, role: CatalogAttributeDefinition::ROLE_MEMBERS }
@@ -28,7 +28,7 @@ module Workspace::CatalogueDefaults
       description: "Services and applications in your infrastructure",
       position: 2,
       attributes: [
-        { slug: "description", name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
+        { slug: CatalogAttributeDefinition::SLUG_DESCRIPTION, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
         { slug: "owner_team", name: "Owner Team", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE, position: 2, reference_system_key: CatalogType::SYSTEM_KEY_TEAM },
         { slug: "tier", name: "Tier", attribute_type: CatalogAttributeDefinition::TYPE_SELECT, position: 3, config: { "options" => [ "Critical", "Standard", "Internal" ] } },
         { slug: "repository", name: "Repository", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 4, role: CatalogAttributeDefinition::ROLE_REPOSITORY },
@@ -45,7 +45,7 @@ module Workspace::CatalogueDefaults
       description: "Deployment environments",
       position: 3,
       attributes: [
-        { slug: "description", name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
+        { slug: CatalogAttributeDefinition::SLUG_DESCRIPTION, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
         { slug: "is_production", name: "Is Production", attribute_type: CatalogAttributeDefinition::TYPE_BOOLEAN, position: 2 },
         { slug: "region", name: "Region", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 3 }
       ]
@@ -60,7 +60,7 @@ module Workspace::CatalogueDefaults
       description: "Business capabilities and product features",
       position: 4,
       attributes: [
-        { slug: "description", name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
+        { slug: CatalogAttributeDefinition::SLUG_DESCRIPTION, name: "Description", attribute_type: CatalogAttributeDefinition::TYPE_TEXT, position: 1 },
         { slug: "owner_team", name: "Owner Team", attribute_type: CatalogAttributeDefinition::TYPE_REFERENCE, position: 2, reference_system_key: CatalogType::SYSTEM_KEY_TEAM }
       ]
     }

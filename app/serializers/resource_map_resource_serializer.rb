@@ -81,6 +81,10 @@ class ResourceMapResourceSerializer < BaseSerializer
     row.open_incidents
   end
 
+  has_many :past_incidents, serializer: ResourceMapPastIncidentSerializer do
+    row.past_incidents
+  end
+
   has_one :last_change, serializer: ResourceMapChangeSerializer, optional: true do
     row.last_change
   end

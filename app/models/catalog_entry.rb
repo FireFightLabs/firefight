@@ -41,6 +41,19 @@ class CatalogEntry < ApplicationRecord
 
   def repository = CodeChange.repository_name(role_value(CatalogAttributeDefinition::ROLE_REPOSITORY))
 
+  # What it is for, in the words of whoever wrote it in the catalog, ended as a sentence, since the catalog does not.
+  def purpose
+    written = entry_attributes[CatalogAttributeDefinition::SLUG_DESCRIPTION].to_s.strip
+    return nil if written.empty?
+
+    written.match?(/[.!?]\z/) ? written : "#{written}."
+  end
+
+  # The teams it points at in the catalog, which is who owns it.
+  def owning_teams
+    active_outgoing_relationships.map(&:target_entry).select { |target| target.catalog_type.system_key == CatalogType::SYSTEM_KEY_TEAM }.uniq
+  end
+
   # Filters in memory when the association is loaded, preloads otherwise.
   def active_outgoing_relationships
     relationships = outgoing_relationships

@@ -40,6 +40,24 @@ module Mcp
         assert_includes sheet[:links], "web uses acme/app (suggested by Halon, not confirmed)"
       end
 
+      test "a fact sheet says what its catalog service is for, who owns it, what people confirmed and how its incidents ended" do
+        web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
+        auth = catalog_entries(:auth_service)
+        ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: auth, resource: web)
+        Chat::Memory.create!(workspace: @workspace, text: "web keeps sessions in Redis", subject: web, state: Chat::Memory::STATE_CONFIRMED)
+        Chat::Memory.create!(workspace: @workspace, text: "web is in Frankfurt", subject: web, state: Chat::Memory::STATE_UNCONFIRMED)
+        ended = incidents(:resolved_minor_ws1)
+        IncidentFieldValue.create!(incident: ended, incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: auth)
+
+        sheet = call(resource: "web")[:resources].sole
+
+        assert_equal [ "Auth Service (Service), owned by Platform Team. Handles authentication." ], sheet[:runs]
+        assert_equal 1, sheet[:confirmed].size
+        assert_match "web keeps sessions in Redis", sheet[:confirmed].sole
+        assert_equal [ "INC-003 Image upload broken, ended #{ended.resolved_at.to_date.iso8601}: Users unable to upload profile images (from the incident summary)" ],
+                     sheet[:past_incidents]
+      end
+
       test "a name that is not on the map says how to see what is" do
         assert_match "Leave the resource out to see the whole map", call(resource: "checkout")[:error]
       end

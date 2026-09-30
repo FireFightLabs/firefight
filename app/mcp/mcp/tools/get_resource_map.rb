@@ -8,7 +8,8 @@ module Mcp
       description "What runs where, read off the workspace's connections: services, build services, databases and " \
                   "branches, jobs, repositories and domains, by provider and account, with how they depend on each other. " \
                   "Without a resource, the whole map, one line per resource. With a resource, its fact sheet: where it " \
-                  "runs, its page, and every link within two hops, each saying how it was found. A status is what the " \
+                  "runs, its page, the catalog services it runs with what each is for and who owns it, what people " \
+                  "confirmed about it, how its recent incidents ended, and every link within two hops, each saying how it was found. A status is what the " \
                   "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
                   "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
@@ -46,13 +47,39 @@ module Mcp
 
       def self.sheet(resource)
         environment_row = resource.integration_environment
+        entries = resource.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).to_a
         {
           name: resource.name, kind: resource.kind, provider: resource.provider, account: resource.account,
           environment: environment_row&.environment&.name, id: resource.external_id, status: resource.status, page: resource.url,
           details: resource.details.presence, first_seen: resource.first_seen_at.iso8601, last_seen: resource.last_seen_at.iso8601,
           removed: resource.removed_at && "Not seen by its connection since #{resource.removed_at.iso8601}",
+          runs: runs(entries).presence, confirmed: confirmed(resource, entries).presence,
+          past_incidents: past_incidents(resource.workspace, entries).presence,
           links: resource.neighborhood.map { |link, hop| link_line(link, hop) }
         }.compact
+      end
+
+      # The catalog services it runs, with what each is for and who owns it, as people wrote them in the catalog.
+      def self.runs(entries)
+        entries.map do |entry|
+          owners = entry.owning_teams.map(&:name)
+          [ "#{entry.name} (#{entry.catalog_type.name})#{", owned by #{owners.to_sentence}" if owners.any?}", entry.purpose ].compact.join(". ")
+        end
+      end
+
+      # What people confirmed about it or its services. Unconfirmed memories stay with recall, since they are hunches.
+      def self.confirmed(resource, entries)
+        Chat::Memory.where(workspace: resource.workspace, state: Chat::Memory::STATE_CONFIRMED).where(subject: [ resource ] + entries)
+                    .includes(:subject, confirmed_by: :user).most_trusted_first.limit(Chat::Memory::STARTING_LIMIT).map(&:line)
+      end
+
+      def self.past_incidents(workspace, entries)
+        Incident.past_on(workspace, entries.map(&:id)).map(&:incident).uniq.sort_by(&:ended_at).reverse
+                .first(Incident::Outcome::PAST_SHOWN).map do |incident|
+          outcome = incident.outcome
+          ended = "#{incident.identifier} #{incident.name}, ended #{incident.ended_at.to_date.iso8601}"
+          outcome ? "#{ended}: #{outcome.text} (#{outcome.source.downcase_first})" : "#{ended}: nothing was written about how it ended"
+        end
       end
 
       def self.line(resource) = [ resource.kind, resource.name, resource.status ].compact.join(", ")

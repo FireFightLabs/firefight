@@ -6,7 +6,7 @@ class ResourceMap::View
   CHANGE_WINDOW = 24.hours
 
   Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids, :suggested_dependent_ids,
-                    :memories, :instructions)
+                    :memories, :instructions, :past_incidents)
 
   attr_reader :workspace
 
@@ -24,7 +24,9 @@ class ResourceMap::View
         last_change: last_changes[resource.id], dependent_ids: dependents.fetch(resource.id, []),
         suggested_dependent_ids: suggested_dependents.fetch(resource.id, []) - dependents.fetch(resource.id, []),
         memories: ([ resource ] + entries).flat_map { |subject| memories_by_subject.fetch([ subject.class.name, subject.id ], []) },
-        instructions: ([ resource ] + entries).flat_map { |subject| instructions_by_subject.fetch([ subject.class.name, subject.id ], []) }
+        instructions: ([ resource ] + entries).flat_map { |subject| instructions_by_subject.fetch([ subject.class.name, subject.id ], []) },
+        past_incidents: entries.flat_map { |entry| past_incidents_by_entry.fetch(entry.id, []) }.uniq
+                               .sort_by(&:ended_at).reverse.first(Incident::Outcome::PAST_SHOWN)
       )
     end
   end
@@ -75,7 +77,8 @@ class ResourceMap::View
   def resource_ids = @resource_ids ||= resources.map(&:id)
 
   def entries_by_resource
-    @entries_by_resource ||= ResourceMap::EntryLink.where(resource_id: resource_ids).includes(catalog_entry: :catalog_type).to_a
+    @entries_by_resource ||= ResourceMap::EntryLink.where(resource_id: resource_ids)
+                                                   .includes(catalog_entry: [ :catalog_type, { outgoing_relationships: { target_entry: :catalog_type } } ]).to_a
                                                    .reject { |link| link.catalog_entry.deleted_at }
                                                    .group_by(&:resource_id).transform_values { |found| found.map(&:catalog_entry) }
   end
@@ -87,6 +90,11 @@ class ResourceMap::View
                                                    .where(catalog_entry_id: entry_ids, incidents: { workspace_id: workspace.id })
                                                    .includes(:incident).group_by(&:catalog_entry_id)
                                                    .transform_values { |values| values.map(&:incident).uniq }
+  end
+
+  def past_incidents_by_entry
+    @past_incidents_by_entry ||= Incident.past_on(workspace, entry_ids).group_by(&:catalog_entry_id)
+                                         .transform_values { |values| values.map(&:incident).uniq }
   end
 
   def recent_incident_ids_by_entry

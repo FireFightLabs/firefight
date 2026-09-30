@@ -12,7 +12,7 @@ class ResourceMapController < InertiaController
       links: ResourceMapLinkSerializer.many(view.links),
       connections: ResourceMapConnectionSerializer.many(view.connections),
       changes: ResourceMapChangeSerializer.many(view.changes),
-      catalogEntries: ResourceMapEntrySerializer.many(current_workspace.catalog_entries.active.includes(:catalog_type).order(:name))
+      catalogEntries: ResourceMapEntrySerializer.many(current_workspace.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).order(:name))
     }
   end
 
