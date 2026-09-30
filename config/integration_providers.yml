@@ -5,6 +5,10 @@
 # server_url pre-fills the connect flow where an official MCP endpoint is
 # known (blank = the admin pastes their own). mark/color drive the logo
 # tile until real brand assets land.
+# source_links says how a result links back to the page it came from, since a result nobody can check at its source
+# is worth little: firefight (a pack or a builder in Integrations::SourceLinks adds the link), server (the provider's
+# own results already carry one), none (there is no page) or unchecked (not yet verified against a real connection).
+# server and none carry a source_links_note saying why. A new provider is never unchecked.
 # Section headings on the gallery. A provider naming a category that is not
 # listed here still renders, it just shows no tagline, so adding a provider
 # in a new category stays a registry edit rather than a code change.
@@ -27,6 +31,7 @@ providers:
     description: Correlate incidents with recent pull requests and commits from your repositories.
     server_url: ""
     kind: native
+    source_links: firefight
   - key: gitlab
     name: GitLab
     category: Code
@@ -34,6 +39,7 @@ providers:
     color: "#fc6d26"
     description: Correlate incidents with merge requests and pipelines.
     server_url: https://gitlab.com/api/v4/mcp
+    source_links: unchecked
   - key: newrelic
     name: New Relic
     category: Telemetry
@@ -41,6 +47,7 @@ providers:
     color: "#1ce783"
     description: Query logs, metrics and traces during investigations.
     server_url: ""
+    source_links: unchecked
   - key: datadog
     name: Datadog
     category: Telemetry
@@ -48,6 +55,7 @@ providers:
     color: "#632ca6"
     description: Query logs, metrics and monitors during investigations.
     server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
+    source_links: unchecked
   - key: northflank
     name: Northflank
     category: Telemetry
@@ -57,6 +65,7 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    source_links: firefight
   - key: grafana
     name: Grafana
     category: Telemetry
@@ -64,6 +73,7 @@ providers:
     color: "#f46800"
     description: Reach dashboards and datasources behind your Grafana.
     server_url: ""
+    source_links: unchecked
   - key: cloudflare
     name: Cloudflare
     category: Edge
@@ -73,6 +83,7 @@ providers:
     server_url: https://mcp.cloudflare.com/mcp
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
     read_only_tools: [search, docs]
+    source_links: firefight
   - key: sentry
     name: Sentry
     category: Errors
@@ -80,6 +91,7 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
+    source_links: unchecked
   - key: linear
     name: Linear
     category: Issues
@@ -87,6 +99,7 @@ providers:
     color: "#5E6AD2"
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
+    source_links: unchecked
   - key: notion
     name: Notion
     category: Knowledge
@@ -94,6 +107,8 @@ providers:
     color: "#111111"
     description: Bring runbook and architecture pages into investigations.
     server_url: https://mcp.notion.com/mcp
+    source_links: server
+    source_links_note: "Its results carry each page's own address."
   - key: confluence
     name: Confluence
     category: Knowledge
@@ -101,6 +116,7 @@ providers:
     color: "#1868db"
     description: Bring team documentation into investigations.
     server_url: ""
+    source_links: unchecked
   - key: neon
     name: Neon
     category: Databases
@@ -108,6 +124,7 @@ providers:
     color: "#00e599"
     description: Read-only queries and branch history for a Neon Postgres database.
     server_url: https://mcp.neon.tech/mcp
+    source_links: unchecked
   - key: supabase
     name: Supabase
     category: Databases
@@ -115,6 +132,7 @@ providers:
     color: "#3ecf8e"
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
+    source_links: unchecked
   - key: planetscale
     name: PlanetScale
     category: Databases
@@ -122,6 +140,7 @@ providers:
     color: "#000000"
     description: Read-only queries, branch schemas and Insights for a PlanetScale database.
     server_url: https://mcp.pscale.dev/mcp/planetscale
+    source_links: firefight
   - key: postgresql
     name: PostgreSQL
     category: Databases
@@ -131,6 +150,8 @@ providers:
     server_url: ""
     kind: native
     connect_with: connection_url
+    source_links: none
+    source_links_note: "A database reached by its own connection URL has no page to open."
   - key: custom_mcp
     name: Custom MCP server
     category: Custom
@@ -138,3 +159,5 @@ providers:
     color: "#1f2430"
     description: Point Firefight at any MCP server and allowlist its tools.
     server_url: ""
+    source_links: none
+    source_links_note: "A custom server is the team's own, so its results carry whatever links it gives."
