@@ -1,6 +1,6 @@
 # What an ended incident taught about the setup, written down for the next incident to start from. At resolve it saves
 # the lessons unconfirmed and asks the channel to confirm them. When a postmortem is completed it reads it against what
-# was saved, confirming what it agrees with and correcting what it contradicts, quietly.
+# was saved, confirming what it agrees with and correcting what it contradicts, and posts nothing.
 class IncidentLearningService
   TRANSCRIPT_MESSAGES = 300
 
@@ -8,8 +8,8 @@ class IncidentLearningService
     @workspace = workspace
   end
 
-  # Returns the memories it saved. Learning is decoration on an ended incident, so a workspace without the agent, or
-  # with nothing learned, gets nothing and no message.
+  # Returns the memories it saved. A workspace without the agent, or an incident that taught nothing, gets no memories
+  # and no message.
   def learn!(incident, postmortem: nil)
     return [] unless learns?
 
@@ -17,18 +17,33 @@ class IncidentLearningService
     result = extractor.extract(incident, sources: sources(incident, postmortem), subjects: subjects(incident).keys,
                                          known: known.map { |memory| FirefightAi::LessonExtractor::Known.new(id: memory.id, text: memory.text) })
     apply_verdicts(result.verdicts, known, postmortem) if postmortem
-    saved = save(incident, result.lessons, known)
+    saved = save(incident, result.lessons)
     announce(incident, saved) if saved.any? && postmortem.nil?
     saved
   end
 
-  # Redraws the channel message after someone decides on one of its lessons.
+  # Someone in the channel confirming or rejecting one of the incident's lessons, then the message redrawn to show it.
+  # Returns false when the lesson is not the incident's.
+  def decide!(incident_id:, memory_id:, member:, confirmed:, channel_id:, message_id:)
+    incident = @workspace.incidents.find_by(id: incident_id)
+    memory = Chat::Memory.where(workspace: @workspace, source: incident).find_by(id: memory_id) if incident
+    return false unless memory
+
+    if confirmed
+      memory.confirm!(by: member)
+    else
+      memory.reject!(by: member, reason: "Marked not right in #{incident.identifier}")
+    end
+    redraw(incident, channel_id: channel_id, message_id: message_id)
+    true
+  end
+
+  private
+
   def redraw(incident, channel_id:, message_id:)
     @workspace.adapter.update_learned_memories(channel_id: channel_id, message_id: message_id, incident_id: incident.id,
                                                incident_identifier: incident.identifier, memories: shown(incident_memories(incident, rejected: true)))
   end
-
-  private
 
   def learns?
     defined?(FirefightAi) && FeatureFlags.enabled?(@workspace, FeatureFlags::AI_SRE) && Entitlements.allows?(@workspace, Entitlements::AI)
@@ -69,14 +84,14 @@ class IncidentLearningService
     rejected ? scope.to_a : scope.in_use.to_a
   end
 
-  def save(incident, lessons, known)
+  # Only new lessons are shown. One already known, or rejected before, is not learned again.
+  def save(incident, lessons)
     lessons.filter_map do |lesson|
-      next if known.any? { |memory| memory.text.casecmp?(lesson.fact) }
-
-      # A lesson that fails validation, such as one holding a secret, is dropped rather than failing the others.
-      memory = Chat::Memory.create(workspace: @workspace, text: lesson.fact, state: Chat::Memory::STATE_UNCONFIRMED,
-                                   subject: subjects(incident)[lesson.about], source: incident)
-      memory if memory.persisted?
+      learned = Chat::Memory.learn!(@workspace, text: lesson.fact, subject: subjects(incident)[lesson.about], source: incident)
+      learned.memory if learned.outcome == Chat::Memory::LEARNED_SAVED
+    rescue ActiveRecord::RecordInvalid
+      # One holding a secret is dropped rather than failing the others.
+      nil
     end
   end
 

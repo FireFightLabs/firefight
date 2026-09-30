@@ -86,7 +86,6 @@ module Chat::Tools
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
   }.freeze
 
-  # What every chat and run holds to remember, read and dispute what the workspace learned.
   def self.memory(agent_run) = [ Remember.new(agent_run), Recall.new(agent_run), DisputeMemory.new(agent_run) ]
 
   # How the agent writes and finds its way, not what it looked at, so a reader is never shown them.

@@ -1,7 +1,9 @@
-# How people want Halon to work here, written by them: for the whole workspace, a team, a service, or one resource on
-# the map. It is loaded when a chat or run touches what it is for, and never counts as evidence of what happened. An
+# How people want Halon to work here. They write them for the whole workspace, a team, a service, or one resource on
+# the map. A chat or run that touches that place loads them, and never counts them as evidence of what happened. An
 # edit keeps the old wording as history rather than overwriting it.
 class Chat::Instruction < ApplicationRecord
+  include Chat::SecretFree
+
   self.table_name = "chat_instructions"
 
   TEXT_LIMIT = 2_000
@@ -20,23 +22,29 @@ class Chat::Instruction < ApplicationRecord
 
   scope :current, -> { where(superseded_at: nil) }
 
-  # The notes a chat or run follows: the workspace's, then the teams that own what it touches, then those things
-  # themselves, so the most specific note reads last.
+  # The instructions a chat or run follows: the workspace's, then the teams that own what it touches, then those
+  # things themselves, so the most specific reads last.
   def self.for_subjects(workspace, subjects)
     entries = subjects.grep(CatalogEntry)
     teams = CatalogEntry.where(id: CatalogEntryRelationship.where(source_entry_id: entries.map(&:id)).select(:target_entry_id))
-                        .joins(:catalog_type).where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_TEAM })
-    scoped = current.where(workspace: workspace)
-    workspace_wide = scoped.where(scope_id: nil).to_a
-    team_notes = scoped.where(scope: teams.to_a).to_a
-    subject_notes = subjects.compact.flat_map { |subject| scoped.where(scope: subject).to_a }
-    (workspace_wide + team_notes + subject_notes).uniq
+                        .joins(:catalog_type).where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_TEAM }).to_a
+    places = (teams + subjects.compact).uniq
+    found = current.where(workspace: workspace).includes(:scope).to_a
+                   .select { |note| note.scope_id.nil? || places.include?(note.scope) }
+    order = [ nil ] + places
+    preload_labels(found.sort_by { |note| order.index(note.scope) })
   end
 
-  # Every current note in a workspace paired with its earlier wordings, newest first, found by following which note
+  # A label names a catalog entry's type, so the types load once for all of them.
+  def self.preload_labels(notes)
+    ActiveRecord::Associations::Preloader.new(records: notes.map(&:scope).grep(CatalogEntry), associations: :catalog_type).call
+    notes
+  end
+
+  # Every current set of instructions in a workspace paired with its earlier wordings, newest first, found by following which note
   # replaced which, in one query.
   def self.with_history(workspace)
-    all = where(workspace: workspace).includes(:scope, :added_by).order(:created_at).to_a
+    all = preload_labels(where(workspace: workspace).includes(:scope, :added_by).order(:created_at).to_a)
     by_replacement = all.index_by(&:superseded_by_id)
     all.select { |note| note.superseded_at.nil? }.map do |note|
       earlier = []
@@ -54,7 +62,7 @@ class Chat::Instruction < ApplicationRecord
   # How Halon reads it, headed by where it applies.
   def line = "#{label}: #{text}"
 
-  # Where the note applies, as Halon and people read it, such as "Auth Service (service)".
+  # Where they apply, as Halon and people read it, such as "Auth Service (service)".
   def label
     return "Whole workspace" unless scope
 
@@ -68,7 +76,7 @@ class Chat::Instruction < ApplicationRecord
   # The label inside a sentence, as in "Saved the instructions for the whole workspace."
   def place = scope ? label : "the whole workspace"
 
-  # An edit writes a new note and keeps this one as history. Nil when someone else edited or removed it first.
+  # An edit writes new instructions and keeps these as history. Nil when someone else edited or removed it first.
   def revise!(text:, by:)
     transaction do
       next unless supersede!
@@ -81,7 +89,25 @@ class Chat::Instruction < ApplicationRecord
 
   def retire! = supersede!
 
+  # Two people saving the first instructions for one place at the same moment both pass the validation, and the
+  # unique index turns the second away with the same sentence.
+  def save!(**)
+    super
+  rescue ActiveRecord::RecordNotUnique
+    errors.add(:base, taken_message)
+    raise ActiveRecord::RecordInvalid, self
+  end
+
+  def save(**)
+    super
+  rescue ActiveRecord::RecordNotUnique
+    errors.add(:base, taken_message)
+    false
+  end
+
   private
+
+  def taken_message = "#{label} already has instructions. Edit them instead."
 
   def supersede!
     now = Time.current
@@ -93,6 +119,6 @@ class Chat::Instruction < ApplicationRecord
 
   def one_current_per_scope
     taken = self.class.current.where(workspace_id: workspace_id, scope_type: scope_type, scope_id: scope_id).where.not(id: id).exists?
-    errors.add(:base, "#{label} already has instructions. Edit them instead.") if taken
+    errors.add(:base, taken_message) if taken
   end
 end

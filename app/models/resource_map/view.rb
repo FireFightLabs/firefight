@@ -104,7 +104,7 @@ class ResourceMap::View
   end
 
   def instructions_by_subject
-    @instructions_by_subject ||= Chat::Instruction.current.where(workspace: workspace, scope_id: resource_ids + entry_ids).includes(:scope).to_a
+    @instructions_by_subject ||= Chat::Instruction.preload_labels(Chat::Instruction.current.where(workspace: workspace, scope_id: resource_ids + entry_ids).includes(:scope).to_a)
                                                   .group_by { |note| [ note.scope_type, note.scope_id ] }
   end
 

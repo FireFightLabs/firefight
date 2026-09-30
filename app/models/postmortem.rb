@@ -130,7 +130,7 @@ class Postmortem < ApplicationRecord
   validates :content, presence: true
   validates :status, inclusion: { in: STATUSES }
 
-  # A completed postmortem is a person's considered account, so it is read against what the incident taught.
+  # A completed postmortem is a person's considered account, so the learning job reads it against what the incident taught.
   after_update_commit :learn_from_postmortem, if: -> { saved_change_to_status?(to: STATUS_COMPLETED) }
 
   def html_content

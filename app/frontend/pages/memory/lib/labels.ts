@@ -26,19 +26,22 @@ export const FILTER_LABELS: Record<MemoryFilter, string> = {
   rejected: "Rejected",
 }
 
-const FILTER_STATES: Record<MemoryFilter, ChatMemoryState[]> = {
-  [MEMORY_FILTERS.IN_USE]: [ "confirmed", "unconfirmed", "outdated" ],
-  [MEMORY_FILTERS.UNCONFIRMED]: [ "unconfirmed" ],
-  [MEMORY_FILTERS.OUTDATED]: [ "outdated" ],
-  [MEMORY_FILTERS.DISPUTED]: [ "disputed" ],
-  [MEMORY_FILTERS.REJECTED]: [ "rejected" ],
+// Each filter past In use is one state. In use is whatever the server says Halon reads.
+const FILTER_STATES: Record<Exclude<MemoryFilter, typeof MEMORY_FILTERS.IN_USE>, ChatMemoryState> = {
+  [MEMORY_FILTERS.UNCONFIRMED]: "unconfirmed",
+  [MEMORY_FILTERS.OUTDATED]: "outdated",
+  [MEMORY_FILTERS.DISPUTED]: "disputed",
+  [MEMORY_FILTERS.REJECTED]: "rejected",
 }
 
 export function inFilter(memory: ChatMemory, filter: MemoryFilter): boolean {
-  return FILTER_STATES[filter].includes(memory.state)
+  if (filter === MEMORY_FILTERS.IN_USE) {
+    return memory.inUse
+  }
+  return FILTER_STATES[filter] === memory.state
 }
 
-// Who stands behind it, in words, such as "Confirmed by Ada" or "Taught by Ada".
+// Who stands behind it, in words, such as "Confirmed by Ada" or "From a chat with Ada".
 export function vouch(memory: ChatMemory): string {
   if (memory.rejectedBy) {
     return `Rejected by ${memory.rejectedBy}`
@@ -49,5 +52,5 @@ export function vouch(memory: ChatMemory): string {
   if (memory.state === "confirmed") {
     return "Confirmed by a postmortem"
   }
-  return memory.addedBy ? `Taught by ${memory.addedBy}` : "Learned by Halon"
+  return memory.addedBy ? `From a chat with ${memory.addedBy}` : "Learned by Halon"
 }

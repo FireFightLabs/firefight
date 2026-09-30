@@ -18,7 +18,7 @@ export default function MemoryPage() {
   const { memories, instructions, subjects } = usePage<MemoryPageProps>().props
   const canCurate = useCan("catalog")
   const [ tab, setTab ] = useState(tabFromUrl)
-  const toReview = memories.filter((memory) => memory.state === "unconfirmed" || memory.state === "outdated" || memory.state === "disputed").length
+  const toReview = memories.filter((memory) => !memory.confirmBlockedReason).length
 
   function switchTab(value: string) {
     const chosen = Object.values(MEMORY_PAGE_TABS).find((each) => each === value)

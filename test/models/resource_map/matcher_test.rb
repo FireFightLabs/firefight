@@ -6,7 +6,8 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
     northflank = connection("northflank")
     planetscale = connection("planetscale")
     ResourceMap.record!(northflank, snapshot([ service("web"), service("job"), service("dev-web") ]))
-    ResourceMap.record!(planetscale, snapshot([ database("firefight-prod"), branch("firefight-prod"), database("firefight-dev"), branch("firefight-dev") ]))
+    ResourceMap.record!(planetscale, snapshot([ database("firefight-prod"), branch("firefight-prod"), database("firefight-dev"), branch("firefight-dev") ],
+                                              links: [ branch_of("firefight-prod"), branch_of("firefight-dev") ]))
   end
 
   test "a service uses the database named for its project in its environment, through the production branch" do
@@ -16,7 +17,7 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
     web = link("web")
     assert_equal ResourceMap::CERTAINTY_LIKELY, web.certainty
     assert web.unconfirmed?
-    assert_equal [ "Both are named for firefight", "web has no environment in its name, so it is taken as production, like firefight-prod" ], web.clues
+    assert_equal [ "Both are named for firefight", "web names no environment, so Firefight assumes production, like firefight-prod" ], web.clues
     assert_equal [ "Both are named for firefight", "Both are development" ], link("dev-web").clues
   end
 
@@ -53,6 +54,18 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
     assert_equal [ ResourceMap::ORIGIN_PERSON ], ResourceMap::Link.where(from_resource: resource("dev-web")).pluck(:origin)
   end
 
+  test "an open suggestion keeps its id from one sweep to the next, and goes once the map no longer supports it" do
+    ResourceMap::Matcher.new(@workspace).run!
+    first = link("web").id
+
+    ResourceMap::Matcher.new(@workspace).run!
+    assert_equal first, link("web").id
+
+    ResourceMap.record!(ResourceMap::Resource.find_by!(external_id: "web").integration_environment, snapshot([ service("job"), service("dev-web") ]))
+    ResourceMap::Matcher.new(@workspace).run!
+    assert_not ResourceMap::Link.exists?(first)
+  end
+
   test "what stops if a resource fails counts facts only, and keeps what the suggestions would add apart" do
     ResourceMap::Matcher.new(@workspace).run!
     link("web").confirm!(by: nil)
@@ -69,7 +82,7 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
     @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: slug.humanize, slug: slug).integration_environments.create!
   end
 
-  def snapshot(resources) = ResourceMap::Snapshot.new(resources: resources)
+  def snapshot(resources, links: []) = ResourceMap::Snapshot.new(resources: resources, links: links)
 
   def service(name) = ResourceMap::Found.new(provider: "northflank", account: "team/firefight", kind: ResourceMap::KIND_SERVICE, external_id: name, name: name)
 
@@ -77,8 +90,10 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
 
   def branch(database)
     ResourceMap::Found.new(provider: "planetscale", account: "acme", kind: ResourceMap::KIND_BRANCH, external_id: "#{database}/main",
-                           name: "#{database}/main", details: { "production" => true })
+                           name: "#{database}/main", details: { ResourceMap::PRODUCTION => true })
   end
+
+  def branch_of(name) = ResourceMap::FoundLink.new(from: branch(name).key, to: database(name).key, relation: ResourceMap::RELATION_BRANCH_OF)
 
   def resource(id) = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: id)
 

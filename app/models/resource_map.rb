@@ -95,13 +95,15 @@ module ResourceMap
 
   # A new commit on a service is a deploy, since a sweep only sees the commit that is running.
   DEPLOYED_COMMIT = "deployed_commit".freeze
+  # A database branch that serves production, which is the one a service connects to.
+  PRODUCTION = "production".freeze
   SHORT_COMMIT = 7
 
   # What a provider reported about a resource, named for a person, in the order a person reads it. Other details stay
   # for Halon and are not shown.
   DETAIL_LABELS = {
     "type" => "Type", "plan" => "Plan", "instances" => "Instances", "engine" => "Engine", "region" => "Region",
-    "branch" => "Branch", DEPLOYED_COMMIT => "Running commit", "production" => "Production"
+    "branch" => "Branch", DEPLOYED_COMMIT => "Running commit", PRODUCTION => "Production"
   }.freeze
 
   def self.facts(details)

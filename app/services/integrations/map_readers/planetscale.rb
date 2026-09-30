@@ -42,7 +42,7 @@ module Integrations
           branch_found = ResourceMap::Found.new(
             provider: PROVIDER, account: org, kind: ResourceMap::KIND_BRANCH, external_id: "#{database['name']}/#{branch['name']}",
             name: "#{database['name']}/#{branch['name']}", status: branch["state"], url: branch["html_url"],
-            details: { "production" => branch["production"], "region" => branch.dig("region", "display_name") }.compact
+            details: { ResourceMap::PRODUCTION => branch["production"], "region" => branch.dig("region", "display_name") }.compact
           )
           @resources << branch_found
           @links << ResourceMap::FoundLink.new(from: branch_found.key, to: found.key, relation: ResourceMap::RELATION_BRANCH_OF)

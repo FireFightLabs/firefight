@@ -25,7 +25,7 @@ interface InstructionDialogProps {
   scopes: SubjectOption[]
 }
 
-// Owns both writing new instructions and editing a note. Where they apply is fixed once written.
+// Owns both adding and editing instructions. Where they apply is fixed once written.
 export function InstructionDialog({ open, onOpenChange, instruction, scopes }: InstructionDialogProps) {
   const { data, setData, transform, post, patch, processing, reset } = useForm({
     text: instruction?.text ?? "",
@@ -69,7 +69,7 @@ export function InstructionDialog({ open, onOpenChange, instruction, scopes }: I
             <DialogTitle>{instruction ? "Edit instructions" : "Add instructions"}</DialogTitle>
             <DialogDescription>
               How Halon should work, such as where to look first or what never to touch. Halon follows them in every chat and investigation that
-              involves where they apply, and never treats them as evidence.
+              touches what they apply to. It never treats them as evidence of what happened.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 pt-3 pb-5">
@@ -98,7 +98,7 @@ export function InstructionDialog({ open, onOpenChange, instruction, scopes }: I
               className="min-h-44"
               value={data.text}
               limit={CHAT_INSTRUCTION_TEXT_LIMIT}
-              placeholder={"Such as:\nCheck the Northflank logs for the worker before the web service.\nNever suggest restarting the primary database, page the data team instead."}
+              placeholder={"Such as:\nCheck the Northflank logs for the worker before the web service.\nNever suggest restarting the primary database. Page the data team instead."}
               onChange={writeText}
             />
             {instruction && <p className="text-xs text-muted-foreground">The current wording is kept as history when you save.</p>}

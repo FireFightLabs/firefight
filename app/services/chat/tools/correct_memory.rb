@@ -12,7 +12,7 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
   def description
     "When the person says a memory is wrong, or asks you to forget it, reject it. Give their correction when they said " \
       "what is right instead, and it replaces the memory as confirmed by them. A rejected memory is kept so it is never " \
-      "learned again. Only for what the person said, never for your own doubt, which is dispute_memory."
+      "learned again. Use it only for what the person said. For your own doubt, use dispute_memory."
   end
 
   def parameters_schema

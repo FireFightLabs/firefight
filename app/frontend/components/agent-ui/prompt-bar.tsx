@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
  * PROMPT BAR
  * A composer with real controls: attach, @ data sources,
  * / commands, a model picker, dictation, and send.
- * Type @ or / to open the menus; ↑↓ + Enter to pick.
+ * Type @ or / to open the menus. ↑↓ and Enter pick.
  * ───────────────────────────────────────────────────────── */
 
 function Icon({ children, size = 15, strokeWidth = 1.8 }: { children: React.ReactNode; size?: number; strokeWidth?: number }) {
@@ -166,13 +166,13 @@ export default function PromptBar({
   }, [menu, query, onSourceSearch]);
 
   /* a single highlight glides to the active row instead of each row
-   * toggling its own background — matches the gliding pill in the nav */
+   * toggling its own background, matching the gliding pill in the nav */
   useLayoutEffect(() => {
     const target = rowRefs.current[active];
     if (target) setRowBox({ top: target.offsetTop, height: target.offsetHeight });
   }, [menu, query, active, connected, rows.length]);
 
-  /* same gliding highlight in the model menu — floats to the hovered
+  /* same gliding highlight in the model menu, floating to the hovered
    * row, falling back to the currently-selected model */
   const modelIndex = MODELS.findIndex((m) => m.key === model.key);
   useLayoutEffect(() => {
@@ -296,7 +296,7 @@ export default function PromptBar({
       data-promptbar
       className="w-full"
     >
-      {/* composer is the anchor — menus grow up from its top edge */}
+      {/* composer is the anchor, and menus grow up from its top edge */}
       <div ref={composerAnchorRef} className="relative">
       {/* ── @ / slash menu ─────────────────────────────── */}
       {menu && (
@@ -305,7 +305,7 @@ export default function PromptBar({
           className="absolute inset-x-0 bottom-full z-10 mb-2 rounded-[10px] bg-surface p-1 shadow-raised"
           style={{ animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom center" }}
         >
-          {/* single gliding highlight — appears once a row is hovered */}
+          {/* single gliding highlight that appears once a row is hovered */}
           <span
             aria-hidden
             className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"
@@ -379,7 +379,7 @@ export default function PromptBar({
           className="absolute z-10 w-44 rounded-[10px] bg-surface p-1 shadow-raised"
           style={{ left: modelMenuLeft, bottom: modelMenuBottom, animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom left" }}
         >
-          {/* single gliding highlight — floats to the hovered / selected row */}
+          {/* single gliding highlight that floats to the hovered or selected row */}
           <span
             aria-hidden
             className="pointer-events-none absolute inset-x-1 rounded-[6px] bg-hover"

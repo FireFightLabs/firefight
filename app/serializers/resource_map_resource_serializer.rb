@@ -69,9 +69,9 @@ class ResourceMapResourceSerializer < BaseSerializer
   type "string[][]"
   def memories = row.memories.map { |memory| [ memory.id, memory.state, memory.text ] }
 
-  # People's instructions for it or the catalog entries it runs, as [where it applies, text].
+  # People's instructions for it or the catalog entries it runs, as [id, where they apply, text].
   type "string[][]"
-  def instructions = row.instructions.map { |note| [ note.label, note.text ] }
+  def instructions = row.instructions.map { |note| [ note.id, note.label, note.text ] }
 
   has_many :entries, as: :catalog_entries, serializer: ResourceMapEntrySerializer do
     row.entries

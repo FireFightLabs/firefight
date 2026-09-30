@@ -82,7 +82,7 @@ function drawing(resources: ResourceMapResource[], links: ResourceMapLink[], foc
   const edges: Edge[] = links.map((link) => {
     const group = `${link.toId}:${link.relation}`
     const word = link.unconfirmed ? `${RELATION_WORDS[link.relation]}?` : RELATION_WORDS[link.relation]
-    const label = labelled.has(group) ? undefined : link.certainty && link.unconfirmed ? `${word} ${CERTAINTY_LABELS[link.certainty].toLowerCase()}` : word
+    const label = labelled.has(group) ? undefined : link.certainty && link.unconfirmed ? `${word} (${CERTAINTY_LABELS[link.certainty].toLowerCase()})` : word
     labelled.add(group)
     const tone = link.unconfirmed ? "var(--primary)" : "color-mix(in oklch, var(--muted-foreground) 70%, transparent)"
     return {

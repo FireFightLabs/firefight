@@ -24,7 +24,7 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_includes inertia_props["subjects"].map { |subject| subject["value"] }, "CatalogEntry:#{@auth.id}"
   end
 
-  test "the page is not there until Halon is" do
+  test "the page redirects to the dashboard while Halon is unavailable" do
     Investigation.stubs(:available_for?).returns(false)
     Investigation.stubs(:unavailable_reason).returns("Halon is not turned on for this workspace.")
 
@@ -59,6 +59,18 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     post reject_memory_path(rejected), params: { reason: "One off" }
     assert_equal [ Chat::Memory::STATE_REJECTED, "One off" ], [ rejected.reload.state, rejected.state_reason ]
     assert_equal "Rejected. Halon stops using it and does not learn it again.", flash[:notice]
+  end
+
+  test "a decision the memory no longer allows says why, and the page ships the same reasons" do
+    confirmed = remember("Auth Service runs on web")
+    confirmed.confirm!(by: @member)
+
+    post confirm_memory_path(confirmed)
+    assert_equal "It is confirmed already.", flash[:alert]
+
+    get memory_path, headers: inertia_headers
+    shipped = inertia_props["memories"].sole
+    assert_equal [ "It is confirmed already.", nil, true ], shipped.values_at("confirmBlockedReason", "rejectBlockedReason", "inUse")
   end
 
   test "instructions are written, edited and removed, each kept as history" do

@@ -41,7 +41,7 @@ export const CERTAINTY_LABELS: Record<ResourceMapCertainty, string> = {
 }
 
 function certaintyOf(link: ResourceMapLink): string {
-  return link.certainty ? `, ${CERTAINTY_LABELS[link.certainty].toLowerCase()}` : ""
+  return link.certainty ? ` (${CERTAINTY_LABELS[link.certainty].toLowerCase()})` : ""
 }
 
 const HOW_FOUND: Record<ResourceMapOrigin, (link: ResourceMapLink) => string> = {

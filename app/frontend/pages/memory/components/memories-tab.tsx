@@ -17,9 +17,9 @@ import type { ChatMemory } from "@/types/serializers"
 
 const EMPTY: Record<MemoryFilter, string> = {
   in_use: "Nothing remembered yet. Halon learns from each incident as it ends, and anything you add here is used from then on.",
-  unconfirmed: "Nothing unconfirmed. Every memory Halon uses has been confirmed by a person or a postmortem.",
-  outdated: "Nothing looks outdated. A memory is flagged here when the resource it is about is renamed or removed.",
-  disputed: "Nothing disputed. Halon flags a memory here when what it finds disagrees with it.",
+  unconfirmed: "Nothing unconfirmed. A person or a postmortem has confirmed every memory Halon uses.",
+  outdated: "Nothing looks outdated. A memory lands here when a sweep finds the resource it is about renamed or removed.",
+  disputed: "Nothing disputed. Halon moves a memory here when a live result contradicts it, and stops using it until you decide.",
   rejected: "Nothing rejected.",
 }
 
@@ -61,7 +61,7 @@ export function MemoriesTab({ memories, subjects, canCurate }: MemoriesTabProps)
       <CardHeader>
         <CardTitle>What Halon remembers</CardTitle>
         <CardDescription className="mt-1">
-          Facts Halon learned from incidents or was told. It uses the confirmed ones as fact and checks the unconfirmed ones before relying on them.
+          Facts Halon learned from incidents or was told. It checks each one against live results, and says so when it relies on one nobody confirmed.
         </CardDescription>
         {canCurate && (
           <CardAction>
@@ -127,8 +127,8 @@ interface MemoryRowProps {
 }
 
 function MemoryRow({ memory, canCurate, onDecide }: MemoryRowProps) {
-  const decidable = memory.state !== "rejected"
-  const confirmable = decidable && memory.state !== "confirmed"
+  const decidable = !memory.rejectBlockedReason
+  const confirmable = !memory.confirmBlockedReason
 
   function confirm() {
     router.post(confirmMemoryPath(memory.id), {}, { preserveScroll: true })

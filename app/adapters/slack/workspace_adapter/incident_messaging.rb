@@ -512,7 +512,6 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
-  # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
   def post_learned_memories(channel_id:, incident_id:, incident_identifier:, memories:)
     translate_errors do
       result = Slack::Client.post_message(
@@ -533,6 +532,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
   def post_integration_card(channel_id:, thread_id:, card:)
     translate_errors do
       result = Slack::Client.post_message(

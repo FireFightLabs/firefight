@@ -2,7 +2,7 @@ module Slack
   module Messages
     # What Halon learned from an ended incident, each lesson with its buttons until someone decides on it.
     module LearnedMemories
-      INTRO = "Saved for the next incident. Confirm what is right, so Halon trusts it, or mark it not right.".freeze
+      INTRO = "Halon already uses these, marked unconfirmed. Confirm the ones that are right, and mark the rest not right so it stops using them.".freeze
       DECIDED = {
         Chat::Memory::STATE_CONFIRMED => ":white_check_mark: Confirmed", Chat::Memory::STATE_REJECTED => ":no_entry_sign: Marked not right"
       }.freeze

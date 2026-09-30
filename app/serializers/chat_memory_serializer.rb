@@ -55,4 +55,13 @@ class ChatMemorySerializer < BaseSerializer
 
   type :number
   def use_count = memory.use_count
+
+  type :boolean
+  def in_use = Chat::Memory::USED_STATES.include?(memory.state)
+
+  type :string, optional: true
+  def confirm_blocked_reason = memory.confirm_blocked_reason
+
+  type :string, optional: true
+  def reject_blocked_reason = memory.reject_blocked_reason
 end

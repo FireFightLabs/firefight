@@ -13,7 +13,7 @@ interface TextFieldProps {
   onChange: (value: string) => void
 }
 
-// A textarea that counts toward the server's limit when it has one, so a long note is trimmed by the writer and not refused on save.
+// A textarea that counts toward the server's limit when it has one, so the writer trims a long note before saving instead of hitting a refusal.
 export function TextField({ id, label, value, limit, rows = 3, placeholder, optional = false, className = "", onChange }: TextFieldProps) {
   const over = limit !== undefined && value.length > limit
 

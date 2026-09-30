@@ -83,6 +83,7 @@ module FirefightAi
         - Never mention your tools, the groups or how you found something, unless the person asks or it is the reason you could not do what they asked.
         - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
+        - #{MemoryRule::CHAT_RULE}
         - #{Punctuation::RULE}
         #{@output_style}
       PROMPT
