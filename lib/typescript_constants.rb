@@ -111,6 +111,7 @@ module TypescriptConstants
       }, nil),
       Export.new("FINDING_OUTCOMES", Investigation::Finding::OUTCOMES, "FindingOutcome"),
       Export.new("LEDGER_DECISIONS", Ability::Invocation::DECISIONS, "LedgerDecision"),
+      Export.new("LEDGER_SOURCES", AbilityGateway::SOURCES, "LedgerSource"),
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
       }, nil),

@@ -9,12 +9,24 @@ module Integrations
       rows.size
     end
 
+    # Whether the hourly schedule should sweep it now. The slack keeps a daily reader from slipping to the next day.
+    SLACK = 10.minutes
+
+    def self.due?(environment_row)
+      swept = environment_row.map_swept_at
+      swept.nil? || swept <= environment_row.integration.executor.map_every(environment_row.integration).ago + SLACK
+    rescue Integrations::Error
+      false
+    end
+
     def self.run!(environment_row)
       snapshot = environment_row.integration.executor.map_of(environment_row)
       return false unless snapshot
 
       ResourceMap.record!(environment_row, snapshot)
-      ResourceMap::Matcher.new(environment_row.integration.workspace).run!
+      workspace = environment_row.integration.workspace
+      ResourceMap::CodeDefinitions.new(workspace).record!(environment_row, snapshot.code_files, read_in_full: snapshot.code_read)
+      ResourceMap::Matcher.new(workspace).run!
       true
     rescue Integrations::Error => error
       environment_row.update!(map_error: error.message)

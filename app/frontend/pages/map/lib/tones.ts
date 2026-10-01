@@ -9,6 +9,17 @@ export const KIND_TONES: Record<ResourceMapKind, string> = {
   branch: "bg-fuchsia-500/15 text-fuchsia-300 ring-fuchsia-400/25",
   repository: "bg-slate-400/15 text-slate-200 ring-slate-300/20",
   domain: "bg-teal-500/15 text-teal-300 ring-teal-400/25",
+  zone: "bg-orange-500/15 text-orange-300 ring-orange-400/25",
+  worker: "bg-orange-500/15 text-orange-300 ring-orange-400/25",
+  site: "bg-sky-500/15 text-sky-300 ring-sky-400/25",
+  bucket: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
+  kv_namespace: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
+  queue: "bg-indigo-500/15 text-indigo-300 ring-indigo-400/25",
+  database_proxy: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
+  tunnel: "bg-teal-500/15 text-teal-300 ring-teal-400/25",
+  load_balancer: "bg-teal-500/15 text-teal-300 ring-teal-400/25",
+  origin_pool: "bg-sky-500/15 text-sky-300 ring-sky-400/25",
+  access_app: "bg-rose-500/15 text-rose-300 ring-rose-400/25",
 }
 
 export const HEALTH_DOTS: Record<ResourceMapHealth, string> = {

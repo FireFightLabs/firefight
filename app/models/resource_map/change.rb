@@ -7,7 +7,9 @@ class ResourceMap::Change < ApplicationRecord
   KIND_DEPLOYED = "deployed".freeze
   KIND_STATUS_CHANGED = "status_changed".freeze
   KIND_RENAMED = "renamed".freeze
-  KINDS = [ KIND_APPEARED, KIND_REMOVED, KIND_DEPLOYED, KIND_STATUS_CHANGED, KIND_RENAMED ].freeze
+  # A setting moved, such as the number of WAF custom rules. detail names the setting.
+  KIND_CONFIGURED = "configured".freeze
+  KINDS = [ KIND_APPEARED, KIND_REMOVED, KIND_DEPLOYED, KIND_STATUS_CHANGED, KIND_RENAMED, KIND_CONFIGURED ].freeze
 
   belongs_to :workspace
   belongs_to :resource, class_name: "ResourceMap::Resource"

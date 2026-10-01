@@ -47,7 +47,18 @@ export const RESOURCE_MAP_KINDS = [
   "database",
   "branch",
   "repository",
-  "domain"
+  "domain",
+  "zone",
+  "worker",
+  "site",
+  "bucket",
+  "kv_namespace",
+  "queue",
+  "database_proxy",
+  "tunnel",
+  "load_balancer",
+  "origin_pool",
+  "access_app"
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
@@ -85,7 +96,10 @@ export const RESOURCE_MAP_RELATIONS = [
   "built_from",
   "served_by",
   "branch_of",
-  "uses"
+  "uses",
+  "part_of",
+  "protected_by",
+  "managed_by"
 ] as const
 export type ResourceMapRelation = (typeof RESOURCE_MAP_RELATIONS)[number]
 
@@ -103,7 +117,8 @@ export const RESOURCE_MAP_CHANGE_KINDS = [
   "removed",
   "deployed",
   "status_changed",
-  "renamed"
+  "renamed",
+  "configured"
 ] as const
 export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
 
@@ -553,6 +568,17 @@ export const LEDGER_DECISIONS = [
   "pending"
 ] as const
 export type LedgerDecision = (typeof LEDGER_DECISIONS)[number]
+
+export const LEDGER_SOURCES = [
+  "api",
+  "mcp",
+  "slack",
+  "web",
+  "investigation",
+  "conversation",
+  "map_sweep"
+] as const
+export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",

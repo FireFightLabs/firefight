@@ -38,7 +38,7 @@ class ResourceMap::Resource < ApplicationRecord
   STATUS_HEALTH = {
     HEALTH_OK => %w[completed ready success running healthy active deployed sleeping],
     HEALTH_BUSY => %w[in_progress pending deploying building starting staging queued resizing paused],
-    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy]
+    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy down degraded]
   }.flat_map { |health, words| words.map { |word| [ word, health ] } }.to_h.freeze
 
   def health = STATUS_HEALTH.fetch(status.to_s.downcase, HEALTH_UNKNOWN)
@@ -57,7 +57,8 @@ class ResourceMap::Resource < ApplicationRecord
       .order(Arel.sql("removed_at IS NOT NULL"), :provider, :account, :kind)
   end
 
-  # Every link within depth hops of this resource, in either direction, each with the hop it was found at.
+  # Every link within depth hops of this resource, in either direction, each with the hop it was found at. A repository
+  # a resource is managed in ends the walk there, or one service would pull in everything else defined beside it.
   def neighborhood(depth: NEIGHBORHOOD_DEPTH)
     hops = { id => 0 }
     frontier = [ id ]
@@ -67,6 +68,8 @@ class ResourceMap::Resource < ApplicationRecord
                                .includes(:from_resource, :to_resource, integration_environment: :integration).limit(NEIGHBORHOOD_LIMIT)
       frontier = links.flat_map do |link|
         found[link.id] ||= [ link, hop + 1 ]
+        next [] if link.relation == ResourceMap::RELATION_MANAGED_BY
+
         [ link.from_resource_id, link.to_resource_id ].reject { |each| hops.key?(each) }.each { |each| hops[each] = hop + 1 }
       end.uniq
       break if frontier.empty? || found.size >= NEIGHBORHOOD_LIMIT

@@ -49,9 +49,11 @@ class ResourceMap::View
   # Who depends on a resource, directly or through others, read along each link from the one that depends to the one it
   # depends on. The count ranks what a failure would reach, so only facts count. What would also stop if the
   # suggestions are right is kept apart.
-  def dependents = @dependents ||= reach(links.reject(&:unconfirmed?))
+  def dependents = @dependents ||= reach(runtime_links.reject(&:unconfirmed?))
 
-  def suggested_dependents = @suggested_dependents ||= reach(links)
+  def suggested_dependents = @suggested_dependents ||= reach(runtime_links)
+
+  def runtime_links = links.select { |link| ResourceMap::RUNTIME_RELATIONS.include?(link.relation) }
 
   private
 

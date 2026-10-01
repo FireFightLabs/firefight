@@ -5,7 +5,7 @@ module Integrations
     # table does not know, gets no link rather than a page it did not read. The pages are the dashboard deep links
     # Cloudflare's documentation uses (its DashButton component, in the cloudflare-docs repository).
     class Cloudflare
-      PROVIDER = "cloudflare".freeze
+      PROVIDER = MapReaders::Cloudflare::PROVIDER
       NAME = "Cloudflare".freeze
       EXECUTE = "execute".freeze
       DASHBOARD = "https://dash.cloudflare.com/".freeze

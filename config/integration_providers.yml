@@ -9,6 +9,9 @@
 # is worth little: firefight (a pack or a builder in Integrations::SourceLinks adds the link), server (the provider's
 # own results already carry one), none (there is no page) or unchecked (not yet verified against a real connection).
 # server and none carry a source_links_note saying why. A new provider is never unchecked.
+# map says whether what a provider holds is on the resource map: firefight (a pack's map_of or a reader in
+# McpExecutor::MAP_READERS puts it there), none (it holds no infrastructure, and map_note says why) or unchecked (it
+# may, and no reader exists yet). A new provider that holds infrastructure lands with its reader.
 # Section headings on the gallery. A provider naming a category that is not
 # listed here still renders, it just shows no tagline, so adding a provider
 # in a new category stays a registry edit rather than a code change.
@@ -32,6 +35,7 @@ providers:
     server_url: ""
     kind: native
     source_links: firefight
+    map: firefight
   - key: gitlab
     name: GitLab
     category: Code
@@ -40,6 +44,7 @@ providers:
     description: Correlate incidents with merge requests and pipelines.
     server_url: https://gitlab.com/api/v4/mcp
     source_links: unchecked
+    map: unchecked
   - key: newrelic
     name: New Relic
     category: Telemetry
@@ -48,6 +53,8 @@ providers:
     description: Query logs, metrics and traces during investigations.
     server_url: ""
     source_links: unchecked
+    map: none
+    map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: datadog
     name: Datadog
     category: Telemetry
@@ -56,6 +63,8 @@ providers:
     description: Query logs, metrics and monitors during investigations.
     server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
     source_links: unchecked
+    map: none
+    map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: northflank
     name: Northflank
     category: Telemetry
@@ -66,6 +75,7 @@ providers:
     kind: native
     connect_with: api_token
     source_links: firefight
+    map: firefight
   - key: grafana
     name: Grafana
     category: Telemetry
@@ -74,6 +84,8 @@ providers:
     description: Reach dashboards and datasources behind your Grafana.
     server_url: ""
     source_links: unchecked
+    map: none
+    map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: cloudflare
     name: Cloudflare
     category: Edge
@@ -84,6 +96,7 @@ providers:
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
     read_only_tools: [search, docs]
     source_links: firefight
+    map: firefight
   - key: sentry
     name: Sentry
     category: Errors
@@ -92,6 +105,8 @@ providers:
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
     source_links: unchecked
+    map: none
+    map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
   - key: linear
     name: Linear
     category: Issues
@@ -100,6 +115,8 @@ providers:
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
     source_links: unchecked
+    map: none
+    map_note: "It holds issues, not infrastructure."
   - key: notion
     name: Notion
     category: Knowledge
@@ -109,6 +126,8 @@ providers:
     server_url: https://mcp.notion.com/mcp
     source_links: server
     source_links_note: "Its results carry each page's own address."
+    map: none
+    map_note: "It holds documents, not infrastructure."
   - key: confluence
     name: Confluence
     category: Knowledge
@@ -117,6 +136,8 @@ providers:
     description: Bring team documentation into investigations.
     server_url: ""
     source_links: unchecked
+    map: none
+    map_note: "It holds documents, not infrastructure."
   - key: neon
     name: Neon
     category: Databases
@@ -125,6 +146,7 @@ providers:
     description: Read-only queries and branch history for a Neon Postgres database.
     server_url: https://mcp.neon.tech/mcp
     source_links: unchecked
+    map: unchecked
   - key: supabase
     name: Supabase
     category: Databases
@@ -133,6 +155,7 @@ providers:
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
     source_links: unchecked
+    map: unchecked
   - key: planetscale
     name: PlanetScale
     category: Databases
@@ -141,6 +164,7 @@ providers:
     description: Read-only queries, branch schemas and Insights for a PlanetScale database.
     server_url: https://mcp.pscale.dev/mcp/planetscale
     source_links: firefight
+    map: firefight
   - key: postgresql
     name: PostgreSQL
     category: Databases
@@ -152,6 +176,7 @@ providers:
     connect_with: connection_url
     source_links: none
     source_links_note: "A database reached by its own connection URL has no page to open."
+    map: unchecked
   - key: custom_mcp
     name: Custom MCP server
     category: Custom
@@ -161,3 +186,5 @@ providers:
     server_url: ""
     source_links: none
     source_links_note: "A custom server is the team's own, so its results carry whatever links it gives."
+    map: none
+    map_note: "A custom server is the team's own, so Firefight cannot know what it holds."

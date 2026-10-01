@@ -1387,6 +1387,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
 
   create_table "resource_map_changes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "detail"
     t.string "from_value"
     t.datetime "happened_at", null: false
     t.string "kind", null: false
@@ -1450,6 +1451,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
     t.string "name", null: false
     t.string "provider", null: false
     t.datetime "removed_at"
+    t.jsonb "sightings", default: {}, null: false
     t.string "status"
     t.datetime "updated_at", null: false
     t.string "url"

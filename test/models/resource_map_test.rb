@@ -76,6 +76,57 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_REJECTED, rejected.reload.state
   end
 
+  test "a link reaches something another connection reported, and a hostname both name keeps what each said" do
+    web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+    app = ResourceMap.domain("app.acme.com")
+    ResourceMap.record!(@row, snapshot(web, app.with(details: { "port" => 443 }), links: [ link(app, web, ResourceMap::RELATION_SERVED_BY) ]))
+    cloudflare = connection("cloudflare_one")
+    zone = ResourceMap::Found.new(provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_ZONE, external_id: "z1", name: "acme.com")
+    edge = ResourceMap.domain("edge.acme.com")
+
+    ResourceMap.record!(cloudflare, snapshot(zone, app.with(details: { "record" => "CNAME" }), edge,
+                                             links: [ link(app, zone, ResourceMap::RELATION_PART_OF), link(edge, web, ResourceMap::RELATION_SERVED_BY) ]))
+
+    assert_equal({ "port" => 443, "record" => "CNAME" }, resource("app.acme.com").details)
+    assert ResourceMap::Link.exists?(from_resource: resource("edge.acme.com"), to_resource: resource("web"), integration_environment: cloudflare)
+  end
+
+  test "a resource two connections report stays while either does, and each keeps what it said" do
+    web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+    app = ResourceMap.domain("app.acme.com")
+    cloudflare = connection("cloudflare_two")
+    ResourceMap.record!(@row, snapshot(web, app.with(details: { "port" => 443 })))
+    ResourceMap.record!(cloudflare, snapshot(app.with(details: { "record" => "CNAME" })))
+
+    ResourceMap.record!(@row, snapshot(web))
+    assert_nil resource("app.acme.com").removed_at
+    assert_equal({ "record" => "CNAME" }, resource("app.acme.com").details)
+
+    ResourceMap.record!(cloudflare, snapshot)
+    assert resource("app.acme.com").removed_at
+  end
+
+  test "what a sweep could not read in full is not taken as gone, nor are its links" do
+    web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+    app = ResourceMap.domain("app.acme.com")
+    ResourceMap.record!(@row, snapshot(web, app, links: [ link(app, web, ResourceMap::RELATION_SERVED_BY) ]))
+
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ web ], unread_kinds: [ ResourceMap::KIND_DOMAIN ]))
+
+    assert_nil resource("app.acme.com").removed_at
+    assert ResourceMap::Link.exists?(from_resource: resource("app.acme.com"), to_resource: resource("web"))
+  end
+
+  test "a setting that moves is a change naming the setting, and one read for the first time is not" do
+    first = ResourceMap::Found.new(provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_ZONE, external_id: "z1", name: "acme.com")
+    ResourceMap.record!(@row, snapshot(first), at: 2.hours.ago)
+    ResourceMap.record!(@row, snapshot(first.with(details: { "waf_rules" => 3 })), at: 1.hour.ago)
+    ResourceMap.record!(@row, snapshot(first.with(details: { "waf_rules" => 4 })))
+
+    change = resource("z1").changes_seen.find_by!(kind: ResourceMap::Change::KIND_CONFIGURED)
+    assert_equal [ "WAF custom rules", "3", "4" ], [ change.detail, change.from_value, change.to_value ]
+  end
+
   test "what a provider reported is named for a person, in reading order, with the running commit shortened" do
     facts = ResourceMap.facts("deployed_commit" => "c4e4267d46e638ac", "plan" => "nf-compute-100-2", "production" => true, "appId" => "/team/p/web")
 

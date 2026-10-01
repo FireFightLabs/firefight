@@ -25,10 +25,11 @@ module Integrations
     end
 
     test "a declaration the rule does not know, or a server that does not say why, is refused when the registry loads" do
-      assert_raises(ArgumentError) { IntegrationProvider.source_links_of("key" => "acme", "source_links" => "sometimes") }
-      assert_raises(ArgumentError) { IntegrationProvider.source_links_of("key" => "acme", "source_links" => IntegrationProvider::SOURCE_LINKS_SERVER) }
+      assert_raises(ArgumentError) { IntegrationProvider.declared({ "key" => "acme", "source_links" => "sometimes" }, "source_links", IntegrationProvider::SOURCE_LINKS, IntegrationProvider::SOURCE_LINKS_EXPLAINED) }
+      assert_raises(ArgumentError) { IntegrationProvider.declared({ "key" => "acme", "source_links" => IntegrationProvider::SOURCE_LINKS_SERVER }, "source_links", IntegrationProvider::SOURCE_LINKS, IntegrationProvider::SOURCE_LINKS_EXPLAINED) }
       assert_equal IntegrationProvider::SOURCE_LINKS_NONE,
-                   IntegrationProvider.source_links_of("key" => "acme", "source_links" => IntegrationProvider::SOURCE_LINKS_NONE, "source_links_note" => "No pages.")
+                   IntegrationProvider.declared({ "key" => "acme", "source_links" => IntegrationProvider::SOURCE_LINKS_NONE, "source_links_note" => "No pages." },
+                                                "source_links", IntegrationProvider::SOURCE_LINKS, IntegrationProvider::SOURCE_LINKS_EXPLAINED)
     end
 
     test "the executor adds the page to what a remote tool answered, and nothing to an error" do

@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react"
 import type { AbilityApproval } from "@/types/serializers"
 import { approveApprovalPath, denyApprovalPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
+import { LEDGER_SOURCES, type LedgerSource } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,12 +23,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Partial<Record<LedgerSource, string>> = {
   web: "Dashboard",
   slack: "Slack",
   api: "API",
   mcp: "MCP",
   investigation: "Investigation",
+  map_sweep: "Map sweep",
+}
+
+function sourceLabel(source: string): string {
+  const known = LEDGER_SOURCES.find((each) => each === source)
+  return (known && SOURCE_LABELS[known]) || source
 }
 
 const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
@@ -91,7 +98,7 @@ export function ApprovalsTab({
                     </TableCell>
                     <TableCell>{approval.principalLabel}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {approval.source ? (SOURCE_LABELS[approval.source] ?? approval.source) : "-"}
+                      {approval.source ? sourceLabel(approval.source) : "-"}
                     </TableCell>
                     <TableCell>
                       <code className="text-xs">{approval.actionKey}</code>

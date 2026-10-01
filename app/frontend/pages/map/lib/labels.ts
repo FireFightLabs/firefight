@@ -15,6 +15,17 @@ export const KIND_LABELS: Record<ResourceMapKind, string> = {
   branch: "Database branch",
   repository: "Repository",
   domain: "Domain",
+  zone: "Zone",
+  worker: "Worker",
+  site: "Pages site",
+  bucket: "Bucket",
+  kv_namespace: "KV namespace",
+  queue: "Queue",
+  database_proxy: "Database proxy",
+  tunnel: "Tunnel",
+  load_balancer: "Load balancer",
+  origin_pool: "Origin pool",
+  access_app: "Access application",
 }
 
 // Read between the two names, as in "web runs builds of firefight".
@@ -24,6 +35,9 @@ export const RELATION_SENTENCES: Record<ResourceMapRelation, string> = {
   served_by: "is served by",
   branch_of: "is a branch of",
   uses: "uses",
+  part_of: "is part of",
+  protected_by: "is protected by",
+  managed_by: "is managed in",
 }
 
 // The short word drawn on a link.
@@ -33,6 +47,9 @@ export const RELATION_WORDS: Record<ResourceMapRelation, string> = {
   served_by: "served by",
   branch_of: "branch of",
   uses: "uses",
+  part_of: "part of",
+  protected_by: "protected by",
+  managed_by: "managed in",
 }
 
 export const CERTAINTY_LABELS: Record<ResourceMapCertainty, string> = {
@@ -62,6 +79,7 @@ const CHANGE_LABELS: Record<ResourceMapChangeKind, (change: ResourceMapChange) =
   deployed: (change) => `${change.resourceName} deployed ${shortCommit(change.toValue)}`,
   renamed: (change) => `${change.fromValue ?? "A resource"} was renamed ${change.toValue ?? change.resourceName}`,
   status_changed: (change) => `${change.resourceName} went from ${change.fromValue ?? "unknown"} to ${change.toValue ?? "unknown"}`,
+  configured: (change) => `${change.resourceName}: ${change.detail ?? "a setting"} went from ${change.fromValue ?? "unknown"} to ${change.toValue ?? "unknown"}`,
 }
 
 export function changeLabel(change: ResourceMapChange): string {
