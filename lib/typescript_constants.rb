@@ -26,6 +26,7 @@ module TypescriptConstants
       }, nil),
       Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
       Export.new("RESOURCE_MAP_KINDS", ResourceMap::KINDS, "ResourceMapKind"),
+      Export.new("REMEDIATION_STEP_KINDS", Investigation::RemediationStep::KINDS, "RemediationStepKind"),
       Export.new("PAST_INCIDENT_DAYS", Incident::Outcome::PAST_WINDOW_DAYS, nil),
       Export.new("CHAT_MEMORY_STATES", Chat::Memory::STATES, "ChatMemoryState"),
       Export.new("CHAT_MEMORY_TEXT_LIMIT", Chat::Memory::TEXT_LIMIT, nil),

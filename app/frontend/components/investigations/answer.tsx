@@ -2,6 +2,7 @@ import { IconAlertTriangle, IconCircleCheck, IconLoader2 } from "@tabler/icons-r
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { FixPlan } from "@/components/investigations/fix-plan"
 import { StepLinks } from "@/components/investigations/step-links"
 import { OUTCOME_LABELS, labelFor } from "@/components/investigations/labels"
 import { TONE_CLASSES } from "@/components/investigations/tone"
@@ -59,7 +60,7 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
   }
 
   const verdicts = Object.entries(finding.verdicts)
-  const hasParts = Boolean(finding.cause || finding.evidence.length > 0 || finding.gaps || finding.outcome || verdicts.length > 0)
+  const hasParts = Boolean(finding.cause || finding.evidence.length > 0 || finding.fix || finding.gaps || finding.outcome || verdicts.length > 0)
 
   return (
     <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-5 dark:border-emerald-400/30 dark:bg-emerald-400/[0.04]">
@@ -92,6 +93,11 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
                   </li>
                 ))}
               </ul>
+            </Part>
+          )}
+          {finding.fix && (
+            <Part label="How to fix it">
+              <FixPlan fix={finding.fix} />
             </Part>
           )}
           {finding.gaps && (

@@ -92,7 +92,8 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     )
     run.record_hypothesis!(assertion: "The deploy did it", status: Investigation::Hypothesis::STATUS_SUPPORTED, steps: [ 1 ])
     run.conclude!(summary: "The 14:02 deploy raised the pool size", hypothesis_assertion: "The deploy did it",
-                  evidence: [ { claim: "The commit raised the pool size", steps: [ 1 ] } ], gaps: "logs")
+                  evidence: [ { claim: "The commit raised the pool size", steps: [ 1 ] } ], gaps: "logs",
+                  fix: { summary: "Revert the pool size", steps: [ { kind: "pull_request", description: "Put the pool back to 10", repository: "acme/api" } ] })
     run.finish!(status: Investigation::STATUS_SUCCEEDED)
 
     response = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: run.id })
@@ -105,6 +106,8 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     assert_equal "The 14:02 deploy raised the pool size", body.dig(:finding, :summary)
     assert_equal [ { claim: "The commit raised the pool size", steps: [ 1 ], sources: [ "Commit lookup abc123" ] } ], body.dig(:finding, :evidence)
     assert_equal "logs", body.dig(:finding, :gaps)
+    assert_equal({ summary: "Revert the pool size", steps: [ { position: 1, kind: "pull_request", description: "Put the pool back to 10", repository: "acme/api" } ] },
+                 body.dig(:finding, :fix))
     assert_nil step.raw_result, "nothing here reads raw output, and the tool must not either"
   end
 

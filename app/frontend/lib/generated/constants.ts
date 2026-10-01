@@ -51,6 +51,13 @@ export const RESOURCE_MAP_KINDS = [
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
+export const REMEDIATION_STEP_KINDS = [
+  "pull_request",
+  "action",
+  "manual"
+] as const
+export type RemediationStepKind = (typeof REMEDIATION_STEP_KINDS)[number]
+
 export const PAST_INCIDENT_DAYS = 180 as const
 
 export const CHAT_MEMORY_STATES = [

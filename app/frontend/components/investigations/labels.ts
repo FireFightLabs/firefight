@@ -1,11 +1,19 @@
 import type {
   FindingOutcome,
+  RemediationStepKind,
   HypothesisStatus,
   InvestigationStatus,
   InvestigationStepStatus,
   InvestigationTrigger,
   LedgerDecision,
 } from "@/lib/generated/constants"
+
+// How each kind of fix step gets done, as a person reads it.
+export const REMEDIATION_STEP_LABELS: Record<RemediationStepKind, string> = {
+  pull_request: "Code change",
+  action: "Change through a tool",
+  manual: "For a person",
+}
 
 export const STATUS_LABELS: Record<InvestigationStatus, string> = {
   pending: "Queued",

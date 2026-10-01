@@ -26,7 +26,9 @@ class InvestigationsTest < ApplicationSystemTestCase
       hypothesis_assertion: "The billing page calls a method nothing defines",
       evidence: [ { claim: "The controller calls require_admin! before every action", steps: [ read.position ] },
                   { claim: "Nothing in either repository defines it", steps: [ 3 ] } ],
-      gaps: "Production logs, since none are connected"
+      gaps: "Production logs, since none are connected",
+      fix: { "summary" => "Define require_admin! where the other guards live",
+             "steps" => [ { "kind" => "pull_request", "description" => "Add require_admin! to ApplicationController", "repository" => "acme/cloud" } ] }
     )
     @investigation.note_answered!(finding)
   end

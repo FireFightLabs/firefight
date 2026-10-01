@@ -16,6 +16,10 @@ class InvestigationFindingSerializer < BaseSerializer
     finding.evidence_items.includes(citations: :source)
   end
 
+  has_one :remediation_plan, as: :fix, serializer: InvestigationRemediationPlanSerializer, optional: true do
+    finding.remediation_plan
+  end
+
   # How each thumb was pressed, by outcome.
   type "Record<string, number>"
   def verdicts

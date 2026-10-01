@@ -11,16 +11,6 @@ class Investigation::Finding < ApplicationRecord
   OUTCOME_WRONG = "wrong"
   OUTCOMES = [ OUTCOME_CONFIRMED, OUTCOME_PARTIAL, OUTCOME_WRONG ].freeze
 
-  REMEDIATION_CODE_CHANGE = "code_change"
-  REMEDIATION_DATA_CHANGE = "data_change"
-  REMEDIATION_CONFIG_CHANGE = "config_change"
-  REMEDIATION_TRANSIENT = "transient"
-  REMEDIATION_ACTION = "action"
-  REMEDIATION_TYPES = [
-    REMEDIATION_CODE_CHANGE, REMEDIATION_DATA_CHANGE, REMEDIATION_CONFIG_CHANGE,
-    REMEDIATION_TRANSIENT, REMEDIATION_ACTION
-  ].freeze
-
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
@@ -30,10 +20,10 @@ class Investigation::Finding < ApplicationRecord
 
   has_many :evidence_items, -> { ordered }, class_name: "Investigation::Evidence", dependent: :destroy, inverse_of: :finding
   has_many :verdicts, class_name: "Investigation::Verdict", dependent: :destroy, inverse_of: :finding
+  has_one :remediation_plan, class_name: "Investigation::RemediationPlan", dependent: :destroy, inverse_of: :finding
 
   validates :published_state, inclusion: { in: STATES }
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
-  validates :remediation_type, inclusion: { in: REMEDIATION_TYPES }, allow_nil: true
   validates :confidence,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
 

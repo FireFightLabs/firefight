@@ -32,6 +32,36 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
           }
         },
         "gaps" => { "type" => "string", "description" => "What you could not check, and why it matters" },
+        "fix" => {
+          "type" => "object",
+          "description" => "How to fix what you found. Required when you name a cause. Give it even when nothing here can apply it, " \
+                           "so a person has the steps",
+          "properties" => {
+            "summary" => { "type" => "string", "description" => "What the fix changes and why it fixes the cause, in a sentence or two" },
+            "verify" => { "type" => "string", "description" => "How to tell it worked: the signal to watch and the level it should return to, " \
+                                                               "such as 5xx back under its usual rate" },
+            "steps" => {
+              "type" => "array", "description" => "In the order they should run",
+              "items" => {
+                "type" => "object",
+                "properties" => {
+                  "kind" => { "type" => "string", "enum" => Investigation::RemediationStep::KINDS,
+                              "description" => "pull_request for a code change in one repository, action for a change through one of the " \
+                                               "workspace's tools, manual for anything Firefight cannot do" },
+                  "description" => { "type" => "string", "description" => "What this step changes, in a sentence" },
+                  "repository" => { "type" => "string", "description" => "For pull_request: the repository, as owner/name" },
+                  "tool" => { "type" => "string", "description" => "For action: the tool's name, as you call it" },
+                  "arguments" => { "type" => "object", "description" => "For action: the arguments to call it with" },
+                  "missing" => { "type" => "string", "description" => "For manual: what Firefight would need to do it, such as a tool to switch on" },
+                  "undo" => { "type" => "string", "description" => "How to put it back if it makes things worse" },
+                  "depends_on" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "Earlier step numbers that must finish first" }
+                },
+                "required" => %w[kind description]
+              }
+            }
+          },
+          "required" => %w[summary steps]
+        },
         "suggest_incident" => {
           "type" => "boolean",
           "description" => "Only when there is no incident yet: true when what you found is hurting users now and the team should declare one"
@@ -48,6 +78,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
     return FirefightAi::Investigator::CRITIQUE if !@investigation.budget_spent? && @investigation.ask_for_critique!
 
     asked = arguments.symbolize_keys
+    check_fix!(asked)
     evidence = Array(asked[:evidence])
     evidence.each_with_index { |item, index| @investigation.cited_steps!(item.to_h.stringify_keys["steps"], what: "Evidence #{index + 1}") }
     reread = Investigation::Rereading.new(@investigation).check(evidence)
@@ -55,16 +86,23 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
 
     @investigation.conclude!(
       summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: reread.kept, gaps: asked[:gaps],
-      suggest_incident: asked[:suggest_incident] == true
+      suggest_incident: asked[:suggest_incident] == true, fix: asked[:fix]
     )
     "Answer recorded. The run is over."
-  rescue Investigation::Evidence::Refused => refused
+  rescue Investigation::Evidence::Refused, Investigation::RemediationPlan::Refused => refused
     { error: refused.message }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error
     { error: error.message }
   end
 
   private
+
+  # Before the claims are re-read, which costs a model call, so a fix that will be refused never pays for one.
+  def check_fix!(asked)
+    raise Investigation::RemediationPlan::Refused, "Naming a cause needs a fix. Say how to fix it, step by step." if asked[:hypothesis].present? && asked[:fix].blank?
+
+    Investigation::RemediationPlan.check!(@investigation.workspace, asked[:fix]) if asked[:fix].present?
+  end
 
   # A cause with nothing left behind it is sent back with why, so the agent can cite what shows it or name no cause.
   def refuse_emptied_cause!(hypothesis, reread)
