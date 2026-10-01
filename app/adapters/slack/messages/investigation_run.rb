@@ -5,6 +5,13 @@ module Slack
       SECTION_TEXT_LIMIT = 3000
       EVIDENCE_LIMIT = 6
       SOURCES_SHOWN = 3
+      FIX_STEPS_SHOWN = 6
+      # How each kind of fix step gets done, as a person reads it.
+      STEP_KINDS = {
+        Investigation::RemediationStep::KIND_PULL_REQUEST => "Code change",
+        Investigation::RemediationStep::KIND_ACTION => "Change through a tool",
+        Investigation::RemediationStep::KIND_MANUAL => "For a person"
+      }.freeze
 
       # A question with no incident is named by its own words, which came from a person and are escaped.
       def self.started(incident:, started_by:, question: nil)
@@ -36,6 +43,7 @@ module Slack
       def self.finding(finding:)
         blocks = [ { type: "section", text: { type: "mrkdwn", text: summary_text(finding) } } ]
         blocks << evidence_block(finding) if finding.evidence_items.any?
+        blocks << fix_block(finding.remediation_plan) if finding.remediation_plan
         blocks << gaps_block(finding) if finding.gaps.present?
         actions = action_block(finding)
         blocks << actions if actions
@@ -127,6 +135,20 @@ module Slack
         sources = item.source_labels.first(SOURCES_SHOWN).join(", ")
         line = "• #{Formatting.markdown_to_mrkdwn(item.claim)}"
         sources.present? ? "#{line} _(#{Formatting.markdown_to_mrkdwn(sources)})_" : line
+      end
+
+      # The fix in order, each step saying how it gets done and where, then how to tell it worked.
+      def self.fix_block(plan)
+        all = plan.steps.to_a
+        steps = all.first(FIX_STEPS_SHOWN).map do |step|
+          where = step.repository ? Mrkdwn.escape(step.repository) : step.action_key
+          "#{step.position}. _#{STEP_KINDS.fetch(step.kind)}#{" in `#{where}`" if where}_ #{Formatting.markdown_to_mrkdwn(step.description)}"
+        end
+        hidden = all.size - FIX_STEPS_SHOWN
+        more = hidden.positive? ? "\n#{hidden} more #{'step'.pluralize(hidden)} on the run page." : ""
+        verify = plan.verify.present? ? "\n_How to tell it worked:_ #{Formatting.markdown_to_mrkdwn(plan.verify)}" : ""
+        text = "*How to fix it*\n#{Formatting.markdown_to_mrkdwn(plan.summary)}\n#{steps.join("\n")}#{more}#{verify}"
+        { type: "section", text: { type: "mrkdwn", text: text.truncate(SECTION_TEXT_LIMIT) } }
       end
 
       def self.gaps_block(finding)

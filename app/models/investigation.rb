@@ -342,16 +342,19 @@ class Investigation < ApplicationRecord
   # Each line of evidence is a claim and the steps it rests on. One that cites nothing real is
   # refused and nothing is written, so the agent fixes it before the run can end.
   # A run with no incident may say one is due, which its answer then offers to declare. A run on an incident has one.
-  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false)
+  # A cause comes with how to fix it, whether or not anything here can apply it.
+  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false, fix: nil)
     winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
     items = Array(evidence).map(&:to_h).map(&:symbolize_keys)
     raise Investigation::Evidence::Refused, "Naming a cause needs evidence behind it. Give each claim and the steps it rests on." if winner && items.empty?
+    raise Investigation::RemediationPlan::Refused, "Naming a cause needs a fix. Say how to fix it, step by step." if winner && fix.blank?
 
     cited = items.each_with_index.map { |item, index| [ item[:claim].to_s, cited_steps!(item[:steps], what: "Evidence #{index + 1}") ] }
 
     transaction do
       finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps, suggests_incident: subject.nil? && suggest_incident == true)
       cited.each_with_index { |(claim, sources), index| finding.add_evidence!(claim: claim, sources: sources, position: index + 1) }
+      Investigation::RemediationPlan.propose!(finding, fix) if fix.present?
       finding
     end
   end

@@ -29,13 +29,16 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     step.succeed!(compacted_result: "before_action :require_admin!")
     investigation.record_hypothesis!(assertion: "A missing method", status: Investigation::Hypothesis::STATUS_SUPPORTED, steps: [ 1 ])
     investigation.conclude!(summary: "require_admin! is defined nowhere", hypothesis_assertion: "A missing method",
-                            evidence: [ { claim: "The controller calls it", steps: [ 1 ] } ])
+                            evidence: [ { claim: "The controller calls it", steps: [ 1 ] } ],
+                            fix: { summary: "Define it", steps: [ { kind: "pull_request", description: "Add require_admin!", repository: "acme/billing" } ] })
 
     get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
 
     shown = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]
     assert_equal "A missing method", shown.dig("finding", "cause")
     assert_equal [ 1 ], shown.dig("finding", "evidence", 0, "steps")
+    assert_equal [ "Define it", "pull_request", "acme/billing" ], [ shown.dig("finding", "fix", "summary"), shown.dig("finding", "fix", "steps", 0, "kind"),
+                                                                    shown.dig("finding", "fix", "steps", 0, "repository") ]
     assert_equal 1, shown.dig("hypotheses", 0, "settledAfterStep")
     assert_equal "before_action :require_admin!", shown.dig("steps", 0, "result")
     assert_equal Ability::Invocation::DECISION_ALLOW, shown.dig("steps", 0, "receipt", "decision")

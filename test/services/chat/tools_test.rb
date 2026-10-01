@@ -433,16 +433,32 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     critiqued!
     Investigation::Tools::Conclude.new(@investigation).call(
       "summary" => "The deploy raised the pool size", "hypothesis" => "The 14:02 deploy did it",
-      "evidence" => [ { "claim" => "The echo came back", "steps" => [ 1 ] } ], "gaps" => "Could not read the logs"
+      "evidence" => [ { "claim" => "The echo came back", "steps" => [ 1 ] } ], "gaps" => "Could not read the logs",
+      "fix" => { "summary" => "Put the pool back", "steps" => [ { "kind" => "manual", "description" => "Lower the pool size", "missing" => "No deploy tool is on" } ] }
     )
 
     finding = @investigation.reload.finding
+    assert_equal [ "manual", "No deploy tool is on" ], finding.remediation_plan.steps.sole.slice(:kind, :missing).values
     assert_equal "The deploy raised the pool size", finding.summary
     assert_equal "The 14:02 deploy did it", finding.winning_hypothesis.assertion
     assert_equal [ "The echo came back" ], finding.evidence_items.map(&:claim)
     assert_equal @investigation.steps.to_a, finding.evidence_items.sole.citations.map(&:source)
     assert_equal "Could not read the logs", finding.gaps
     assert_equal Investigation::Finding::STATE_UNPUBLISHED, finding.published_state
+  end
+
+  test "a cause with no fix comes back as something the agent can answer, and nothing is recorded" do
+    grant!(@tool)
+    Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+    @investigation.record_hypothesis!(assertion: "The 14:02 deploy did it")
+    critiqued!
+
+    answer = Investigation::Tools::Conclude.new(@investigation).call(
+      "summary" => "The deploy did it", "hypothesis" => "The 14:02 deploy did it", "evidence" => [ { "claim" => "The echo came back", "steps" => [ 1 ] } ]
+    )
+
+    assert_match "needs a fix", answer[:error]
+    assert_nil @investigation.reload.finding
   end
 
   test "a conclusion that cites a step that never happened comes back as something the agent can fix" do
@@ -496,7 +512,8 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     answer = Investigation::Tools::Conclude.new(@investigation).call(
       "summary" => "It was the deploy", "hypothesis" => "The 14:02 deploy did it",
-      "evidence" => [ { "claim" => "A deploy went out", "steps" => [ 1 ] } ]
+      "evidence" => [ { "claim" => "A deploy went out", "steps" => [ 1 ] } ],
+      "fix" => { "summary" => "Roll it back", "steps" => [ { "kind" => "manual", "description" => "Roll back the deploy" } ] }
     )
 
     assert_match "step 1 says nothing about a deploy", answer[:error]

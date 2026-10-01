@@ -42,7 +42,19 @@ module Mcp
             { claim: item.claim, steps: positions(item.citations), sources: item.source_labels }
           end,
           gaps: finding.gaps,
-          outcome: finding.outcome
+          outcome: finding.outcome,
+          fix: finding.remediation_plan && fix(finding.remediation_plan)
+        }.compact
+      end
+
+      def self.fix(plan)
+        {
+          summary: plan.summary, verify: plan.verify,
+          steps: plan.steps.map do |step|
+            # The arguments stay out, since the agent wrote them and they are for running the tool, not for reading.
+            { position: step.position, kind: step.kind, description: step.description, repository: step.repository, action: step.action_key,
+              missing: step.missing, undo: step.undo, depends_on: step.depends_on.presence }.compact
+          end
         }.compact
       end
 

@@ -77,6 +77,9 @@ module FirefightAi
         - Call conclude with the theory the evidence supports, the evidence behind it, and what you could not check. Each line of evidence is one claim and the step numbers it rests on. A claim with no step behind it is refused, so do not state what no result showed.
         - The first conclude asks you to try to prove the answer wrong before it is recorded. Each claim is then read against the steps it cites, and one they do not show is dropped.
         - If the evidence supports no cause, conclude saying that. A wrong answer costs the team more than no answer.
+        - When you name a cause, give the fix in conclude: what to change, in order, how to undo each step, and how to tell it worked. Give it even when nothing here can apply it.
+        - A code change is one pull_request step per repository, naming the files and what changes in them. A change to a provider, such as a setting, a scale or a redeploy, is an action step through a tool you have that changes things, with the arguments it needs. Anything you cannot do through a tool is a manual step saying what is missing.
+        - Before proposing a change to a provider, check whether what you would change is defined as code, such as Terraform, Pulumi, Helm or a manifest in a repository. If it is, the fix is a pull_request to that code, never a direct change, since the next apply would undo it.
         - When there is no incident yet and what you found is hurting users now, set suggest_incident in conclude, so the team is offered to declare one. Leave it out for anything that can wait.
         - A reply without a tool call does nothing. Only conclude ends the run.
         - #{MemoryRule::INSTRUCTIONS}

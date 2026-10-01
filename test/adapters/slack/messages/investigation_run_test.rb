@@ -94,6 +94,17 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_equal "#{@finding.id}:#{Investigation::Finding::OUTCOME_WRONG}", feedback[:negative_button][:value]
   end
 
+  test "an answer with a fix lists its steps in order, saying how each gets done, and how to tell it worked" do
+    Investigation::RemediationPlan.propose!(@finding, { "summary" => "Roll back the **14:02 deploy**", "verify" => "Pool waits back under 50ms",
+                                                        "steps" => [ { "kind" => "pull_request", "description" => "Revert the pool size", "repository" => "acme/api" },
+                                                                     { "kind" => "manual", "description" => "Restart the workers" } ] })
+
+    text = Slack::Messages::InvestigationRun.finding(finding: @finding.reload).map { |block| block.dig(:text, :text) }.compact.find { |each| each.start_with?("*How to fix it*") }
+
+    assert_equal "*How to fix it*\nRoll back the *14:02 deploy*\n1. _Code change in `acme/api`_ Revert the pool size\n2. _For a person_ Restart the workers\n" \
+                 "_How to tell it worked:_ Pool waits back under 50ms", text
+  end
+
   test "an answer and a stop both link to the run in Firefight, where every step and receipt is" do
     with_app_host do
       investigation = @finding.investigation
