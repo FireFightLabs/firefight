@@ -290,6 +290,8 @@ Rails.application.routes.draw do
     get "/investigations/:id", to: "investigations#show", as: :investigation
     post "/investigations/:id/notes", to: "investigations#add_note", as: :investigation_notes
     post "/investigations/:id/stop", to: "investigations#stop", as: :investigation_stop
+    post "/investigations/:id/fix", to: "investigations#apply_fix", as: :investigation_fix
+    post "/investigations/:id/fix/steps/:step_id/done", to: "investigations#mark_fix_step_done", as: :investigation_fix_step_done
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search

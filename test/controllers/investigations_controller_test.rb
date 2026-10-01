@@ -1,6 +1,8 @@
 require "test_helper"
 
 class InvestigationsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+  include FixPlanTestHelper
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -121,6 +123,37 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     post investigation_stop_url(investigation_run(subject: nil, brief: { Investigation::Brief::KEY_SYMPTOM => "slow" }))
 
     assert_equal Investigation::ALREADY_FINISHED, flash[:alert]
+  end
+
+  test "a fix is applied from the run page as whoever clicked, and a second click is told who got there first" do
+    plan = build_fix_plan(@workspace)
+    investigation = plan.finding.investigation
+
+    assert_enqueued_with(job: InvestigationFixJob, args: [ plan.id ]) { post investigation_fix_url(investigation) }
+
+    assert_equal Investigation::FixRunner::APPLYING, flash[:notice]
+    assert_equal [ workspace_memberships(:alice_workspace_one), AbilityGateway::SOURCE_WEB ], [ plan.reload.approved_by, plan.applied_from ]
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    fix = inertia_props.dig(IncidentsController::PROP_OPEN_INVESTIGATION, "finding", "fix")
+    assert_equal [ "applying", "Alice Smith", "Alice Smith already applied this fix." ], [ fix["status"], fix["appliedBy"], fix["applyBlockedReason"] ]
+
+    post investigation_fix_url(investigation)
+    assert_equal "Alice Smith already applied this fix.", flash[:alert]
+  end
+
+  test "a person's step is marked done from the run page, one waiting on another is not yet, and a step Firefight runs is not" do
+    plan = build_fix_plan(@workspace)
+    investigation = plan.finding.investigation
+
+    post investigation_fix_step_done_url(investigation, plan.steps.third)
+    assert_equal Investigation::FixRunner::MARKED_DONE, flash[:notice]
+    assert_equal Investigation::RemediationStep::STATUS_DONE, plan.steps.third.reload.status
+
+    post investigation_fix_step_done_url(investigation, plan.steps.second)
+    assert_equal "Step 2 waits on step 1, which is not done yet.", flash[:alert]
+
+    post investigation_fix_step_done_url(investigation, plan.steps.first)
+    assert_equal "Firefight runs step 1 itself once the fix is applied.", flash[:alert]
   end
 
   private

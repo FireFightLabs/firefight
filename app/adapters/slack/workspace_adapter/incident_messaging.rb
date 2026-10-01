@@ -512,6 +512,28 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def update_investigation_answer(channel_id:, message_id:, finding:)
+    update_message(channel_id: channel_id, message_id: message_id, text: finding.summary.to_s,
+                   blocks: Slack::Messages::InvestigationRun.finding(finding: finding))
+    { success: true }
+  end
+
+  def post_fix_progress(channel_id:, thread_id:, plan:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan)
+      )
+      { message_id: result[:ts], channel_id: channel_id }
+    end
+  end
+
+  def update_fix_progress(channel_id:, message_id:, plan:)
+    update_message(channel_id: channel_id, message_id: message_id,
+                   text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan))
+    { success: true }
+  end
+
   def post_learned_memories(channel_id:, incident_id:, incident_identifier:, memories:)
     translate_errors do
       result = Slack::Client.post_message(

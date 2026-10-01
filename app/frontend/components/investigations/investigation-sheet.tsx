@@ -14,7 +14,7 @@ interface InvestigationSheetProps {
 
 // A run read over the page it belongs to, its incident or the chat that asked for it.
 export function InvestigationSheet({ investigation, prop, onClose, onDeclare }: InvestigationSheetProps) {
-  useLiveInvestigation(investigation?.status, prop)
+  useLiveInvestigation(investigation?.status, prop, investigation?.finding?.fix?.moving)
 
   return (
     <Sheet open={investigation != null} onOpenChange={whenClosed(onClose)}>

@@ -3,7 +3,7 @@
 class InvestigationsController < InertiaController
   PROP_INVESTIGATION = "investigation"
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop apply_fix mark_fix_step_done]
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
@@ -34,5 +34,29 @@ class InvestigationsController < InertiaController
 
     investigation.request_cancel!
     redirect_back_or_to investigation_path(investigation), notice: Investigation::STOPPING
+  end
+
+  # The fix's steps run as whoever applies it, so whoever may start a run may apply its fix, and each step is still the
+  # gateway's to allow.
+  def apply_fix
+    investigation = current_workspace.investigations.seen.find(params[:id])
+    plan = investigation.finding&.remediation_plan
+    raise ActiveRecord::RecordNotFound unless plan
+
+    blocked = Investigation::FixRunner.apply!(plan, by: current_membership, from: AbilityGateway::SOURCE_WEB)
+    return redirect_back_or_to(investigation_path(investigation), alert: blocked) if blocked
+
+    redirect_back_or_to investigation_path(investigation), notice: Investigation::FixRunner::APPLYING
+  end
+
+  def mark_fix_step_done
+    investigation = current_workspace.investigations.seen.find(params[:id])
+    step = investigation.finding&.remediation_plan&.steps&.find(params[:step_id])
+    raise ActiveRecord::RecordNotFound unless step
+
+    blocked = Investigation::FixRunner.mark_done!(step, by: current_membership)
+    return redirect_back_or_to(investigation_path(investigation), alert: blocked) if blocked
+
+    redirect_back_or_to investigation_path(investigation), notice: Investigation::FixRunner::MARKED_DONE
   end
 end

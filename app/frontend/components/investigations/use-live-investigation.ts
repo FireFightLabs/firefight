@@ -10,10 +10,10 @@ export function isLive(status: string): boolean {
   return LIVE_STATUSES.includes(status)
 }
 
-// A run that is still working reloads the one prop that holds it every few seconds, and stops once it has an
-// answer or has stopped. The page names the prop, since a run is drawn over whatever page it belongs to.
-export function useLiveInvestigation(status: string | undefined, prop: string): boolean {
-  const live = status != null && isLive(status)
+// A run that is still working, or whose fix is being applied, reloads the one prop that holds it every few seconds, and
+// stops once nothing is moving. The page names the prop, since a run is drawn over whatever page it belongs to.
+export function useLiveInvestigation(status: string | undefined, prop: string, fixApplying = false): boolean {
+  const live = (status != null && isLive(status)) || fixApplying
   const { start, stop } = usePoll(REFRESH_EVERY_MS, { only: [prop] }, { autoStart: false })
 
   useEffect(() => {

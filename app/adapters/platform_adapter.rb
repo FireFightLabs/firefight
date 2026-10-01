@@ -402,6 +402,24 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Redraws a posted answer, once its fix was applied.
+  # @return [Hash] { success: true }
+  def update_investigation_answer(channel_id:, message_id:, finding:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A run's fix as it is applied, in the run's thread, with Mark done on each step a person does.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_fix_progress(channel_id:, thread_id:, plan:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws that message as the fix moves on.
+  # @return [Hash] { success: true }
+  def update_fix_progress(channel_id:, message_id:, plan:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Posts what Halon learned from an ended incident in its channel, each lesson with Confirm and Not right.
   # memories are IncidentLearningService::LearnedMemory values.
   # @return [Hash] { message_id:, channel_id: }

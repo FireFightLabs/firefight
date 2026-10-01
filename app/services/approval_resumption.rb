@@ -4,6 +4,8 @@ class ApprovalResumption
   KIND_INTERACTION = "interaction"
   KIND_COMMAND = "command"
   KIND_WEB = "web"
+  # A step of a run's fix, which carries on from where it was held, either way the approver decides.
+  KIND_FIX_STEP = "fix_step"
 
   def self.park!(approval, subject, kind)
     approval.update!(resume_payload: {
@@ -18,11 +20,16 @@ class ApprovalResumption
     approval.update!(resume_payload: WebRequestReplay.payload_for(request, membership).merge(kind: KIND_WEB))
   end
 
+  def self.park_fix_step!(approval, step)
+    approval.update!(resume_payload: { kind: KIND_FIX_STEP, step_id: step.id })
+  end
+
   # An approval admits one execution. Re-entering the gateway on a consumed
   # approval would park a fresh one, so a job that runs twice must not replay.
   def self.resume!(approval)
     payload = approval.resume_payload
     return if payload.blank? || approval.consumed_at.present?
+    return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
     return resume_web!(approval, payload) if payload["kind"] == KIND_WEB
 
     subject = rebuild(approval, payload)
@@ -53,6 +60,7 @@ class ApprovalResumption
   def self.decline!(approval)
     payload = approval.resume_payload
     return if payload.blank?
+    return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
 
     notify(approval, payload, "#{approver_name(approval)} declined your request. Nothing has changed.")
   end

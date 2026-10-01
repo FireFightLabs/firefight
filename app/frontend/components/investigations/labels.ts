@@ -1,6 +1,8 @@
 import type {
   FindingOutcome,
+  RemediationPlanStatus,
   RemediationStepKind,
+  RemediationStepStatus,
   HypothesisStatus,
   InvestigationStatus,
   InvestigationStepStatus,
@@ -13,6 +15,24 @@ export const REMEDIATION_STEP_LABELS: Record<RemediationStepKind, string> = {
   pull_request: "Code change",
   action: "Change through a tool",
   manual: "For a person",
+}
+
+// Where applying a fix has got to. A fix nobody applied yet shows no status.
+export const FIX_STATUS_LABELS: Record<RemediationPlanStatus, string | null> = {
+  proposed: null,
+  applying: "Applying",
+  applied: "Applied",
+  partly_applied: "Partly applied",
+}
+
+export const FIX_STEP_STATUS_LABELS: Record<RemediationStepStatus, string | null> = {
+  proposed: null,
+  running: "Running",
+  waiting_approval: "Waiting for approval",
+  done: "Done",
+  failed: "Failed",
+  declined: "Declined",
+  skipped: "Skipped, since a step it waits on did not go through",
 }
 
 export const STATUS_LABELS: Record<InvestigationStatus, string> = {

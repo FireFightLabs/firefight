@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_01_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1106,10 +1106,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
   end
 
   create_table "investigation_remediation_plans", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "applied_from"
     t.datetime "approved_at"
     t.uuid "approved_by_id"
     t.datetime "created_at", null: false
     t.uuid "finding_id", null: false
+    t.string "progress_channel_id"
+    t.string "progress_message_id"
     t.string "status", default: "proposed", null: false
     t.text "summary", null: false
     t.datetime "updated_at", null: false
@@ -1120,19 +1123,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
 
   create_table "investigation_remediation_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action_key"
+    t.uuid "approval_id"
     t.jsonb "arguments", default: {}, null: false
     t.datetime "created_at", null: false
     t.integer "depends_on", default: [], null: false, array: true
     t.text "description", null: false
+    t.uuid "done_by_id"
+    t.datetime "finished_at"
+    t.uuid "invocation_id"
     t.string "kind", null: false
     t.text "missing"
     t.uuid "plan_id", null: false
     t.integer "position", null: false
     t.string "repository"
+    t.text "result"
+    t.datetime "started_at"
     t.string "status", default: "proposed", null: false
     t.string "tool_name"
     t.text "undo"
     t.datetime "updated_at", null: false
+    t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
+    t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
+    t.index ["invocation_id"], name: "index_investigation_remediation_steps_on_invocation_id"
     t.index ["plan_id", "position"], name: "index_investigation_remediation_steps_on_plan_id_and_position", unique: true
   end
 
@@ -1171,6 +1183,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
   end
 
   create_table "investigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "answer_message_id"
     t.datetime "answer_posted_at"
     t.integer "attempts", default: 0, null: false
     t.jsonb "brief", default: {}, null: false
@@ -1884,7 +1897,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_090000) do
   add_foreign_key "investigation_hypotheses", "investigations"
   add_foreign_key "investigation_remediation_plans", "investigation_findings", column: "finding_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "investigation_remediation_steps", "ability_approvals", column: "approval_id", on_delete: :nullify
+  add_foreign_key "investigation_remediation_steps", "ability_invocations", column: "invocation_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "investigation_remediation_plans", column: "plan_id", on_delete: :cascade
+  add_foreign_key "investigation_remediation_steps", "workspace_memberships", column: "done_by_id", on_delete: :nullify
   add_foreign_key "investigation_steps", "investigation_hypotheses", column: "hypothesis_id"
   add_foreign_key "investigation_steps", "investigations"
   add_foreign_key "investigation_verdicts", "investigation_findings", column: "finding_id"

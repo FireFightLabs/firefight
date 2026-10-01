@@ -29,4 +29,23 @@ class InvestigationRemediationStepSerializer < BaseSerializer
 
   type "number[]"
   def depends_on = step.depends_on
+
+  type "RemediationStepStatus"
+  def status = step.status
+
+  # What the tool said back, another system's words, rendered as text.
+  type :string, optional: true
+  def result = step.result
+
+  type :string, optional: true
+  def done_by = step.done_by&.display_name
+
+  type :string, optional: true
+  def mark_done_blocked_reason = step.mark_done_blocked_reason
+
+  # The ledger row written before the call, whose decision is what let it run.
+  type "{ decision: string, at: string } | null"
+  def receipt
+    step.invocation && { decision: step.invocation.decision, at: step.invocation.created_at.utc.iso8601 }
+  end
 end

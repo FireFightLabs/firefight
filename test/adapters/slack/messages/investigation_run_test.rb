@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
+  include FixPlanTestHelper
   setup do
     @incident = incidents(:active_critical_ws1)
     investigation = @incident.workspace.investigations.create!(
@@ -143,7 +144,24 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_equal "context_actions", blocks.last[:type]
   end
 
+  test "an answer whose fix runs through a connection offers Apply fix, which asks first, and one already applied does not" do
+    plan = build_fix_plan(@incident.workspace)
+
+    button = apply_button(plan)
+    assert_equal [ Identifiers::APPLY_FIX, plan.id ], [ button[:action_id], button[:value] ]
+    assert_equal "Runs 1 step through your connections, as you, in order. 2 steps for a person are marked done in the thread.",
+                 button.dig(:confirm, :text, :text)
+
+    plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_WEB)
+    assert_nil apply_button(plan.finding.reload.remediation_plan)
+  end
+
   private
+
+  def apply_button(plan)
+    Slack::Messages::InvestigationRun.finding(finding: plan.finding).select { |block| block[:type] == "actions" }
+                                     .flat_map { |block| block[:elements] }.find { |element| element[:action_id] == Identifiers::APPLY_FIX }
+  end
 
   def with_app_host
     previous = ENV["APP_HOST"]

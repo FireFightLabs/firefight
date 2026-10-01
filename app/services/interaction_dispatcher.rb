@@ -61,6 +61,8 @@ class InteractionDispatcher
     Identifiers::INCIDENT_UPDATE_STATUS_SELECT => Interactions::IncidentUpdateSelectHandler,
     Identifiers::APPLY_RUNBOOK => Interactions::ApplyRunbookHandler,
     Identifiers::INVESTIGATION_FEEDBACK => Interactions::InvestigationFeedbackHandler,
+    Identifiers::APPLY_FIX => Interactions::ApplyFixHandler,
+    Identifiers::MARK_FIX_STEP_DONE => Interactions::MarkFixStepDoneHandler,
     Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
     Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler,
     Identifiers::AGENT_CONFIRM => Interactions::AgentConfirmationHandler,
