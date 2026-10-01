@@ -14,7 +14,7 @@ module Mcp
         properties: {
           from: { type: "string", description: "The resource that depends, by name or provider id, such as web" },
           to: { type: "string", description: "The resource it depends on, such as firefight-prod/main" },
-          relation: { type: "string", enum: ResourceMap::RELATIONS, description: "How from depends on to, read as from uses to, from runs builds of to, and so on" },
+          relation: { type: "string", enum: ResourceMap::RELATIONS, description: "How from relates to to, read as from uses to, from runs builds of to, from is managed in to, and so on" },
           evidence: { type: "string", description: "What you read that shows the link, in one or two sentences" }
         },
         required: [ "from", "to", "relation", "evidence" ]

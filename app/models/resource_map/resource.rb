@@ -57,7 +57,8 @@ class ResourceMap::Resource < ApplicationRecord
       .order(Arel.sql("removed_at IS NOT NULL"), :provider, :account, :kind)
   end
 
-  # Every link within depth hops of this resource, in either direction, each with the hop it was found at.
+  # Every link within depth hops of this resource, in either direction, each with the hop it was found at. A repository
+  # a resource is managed in ends the walk there, or one service would pull in everything else defined beside it.
   def neighborhood(depth: NEIGHBORHOOD_DEPTH)
     hops = { id => 0 }
     frontier = [ id ]
@@ -67,6 +68,8 @@ class ResourceMap::Resource < ApplicationRecord
                                .includes(:from_resource, :to_resource, integration_environment: :integration).limit(NEIGHBORHOOD_LIMIT)
       frontier = links.flat_map do |link|
         found[link.id] ||= [ link, hop + 1 ]
+        next [] if link.relation == ResourceMap::RELATION_MANAGED_BY
+
         [ link.from_resource_id, link.to_resource_id ].reject { |each| hops.key?(each) }.each { |each| hops[each] = hop + 1 }
       end.uniq
       break if frontier.empty? || found.size >= NEIGHBORHOOD_LIMIT

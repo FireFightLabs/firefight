@@ -310,6 +310,39 @@ module Integrations
         format_blame(repo, path, ref, ranges, from, to)
       end
 
+      # The repositories this connection sees, and the infrastructure defined as code in them, so the map knows what
+      # each repository manages. Read once a day, and on Sync now.
+      EVERY = 1.day
+      MAX_REPOSITORY_PAGES = 10
+
+      def map_of(environment_row)
+        token = GithubApp.installation_token(environment_row)
+        repositories, total = installation_repositories(token)
+        infrastructure = Infrastructure.new(token)
+        files = infrastructure.files(repositories)
+        listed_all = repositories.size >= total
+        gaps = listed_all ? [] : [ "Only the first #{repositories.size} of #{total} repositories were listed." ]
+        found = repositories.map do |repository|
+          ResourceMap::Found.new(provider: GithubApp::PROVIDER_KEY, account: repository["full_name"].split("/").first, kind: ResourceMap::KIND_REPOSITORY,
+                                 external_id: repository["full_name"], name: repository["full_name"], url: repository["html_url"],
+                                 details: { "branch" => repository["default_branch"] }.compact)
+        end
+        ResourceMap::Snapshot.new(resources: found, gaps: gaps + infrastructure.gaps, code_files: files, code_read: infrastructure.read_in_full,
+                                  unread_kinds: listed_all ? [] : [ ResourceMap::KIND_REPOSITORY ])
+      end
+
+      def installation_repositories(token)
+        listed = []
+        total = 0
+        (1..MAX_REPOSITORY_PAGES).each do |page|
+          body = GithubApp.get("/installation/repositories?per_page=100&page=#{page}", token: token)
+          total = body["total_count"].to_i
+          listed.concat(Array(body["repositories"]))
+          break if listed.size >= total || Array(body["repositories"]).empty?
+        end
+        [ listed, total ]
+      end
+
       def check_health!(environment_row)
         GithubApp.installation_token(environment_row)
       end

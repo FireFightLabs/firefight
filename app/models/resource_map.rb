@@ -37,14 +37,18 @@ module ResourceMap
   RELATION_USES = "uses".freeze
   RELATION_PART_OF = "part_of".freeze
   RELATION_PROTECTED_BY = "protected_by".freeze
+  # Where a resource is defined as code. Ownership, not a dependency, so a repository failing stops nothing that runs.
+  RELATION_MANAGED_BY = "managed_by".freeze
   RELATIONS = [
     RELATION_RUNS_BUILDS_OF, RELATION_BUILT_FROM, RELATION_SERVED_BY, RELATION_BRANCH_OF, RELATION_USES, RELATION_PART_OF,
-    RELATION_PROTECTED_BY
+    RELATION_PROTECTED_BY, RELATION_MANAGED_BY
   ].freeze
+  # The links along which a failure travels.
+  RUNTIME_RELATIONS = (RELATIONS - [ RELATION_MANAGED_BY ]).freeze
   RELATION_WORDS = {
     RELATION_RUNS_BUILDS_OF => "runs builds of", RELATION_BUILT_FROM => "is built from", RELATION_SERVED_BY => "is served by",
     RELATION_BRANCH_OF => "is a branch of", RELATION_USES => "uses", RELATION_PART_OF => "is part of",
-    RELATION_PROTECTED_BY => "is protected by"
+    RELATION_PROTECTED_BY => "is protected by", RELATION_MANAGED_BY => "is managed in"
   }.freeze
 
   # Providers that put things on the map without being a connection of their own, such as a domain a service serves.
@@ -86,8 +90,10 @@ module ResourceMap
   # repository two services build from is one resource. gaps are the parts the sweep could not read, in words.
   # unread_kinds are the kinds the sweep could not read in full, so nothing of those kinds, and no link touching one, that
   # it did not report is taken as gone.
-  Snapshot = Data.define(:resources, :links, :gaps, :unread_kinds) do
-    def initialize(resources:, links: [], gaps: [], unread_kinds: []) = super
+  # code_files are the infrastructure files a code host's sweep read, for ResourceMap::CodeDefinitions, and code_read the
+  # repositories it read in full, the only ones whose suggestions it may take away.
+  Snapshot = Data.define(:resources, :links, :gaps, :unread_kinds, :code_files, :code_read) do
+    def initialize(resources:, links: [], gaps: [], unread_kinds: [], code_files: [], code_read: []) = super
   end
 
   Found = Data.define(:provider, :account, :kind, :external_id, :name, :status, :url, :details) do

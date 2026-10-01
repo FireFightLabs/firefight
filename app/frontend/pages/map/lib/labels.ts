@@ -37,6 +37,7 @@ export const RELATION_SENTENCES: Record<ResourceMapRelation, string> = {
   uses: "uses",
   part_of: "is part of",
   protected_by: "is protected by",
+  managed_by: "is managed in",
 }
 
 // The short word drawn on a link.
@@ -48,6 +49,7 @@ export const RELATION_WORDS: Record<ResourceMapRelation, string> = {
   uses: "uses",
   part_of: "part of",
   protected_by: "protected by",
+  managed_by: "managed in",
 }
 
 export const CERTAINTY_LABELS: Record<ResourceMapCertainty, string> = {

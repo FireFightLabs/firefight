@@ -92,7 +92,7 @@ export function AddLinkDialog({ open, onOpenChange, resources, fromId }: AddLink
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="link-relation">How it depends</Label>
+              <Label htmlFor="link-relation">How they are linked</Label>
               <Select value={data.relation} onValueChange={chooseRelation}>
                 <SelectTrigger id="link-relation" className="w-full">
                   <SelectValue />

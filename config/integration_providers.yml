@@ -35,7 +35,7 @@ providers:
     server_url: ""
     kind: native
     source_links: firefight
-    map: unchecked
+    map: firefight
   - key: gitlab
     name: GitLab
     category: Code
