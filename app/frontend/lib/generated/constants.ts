@@ -98,7 +98,8 @@ export const RESOURCE_MAP_RELATIONS = [
   "branch_of",
   "uses",
   "part_of",
-  "protected_by"
+  "protected_by",
+  "managed_by"
 ] as const
 export type ResourceMapRelation = (typeof RESOURCE_MAP_RELATIONS)[number]
 

@@ -6,18 +6,23 @@ module Integrations
       @workspace = workspaces(:slack_workspace_one)
     end
 
-    test "the hourly schedule sweeps a connection when it is due, and Cloudflare once a day" do
+    test "the hourly schedule sweeps a connection when it is due, and Cloudflare and GitHub once a day" do
       northflank = connection("northflank", Integration::KIND_NATIVE)
+      github = connection("github", Integration::KIND_NATIVE)
       cloudflare = connection("cloudflare", Integration::KIND_MCP, settings: { "server_url" => "https://mcp.cloudflare.com/mcp" })
 
       assert MapSweep.due?(northflank), "never swept is due"
       northflank.update!(map_swept_at: 2.hours.ago)
       cloudflare.update!(map_swept_at: 2.hours.ago)
+      github.update!(map_swept_at: 2.hours.ago)
       assert MapSweep.due?(northflank)
       assert_not MapSweep.due?(cloudflare)
+      assert_not MapSweep.due?(github)
 
       cloudflare.update!(map_swept_at: 1.day.ago)
+      github.update!(map_swept_at: 1.day.ago)
       assert MapSweep.due?(cloudflare)
+      assert MapSweep.due?(github)
     end
 
     test "a provider says whether it is on the map, a reader backs every one that is, and one that is not says why" do
@@ -34,7 +39,7 @@ module Integrations
       end
       assert read.all? { |provider| provider.map == IntegrationProvider::MAP_FIREFIGHT }, "a provider with a reader has to say it is on the map"
       unchecked = IntegrationProvider.all.select { |provider| provider.map == IntegrationProvider::MAP_UNCHECKED }.map(&:key)
-      assert_equal %w[github gitlab neon supabase postgresql], unchecked, "A provider added since the rule was written lands with its reader"
+      assert_equal %w[gitlab neon supabase postgresql], unchecked, "A provider added since the rule was written lands with its reader"
       assert_raises(ArgumentError) { IntegrationProvider.declared({ "key" => "acme", "map" => "later" }, "map", IntegrationProvider::MAPS, IntegrationProvider::MAP_EXPLAINED) }
     end
 

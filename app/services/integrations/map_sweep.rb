@@ -24,7 +24,9 @@ module Integrations
       return false unless snapshot
 
       ResourceMap.record!(environment_row, snapshot)
-      ResourceMap::Matcher.new(environment_row.integration.workspace).run!
+      workspace = environment_row.integration.workspace
+      ResourceMap::CodeDefinitions.new(workspace).record!(environment_row, snapshot.code_files, read_in_full: snapshot.code_read)
+      ResourceMap::Matcher.new(workspace).run!
       true
     rescue Integrations::Error => error
       environment_row.update!(map_error: error.message)

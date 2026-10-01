@@ -32,7 +32,8 @@ class ResourceMap::Matcher
     candidates = self.candidates
     ResourceMap::Link.transaction do
       lock!
-      open = ResourceMap::Link.where(workspace: @workspace, origin: ResourceMap::ORIGIN_INFERRED, confirmed_at: nil, dismissed_at: nil)
+      open = ResourceMap::Link.where(workspace: @workspace, origin: ResourceMap::ORIGIN_INFERRED, relation: ResourceMap::RELATION_USES,
+                                     confirmed_at: nil, dismissed_at: nil)
                               .index_by { |link| [ link.from_resource_id, link.to_resource_id ] }
       taken = ResourceMap::Link.where(workspace: @workspace, relation: ResourceMap::RELATION_USES).where.not(id: open.values.map(&:id))
                                .pluck(:from_resource_id, :to_resource_id).to_set

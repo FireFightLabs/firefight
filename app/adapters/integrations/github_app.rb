@@ -3,6 +3,8 @@ module Integrations
   # connect and cached on the environment row until close to expiry.
   class GithubApp
     class Error < Integrations::Error; end
+    # Out of API calls for now, so whatever reads in bulk stops rather than failing every call that follows.
+    class RateLimited < Error; end
 
     API_ROOT = "https://api.github.com".freeze
     PROVIDER_KEY = "github".freeze
@@ -130,10 +132,17 @@ module Integrations
         request["X-GitHub-Api-Version"] = "2022-11-28"
       end
 
+      def rate_limited?(response)
+        response.code.to_i == 429 || (response.code.to_i == 403 && (response["x-ratelimit-remaining"] == "0" || response["retry-after"].present?))
+      end
+
       def parse_response(response)
         body = JSON.parse(response.body.to_s)
         unless response.code.to_i.between?(200, 299)
-          raise Error, "GitHub: #{body['message'] || "HTTP #{response.code}"}"
+          message = "GitHub: #{body['message'] || "HTTP #{response.code}"}"
+          raise RateLimited, message if rate_limited?(response)
+
+          raise Error, message
         end
 
         body
