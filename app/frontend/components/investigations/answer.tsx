@@ -97,7 +97,7 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
           )}
           {finding.fix && (
             <Part label="How to fix it">
-              <FixPlan fix={finding.fix} />
+              <FixPlan investigationId={investigation.id} fix={finding.fix} />
             </Part>
           )}
           {finding.gaps && (

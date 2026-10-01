@@ -11,7 +11,7 @@ import type { InvestigationPageProps } from "@/pages/investigations/types"
 // A run with nothing of its own to be drawn over. A run on an incident opens over the incident instead.
 export default function Investigation() {
   const { investigation } = usePage<InvestigationPageProps>().props
-  useLiveInvestigation(investigation.status, INVESTIGATION_PROP)
+  useLiveInvestigation(investigation.status, INVESTIGATION_PROP, investigation.finding?.fix?.moving)
   const title = investigationTitle(investigation)
   const [ declaring, setDeclaring ] = useState(false)
 

@@ -69,6 +69,29 @@ export const REMEDIATION_STEP_KINDS = [
 ] as const
 export type RemediationStepKind = (typeof REMEDIATION_STEP_KINDS)[number]
 
+export const REMEDIATION_STEP_STATUSES = [
+  "proposed",
+  "running",
+  "waiting_approval",
+  "done",
+  "failed",
+  "declined",
+  "skipped"
+] as const
+export type RemediationStepStatus = (typeof REMEDIATION_STEP_STATUSES)[number]
+
+export const REMEDIATION_PLAN_STATUSES = [
+  "proposed",
+  "applying",
+  "applied",
+  "partly_applied"
+] as const
+export type RemediationPlanStatus = (typeof REMEDIATION_PLAN_STATUSES)[number]
+
+export const REMEDIATION_STEP_KIND_ACTION = "action" as const
+
+export const REMEDIATION_STEP_STATUS_DONE = "done" as const
+
 export const PAST_INCIDENT_DAYS = 180 as const
 
 export const CHAT_MEMORY_STATES = [

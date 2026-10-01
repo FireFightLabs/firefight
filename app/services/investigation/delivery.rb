@@ -39,10 +39,10 @@ class Investigation::Delivery
     tell_chat
     return unless thread_id
 
-    adapter.post_investigation_answer(
+    answer = adapter.post_investigation_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, finding: finding
     )
-    posted!
+    posted!(answer.to_h[:message_id])
     post_charts
   end
 
@@ -64,8 +64,8 @@ class Investigation::Delivery
   private
 
   # Only after the platform took it, so a run whose last post failed is one an operator can find.
-  def posted!
-    @investigation.update_columns(answer_posted_at: Time.current)
+  def posted!(message_id = nil)
+    @investigation.update_columns({ answer_posted_at: Time.current, answer_message_id: message_id }.compact)
   end
 
   # The charts the run drew, under its answer or its reason for stopping. The answer is already posted, so a chart that

@@ -134,6 +134,10 @@ module Identifiers
   ACTION_BLOCK_PREFIX = "action_block_"
   RUNBOOK_STEP_BLOCK_PREFIX = "runbook_step_block_"
   INVESTIGATION_FEEDBACK = "investigation_feedback"
+  # On an answer whose fix runs through a connection. Its steps run as whoever clicked.
+  APPLY_FIX = "apply_fix"
+  # On a fix's progress, for a step a person does rather than Firefight.
+  MARK_FIX_STEP_DONE = "mark_fix_step_done"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"
