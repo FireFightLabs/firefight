@@ -40,7 +40,7 @@ export default function MemoryPage() {
           <TabsTrigger value={MEMORY_PAGE_TABS.MEMORIES} className="gap-1.5 px-3">
             Memories
             {toReview > 0 && (
-              <span className="rounded-full bg-amber-400/15 px-1.5 text-[11px] font-medium text-amber-300 tabular-nums" aria-label={`${toReview} waiting on a person`} title={`${toReview} waiting on a person`}>
+              <span className="rounded-full bg-warning-tint px-1.5 text-[11px] font-medium text-warning tabular-nums" aria-label={`${toReview} waiting on a person`} title={`${toReview} waiting on a person`}>
                 {toReview}
               </span>
             )}

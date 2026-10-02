@@ -11,7 +11,7 @@ export function TypeCard({ type }: { type: CatalogType }) {
 
   return (
     <Link href={catalogueTypePath(type.slug)}>
-      <Card className="group cursor-pointer transition-all hover:border-primary/40 hover:shadow-sm h-full">
+      <Card className="group h-full cursor-pointer transition-colors duration-[120ms] hover:border-border-control hover:bg-surface-hover">
         <CardContent className="flex flex-col gap-3 pt-6">
           <div className="flex items-start justify-between">
             <div

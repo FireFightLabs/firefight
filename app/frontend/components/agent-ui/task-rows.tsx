@@ -38,7 +38,7 @@ function SpinnerRing({ active, children }: { active?: boolean; children?: React.
 function Badge({ tone, children }: { tone: "red" | "green" | "muted"; children: React.ReactNode }) {
   return (
     <span
-      className={`flex size-5.5 shrink-0 items-center justify-center rounded-full text-white
+      className={`flex size-5.5 shrink-0 items-center justify-center rounded-full text-canvas
         ${tone === "red" ? "bg-red" : tone === "muted" ? "bg-ink-3" : "bg-green"}`}
       style={{ animation: "pop-in 300ms cubic-bezier(0.23,1,0.32,1) both" }}
     >

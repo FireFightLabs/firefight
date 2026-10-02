@@ -22,7 +22,7 @@ const RISE = "fade-up 450ms var(--ease-out-strong)"
 export function StartHeading() {
   return (
     <div className="flex flex-1 flex-col items-center justify-end px-4 pb-5">
-      <h2 className="text-center text-[22px] font-semibold text-ink" style={{ animation: `${RISE} both` }}>
+      <h2 className="text-center text-[22px] font-semibold text-fg-headline" style={{ animation: `${RISE} both` }}>
         What do you want to know?
       </h2>
     </div>
@@ -61,7 +61,7 @@ function ExampleButton({ example, index, onPick }: ExampleButtonProps) {
     <button
       type="button"
       onClick={pick}
-      className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-[13px] text-ink-2 shadow-hairline transition-colors duration-150 hover:bg-hover hover:text-ink"
+      className="rounded-full border border-line-strong bg-transparent px-3.5 py-1.5 text-[13px] text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink active:bg-hover-2"
       style={{ animation: `${RISE} ${120 + index * 60}ms both` }}
     >
       {example.label}

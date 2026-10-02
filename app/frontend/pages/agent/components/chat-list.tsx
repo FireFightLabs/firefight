@@ -1,5 +1,5 @@
 import { InfiniteScroll } from "@inertiajs/react"
-import { type Icon, IconChevronRight, IconPencilPlus, IconSearch } from "@tabler/icons-react"
+import { type Icon, IconChevronRight, IconLoader2, IconMessages, IconPencilPlus, IconSearch } from "@tabler/icons-react"
 import { useCallback, useState } from "react"
 
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
@@ -61,9 +61,19 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className, o
           onlyNext
           buffer={SCROLL_BUFFER_PX}
           className="flex flex-col gap-4"
-          loading={<p className="px-2.5 text-[12px] text-ink-3">Loading more chats</p>}
+          loading={
+            <p className="flex items-center gap-1.5 px-2.5 text-[12px] text-ink-3">
+              <IconLoader2 className="size-3.5 animate-spin" />
+              Loading more chats
+            </p>
+          }
         >
-          {chats.length === 0 && <p className="px-2.5 text-[12.5px] text-ink-3">No chats yet.</p>}
+          {chats.length === 0 && (
+            <p className="flex items-center gap-2 px-2.5 py-1 text-[12.5px] text-ink-3">
+              <IconMessages className="size-4 shrink-0" />
+              No chats yet.
+            </p>
+          )}
           <ChatListSection label="Pinned" chats={pinned} currentId={currentId} />
           {byDay(recent).map((day) => (
             <ChatListSection key={day.label} label={day.label} chats={day.chats} currentId={currentId} />
@@ -75,9 +85,9 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className, o
                 type="button"
                 onClick={toggleArchived}
                 aria-expanded={showArchived}
-                className="flex items-center gap-1 px-2.5 pb-1 text-[12px] text-ink-3 transition-colors duration-100 hover:text-ink-2"
+                className="flex items-center gap-1 rounded-control px-2.5 pb-1 text-[12px] text-ink-3 transition-colors duration-150 hover:text-ink-2"
               >
-                <IconChevronRight className={`size-3.5 transition-transform duration-100 ${showArchived ? "rotate-90" : ""}`} />
+                <IconChevronRight className={`size-3.5 transition-transform duration-150 ${showArchived ? "rotate-90" : ""}`} />
                 Archived ({archivedCount})
               </button>
               {showArchived && <ChatListSection chats={archived} currentId={currentId} />}
@@ -104,7 +114,7 @@ function ListButton({ icon: ButtonIcon, label, onClick }: ListButtonProps) {
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink"
+      className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink active:bg-hover-2"
     >
       <ButtonIcon className="size-4" />
     </button>

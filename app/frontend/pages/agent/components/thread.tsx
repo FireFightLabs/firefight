@@ -48,7 +48,7 @@ export function Thread({ conversationId, confirmations, messages, waiting, strea
 function WaitingMessage({ body }: { body: string }) {
   return (
     <div className="flex flex-col items-end gap-1">
-      <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md bg-accent-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink opacity-70 [overflow-wrap:anywhere] sm:max-w-[75%]">
+      <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink opacity-70 [overflow-wrap:anywhere] sm:max-w-[75%]">
         {body}
       </p>
       <span className="text-[12px] text-ink-3">Halon reads this at its next step</span>

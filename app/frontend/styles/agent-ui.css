@@ -5,76 +5,51 @@
   /* surfaces */
   --page: var(--background);
   --canvas: var(--background);
-  --surface: var(--card);
-  --inset: var(--secondary);
-  --hover: color-mix(in srgb, var(--foreground) 4%, transparent);
-  --hover-2: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --surface: var(--surface-card);
+  --inset: var(--surface-input);
+  --hover: var(--surface-hover);
+  --hover-2: var(--surface-selected);
 
   /* ink ramp */
-  --ink: var(--foreground);
-  --ink-2: var(--muted-foreground);
-  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--card));
+  --ink: var(--text-primary);
+  --ink-2: var(--text-secondary);
+  --ink-3: var(--text-muted);
 
   /* borders */
   --line: var(--border);
-  --line-strong: color-mix(in srgb, var(--border) 70%, var(--foreground) 12%);
-  --line-soft: color-mix(in srgb, var(--border) 55%, var(--card));
-  --grid-line: color-mix(in srgb, var(--line) 78%, transparent);
-  --field: var(--secondary);
-  --stripe: color-mix(in srgb, var(--foreground) 7%, transparent);
-  --stripe-bg: var(--secondary);
+  --line-strong: var(--border-strong);
+  --line-soft: var(--border);
+  --grid-line: var(--border);
+  --field: var(--surface-input);
+  --stripe: var(--surface-hover);
+  --stripe-bg: var(--surface-input);
 
-  /* accent */
-  --accent: var(--primary);
-  --accent-ink: var(--primary-foreground);
-  --accent-tint: color-mix(in srgb, var(--primary) 12%, var(--card));
+  /* accent, the brand lime */
+  --accent: var(--lime);
+  --accent-ink: var(--on-lime);
+  --accent-tint: var(--lime-tint);
 
   /* semantic */
-  --green: var(--chart-3);
-  --green-tint: color-mix(in srgb, var(--chart-3) 12%, var(--card));
-  --orange: var(--chart-4);
-  --orange-tint: color-mix(in srgb, var(--chart-4) 14%, var(--card));
-  --red: var(--destructive);
-  --red-tint: color-mix(in srgb, var(--destructive) 12%, var(--card));
+  --green: var(--success);
+  --green-tint: var(--success-tint);
+  --orange: var(--warning);
+  --orange-tint: var(--warning-tint);
+  --red: var(--error);
+  --red-tint: var(--error-tint);
 
   /* overlays */
-  --tooltip-bg: var(--foreground);
-  --tooltip-fg: var(--card);
-  --tooltip-muted: color-mix(in srgb, var(--card) 70%, var(--foreground));
-  --tooltip-border: color-mix(in srgb, var(--foreground) 80%, var(--card));
+  --tooltip-bg: var(--surface-popover);
+  --tooltip-fg: var(--tooltip-text);
+  --tooltip-muted: var(--text-muted);
+  --tooltip-border: var(--border-strong);
 
-  /* The prefixed shadow build, so the app's own shadow-sm and friends keep their look elsewhere. */
+  /* Structure comes from 1px lines. Only floating layers carry a shadow. */
   --shadow-hairline: 0 0 0 1px var(--line);
-  --shadow-btn: 0 0 0 1px var(--line-strong), var(--smooth-shadow-xs);
-  --shadow-card: 0 0 0 1px var(--line), var(--smooth-shadow-sm);
-  --shadow-raised: 0 0 0 1px var(--line), var(--smooth-shadow-md);
-  --shadow-overlay: 0 0 0 1px var(--line), var(--smooth-shadow-lg);
-  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.12);
-}
-
-.dark .agent-ui {
-  --hover: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --hover-2: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --ink-3: color-mix(in srgb, var(--muted-foreground) 70%, var(--background));
-  --line-soft: color-mix(in srgb, var(--border) 55%, var(--background));
-  --stripe: oklch(1 0 0 / 0.055);
-  --accent-tint: color-mix(in srgb, var(--primary) 22%, var(--card));
-  --green-tint: color-mix(in srgb, var(--chart-3) 22%, var(--card));
-  --orange-tint: color-mix(in srgb, var(--chart-4) 22%, var(--card));
-  --red-tint: color-mix(in srgb, var(--destructive) 22%, var(--card));
-  --tooltip-bg: var(--card);
-  --tooltip-fg: var(--foreground);
-
-  --shadow-hairline: 0 0 0 1px var(--line);
-  --shadow-btn: 0 0 0 1px oklch(1 0 0 / 0.1), 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-card:
-    0 0 0 1px oklch(1 0 0 / 0.11), 0 1px 2px oklch(0 0 0 / 0.2),
-    0 2px 6px oklch(0 0 0 / 0.2);
-  --shadow-raised:
-    0 0 0 1px oklch(1 0 0 / 0.13), 0 2px 10px oklch(0 0 0 / 0.22);
-  --shadow-overlay:
-    0 0 0 1px oklch(1 0 0 / 0.15), 0 8px 28px oklch(0 0 0 / 0.34);
-  --shadow-inset-field: inset 0 1px 2px oklch(0 0 0 / 0.4);
+  --shadow-btn: 0 0 0 1px var(--line-strong);
+  --shadow-card: 0 0 0 1px var(--line);
+  --shadow-raised: 0 0 0 1px var(--line-strong);
+  --shadow-overlay: 0 0 0 1px var(--line-strong), var(--shadow-popover);
+  --shadow-inset-field: none;
 }
 
 @theme inline {
@@ -270,13 +245,13 @@
 
 /* The typography plugin's colours from the chat's tokens, which already follow dark mode. */
 .agent-ui .agent-answer {
-  --tw-prose-body: var(--ink);
+  --tw-prose-body: var(--text-body);
   --tw-prose-headings: var(--ink);
   --tw-prose-bold: var(--ink);
   --tw-prose-links: var(--accent);
   --tw-prose-code: var(--ink);
   --tw-prose-pre-code: var(--ink);
-  --tw-prose-pre-bg: var(--inset);
+  --tw-prose-pre-bg: var(--surface-code);
   --tw-prose-bullets: var(--ink-3);
   --tw-prose-counters: var(--ink-3);
   --tw-prose-quotes: var(--ink-2);

@@ -1,4 +1,5 @@
 import { router } from "@inertiajs/react"
+import { IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -80,17 +81,20 @@ export function ApplyFix({ investigationId, fix }: { investigationId: string; fi
           <ol className="flex flex-col gap-1.5 text-sm">
             {runs.map((step) => (
               <li key={step.id} className="flex gap-2">
-                <span className="tabular-nums text-muted-foreground">{step.position}.</span>
-                <span className="min-w-0">
+                <span className="tabular-nums text-fg-muted">{step.position}.</span>
+                <span className="min-w-0 text-fg-body">
                   {step.description}
-                  {step.action && <code className="ml-1.5 font-mono text-xs text-muted-foreground">{step.action}</code>}
+                  {step.action && <code className="ml-1.5 font-mono text-xs text-fg-secondary">{step.action}</code>}
                 </span>
               </li>
             ))}
           </ol>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button type="button" disabled={applying} onClick={apply}>{applying ? "Applying" : "Apply fix"}</Button>
+            <Button type="button" disabled={applying} onClick={apply}>
+              {applying && <IconLoader2 className="motion-safe:animate-spin" />}
+              {applying ? "Applying" : "Apply fix"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

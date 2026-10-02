@@ -9,7 +9,7 @@ import {
   makeDefaultIncidentStatusPath,
   reorderIncidentStatusesPath,
 } from "@/lib/routes"
-import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -23,10 +23,10 @@ import { OptionsTable } from "@/pages/settings/components/options-table"
 import { DEFAULT_STATUS_HINT, slugColumnHint } from "@/pages/settings/lib/constants"
 
 const stageColors: Record<string, string> = {
-  triage: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  active: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  closed: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  canceled: "bg-zinc-500/15 text-zinc-500 dark:text-zinc-400",
+  triage: "border-stage-triage-border bg-stage-triage-tint text-stage-triage",
+  active: "border-stage-active-border bg-stage-active-tint text-stage-active",
+  closed: "border-stage-closed-border bg-stage-closed-tint text-stage-closed",
+  canceled: "border-stage-canceled-border bg-stage-canceled-tint text-stage-canceled",
 }
 
 export function StageStatusesCard({
@@ -47,11 +47,11 @@ export function StageStatusesCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Badge variant="secondary" className={stageColors[stage.key]}>{stage.name}</Badge>
+            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", stageColors[stage.key])}>{stage.name}</span>
             <CardDescription>{stage.description}</CardDescription>
           </div>
           {canManage && (
-            <Button size="sm" onClick={() => onCreate(stage)}>
+            <Button size="sm" variant="outline" onClick={() => onCreate(stage)}>
               <IconPlus className="size-4" />
               Add Status
             </Button>

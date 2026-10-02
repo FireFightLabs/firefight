@@ -20,8 +20,8 @@ export function QrCode({ modules, label }: QrCodeProps) {
       className="size-52 rounded-lg"
       shapeRendering="crispEdges"
     >
-      <rect width={size} height={size} fill="#ffffff" />
-      <path d={squares.join("")} fill="#04111d" />
+      <rect width={size} height={size} fill="#f9f8f5" />
+      <path d={squares.join("")} fill="#121312" />
     </svg>
   );
 }

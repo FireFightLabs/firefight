@@ -71,7 +71,7 @@ export function IntegrationCard({ category }: IntegrationCardProps) {
         {rows.length === 0 && <li className="px-3.5 py-3 text-[12.5px] text-ink-3">Nothing matches that.</li>}
       </ul>
 
-      <Link href={integrationsPath()} className="border-t border-line px-3.5 py-2.5 text-[12.5px] text-ink-2 hover:text-ink">
+      <Link href={integrationsPath()} className="border-t border-line px-3.5 py-2.5 text-[12.5px] text-ink-2 hover:text-ink transition-colors duration-150">
         See all integrations
       </Link>
 
@@ -132,7 +132,7 @@ function RowAction({ row, canConnect, onConnect }: RowActionProps) {
   if (action === INTEGRATION_CARD_ACTIONS.MANAGE) {
     if (connections.length === 1) {
       return (
-        <Link href={detailsPath(connections[0].id)} className="shrink-0 text-[12.5px] text-ink-2 hover:text-ink">
+        <Link href={detailsPath(connections[0].id)} className="shrink-0 text-[12.5px] text-ink-2 hover:text-ink transition-colors duration-150">
           {actionLabel}
         </Link>
       )
@@ -141,7 +141,7 @@ function RowAction({ row, canConnect, onConnect }: RowActionProps) {
     return (
       <div className="flex shrink-0 flex-col items-end gap-0.5">
         {connections.map((connection) => (
-          <Link key={connection.id} href={detailsPath(connection.id)} className="text-[12.5px] text-ink-2 hover:text-ink">
+          <Link key={connection.id} href={detailsPath(connection.id)} className="text-[12.5px] text-ink-2 hover:text-ink transition-colors duration-150">
             {connection.name}
           </Link>
         ))}

@@ -75,8 +75,8 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
       {unread.length > 0 && (
         <Section title="Not read">
           {unread.map((connection) => (
-            <div key={connection.id} className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
-              <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+            <div key={connection.id} className="flex gap-2.5 rounded-lg border-l-2 border-warning bg-warning-tint px-3 py-2 text-sm text-fg-primary">
+              <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
               <span className="flex flex-col gap-1">
                 <span className="font-medium">{connection.name}</span>
                 {connection.error && <span className="text-xs text-muted-foreground">The last sync failed: {connection.error}</span>}
@@ -145,7 +145,7 @@ function Suggestion({ link, byId, canCurate }: { link: ResourceMapLink; byId: Ma
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 px-3 py-2.5 text-sm">
+    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-brand-border bg-brand-tint px-3 py-2.5 text-sm">
       <span>
         <b className="font-semibold">{byId.get(link.fromId)?.name}</b> {RELATION_SENTENCES[link.relation]}{" "}
         <b className="font-semibold">{byId.get(link.toId)?.name}</b>

@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react"
+import { IconLoader2 } from "@tabler/icons-react"
 import type { ChangeEvent, FormEvent } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -32,8 +33,9 @@ export function AddNote({ investigationId }: { investigationId: string }) {
         onChange={write}
       />
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">It reads this at its next step and changes course if it should.</p>
+        <p className="text-xs text-fg-muted">It reads this at its next step and changes course if it should.</p>
         <Button type="submit" size="sm" disabled={processing || data.note.trim().length === 0}>
+          {processing && <IconLoader2 className="motion-safe:animate-spin" />}
           Add to the run
         </Button>
       </div>

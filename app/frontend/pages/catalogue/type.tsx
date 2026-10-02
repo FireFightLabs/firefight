@@ -37,7 +37,7 @@ export default function CatalogueTypePage() {
           <Link href={cataloguePath()} className="hover:text-foreground transition-colors">
             Catalogue
           </Link>
-          <IconArrowRight className="size-3 text-muted-foreground/40" />
+          <IconArrowRight className="size-3 text-fg-disabled" />
           <span className="font-medium text-foreground">{type.name}</span>
         </nav>
 

@@ -13,8 +13,8 @@ import type { InvestigationDetail } from "@/types/serializers"
 function Meta({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground/70 uppercase">{label}</div>
-      <div className="mt-1.5 truncate text-sm text-foreground">{children}</div>
+      <div className="text-[11px] font-medium tracking-[0.18em] text-fg-muted uppercase">{label}</div>
+      <div className="mt-1.5 truncate text-sm text-fg-primary">{children}</div>
     </div>
   )
 }
@@ -22,8 +22,8 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
 function SectionHeading({ title, count }: { title: string; count?: number }) {
   return (
     <div className="mb-3 flex items-baseline gap-3">
-      <h2 className="text-[11px] font-semibold tracking-[0.2em] text-foreground/90 uppercase">{title}</h2>
-      {count != null && <span className="text-[11px] tabular-nums text-muted-foreground/70">{count}</span>}
+      <h2 className="text-[11px] font-semibold tracking-[0.2em] text-fg-primary uppercase">{title}</h2>
+      {count != null && <span className="text-[11px] tabular-nums text-fg-muted">{count}</span>}
     </div>
   )
 }

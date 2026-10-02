@@ -7,9 +7,9 @@ export const actionStatusIcons: Record<string, typeof IconClock> = {
 }
 
 export const actionStatusStyles: Record<string, string> = {
-  open: "text-muted-foreground",
-  in_progress: "text-amber-400",
-  done: "text-primary",
+  open: "text-fg-muted",
+  in_progress: "text-stage-active",
+  done: "text-success",
 }
 
 export const actionStatusLabels: Record<string, string> = {

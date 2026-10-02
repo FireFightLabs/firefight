@@ -44,7 +44,7 @@ export function TokenRevealedDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <IconKey className="size-5 text-primary" />
+            <IconKey className="size-5 text-brand" />
             API key created
           </DialogTitle>
           <DialogDescription>
@@ -64,7 +64,7 @@ export function TokenRevealedDialog({
             </Button>
           </div>
 
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          <div className="flex items-start gap-2 rounded-md border-l-2 border-warning bg-warning-tint px-3 py-2 text-xs text-fg-primary [&>svg]:text-warning">
             <IconAlertTriangle className="size-4 shrink-0 mt-0.5" />
             <p>
               If you lose this token, you'll need to revoke this key and create a new one.

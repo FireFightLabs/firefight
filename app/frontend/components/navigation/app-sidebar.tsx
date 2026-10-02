@@ -191,18 +191,18 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                   <>
                     <Avatar className="size-8 rounded-lg">
                       <AvatarImage src={currentWorkspace.avatarUrl} alt={currentWorkspace.name} />
-                      <AvatarFallback className="rounded-lg text-xs">
+                      <AvatarFallback className="rounded-lg bg-avatar text-xs text-avatar-foreground">
                         {currentWorkspace.name.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="truncate text-base font-bold tracking-tight">
+                    <span className="truncate text-base font-semibold tracking-tight text-fg-headline">
                       {currentWorkspace.name}
                     </span>
                   </>
                 ) : (
                   <>
                     <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
-                    <span className="text-base font-bold tracking-tight">FireFight</span>
+                    <span className="text-base font-semibold tracking-tight text-fg-headline">FireFight</span>
                   </>
                 )}
               </Link>

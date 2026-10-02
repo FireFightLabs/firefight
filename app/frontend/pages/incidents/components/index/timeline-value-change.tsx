@@ -15,16 +15,16 @@ export function TimelineValueChange({ change }: { change: TimelineChange }) {
     <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm leading-normal">
       {before && (
         <>
-          <span className={`text-muted-foreground/70 line-through decoration-muted-foreground/40 ${valueClass}`}>
+          <span className={`text-fg-muted line-through decoration-border-control ${valueClass}`}>
             {before}
           </span>
-          <IconArrowRight className="size-3 self-center text-muted-foreground/60" />
+          <IconArrowRight className="size-3 self-center text-fg-muted" />
         </>
       )}
       {after ? (
-        <span className={`font-medium text-foreground ${valueClass}`}>{after}</span>
+        <span className={`font-medium text-fg-primary ${valueClass}`}>{after}</span>
       ) : (
-        <span className="italic text-muted-foreground/70">Cleared</span>
+        <span className="italic text-fg-muted">Cleared</span>
       )}
     </span>
   )

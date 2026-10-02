@@ -130,7 +130,7 @@ function SpanRow({ span, start, total, selected, onSelect }: { span: OperatorTra
         type="button"
         onClick={() => onSelect(span.key)}
         aria-pressed={selected}
-        className={`grid w-full grid-cols-[minmax(0,17rem)_minmax(0,1fr)] items-center gap-4 rounded-md px-2 py-1.5 text-left transition-colors ${selected ? "bg-primary/10" : "hover:bg-muted/50"}`}
+        className={`grid w-full grid-cols-[minmax(0,17rem)_minmax(0,1fr)] items-center gap-4 rounded-md px-2 py-1.5 text-left transition-colors ${selected ? "bg-surface-selected" : "hover:bg-surface-hover"}`}
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <span className={`flex size-6 shrink-0 items-center justify-center rounded-full border ${processToneClasses(span.tone)}`}>
@@ -236,7 +236,7 @@ function Selected({ span, body, loading }: { span: OperatorTraceSpan; body: stri
         </dl>
       )}
       {span.runId && (
-        <Link href={operatorHalonRunPath(span.runId)} className="text-primary text-sm hover:underline">
+        <Link href={operatorHalonRunPath(span.runId)} className="text-link text-sm hover:underline">
           Open the run's trace
         </Link>
       )}

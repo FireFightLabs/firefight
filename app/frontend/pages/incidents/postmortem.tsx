@@ -50,10 +50,10 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusStyles: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground",
-  in_progress: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  in_review: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  completed: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  draft: "border-stage-canceled-border bg-stage-canceled-tint text-stage-canceled",
+  in_progress: "border-stage-active-border bg-stage-active-tint text-stage-active",
+  in_review: "border-stage-triage-border bg-stage-triage-tint text-stage-triage",
+  completed: "border-stage-closed-border bg-stage-closed-tint text-stage-closed",
 };
 
 interface PostmortemPageProps extends SharedProps {
@@ -215,7 +215,7 @@ export default function PostmortemPage() {
             <p>No postmortem has been generated for this incident yet.</p>
             <Link
               href={incidentPath(incident.id)}
-              className="mt-4 inline-block text-primary hover:underline"
+              className="mt-4 inline-block text-link underline-offset-4 hover:underline"
             >
               Back to incident
             </Link>
@@ -234,7 +234,7 @@ export default function PostmortemPage() {
             <div className="mx-auto flex h-12 max-w-4xl items-center gap-3 px-4 lg:px-6">
               <Link
                 href={incidentPath(incident.id)}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-fg-primary"
               >
                 <IconArrowLeft className="size-3.5" />
                 Back to incident
@@ -277,26 +277,26 @@ export default function PostmortemPage() {
           <div className="mx-auto flex h-12 max-w-4xl items-center gap-3 px-4 lg:px-6">
             <Link
               href={incidentPath(incident.id)}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-fg-primary"
             >
               <IconArrowLeft className="size-4" />
             </Link>
             <Separator orientation="vertical" className="h-4" />
             <nav className="flex items-center gap-1.5 text-sm text-muted-foreground overflow-hidden">
-              <IconFlame className="size-4 shrink-0 text-primary" />
+              <IconFlame className="size-4 shrink-0 text-brand" />
               <span className="hidden sm:inline">Incidents</span>
               <span className="hidden sm:inline">›</span>
               <span className="font-medium hidden sm:inline">
                 {incident.identifier}
               </span>
               <span className="hidden sm:inline">›</span>
-              <span className="truncate font-medium text-foreground">
+              <span className="truncate font-medium text-fg-primary">
                 Postmortem
               </span>
             </nav>
             <div className="ml-auto flex items-center gap-2">
               {saveState === "saved" && (
-                <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                <span className="flex items-center gap-1 text-xs text-success">
                   <IconCheck className="size-3" />
                   Saved
                 </span>
@@ -304,10 +304,7 @@ export default function PostmortemPage() {
               {saveState === "saving" && (
                 <span className="text-xs text-muted-foreground">Saving...</span>
               )}
-              <Badge
-                variant="secondary"
-                className={`text-xs ${statusStyles[postmortem.status]}`}
-              >
+              <Badge className={`text-xs ${statusStyles[postmortem.status]}`}>
                 {statusLabels[postmortem.status]}
               </Badge>
               <Button
@@ -369,9 +366,9 @@ export default function PostmortemPage() {
             </p>
           </div>
           {saveState === "conflict" && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3">
-              <IconAlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <p className="text-sm text-foreground">
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-border border-l-2 border-l-warning bg-warning-tint px-4 py-3">
+              <IconAlertTriangle className="size-4 shrink-0 text-warning" />
+              <p className="text-sm text-fg-primary">
                 Somebody else changed this postmortem while you were editing, so your last change was
                 not saved. Reload to see their version, or copy your text out first.
               </p>

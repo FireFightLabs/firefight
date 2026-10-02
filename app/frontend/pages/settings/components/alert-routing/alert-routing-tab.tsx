@@ -200,7 +200,7 @@ export function AlertRoutingTab({
                         <span className="truncate">{conditionsSummary(rule)}</span>
                         <TestOutcomeBadge rule={rule} testResult={testResult} />
                         {shadowNote(rule) && (
-                          <span className="ml-2 text-xs text-amber-500/80">⚠ {shadowNote(rule)}</span>
+                          <span className="ml-2 text-xs text-warning">⚠ {shadowNote(rule)}</span>
                         )}
                       </TableCell>
                       <TableCell>

@@ -275,7 +275,7 @@ export default function ApprovalCard({
     return (
       <div className="flex w-full max-w-80 items-center gap-3" style={{ animation: "pop-in 260ms cubic-bezier(0.23,1,0.32,1) both" }}>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-tint py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-green">
-          <span className="flex size-4.5 items-center justify-center rounded-full bg-green text-white">
+          <span className="flex size-4.5 items-center justify-center rounded-full bg-green text-canvas">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
           </span>
           {t.sentMessage}

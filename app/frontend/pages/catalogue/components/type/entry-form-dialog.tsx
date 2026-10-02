@@ -124,7 +124,7 @@ export function EntryFormDialog({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="entry-name">
-              Name <span className="text-red-500">*</span>
+              Name <span className="text-error">*</span>
             </Label>
             <Input
               id="entry-name"
@@ -140,7 +140,7 @@ export function EntryFormDialog({
             <div key={attr.id} className="flex flex-col gap-2">
               <Label htmlFor={`attr-field-${attr.id}`}>
                 {attr.name}
-                {attr.required && <span className="text-red-500 ml-0.5">*</span>}
+                {attr.required && <span className="text-error ml-0.5">*</span>}
                 {attr.attributeType === "reference" && attr.referenceTypeId && (
                   <Badge variant="outline" className="ml-2 text-[10px]">
                     {allTypes.find((candidate) => candidate.id === attr.referenceTypeId)?.name ?? "ref"}

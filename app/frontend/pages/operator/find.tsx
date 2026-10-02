@@ -33,8 +33,8 @@ function MatchRow({ match }: { match: OperatorFindMatch }) {
 
   return (
     <li className="border-b border-border last:border-b-0">
-      <Link href={match.href} className="hover:bg-muted/40 flex items-start gap-4 px-5 py-3.5">
-        <KindIcon className="text-primary mt-0.5 size-4 shrink-0" stroke={1.7} />
+      <Link href={match.href} className="hover:bg-surface-hover transition-colors flex items-start gap-4 px-5 py-3.5">
+        <KindIcon className="text-fg-secondary mt-0.5 size-4 shrink-0" stroke={1.7} />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-medium">{match.label}</span>
           <span className="text-muted-foreground text-xs">
