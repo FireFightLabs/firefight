@@ -49,7 +49,7 @@ class AgentChatListTest < ApplicationSystemTestCase
       watch()
       new MutationObserver(watch).observe(document.body, { subtree: true, childList: true, attributes: true })
     JS
-    assert_text "Completed"
+    assert_text "Worked for"
     sleep 1.5
 
     assert_not page.evaluate_script("window.__ranAgain"), "a finished step showed as running"

@@ -52,11 +52,13 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   end
 
   # The card moves on half a second after a pick, so each answer waits for its question to be the one shown.
-  def on_question(slug) = assert_selector("[style*='opacity: 1']", text: slug)
+  QUESTION = "[style*='opacity: 1']:has(button[aria-pressed])".freeze
+
+  def on_question(slug) = assert_selector(QUESTION, text: slug)
 
   def answer(slug, option)
     on_question(slug)
-    within(find("[style*='opacity: 1']", text: slug)) { click_button option }
+    within(find(QUESTION, text: slug)) { click_button option }
   end
 
   def approvals = @chat.tool_calls.where(tool_call_id: @ids).order(:tool_call_id).pluck(:approval)

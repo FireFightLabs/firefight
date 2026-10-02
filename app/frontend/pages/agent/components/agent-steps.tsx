@@ -1,97 +1,64 @@
-import TaskRows from "@/components/agent-ui/task-rows"
-import ThinkingState from "@/components/agent-ui/thinking-state"
-import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
+import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
+import { AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import { useSettledSteps } from "@/pages/agent/hooks/use-settled-steps"
-import type { AgentStep, StepKind, StepStatus } from "@/pages/agent/types"
-
-interface StepGroup {
-  key: string
-  kind: StepKind
-  steps: AgentStep[]
-}
+import type { AgentStep, StepStatus } from "@/pages/agent/types"
 
 interface AgentStepsProps {
   steps: AgentStep[]
-  // The agent is still on this turn and has not started its answer, so the last trace stays open between steps.
+  // The agent is still on this turn and has not started its answer, so the trace stays open between steps.
   thinking?: boolean
 }
 
-export function AgentSteps({ steps, thinking = false }: AgentStepsProps) {
-  const settled = useSettledSteps(steps)
-  const groups = groupedSteps(settled)
-  const lastKey = groups[groups.length - 1]?.key
-
-  return (
-    <div className="flex flex-col gap-3">
-      {groups.map((group) =>
-        group.kind === AGENT_STEP_KINDS.READ ? (
-          <LookingUp key={group.key} steps={group.steps} holdOpen={thinking && group.key === lastKey} />
-        ) : (
-          <TaskRows key={group.key} rows={group.steps.map(toRow)} className="w-full" />
-        ),
-      )}
-    </div>
-  )
+const ROW_STATUSES: Record<StepStatus, ThinkingRowStatus> = {
+  [AGENT_STEP_STATUSES.RUNNING]: "running",
+  [AGENT_STEP_STATUSES.DONE]: "done",
+  [AGENT_STEP_STATUSES.FAILED]: "failed",
+  [AGENT_STEP_STATUSES.WAITING]: "waiting",
+  [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
 }
 
-// Looking something up is the agent thinking, so consecutive reads collapse into one trace rather than a card each.
-function LookingUp({ steps, holdOpen }: { steps: AgentStep[]; holdOpen: boolean }) {
-  const working = steps.some(isRunning)
-  const seconds = steps.reduce((total, step) => total + step.seconds, 0)
+// A turn's work is one trace, every step in the order it ran, so reading something and acting on it never split the
+// thread into alternating blocks. A step that failed or waits on the person holds the trace open, since it needs a look.
+export function AgentSteps({ steps, thinking = false }: AgentStepsProps) {
+  const settled = useSettledSteps(steps)
+  const rows = settled.map(toRow)
+  const working = rows.some((row) => row.status === "running")
+  const needsLook = rows.some((row) => row.status === "failed" || row.status === "waiting")
+  const seconds = settled.reduce((total, step) => total + step.seconds, 0)
 
   return (
     <ThinkingState
-      rows={steps.map((step) => ({ id: step.key, primary: step.title, secondary: step.headline || undefined }))}
-      active="Thinking"
-      done={timeSpent(seconds)}
+      rows={rows}
+      active="Working"
+      done={summary(seconds, rows.length)}
       working={working}
-      open={holdOpen}
+      open={thinking || needsLook}
     />
   )
 }
 
-function groupedSteps(steps: AgentStep[]): StepGroup[] {
-  return steps.reduce<StepGroup[]>((groups, step) => {
-    const kind = isStepKind(step.kind) ? step.kind : AGENT_STEP_KINDS.ACT
-    const open = groups[groups.length - 1]
-    if (open && open.kind === kind) {
-      open.steps.push(step)
-      return groups
-    }
-
-    return [ ...groups, { key: step.key, kind, steps: [ step ] } ]
-  }, [])
-}
-
-function toRow(step: AgentStep) {
+function toRow(step: AgentStep): ThinkingRow {
   return {
-    key: step.key,
-    label: step.title,
-    amount: step.headline,
-    status: isStepStatus(step.status) ? step.status : AGENT_STEP_STATUSES.RUNNING,
-    details: step.asked.map(([ name, value ]) => ({ label: name, meta: value })),
+    id: step.key,
+    primary: step.title,
+    secondary: step.headline || undefined,
+    status: isStepStatus(step.status) ? ROW_STATUSES[step.status] : "running",
+    details: step.asked.map(([ label, meta ]) => ({ label, meta })),
   }
 }
 
-function timeSpent(seconds: number) {
+function summary(seconds: number, count: number) {
+  const steps = count === 1 ? "1 step" : `${count} steps`
   if (seconds < 1) {
-    return "Thought for a moment"
+    return `Worked for a moment · ${steps}`
   }
   if (seconds === 1) {
-    return "Thought for 1 second"
+    return `Worked for 1 second · ${steps}`
   }
 
-  return `Thought for ${seconds} seconds`
-}
-
-function isRunning(step: AgentStep) {
-  return step.status === AGENT_STEP_STATUSES.RUNNING
+  return `Worked for ${seconds} seconds · ${steps}`
 }
 
 function isStepStatus(value: string): value is StepStatus {
   return Object.values<string>(AGENT_STEP_STATUSES).includes(value)
-}
-
-function isStepKind(value: string): value is StepKind {
-  return Object.values<string>(AGENT_STEP_KINDS).includes(value)
 }
