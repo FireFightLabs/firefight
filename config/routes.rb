@@ -102,6 +102,8 @@ Rails.application.routes.draw do
 
   # Stateless Streamable HTTP, so only POST is served.
   post "/mcp", to: "mcp#create", as: :mcp
+  # A coding agent in the sandbox reaching its model, as a provider's API looks to it.
+  post "/code_agent/:provider/*path", to: "code_agent#forward", as: :code_agent, format: false
   match "/mcp", to: "mcp#method_not_allowed", via: [ :get, :delete, :put, :patch ]
 
   root to: "sessions#new"

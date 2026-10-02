@@ -64,6 +64,35 @@ module Integrations
         parse_response(Http.request(uri, request, error_class: Error))
       end
 
+      def post(path, body, token:)
+        uri = URI.parse("#{API_ROOT}#{path}")
+        request = Net::HTTP::Post.new(uri)
+        request["Authorization"] = "Bearer #{token}"
+        request["Content-Type"] = "application/json"
+        apply_api_headers(request)
+        request.body = body.to_json
+        parse_response(Http.request(uri, request, error_class: Error))
+      end
+
+      # One commit on a new branch, holding every changed file, and a pull request for it into base, ready for review.
+      # The commit's parent is base_sha, the commit the change was written against, so the pull request never undoes
+      # what reached base since. files maps a path to its new content as base64 with its mode, or to nil when the change
+      # deletes it. Returns the pull request as GitHub gives it.
+      def open_pull_request(repo, base:, base_sha:, branch:, title:, body:, message:, files:, token:)
+        head = base_sha
+        base_tree = get("/repos/#{repo}/git/commits/#{head}", token: token).dig("tree", "sha")
+        entries = files.map do |path, file|
+          next { path: path, mode: "100644", type: "blob", sha: nil } if file.nil?
+
+          blob = post("/repos/#{repo}/git/blobs", { content: file[:content], encoding: "base64" }, token: token)
+          { path: path, mode: file[:mode], type: "blob", sha: blob["sha"] }
+        end
+        tree = post("/repos/#{repo}/git/trees", { base_tree: base_tree, tree: entries }, token: token)
+        commit = post("/repos/#{repo}/git/commits", { message: message, tree: tree["sha"], parents: [ head ] }, token: token)
+        post("/repos/#{repo}/git/refs", { ref: "refs/heads/#{branch}", sha: commit["sha"] }, token: token)
+        post("/repos/#{repo}/pulls", { title: title, head: branch, base: base, body: body, draft: false }, token: token)
+      end
+
       # Blame at a given commit exists only in GitHub's GraphQL API.
       def graphql(query, variables, token:)
         uri = URI.parse("#{API_ROOT}/graphql")

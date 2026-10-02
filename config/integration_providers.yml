@@ -36,6 +36,7 @@ providers:
     kind: native
     source_links: firefight
     map: firefight
+    code_fix_tool: fix_code
   - key: gitlab
     name: GitLab
     category: Code
