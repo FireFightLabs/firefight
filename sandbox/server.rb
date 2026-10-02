@@ -199,9 +199,17 @@ module Sandbox
     # The versions a repository asks for, through mise's shims, for everything that runs in its copy.
     def self.env(dir) = { "MISE_YES" => "1", "MISE_TRUSTED_CONFIG_PATHS" => dir, "MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS" => "ruby,node,python,go" }
 
+    # What preparing installs into the copy, kept out of git's view so a clean keeps it and a change never carries it.
+    INSTALLED = %w[.sandbox-prepared vendor/bundle node_modules .venv].freeze
+
     def self.run(dir)
       marker = File.join(dir, ".sandbox-prepared")
       return { "prepared" => [], "already" => true } if File.exist?(marker)
+
+      exclude = File.join(dir, ".git", "info", "exclude")
+      FileUtils.mkdir_p(File.dirname(exclude))
+      listed = File.exist?(exclude) ? File.read(exclude).lines.map(&:strip) : []
+      File.open(exclude, "a") { |file| INSTALLED.map { |path| "/#{path}" }.reject { |path| listed.include?(path) }.each { |path| file.puts(path) } }
 
       done = []
       env = self.env(dir)

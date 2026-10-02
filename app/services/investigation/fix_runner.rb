@@ -50,7 +50,7 @@ class Investigation::FixRunner
     if @plan.reload.applying?
       loop do
         hold_back!
-        ready = @plan.steps.reload.find { |step| step.action? && step.proposed? && step.ready?(@plan.steps) }
+        ready = @plan.steps.reload.find { |step| step.proposed? && step.ready?(@plan.steps) && step.runs_itself?(workspace) }
         break unless ready
 
         run(ready)
@@ -91,7 +91,9 @@ class Investigation::FixRunner
   def run(step)
     return unless step.move!(from: Investigation::RemediationStep::STATUS_PROPOSED, to: Investigation::RemediationStep::STATUS_RUNNING, started_at: Time.current)
 
-    InvestigationFixJob.set(wait: Investigation::RemediationStep::STALE_AFTER + 1.minute).perform_later(@plan.id)
+    InvestigationFixJob.set(wait: step.stale_after + 1.minute).perform_later(@plan.id)
+    # A code change's arguments are fixed when it starts, so an approval asked for them still matches when it resumes.
+    step.update_columns(arguments: step.code_arguments) if step.pull_request? && step.arguments.blank?
     call(step)
   end
 
@@ -99,11 +101,12 @@ class Investigation::FixRunner
     return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: APPLIER_GONE) unless @plan.approved_by
 
     tool = step.tool_to_run(workspace)
-    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name} is no longer switched on.") unless tool
+    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name || 'The coding tool'} is no longer switched on.") unless tool
 
     integration = tool.integration
-    environment_entry = integration.environment_entry_for(step.arguments[Integration::Tool::ENVIRONMENT_ARG])
-    arguments = step.arguments.except(Integration::Tool::ENVIRONMENT_ARG)
+    asked = step.arguments
+    environment_entry = integration.environment_entry_for(asked[Integration::Tool::ENVIRONMENT_ARG])
+    arguments = asked.except(Integration::Tool::ENVIRONMENT_ARG)
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     authorization = step.authorize_call!(tool, scope: scope, arguments: arguments, approval_id: approval_id)
     finish_call(step, authorization) do

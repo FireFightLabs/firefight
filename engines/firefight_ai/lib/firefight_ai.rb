@@ -34,6 +34,7 @@ module FirefightAi
       AiPurpose::INVESTIGATION => "INVESTIGATION_AI",
       AiPurpose::CITATION_CHECK => "CITATION_CHECK_AI",
       AiPurpose::LESSONS => "LESSONS_AI",
+      AiPurpose::CODE_FIX => "CODE_FIX_AI",
       AiPurpose::EMBEDDING => "EMBEDDING_AI"
     }.fetch(purpose)
   end
@@ -45,6 +46,7 @@ module FirefightAi
       AiPurpose::SUMMARY => "gpt-4o-mini",
       AiPurpose::MILESTONES => "gpt-4o-mini",
       AiPurpose::INVESTIGATION => "gpt-4o",
+      AiPurpose::CODE_FIX => "gpt-4o",
       AiPurpose::EMBEDDING => "text-embedding-3-small"
     }.fetch(purpose)
   end
@@ -83,6 +85,16 @@ module FirefightAi
     text.input.to_f.positive? && text.output.to_f.positive?
   rescue StandardError
     false
+  end
+
+  # What a call cost in millionths of a dollar, from the registry's price per million tokens. Zero for a model it
+  # cannot price, the same as priced? says.
+  def cost_micros(model_id, input:, output:, cache_read: 0)
+    text = RubyLLM.models.find(model_id.to_s).pricing.text_tokens
+    cached = text.respond_to?(:cached_input) && text.cached_input.to_f.positive? ? text.cached_input.to_f : text.input.to_f
+    ((input - cache_read) * text.input.to_f + cache_read * cached + output * text.output.to_f).round
+  rescue StandardError
+    0
   end
 
   # How much the model can read at once, from the registry. Nil when it is not known, and nothing

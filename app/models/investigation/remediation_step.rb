@@ -26,6 +26,8 @@ class Investigation::RemediationStep < ApplicationRecord
   RESULT_LIMIT = 2_000
   # A step running longer than this lost its worker, since a tool call is capped well under it.
   STALE_AFTER = 15.minutes
+  # A code change installs the repository's dependencies and runs a coding agent for up to 15 minutes before it opens.
+  CODE_STALE_AFTER = 45.minutes
   STATUS_WORDS = {
     STATUS_PROPOSED => "not started", STATUS_RUNNING => "running", STATUS_WAITING_APPROVAL => "waiting for approval",
     STATUS_DONE => "done", STATUS_FAILED => "failed", STATUS_DECLINED => "declined", STATUS_SKIPPED => "skipped"
@@ -68,8 +70,11 @@ class Investigation::RemediationStep < ApplicationRecord
 
   def action? = kind == KIND_ACTION
 
-  # Done by a person rather than run by Firefight. A code change joins them until Firefight can open the pull request.
-  def by_hand? = !action?
+  def pull_request? = kind == KIND_PULL_REQUEST
+
+  # Run by Firefight rather than done by a person. That is every action, and a code change once the workspace can open
+  # the pull request for its repository.
+  def runs_itself?(workspace = plan.finding.investigation.workspace) = action? || (pull_request? && tool_to_run(workspace).present?)
 
   def proposed? = status == STATUS_PROPOSED
 
@@ -77,10 +82,30 @@ class Investigation::RemediationStep < ApplicationRecord
 
   def ended? = ENDED.include?(status)
 
-  # The tool this step runs, while it is still switched on, offered and changes something.
+  # The tool this step runs, while it is still switched on, offered and changes something. A code change is written
+  # by the code host's coding tool on the connection that sees its repository.
   def tool_to_run(workspace = plan.finding.investigation.workspace)
+    return code_tool(workspace) if pull_request?
+
     slug, name = action_key.to_s.split(".", 2)
     Integration::Tool.in_workspace(workspace).where(integrations: { slug: slug }, name: name, read_only: false).first
+  end
+
+  # What the coding agent is asked, from the run's finding and the rest of the fix, so each pull request says why it
+  # exists and where it sits among the others.
+  def code_arguments
+    finding = plan.finding
+    siblings = plan.steps.select(&:pull_request?)
+    order = siblings.size > 1 ? "This is change #{siblings.index(self) + 1} of #{siblings.size} in the fix." : nil
+    earlier = siblings.select { |each| each.position < position && each.done? }.filter_map(&:result)
+    brief = [
+      description, ("Why: #{finding.summary}" if finding.summary.present?),
+      (finding.evidence_items.map { |item| "- #{item.claim}" }.join("\n").presence),
+      ("How to tell it worked: #{plan.verify}" if plan.verify.present?)
+    ].compact.join("\n\n")
+    summary = [ description, ("Why: #{finding.summary}" if finding.summary.present?) ].compact.join("\n\n")
+    { "repo" => repository, "title" => description, "brief" => brief, "summary" => summary,
+      "context" => [ order, *earlier.map { |text| "Merge it after: #{text.lines.first.to_s.strip}" } ].compact.join("\n").presence }.compact
   end
 
   def ready?(siblings) = depends_on.all? { |position| siblings.find { |each| each.position == position }&.done? }
@@ -91,6 +116,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # through.
   def mark_done_blocked_reason(siblings = plan.steps)
     return "Firefight runs step #{position} itself once the fix is applied." if action?
+    return "Firefight opens step #{position}'s pull request itself once the fix is applied." if pull_request? && runs_itself?
     return "Step #{position} is already #{STATUS_WORDS.fetch(status)}." unless proposed?
     return "Step #{position} waits on step #{depends_on.join(' and ')}, which #{depends_on.size == 1 ? 'is' : 'are'} not done yet." unless ready?(siblings)
 
@@ -129,10 +155,22 @@ class Investigation::RemediationStep < ApplicationRecord
     IncidentTranscriptMessage::Scrubbing::SECRET_PATTERNS.reduce(text) { |kept, (name, pattern)| kept.gsub(pattern, "[REDACTED:#{name}]") }
   end
 
-  def stale? = status == STATUS_RUNNING && started_at.present? && started_at < STALE_AFTER.ago
+  def stale_after = pull_request? ? CODE_STALE_AFTER : STALE_AFTER
+
+  def stale? = status == STATUS_RUNNING && started_at.present? && started_at < stale_after.ago
 
   # Everything the agent wrote into the step, which the secret check reads, since a fix is shown and kept.
   def text = [ description, repository, missing, undo, arguments.to_json ].compact.join(" ")
+
+  # A code host's tool that writes a change, on the connection whose sweep put the repository on the map. With one such
+  # connection, that one.
+  def code_tool(workspace)
+    writers = IntegrationProvider.all.select(&:code_fix_tool).to_h { |provider| [ provider.key, provider.code_fix_tool ] }
+    tools = Integration::Tool.in_workspace(workspace).where(integrations: { provider: writers.keys }, read_only: false).to_a
+                             .select { |tool| writers[tool.integration.provider] == tool.name }
+    seen = ResourceMap::Resource.present.find_by(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository)
+    tools.find { |tool| seen && tool.integration_id == seen.integration_environment&.integration_id } || (tools.first if tools.one?)
+  end
 
   def self.runnable_tool(workspace, name, position)
     tool = Integration::Tool.in_workspace(workspace).find { |each| each.model_facing_name == name }

@@ -60,7 +60,7 @@ class Investigation::RemediationPlan < ApplicationRecord
 
   # Whether anything in it runs through a connection. A fix that is all steps for people is never applied, only marked
   # done step by step.
-  def appliable? = steps.any?(&:action?)
+  def appliable? = steps.any?(&:runs_itself?)
 
   def applying? = status == STATUS_APPLYING
 
@@ -72,7 +72,7 @@ class Investigation::RemediationPlan < ApplicationRecord
 
     workspace = finding.investigation.workspace
     resolved = membership && Ability::Resolver.resolve(membership, workspace)
-    steps.select(&:action?).each do |step|
+    steps.select { |step| step.runs_itself?(workspace) }.each do |step|
       tool = step.tool_to_run(workspace)
       return "Step #{step.position} runs #{step.tool_name}, which is no longer switched on." unless tool
       if membership && !tool.callable_by?(membership, resolved)
@@ -103,7 +103,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   # Whether anything is moving on its own now, which is when the run page keeps itself current. A step held for approval
   # or waiting on a person is not, so the page does not poll for hours.
   def moving?
-    applying? && steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING || (step.action? && step.proposed? && step.ready?(steps)) }
+    applying? && steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING || (step.runs_itself? && step.proposed? && step.ready?(steps)) }
   end
 
   # Claims the one progress message, so two workers never post two. False when one is already there.

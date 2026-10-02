@@ -4,6 +4,7 @@ module Integrations
     # and language server happens in the run's sandbox, see Github::Code.
     class Github < NativePack
       include Code
+      include Fixing
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       PATH_FORMAT = /\A[^\/\0][^\0]*\z/

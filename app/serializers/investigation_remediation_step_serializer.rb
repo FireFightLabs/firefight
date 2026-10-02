@@ -33,6 +33,10 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type "RemediationStepStatus"
   def status = step.status
 
+  # Whether Firefight runs it when the fix is applied, an action or a code change it can open, rather than a person.
+  type :boolean
+  def runs_itself = step.runs_itself?
+
   # What the tool said back, another system's words, rendered as text.
   type :string, optional: true
   def result = step.result

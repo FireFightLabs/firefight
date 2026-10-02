@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_01_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -466,6 +466,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_120000) do
     t.index ["owner_type", "owner_id"], name: "index_chats_on_owner", unique: true
     t.index ["ruby_llm_model_id"], name: "index_chats_on_ruby_llm_model_id"
     t.index ["workspace_id"], name: "index_chats_on_workspace_id"
+  end
+
+  create_table "code_agent_sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.bigint "budget_micros", null: false
+    t.integer "calls_running", default: 0, null: false
+    t.datetime "closed_at"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "model", null: false
+    t.string "provider", null: false
+    t.string "repository", null: false
+    t.bigint "spent_micros", default: 0, null: false
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
+    t.index ["workspace_id"], name: "index_code_agent_sessions_on_workspace_id"
   end
 
   create_table "code_boxes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1828,6 +1845,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_120000) do
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"
   add_foreign_key "conversations", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
