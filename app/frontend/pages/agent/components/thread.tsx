@@ -30,7 +30,7 @@ export function Thread({ conversationId, confirmations, messages, waiting, strea
         {turns.map((turn) => (
           <Message key={turn.id} turn={turn} />
         ))}
-        {live && <Message turn={live} />}
+        {live && <Message turn={live} live />}
         {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
         {waiting.map((message) => (
           <WaitingMessage key={message.id} body={message.body} />

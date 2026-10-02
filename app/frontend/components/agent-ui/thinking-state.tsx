@@ -20,6 +20,7 @@ export default function ThinkingState({
   active,
   done,
   working = false,
+  open,
   icon,
 }: {
   rows: ThinkingRow[];
@@ -27,11 +28,13 @@ export default function ThinkingState({
   done: string;
   /** true while the agent is still working, which shimmers the header and spins the last row */
   working?: boolean;
+  /** holds the trace open without spinning a row, for the gap between two steps of a live turn */
+  open?: boolean;
   /** override the header glyph (defaults to the sparkle) */
   icon?: ReactNode;
 }) {
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
-  const expanded = manualExpanded ?? working;
+  const expanded = manualExpanded ?? (open || working);
   const traceRef = useRef<HTMLDivElement>(null);
   const [lineHeight, setLineHeight] = useState(0);
   useLayoutEffect(() => {
@@ -39,7 +42,7 @@ export default function ThinkingState({
   }, [rows.length, expanded, working]);
 
   function toggle() {
-    setManualExpanded((current) => !(current ?? working));
+    setManualExpanded((current) => !(current ?? (open || working)));
   }
 
   return (

@@ -12,16 +12,20 @@ interface StepGroup {
 
 interface AgentStepsProps {
   steps: AgentStep[]
+  // The agent is still on this turn and has not started its answer, so the last trace stays open between steps.
+  thinking?: boolean
 }
 
-export function AgentSteps({ steps }: AgentStepsProps) {
+export function AgentSteps({ steps, thinking = false }: AgentStepsProps) {
   const settled = useSettledSteps(steps)
+  const groups = groupedSteps(settled)
+  const lastKey = groups[groups.length - 1]?.key
 
   return (
     <div className="flex flex-col gap-3">
-      {groupedSteps(settled).map((group) =>
+      {groups.map((group) =>
         group.kind === AGENT_STEP_KINDS.READ ? (
-          <LookingUp key={group.key} steps={group.steps} />
+          <LookingUp key={group.key} steps={group.steps} holdOpen={thinking && group.key === lastKey} />
         ) : (
           <TaskRows key={group.key} rows={group.steps.map(toRow)} className="w-full" />
         ),
@@ -31,7 +35,7 @@ export function AgentSteps({ steps }: AgentStepsProps) {
 }
 
 // Looking something up is the agent thinking, so consecutive reads collapse into one trace rather than a card each.
-function LookingUp({ steps }: { steps: AgentStep[] }) {
+function LookingUp({ steps, holdOpen }: { steps: AgentStep[]; holdOpen: boolean }) {
   const working = steps.some(isRunning)
   const seconds = steps.reduce((total, step) => total + step.seconds, 0)
 
@@ -41,6 +45,7 @@ function LookingUp({ steps }: { steps: AgentStep[] }) {
       active="Thinking"
       done={timeSpent(seconds)}
       working={working}
+      open={holdOpen}
     />
   )
 }
