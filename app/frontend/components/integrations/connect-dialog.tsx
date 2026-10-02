@@ -160,7 +160,7 @@ function ConnectForm({
           {connectsWithCredentials
             ? alreadyConnected
               ? "Use the same name to add an environment or replace its credentials, or a new name for another account."
-              : "Enter credentials for each environment. Halon reads what they can reach and nothing more."
+              : "Enter credentials for each environment. What Halon can read and change is what their role allows."
             : connectsWithUrl
             ? alreadyConnected
               ? "Use the same name to add an environment or replace its URL, or a new name for another database."

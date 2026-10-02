@@ -4,6 +4,8 @@ module Chat::Tools
   STATE_NOT_GRANTED = :not_granted
   STATE_NOT_CONNECTED = :not_connected
   STATE_SWITCHED_OFF = :switched_off
+  # A tool that can change things, in a run that only reads.
+  STATE_READS_ONLY = :reads_only
 
   # One line is what the agent reads about a tool before it opens it. Another system's words about
   # itself are cut to that and stripped of anything that is not text.
@@ -228,10 +230,12 @@ module Chat::Tools
     actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
 
     keys.map do |tool_class, action_key|
-      ready = principal.present? && principal.permitted_to?(actions[action_key], workspace)
+      # A run that only reads is never handed one of Firefight's own tools that writes, whatever its principal was granted.
+      writes = agent_run.reads_only? && !tool_class.annotations_value&.read_only_hint
+      ready = !writes && principal.present? && principal.permitted_to?(actions[action_key], workspace)
       Entry.new(
         name: tool_class.name_value, description: clean(tool_class.description_value, ONE_LINE),
-        state: ready ? STATE_READY : STATE_NOT_GRANTED,
+        state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Firefight.new(agent_run, tool_class, actions[action_key]) if ready),
         group: Groups.of_firefight_tool(tool_class.name_value), source: Chat::Skill::SOURCE_FIREFIGHT, handle: tool_class.name_value.to_s
       )
@@ -243,10 +247,11 @@ module Chat::Tools
     resolved = principal && granted(agent_run)
 
     Integration::Tool.in_workspace(agent_run.workspace).map do |tool|
-      ready = principal.present? && tool.callable_by?(principal, resolved)
+      writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
+      ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
         name: tool.model_facing_name, description: clean(tool.description, ONE_LINE),
-        state: ready ? STATE_READY : STATE_NOT_GRANTED,
+        state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name
       )

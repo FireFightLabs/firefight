@@ -1,6 +1,6 @@
 module Integrations
-  # Read-only calls to Northflank's API with a workspace's own token, for the Northflank integration. The code sandbox
-  # has its own client, since it runs on Firefight's token and creates services.
+  # Calls to Northflank's API with a workspace's own token, for the Northflank integration. request is any call inside
+  # the project, which the api_request tool sends. The code sandbox has its own client, since it runs on Firefight's token.
   class NorthflankApi
     class Error < Integrations::Error; end
     # Asked too often, so a caller making many calls stops rather than keep being refused.
@@ -9,6 +9,8 @@ module Integrations
     # nothing to do with the token.
     class NotEnabled < Error; end
     NOT_ENABLED = /feature flag is not enabled/i
+    VERBS = { "GET" => Net::HTTP::Get, "POST" => Net::HTTP::Post, "PATCH" => Net::HTTP::Patch, "PUT" => Net::HTTP::Put,
+              "DELETE" => Net::HTTP::Delete }.freeze
     TOO_MANY_REQUESTS = 429
 
     API_ROOT = "https://api.northflank.com/v1".freeze
@@ -67,6 +69,17 @@ module Integrations
       get("/projects/#{segment(project_id)}/#{kind}/#{segment(resource_id)}/metrics", { "queryType" => "range" }.merge(query))["data"] || {}
     end
 
+    # Any call inside a project, as the api_request tool asks for it. The body goes as JSON.
+    def request(verb, project_id, path, body = nil)
+      uri = URI.parse("#{API_ROOT}/projects/#{segment(project_id)}/#{path}")
+      request = VERBS.fetch(verb).new(uri)
+      if body
+        request["Content-Type"] = "application/json"
+        request.body = body.to_json
+      end
+      send_request(uri, request)
+    end
+
     private
 
     def list(path, key)
@@ -76,11 +89,15 @@ module Integrations
     def get(path, query = {})
       uri = URI.parse("#{API_ROOT}#{path}")
       uri.query = encode(query) if query.any?
-      request = Net::HTTP::Get.new(uri)
+      send_request(uri, Net::HTTP::Get.new(uri))
+    end
+
+    def send_request(uri, request)
       request["Authorization"] = "Bearer #{@token}"
       response = Http.request(uri, request, error_class: Error, read_timeout: 30)
+      succeeded = response.code.to_i.between?(200, 299)
       body = response.body.to_s.empty? ? {} : JSON.parse(response.body)
-      return body if response.code.to_i.between?(200, 299)
+      return body if succeeded
 
       reason = body.dig("error", "message") || body["message"] || "no reason given"
       error = if response.code.to_i == TOO_MANY_REQUESTS then RateLimited
@@ -89,6 +106,9 @@ module Integrations
       end
       raise error, "Northflank answered #{response.code}: #{reason}"
     rescue JSON::ParserError
+      # A change that went through stays one that went through, whatever came back with it.
+      return {} if succeeded
+
       raise Error, "Northflank answered #{response.code} with something that is not JSON"
     end
 

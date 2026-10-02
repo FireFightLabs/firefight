@@ -113,6 +113,7 @@ module Chat::Tools::Groups
 
     def state
       return Chat::Tools::STATE_READY if entries.any?(&:tool)
+      return Chat::Tools::STATE_READS_ONLY if entries.any? && entries.all? { |entry| entry.state == Chat::Tools::STATE_READS_ONLY }
       return Chat::Tools::STATE_NOT_GRANTED if entries.any?
 
       connected.any? ? Chat::Tools::STATE_SWITCHED_OFF : Chat::Tools::STATE_NOT_CONNECTED
