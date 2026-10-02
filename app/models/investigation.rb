@@ -165,7 +165,7 @@ class Investigation < ApplicationRecord
   end
 
   # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
-  def confirms?(_action) = false
+  def confirms?(_action, declared_destructive: false, **) = declared_destructive
 
   # A run writes what it learned, and disputes what a result contradicted, as the agent. It never vouches for a fact,
   # so there is no person's authority to check.

@@ -7,7 +7,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   # RubyLLM pauses the turn before a call that needs the person's decision.
-  def requires_approval? = @agent_run.confirms?(@tool.ability_action)
+  def requires_approval? = @agent_run.confirms?(@tool.ability_action, tool_name: name)
 
   def name = @tool.model_facing_name
 

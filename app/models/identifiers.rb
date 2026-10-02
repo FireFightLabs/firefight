@@ -142,6 +142,8 @@ module Identifiers
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"
   AGENT_CANCEL = "agent_cancel"
+  # Approves the call and stops the same tool asking again for the rest of the chat.
+  AGENT_ALLOW_FOR_CHAT = "agent_allow_for_chat"
   MEMORY_CONFIRM = "memory_confirm"
   MEMORY_REJECT = "memory_reject"
 

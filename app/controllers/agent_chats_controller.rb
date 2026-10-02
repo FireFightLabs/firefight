@@ -90,7 +90,8 @@ class AgentChatsController < InertiaController
   # The turn carries on as whoever answered, not whoever asked.
   def confirm
     decisions = Array(params[:decisions]).map do |decision|
-      { tool_call_id: decision[:tool_call_id].to_s, approved: ActiveModel::Type::Boolean.new.cast(decision[:approved]) }
+      { tool_call_id: decision[:tool_call_id].to_s, approved: ActiveModel::Type::Boolean.new.cast(decision[:approved]),
+        for_chat: ActiveModel::Type::Boolean.new.cast(decision[:for_chat]) }
     end
     Conversation::Confirming.decide(conversation, decisions, by: current_membership)
     redirect_to agent_chat_path(conversation)

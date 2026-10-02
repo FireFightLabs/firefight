@@ -149,6 +149,7 @@ export default function ApprovalCard({
   labels,
   onSubmitted,
   onAnswerChange,
+  answerAlike,
   resettable = true,
   allowCustom = true,
   wide = false,
@@ -157,6 +158,8 @@ export default function ApprovalCard({
   labels?: Partial<ApprovalLabels>;
   onSubmitted?: (answers: Record<number, number[]>) => void;
   onAnswerChange?: (questionIndex: number, answer: number[]) => void;
+  /** the other questions a pick answers too, such as allowing a tool for every question asked about it */
+  answerAlike?: (questionIndex: number, optionIndex: number) => number[];
   resettable?: boolean;
   /** the "Something else" row, off where only the given options make sense */
   allowCustom?: boolean;
@@ -223,9 +226,31 @@ export default function ApprovalCard({
     onSubmitted?.(given);
   };
 
+  const isAnswered = (given: Record<number, number[]>, index: number) =>
+    (given[index]?.length ?? 0) > 0 || Boolean(custom[index]?.trim());
+
+  /* the next question still open after this one, wrapping round, or null once every one is answered */
+  const nextOpen = (given: Record<number, number[]>, from: number) => {
+    for (let step = 1; step <= questions.length; step += 1) {
+      const index = (from + step) % questions.length;
+      if (!isAnswered(given, index)) return index;
+    }
+    return null;
+  };
+
+  const allAnswered = nextOpen(answers, qi) === null && isAnswered(answers, qi);
+
+  /* sends only once every question has an answer, so an early answer to the last one never sends the rest unanswered */
   const advance = () => {
-    if (last) send();
-    else goTo(qi + 1);
+    const open = nextOpen(answers, qi);
+    if (open === null) send();
+    else goTo(open);
+  };
+
+  const skip = () => {
+    const open = nextOpen(answers, qi);
+    if (open === null || open === qi) setOpen(false);
+    else goTo(open);
   };
 
   const toggle = (index: number) => {
@@ -236,7 +261,8 @@ export default function ApprovalCard({
       : picked.includes(index)
         ? picked.filter((item) => item !== index)
         : [...picked, index];
-    const nextAnswers = { ...answers, [qi]: next };
+    const alike = type === "radio" ? answerAlike?.(qi, index) ?? [] : [];
+    const nextAnswers = { ...answers, [qi]: next, ...Object.fromEntries(alike.map((other) => [other, [index]])) };
     onAnswerChange?.(qi, next);
     setAnswers(nextAnswers);
     if (type === "radio" && single) {
@@ -248,8 +274,9 @@ export default function ApprovalCard({
       if (advanceTimer.current) clearTimeout(advanceTimer.current);
       /* the timer sends the answers as of this click, not the ones this render started with */
       advanceTimer.current = setTimeout(() => {
-        if (last) send(nextAnswers);
-        else setQi((current) => Math.min(questions.length - 1, current + 1));
+        const open = nextOpen(nextAnswers, qi);
+        if (open === null) send(nextAnswers);
+        else setQi(open);
       }, 480);
     }
   };
@@ -426,11 +453,11 @@ export default function ApprovalCard({
           </div>
 
           <div className="-mr-0.5 flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={() => (last ? setOpen(false) : goTo(qi + 1))}>
+            <Button variant="ghost" size="sm" onClick={skip}>
               {t.skip}
             </Button>
             <Button variant="accent" size="sm" disabled={!hasAnswer} onClick={() => advance()}>
-              {last ? t.send : t.continue}
+              {allAnswered ? t.send : t.continue}
             </Button>
           </div>
         </div>
