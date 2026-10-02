@@ -10,7 +10,10 @@ class AbilityGateway
   SOURCE_CONVERSATION = "conversation"
   # The resource map's sweep, calling a connection's tools with Firefight's own fixed reads.
   SOURCE_MAP_SWEEP = "map_sweep"
-  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP ].freeze
+  # A coding agent in the sandbox, writing a fix's code change.
+  SOURCE_CODE_AGENT = "code_agent"
+  SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
+              SOURCE_CODE_AGENT ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 
@@ -119,6 +122,7 @@ class AbilityGateway
 
   def self.permitted?(principal, action, action_key, workspace, scope)
     return false unless action
+    return true if Ability::Action.open?(action_key)
 
     principal.implicitly_allowed?(action) ||
       Ability::Resolver.resolve(principal, workspace).covers?(action_key, scope)
@@ -180,7 +184,7 @@ class AbilityGateway
   # Anything that leaves Firefight is recorded, reads included. Reads of our own data are
   # covered by the request log, and a person's incident participation by record_change!.
   def self.ledger_execution?(action, principal, context)
-    return true if action.kind == Ability::Action::KIND_TOOL
+    return true if action.kind == Ability::Action::KIND_TOOL || Ability::Action.open?(action.key)
     return false if incident_participation?(action, principal, context)
 
     action.risk_level != Ability::Action::RISK_READ
