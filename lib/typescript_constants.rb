@@ -34,7 +34,6 @@ module TypescriptConstants
       Export.new("REMEDIATION_STEP_KINDS", Investigation::RemediationStep::KINDS, "RemediationStepKind"),
       Export.new("REMEDIATION_STEP_STATUSES", Investigation::RemediationStep::STATUSES, "RemediationStepStatus"),
       Export.new("REMEDIATION_PLAN_STATUSES", Investigation::RemediationPlan::STATUSES, "RemediationPlanStatus"),
-      Export.new("REMEDIATION_STEP_KIND_ACTION", Investigation::RemediationStep::KIND_ACTION, nil),
       Export.new("REMEDIATION_STEP_STATUS_DONE", Investigation::RemediationStep::STATUS_DONE, nil),
       Export.new("PAST_INCIDENT_DAYS", Incident::Outcome::PAST_WINDOW_DAYS, nil),
       Export.new("CHAT_MEMORY_STATES", Chat::Memory::STATES, "ChatMemoryState"),

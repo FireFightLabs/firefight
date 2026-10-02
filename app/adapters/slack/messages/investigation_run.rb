@@ -93,7 +93,7 @@ module Slack
 
       # Asks first, since the steps change things for real and run as whoever clicks.
       def self.apply_button(plan)
-        runs = plan.steps.count(&:action?)
+        runs = plan.steps.count(&:runs_itself?)
         by_hand = plan.steps.size - runs
         waits = by_hand.positive? ? " #{by_hand} #{'step'.pluralize(by_hand)} for a person #{by_hand == 1 ? 'is' : 'are'} marked done in the thread." : ""
         {

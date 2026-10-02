@@ -28,8 +28,8 @@ class IntegrationProvider
   # treated as reads rather than as writes that each ask to be confirmed.
 
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note, :map, :map_note) do
-    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, **) = super
+                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool) do
+    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, **) = super
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
@@ -46,7 +46,9 @@ class IntegrationProvider
         kind: raw["kind"] || Integration::KIND_MCP,
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
         source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
-        map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"]
+        map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
+        # The tool of a code host's pack that writes a change and opens it for review, which a fix's code steps run.
+        code_fix_tool: raw["code_fix_tool"].presence
       )
     end.freeze
   end

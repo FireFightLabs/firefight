@@ -77,5 +77,22 @@ module Integrations
       error = assert_raises(GithubApp::Error) { GithubApp.get("/repos/acme/checkout/pulls/1", token: "t") }
       assert_match(/Not Found/, error.message)
     end
+    test "a pull request is one commit on a new branch off base, each file a blob, a deleted one dropped from the tree" do
+      GithubApp.stubs(:get).with("/repos/acme/api/git/commits/base-sha", token: "t").returns("tree" => { "sha" => "base-tree" })
+      GithubApp.expects(:post).with("/repos/acme/api/git/blobs", { content: "cG9vbA==", encoding: "base64" }, token: "t").returns("sha" => "blob-1")
+      GithubApp.expects(:post).with("/repos/acme/api/git/trees", { base_tree: "base-tree", tree: [
+        { path: "config/database.yml", mode: "100644", type: "blob", sha: "blob-1" }, { path: "old.rb", mode: "100644", type: "blob", sha: nil }
+      ] }, token: "t").returns("sha" => "tree-1")
+      GithubApp.expects(:post).with("/repos/acme/api/git/commits", { message: "Restore the pool", tree: "tree-1", parents: [ "base-sha" ] }, token: "t")
+               .returns("sha" => "commit-1")
+      GithubApp.expects(:post).with("/repos/acme/api/git/refs", { ref: "refs/heads/halon/fix-1", sha: "commit-1" }, token: "t").returns({})
+      GithubApp.expects(:post).with("/repos/acme/api/pulls", { title: "Restore the pool", head: "halon/fix-1", base: "main", body: "Why", draft: false }, token: "t")
+               .returns("html_url" => "https://github.com/acme/api/pull/7")
+
+      opened = GithubApp.open_pull_request("acme/api", base: "main", base_sha: "base-sha", branch: "halon/fix-1", title: "Restore the pool", body: "Why", message: "Restore the pool",
+                                                       files: { "config/database.yml" => { mode: "100644", content: "cG9vbA==" }, "old.rb" => nil }, token: "t")
+
+      assert_equal "https://github.com/acme/api/pull/7", opened["html_url"]
+    end
   end
 end

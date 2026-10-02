@@ -37,6 +37,21 @@ module Integrations
       assert_not_kind_of NorthflankApi::NotEnabled, assert_raises(NorthflankApi::Error) { @api.logs("firefight", "services", "web", {}) }
     end
 
+    test "a change is sent with its method, the token and its body as JSON" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/projects/firefight/services/web/scale" && request.is_a?(Net::HTTP::Post) &&
+          request["Authorization"] == "Bearer nf-token" && JSON.parse(request.body) == { "instances" => 2 }
+      end.returns(response(200, { data: {} }))
+
+      assert_equal({ "data" => {} }, @api.request("POST", "firefight", "services/web/scale", { "instances" => 2 }))
+    end
+
+    test "a change Northflank accepted stays accepted when what came back is not JSON" do
+      Http.stubs(:request).returns(stub(code: "200", body: "OK"))
+
+      assert_equal({}, @api.request("POST", "firefight", "services/web/restart"))
+    end
+
     private
 
     def response(code, body)

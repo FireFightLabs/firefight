@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { REMEDIATION_STEP_KIND_ACTION } from "@/lib/generated/constants"
 import { whenClosed } from "@/lib/handlers"
 import { investigationFixPath } from "@/lib/routes"
 import type { InvestigationRemediationPlan } from "@/types/serializers"
@@ -33,7 +32,7 @@ function whatRuns(runs: number, byHand: number): string {
 export function ApplyFix({ investigationId, fix }: { investigationId: string; fix: InvestigationRemediationPlan }) {
   const [ open, setOpen ] = useState(false)
   const [ applying, setApplying ] = useState(false)
-  const runs = fix.steps.filter((step) => step.kind === REMEDIATION_STEP_KIND_ACTION)
+  const runs = fix.steps.filter((step) => step.runsItself)
   const byHand = fix.steps.length - runs.length
 
   function openDialog() {

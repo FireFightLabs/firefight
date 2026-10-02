@@ -12,11 +12,17 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def name = @tool.model_facing_name
 
   # Another system's words, so only text reaches the model and a runaway description is capped.
-  def description = Chat::Tools.clean(@tool.description, Chat::Tools::FULL_DESCRIPTION)
+  def description
+    said = Chat::Tools.clean(@tool.description, Chat::Tools::FULL_DESCRIPTION)
+    reading_schema ? "#{said} #{guard::DESCRIPTION}" : said
+  end
 
   # The same schema an outside MCP client is handed, so a connection wired per environment is reachable from a chat.
   # A call that waits for the person also asks for its intent, which the confirmation leads with.
-  def parameters_schema = requires_approval? ? Chat::Tools.with_intent(@tool.offered_schema) : @tool.offered_schema
+  def parameters_schema
+    schema = reading_schema || @tool.offered_schema
+    requires_approval? ? Chat::Tools.with_intent(schema) : schema
+  end
 
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
@@ -27,7 +33,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def invoke(given, tool_call_id:, approval_id: nil)
     environment_entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
-    arguments = given.except(Integration::Tool::ENVIRONMENT_ARG)
+    arguments = reading(given.except(Integration::Tool::ENVIRONMENT_ARG))
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
 
     result = nil
@@ -43,7 +49,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     keep_charts(tool_call_id, result, said.step)
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
     [ Chat::Tools.hand_over(@agent_run, name, said), reminder ].compact.join("\n\n")
-  rescue Integration::UnknownEnvironment => error
+  rescue Integration::UnknownEnvironment, Integrations::ReadGuards::Refused => error
     failed(tool_call_id, error.message)
   rescue AbilityGateway::Denied
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
@@ -77,5 +83,26 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def text_of(result)
     Array(result["content"]).filter_map { |part| part["text"] }.join("\n").presence || result.to_json
+  end
+
+  # A run that only reads calls a tool that can write only once the call is shown to read, as its guard rewrites it.
+  def reading(arguments)
+    return arguments unless guarded?
+    raise Integrations::ReadGuards::Refused, "#{name} can change things, so it is not used while investigating." unless guard
+
+    guard.reading(@tool.name, arguments)
+  end
+
+  def guarded? = @agent_run.reads_only? && !@tool.read_only?
+
+  def guard = @guard ||= Integrations::ReadGuards.for(@tool)
+
+  # What the guard takes instead of the tool's own arguments, when it rewrites them, keeping the environment choice.
+  def reading_schema
+    schema = guarded? && guard&.schema
+    return unless schema
+
+    environment = @tool.offered_schema.dig("properties", Integration::Tool::ENVIRONMENT_ARG)
+    environment ? schema.deep_merge("properties" => { Integration::Tool::ENVIRONMENT_ARG => environment }) : schema
   end
 end

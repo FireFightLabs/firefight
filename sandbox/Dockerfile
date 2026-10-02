@@ -22,12 +22,13 @@ ARG GO_VERSION=1.26.8
 RUN arch="$(dpkg --print-architecture)" \
     && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${arch}.tar.gz" | tar -C /usr/local -xz
 
-# Language servers, one per language the tools read. The Ruby one runs from its own bundle, so it reads a repository's
+# Language servers, one per language the tools read, and OpenCode, the coding agent a code fix runs, reaching its model
+# only through Firefight. The Ruby one runs from its own bundle, so it reads a repository's
 # code without installing that repository's gems.
 COPY lsp/Gemfile /opt/lsp/ruby/Gemfile
 RUN cd /opt/lsp/ruby && bundle lock && bundle install \
     && mkdir -p /opt/tools \
-    && npm install --prefix /opt/tools --no-fund --no-audit typescript@5 typescript-language-server pyright \
+    && npm install --prefix /opt/tools --no-fund --no-audit typescript@5 typescript-language-server pyright opencode-ai@1.18.34 \
     && GOBIN=/opt/tools/go/bin GOPATH=/tmp/gopath go install golang.org/x/tools/gopls@latest \
     && rm -rf /tmp/gopath /root/.npm
 

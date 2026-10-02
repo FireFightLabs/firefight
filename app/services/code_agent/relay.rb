@@ -1,0 +1,38 @@
+# Relays one model call from a coding agent in the sandbox to the model's provider, as its session allows, and keeps
+# what it cost: an Inference row like any other model call, and the session's spend. A call that breaks halfway is still
+# counted, and a session makes only a few calls at once, so its budget is never far overshot.
+class CodeAgent::Relay
+  def initialize(session)
+    @session = session
+  end
+
+  # Yields what FirefightAi::ModelProxy yields, for the caller to stream back.
+  def forward(path:, body:, headers:, &)
+    raise FirefightAi::ModelProxy::Refused, CodeAgentSession::OVER_BUDGET if @session.over_budget?
+    raise FirefightAi::ModelProxy::Refused, CodeAgentSession::TOO_MANY_AT_ONCE unless @session.begin_call!
+
+    proxy = FirefightAi::ModelProxy.new(@session.provider)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    begin
+      proxy.forward(path: path, body: body, model: @session.model, headers: headers, &)
+    ensure
+      record(proxy, started)
+      @session.end_call!
+    end
+  end
+
+  private
+
+  def record(proxy, started)
+    usage = proxy.usage
+    cost = FirefightAi.cost_micros(@session.model, input: usage.input, output: usage.output, cache_read: usage.cache_read)
+    Inference.create!(
+      workspace: @session.workspace, feature: CodeAgentSession::FEATURE, provider: @session.provider, model: @session.model,
+      inferable: @session, input_tokens: usage.input, output_tokens: usage.output, cache_read_tokens: usage.cache_read,
+      cache_write_tokens: usage.cache_write, cost_micros: cost,
+      status: proxy.status.to_i.between?(200, 299) ? Inference::STATUS_SUCCESS : Inference::STATUS_ERROR,
+      latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+    )
+    @session.charge!(cost)
+  end
+end

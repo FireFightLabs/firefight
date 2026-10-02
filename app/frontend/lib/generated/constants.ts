@@ -97,8 +97,6 @@ export const REMEDIATION_PLAN_STATUSES = [
 ] as const
 export type RemediationPlanStatus = (typeof REMEDIATION_PLAN_STATUSES)[number]
 
-export const REMEDIATION_STEP_KIND_ACTION = "action" as const
-
 export const REMEDIATION_STEP_STATUS_DONE = "done" as const
 
 export const PAST_INCIDENT_DAYS = 180 as const
