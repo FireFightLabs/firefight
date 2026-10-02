@@ -109,6 +109,23 @@
 @media (min-width: 48rem) {
   .agent-chat {
     grid-template-columns: 16rem minmax(0, 1fr);
+    transition: grid-template-columns 220ms var(--ease-out-strong);
+  }
+
+  /* Hidden chats close the column. visibility follows once the slide ends, so the list leaves
+     the tab order without vanishing mid motion. */
+  .agent-chat[data-list="collapsed"] {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .agent-chat .agent-chat-list {
+    transition: visibility 0s linear 0s;
+  }
+
+  .agent-chat[data-list="collapsed"] .agent-chat-list {
+    visibility: hidden;
+    border-right-color: transparent;
+    transition: visibility 0s linear 220ms;
   }
 }
 
@@ -262,6 +279,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .agent-chat,
+  .agent-chat .agent-chat-list,
+  .agent-chat[data-list="collapsed"] .agent-chat-list {
+    transition: none;
+  }
+
   .agent-ui *,
   .agent-ui *::before,
   .agent-ui *::after {

@@ -1,10 +1,11 @@
 import { InfiniteScroll } from "@inertiajs/react"
-import { type Icon, IconChevronRight, IconLoader2, IconMessages, IconPencilPlus, IconSearch } from "@tabler/icons-react"
+import { IconChevronRight, IconLayoutSidebarLeftCollapse, IconLoader2, IconMessages, IconPencilPlus, IconSearch } from "@tabler/icons-react"
 import { useCallback, useState } from "react"
 
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
 import { ChatListSection } from "@/pages/agent/components/chat-list-section"
 import { ChatSearch } from "@/pages/agent/components/chat-search"
+import { ListButton } from "@/pages/agent/components/list-button"
 import { useSearchShortcut } from "@/pages/agent/hooks/use-search-shortcut"
 import type { AgentChat } from "@/types/serializers"
 
@@ -16,10 +17,11 @@ interface ChatListProps {
   currentId: string | null
   className: string
   onNewChat: () => void
+  onCollapse: () => void
 }
 
 // The archived count comes from the server, since later pages may not have loaded yet.
-export function ChatList({ chats: loaded, archivedCount, currentId, className, onNewChat }: ChatListProps) {
+export function ChatList({ chats: loaded, archivedCount, currentId, className, onNewChat, onCollapse }: ChatListProps) {
   const chats = uniqueById(loaded)
   const pinned = chats.filter((chat) => chat.pinned && !chat.archived).sort(byNewest("pinnedAt"))
   const recent = chats.filter((chat) => !chat.pinned && !chat.archived).sort(byNewest("lastActiveAt"))
@@ -45,12 +47,13 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className, o
   }
 
   return (
-    <aside className={`min-h-0 flex-col gap-4 overflow-hidden border-r border-line px-2 py-3 ${className}`}>
+    <aside className={`agent-chat-list min-h-0 flex-col gap-4 overflow-hidden border-r border-line px-2 py-3 ${className}`}>
       <div className="flex items-center justify-between px-2">
         <h2 className="text-[14px] font-semibold text-ink">Chats</h2>
         <div className="flex items-center gap-0.5">
           <ListButton icon={IconSearch} label="Search chats" onClick={openSearch} />
           <ListButton icon={IconPencilPlus} label="New chat" onClick={onNewChat} />
+          <ListButton icon={IconLayoutSidebarLeftCollapse} label="Hide chats" onClick={onCollapse} className="hidden md:flex" />
         </div>
       </div>
 
@@ -98,26 +101,6 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className, o
 
       <ChatSearch chats={chats} open={searching} onOpenChange={setSearching} />
     </aside>
-  )
-}
-
-interface ListButtonProps {
-  icon: Icon
-  label: string
-  onClick: () => void
-}
-
-function ListButton({ icon: ButtonIcon, label, onClick }: ListButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex size-7 items-center justify-center rounded-control text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink active:bg-hover-2"
-    >
-      <ButtonIcon className="size-4" />
-    </button>
   )
 }
 
