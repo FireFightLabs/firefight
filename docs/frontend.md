@@ -342,6 +342,7 @@ One dark palette, shared with the landing site: near-black surfaces barely tinte
 - **Flat.** Structure comes from 1px borders, not shadows or background jumps. Only floating layers (menus, popovers, tooltips, dialogs) carry `--shadow-popover`. No glows, no gradients.
 - **Restyling the primitives.** `components/ui` stays untouched, so the few places where a primitive's classes disagree with the palette (the outline and destructive buttons, toggles, checkboxes, tooltips, focus) are restyled in `theme.css` by `data-slot` and `data-variant`. Those rules are unlayered on purpose, so they beat the primitive's own utilities.
 - **Focus** is a 2px lime outline with a 2px offset on every control, never the primitives' translucent ring.
+- **Markers are a straight bar.** An active item, a toast or a banner marks its state with the `edge-bar` utility (`[--edge-bar:var(--warning)]` for the colour), a 2px bar on the left edge drawn as a background image. Never `border-l-2` on a rounded box, which bends around the corners.
 - **Seeded defaults** use the palette: severities red, orange and yellow, statuses by lifecycle stage (violet, cyan, lime, grey), types and catalogue types the chart colours. Admins still pick any colour.
 - **Server-rendered pages** that load no bundle (`layouts/oauth.html.erb`) mirror the tokens they need by value, and say so.
 
