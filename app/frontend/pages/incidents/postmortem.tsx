@@ -366,7 +366,7 @@ export default function PostmortemPage() {
             </p>
           </div>
           {saveState === "conflict" && (
-            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-border border-l-2 border-l-warning bg-warning-tint px-4 py-3">
+            <div className="mb-4 flex flex-wrap items-center gap-3 edge-bar rounded-md border border-border bg-warning-tint px-4 py-3 [--edge-bar:var(--warning)]">
               <IconAlertTriangle className="size-4 shrink-0 text-warning" />
               <p className="text-sm text-fg-primary">
                 Somebody else changed this postmortem while you were editing, so your last change was

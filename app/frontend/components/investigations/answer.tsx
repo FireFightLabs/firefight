@@ -23,9 +23,9 @@ function Heading({ children }: { children: ReactNode }) {
 
 // Every state of the answer is the same card. A 2px bar and the heading carry the state's colour, the text stays readable.
 const FRAMES = {
-  working: "shadow-[inset_2px_0_0_var(--stage-active)]",
-  stopped: "shadow-[inset_2px_0_0_var(--warning)]",
-  answered: "shadow-[inset_2px_0_0_var(--success)]",
+  working: "edge-bar [--edge-bar-inset:12px] [--edge-bar:var(--stage-active)]",
+  stopped: "edge-bar [--edge-bar-inset:12px] [--edge-bar:var(--warning)]",
+  answered: "edge-bar [--edge-bar-inset:12px] [--edge-bar:var(--success)]",
 }
 
 const FRAME = "rounded-xl border border-border bg-surface-card p-5 transition-colors duration-200"
@@ -84,7 +84,7 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
       </Heading>
       <p className="mt-3 text-base leading-relaxed text-fg-primary text-pretty">{finding.summary}</p>
       {finding.suggestsIncident && !investigation.incidentId && onDeclare && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-error-tint px-4 py-3 shadow-[inset_2px_0_0_var(--error)]">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 edge-bar rounded-lg bg-error-tint px-4 py-3 [--edge-bar-inset:8px] [--edge-bar:var(--error)]">
           <span className="flex items-center gap-2 text-sm text-fg-primary">
             <IconAlertTriangle className="size-4 shrink-0 text-error" />
             Halon thinks this is hurting users now.

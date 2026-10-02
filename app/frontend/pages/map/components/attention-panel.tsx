@@ -75,7 +75,7 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
       {unread.length > 0 && (
         <Section title="Not read">
           {unread.map((connection) => (
-            <div key={connection.id} className="flex gap-2.5 rounded-lg border-l-2 border-warning bg-warning-tint px-3 py-2 text-sm text-fg-primary">
+            <div key={connection.id} className="edge-bar flex gap-2.5 rounded-lg bg-warning-tint px-3 py-2 [--edge-bar:var(--warning)] text-sm text-fg-primary">
               <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
               <span className="flex flex-col gap-1">
                 <span className="font-medium">{connection.name}</span>

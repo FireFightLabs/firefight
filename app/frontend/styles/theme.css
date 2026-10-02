@@ -212,6 +212,16 @@
   --shadow-popover: var(--shadow-popover);
 }
 
+/* A straight 2px bar on the left edge, stopping short of rounded corners so it never bends
+   around them. Drawn as a background image, so it needs no extra element and never clashes
+   with a library's own pseudo elements. Colour with --edge-bar, inset with --edge-bar-inset. */
+@utility edge-bar {
+  background-image: linear-gradient(var(--edge-bar, var(--lime)), var(--edge-bar, var(--lime)));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 2px calc(100% - 2 * var(--edge-bar-inset, 6px));
+}
+
 ::selection {
   background: var(--lime-tint-border);
   color: var(--text-headline);
@@ -380,8 +390,11 @@
 
 [data-slot="sidebar-menu-button"][data-active="true"] {
   background-color: var(--surface-selected);
+  background-image: linear-gradient(var(--lime), var(--lime));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 2px calc(100% - 12px);
   color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--lime);
 }
 
 /* Scrollbars */

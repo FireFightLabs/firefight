@@ -64,7 +64,7 @@ export function TokenRevealedDialog({
             </Button>
           </div>
 
-          <div className="flex items-start gap-2 rounded-md border-l-2 border-warning bg-warning-tint px-3 py-2 text-xs text-fg-primary [&>svg]:text-warning">
+          <div className="edge-bar flex items-start gap-2 rounded-md bg-warning-tint px-3 py-2 [--edge-bar:var(--warning)] text-xs text-fg-primary [&>svg]:text-warning">
             <IconAlertTriangle className="size-4 shrink-0 mt-0.5" />
             <p>
               If you lose this token, you'll need to revoke this key and create a new one.

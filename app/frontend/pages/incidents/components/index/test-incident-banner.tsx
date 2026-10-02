@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 
 export function TestIncidentBanner({ channelUrl }: { channelUrl: string | null | undefined }) {
   return (
-    <div className="mb-6 flex flex-col gap-3 rounded-xl border border-border border-l-2 border-l-info bg-info-tint px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-6 flex flex-col gap-3 edge-bar rounded-xl border border-border bg-info-tint px-5 py-4 [--edge-bar-inset:12px] [--edge-bar:var(--info)] sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-fg-primary">
         Your test channel is ready in Slack. Open it to try the quick actions and post a few messages.
       </p>

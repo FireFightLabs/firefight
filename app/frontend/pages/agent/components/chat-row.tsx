@@ -17,7 +17,7 @@ export function ChatRow({ chat, current }: ChatRowProps) {
   return (
     <div
       className={`group relative flex items-center rounded-control transition-[background-color,box-shadow] duration-150 ${
-        current ? "bg-hover-2 shadow-[inset_2px_0_0_var(--lime)]" : "hover:bg-hover"
+        current ? "bg-hover-2 edge-bar" : "hover:bg-hover"
       }`}
     >
       <Link
