@@ -5,6 +5,10 @@ module Integrations
     class Error < Integrations::Error; end
     # Asked too often, so a caller making many calls stops rather than keep being refused.
     class RateLimited < Error; end
+    # Northflank keeps some data behind features an account has to have switched on, and says so with a 401 that has
+    # nothing to do with the token.
+    class NotEnabled < Error; end
+    NOT_ENABLED = /feature flag is not enabled/i
     TOO_MANY_REQUESTS = 429
 
     API_ROOT = "https://api.northflank.com/v1".freeze
@@ -78,8 +82,12 @@ module Integrations
       body = response.body.to_s.empty? ? {} : JSON.parse(response.body)
       return body if response.code.to_i.between?(200, 299)
 
-      error = response.code.to_i == TOO_MANY_REQUESTS ? RateLimited : Error
-      raise error, "Northflank answered #{response.code}: #{body.dig('error', 'message') || body['message'] || 'no reason given'}"
+      reason = body.dig("error", "message") || body["message"] || "no reason given"
+      error = if response.code.to_i == TOO_MANY_REQUESTS then RateLimited
+      elsif [ 401, 403 ].include?(response.code.to_i) && reason.to_s.match?(NOT_ENABLED) then NotEnabled
+      else Error
+      end
+      raise error, "Northflank answered #{response.code}: #{reason}"
     rescue JSON::ParserError
       raise Error, "Northflank answered #{response.code} with something that is not JSON"
     end

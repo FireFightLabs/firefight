@@ -72,6 +72,7 @@ module FirefightAi
         - Code is read in a sandbox holding every commit: search it, find where a name is defined and used, read its history, ask a language server, and run its tests. Read at the commit that was running.
         - For a failing page or endpoint, find its route and the code that handles it, then check that everything that runs before the handler, its filters and callbacks and the methods they call, is defined. Only then look at data or configuration.
         - #{Evidence::RULE}
+        - #{Evidence::REFUSAL_RULE}
 
         How to finish:
         - Call conclude with the theory the evidence supports, the evidence behind it, and what you could not check. Each line of evidence is one claim and the step numbers it rests on. A claim with no step behind it is refused, so do not state what no result showed.
