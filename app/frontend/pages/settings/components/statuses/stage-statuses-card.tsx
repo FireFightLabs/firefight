@@ -45,8 +45,8 @@ export function StageStatusesCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
             <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", stageColors[stage.key])}>{stage.name}</span>
             <CardDescription>{stage.description}</CardDescription>
           </div>

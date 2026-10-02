@@ -126,6 +126,23 @@
     padding-left: 1.75rem;
   }
 
+  /* Tailwind's reset strips list markers, so the editor's lists name theirs. */
+  ul {
+    list-style: disc;
+  }
+
+  ol {
+    list-style: decimal;
+  }
+
+  ul ul {
+    list-style: circle;
+  }
+
+  li::marker {
+    color: var(--text-muted);
+  }
+
   li {
     margin-bottom: 0.5rem;
     line-height: 1.8;
