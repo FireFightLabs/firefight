@@ -253,6 +253,12 @@
   --input: var(--border-strong);
 }
 
+/* Ghost buttons hover on the full hover surface. The primitive's half strength wash is too
+   faint on these dark surfaces to read as a hover. */
+[data-slot="button"][data-variant="ghost"]:hover:not(:disabled) {
+  background-color: var(--surface-hover);
+}
+
 [data-slot="button"][data-variant="destructive"] {
   background-color: var(--danger);
   color: var(--on-danger);
@@ -332,9 +338,13 @@
   box-shadow: var(--shadow-popover);
 }
 
-[data-slot="tooltip-content"] > svg {
+/* The arrow is a rotated square that Radix turns to face each side, so the two edges that
+   show are always its right and bottom. */
+[data-slot="tooltip-content"] svg.rotate-45 {
   background-color: var(--tooltip-bg);
   fill: var(--tooltip-bg);
+  border-right: 1px solid var(--tooltip-border);
+  border-bottom: 1px solid var(--tooltip-border);
 }
 
 /* Overlays */
