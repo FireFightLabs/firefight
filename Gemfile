@@ -1,7 +1,7 @@
 source "https://rubygems.org"
 
 # 8.1.3.1 carries the Active Storage fix for CVE-2026-66066.
-gem "rails", "~> 8.1.3", ">= 8.1.3.1"
+gem "rails", "~> 8.1.4"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.6"
 
