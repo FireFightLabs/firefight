@@ -1,7 +1,8 @@
 module Integrations
   module Packs
-    # Northflank telemetry for one project per environment: what runs there, its logs, its metrics and its builds. It
-    # connects with a read-only API token the workspace creates in Northflank. Every tool only reads.
+    # Northflank for one project per environment: what runs there, its logs, its metrics and its builds, read with the
+    # API token the workspace creates in Northflank. Every tool reads, except api_request, which reaches all of Northflank's
+    # API inside the project when the token's role allows it and an admin switched it on.
     class Northflank < NativePack
       # The environment row's credentials, which only this pack reads.
       API_TOKEN = "api_token".freeze
@@ -37,6 +38,11 @@ module Integrations
       COUNT_UNIT = "count".freeze
       PER_MINUTE = "per minute".freeze
       DISK_METRIC = "diskUsage".freeze
+      API_METHODS = NorthflankApi::VERBS.keys.freeze
+      # Where Northflank answers with values that are secrets, so only their names come back.
+      SECRET_PATHS = /environment|argument|secret|credential|registr|key|token|password|connection/i
+      API_RESULT_LIMIT = 6_000
+      PROJECT_PATH = %r{\A[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\z}
       DEFAULT_MINUTES = 60
       MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
@@ -63,6 +69,22 @@ module Integrations
                         "whether each is running, deploying or failed. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
+
+      tool :api_request,
+           description: "Any call to Northflank's API inside the project: read or change services, databases, jobs, builds, " \
+                        "deployments, volumes, domains, secrets and the rest, with the method and body Northflank's API docs give. " \
+                        "The path is relative to the project, such as services/web/restart. Load the northflank_fixes skill first. " \
+                        "It lists common fixes and their paths",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "method" => { "type" => "string", "enum" => API_METHODS },
+               "path" => { "type" => "string", "description" => "Inside the project, such as services/web/scale" },
+               "body" => { "type" => "object", "description" => "The JSON body Northflank's API takes for this call (optional)" }
+             },
+             "required" => %w[method path]
+           },
+           read_only: false
 
       tool :search_logs,
            description: "Log lines from one service or database, newest first, at most #{LOG_LIMIT}. Filter by text or a regular " \
@@ -187,7 +209,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability, and nothing else."),
+                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. For Halon to apply fixes, its role can also update services."),
           CredentialField.new(key: PROJECT, label: "Project", secret: false, placeholder: "my-project",
                               hint: "The id of the Northflank project this environment runs in, as it appears in the project's URL.")
         ]
@@ -243,6 +265,64 @@ module Integrations
         Telemetry.result(Telemetry.logs_text(lines, asked: "#{resource[:name]} from #{started.utc.iso8601} to #{ended.utc.iso8601}", limit: limit), link: link)
       end
 
+      # Only inside the connected project, so a change can never reach another project or the team.
+      def api_request(environment_row:, arguments:)
+        verb = arguments["method"].to_s.upcase
+        fail!("method must be one of #{API_METHODS.join(', ')}.") unless API_METHODS.include?(verb)
+        path = arguments["path"].to_s.strip.delete_prefix("/")
+        fail!("path must be inside the project, such as services/web/restart.") unless path.match?(PROJECT_PATH)
+        body = arguments["body"]
+        fail!("body must be an object.") unless body.nil? || body.is_a?(Hash)
+        fail!("body holds what looks like a secret. Never send a credential through Northflank's API.") if secret?(body)
+
+        # Worked out first, so a change that went through is never reported as failed for want of its link.
+        link = change_link(environment_row, path)
+        answer = begin
+          api(environment_row).request(verb, project_of(environment_row), path, body)
+        rescue NorthflankApi::NotEnabled
+          raise
+        rescue NorthflankApi::Error => error
+          raise unless error.message.start_with?("Northflank answered 403")
+
+          fail!("#{error.message}. The API token's role cannot make this change. In Northflank, give the role permission " \
+                "to update services (Project, Services, General, Update), then run it again.")
+        end
+        Telemetry.result("Northflank answered #{verb} #{path}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
+      end
+
+      # Northflank's answer, with anything that looks like a credential redacted, and only the names where the path is one
+      # that holds secrets, so no secret reaches the model, the chat or the ledger.
+      def answer_text(path, answer)
+        shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer)
+        Chat::SecretFree::SECRET_PATTERNS.reduce(shown.to_json) { |text, (name, pattern)| text.gsub(pattern, "[REDACTED:#{name}]") }
+                                         .truncate(API_RESULT_LIMIT)
+      end
+
+      # What describes a secret rather than holding it stays readable.
+      DESCRIBING = %w[id name description type secretType priority tags createdAt updatedAt].freeze
+
+      # A field anywhere in an answer whose name says it holds secrets, such as a service's runtimeEnvironment, keeps only
+      # its names.
+      def hide_secret_fields(value)
+        case value
+        when Hash then value.to_h { |key, inner| [ key, key.to_s.match?(SECRET_PATHS) ? names_only(inner) : hide_secret_fields(inner) ] }
+        when Array then value.map { |inner| hide_secret_fields(inner) }
+        else value
+        end
+      end
+
+      def names_only(value)
+        case value
+        when Hash
+          value.to_h do |key, inner|
+            kept = DESCRIBING.include?(key) && !inner.is_a?(Hash) && !inner.is_a?(Array)
+            [ key, kept ? inner : (inner.is_a?(Hash) || inner.is_a?(Array) ? names_only(inner) : "[hidden]") ]
+          end
+        when Array then value.map { |inner| names_only(inner) }
+        else "[hidden]"
+        end
+      end
+
       def query_metrics(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
         started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
@@ -266,7 +346,8 @@ module Integrations
 
         rows = builds.map do |build|
           outcome = build["concluded"] ? (build["success"] ? "succeeded" : "failed") : build["status"].to_s.downcase
-          [ build["createdAt"], outcome, build["branch"], build["sha"].to_s.first(12), build["message"].presence ].compact.join(", ")
+          [ build["createdAt"], outcome, build["branch"], build["sha"].to_s.first(12), ("build #{build['id']}" if build["id"].present?),
+            build["message"].presence ].compact.join(", ")
         end
         Telemetry.result("Latest #{rows.size} builds of #{resource[:name]}, newest first.\n#{rows.join("\n")}", link: link)
       end
@@ -600,6 +681,15 @@ module Integrations
       # A database keeps its main page, since its Observe address has not been checked.
       def resource_link(environment_row, resource, *rest, query: {})
         app_link(environment_row, team_of(resource[:app_id]), resource[:kind], resource[:id], *rest, query: query)
+      end
+
+      def secret?(body) = body && Chat::SecretFree::SECRET_PATTERNS.values.any? { |pattern| body.to_json.match?(pattern) }
+
+      # The page of what was changed, when the path names a service, database or job, and the project's otherwise.
+      def change_link(environment_row, path)
+        kind, id = path.split("/").first(2)
+        resource = resources(environment_row).find { |each| each[:kind] == kind && each[:id] == id } if [ KIND_SERVICES, KIND_ADDONS ].include?(kind)
+        resource ? resource_link(environment_row, resource) : project_link(environment_row, *([ kind, id ] if kind == KIND_JOBS))
       end
 
       def observe_link(environment_row, resource, tab = nil, query = {})

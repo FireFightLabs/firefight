@@ -88,8 +88,10 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
   def refusal(entries)
     return if entries.empty?
 
-    "#{entries.map(&:name).to_sentence} #{entries.one? ? 'is' : 'are'} not granted to whoever you are acting as, so a step that needs " \
-      "#{entries.one? ? 'it' : 'them'} cannot run. Say so, and who can do it instead."
+    entries.group_by(&:state).map do |state, those|
+      "#{those.map(&:name).to_sentence} #{those.one? ? 'is' : 'are'} #{Chat::Tools::Open::STATE_WORDS.fetch(state)}, so a step that needs " \
+        "#{those.one? ? 'it' : 'them'} cannot run. Say so, and who can do it instead."
+    end.join("\n")
   end
 
   def switched_off(skill, entries)

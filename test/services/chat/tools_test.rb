@@ -335,14 +335,14 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a call that came back as an error is remembered as failed, so a card does not say Completed" do
-    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
     chat = open_chat_for_run
-    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == Mcp::Tools::DECLARE_INCIDENT }.tool
-    call = RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::DECLARE_INCIDENT, arguments: { "answers" => { "name" => "x", "severity" => "sev-9" } })
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == Mcp::Tools::GET_INCIDENT }.tool
+    call = RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::GET_INCIDENT, arguments: { "incident" => "INC-99999" })
     # The loop saves the model's call before running the tool. Here the call is saved by hand.
     chat.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
 
-    tool.call(tool_call: call, answers: { "name" => "x", "severity" => "sev-9" })
+    tool.call(tool_call: call, incident: "INC-99999")
 
     assert_equal [ "call_1" ], @investigation.chat.failed_tool_call_ids
   end
@@ -638,6 +638,47 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind(Mcp::Tools::UPSERT_SEVERITY, @workspace)
     assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(@tool.model_facing_name, @workspace)
     assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind("something_nobody_declared", @workspace)
+  end
+
+  test "an investigation is never offered a tool that can write unless each call can be shown to read, and a call that would write is refused" do
+    writer = @integration.tools.create!(name: "drop_table", description: "Drops a table", read_only: false, enabled: true, params_schema: {})
+    grant!(writer)
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank")
+    northflank.integration_environments.create!
+    request = northflank.tools.create!(name: "api_request", description: "Any call", read_only: false, enabled: true, params_schema: {})
+    grant!(request)
+
+    entries = Chat::Tools.catalog(@investigation).index_by(&:name)
+    assert_equal [ Chat::Tools::STATE_READS_ONLY, nil ], [ entries["fake_drop_table"].state, entries["fake_drop_table"].tool ]
+    assert_equal Chat::Tools::STATE_READY, entries["northflank_api_request"].state
+
+    Integrations::NativeExecutor.expects(:call).never
+    answer = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "northflank_api_request" }.tool
+                        .call(method: "POST", path: "services/web/restart")
+    assert_match "only reads, so its method must be GET", answer.to_s
+  end
+
+  test "an investigation is never handed one of Firefight's own tools that writes, whatever its principal was granted, and is told why" do
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_CREATE)
+
+    declare = Chat::Tools.firefight_entries(@investigation.reload).find { |entry| entry.name == Mcp::Tools::DECLARE_INCIDENT }
+
+    assert_equal [ Chat::Tools::STATE_READS_ONLY, nil ], [ declare.state, declare.tool ]
+  end
+
+  test "an investigation sees Cloudflare's execute as one read taken as data, and the script it sends is Firefight's own" do
+    cloudflare = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare", slug: "cloudflare",
+                                                 settings: { "server_url" => "https://mcp.cloudflare.com/mcp" })
+    cloudflare.integration_environments.create!
+    execute = cloudflare.tools.create!(name: "execute", description: "Runs a script", read_only: false, enabled: true,
+                                       params_schema: { "type" => "object", "properties" => { "code" => { "type" => "string" } } })
+    grant!(execute)
+    connection = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "cloudflare_execute" }.tool
+
+    assert_equal %w[method path query graphql variables account_id environment], connection.parameters_schema["properties"].keys
+    Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => 'async () => cloudflare.request({"method":"GET","path":"/zones"})' } }
+                             .returns("content" => [ { "type" => "text", "text" => "[]" } ])
+    connection.call(method: "GET", path: "/zones")
   end
 
   private

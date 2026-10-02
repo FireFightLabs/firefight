@@ -25,7 +25,7 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
 
     assert_includes answer, Chat::Skill.find("declaring").steps
     assert_equal [ "get_form" ], @offered.flatten.map(&:name)
-    assert_includes answer, "declare_incident is not granted to whoever you are acting as"
+    assert_includes answer, "declare_incident is not used while investigating, since an investigation only reads"
   end
 
   test "a skill that does not exist is answered with the ones that do" do

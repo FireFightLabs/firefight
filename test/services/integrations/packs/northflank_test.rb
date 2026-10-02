@@ -18,9 +18,68 @@ module Integrations
         ])
       end
 
-      test "the token and project are stored trimmed, and every tool only reads" do
+      test "the token and project are stored trimmed, and every tool only reads except the one that changes the project" do
         assert_equal "nf-token", @row.reload.credentials_hash[Northflank::API_TOKEN]
-        assert Northflank.tool_definitions.all?(&:read_only)
+        assert_equal [ "api_request" ], Northflank.tool_definitions.reject(&:read_only).map(&:name)
+      end
+
+      test "a change goes to a path inside the project only, with its body, and links to what it changed" do
+        NorthflankApi.any_instance.expects(:request).with("POST", "firefight", "services/web/scale", { "instances" => 3 })
+                     .returns("data" => { "instances" => 3 })
+
+        text = call(:api_request, "method" => "post", "path" => "/services/web/scale", "body" => { "instances" => 3 })
+
+        assert text.start_with?("Northflank answered POST services/web/scale.\n{\"data\":{\"instances\":3}}")
+      end
+
+      test "every method reaches the API, and what holds secrets comes back as names only, with anything credential-like redacted" do
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web/runtime-environment", nil)
+                     .returns("data" => { "runtimeEnvironment" => { "DATABASE_URL" => "postgres://app:hunter2@db/prod", "PORT" => "3000" } })
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "secrets", nil)
+                     .returns("data" => { "secrets" => [ { "id" => "app-env", "name" => "App env", "data" => { "KEY" => "value" } } ] })
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web", nil)
+                     .returns("data" => { "id" => "web", "note" => "token ghp_#{'a' * 36}", "runtimeEnvironment" => { "API_KEY" => "abc123" } })
+        NorthflankApi.any_instance.stubs(:request).with("DELETE", "firefight", "jobs/nightly", nil).returns({})
+
+        environment = call(:api_request, "method" => "GET", "path" => "services/web/runtime-environment")
+        assert_match "\"DATABASE_URL\":\"[hidden]\"", environment
+        assert_no_match "hunter2", environment
+        assert_match "{\"id\":\"app-env\",\"name\":\"App env\",\"data\":{\"KEY\":\"[hidden]\"}}", call(:api_request, "method" => "GET", "path" => "secrets")
+        service = call(:api_request, "method" => "GET", "path" => "services/web")
+        assert_match "token [REDACTED:github_token]", service
+        assert_match "\"runtimeEnvironment\":{\"API_KEY\":\"[hidden]\"}", service
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "addons/db/credentials-details", nil)
+                     .returns("data" => { "envs" => { "PASSWORD" => "s3cret" }, "hosts" => [ "db.internal" ] })
+        assert_no_match "s3cret", call(:api_request, "method" => "GET", "path" => "addons/db/credentials-details")
+        assert call(:api_request, "method" => "DELETE", "path" => "jobs/nightly").start_with?("Northflank answered DELETE jobs/nightly.\n")
+        assert_match %r{link with what you found: https://app\.northflank\.com/t/firefight-labs/project/firefight/services/web\z}, environment
+      end
+
+      test "a change outside the project, or not shaped as asked, is refused before anything is sent" do
+        NorthflankApi.any_instance.expects(:request).never
+
+        [ { "method" => "OPTIONS", "path" => "services/web" }, { "method" => "POST", "path" => "../other/services/web/restart" },
+          { "method" => "POST", "path" => "services/web/restart?x=1" }, { "method" => "POST", "path" => "services/web/scale", "body" => "3" },
+          { "method" => "POST", "path" => "services/%2e%2e/restart" }, { "method" => "POST", "path" => "services\\web" },
+          { "method" => "POST", "path" => "services//restart" }, { "method" => "POST", "path" => "services/web/" },
+          { "method" => "POST", "path" => "services/web/runtime-environment", "body" => { "DATABASE_URL" => "postgres://app:hunter2@db/prod" } } ].each do |arguments|
+          assert_raises(Integrations::Error) { call(:api_request, arguments) }
+        end
+      end
+
+      test "the link is found before the change, so a change that went through is never reported as failed for want of it" do
+        NorthflankApi.any_instance.expects(:request).never
+        @pack.stubs(:change_link).raises(NorthflankApi::Error, "Northflank answered 429: slow down")
+
+        assert_raises(NorthflankApi::Error) { call(:api_request, "method" => "POST", "path" => "services/web/restart") }
+      end
+
+      test "a change the token's role may not make says what to give it in Northflank" do
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Error, "Northflank answered 403: Missing permission: Update")
+
+        error = assert_raises(Integrations::Error) { call(:api_request, "method" => "POST", "path" => "services/web/restart") }
+
+        assert_match "The API token's role cannot make this change", error.message
       end
 
       test "a token or project Northflank refuses is said before anything is saved" do
@@ -129,8 +188,8 @@ module Integrations
       test "every tool's answer links to where it is on Northflank" do
         NorthflankApi.any_instance.stubs(logs: [], metrics: {}, builds: [], deployments: [], containers: [], build_logs: [],
                                          service: { "deployment" => {}, "healthChecks" => [] },
-                                         jobs: [ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ], job_runs: [])
-        arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307" }
+                                         jobs: [ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ], job_runs: [], request: {})
+        arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart" }
         links = Northflank.tool_definitions.to_h { |definition| [ definition.name.to_s, call(definition.name, arguments).lines.last ] }
 
         assert links.values.all? { |line| line.start_with?("Open this in Northflank") }, links.inspect
@@ -142,6 +201,7 @@ module Integrations
         assert_match %r{/services/web/deployments\z}, links["list_deployments"]
         assert_match %r{/services/web/observe\z}, links["list_containers"]
         assert_match %r{/services/web\z}, links["describe_resource"]
+        assert_match %r{/services/web\z}, links["api_request"]
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do

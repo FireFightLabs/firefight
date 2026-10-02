@@ -7,6 +7,7 @@ class Chat::Tools::Open < RubyLLM::Tool
   STATE_WORDS = {
     Chat::Tools::STATE_READY => "ready",
     Chat::Tools::STATE_NOT_GRANTED => "not granted to whoever you are acting as",
+    Chat::Tools::STATE_READS_ONLY => "not used while investigating, since an investigation only reads",
     Chat::Tools::STATE_NOT_CONNECTED => "nothing connected",
     Chat::Tools::STATE_SWITCHED_OFF => "connected, but no tools switched on"
   }.freeze
@@ -114,7 +115,7 @@ class Chat::Tools::Open < RubyLLM::Tool
   def listing(entries)
     entries.map do |entry|
       ready = entry.state == Chat::Tools::STATE_READY
-      "#{entry.name}: #{entry.description} (#{ready ? 'ready to call' : 'exists, but not granted to whoever you are acting as'})"
+      "#{entry.name}: #{entry.description} (#{ready ? 'ready to call' : "exists, but #{STATE_WORDS.fetch(entry.state)}"})"
     end.join("\n")
   end
 end

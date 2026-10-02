@@ -167,6 +167,10 @@ class Investigation < ApplicationRecord
   # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
   def confirms?(_action) = false
 
+  # A run investigates and never changes anything. A fix is applied by a person, so a tool that can write is offered
+  # only when each call can be shown to read.
+  def reads_only? = true
+
   # A run writes what it learned, and disputes what a result contradicted, as the agent. It never vouches for a fact,
   # so there is no person's authority to check.
   def memory_change(_crud_action, params:, tool_name:) = yield
