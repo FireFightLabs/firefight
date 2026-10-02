@@ -51,6 +51,29 @@ module Integrations
         assert_match "2026-09-25T14:02:03Z web-1 upstream timeout after 30s", text
       end
 
+      test "a kind of log the account does not have says so, and points at the runtime logs, rather than reading as a broken connection" do
+        NorthflankApi.any_instance.stubs(:logs).raises(NorthflankApi::NotEnabled, "Northflank answered 401: Feature flag is not enabled for your account 2")
+
+        text = call(:search_logs, "resource" => "web", "type" => "ingress")
+
+        assert text.start_with?("Northflank has not switched on ingress logs for this account, so there are none to read. The connection works. " \
+                                "Ask for type runtime instead, the service's own lines, which usually log each request's path and status.\n")
+        assert_match %r{link with what you found: https://app\.northflank\.com/t/firefight-labs/project/firefight/services/web/observe/logs\?}, text
+      end
+
+      test "a metric Northflank sent nothing for is said in the text and never drawn, since no data is not zero" do
+        NorthflankApi.any_instance.stubs(:metrics).returns(
+          "requests" => { "metricInfo" => { "metricUnit" => "rps" }, "values" => [] },
+          "cpu" => { "metricInfo" => { "metricUnit" => "pct" },
+                     "values" => [ { "metadata" => { "containerId" => "web-1" }, "data" => [ { "ts" => "2026-09-25T14:00:00Z", "value" => 0.4 } ] } ] }
+        )
+
+        result = @pack.call("query_metrics", environment_row: @row, arguments: { "resource" => "web", "metrics" => %w[requests cpu] })
+
+        assert_match "Requests of web: no data in that range. That does not show zero", result["content"].sole["text"]
+        assert_equal [ "CPU of web" ], result.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::CHARTS).map { |chart| chart["title"] }
+      end
+
       test "a log search that reaches its limit tells the model older lines were not returned" do
         lines = (1..3).map { |index| { "ts" => "2026-09-25T14:0#{index}:00Z", "containerId" => "web-1", "log" => "line #{index}" } }
         NorthflankApi.any_instance.stubs(:logs).returns(lines)

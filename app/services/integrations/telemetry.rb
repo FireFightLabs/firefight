@@ -50,9 +50,9 @@ module Integrations
 
     # The model reads numbers, a person reads the chart. Each series is summed up in one line.
     def self.charts_text(charts)
-      return "No data points in that range." if charts.all? { |chart| chart.series.all? { |each| each.points.empty? } }
-
       charts.map do |chart|
+        next "#{chart.title}: no data in that range. That does not show zero, and can mean the provider does not record it here." if empty?(chart)
+
         lines = chart.series.first(SERIES_LIMIT).map { |each| "  #{each.label}: #{summary(each.points)}" }
         lines << "  #{left_out(chart.series.size)}" if chart.series.size > SERIES_LIMIT
         "#{chart.title} (#{chart.unit}), #{chart.from.utc.iso8601} to #{chart.to.utc.iso8601}\n#{lines.join("\n")}"
@@ -70,12 +70,16 @@ module Integrations
 
     def self.left_out(total) = "#{total - SERIES_LIMIT} more series not shown, only the first #{SERIES_LIMIT} are kept"
 
+    # A chart with nothing in it is said in the text and never drawn, so an empty frame never reads as evidence.
     def self.result(text, link:, charts: [])
       text = "#{text}\n#{link_line(link)}" if link
       result = { "content" => [ { "type" => "text", "text" => text } ] }
-      result[STRUCTURED] = { CHARTS => charts.map(&:to_h) } if charts.any?
+      drawn = charts.reject { |chart| empty?(chart) }
+      result[STRUCTURED] = { CHARTS => drawn.map(&:to_h) } if drawn.any?
       result
     end
+
+    def self.empty?(chart) = chart.series.all? { |each| each.points.empty? }
 
     def self.link_line(link) = "Open this in #{link.provider}, and give the person this link with what you found: #{link.url}"
 

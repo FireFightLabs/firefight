@@ -66,7 +66,9 @@ module Integrations
 
       tool :search_logs,
            description: "Log lines from one service or database, newest first, at most #{LOG_LIMIT}. Filter by text or a regular " \
-                        "expression, and by log type: runtime for what the app prints, build, ingress for HTTP requests reaching it",
+                        "expression, and by log type: runtime for what the app prints, build, ingress for HTTP requests reaching it " \
+                        "where Northflank has ingress logs switched on for the account. The app's runtime logs usually carry each " \
+                        "request's path too",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -229,7 +231,12 @@ module Integrations
           "type" => arguments["type"].presence_in(LOG_TYPES) || DEFAULT_LOG_TYPE, "textIncludes" => arguments["text"].presence,
           "regexIncludes" => arguments["regex"].presence, "textNotIncludes" => arguments["exclude"].presence
         }
-        lines = api(environment_row).logs(project_of(environment_row), resource[:kind], resource[:id], query).map do |line|
+        begin
+          found = api(environment_row).logs(project_of(environment_row), resource[:kind], resource[:id], query)
+        rescue NorthflankApi::NotEnabled
+          return Telemetry.result(not_enabled(query["type"]), link: observe_link(environment_row, resource, OBSERVE_LOGS, range_query(started, ended)))
+        end
+        lines = found.map do |line|
           Telemetry::LogLine.new(at: Telemetry.parse_time(line["ts"]) || ended, source: line["containerId"].to_s, text: line["log"])
         end
         link = observe_link(environment_row, resource, OBSERVE_LOGS, log_search(arguments).merge(range_query(started, ended)))
@@ -660,6 +667,12 @@ module Integrations
         return values.sum / values.size if raw_unit == AVERAGED_UNIT
 
         values.sum
+      end
+
+      # Not a broken connection, only a kind of log this account does not have, so the agent is pointed at one it does.
+      def not_enabled(type)
+        "Northflank has not switched on #{type} logs for this account, so there are none to read. The connection works. " \
+          "Ask for type #{DEFAULT_LOG_TYPE} instead, the service's own lines, which usually log each request's path and status."
       end
 
       def chart(resource, metric, data, started, ended, link)

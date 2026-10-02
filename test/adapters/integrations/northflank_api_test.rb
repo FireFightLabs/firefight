@@ -26,6 +26,17 @@ module Integrations
       assert_equal "Northflank answered 403: Missing permission: View Observability", error.message
     end
 
+    test "data kept behind a Northflank feature the account does not have is its own refusal, not a bad token" do
+      Http.stubs(:request).returns(response(401, { error: { message: "Feature flag is not enabled for your account 2" } }))
+
+      error = assert_raises(NorthflankApi::NotEnabled) { @api.logs("firefight", "services", "web", { "type" => "ingress" }) }
+
+      assert_equal "Northflank answered 401: Feature flag is not enabled for your account 2", error.message
+
+      Http.stubs(:request).returns(response(500, { error: { message: "Feature flag is not enabled for your account" } }))
+      assert_not_kind_of NorthflankApi::NotEnabled, assert_raises(NorthflankApi::Error) { @api.logs("firefight", "services", "web", {}) }
+    end
+
     private
 
     def response(code, body)
