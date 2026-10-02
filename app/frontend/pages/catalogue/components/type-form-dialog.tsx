@@ -35,7 +35,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { omitErrors, pickErrors } from "@/lib/form-errors"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 
-const DEFAULT_TYPE_COLOR = "#3B82F6"
+const DEFAULT_TYPE_COLOR = "#70D5ED"
 
 function generateSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
@@ -204,7 +204,7 @@ export function TypeFormDialog({ type, availableTypes, attributeRoles, open, onO
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="type-name">
-                Name <span className="text-red-500">*</span>
+                Name <span className="text-error">*</span>
               </Label>
               <Input
                 id="type-name"
@@ -256,7 +256,7 @@ export function TypeFormDialog({ type, availableTypes, attributeRoles, open, onO
                     className="rounded-md border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center gap-2">
-                      <IconGripVertical className="size-4 shrink-0 text-muted-foreground/30 cursor-grab" />
+                      <IconGripVertical className="size-4 shrink-0 text-fg-disabled cursor-grab" />
                       <Input
                         value={attr.name}
                         onChange={(event) => updateAttribute(attr.id, { name: event.target.value })}
@@ -290,7 +290,7 @@ export function TypeFormDialog({ type, availableTypes, attributeRoles, open, onO
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-7 shrink-0 text-muted-foreground hover:text-red-500"
+                        className="size-7 shrink-0 text-muted-foreground hover:text-danger"
                         onClick={() => removeAttribute(attr.id)}
                       >
                         <IconTrash className="size-3.5" />

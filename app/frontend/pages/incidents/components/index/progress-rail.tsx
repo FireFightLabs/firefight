@@ -5,11 +5,11 @@ export function ProgressRail({ done, total }: { done: number; total: number }) {
     <div className="flex items-center gap-3">
       <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${"bg-primary"}`}
+          className="h-full rounded-full bg-brand transition-all duration-700 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+      <span className="font-mono text-[11px] tabular-nums text-fg-secondary">
         {done}/{total}
       </span>
     </div>

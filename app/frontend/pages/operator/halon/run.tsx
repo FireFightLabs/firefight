@@ -50,8 +50,8 @@ export default function OperatorHalonRun() {
       </PageHeading>
       <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
         <RunEnding ending={run.ending} />
-        {run.notPosted && <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.rose}`}>not posted</span>}
-        {run.rehearsal && <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.violet}`}>rehearsal</span>}
+        {run.notPosted && <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.error}`}>not posted</span>}
+        {run.rehearsal && <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.open}`}>rehearsal</span>}
         <Chip>{run.turns} of {run.maxTurns} turns</Chip>
         <Chip>{dollars(run.spentMicros)} of {dollars(run.maxSpendMicros)}</Chip>
         <Chip>{seconds(run.seconds)}</Chip>
@@ -60,7 +60,7 @@ export default function OperatorHalonRun() {
         <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>{run.workspaceName}</span>
         <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>asked from {run.triggerSource}</span>
         {run.incidentId && (
-          <Link href={operatorIncidentPath(run.incidentId)} className={`rounded-full border px-2.5 py-1 hover:underline ${TONE_CLASSES.primary}`}>
+          <Link href={operatorIncidentPath(run.incidentId)} className={`rounded-full border px-2.5 py-1 hover:underline ${TONE_CLASSES.active}`}>
             Incident process
           </Link>
         )}

@@ -47,11 +47,11 @@ const DELIVERY_OUTCOME: Record<
   },
   succeeded: {
     label: (code) => String(code ?? "OK"),
-    className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    className: "bg-success-tint text-success",
   },
   failed: {
     label: (code) => String(code ?? "ERR"),
-    className: "bg-red-500/15 text-red-600 dark:text-red-400",
+    className: "bg-error-tint text-error",
   },
 };
 
@@ -156,7 +156,7 @@ export function WebhookDetailSheet({
             {webhook.active ? (
               <Badge
                 variant="secondary"
-                className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                className="gap-1 bg-success-tint text-success"
               >
                 <IconCircleCheck className="size-3" />
                 Active
@@ -280,7 +280,7 @@ export function WebhookDetailSheet({
                               </span>
                               {delivery.state === "failed" &&
                                 delivery.errorMessage && (
-                                  <span className="text-xs text-red-500 dark:text-red-400">
+                                  <span className="text-xs text-error">
                                     {delivery.errorMessage}
                                   </span>
                                 )}

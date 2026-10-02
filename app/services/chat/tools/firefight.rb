@@ -9,7 +9,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   # RubyLLM pauses the turn before a call that needs the person's decision. A tool that declares
   # itself destructive asks too, since a workspace wide change under an ordinary update verb is one.
-  def requires_approval? = @agent_run.confirms?(@action) || destructive_by_declaration?
+  def requires_approval? = @agent_run.confirms?(@action, tool_name: name, declared_destructive: destructive_by_declaration?)
 
   def destructive_by_declaration?
     @agent_run.acting_principal.present? && @tool_class.annotations_value&.destructive_hint == true

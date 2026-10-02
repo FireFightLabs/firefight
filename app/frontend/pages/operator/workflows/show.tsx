@@ -75,7 +75,7 @@ function StepGraph({ steps, selected, onSelect }: { steps: Step[]; selected: str
       <div className="relative" style={{ width, height }}>
         <svg width={width} height={height} className="absolute inset-0" aria-hidden>
           {edges.map((edge) => (
-            <path key={edge.key} d={edge.path} fill="none" strokeWidth={1.5} className={edge.failed ? "stroke-rose-400/60" : "stroke-muted-foreground/35"} />
+            <path key={edge.key} d={edge.path} fill="none" strokeWidth={1.5} className={edge.failed ? "stroke-error/60" : "stroke-border-control"} />
           ))}
         </svg>
         {steps.map((step) => {
@@ -87,7 +87,7 @@ function StepGraph({ steps, selected, onSelect }: { steps: Step[]; selected: str
               type="button"
               onClick={() => onSelect(step.id)}
               aria-pressed={selected === step.id}
-              className={`absolute flex flex-col justify-center gap-0.5 rounded-lg border px-3 text-left transition-shadow ${TONE_CLASSES[STEP_STATUS_TONES[step.status]]} ${selected === step.id ? "ring-2 ring-primary/60" : ""}`}
+              className={`absolute flex flex-col justify-center gap-0.5 rounded-lg border px-3 text-left transition-shadow ${TONE_CLASSES[STEP_STATUS_TONES[step.status]]} ${selected === step.id ? "ring-2 ring-brand" : ""}`}
               style={{ ...position, width: NODE_WIDTH, height: NODE_HEIGHT }}
             >
               <span className="flex items-center gap-1.5 font-mono text-xs font-medium text-foreground">
@@ -110,7 +110,7 @@ function StepGraph({ steps, selected, onSelect }: { steps: Step[]; selected: str
 function StepDetail({ step }: { step: Step }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground/75 text-[10.5px] font-medium tracking-[0.18em] uppercase">Selected step</p>
+      <p className="text-fg-muted text-[10.5px] font-medium tracking-[0.18em] uppercase">Selected step</p>
       <p className="font-mono text-sm font-medium">{step.name}</p>
       <dl className="grid grid-cols-[90px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
         <dt className="text-muted-foreground">Status</dt>
@@ -124,7 +124,7 @@ function StepDetail({ step }: { step: Step }) {
       </dl>
       {step.skipReason && <p className="text-muted-foreground text-sm">{step.skipReason}</p>}
       {step.lastError && (
-        <pre className="bg-muted/40 max-h-64 overflow-auto rounded-md border border-border p-3 font-mono text-xs whitespace-pre-wrap text-rose-300">{step.lastError}</pre>
+        <pre className="bg-muted/40 max-h-64 overflow-auto rounded-md border border-border p-3 font-mono text-xs whitespace-pre-wrap text-error">{step.lastError}</pre>
       )}
       {step.actionBlockedReason === null && <StepActions stepId={step.id} stepName={step.name} />}
     </div>
@@ -191,7 +191,7 @@ export default function OperatorWorkflowPage() {
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
         <WorkflowState state={workflow.state} />
         {workflow.incidentId && (
-          <Link href={operatorIncidentPath(workflow.incidentId)} className="text-primary hover:underline">
+          <Link href={operatorIncidentPath(workflow.incidentId)} className="text-link hover:underline">
             Open the incident's timeline
           </Link>
         )}
@@ -204,7 +204,7 @@ export default function OperatorWorkflowPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
         <Card className="gap-0 p-5">{selected ? <StepDetail step={selected} /> : <p className="text-muted-foreground text-sm">No steps.</p>}</Card>
         <Card className="gap-0 p-6">
-          <p className="text-muted-foreground/75 mb-3 text-[10.5px] font-medium tracking-[0.18em] uppercase">Events</p>
+          <p className="text-fg-muted mb-3 text-[10.5px] font-medium tracking-[0.18em] uppercase">Events</p>
           {workflow.events.length === 0 ? (
             <p className="text-muted-foreground text-sm">No events recorded.</p>
           ) : (
@@ -213,7 +213,7 @@ export default function OperatorWorkflowPage() {
                 <li key={event.id} className="grid grid-cols-[70px_minmax(0,1fr)] gap-3 border-b border-border/60 py-2 text-sm last:border-0">
                   <time dateTime={event.at} className="text-muted-foreground font-mono text-xs">{formatTime(event.at)}</time>
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className={`font-mono text-xs ${event.failed ? "text-rose-400" : ""}`}>
+                    <span className={`font-mono text-xs ${event.failed ? "text-error" : ""}`}>
                       {event.eventType}
                       {event.stepName && <span className="text-muted-foreground"> {event.stepName}</span>}
                     </span>

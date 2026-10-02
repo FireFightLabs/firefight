@@ -35,6 +35,8 @@ module Slack
         { type: "actions", elements: [
           { type: "button", style: "primary", action_id: Identifiers::AGENT_CONFIRM,
             text: { type: "plain_text", text: "Confirm" }, value: value },
+          { type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT,
+            text: { type: "plain_text", text: "Allow for this chat" }, value: value },
           { type: "button", action_id: Identifiers::AGENT_CANCEL,
             text: { type: "plain_text", text: "Cancel" }, value: value }
         ] }

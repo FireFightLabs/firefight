@@ -63,7 +63,7 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
             <div className="flex flex-col gap-2">
               <Label>Kind</Label>
               <div className="flex flex-col gap-2">
-                <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-input p-3 text-sm has-[:checked]:border-primary">
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-input p-3 text-sm transition-colors hover:bg-surface-hover has-[:checked]:border-brand has-[:checked]:bg-surface-selected">
                   <input
                     type="radio"
                     name="key-kind"
@@ -80,7 +80,7 @@ export function CreateKeyDialog({ canManageServiceKeys }: { canManageServiceKeys
                   </span>
                 </label>
                 {canManageServiceKeys && (
-                  <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-input p-3 text-sm has-[:checked]:border-primary">
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-input p-3 text-sm transition-colors hover:bg-surface-hover has-[:checked]:border-brand has-[:checked]:bg-surface-selected">
                     <input
                       type="radio"
                       name="key-kind"

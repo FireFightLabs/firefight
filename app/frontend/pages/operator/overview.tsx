@@ -64,7 +64,7 @@ function AttentionRow({ item }: { item: OperatorAttentionItem }) {
       </span>
       <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <span className={`text-sm font-medium ${bad ? "text-rose-600 dark:text-rose-400" : ""}`}>{item.title}</span>
+          <span className={`text-sm font-medium ${bad ? "text-error" : ""}`}>{item.title}</span>
           <span className="truncate font-mono text-[13px]">{item.subject}</span>
           <span className="text-muted-foreground text-xs">{item.place}</span>
         </div>
@@ -102,13 +102,13 @@ function Panel({ title, icon: PanelIcon, href, source, external, children }: Pan
     <Card className="gap-4 px-5 py-5">
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <PanelIcon className="text-primary size-4" stroke={1.7} />
+          <PanelIcon className="text-fg-secondary size-4" stroke={1.7} />
           {title}
         </h2>
         {external ? <a href={href} className={viewClass}>{view}</a> : <Link href={href} className={viewClass}>{view}</Link>}
       </div>
       <div className="grid grid-cols-2 gap-3">{children}</div>
-      <p className="text-muted-foreground/80 text-xs">{source}</p>
+      <p className="text-fg-muted text-xs">{source}</p>
     </Card>
   )
 }
@@ -118,7 +118,7 @@ export default function OperatorOverview() {
   const { attentionItems, attentionCapped, attentionLimit, incidents, workflows, jobs, halon, filter } = props
   const filterQuery = { window: filter.window, workspace: filter.workspace ?? undefined }
   const didNotAnswer = halon.stopped + halon.failed
-  const noAnswerTone = halon.failed > 0 ? "rose" : didNotAnswer > 0 ? "amber" : "neutral"
+  const noAnswerTone = halon.failed > 0 ? "error" : didNotAnswer > 0 ? "warning" : "neutral"
 
   return (
     <OperatorLayout title="Overview">
@@ -143,7 +143,7 @@ export default function OperatorOverview() {
         </div>
         {attentionItems.length === 0 ? (
           <p className="text-muted-foreground flex items-center gap-2 px-5 py-8 text-sm">
-            <IconCircleCheck className="size-4 text-emerald-500" />
+            <IconCircleCheck className="size-4 text-success" />
             Nothing needs a person in this window.
           </p>
         ) : (
@@ -163,37 +163,37 @@ export default function OperatorOverview() {
       <div className="grid gap-6 xl:grid-cols-2">
         <Panel title="Incidents" icon={IconFlame} href={operatorIncidentsPath()} source="Incidents, alerts and their routing, webhook deliveries, failed calls to the chat platform">
           <Stat label="Declared" value={count(incidents.declared)} note={`${incidents.fromAlerts} from alerts`} />
-          <Stat label="Platform calls failed" value={count(incidents.platformFailures)} tone={incidents.platformFailures > 0 ? "rose" : "neutral"} />
+          <Stat label="Platform calls failed" value={count(incidents.platformFailures)} tone={incidents.platformFailures > 0 ? "error" : "neutral"} />
           <Stat
             label="Webhooks failed"
             value={count(incidents.webhooksFailed)}
             note={`of ${count(incidents.webhooksSent)} sent`}
-            tone={incidents.webhooksFailed > 0 ? "rose" : "neutral"}
+            tone={incidents.webhooksFailed > 0 ? "error" : "neutral"}
           />
           <Stat
             label="Alerts routing"
             value={count(incidents.alertsWaiting)}
             note={incidents.oldestAlertAt ? `oldest ${since(incidents.oldestAlertAt)}` : "none waiting"}
-            tone={incidents.alertsWaiting > 0 ? "amber" : "neutral"}
+            tone={incidents.alertsWaiting > 0 ? "warning" : "neutral"}
           />
         </Panel>
         <Panel title="Workflows" icon={IconHierarchy2} href={operatorWorkflowsPath()} source="Workflow runs, their steps and events">
           <Stat label="Ran" value={count(workflows.ran)} note={`${workflows.kinds} kinds`} />
-          <Stat label="Failed" value={count(workflows.failed)} note="attempts used up" tone={workflows.failed > 0 ? "rose" : "neutral"} />
-          <Stat label="Retrying" value={count(workflows.retrying)} note="waiting for another attempt" tone={workflows.retrying > 0 ? "amber" : "neutral"} />
-          <Stat label="Paused" value={count(workflows.paused)} tone={workflows.paused > 0 ? "amber" : "neutral"} />
+          <Stat label="Failed" value={count(workflows.failed)} note="attempts used up" tone={workflows.failed > 0 ? "error" : "neutral"} />
+          <Stat label="Retrying" value={count(workflows.retrying)} note="waiting for another attempt" tone={workflows.retrying > 0 ? "warning" : "neutral"} />
+          <Stat label="Paused" value={count(workflows.paused)} tone={workflows.paused > 0 ? "warning" : "neutral"} />
         </Panel>
         <Panel title="Jobs" icon={IconStack2} href={operatorJobsPath()} external source="The job queue, shared by every workspace">
           {jobs ? (
             <>
               <Stat label="Finished" value={count(jobs.finished)} />
-              <Stat label="Failed" value={count(jobs.failed)} note="held until retried or discarded" tone={jobs.failed > 0 ? "rose" : "neutral"} />
+              <Stat label="Failed" value={count(jobs.failed)} note="held until retried or discarded" tone={jobs.failed > 0 ? "error" : "neutral"} />
               <Stat label="Waiting" value={count(jobs.waiting)} note={jobs.oldestWaitingAt ? `oldest ${since(jobs.oldestWaitingAt)}` : "none waiting"} />
               <Stat
                 label="Workers"
                 value={`${jobs.workersAlive}/${jobs.workers}`}
                 note={jobs.workersAlive === jobs.workers ? "all reporting" : `${jobs.workers - jobs.workersAlive} not reporting`}
-                tone={jobs.workersAlive < jobs.workers || jobs.workers === 0 ? "rose" : "neutral"}
+                tone={jobs.workersAlive < jobs.workers || jobs.workers === 0 ? "error" : "neutral"}
               />
             </>
           ) : (

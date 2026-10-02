@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/chart"
 import type { ChatChart } from "@/types/serializers"
 
-// Neighbouring series get colours far apart, so two containers never read as one line.
-const COLORS = [ "var(--chart-1)", "var(--chart-4)", "var(--chart-5)", "var(--chart-3)", "var(--chart-2)" ]
+// The palette's chart order. Its neighbours already sit far apart, so two containers never read as one line.
+const COLORS = [ "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)" ]
 
 type Row = { at: number } & Record<string, number>
 
@@ -71,7 +71,7 @@ function Legend({ chart }: { chart: ChatChart }) {
       {chart.series.map((series, index) => (
         <li key={series.label} className="flex min-w-0 items-center gap-2">
           <span aria-hidden className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-          <span className="truncate font-mono text-[11.5px] text-foreground/90" title={series.label}>
+          <span className="truncate font-mono text-[11.5px] text-fg-body" title={series.label}>
             {series.label}
           </span>
         </li>
@@ -88,11 +88,11 @@ export function MetricChart({ chart }: { chart: ChatChart }) {
   return (
     <figure className="flex min-w-0 flex-col gap-2" aria-label={chart.title}>
       <figcaption className="flex items-baseline justify-between gap-3">
-        <span className="truncate text-[13.5px] font-semibold text-foreground">{chart.title}</span>
-        <span className="text-muted-foreground shrink-0 text-xs">{chart.unit}</span>
+        <span className="truncate text-[13.5px] font-semibold text-fg-primary">{chart.title}</span>
+        <span className="shrink-0 text-xs text-fg-muted">{chart.unit}</span>
       </figcaption>
       {rows.length === 0 ? (
-        <p className="text-muted-foreground text-[13px]">No data points in this range.</p>
+        <p className="text-[13px] text-fg-muted">No data points in this range.</p>
       ) : (
         <ChartContainer config={configOf(chart)} className="aspect-auto h-44 w-full">
           <LineChart data={rows} margin={{ left: -16, right: 6, top: 4 }}>
@@ -107,10 +107,10 @@ export function MetricChart({ chart }: { chart: ChatChart }) {
         </ChartContainer>
       )}
       {rows.length > 0 && chart.series.length > 1 && <Legend chart={chart} />}
-      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-fg-muted">
         <span>{rangeOf(chart)}</span>
         {chart.sourceUrl && (
-          <a href={chart.sourceUrl} target="_blank" rel="noreferrer" className="hover:text-foreground inline-flex items-center gap-1 whitespace-nowrap">
+          <a href={chart.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-sm whitespace-nowrap text-fg-secondary transition-colors duration-150 hover:text-fg-primary">
             Open the live chart
             <IconExternalLink className="size-3" />
           </a>

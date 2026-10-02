@@ -23,10 +23,10 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusDotColors: Record<string, string> = {
-  draft: "bg-muted-foreground/50",
-  in_progress: "bg-amber-400",
-  in_review: "bg-sky-400",
-  completed: "bg-emerald-400",
+  draft: "bg-fg-muted",
+  in_progress: "bg-stage-active",
+  in_review: "bg-stage-triage",
+  completed: "bg-stage-closed",
 };
 
 export function IncidentPostmortemCard({
@@ -69,39 +69,39 @@ export function IncidentPostmortemCard({
     const status = postmortemStatus ?? "draft";
     const generationLabel =
       postmortemGenerationState === "generating"
-        ? { text: "Generating", dot: "bg-amber-400 animate-pulse" }
+        ? { text: "Generating", dot: "bg-stage-active animate-pulse" }
         : postmortemGenerationState === "failed"
-          ? { text: "Generation failed", dot: "bg-red-400" }
+          ? { text: "Generation failed", dot: "bg-error" }
           : null;
     return (
       <Link
         href={incidentPostmortemPath(incidentId)}
-        className="group block rounded-xl border border-primary/25 bg-card px-4 py-4 transition-colors hover:border-primary/45 hover:bg-accent"
+        className="group block rounded-xl border border-border bg-card px-4 py-4 transition-colors duration-120 hover:border-border-strong hover:bg-surface-hover"
       >
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20">
+          <div className="flex size-9 items-center justify-center rounded-lg border border-brand-border bg-brand-tint">
             <IconFileText
-              className="size-[17px] text-primary"
+              className="size-[17px] text-brand"
               strokeWidth={1.75}
             />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-[13px] font-semibold text-foreground">
+              <span className="text-[13px] font-semibold text-fg-primary">
                 Postmortem
               </span>
             </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-secondary">
               <span
                 className={`size-1.5 rounded-full ${generationLabel?.dot ?? statusDotColors[status]}`}
                 aria-hidden
               />
               <span>{generationLabel?.text ?? statusLabels[status]}</span>
-              <span className="text-muted-foreground/40">·</span>
+              <span className="text-fg-disabled">·</span>
               <span className="truncate">Root cause & actions</span>
             </div>
           </div>
-          <IconArrowRight className="size-4 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-primary" />
+          <IconArrowRight className="size-4 text-fg-muted transition-all group-hover:translate-x-0.5 group-hover:text-fg-primary" />
         </div>
       </Link>
     );
@@ -111,7 +111,7 @@ export function IncidentPostmortemCard({
     return (
       <section className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3">
         <IconFileText
-          className="size-4 shrink-0 text-muted-foreground/60"
+          className="size-4 shrink-0 text-fg-muted"
           strokeWidth={1.75}
         />
         <span className="text-[12px] text-muted-foreground">
@@ -124,17 +124,17 @@ export function IncidentPostmortemCard({
   return (
     <section className="rounded-xl border border-border bg-card px-5 py-5">
       <div className="flex items-start gap-3">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-muted/70">
+        <div className="flex size-9 items-center justify-center rounded-lg border border-border bg-surface-hover">
           <IconFileText
-            className="size-[17px] text-muted-foreground/80"
+            className="size-[17px] text-fg-muted"
             strokeWidth={1.75}
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-foreground">
+          <p className="text-[13px] font-semibold text-fg-primary">
             No postmortem yet
           </p>
-          <p className="mt-1 text-[12px] leading-[1.55] text-muted-foreground/90">
+          <p className="mt-1 text-[12px] leading-[1.55] text-fg-muted">
             Capture what happened, why it happened, and what prevents it next
             time.
           </p>

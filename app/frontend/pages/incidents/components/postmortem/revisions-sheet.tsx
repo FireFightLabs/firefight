@@ -100,7 +100,7 @@ export function RevisionsSheet({
                 <button
                   key={rev.id}
                   onClick={() => setSelectedId(rev.id)}
-                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-muted/50 transition-colors"
+                  className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors duration-120 hover:bg-surface-hover"
                 >
                   <IconClock className="size-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -146,7 +146,7 @@ export function RevisionsSheet({
                 </Button>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{selectedRevision.editedBy}</span>
+                <span className="font-medium text-fg-primary">{selectedRevision.editedBy}</span>
                 <span>·</span>
                 <span>{updateTypeLabels[selectedRevision.updateType]}</span>
                 <span>·</span>
@@ -159,12 +159,12 @@ export function RevisionsSheet({
               <Separator />
               {diffHtml ? (
                 <div
-                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4 bg-muted [&_ins]:bg-emerald-500/20 [&_ins]:text-emerald-900 [&_ins]:no-underline [&_ins]:px-0.5 [&_ins]:rounded-sm dark:[&_ins]:text-emerald-300 [&_del]:bg-red-500/20 [&_del]:text-red-900 [&_del]:line-through [&_del]:px-0.5 [&_del]:rounded-sm dark:[&_del]:text-red-300"
+                  className="prose prose-sm prose-invert max-w-none rounded-lg border bg-surface-code p-4 [&_ins]:rounded-sm [&_ins]:bg-success-tint [&_ins]:px-0.5 [&_ins]:text-success [&_ins]:no-underline [&_del]:rounded-sm [&_del]:bg-error-tint [&_del]:px-0.5 [&_del]:text-error [&_del]:line-through"
                   dangerouslySetInnerHTML={{ __html: diffHtml }}
                 />
               ) : selectedRevision.htmlContent ? (
                 <div
-                  className="prose prose-sm dark:prose-invert max-w-none rounded-lg border p-4 bg-muted"
+                  className="prose prose-sm prose-invert max-w-none rounded-lg border bg-surface-code p-4"
                   dangerouslySetInnerHTML={{ __html: selectedRevision.htmlContent }}
                 />
               ) : (

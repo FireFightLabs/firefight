@@ -85,33 +85,33 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "investigation.stopped": IconListSearch,
 }
 
-type DotAccent = "primary" | "emerald" | "amber" | "rose" | "violet" | "neutral"
+type DotAccent = "brand" | "success" | "warning" | "error" | "people" | "neutral"
 
 const eventAccent: Partial<Record<EventType, DotAccent>> = {
-  "incident.created": "primary",
-  "incident.resolved": "emerald",
-  "incident.reopened": "amber",
-  "incident.escalated": "rose",
-  "incident.escalation_nudged": "rose",
-  "incident.escalation_acknowledged": "emerald",
-  "lead.assigned": "violet",
-  "role.assigned": "violet",
+  "incident.created": "brand",
+  "incident.resolved": "success",
+  "incident.reopened": "warning",
+  "incident.escalated": "error",
+  "incident.escalation_nudged": "error",
+  "incident.escalation_acknowledged": "success",
+  "lead.assigned": "people",
+  "role.assigned": "people",
   "role.unassigned": "neutral",
-  "action.completed": "emerald",
-  "alert.attached": "amber",
-  "alert.resolved": "emerald",
-  "investigation.started": "primary",
-  "investigation.answered": "emerald",
-  "investigation.stopped": "amber",
+  "action.completed": "success",
+  "alert.attached": "warning",
+  "alert.resolved": "success",
+  "investigation.started": "brand",
+  "investigation.answered": "success",
+  "investigation.stopped": "warning",
 }
 
 const solidAccent: Record<DotAccent, string> = {
-  primary: "border-primary/50 bg-primary/8 text-primary",
-  emerald: "border-emerald-500/50 bg-emerald-500/8 text-emerald-600 dark:border-emerald-400/50 dark:bg-emerald-400/8 dark:text-emerald-400",
-  amber: "border-amber-500/50 bg-amber-500/8 text-amber-600 dark:border-amber-400/50 dark:bg-amber-400/8 dark:text-amber-400",
-  rose: "border-rose-500/50 bg-rose-500/8 text-rose-600 dark:border-rose-400/50 dark:bg-rose-400/8 dark:text-rose-400",
-  violet: "border-violet-500/50 bg-violet-500/8 text-violet-600 dark:border-violet-400/50 dark:bg-violet-400/8 dark:text-violet-400",
-  neutral: "border-border bg-card text-muted-foreground",
+  brand: "border-brand-border bg-brand-tint text-brand",
+  success: "border-success-border bg-success-tint text-success",
+  warning: "border-warning-border bg-warning-tint text-warning",
+  error: "border-error-border bg-error-tint text-error",
+  people: "border-stage-triage-border bg-stage-triage-tint text-stage-triage",
+  neutral: "border-border bg-card text-fg-muted",
 }
 
 const highlightEvents: EventType[] = [
@@ -197,12 +197,12 @@ function NoteStatement({ event }: { event: TimelineEvent }) {
       {person && (
         <Avatar className="size-5 shrink-0">
           {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt={person.name} /> : null}
-          <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
+          <AvatarFallback className="bg-avatar text-[10px] font-semibold text-avatar-foreground">
             {person.initials}
           </AvatarFallback>
         </Avatar>
       )}
-      <span className="font-medium text-foreground">{milestone.statement}</span>
+      <span className="font-medium text-fg-primary">{milestone.statement}</span>
     </span>
   )
 }
@@ -225,7 +225,7 @@ function EventSubject({ event }: { event: TimelineEvent }) {
         only={[OPEN_INVESTIGATION_PROP]}
         preserveScroll
         preserveState
-        className="font-medium text-foreground hover:underline"
+        className="font-medium text-fg-primary hover:underline"
       >
         {event.subject.label}
       </Link>
@@ -233,12 +233,12 @@ function EventSubject({ event }: { event: TimelineEvent }) {
   }
   if (event.subject.href) {
     return (
-      <Link href={event.subject.href} className="font-medium text-foreground hover:underline">
+      <Link href={event.subject.href} className="font-medium text-fg-primary hover:underline">
         {event.subject.label}
       </Link>
     )
   }
-  return <span className="font-medium text-foreground">{event.subject.label}</span>
+  return <span className="font-medium text-fg-primary">{event.subject.label}</span>
 }
 
 function ActionCard({ action }: { action: NonNullable<TimelineEvent["action"]> }) {
@@ -253,16 +253,16 @@ function ActionCard({ action }: { action: NonNullable<TimelineEvent["action"]> }
     <button
       type="button"
       onClick={reveal}
-      className="flex w-full flex-col gap-1.5 text-left transition-colors hover:text-foreground"
+      className="flex w-full flex-col gap-1.5 text-left transition-colors hover:text-fg-primary"
       title="Show this item in the sidebar"
     >
-      <span className="text-sm leading-relaxed text-foreground">{action.description}</span>
+      <span className="text-sm leading-relaxed text-fg-primary">{action.description}</span>
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className={`inline-flex items-center gap-1 ${statusColor}`}>
           <StatusIcon className="size-3.5" strokeWidth={1.75} />
           {actionStatusLabels[action.status]}
         </span>
-        <span className="text-muted-foreground/50">·</span>
+        <span className="text-fg-disabled">·</span>
         <ActorChip actor={action.assignee ?? undefined} fallback="Unassigned" />
       </span>
     </button>
@@ -282,7 +282,7 @@ function PinCard({ pin, withDivider }: { pin: NonNullable<TimelineEvent["pin"]>;
           href={pin.permalink}
           target="_blank"
           rel="noopener noreferrer"
-          className={`inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${pin.text ? "mt-2" : ""}`}
+          className={`inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-fg-primary ${pin.text ? "mt-2" : ""}`}
         >
           <IconExternalLink className="size-3.5" />
           Open in Slack
@@ -350,7 +350,7 @@ function EventRow({
         {/* The sentence wraps on its own. Time and actions sit outside it so a
             long note never pushes them onto a second line. */}
         <div className="flex flex-1 min-w-0 items-center gap-2 flex-wrap text-sm">
-          <span className={`font-medium ${highlight ? "text-foreground" : "text-foreground/95"}`}>
+          <span className={`font-medium ${highlight ? "text-fg-primary" : "text-fg-body"}`}>
             {event.actor}
           </span>
           <span className="text-muted-foreground">{event.description}</span>
@@ -358,7 +358,7 @@ function EventRow({
         </div>
 
         <span className="flex shrink-0 items-center gap-1">
-          <span className="text-xs tabular-nums text-muted-foreground/80">
+          <span className="text-xs tabular-nums text-fg-muted">
             {formatTime(event.createdAt)}
           </span>
           {dismissable && (
@@ -389,7 +389,7 @@ function DismissedNotes({ notes, connected }: { notes: TimelineEvent[]; connecte
       <button
         type="button"
         onClick={toggle}
-        className="ml-[44px] inline-flex items-center gap-1.5 text-xs text-muted-foreground/80 transition-colors hover:text-foreground"
+        className="ml-[44px] inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg-primary"
       >
         <Chevron className="size-3.5" />
         {notes.length === 1 ? "1 dismissed note" : `${notes.length} dismissed notes`}
@@ -400,10 +400,10 @@ function DismissedNotes({ notes, connected }: { notes: TimelineEvent[]; connecte
           {notes.map((note) => (
             <li
               key={note.id}
-              className="rounded-lg border border-dashed border-border px-3.5 py-2.5 text-sm text-muted-foreground/80"
+              className="rounded-lg border border-dashed border-border px-3.5 py-2.5 text-sm text-fg-muted"
             >
-              <p className="line-through decoration-muted-foreground/40">{note.milestone?.statement}</p>
-              <p className="mt-1 text-xs text-muted-foreground/70">
+              <p className="line-through decoration-border-control">{note.milestone?.statement}</p>
+              <p className="mt-1 text-xs text-fg-muted">
                 {note.milestone?.dismissedBy
                   ? `Dismissed by ${note.milestone.dismissedBy}`
                   : "Dismissed"}
@@ -460,7 +460,7 @@ export function IncidentTimeline({
           <li key={group.key} className="relative">
             <div className="relative flex items-center py-6">
               <div aria-hidden className="absolute left-[14px] top-0 bottom-0 w-px bg-border" />
-              <div aria-hidden className="relative z-10 ml-[7.5px] size-3.5 rounded-full border border-border bg-muted-foreground" />
+              <div aria-hidden className="relative z-10 ml-[7.5px] size-3.5 rounded-full border border-border bg-border-control" />
               <span className="ml-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                 {group.date}
               </span>

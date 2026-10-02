@@ -98,7 +98,7 @@ export default function AgentsPage() {
           {agents.length === 0 ? (
             <CardContent>
               <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <IconRobot className="size-7 text-muted-foreground/40" aria-hidden />
+                <IconRobot className="size-7 text-fg-disabled" aria-hidden />
                 <p className="text-sm text-muted-foreground">
                   No agents yet. Create one to let an AI take part in incidents.
                 </p>
@@ -124,12 +124,12 @@ export default function AgentsPage() {
                         <span className="font-medium text-foreground">{agent.name}</span>
                         <span className="block font-mono text-xs text-muted-foreground">{agent.slug}</span>
                         {agent.description && (
-                          <span className="block text-xs text-muted-foreground/80">{agent.description}</span>
+                          <span className="block text-xs text-fg-muted">{agent.description}</span>
                         )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {agent.grantCount === 0 ? (
-                          <span className="text-xs text-amber-600 dark:text-amber-400">
+                          <span className="text-xs text-warning">
                             None granted, so it can do nothing
                           </span>
                         ) : (
@@ -150,7 +150,7 @@ export default function AgentsPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         {agent.tokens.length === 0 ? (
-                          <Badge variant="outline" className="text-amber-600 dark:text-amber-400">
+                          <Badge variant="outline" className="text-warning">
                             No token
                           </Badge>
                         ) : agent.enabled ? (

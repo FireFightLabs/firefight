@@ -77,7 +77,7 @@ function CodeBlock({ node: _node, ...props }: Rendered<"pre">) {
   }
 
   return (
-    <div className="group/code not-prose relative my-3 overflow-hidden rounded-card bg-inset shadow-hairline">
+    <div className="group/code not-prose relative my-3 overflow-hidden rounded-card bg-surface-code shadow-hairline">
       <pre
         ref={block}
         {...props}

@@ -22,13 +22,13 @@ export function AttributeValue({
   workspaceMembers: WorkspaceMember[]
 }) {
   if (value === null || value === undefined || value === "") {
-    return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
+    return <span className="text-sm text-fg-disabled italic">Not set</span>
   }
 
   if (attr.attributeType === "boolean") {
     return value ? (
       <div className="flex items-center gap-1.5">
-        <IconCircleCheck className="size-4 text-emerald-500" />
+        <IconCircleCheck className="size-4 text-success" />
         <span className="text-sm">Yes</span>
       </div>
     ) : (
@@ -85,7 +85,7 @@ export function AttributeValue({
   if (attr.attributeType === "workspace_member") {
     const member = workspaceMembers.find((candidate) => candidate.id === String(value))
     if (!member) {
-      return <span className="text-sm text-muted-foreground/40 italic">Not set</span>
+      return <span className="text-sm text-fg-disabled italic">Not set</span>
     }
     return (
       <div className="flex items-center gap-1.5">

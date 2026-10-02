@@ -5,7 +5,7 @@ import { settingsAlertRoutingPath } from "@/lib/routes"
 
 export function MatchedRuleCell({ alert }: { alert: AlertSettings }) {
   if (!alert.matchedRulePriority) {
-    return <span className="text-xs text-muted-foreground/40">–</span>
+    return <span className="text-xs text-fg-disabled">–</span>
   }
 
   const routingUrl = alert.matchedRuleSourceId
@@ -15,7 +15,7 @@ export function MatchedRuleCell({ alert }: { alert: AlertSettings }) {
   return (
     <Link href={routingUrl} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
       Rule {alert.matchedRulePriority}
-      {!alert.matchedRuleSourceId && <span className="text-muted-foreground/60"> (default)</span>}
+      {!alert.matchedRuleSourceId && <span className="text-fg-muted"> (default)</span>}
     </Link>
   )
 }

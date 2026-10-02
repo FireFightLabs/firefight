@@ -16,7 +16,7 @@ module Mcp
       }.freeze
 
       COLOR_PROPERTY = {
-        color: { type: "string", description: "Hex color like #e5484d, used on the badge" }
+        color: { type: "string", description: "Hex color like #F05653, used on the badge" }
       }.freeze
 
       DEFAULT_PROPERTY = {

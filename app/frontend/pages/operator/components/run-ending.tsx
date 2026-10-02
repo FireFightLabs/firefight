@@ -12,10 +12,10 @@ export const ENDING_LABELS: Record<Ending, string> = {
 }
 
 export const ENDING_TONES: Record<Ending, Tone> = {
-  [OPERATOR_HALON_ENDINGS.ANSWERED]: "emerald",
-  [OPERATOR_HALON_ENDINGS.STOPPED]: "amber",
-  [OPERATOR_HALON_ENDINGS.FAILED]: "rose",
-  [OPERATOR_HALON_ENDINGS.LIVE]: "primary",
+  [OPERATOR_HALON_ENDINGS.ANSWERED]: "success",
+  [OPERATOR_HALON_ENDINGS.STOPPED]: "warning",
+  [OPERATOR_HALON_ENDINGS.FAILED]: "error",
+  [OPERATOR_HALON_ENDINGS.LIVE]: "active",
 }
 
 export function RunEnding({ ending }: { ending: Ending }) {

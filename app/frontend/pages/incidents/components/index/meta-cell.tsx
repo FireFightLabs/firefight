@@ -9,10 +9,10 @@ export function MetaCell({
 }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/70">
+      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
         {label}
       </div>
-      <div className="mt-1.5 text-sm text-foreground truncate">{children}</div>
+      <div className="mt-1.5 text-sm text-fg-primary truncate">{children}</div>
     </div>
   )
 }

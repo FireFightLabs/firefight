@@ -12,7 +12,7 @@ const SECTIONS: { headingWidth: string; lineWidths: string[] }[] = [
 export function PostmortemGeneratingSkeleton() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 lg:px-6">
-      <div className="mb-12 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+      <div className="mb-12 inline-flex items-center gap-2 rounded-full border border-brand-border bg-brand-tint px-3 py-1.5 text-xs font-medium text-brand">
         <IconSparkles className="size-3.5 animate-pulse" />
         Generating postmortem with AI · this usually takes under a minute
       </div>

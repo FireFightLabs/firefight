@@ -177,7 +177,7 @@ function SyncedLine({ resources, connections }: Pick<MapPageProps, "resources" |
 
   return (
     <span className="flex items-center gap-2 text-sm text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-emerald-400" />
+      <span className="size-1.5 rounded-full bg-success" />
       Synced {timeAgo(latest)} from {accounts} {accounts === 1 ? "account" : "accounts"}
     </span>
   )

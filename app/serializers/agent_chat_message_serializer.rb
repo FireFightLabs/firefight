@@ -18,7 +18,7 @@ class AgentChatMessageSerializer < BaseSerializer
       step = Chat::Tools.step(call.name, call.arguments)
       next unless step
 
-      status = self.class.step_status(call)
+      status = self.class.step_status(call, calls)
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
         status: status, kind: Chat::Tools.kind(call.name, workspace),
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
@@ -45,10 +45,15 @@ class AgentChatMessageSerializer < BaseSerializer
     Chat::APPROVAL_DENIED => Conversation::LiveDelivery::STATUS_CANCELLED
   }.freeze
 
-  def self.step_status(call)
+  # An approved call has not run while another asked with it is still open, since the turn resumes only once every
+  # question is answered. It waits until then rather than spinning.
+  def self.step_status(call, asked_with = [])
     STEP_STATUS_BY_APPROVAL.fetch(call.approval) do
       next Conversation::LiveDelivery::STATUS_FAILED if call.failed
-      call.result_id.present? ? Conversation::LiveDelivery::STATUS_DONE : Conversation::LiveDelivery::STATUS_RUNNING
+      next Conversation::LiveDelivery::STATUS_DONE if call.result_id.present?
+      next Conversation::LiveDelivery::STATUS_WAITING if asked_with.any? { |other| other.approval == Chat::APPROVAL_REQUESTED }
+
+      Conversation::LiveDelivery::STATUS_RUNNING
     end
   end
 end
