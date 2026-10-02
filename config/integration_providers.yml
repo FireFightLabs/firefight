@@ -71,7 +71,7 @@ providers:
     category: Telemetry
     mark: NF
     color: "#0aa4d8"
-    description: Logs, metrics and builds of the services and databases in a Northflank project, with a read-only API token.
+    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when the API token's role allows it.
     server_url: ""
     kind: native
     connect_with: api_token

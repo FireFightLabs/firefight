@@ -1,0 +1,36 @@
+require "test_helper"
+
+module Integrations
+  module ReadGuards
+    class CloudflareTest < ActiveSupport::TestCase
+      test "a read is taken as data and Firefight writes the script, every value a JSON literal" do
+        sent = Cloudflare.reading("execute", "method" => "get", "path" => "/zones/abc/dns_records", "query" => { "name" => "\"}); x(" },
+                                             "account_id" => "acc")
+
+        assert_equal 'async () => cloudflare.request({"method":"GET","path":"/zones/abc/dns_records","query":{"name":"\\"}); x("}})', sent["code"]
+        assert_equal "acc", sent["account_id"]
+      end
+
+      test "a GraphQL Analytics query is sent as a POST to /graphql, with its variables" do
+        sent = Cloudflare.reading("execute", "method" => "POST", "path" => "/graphql", "graphql" => "{ viewer { zones { zoneTag } } }",
+                                             "variables" => { "zone" => "abc" })["code"]
+
+        assert_includes sent, '{"method":"POST","path":"/graphql","body":{"query":"{ viewer { zones { zoneTag } } }","variables":{"zone":"abc"}}}'
+      end
+
+      test "anything that is not one read is refused before anything is sent" do
+        [
+          { "method" => "DELETE", "path" => "/zones/abc" },
+          { "method" => "POST", "path" => "/zones/abc/purge_cache" },
+          { "method" => "POST", "path" => "/graphql", "graphql" => "mutation { x }" },
+          { "method" => "GET", "path" => "/zones/../accounts" },
+          { "method" => "GET", "path" => "zones" },
+          { "method" => "GET", "path" => "/zones", "query" => "per_page=5" },
+          { "code" => "async () => cloudflare.request({ method: 'DELETE', path: '/zones/abc' })" }
+        ].each do |arguments|
+          assert_raises(Refused, arguments.inspect) { Cloudflare.reading("execute", arguments) }
+        end
+      end
+    end
+  end
+end
