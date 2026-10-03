@@ -606,7 +606,8 @@ export const LEDGER_SOURCES = [
   "web",
   "investigation",
   "conversation",
-  "map_sweep"
+  "map_sweep",
+  "code_agent"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 
