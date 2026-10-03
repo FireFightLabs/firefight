@@ -675,7 +675,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     grant!(execute)
     connection = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "cloudflare_execute" }.tool
 
-    assert_equal %w[method path query graphql variables account_id environment], connection.parameters_schema["properties"].keys
+    assert_equal %w[method path query graphql variables body account_id environment], connection.parameters_schema["properties"].keys
     Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => 'async () => cloudflare.request({"method":"GET","path":"/zones"})' } }
                              .returns("content" => [ { "type" => "text", "text" => "[]" } ])
     connection.call(method: "GET", path: "/zones")

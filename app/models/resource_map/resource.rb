@@ -20,6 +20,15 @@ class ResourceMap::Resource < ApplicationRecord
   # The same identity a sweep's ResourceMap::Found carries.
   def key = [ provider, account, kind, external_id ]
 
+  # Every enabled connection row that reports this resource, the one that reported it last first. A row of a connection
+  # that is switched off or removed, or wired to an environment that was deleted, reaches nothing.
+  def holders
+    ids = [ integration_environment_id, *sightings.to_h.keys ].compact.map(&:to_s).uniq
+    rows = IntegrationEnvironment.enabled.joins(:integration).includes(:integration, :environment)
+                                 .where(id: ids, integrations: { workspace_id: workspace_id, disabled_at: nil, deleted_at: nil }).index_by { |row| row.id.to_s }
+    rows.values_at(*ids).compact.select { |row| row.catalog_entry_id.nil? || row.environment&.deleted_at.nil? }
+  end
+
   # The provider's own page for the first of places, each a kind and an id, that is on the map with one. nil when none is.
   def self.page_of(workspace, provider:, account:, places:)
     found = present.where(workspace: workspace, provider: provider, account: account)

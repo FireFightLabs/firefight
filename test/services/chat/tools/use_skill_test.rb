@@ -49,8 +49,8 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
 
     answer = use_skill.call("skill" => "northflank_resources")
 
-    assert_includes answer, "Call `northflank_describe_resource` for the plan"
-    assert_equal %w[northflank_describe_resource northflank_list_containers northflank_query_metrics northflank_search_logs], @offered.flatten.map(&:name).sort
+    assert_includes answer, "Call `resource_status` for the plan"
+    assert_equal %w[northflank_list_containers query_metrics resource_status search_logs], @offered.flatten.map(&:name).sort
   end
 
   test "a provider's tool that is not switched on is named, so the agent says why a step cannot run" do
@@ -59,6 +59,14 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     answer = use_skill.call("skill" => "northflank_resources")
 
     assert_includes answer, "search_logs is not switched on for Northflank in this workspace"
+  end
+
+  test "a capability a skill names is said missing by the provider tool an admin would switch on" do
+    connect_northflank(%w[query_metrics list_containers search_logs])
+
+    answer = use_skill.call("skill" => "northflank_resources")
+
+    assert_includes answer, "describe_resource is not switched on for Northflank in this workspace"
   end
 
   test "a skill names the guides it has, and reading one hands over the provider's text with a note on what can run" do

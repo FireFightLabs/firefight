@@ -224,8 +224,12 @@ module Chat::Tools
     end
   end
 
+  # The workspace's tools and the principal's grants are read once, since both lists need them.
   def self.catalog(agent_run)
-    firefight_entries(agent_run) + connection_entries(agent_run)
+    tools = Integration::Tool.in_workspace(agent_run.workspace).to_a
+    resolved = agent_run.acting_principal && granted(agent_run)
+    firefight_entries(agent_run) + capability_entries(agent_run, tools: tools, resolved: resolved) +
+      connection_entries(agent_run, tools: tools, resolved: resolved)
   end
 
   def self.firefight_entries(agent_run)
@@ -248,11 +252,13 @@ module Chat::Tools
     end
   end
 
-  def self.connection_entries(agent_run)
+  def self.connection_entries(agent_run, tools: Integration::Tool.in_workspace(agent_run.workspace).to_a, resolved: nil)
     principal = agent_run.acting_principal
-    resolved = principal && granted(agent_run)
+    resolved ||= principal && granted(agent_run)
 
-    Integration::Tool.in_workspace(agent_run.workspace).map do |tool|
+    # A provider tool a capability answers one to one is reached through the capability, so it is not offered twice,
+    # and a connection tool that happens to share a capability's name is left out rather than shadowing it.
+    tools.reject { |tool| Integrations::Capabilities.wrapped?(tool) || Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }.map do |tool|
       writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
@@ -260,6 +266,24 @@ module Chat::Tools
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name
+      )
+    end
+  end
+
+  # One entry per capability some connection in the workspace can answer. It is ready when the principal may call at
+  # least one tool it would run as, and the gateway still decides each call.
+  def self.capability_entries(agent_run, tools: Integration::Tool.in_workspace(agent_run.workspace).to_a, resolved: nil)
+    principal = agent_run.acting_principal
+    resolved ||= principal && granted(agent_run)
+
+    Integrations::Capabilities.offered(agent_run.workspace, tools: tools).map do |spec, able|
+      writes = agent_run.reads_only? && spec.writes
+      ready = !writes && principal.present? && able.any? { |tool| tool.callable_by?(principal, resolved) }
+      Entry.new(
+        name: spec.tool_name, description: clean(spec.description, ONE_LINE),
+        state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
+        tool: (Capability.new(agent_run, spec, able) if ready),
+        group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: spec.tool_name
       )
     end
   end

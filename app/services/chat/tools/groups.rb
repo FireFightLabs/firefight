@@ -10,6 +10,8 @@ module Chat::Tools::Groups
   SETUP = "workspace_setup".freeze
   PERMISSIONS = "permissions".freeze
   ACCESS = "machine_access".freeze
+  # The capabilities, which answer for anything on the resource map whichever provider holds it.
+  RESOURCES = "resources".freeze
 
   # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation.
   NOT_FOR_HALON = [ Mcp::Tools::ASK_HALON, Mcp::Tools::START_INVESTIGATION ].freeze
@@ -138,7 +140,16 @@ module Chat::Tools::Groups
     entries = Chat::Tools.catalog(agent_run).group_by(&:group)
     integrations = agent_run.workspace.integrations.active.to_a
 
-    firefight_views(entries) + category_views(entries, integrations) + connection_views(entries, integrations)
+    firefight_views(entries) + resource_views(entries) + category_views(entries, integrations) + connection_views(entries, integrations)
+  end
+
+  def self.resource_views(entries)
+    found = entries.fetch(RESOURCES, [])
+    return [] if found.empty?
+
+    [ View.new(key: RESOURCES, title: "Anything on the resource map",
+               covers: "#{found.map(&:name).join(', ')}, for a service, database, Worker or site by its name on the map, whichever connection runs it",
+               entries: found) ]
   end
 
   def self.firefight_views(entries)

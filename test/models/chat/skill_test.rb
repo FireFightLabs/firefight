@@ -58,9 +58,14 @@ class Chat::SkillTest < ActiveSupport::TestCase
       pack = Integrations::NativePack.for(skill.source)
       next unless pack
 
+      # A skill can name the capabilities that answer for the provider's resources, with their parameters.
+      adapter = Integrations::Capabilities.adapter_for(skill.source)
+      capabilities = Integrations::Capabilities::SPECS.values.select { |spec| adapter&.const_get(:TOOLS)&.key?(spec.key) }.index_by(&:tool_name)
       definitions = pack.tool_definitions.index_by(&:name)
-      skill.tools.each { |tool| assert_includes definitions.keys, tool, "#{skill.name} names #{tool}" }
-      known = skill.tools + skill.tools.flat_map { |tool| definitions.fetch(tool).params_schema.fetch("properties", {}).keys }
+      skill.tools.each { |tool| assert_includes definitions.keys + capabilities.keys, tool, "#{skill.name} names #{tool}" }
+      known = skill.tools + skill.tools.flat_map do |tool|
+        capabilities[tool] ? Integrations::Capabilities.schema(capabilities[tool], []).fetch("properties").keys : definitions.fetch(tool).params_schema.fetch("properties", {}).keys
+      end
       skill.steps.scan(/`([^`]+)`/).flatten.each do |name|
         assert_includes known, name, "#{skill.name} sets #{name} in code, which none of its tools or their parameters has"
       end
