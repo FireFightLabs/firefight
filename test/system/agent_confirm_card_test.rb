@@ -25,8 +25,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     answer("set_1", "Cancel")
     answer("set_2", "Confirm")
 
-    assert_text "Sent"
-    assert_equal [ Chat::APPROVAL_DENIED, Chat::APPROVAL_APPROVED, Chat::APPROVAL_APPROVED ], approvals
+    assert_decided [ Chat::APPROVAL_DENIED, Chat::APPROVAL_APPROVED, Chat::APPROVAL_APPROVED ]
   end
 
   test "allowing a tool for the rest of the chat answers every question about it" do
@@ -35,8 +34,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
 
     click_button "Allow for the rest of this chat"
 
-    assert_text "Sent"
-    assert_equal [ Chat::APPROVAL_APPROVED ] * 2, approvals
+    assert_decided [ Chat::APPROVAL_APPROVED ] * 2
     assert @chat.reload.allows_tool?("delete_permission_set")
   end
 
@@ -62,4 +60,13 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
   end
 
   def approvals = @chat.tool_calls.where(tool_call_id: @ids).order(:tool_call_id).pluck(:approval)
+
+  # The card shows Sent only until the server answers and the chat moves on, which can be before a check sees it. What
+  # lasts is the decisions saved, so the test waits for those.
+  def assert_decided(expected)
+    page.document.synchronize do
+      raise Capybara::ExpectationNotMet, "decisions are #{approvals.inspect}" unless approvals == expected
+    end
+    assert_equal expected, approvals
+  end
 end
