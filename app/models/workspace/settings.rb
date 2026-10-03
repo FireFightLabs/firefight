@@ -2,7 +2,7 @@
 module Workspace::Settings
   extend ActiveSupport::Concern
 
-  KEYS = %i[transcript_access_enabled transcript_retention_days archive_channel_delay].freeze
+  KEYS = %i[transcript_access_enabled transcript_retention_days archive_channel_delay halon_regression_enabled].freeze
 
   def settings
     KEYS.index_with { |key| public_send(key) }

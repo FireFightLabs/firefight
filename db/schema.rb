@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1123,6 +1123,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
     t.index ["investigation_id"], name: "index_investigation_hypotheses_on_investigation_id"
   end
 
+  create_table "investigation_regression_results", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "answer"
+    t.datetime "created_at", null: false
+    t.string "expected", null: false
+    t.uuid "finding_id", null: false
+    t.datetime "finished_at"
+    t.text "reason"
+    t.uuid "regression_run_id", null: false
+    t.uuid "replay_id"
+    t.bigint "spent_micros", default: 0, null: false
+    t.datetime "started_at"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["finding_id"], name: "index_investigation_regression_results_on_finding_id"
+    t.index ["regression_run_id", "finding_id"], name: "idx_on_regression_run_id_finding_id_08496589b0", unique: true
+    t.index ["regression_run_id"], name: "index_investigation_regression_results_on_regression_run_id"
+    t.index ["replay_id"], name: "index_investigation_regression_results_on_replay_id"
+  end
+
+  create_table "investigation_regression_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "finished_at"
+    t.string "model"
+    t.string "prompt_version", null: false
+    t.string "provider"
+    t.uuid "started_by_id"
+    t.string "status", default: "running", null: false
+    t.string "trigger", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_investigation_regression_runs_on_created_at"
+    t.index ["prompt_version"], name: "index_regression_runs_one_per_prompt_change", unique: true, where: "((trigger)::text = 'prompt_change'::text)"
+    t.index ["started_by_id"], name: "index_investigation_regression_runs_on_started_by_id"
+  end
+
   create_table "investigation_remediation_plans", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "applied_from"
     t.datetime "approved_at"
@@ -1787,6 +1821,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
     t.datetime "created_at", null: false
     t.datetime "disconnected_at"
     t.string "disconnected_reason"
+    t.boolean "halon_regression_enabled", default: false, null: false
     t.string "incidents_channel_id"
     t.datetime "installed_at", null: false
     t.integer "investigation_max_spend_cents"
@@ -1924,6 +1959,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
   add_foreign_key "investigation_findings", "investigations"
   add_foreign_key "investigation_hypotheses", "catalog_entries"
   add_foreign_key "investigation_hypotheses", "investigations"
+  add_foreign_key "investigation_regression_results", "investigation_findings", column: "finding_id", on_delete: :cascade
+  add_foreign_key "investigation_regression_results", "investigation_regression_runs", column: "regression_run_id", on_delete: :cascade
+  add_foreign_key "investigation_regression_results", "investigations", column: "replay_id", on_delete: :nullify
+  add_foreign_key "investigation_regression_runs", "users", column: "started_by_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_plans", "investigation_findings", column: "finding_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_plans", "investigation_remediation_plans", column: "undoes_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "approved_by_id", on_delete: :nullify

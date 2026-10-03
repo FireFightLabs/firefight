@@ -78,13 +78,21 @@ module FirefightAi
 
   # A model whose price the registry does not know is billed at zero, so nothing stops a run that uses it.
   def priced?(model_id)
-    model = RubyLLM.models.all.find { |candidate| candidate.id == model_id.to_s }
+    priced_model?(RubyLLM.models.all.find { |candidate| candidate.id == model_id.to_s })
+  end
+
+  def priced_model?(model)
     return false unless model
 
     text = model.pricing.text_tokens
     text.input.to_f.positive? && text.output.to_f.positive?
   rescue StandardError
     false
+  end
+
+  # The chat models a run can be told to use, those the registry can price, so a run on one is never billed at zero.
+  def priced_chat_models
+    RubyLLM.models.chat_models.select { |model| priced_model?(model) }
   end
 
   # What a call cost in millionths of a dollar, from the registry's price per million tokens. Zero for a model it

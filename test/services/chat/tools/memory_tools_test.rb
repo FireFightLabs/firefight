@@ -77,6 +77,17 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_UNCONFIRMED, memory("Checkout runs in Frankfurt").state
   end
 
+  test "a rehearsal reads memory, but is never offered a way to change it and never counts a use" do
+    rehearsal = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true,
+                                                  max_turns: 10, max_spend_cents: 400)
+    memory = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
+
+    assert_equal [ Chat::Tools::Recall ], Chat::Tools.memory(rehearsal).map(&:class)
+    assert_match "Deploys happen from main", Chat::Tools::Recall.new(rehearsal).call("words" => "deploys")
+    assert_equal 0, memory.reload.use_count
+    assert_equal [ Chat::Tools::Remember, Chat::Tools::Recall, Chat::Tools::DisputeMemory ], Chat::Tools.memory(@turn).map(&:class)
+  end
+
   test "anything that looks like a secret is never remembered" do
     answer = Chat::Tools::Remember.new(@turn).call("fact" => "Prod is postgres://app:hunter2@db.internal:5432/app")
 

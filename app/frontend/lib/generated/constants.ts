@@ -482,6 +482,29 @@ export const OPERATOR_HALON_ENDINGS = {
   "LIVE": "live"
 } as const
 
+export const OPERATOR_REGRESSION_CASE_STATUSES = {
+  "PENDING": "pending",
+  "PASSED": "passed",
+  "FAILED": "failed",
+  "ERRORED": "errored",
+  "SKIPPED": "skipped"
+} as const
+
+export const OPERATOR_REGRESSION_EXPECTED = {
+  "CONFIRMED": "confirmed",
+  "WRONG": "wrong"
+} as const
+
+export const OPERATOR_REGRESSION_TRIGGERS = {
+  "PROMPT_CHANGE": "prompt_change",
+  "OPERATOR": "operator"
+} as const
+
+export const OPERATOR_REGRESSION_RUN_STATUSES = {
+  "RUNNING": "running",
+  "FINISHED": "finished"
+} as const
+
 export const OPERATOR_TRACE_KINDS = {
   "JOB": "job",
   "FACTS": "facts",

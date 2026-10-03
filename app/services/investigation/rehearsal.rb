@@ -14,12 +14,14 @@ class Investigation::Rehearsal
   end
 
   class << self
-    def replay!(original, model: nil, provider: nil)
+    # started is given the replay before it runs, so a caller can keep hold of it even if the run raises.
+    def replay!(original, model: nil, provider: nil, started: nil)
       run = rehearse!(
         original.workspace, original.subject, replay_of: original, seed_pack: original.seed_pack, brief: original.brief,
         max_turns: original.max_turns, max_spend_cents: original.max_spend_cents, model: model, provider: provider
       )
       copy_steps_before_the_loop(original, run)
+      started&.call(run)
       finish(run)
     end
 

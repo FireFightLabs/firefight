@@ -115,8 +115,10 @@ module Operator
 
     def finished_runs = @runs.where.not(completed_at: nil)
 
+    # Rehearsals are measurement, not Halon at work, so their model calls are left out like their runs.
     def inferences
-      @filter.scope(Inference.where(feature: HalonRuns::FEATURES, created_at: @filter.range))
+      rehearsed = Inference.where(inferable_type: Investigation.name, inferable_id: Investigation.where(rehearsal: true).select(:id)).select(:id)
+      @filter.scope(Inference.where(feature: HalonRuns::FEATURES, created_at: @filter.range).where.not(id: rehearsed))
     end
 
     def chat_turns

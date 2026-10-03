@@ -89,6 +89,7 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
 
     body = Mcp::Tools::GetWorkspaceConfig.perform_with_principal(workspace: @workspace, principal: @admin, args: {}).structured_content
 
-    assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay }, body[:settings])
+    assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay,
+                   halon_regression_enabled: false }, body[:settings])
   end
 end

@@ -14,8 +14,8 @@ export function useAction() {
     setBusy(false)
   }
 
-  function post(url: string) {
-    router.post(url, {}, { preserveScroll: true, onStart: start, onFinish: finish })
+  function post(url: string, data: Record<string, string | null> = {}) {
+    router.post(url, data, { preserveScroll: true, onStart: start, onFinish: finish })
   }
 
   return { busy, post }

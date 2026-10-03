@@ -88,7 +88,12 @@ module Chat::Tools
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
   }.freeze
 
-  def self.memory(agent_run) = [ Remember.new(agent_run), Recall.new(agent_run), DisputeMemory.new(agent_run) ]
+  # A run that only measures Halon reads memory and never changes it, so nothing it does reaches the Memory page.
+  def self.memory(agent_run)
+    return [ Recall.new(agent_run) ] unless agent_run.changes_memory?
+
+    [ Remember.new(agent_run), Recall.new(agent_run), DisputeMemory.new(agent_run) ]
+  end
 
   # How the agent writes and finds its way, not what it looked at, so a reader is never shown them.
   def self.internal_names
