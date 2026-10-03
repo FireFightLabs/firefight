@@ -35,13 +35,13 @@ export function ProviderAbout({ provider, onClose }: { provider: IntegrationProv
               {provider.onMap && (
                 <div className="flex flex-col gap-1">
                   <dt className="text-fg-primary font-medium">On the map</dt>
-                  <dd className="text-fg-body">What {provider.name} runs is read onto the map every day, with how it connects to everything else.</dd>
+                  <dd className="text-fg-body">What {provider.name} holds is kept current on the map, with how it connects to everything else.</dd>
                 </div>
               )}
               <div className="flex flex-col gap-1">
                 <dt className="text-fg-primary font-medium">What it may change</dt>
                 <dd className="text-fg-body">
-                  Only the tools you switch on are used. A tool that changes something follows your permissions and approval
+                  Halon only uses the tools you switch on. A tool that changes something follows your permissions and approval
                   rules, and an investigation only reads.
                 </dd>
               </div>

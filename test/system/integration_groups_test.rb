@@ -19,10 +19,8 @@ class IntegrationGroupsTest < ApplicationSystemTestCase
       assert_text "Cloud and hosting"
       assert_text "Halon can read its logs"
       assert_text "roll a resource back, restart a service, and scale a service"
-      assert_text "What Northflank runs is read onto the map"
+      assert_text "What Northflank holds is kept current on the map"
     end
-    sleep 0.6
-    page.save_screenshot(Rails.root.join("tmp/screenshots/integration-about.png"))
     find("body").send_keys(:escape)
 
     find("button[aria-label='About Datadog']").click
