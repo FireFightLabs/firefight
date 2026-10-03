@@ -28,6 +28,7 @@ export default function Workspace() {
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
   const [webSearch, setWebSearch] = useState(settings.webSearchEnabled)
+  const [regression, setRegression] = useState(settings.halonRegressionEnabled)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
 
@@ -56,6 +57,7 @@ export default function Workspace() {
         transcript_retention_days: retention,
         archive_channel_delay: archiveDelay,
         web_search_enabled: webSearch,
+        halon_regression_enabled: regression,
       },
       { preserveScroll: true, onSuccess: succeed, onError: fail, onFinish: finish },
     )
@@ -172,7 +174,7 @@ export default function Workspace() {
             <CardTitle>Halon</CardTitle>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="flex flex-col gap-6">
             <div className="flex items-start justify-between gap-6">
               <div className="max-w-prose">
                 <Label htmlFor="web-search" className="text-foreground">
@@ -186,6 +188,21 @@ export default function Workspace() {
                 </p>
               </div>
               <Switch id="web-search" checked={webSearch} onCheckedChange={setWebSearch} />
+            </div>
+
+            <div className="flex items-start justify-between gap-6">
+              <div className="max-w-prose">
+                <Label htmlFor="halon-regression" className="text-foreground">
+                  Let Firefight test Halon on your rated answers
+                </Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Off by default. When this is on, Firefight replays Halon&apos;s past investigations whose answer
+                  your team confirmed or marked wrong, to check that a new version of Halon still gets them right.
+                  A replay uses only what Halon read at the time, so it reads nothing new from your systems and posts
+                  nothing. Only Firefight&apos;s staff see the results. Turn it off and none are replayed again.
+                </p>
+              </div>
+              <Switch id="halon-regression" checked={regression} onCheckedChange={setRegression} />
             </div>
           </CardContent>
         </Card>

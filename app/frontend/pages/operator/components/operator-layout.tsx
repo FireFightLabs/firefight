@@ -8,6 +8,7 @@ import {
   IconMessages,
   IconSearch,
   IconSparkles,
+  IconTargetArrow,
   IconStack2,
   type Icon,
 } from "@tabler/icons-react"
@@ -24,6 +25,7 @@ import {
   operatorFindPath,
   operatorHalonChatsPath,
   operatorHalonPath,
+  operatorHalonRegressionsPath,
   operatorIncidentsPath,
   operatorJobsPath,
   operatorRootPath,
@@ -62,8 +64,9 @@ const SECTIONS: NavSection[] = [
   {
     title: "Halon",
     items: [
-      { title: "Runs and health", href: operatorHalonPath(), icon: IconSparkles, except: [operatorHalonChatsPath()] },
+      { title: "Runs and health", href: operatorHalonPath(), icon: IconSparkles, except: [operatorHalonChatsPath(), operatorHalonRegressionsPath()] },
       { title: "Chats", href: operatorHalonChatsPath(), icon: IconMessages },
+      { title: "Regression", href: operatorHalonRegressionsPath(), icon: IconTargetArrow },
     ],
   },
 ]

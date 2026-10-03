@@ -32,9 +32,11 @@ class Operator::HalonHealthTest < ActiveSupport::TestCase
     before = Operator::HalonHealth.new(@filter).totals
     run!(status: Investigation::STATUS_SUCCEEDED, started_at: 90.seconds.ago, completed_at: Time.current, spent_micros: 1_320_000)
     run!(status: Investigation::STATUS_FAILED, error_summary: Investigation::TOO_MANY_TURNS)
-    run!(status: Investigation::STATUS_SUCCEEDED, rehearsal: true)
+    rehearsal = run!(status: Investigation::STATUS_SUCCEEDED, rehearsal: true)
     Inference.create!(workspace: @workspace, feature: FirefightAi::Investigator::FEATURE, provider: "anthropic", model: "claude",
                       status: Inference::STATUS_SUCCESS, cost_micros: 60_000)
+    Inference.create!(workspace: @workspace, feature: FirefightAi::Investigator::FEATURE, provider: "anthropic", model: "claude",
+                      status: Inference::STATUS_SUCCESS, cost_micros: 900_000, inferable: rehearsal)
 
     totals = Operator::HalonHealth.new(@filter).totals
 

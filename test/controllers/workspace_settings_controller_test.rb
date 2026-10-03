@@ -18,6 +18,15 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.transcript_access_blocked_reason
   end
 
+  test "Firefight tests Halon on a workspace's rated answers only once someone turns it on" do
+    assert_not @workspace.halon_regression_enabled
+
+    patch settings_workspace_path, params: { halon_regression_enabled: true }
+
+    assert_redirected_to settings_workspace_path
+    assert @workspace.reload.halon_regression_enabled
+  end
+
   # A blank retention is a choice, so it stores as keep forever rather than falling back to the default.
   test "clearing the retention keeps conversations for good" do
     patch settings_workspace_path, params: { transcript_retention_days: "" }

@@ -14,6 +14,8 @@ class Conversation::Turn
   # A chat may change things, each one confirmed by the person who asked.
   def reads_only? = false
 
+  def changes_memory? = true
+
   # A turn's chat with the model is its conversation's.
   def chat_owner = conversation
 

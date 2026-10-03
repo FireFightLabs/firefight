@@ -394,6 +394,7 @@ Rails.application.routes.draw do
     get "halon", to: "halon#show", as: :halon
     resources :halon_runs, path: "halon/runs", only: :show
     resources :halon_chats, path: "halon/chats", only: %i[index show]
+    resources :halon_regressions, path: "halon/regression", only: %i[index show create]
   end
 
   # Targets for `config.exceptions_app`.

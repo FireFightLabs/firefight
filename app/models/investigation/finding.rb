@@ -28,6 +28,16 @@ class Investigation::Finding < ApplicationRecord
 
   validates :published_state, inclusion: { in: STATES }
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true
+
+  # Answers the team stood by or marked wrong, in workspaces that let Firefight test Halon on them. Only a run that
+  # finished can be replayed, since a replay answers every call from what the run read.
+  scope :regression_cases, lambda {
+    joins(investigation: :workspace)
+      .where(outcome: [ OUTCOME_CONFIRMED, OUTCOME_WRONG ], workspaces: { halon_regression_enabled: true })
+      .where(investigations: { rehearsal: false, status: Investigation::STATUS_SUCCEEDED })
+      .where.not(summary: [ nil, "" ])
+      .order(outcome_at: :desc)
+  }
   validates :confidence,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }, allow_nil: true
 

@@ -171,6 +171,9 @@ class Investigation < ApplicationRecord
   # only when each call can be shown to read.
   def reads_only? = true
 
+  # A rehearsal is measurement nobody in the workspace sees, so it reads memory and never saves, disputes or counts one.
+  def changes_memory? = !rehearsal?
+
   # A run writes what it learned, and disputes what a result contradicted, as the agent. It never vouches for a fact,
   # so there is no person's authority to check.
   def memory_change(_crud_action, params:, tool_name:) = yield

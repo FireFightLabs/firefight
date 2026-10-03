@@ -18,6 +18,12 @@ module Operator
       "This workflow has already finished." unless workflow.pending? || workflow.running? || workflow.paused?
     end
 
+    def self.regression_blocked_reason
+      return "No workspace has a rated answer to test on yet." unless Investigation::Finding.regression_cases.exists?
+
+      "A regression run is still going. Start another once it finishes." if Investigation::RegressionRun.exists?(status: Investigation::RegressionRun::STATUS_RUNNING)
+    end
+
     def self.redelivery_blocked_reason(delivery)
       "Only a failed delivery can be sent again." unless delivery.failed?
     end

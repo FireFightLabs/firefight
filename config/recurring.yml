@@ -33,6 +33,10 @@ development:
     class: InvestigationSweepJob # hands runs whose worker died to a new one, so an incident is never stuck as being investigated
     queue: investigations
     schedule: every 2 minutes
+  halon_regression_watch:
+    class: HalonRegressionWatchJob # replays the latest rated answers the first time a new version of Halon's prompt is deployed
+    queue: background
+    schedule: every hour
   skill_check:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
@@ -95,6 +99,10 @@ staging:
     class: InvestigationSweepJob # hands runs whose worker died to a new one, so an incident is never stuck as being investigated
     queue: investigations
     schedule: every 2 minutes
+  halon_regression_watch:
+    class: HalonRegressionWatchJob # replays the latest rated answers the first time a new version of Halon's prompt is deployed
+    queue: background
+    schedule: every hour
   skill_check:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
@@ -157,6 +165,10 @@ production:
     class: InvestigationSweepJob # hands runs whose worker died to a new one, so an incident is never stuck as being investigated
     queue: investigations
     schedule: every 2 minutes
+  halon_regression_watch:
+    class: HalonRegressionWatchJob # replays the latest rated answers the first time a new version of Halon's prompt is deployed
+    queue: background
+    schedule: every hour
   skill_check:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background

@@ -38,23 +38,10 @@ module FirefightAi
       @ai_model ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
     end
 
-    private
+    # The prompt as deployed. Nothing in it changes from run to run, so its digest names this version of Halon.
+    def self.prompt_version = Prompt.version(system_prompt)
 
-    def inference_context
-      {
-        workspace: @workspace,
-        feature: FEATURE,
-        provider: ai_model.provider_name,
-        model: ai_model.model,
-        inferable: @inferable,
-        member: @member,
-        prompt_template: FEATURE,
-        prompt_version: Prompt.version(system_prompt),
-        prompt_text: system_prompt
-      }
-    end
-
-    def system_prompt
+    def self.system_prompt
       <<~PROMPT
         You are an SRE investigating a problem in production for the team that owns it. Answer what was asked. It is either a declared incident, or a question someone asked before anyone declared one.
 
@@ -90,6 +77,25 @@ module FirefightAi
         - #{Punctuation::RULE}
       PROMPT
     end
+
+    private
+
+    def system_prompt = self.class.system_prompt
+
+    def inference_context
+      {
+        workspace: @workspace,
+        feature: FEATURE,
+        provider: ai_model.provider_name,
+        model: ai_model.model,
+        inferable: @inferable,
+        member: @member,
+        prompt_template: FEATURE,
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
+      }
+    end
+
 
     def opening(seed_pack)
       <<~PROMPT

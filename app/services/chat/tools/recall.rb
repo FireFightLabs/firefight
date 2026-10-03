@@ -32,7 +32,7 @@ class Chat::Tools::Recall < RubyLLM::Tool
     found = Chat::Memory.recall(@agent_run.workspace, subject: subject, query: asked["words"])
     return "Nothing is remembered about that yet." if found.empty?
 
-    found.each(&:used!)
+    found.each(&:used!) if @agent_run.changes_memory?
     found.map(&:line).join("\n")
   end
 end
