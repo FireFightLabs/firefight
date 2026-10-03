@@ -12,7 +12,7 @@ image: https://developers.cloudflare.com/waf/analytics/security-events/og.png?v=
 
 # Security Events
 
-Last updated Sep 17, 2026|Copy as Markdown| [View as Markdown](https://developers.cloudflare.com/waf/analytics/security-events/index.md)| [Agent setup](https://developers.cloudflare.com/agent-setup/)
+Last updated Oct 2, 2026|Copy as Markdown| [View as Markdown](https://developers.cloudflare.com/waf/analytics/security-events/index.md)| [Agent setup](https://developers.cloudflare.com/agent-setup/)
 
 Security Events allows you to review mitigated requests and helps you tailor your security configurations. Use Security Events to investigate requests that Cloudflare security products acted on or flagged, identify false positives, and fine-tune your security rules.
 
@@ -36,8 +36,8 @@ Available features vary according to your Cloudflare plan:
 | Availability | Yes | Yes | Yes | Yes |
 | Dashboard features | Sampled logs only | All | All | All |
 | Account-level dashboard | No | No | No | Yes |
-| Historical time (data retention) | Up to the last 24 hours | Up to the last 24 hours | Up to the last 3 days | Up to the last 30 days |
-| Max query window | 24 hours | 24 hours | 3 days | 31 days |
+| Historical time (data retention) | Up to the last 31 days | Up to the last 31 days | Up to the last 31 days | Up to the last 31 days |
+| Max query window | 30 days | 30 days | 30 days | 31 days |
 | Export report | No | No | Up to 500 events | Up to 500 events |
 | Print report | No | Yes | Yes | Yes |
 
@@ -187,13 +187,13 @@ The following tables show the different limits per Cloudflare plan:
 
 | Data retention (historical time) for... | Free | Pro | Business | Enterprise |
 | --- | --- | --- | --- | --- |
-| Security Events (`firewallEventsAdaptive`) | 24 hours | 24 hours | 3 days | 30 days |
-| Security Analytics (`httpRequestsAdaptive`) | 7 days | 7 days | 31 days | 90 days |
+| Security Events (`firewallEventsAdaptive`) | 31 days | 31 days | 31 days | 31 days |
+| Security Analytics (`httpRequestsAdaptive`) | 31 days | 31 days | 31 days | 90 days |
 
 | Maximum query window for... | Free | Pro | Business | Enterprise |
 | --- | --- | --- | --- | --- |
-| Security Events (`firewallEventsAdaptive`) | 24 hours | 24 hours | 3 days | 31 days |
-| Security Analytics (`httpRequestsAdaptive`) | 24 hours | 7 days | 31 days | 31 days |
+| Security Events (`firewallEventsAdaptive`) | 30 days | 30 days | 30 days | 31 days |
+| Security Analytics (`httpRequestsAdaptive`) | 30 days | 30 days | 31 days | 31 days |
 
 Was this helpful?
 
@@ -204,5 +204,5 @@ YesNo
 [![](https://developers.cloudflare.com/_astro/logo.te5VL_aD.svg)Docs](https://developers.cloudflare.com/)
 
 ```json
-{"@context":"https://schema.org","@type":"TechArticle","@id":"https://developers.cloudflare.com/waf/analytics/security-events/#page","headline":"Security Events","description":"Review individual security events triggered by WAF rules.","url":"https://developers.cloudflare.com/waf/analytics/security-events/","inLanguage":"en","image":"https://developers.cloudflare.com/waf/analytics/security-events/og.png?v=6d95d2d1404cd587","dateModified":"2026-09-17","publisher":{"@type":"Organization","name":"Cloudflare","description":"One platform for your apps, agents, and workforce. Build, secure, and scale without managing infrastructure","url":"https://www.cloudflare.com/","sameAs":["https://github.com/cloudflare","https://www.linkedin.com/company/cloudflare","https://x.com/cloudflare"],"logo":{"@type":"ImageObject","url":"https://developers.cloudflare.com/logo.svg"},"address":{"@type":"PostalAddress","streetAddress":"101 Townsend St","addressLocality":"San Francisco","addressRegion":"CA","postalCode":"94107","addressCountry":"US"},"contactPoint":[{"@type":"ContactPoint","contactType":"Customer Support","url":"https://support.cloudflare.com/","availableLanguage":["English"]},{"@type":"ContactPoint","contactType":"Sales","url":"https://www.cloudflare.com/contact/","availableLanguage":["English"]}]},"isPartOf":{"@type":"WebSite","@id":"https://developers.cloudflare.com/#website","name":"Cloudflare Docs","url":"https://developers.cloudflare.com/"},"keywords":["Logging","SIEM"]}
+{"@context":"https://schema.org","@type":"TechArticle","@id":"https://developers.cloudflare.com/waf/analytics/security-events/#page","headline":"Security Events","description":"Review individual security events triggered by WAF rules.","url":"https://developers.cloudflare.com/waf/analytics/security-events/","inLanguage":"en","image":"https://developers.cloudflare.com/waf/analytics/security-events/og.png?v=6d95d2d1404cd587","dateModified":"2026-10-02","publisher":{"@type":"Organization","name":"Cloudflare","description":"One platform for your apps, agents, and workforce. Build, secure, and scale without managing infrastructure","url":"https://www.cloudflare.com/","sameAs":["https://github.com/cloudflare","https://www.linkedin.com/company/cloudflare","https://x.com/cloudflare"],"logo":{"@type":"ImageObject","url":"https://developers.cloudflare.com/logo.svg"},"address":{"@type":"PostalAddress","streetAddress":"101 Townsend St","addressLocality":"San Francisco","addressRegion":"CA","postalCode":"94107","addressCountry":"US"},"contactPoint":[{"@type":"ContactPoint","contactType":"Customer Support","url":"https://support.cloudflare.com/","availableLanguage":["English"]},{"@type":"ContactPoint","contactType":"Sales","url":"https://www.cloudflare.com/contact/","availableLanguage":["English"]}]},"isPartOf":{"@type":"WebSite","@id":"https://developers.cloudflare.com/#website","name":"Cloudflare Docs","url":"https://developers.cloudflare.com/"},"keywords":["Logging","SIEM"]}
 ```
