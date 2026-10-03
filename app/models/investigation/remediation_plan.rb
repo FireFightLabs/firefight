@@ -9,7 +9,10 @@ class Investigation::RemediationPlan < ApplicationRecord
   STATUS_APPLYING = "applying".freeze
   STATUS_APPLIED = "applied".freeze
   STATUS_PARTLY_APPLIED = "partly_applied".freeze
-  STATUSES = [ STATUS_PROPOSED, STATUS_APPLYING, STATUS_APPLIED, STATUS_PARTLY_APPLIED ].freeze
+  # Stopped by a person while it was being applied. What went through stays, and can be undone.
+  STATUS_CANCELLED = "cancelled".freeze
+  STATUSES = [ STATUS_PROPOSED, STATUS_APPLYING, STATUS_APPLIED, STATUS_PARTLY_APPLIED, STATUS_CANCELLED ].freeze
+  ENDED_WITH_CHANGES = [ STATUS_APPLIED, STATUS_PARTLY_APPLIED, STATUS_CANCELLED ].freeze
   # Where a person applied it, which the ledger names as the source of each step.
   APPLIED_FROM = AbilityGateway::HUMAN_SOURCES
 
@@ -25,6 +28,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   belongs_to :undoes, class_name: "Investigation::RemediationPlan", optional: true
   has_one :undo_plan, class_name: "Investigation::RemediationPlan", foreign_key: :undoes_id, inverse_of: :undoes, dependent: :destroy
   belongs_to :undo_requested_by, class_name: "WorkspaceMembership", optional: true
+  belongs_to :cancelled_by, class_name: "WorkspaceMembership", optional: true
   has_many :steps, -> { order(:position) }, class_name: "Investigation::RemediationStep", foreign_key: :plan_id, inverse_of: :plan,
                                              dependent: :destroy
 
@@ -108,6 +112,8 @@ class Investigation::RemediationPlan < ApplicationRecord
   # or waiting on a person is not, so the page does not poll for hours.
   def moving?
     return true if writing_undo?
+    # A step still running after the fix was cancelled is still worth watching finish.
+    return true if steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING }
 
     applying? && steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING || (step.runs_itself? && step.proposed? && step.ready?(steps)) }
   end
@@ -122,13 +128,36 @@ class Investigation::RemediationPlan < ApplicationRecord
   # Why this fix cannot be undone now, or nil. Only what went through changed anything to put back.
   def undo_blocked_reason
     return "This is already the undo of a fix." if undo?
-    return "Only a fix that was applied can be undone." unless [ STATUS_APPLIED, STATUS_PARTLY_APPLIED ].include?(status)
+    return "Only a fix that was applied can be undone." unless ENDED_WITH_CHANGES.include?(status)
     return "Nothing in this fix went through, so there is nothing to undo." if steps.none?(&:done?)
+    return "A step is still running or waiting for approval. Undo once it has ended." if steps.any? { |step| [ Investigation::RemediationStep::STATUS_RUNNING, Investigation::RemediationStep::STATUS_WAITING_APPROVAL ].include?(step.status) }
     return "Halon is writing the undo." if writing_undo?
     return "Its undo is already written, to apply like the fix." if undo_plan
 
     Investigation.unavailable_reason(finding.investigation.workspace)
   end
+
+  def cancel_blocked_reason
+    return "Only a fix being applied can be cancelled." unless applying?
+
+    nil
+  end
+
+  # Stops the fix for one person, so a step that has not started never will. A step already running finishes, since a
+  # call cannot be taken back halfway. False when it was no longer being applied.
+  def cancel!(by:)
+    won = transaction do
+      self.class.where(id: id, status: STATUS_APPLYING)
+                .update_all(status: STATUS_CANCELLED, cancelled_by_id: by.id, cancelled_at: Time.current, updated_at: Time.current)
+    end
+    reload
+    won == 1
+  end
+
+  def cancelled? = status == STATUS_CANCELLED
+
+  # Whoever the fix's latest word belongs to, the person who cancelled it or the one who applied it.
+  def last_moved_by = cancelled? ? cancelled_by : approved_by
 
   # Claims writing the undo for one person, so two clicks write it once. A failed or lost writing can be asked again.
   def request_undo!(by:)

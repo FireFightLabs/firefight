@@ -10,13 +10,15 @@ module Slack
         Investigation::RemediationPlan::STATUS_PROPOSED => "Fix in progress",
         Investigation::RemediationPlan::STATUS_APPLYING => "Applying the fix",
         Investigation::RemediationPlan::STATUS_APPLIED => "Fix applied",
-        Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly applied"
+        Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly applied",
+        Investigation::RemediationPlan::STATUS_CANCELLED => "Fix cancelled"
       }.freeze
       UNDO_HEADINGS = {
         Investigation::RemediationPlan::STATUS_PROPOSED => "Undo in progress",
         Investigation::RemediationPlan::STATUS_APPLYING => "Undoing the fix",
         Investigation::RemediationPlan::STATUS_APPLIED => "Fix undone",
-        Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly undone"
+        Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly undone",
+        Investigation::RemediationPlan::STATUS_CANCELLED => "Undo cancelled"
       }.freeze
       STATUSES = {
         Investigation::RemediationStep::STATUS_PROPOSED => "Not started",
@@ -34,7 +36,30 @@ module Slack
         hidden = steps.size - STEPS_SHOWN
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: "#{hidden} more #{'step'.pluralize(hidden)} on the run page." } ] } if hidden.positive?
         blocks << undo_block(plan) if plan.undo_blocked_reason.nil?
+        blocks << cancel_block(plan) if plan.cancel_blocked_reason.nil?
         blocks
+      end
+
+      # The same words the run page's dialog uses.
+      def self.cancel_text(plan)
+        said = "Steps that have not run never will, and approvals they wait on are withdrawn. A step already running finishes"
+        plan.undo? ? "#{said}." : "#{said}, and whatever went through can be undone."
+      end
+
+      # Stops what has not run yet. A step already running finishes, which the confirm says.
+      def self.cancel_block(plan)
+        what = plan.undo? ? "undo" : "fix"
+        {
+          type: "actions",
+          elements: [ {
+            type: "button", style: "danger", text: { type: "plain_text", text: "Cancel #{what}" }, action_id: Identifiers::CANCEL_FIX, value: plan.id,
+            confirm: {
+              title: { type: "plain_text", text: "Cancel this #{what}?" },
+              text: { type: "plain_text", text: cancel_text(plan) },
+              confirm: { type: "plain_text", text: "Cancel #{what}" }, deny: { type: "plain_text", text: "Keep going" }
+            }
+          } ]
+        }
       end
 
       # Halon writes the undo when asked, and a person applies it like the fix, so asking changes nothing yet.
@@ -59,7 +84,8 @@ module Slack
       end
 
       def self.heading(plan, steps)
-        by = plan.approved_by ? " by #{Mrkdwn.escape(plan.approved_by.display_name)}" : ""
+        who = plan.last_moved_by
+        by = who ? " by #{Mrkdwn.escape(who.display_name)}" : ""
         "*#{headings(plan).fetch(plan.status)}*#{by}. #{steps.count(&:done?)} of #{steps.size} steps done."
       end
 

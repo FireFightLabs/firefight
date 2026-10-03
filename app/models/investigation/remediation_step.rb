@@ -130,6 +130,16 @@ class Investigation::RemediationStep < ApplicationRecord
     won == 1
   end
 
+  # Starts the step only while its fix is still being applied, in the same statement, so a step never starts after the
+  # fix was cancelled.
+  def claim!(from:, **columns)
+    applying = Investigation::RemediationPlan.where(status: Investigation::RemediationPlan::STATUS_APPLYING).select(:id)
+    won = self.class.where(id: id, status: Array(from), plan_id: applying)
+                    .update_all(status: STATUS_RUNNING, updated_at: Time.current, **columns)
+    reload
+    won == 1
+  end
+
   # Asks the gateway whether whoever applied the fix may make this step's call, and ledgers it. The caller makes the call
   # and finalizes what this returns, so the step keeps its ledger row.
   def authorize_call!(tool, scope:, arguments:, approval_id: nil)

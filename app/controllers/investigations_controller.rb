@@ -3,7 +3,7 @@
 class InvestigationsController < InertiaController
   PROP_INVESTIGATION = "investigation"
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop apply_fix mark_fix_step_done undo_fix]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix]
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
@@ -58,6 +58,16 @@ class InvestigationsController < InertiaController
     return redirect_back_or_to(investigation_path(investigation), alert: blocked) if blocked
 
     redirect_back_or_to investigation_path(investigation), notice: Investigation::UndoWriter::WRITING
+  end
+
+  # Whoever may apply a fix may stop one, as Stop does for a run.
+  def cancel_fix
+    investigation = current_workspace.investigations.seen.find(params[:id])
+    plan = plan_of(investigation)
+    blocked = Investigation::FixRunner.cancel!(plan, by: current_membership)
+    return redirect_back_or_to(investigation_path(investigation), alert: blocked) if blocked
+
+    redirect_back_or_to investigation_path(investigation), notice: Investigation::FixRunner.cancelled_message(plan)
   end
 
   def mark_fix_step_done

@@ -63,8 +63,11 @@ module Ability
       resolve!(STATUS_DENIED, by)
     end
 
+    # Only from pending, in one statement, so an approval given at the same moment stands.
     def expire!
-      update!(status: STATUS_EXPIRED, resolved_at: Time.current) if pending?
+      now = Time.current
+      self.class.where(id: id, status: STATUS_PENDING).update_all(status: STATUS_EXPIRED, resolved_at: now, updated_at: now)
+      reload
     end
 
     # One statement, so two callers racing for the same approval cannot both win.

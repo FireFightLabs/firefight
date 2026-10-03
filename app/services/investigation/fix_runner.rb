@@ -31,6 +31,40 @@ class Investigation::FixRunner
     nil
   end
 
+  CANCELLED = "Cancelled. A step already running finishes, and whatever went through can be undone.".freeze
+  UNDO_CANCELLED = "Cancelled. A step already running finishes.".freeze
+
+  def self.cancelled_message(plan) = plan.undo? ? UNDO_CANCELLED : CANCELLED
+
+  # Stops the steps that have not run, and withdraws the approvals they wait on, so nothing more runs. Returns why it
+  # could not, or nil.
+  def self.cancel!(plan, by:)
+    blocked = plan.cancel_blocked_reason
+    return blocked if blocked
+    return plan.reload.cancel_blocked_reason || "This #{plan.undo? ? 'undo' : 'fix'} is no longer being applied." unless plan.cancel!(by: by)
+
+    plan.steps.each { |step| stop(step) }
+    InvestigationFixJob.perform_later(plan.id)
+    nil
+  end
+
+  # A step of a cancelled fix that had not run never will, and an approval it waited on is withdrawn.
+  def self.stop(step)
+    waiting = step.status == Investigation::RemediationStep::STATUS_WAITING_APPROVAL
+    who = step.plan.cancelled_by&.display_name || "someone"
+    stopped = step.move!(from: [ Investigation::RemediationStep::STATUS_PROPOSED, Investigation::RemediationStep::STATUS_WAITING_APPROVAL ],
+                         to: Investigation::RemediationStep::STATUS_SKIPPED, result: "Cancelled by #{who} before it ran.")
+    withdraw(step.approval) if stopped && waiting
+  end
+
+  def self.withdraw(approval)
+    return unless approval&.pending?
+
+    approval.expire!
+    ApprovalNotificationService.mark_resolved!(approval)
+  end
+  private_class_method :withdraw
+
   # From ApprovalResumption, once the approver of a step held by a rule decided.
   def self.resume!(approval, step_id)
     step = Investigation::RemediationStep.find_by(id: step_id, approval_id: approval.id)
@@ -82,14 +116,16 @@ class Investigation::FixRunner
     approval = workspace.ability_approvals.find_by(id: approval_id)
     if approval&.denied?
       step.finish!(Investigation::RemediationStep::STATUS_DECLINED, result: "#{approval.approver&.actor_display_name || 'The approver'} declined it.")
-    elsif step.move!(from: Investigation::RemediationStep::STATUS_WAITING_APPROVAL, to: Investigation::RemediationStep::STATUS_RUNNING)
+    elsif step.claim!(from: Investigation::RemediationStep::STATUS_WAITING_APPROVAL)
       call(step, approval_id: approval_id)
+    elsif @plan.reload.cancelled?
+      self.class.stop(step)
     end
   end
 
   # Claims the step, and books a look after it would have gone stale, so a worker dying mid-call never leaves it running.
   def run(step)
-    return unless step.move!(from: Investigation::RemediationStep::STATUS_PROPOSED, to: Investigation::RemediationStep::STATUS_RUNNING, started_at: Time.current)
+    return unless step.claim!(from: Investigation::RemediationStep::STATUS_PROPOSED, started_at: Time.current)
 
     InvestigationFixJob.set(wait: step.stale_after + 1.minute).perform_later(@plan.id)
     # A code change's arguments are fixed when it starts, so an approval asked for them still matches when it resumes.
@@ -121,6 +157,8 @@ class Investigation::FixRunner
   rescue AbilityGateway::PendingApproval => pending
     step.move!(from: Investigation::RemediationStep::STATUS_RUNNING, to: Investigation::RemediationStep::STATUS_WAITING_APPROVAL, approval_id: pending.approval.id)
     ApprovalResumption.park_fix_step!(pending.approval, step)
+    # Cancelled while this step was asking, so nobody is left asked to approve a fix that stopped.
+    self.class.stop(step) if @plan.reload.cancelled?
   rescue StandardError => error
     Rails.logger.warn({ event: "fix.step_not_started", step_id: step.id, error: error.class.name }.to_json)
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH)

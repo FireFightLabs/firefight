@@ -15,11 +15,13 @@ module Slack
       end
 
       def self.build_resolved(approval)
-        verdict = approval.approved? ? ":white_check_mark: *Approved*" : ":no_entry: *Denied*"
+        verdict = if approval.status == Ability::Approval::STATUS_EXPIRED then "*Withdrawn*. It is no longer needed, so nothing will run."
+        else "#{approval.approved? ? ':white_check_mark: *Approved*' : ':no_entry: *Denied*'} by *#{approval.approver&.actor_display_name}*"
+        end
         [
           { type: "header", text: { type: "plain_text", text: ":lock: Approval request", emoji: true } },
           { type: "section", text: { type: "mrkdwn", text: summary_text(approval) } },
-          { type: "section", text: { type: "mrkdwn", text: "#{verdict} by *#{approval.approver&.actor_display_name}*" } }
+          { type: "section", text: { type: "mrkdwn", text: verdict } }
         ]
       end
 

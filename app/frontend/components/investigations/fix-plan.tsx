@@ -2,6 +2,7 @@ import { router } from "@inertiajs/react"
 import { useState } from "react"
 
 import { ApplyFix } from "@/components/investigations/apply-fix"
+import { CancelFix } from "@/components/investigations/cancel-fix"
 import { UndoFix } from "@/components/investigations/undo-fix"
 import {
   DECISION_LABELS,
@@ -50,6 +51,9 @@ function appliedLine(fix: InvestigationRemediationPlan): string | undefined {
   const status = (fix.isUndo ? UNDO_STATUS_LABELS : FIX_STATUS_LABELS)[fix.status]
   if (!status) {
     return undefined
+  }
+  if (fix.cancelledBy) {
+    return `${status} by ${fix.cancelledBy}${fix.cancelledAt ? ` at ${formatTime(fix.cancelledAt)}` : ""}`
   }
   return fix.appliedBy ? `${status}, started by ${fix.appliedBy}${fix.appliedAt ? ` at ${formatTime(fix.appliedAt)}` : ""}` : status
 }
@@ -122,6 +126,7 @@ export function FixPlan({ investigationId, fix }: { investigationId: string; fix
       {fix.verify && <p className="text-xs text-muted-foreground">How to tell it worked: {fix.verify}</p>}
       {applied && <p className="text-xs font-medium">{applied}</p>}
       {fix.appliable && <ApplyFix investigationId={investigationId} fix={fix} />}
+      <CancelFix investigationId={investigationId} fix={fix} />
       <UndoFix investigationId={investigationId} fix={fix} />
     </div>
   )

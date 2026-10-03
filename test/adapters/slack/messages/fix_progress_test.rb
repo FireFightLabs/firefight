@@ -56,6 +56,15 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     assert Slack::Messages::FixProgress.build(undo.reload).first.dig(:text, :text).start_with?("*Undoing the fix*")
   end
 
+  test "a fix being applied offers Cancel, which asks first, and a cancelled one says who stopped it" do
+    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
+    cancel = Slack::Messages::FixProgress.build(@plan).flat_map { |block| block[:elements] || [] }.find { |element| element[:action_id] == Identifiers::CANCEL_FIX }
+    assert_equal [ "Cancel fix", "Cancel this fix?" ], [ cancel.dig(:text, :text), cancel.dig(:confirm, :title, :text) ]
+
+    @plan.cancel!(by: workspace_memberships(:bob_workspace_one))
+    assert Slack::Messages::FixProgress.build(@plan).first.dig(:text, :text).start_with?("*Fix cancelled* by Bob")
+  end
+
   private
 
   def undo_button(plan)
