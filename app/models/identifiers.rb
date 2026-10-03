@@ -138,6 +138,8 @@ module Identifiers
   APPLY_FIX = "apply_fix"
   # On a fix's progress, for a step a person does rather than Firefight.
   MARK_FIX_STEP_DONE = "mark_fix_step_done"
+  # On a fix that was applied. Halon writes the steps that reverse it, for a person to apply.
+  UNDO_FIX = "undo_fix"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"

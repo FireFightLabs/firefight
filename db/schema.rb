@@ -1134,10 +1134,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.string "progress_message_id"
     t.string "status", default: "proposed", null: false
     t.text "summary", null: false
+    t.text "undo_error"
+    t.datetime "undo_requested_at"
+    t.uuid "undo_requested_by_id"
+    t.uuid "undoes_id"
     t.datetime "updated_at", null: false
     t.text "verify"
     t.index ["approved_by_id"], name: "index_investigation_remediation_plans_on_approved_by_id"
-    t.index ["finding_id"], name: "index_investigation_remediation_plans_on_finding_id", unique: true
+    t.index ["finding_id"], name: "index_investigation_remediation_plans_on_finding_id"
+    t.index ["finding_id"], name: "index_remediation_plans_one_fix_per_finding", unique: true, where: "(undoes_id IS NULL)"
+    t.index ["undo_requested_by_id"], name: "index_investigation_remediation_plans_on_undo_requested_by_id"
+    t.index ["undoes_id"], name: "index_investigation_remediation_plans_on_undoes_id", unique: true
   end
 
   create_table "investigation_remediation_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1917,7 +1924,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
   add_foreign_key "investigation_hypotheses", "catalog_entries"
   add_foreign_key "investigation_hypotheses", "investigations"
   add_foreign_key "investigation_remediation_plans", "investigation_findings", column: "finding_id", on_delete: :cascade
+  add_foreign_key "investigation_remediation_plans", "investigation_remediation_plans", column: "undoes_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "undo_requested_by_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "ability_approvals", column: "approval_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "ability_invocations", column: "invocation_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "investigation_remediation_plans", column: "plan_id", on_delete: :cascade

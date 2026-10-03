@@ -408,6 +408,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A fix's undo once Halon wrote it, in the run's thread, with its own way to apply it.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_undo_plan(channel_id:, thread_id:, plan:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A run's fix as it is applied, in the run's thread, with Mark done on each step a person does.
   # @return [Hash] { message_id:, channel_id: }
   def post_fix_progress(channel_id:, thread_id:, plan:)

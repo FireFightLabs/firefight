@@ -115,6 +115,11 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
               <FixPlan investigationId={investigation.id} fix={finding.fix} />
             </Part>
           )}
+          {finding.fix?.undo && (
+            <Part label="How to undo it">
+              <FixPlan investigationId={investigation.id} fix={finding.fix.undo} />
+            </Part>
+          )}
           {finding.gaps && (
             <Part label="Could not check">
               <span className="text-fg-secondary">{finding.gaps}</span>

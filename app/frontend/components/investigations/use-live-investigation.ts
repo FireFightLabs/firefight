@@ -2,12 +2,18 @@ import { usePoll } from "@inertiajs/react"
 import { useEffect } from "react"
 
 import { INVESTIGATION_LIVE_STATUSES } from "@/lib/generated/constants"
+import type { InvestigationFixPlan } from "@/types/serializers"
 
 const REFRESH_EVERY_MS = 3000
 const LIVE_STATUSES: readonly string[] = INVESTIGATION_LIVE_STATUSES
 
 export function isLive(status: string): boolean {
   return LIVE_STATUSES.includes(status)
+}
+
+// A fix, or its undo, that is being applied or written keeps the page current.
+export function fixMoving(fix: InvestigationFixPlan | undefined): boolean {
+  return Boolean(fix?.moving || fix?.undo?.moving)
 }
 
 // A run that is still working, or whose fix is being applied, reloads the one prop that holds it every few seconds, and

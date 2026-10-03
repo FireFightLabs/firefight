@@ -6,6 +6,7 @@ module Slack
       EVIDENCE_LIMIT = 6
       SOURCES_SHOWN = 3
       FIX_STEPS_SHOWN = 6
+      ARGUMENTS_SHOWN = 200
       # How each kind of fix step gets done, as a person reads it.
       STEP_KINDS = {
         Investigation::RemediationStep::KIND_PULL_REQUEST => "Code change",
@@ -96,13 +97,14 @@ module Slack
         runs = plan.steps.count(&:runs_itself?)
         by_hand = plan.steps.size - runs
         waits = by_hand.positive? ? " #{by_hand} #{'step'.pluralize(by_hand)} for a person #{by_hand == 1 ? 'is' : 'are'} marked done in the thread." : ""
+        what = plan.undo? ? "undo" : "fix"
         {
-          type: "button", style: "primary", text: { type: "plain_text", text: "Apply fix" },
+          type: "button", style: "primary", text: { type: "plain_text", text: "Apply #{what}" },
           action_id: Identifiers::APPLY_FIX, value: plan.id,
           confirm: {
-            title: { type: "plain_text", text: "Apply this fix?" },
+            title: { type: "plain_text", text: "Apply this #{what}?" },
             text: { type: "plain_text", text: "Runs #{runs} #{'step'.pluralize(runs)} through your connections, as you, in order.#{waits}" },
-            confirm: { type: "plain_text", text: "Apply fix" },
+            confirm: { type: "plain_text", text: "Apply #{what}" },
             deny: { type: "plain_text", text: "Cancel" }
           }
         }
@@ -157,16 +159,30 @@ module Slack
       end
 
       # The fix in order, each step saying how it gets done and where, then how to tell it worked.
-      def self.fix_block(plan)
+      # An undo is posted on its own once written, to apply the same way as the fix.
+      def self.undo(plan:)
+        blocks = [ fix_block(plan, title: "How to undo it") ]
+        blocks << { type: "actions", elements: [ apply_button(plan) ] } if plan.apply_blocked_reason.nil?
+        blocks
+      end
+
+      # What a tool step sends, cut short, since it runs as whoever applies the fix. The run page has it whole.
+      def self.sends(step)
+        return "" unless step.action? && step.arguments.present?
+
+        "\n      `#{Mrkdwn.escape(step.arguments.to_json.tr('`', "'")).truncate(ARGUMENTS_SHOWN)}`"
+      end
+
+      def self.fix_block(plan, title: "How to fix it")
         all = plan.steps.to_a
         steps = all.first(FIX_STEPS_SHOWN).map do |step|
           where = step.repository ? Mrkdwn.escape(step.repository) : step.action_key
-          "#{step.position}. _#{STEP_KINDS.fetch(step.kind)}#{" in `#{where}`" if where}_ #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(step.description))}"
+          "#{step.position}. _#{STEP_KINDS.fetch(step.kind)}#{" in `#{where}`" if where}_ #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(step.description))}#{sends(step)}"
         end
         hidden = all.size - FIX_STEPS_SHOWN
         more = hidden.positive? ? "\n#{hidden} more #{'step'.pluralize(hidden)} on the run page." : ""
         verify = plan.verify.present? ? "\n_How to tell it worked:_ #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(plan.verify))}" : ""
-        text = "*How to fix it*\n#{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(plan.summary))}\n#{steps.join("\n")}#{more}#{verify}"
+        text = "*#{title}*\n#{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(plan.summary))}\n#{steps.join("\n")}#{more}#{verify}"
         { type: "section", text: { type: "mrkdwn", text: text.truncate(SECTION_TEXT_LIMIT) } }
       end
 

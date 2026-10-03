@@ -19,8 +19,12 @@ class Investigation::Finding < ApplicationRecord
   }
 
   has_many :evidence_items, -> { ordered }, class_name: "Investigation::Evidence", dependent: :destroy, inverse_of: :finding
+  # The fix and, once written, its undo, which is what a run's fix endpoints act on.
+  def plans = [ remediation_plan, remediation_plan&.undo_plan ].compact
+
   has_many :verdicts, class_name: "Investigation::Verdict", dependent: :destroy, inverse_of: :finding
-  has_one :remediation_plan, class_name: "Investigation::RemediationPlan", dependent: :destroy, inverse_of: :finding
+  # The fix. An undo of it is a plan on the same finding, reached through the fix.
+  has_one :remediation_plan, -> { where(undoes_id: nil) }, class_name: "Investigation::RemediationPlan", dependent: :destroy, inverse_of: :finding
 
   validates :published_state, inclusion: { in: STATES }
   validates :outcome, inclusion: { in: OUTCOMES }, allow_nil: true

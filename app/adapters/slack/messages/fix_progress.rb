@@ -12,6 +12,12 @@ module Slack
         Investigation::RemediationPlan::STATUS_APPLIED => "Fix applied",
         Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly applied"
       }.freeze
+      UNDO_HEADINGS = {
+        Investigation::RemediationPlan::STATUS_PROPOSED => "Undo in progress",
+        Investigation::RemediationPlan::STATUS_APPLYING => "Undoing the fix",
+        Investigation::RemediationPlan::STATUS_APPLIED => "Fix undone",
+        Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly undone"
+      }.freeze
       STATUSES = {
         Investigation::RemediationStep::STATUS_PROPOSED => "Not started",
         Investigation::RemediationStep::STATUS_RUNNING => "Running",
@@ -27,16 +33,34 @@ module Slack
         blocks = [ { type: "section", text: { type: "mrkdwn", text: heading(plan, steps) } }, *steps.first(STEPS_SHOWN).map { |step| step_block(step, steps) } ]
         hidden = steps.size - STEPS_SHOWN
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: "#{hidden} more #{'step'.pluralize(hidden)} on the run page." } ] } if hidden.positive?
+        blocks << undo_block(plan) if plan.undo_blocked_reason.nil?
         blocks
       end
 
+      # Halon writes the undo when asked, and a person applies it like the fix, so asking changes nothing yet.
+      def self.undo_block(plan)
+        {
+          type: "actions",
+          elements: [ {
+            type: "button", text: { type: "plain_text", text: "Undo fix" }, action_id: Identifiers::UNDO_FIX, value: plan.id,
+            confirm: {
+              title: { type: "plain_text", text: "Write the undo?" },
+              text: { type: "plain_text", text: "Halon writes the steps that put back what this fix changed. Nothing changes until someone applies them." },
+              confirm: { type: "plain_text", text: "Write the undo" }, deny: { type: "plain_text", text: "Cancel" }
+            }
+          } ]
+        }
+      end
+
+      def self.headings(plan) = plan.undo? ? UNDO_HEADINGS : HEADINGS
+
       def self.fallback(plan)
-        "#{HEADINGS.fetch(plan.status)}: #{plan.steps.count(&:done?)} of #{plan.steps.size} steps done"
+        "#{headings(plan).fetch(plan.status)}: #{plan.steps.count(&:done?)} of #{plan.steps.size} steps done"
       end
 
       def self.heading(plan, steps)
         by = plan.approved_by ? " by #{Mrkdwn.escape(plan.approved_by.display_name)}" : ""
-        "*#{HEADINGS.fetch(plan.status)}*#{by}. #{steps.count(&:done?)} of #{steps.size} steps done."
+        "*#{headings(plan).fetch(plan.status)}*#{by}. #{steps.count(&:done?)} of #{steps.size} steps done."
       end
 
       def self.step_block(step, steps)

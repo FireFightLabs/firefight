@@ -3,7 +3,7 @@ import { useState } from "react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { InvestigationStory, investigationTitle } from "@/components/investigations/investigation-story"
-import { useLiveInvestigation } from "@/components/investigations/use-live-investigation"
+import { fixMoving, useLiveInvestigation } from "@/components/investigations/use-live-investigation"
 import { INVESTIGATION_PROP } from "@/lib/generated/constants"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import type { InvestigationPageProps } from "@/pages/investigations/types"
@@ -11,7 +11,7 @@ import type { InvestigationPageProps } from "@/pages/investigations/types"
 // A run with nothing of its own to be drawn over. A run on an incident opens over the incident instead.
 export default function Investigation() {
   const { investigation } = usePage<InvestigationPageProps>().props
-  useLiveInvestigation(investigation.status, INVESTIGATION_PROP, investigation.finding?.fix?.moving)
+  useLiveInvestigation(investigation.status, INVESTIGATION_PROP, fixMoving(investigation.finding?.fix))
   const title = investigationTitle(investigation)
   const [ declaring, setDeclaring ] = useState(false)
 

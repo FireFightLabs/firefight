@@ -6,7 +6,6 @@ import {
   IconAlertTriangle,
   IconClock,
   IconDotsVertical,
-  IconFlame,
 } from "@tabler/icons-react";
 
 import TurndownService from "turndown";
@@ -283,7 +282,6 @@ export default function PostmortemPage() {
             </Link>
             <Separator orientation="vertical" className="h-4" />
             <nav className="flex items-center gap-1.5 text-sm text-muted-foreground overflow-hidden">
-              <IconFlame className="size-4 shrink-0 text-brand" />
               <span className="hidden sm:inline">Incidents</span>
               <span className="hidden sm:inline">›</span>
               <span className="font-medium hidden sm:inline">

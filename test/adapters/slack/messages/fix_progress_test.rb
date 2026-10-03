@@ -35,4 +35,31 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     assert_operator blocks.size, :<=, 50
     assert_equal "8 more steps on the run page.", blocks.last.dig(:elements, 0, :text)
   end
+
+  test "a fix that ended offers Undo fix, which asks first, and one still applying or already undone does not" do
+    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
+    assert_nil undo_button(@plan)
+
+    @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
+    @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_DONE)
+    FeatureFlags.enable!(@plan.finding.investigation.workspace, FeatureFlags::AI_SRE)
+    Entitlements.stubs(:check).returns(stub(blocked?: false))
+    FirefightAi.stubs(:context_window).returns(200_000)
+    button = undo_button(@plan.reload)
+    assert_equal [ Identifiers::UNDO_FIX, @plan.id, "Write the undo?" ], [ button[:action_id], button[:value], button.dig(:confirm, :title, :text) ]
+
+    undo = @plan.propose_undo!("summary" => "Put it back", "steps" => [ { "kind" => "manual", "description" => "Re-add the rule" } ])
+    assert_nil undo_button(@plan.reload)
+    assert_equal "*How to undo it*", Slack::Messages::InvestigationRun.undo(plan: undo).first.dig(:text, :text).lines.first.strip
+    assert_equal "Apply undo", Slack::Messages::InvestigationRun.undo(plan: undo).last.dig(:elements, 0, :text, :text) if undo.apply_blocked_reason.nil?
+    undo.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
+    assert Slack::Messages::FixProgress.build(undo.reload).first.dig(:text, :text).start_with?("*Undoing the fix*")
+  end
+
+  private
+
+  def undo_button(plan)
+    Slack::Messages::FixProgress.build(plan).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
+                                .find { |element| element[:action_id] == Identifiers::UNDO_FIX }
+  end
 end

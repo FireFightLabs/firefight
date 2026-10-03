@@ -33,6 +33,11 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type "RemediationStepStatus"
   def status = step.status
 
+  # What a tool step sends, shown before anyone applies it, since it runs as them. Written by the agent and checked for
+  # anything that looks like a credential when the fix was written.
+  type :string, optional: true
+  def arguments = (JSON.pretty_generate(step.arguments) if step.action? && step.arguments.present?)
+
   # Whether Firefight runs it when the fix is applied, an action or a code change it can open, rather than a person.
   type :boolean
   def runs_itself = step.runs_itself?

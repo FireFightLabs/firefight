@@ -4,9 +4,11 @@ import { useState } from "react"
 
 import { ApplyFix } from "@/components/investigations/apply-fix"
 import { FixStepStatus } from "@/components/investigations/fix-step-status"
+import { UndoFix } from "@/components/investigations/undo-fix"
 import {
   DECISION_LABELS,
   FIX_STATUS_LABELS,
+  UNDO_STATUS_LABELS,
   FIX_STEP_STATUS_LABELS,
   REMEDIATION_STEP_LABELS,
   labelFor,
@@ -47,7 +49,7 @@ function receipt(step: InvestigationRemediationStep): string | undefined {
 }
 
 function appliedLine(fix: InvestigationRemediationPlan): string | undefined {
-  const status = FIX_STATUS_LABELS[fix.status]
+  const status = (fix.isUndo ? UNDO_STATUS_LABELS : FIX_STATUS_LABELS)[fix.status]
   if (!status) {
     return undefined
   }
@@ -93,6 +95,12 @@ function Step({ investigationId, step }: { investigationId: string; step: Invest
           </span>
         )}
         {step.undo && <span className="text-xs text-fg-secondary">To undo: {step.undo}</span>}
+        {step.arguments && (
+          <details className="text-xs text-fg-secondary">
+            <summary className="w-fit cursor-pointer select-none hover:text-fg-primary">What it sends</summary>
+            <pre className="mt-1.5 max-h-48 overflow-auto rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono whitespace-pre-wrap text-fg-body">{step.arguments}</pre>
+          </details>
+        )}
         {status && <FixStepStatus status={step.status} label={status} />}
         {step.result && (
           <pre className="max-h-40 overflow-auto rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono text-xs whitespace-pre-wrap text-fg-body">
@@ -122,6 +130,7 @@ export function FixPlan({ investigationId, fix }: { investigationId: string; fix
       {fix.verify && <p className="text-xs text-fg-secondary">How to tell it worked: {fix.verify}</p>}
       {applied && <p className="text-xs font-medium text-fg-body">{applied}</p>}
       {fix.appliable && <ApplyFix investigationId={investigationId} fix={fix} />}
+      <UndoFix investigationId={investigationId} fix={fix} />
     </div>
   )
 }
