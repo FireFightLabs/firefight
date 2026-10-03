@@ -22,7 +22,7 @@ export function ColorPicker({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="flex-1 font-mono text-sm"
-        placeholder="#3B82F6"
+        placeholder="#9EE464"
         aria-label="Colour hex value"
       />
     </div>

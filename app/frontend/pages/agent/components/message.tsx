@@ -5,12 +5,13 @@ import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 
 interface MessageProps {
   turn: ChatTurn
+  live?: boolean
 }
 
-export function Message({ turn }: MessageProps) {
+export function Message({ turn, live = false }: MessageProps) {
   if (turn.kind === TURN_KINDS.PERSON) {
     return (
-      <p className="max-w-[85%] self-end whitespace-pre-wrap rounded-[18px] rounded-br-md bg-accent-tint px-4 py-2.5 text-[14px] leading-relaxed text-ink [overflow-wrap:anywhere] sm:max-w-[75%]">
+      <p className="max-w-[85%] self-end whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink [overflow-wrap:anywhere] sm:max-w-[75%]">
         {turn.body}
       </p>
     )
@@ -21,7 +22,7 @@ export function Message({ turn }: MessageProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {turn.steps.length > 0 && <AgentSteps steps={turn.steps} />}
+      {turn.steps.length > 0 && <AgentSteps steps={turn.steps} thinking={live && turn.bodies.length === 0} />}
       {turn.bodies.map((body) => (
         <AnswerText key={body.id} text={body.text} />
       ))}

@@ -32,7 +32,7 @@ export default function InviteCode() {
           subtitle={
             <>
               Firefight is in public beta. Installing to{" "}
-              <span className="whitespace-nowrap font-medium text-foreground">
+              <span className="whitespace-nowrap font-medium text-fg-primary">
                 {teamName}
               </span>{" "}
               requires a one-time invite code.
@@ -51,24 +51,22 @@ export default function InviteCode() {
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              className="border-primary/50 focus-visible:ring-1"
-              style={{ backgroundColor: "#071826" }}
             />
           </div>
           <Button
             type="submit"
-            className="w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]"
+            className="w-full cursor-pointer"
             disabled={form.processing}
           >
             Continue
           </Button>
         </form>
-        <div className="mt-6 border-t border-primary/25 pt-4">
-          <p className="text-center text-xs leading-relaxed text-muted-foreground">
+        <div className="mt-6 border-t border-border pt-4">
+          <p className="text-center text-xs leading-relaxed text-fg-muted">
             Don&apos;t have a code?{" "}
             <a
               href="mailto:support@firefight.app"
-              className="font-semibold text-foreground underline decoration-border underline-offset-[3px] transition-colors hover:decoration-foreground"
+              className="font-semibold text-fg-primary underline decoration-border-control underline-offset-[3px] transition-colors duration-120 hover:decoration-fg-primary"
             >
               Request access
             </a>

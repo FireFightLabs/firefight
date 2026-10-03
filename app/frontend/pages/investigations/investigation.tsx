@@ -26,7 +26,7 @@ export default function Investigation() {
         <InvestigationStory
           investigation={investigation}
           onDeclare={startDeclaring}
-          title={<h1 className="text-3xl font-semibold tracking-tight text-balance">{title}</h1>}
+          title={<h1 className="text-3xl font-semibold tracking-tight text-balance text-fg-headline">{title}</h1>}
         />
       </div>
       <LifecycleFormDialog incidentId={null} form="declare" open={declaring} onOpenChange={setDeclaring} fromInvestigationId={investigation.id} suggestedName={investigation.question} />

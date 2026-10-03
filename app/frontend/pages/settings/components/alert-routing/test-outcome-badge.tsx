@@ -12,7 +12,7 @@ export function TestOutcomeBadge({ rule, testResult }: { rule: PolicyRule; testR
     return <Badge className="ml-2">✓ fires</Badge>
   }
   if (entry.skipped) {
-    return <span className="ml-2 text-xs text-muted-foreground/60">skipped (disabled)</span>
+    return <span className="ml-2 text-xs text-fg-muted">skipped (disabled)</span>
   }
-  return <span className="ml-2 text-xs text-muted-foreground/60">✗ no match</span>
+  return <span className="ml-2 text-xs text-fg-muted">✗ no match</span>
 }

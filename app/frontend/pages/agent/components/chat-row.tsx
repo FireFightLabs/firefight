@@ -16,14 +16,14 @@ export function ChatRow({ chat, current }: ChatRowProps) {
 
   return (
     <div
-      className={`group relative flex items-center rounded-control transition-colors duration-100 ${
-        current ? "bg-hover-2" : "hover:bg-hover"
+      className={`group relative flex items-center rounded-control transition-[background-color,box-shadow] duration-150 ${
+        current ? "bg-hover-2 edge-bar" : "hover:bg-hover"
       }`}
     >
       <Link
         href={agentChatPath(chat.id)}
         {...OPEN_CHAT_VISIT}
-        className={`min-w-0 flex-1 truncate py-1.5 pr-8 pl-2.5 text-[13px] ${current ? "text-ink" : "text-ink-2"}`}
+        className={`min-w-0 flex-1 truncate rounded-control py-1.5 pr-8 pl-2.5 text-[13px] transition-colors duration-150 ${current ? "text-ink" : "text-ink-2 group-hover:text-ink"}`}
       >
         {chat.title}
       </Link>

@@ -95,7 +95,7 @@ export function SeveritiesTab({ severities, canManage }: { severities: IncidentS
         noun="Severity"
         createPath={incidentSeveritiesPath()}
         editPath={incidentSeverityPath}
-        defaultColor="#FF6B35"
+        defaultColor="#F18336"
         namePlaceholder="e.g. Moderate"
         descriptionPlaceholder="When should this severity be assigned?"
         footnote={

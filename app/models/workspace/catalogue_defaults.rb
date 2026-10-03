@@ -8,7 +8,7 @@ module Workspace::CatalogueDefaults
       system_key: CatalogType::SYSTEM_KEY_TEAM,
       kind: CatalogType::KIND_SYSTEM,
       icon: "users",
-      color: "#8B5CF6",
+      color: "#9EE464",
       description: "Teams that own and operate services",
       position: 1,
       attributes: [
@@ -24,7 +24,7 @@ module Workspace::CatalogueDefaults
       system_key: CatalogType::SYSTEM_KEY_SERVICE,
       kind: CatalogType::KIND_SYSTEM,
       icon: "server",
-      color: "#3B82F6",
+      color: "#70D5ED",
       description: "Services and applications in your infrastructure",
       position: 2,
       attributes: [
@@ -41,7 +41,7 @@ module Workspace::CatalogueDefaults
       system_key: CatalogType::SYSTEM_KEY_ENVIRONMENT,
       kind: CatalogType::KIND_SYSTEM,
       icon: "cloud",
-      color: "#10B981",
+      color: "#A98AEA",
       description: "Deployment environments",
       position: 3,
       attributes: [
@@ -56,7 +56,7 @@ module Workspace::CatalogueDefaults
       system_key: CatalogType::SYSTEM_KEY_FUNCTIONALITY,
       kind: CatalogType::KIND_SYSTEM,
       icon: "puzzle",
-      color: "#F59E0B",
+      color: "#F18336",
       description: "Business capabilities and product features",
       position: 4,
       attributes: [

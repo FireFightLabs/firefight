@@ -5,13 +5,13 @@ export function StepLinks({ steps }: { steps: number[] }) {
   }
 
   return (
-    <span className="inline-flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+    <span className="inline-flex flex-wrap items-center gap-1 text-[11px] text-fg-muted">
       {steps.length === 1 ? "Step" : "Steps"}
       {steps.map((position) => (
         <a
           key={position}
           href={`#step-${position}`}
-          className="inline-flex min-w-5 items-center justify-center rounded-full border border-border px-1.5 font-mono tabular-nums text-foreground/90 transition-colors hover:border-primary/50 hover:text-primary"
+          className="inline-flex min-w-5 items-center justify-center rounded-full border border-border-strong px-1.5 font-mono tabular-nums text-fg-body transition-colors duration-150 hover:border-brand-border hover:bg-brand-tint hover:text-brand"
         >
           {position}
         </a>

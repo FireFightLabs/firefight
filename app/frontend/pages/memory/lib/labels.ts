@@ -11,11 +11,11 @@ export const STATE_LABELS: Record<ChatMemoryState, string> = {
 }
 
 export const STATE_TONES: Record<ChatMemoryState, string> = {
-  unconfirmed: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  confirmed: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-  disputed: "border-red-400/30 bg-red-400/10 text-red-300",
-  outdated: "border-orange-400/30 bg-orange-400/10 text-orange-300",
-  rejected: "border-border bg-muted/40 text-muted-foreground",
+  unconfirmed: "border-stage-active-border bg-info-tint text-info",
+  confirmed: "border-stage-closed-border bg-success-tint text-success",
+  disputed: "border-error/35 bg-error-tint text-error",
+  outdated: "border-warning/35 bg-warning-tint text-warning",
+  rejected: "border-border-strong bg-stage-canceled-tint text-fg-muted",
 }
 
 export const FILTER_LABELS: Record<MemoryFilter, string> = {

@@ -35,7 +35,7 @@ export default function AlertRouting() {
       <div className="flex flex-col gap-4 px-4 py-4 md:py-6 lg:px-6">
         <Link
           href={settingsAlertSourcesPath()}
-          className="flex items-center gap-1.5 text-[12px] text-muted-foreground/80 transition-colors hover:text-foreground"
+          className="flex items-center gap-1.5 text-[12px] text-fg-muted transition-colors hover:text-foreground"
         >
           <IconArrowLeft className="size-3.5" />
           Alert Sources

@@ -2,26 +2,26 @@ module Workspace::IncidentDefaults
   extend ActiveSupport::Concern
 
   DEFAULT_SEVERITIES = [
-    { name: "Critical", slug: IncidentSeverity::SLUG_CRITICAL, rank: 5, position: 1, is_default: false, color: "#D42B2B", description: "Service-wide outage or data loss." },
-    { name: "Major", slug: "major", rank: 3, position: 2, is_default: false, color: "#E07A12", description: "Significant feature degradation." },
-    { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#3B82F6", description: "Limited impact or workaround available." }
+    { name: "Critical", slug: IncidentSeverity::SLUG_CRITICAL, rank: 5, position: 1, is_default: false, color: "#F05653", description: "Service-wide outage or data loss." },
+    { name: "Major", slug: "major", rank: 3, position: 2, is_default: false, color: "#F18336", description: "Significant feature degradation." },
+    { name: "Minor", slug: "minor", rank: 1, position: 3, is_default: true, color: "#EFD369", description: "Limited impact or workaround available." }
   ].freeze
 
   DEFAULT_STATUSES = [
-    { name: "Triaging", slug: "triaging", stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#8B5CF6", description: "Investigating a potential issue to confirm it is a real incident." },
-    { name: "Investigating", slug: "investigating", stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#38BDF8", description: "Root cause under active investigation." },
-    { name: "Identified", slug: "identified", stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#14B8A6", description: "Root cause identified." },
-    { name: "Monitoring", slug: "monitoring", stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#22C55E", description: "Fix deployed, monitoring for stability." },
-    { name: "Resolved", slug: "resolved", stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#16A34A", description: "Incident fully resolved." },
-    { name: "Canceled", slug: "canceled", stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#6B7280", description: "False positive, duplicate, or invalid incident." }
+    { name: "Triaging", slug: IncidentStatus::SLUG_TRIAGING, stage: IncidentLifecycleStage::TRIAGE, position: 0, is_default: false, color: "#A98AEA", description: "Investigating a potential issue to confirm it is a real incident." },
+    { name: "Investigating", slug: IncidentStatus::SLUG_INVESTIGATING, stage: IncidentLifecycleStage::ACTIVE, position: 1, is_default: true, color: "#70D5ED", description: "Root cause under active investigation." },
+    { name: "Identified", slug: IncidentStatus::SLUG_IDENTIFIED, stage: IncidentLifecycleStage::ACTIVE, position: 2, is_default: false, color: "#70D5ED", description: "Root cause identified." },
+    { name: "Monitoring", slug: IncidentStatus::SLUG_MONITORING, stage: IncidentLifecycleStage::ACTIVE, position: 3, is_default: false, color: "#70D5ED", description: "Fix deployed, monitoring for stability." },
+    { name: "Resolved", slug: IncidentStatus::SLUG_RESOLVED, stage: IncidentLifecycleStage::CLOSED, position: 4, is_default: false, color: "#9EE464", description: "Incident fully resolved." },
+    { name: "Canceled", slug: IncidentStatus::SLUG_CANCELED, stage: IncidentLifecycleStage::CANCELED, position: 5, is_default: false, color: "#9D9F9D", description: "False positive, duplicate, or invalid incident." }
   ].freeze
 
   DEFAULT_TYPES = [
-    { name: "Production", slug: "production", position: 1, color: "#DC143C", description: "Customer-facing service disruption or degradation." },
-    { name: "Security", slug: "security", position: 2, color: "#8B5CF6", description: "Unauthorized access, data exposure, or vulnerability exploitation." },
-    { name: "Infrastructure", slug: "infrastructure", position: 3, color: "#F59E0B", description: "Cloud, network, or platform-level failures." },
-    { name: "Data", slug: "data", position: 4, color: "#3B82F6", description: "Data loss, corruption, pipeline failure, or integrity issues." },
-    { name: "Third Party", slug: "third_party", position: 5, color: "#10B981", description: "Vendor or external dependency outage affecting your systems." }
+    { name: "Production", slug: "production", position: 1, color: "#9EE464", description: "Customer-facing service disruption or degradation." },
+    { name: "Security", slug: "security", position: 2, color: "#70D5ED", description: "Unauthorized access, data exposure, or vulnerability exploitation." },
+    { name: "Infrastructure", slug: "infrastructure", position: 3, color: "#A98AEA", description: "Cloud, network, or platform-level failures." },
+    { name: "Data", slug: "data", position: 4, color: "#F18336", description: "Data loss, corruption, pipeline failure, or integrity issues." },
+    { name: "Third Party", slug: "third_party", position: 5, color: "#9D9F9D", description: "Vendor or external dependency outage affecting your systems." }
   ].freeze
 
   def setup_incident_configuration!

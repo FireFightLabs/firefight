@@ -25,7 +25,7 @@ export function InvestigationSheet({ investigation, prop, onClose, onDeclare }: 
             <InvestigationStory
               investigation={investigation}
               onDeclare={onDeclare}
-              title={<SheetTitle className="text-2xl font-semibold tracking-tight text-balance">{investigationTitle(investigation)}</SheetTitle>}
+              title={<SheetTitle className="text-2xl font-semibold tracking-tight text-balance text-fg-headline">{investigationTitle(investigation)}</SheetTitle>}
             />
           </div>
         )}

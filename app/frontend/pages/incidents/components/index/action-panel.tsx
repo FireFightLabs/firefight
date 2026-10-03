@@ -39,7 +39,7 @@ export function ActionPanel({
   return (
     <section className={`rounded-xl border border-border bg-card overflow-hidden transition-opacity ${canAdd ? "" : "opacity-50"}`}>
       <header className="flex items-center justify-between px-5 pt-6 pb-2.5">
-        <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">
+        <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-fg-primary">
           {title}
         </h3>
         <AddActionDialog disabled={!canAdd} incidentId={incidentId} actionType={actionType} disabledTooltip={blockedReason} />

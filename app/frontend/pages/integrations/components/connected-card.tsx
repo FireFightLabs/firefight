@@ -99,7 +99,7 @@ export function ConnectedCard({
           <ProviderMark
             providerKey={integration.provider}
             mark={provider?.mark ?? "MC"}
-            color={provider?.color ?? "#0e7490"}
+            color={provider?.color ?? "var(--border-strong)"}
           />
           <div>
             <CardTitle className="text-base">{integration.name}</CardTitle>
@@ -224,7 +224,7 @@ export function ConnectedCard({
                       "No description offered by the server."}
                   </p>
                   {tool.enabled && (
-                    <code className="text-muted-foreground/70 mt-1 block truncate text-[11px]">
+                    <code className="text-fg-muted mt-1 block truncate text-[11px]">
                       {tool.actionKey}
                     </code>
                   )}

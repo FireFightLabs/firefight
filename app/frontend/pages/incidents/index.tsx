@@ -48,15 +48,15 @@ export default function IncidentPage() {
       <Head title={`${incident.identifier} — ${incident.name}`} />
 
       <div className="mx-auto w-full max-w-6xl px-6 py-4 md:py-6 lg:px-10">
-        <nav className="mb-8 flex items-center gap-2 text-[12px] text-muted-foreground/80">
+        <nav className="mb-8 flex items-center gap-2 text-[12px] text-fg-muted">
           <Link
             href={dashboardPath()}
-            className="transition-colors hover:text-foreground"
+            className="transition-colors hover:text-fg-primary"
           >
             Incidents
           </Link>
-          <span className="text-muted-foreground/30">/</span>
-          <span className="font-mono text-foreground/90">
+          <span className="text-fg-disabled">/</span>
+          <span className="font-mono text-fg-body">
             {incident.identifier}
           </span>
         </nav>
@@ -75,10 +75,10 @@ export default function IncidentPage() {
           <div className="min-w-0 flex-1">
             <Deferred data="timelineEvents" fallback={<TimelineSkeleton />}>
               <div className="mb-2 flex items-baseline gap-3">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/90">
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-fg-body">
                   Timeline
                 </h2>
-                <span className="text-[11px] tabular-nums text-muted-foreground/70">
+                <span className="text-[11px] tabular-nums text-fg-muted">
                   {(timelineEvents ?? []).length}
                 </span>
               </div>

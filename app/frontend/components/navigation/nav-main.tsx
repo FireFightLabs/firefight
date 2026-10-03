@@ -61,17 +61,14 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
       {sections.map((section, index) => (
         <SidebarGroup key={section.label ?? index} className={index > 0 ? "mt-2" : ""}>
           {section.label && (
-            <SidebarGroupLabel className="uppercase tracking-wider text-[10px]">
+            <SidebarGroupLabel className="text-[10px]">
               {section.label}
             </SidebarGroupLabel>
           )}
           <SidebarGroupContent>
             <SidebarMenu>
               {section.items.map((item) => (
-                <SidebarMenuItem key={item.title} className="relative">
-                  {item.title === activeTitle && (
-                    <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-primary" />
-                  )}
+                <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     tooltip={item.title}
                     asChild
@@ -83,7 +80,7 @@ export function NavMain({ sections }: { sections: NavSection[] }) {
                     </Link>
                   </SidebarMenuButton>
                   {item.badge ? (
-                    <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                    <SidebarMenuBadge className="bg-brand text-on-brand tabular-nums peer-hover/menu-button:text-on-brand peer-data-[active=true]/menu-button:text-on-brand">
                       {item.badge}
                     </SidebarMenuBadge>
                   ) : null}

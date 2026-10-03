@@ -3,10 +3,9 @@ import { type ColumnDef } from "@tanstack/react-table"
 
 import type { IncidentListItem } from "@/types/serializers"
 import { incidentPath } from "@/lib/routes"
-import { severityBadgeStyle } from "@/lib/severity-color"
+import { SeverityBadge } from "@/components/severity-badge"
+import { StatusBadge } from "@/components/status-badge"
 import { formatDateTime, formatDuration } from "@/lib/formatters"
-import { Badge } from "@/components/ui/badge"
-import { StatusIcon } from "@/pages/dashboard/components/status-icon"
 
 export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
   {
@@ -16,7 +15,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
       <Link
         href={incidentPath(row.original.id)}
         prefetch="hover"
-        className="font-mono text-sm text-foreground/60 hover:text-foreground hover:underline"
+        className="font-mono text-sm text-fg-muted transition-colors duration-120 hover:text-fg-primary hover:underline"
       >
         {row.original.identifier}
       </Link>
@@ -31,7 +30,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
         <Link
           href={incidentPath(row.original.id)}
           prefetch="hover"
-          className={row.original.name ? "font-medium text-foreground hover:underline" : "italic text-muted-foreground/60 hover:underline"}
+          className={row.original.name ? "font-medium text-fg-primary hover:underline" : "italic text-fg-muted hover:underline"}
         >
           {row.original.name || "Untitled"}
         </Link>
@@ -50,41 +49,20 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
   {
     accessorKey: "severity",
     header: "Severity",
-    cell: ({ row }) => (
-      <Badge className="min-w-24 justify-center py-1" style={severityBadgeStyle(row.original.severity.color)}>
-        {row.original.severity.name}
-      </Badge>
-    ),
+    cell: ({ row }) => <SeverityBadge severity={row.original.severity} />,
   },
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => {
-      const { name, color, lifecycleStage } = row.original.status
-      return (
-        <Badge
-          style={{
-            backgroundColor: `${color}33`,
-            color: color,
-            borderColor: `${color}66`,
-            minWidth: "7.5rem",
-            paddingTop: "0.25rem",
-            paddingBottom: "0.25rem",
-          }}
-        >
-          <StatusIcon statusName={name} lifecycleStage={lifecycleStage} />
-          {name}
-        </Badge>
-      )
-    },
+    cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
   {
     accessorKey: "lead",
     header: "Lead",
     cell: ({ row }) => (
       row.original.lead
-        ? <span>{row.original.lead}</span>
-        : <span className="text-muted-foreground">Unassigned</span>
+        ? <span className="text-fg-body">{row.original.lead}</span>
+        : <span className="text-fg-muted">Unassigned</span>
     ),
   },
   {
@@ -92,15 +70,15 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     header: "Declared by",
     cell: ({ row }) => (
       row.original.declaredBy
-        ? <span>{row.original.declaredBy}</span>
-        : <span className="text-muted-foreground">-</span>
+        ? <span className="text-fg-body">{row.original.declaredBy}</span>
+        : <span className="text-fg-muted">-</span>
     ),
   },
   {
     accessorKey: "declaredAt",
     header: "Declared",
     cell: ({ row }) => (
-      <span className="text-muted-foreground">
+      <span className="text-fg-secondary">
         {formatDateTime(row.original.declaredAt)}
       </span>
     ),
@@ -109,7 +87,7 @@ export const incidentsTableColumns: ColumnDef<IncidentListItem>[] = [
     id: "duration",
     header: "Duration",
     cell: ({ row }) => (
-      <span className="font-mono text-sm text-foreground/60">
+      <span className="font-mono text-sm text-fg-secondary">
         {formatDuration(row.original.declaredAt, row.original.resolvedAt)}
       </span>
     ),

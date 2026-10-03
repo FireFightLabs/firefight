@@ -75,8 +75,8 @@ function EntryRow({ entry, last }: { entry: OperatorProcessEntry; last: boolean 
       </span>
       <div className="flex min-w-0 flex-col gap-1 pt-1">
         <div className="flex items-baseline gap-3">
-          <span className={`text-sm font-medium ${entry.kind === OPERATOR_PROCESS_KINDS.STEP ? "font-mono text-[13px]" : ""} ${failed ? "text-rose-400" : ""}`}>{entry.title}</span>
-          <span className="text-muted-foreground/70 text-xs">{kind.label}</span>
+          <span className={`text-sm font-medium ${entry.kind === OPERATOR_PROCESS_KINDS.STEP ? "font-mono text-[13px]" : ""} ${failed ? "text-error" : ""}`}>{entry.title}</span>
+          <span className="text-fg-muted text-xs">{kind.label}</span>
         </div>
         {entry.detail && <p className="text-muted-foreground text-[13px]">{entry.detail}</p>}
         {entry.technical && (
@@ -86,7 +86,7 @@ function EntryRow({ entry, last }: { entry: OperatorProcessEntry; last: boolean 
               {open ? "Hide the error" : "Show the error"}
             </button>
             {open && (
-              <pre className="bg-muted/40 max-h-72 overflow-auto rounded-md border border-border p-3 font-mono text-xs whitespace-pre-wrap text-rose-300">{entry.technical}</pre>
+              <pre className="bg-muted/40 max-h-72 overflow-auto rounded-md border border-border p-3 font-mono text-xs whitespace-pre-wrap text-error">{entry.technical}</pre>
             )}
           </>
         )}
@@ -99,7 +99,7 @@ function EntryRow({ entry, last }: { entry: OperatorProcessEntry; last: boolean 
             <Link href={operatorHalonRunPath(entry.runId)}>Trace</Link>
           </Button>
         )}
-        <time dateTime={entry.at} className="text-muted-foreground/80 pt-1.5 font-mono text-xs" title={formatDateTime(entry.at)}>
+        <time dateTime={entry.at} className="text-fg-muted pt-1.5 font-mono text-xs" title={formatDateTime(entry.at)}>
           {formatTime(entry.at)}
         </time>
       </div>
@@ -125,10 +125,10 @@ export default function OperatorIncident() {
         lead="Everything Firefight did for this incident, in order: its alerts and routing, its events, each workflow step, webhook deliveries, failed calls to the chat platform, and Halon's runs."
       />
       <div className="mb-6 flex flex-wrap gap-2 text-xs">
-        <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.primary}`}>{incident.status}</span>
+        <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.active}`}>{incident.status}</span>
         <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>{incident.workspaceName}</span>
         {incident.problems > 0 && (
-          <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.rose}`}>{incident.problems} failed</span>
+          <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.error}`}>{incident.problems} failed</span>
         )}
         <span className={`rounded-full border px-2.5 py-1 ${TONE_CLASSES.neutral}`}>
           {entries.length < total ? `first ${entries.length} of ${total} records` : `${total} records`}

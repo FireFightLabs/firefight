@@ -7,6 +7,15 @@ export const LIFECYCLE_STAGES = {
   "CANCELED": "canceled"
 } as const
 
+export const DEFAULT_STATUS_SLUGS = {
+  "TRIAGING": "triaging",
+  "INVESTIGATING": "investigating",
+  "IDENTIFIED": "identified",
+  "MONITORING": "monitoring",
+  "RESOLVED": "resolved",
+  "CANCELED": "canceled"
+} as const
+
 export const INTEGRATION_CONNECT_WITH = {
   "CONNECTION_URL": "connection_url",
   "API_TOKEN": "api_token"
@@ -598,7 +607,8 @@ export const LEDGER_SOURCES = [
   "web",
   "investigation",
   "conversation",
-  "map_sweep"
+  "map_sweep",
+  "code_agent"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 

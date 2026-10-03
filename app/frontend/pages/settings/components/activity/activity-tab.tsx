@@ -38,6 +38,7 @@ const SOURCE_LABELS: Partial<Record<LedgerSource, string>> = {
   mcp: "MCP",
   investigation: "Investigation",
   map_sweep: "Map sweep",
+  code_agent: "Coding agent",
 }
 
 function sourceLabel(source: string): string {

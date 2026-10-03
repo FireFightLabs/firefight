@@ -51,6 +51,10 @@ module Ability
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
 
+    # Reading the public web through Firefight's own search key reaches nothing of the workspace's, so every person and
+    # agent may, with no grant. It leaves Firefight, so the ledger still holds every call. Never on a permission screen.
+    RESOURCE_WEB = "web"
+
     RESOURCE_LABELS = {
       RESOURCE_INCIDENTS => "Incidents",
       RESOURCE_SEVERITIES => "Severities",
@@ -81,6 +85,9 @@ module Ability
     ACTION_DELETE = "delete"
 
     ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
+
+    WEB_READ = "#{RESOURCE_WEB}.#{ACTION_READ}".freeze
+    OPEN_KEYS = [ WEB_READ ].freeze
 
     RISK_READ = "read"
     RISK_WRITE = "write"
@@ -114,10 +121,12 @@ module Ability
     # A rule that could hold the Permissions screen could lock admins out of removing it.
     APPROVAL_EXEMPT_RESOURCES = [ RESOURCE_APPROVALS, RESOURCE_PERMISSIONS ].freeze
 
+    # An open action is never held, since a broad rule would stall every lookup. A workspace switches it off instead.
     def self.approval_exempt?(key)
-      APPROVAL_EXEMPT_RESOURCES.include?(resource_of(key))
+      APPROVAL_EXEMPT_RESOURCES.include?(resource_of(key)) || open?(key)
     end
-    scope :grantable, -> { where.not(key: admin_only_keys) }
+    # Nobody needs a grant for an open action, so none is offered.
+    scope :grantable, -> { where.not(key: admin_only_keys + OPEN_KEYS) }
     scope :grantable_for, ->(workspace) { where(workspace_id: [ nil, workspace.id ]).grantable }
 
     def self.system_key(resource, action)
@@ -150,8 +159,10 @@ module Ability
       found = where(workspace_id: [ nil, workspace&.id ]).find_by(key: key)
       return found if found
 
-      system!(key) if managed_keys.include?(key)
+      system!(key) if managed_keys.include?(key) || open?(key)
     end
+
+    def self.open?(key) = OPEN_KEYS.include?(key.to_s)
 
     # Materialized on demand so grant writes never race the seed. The partial
     # unique index makes parallel creation safe.

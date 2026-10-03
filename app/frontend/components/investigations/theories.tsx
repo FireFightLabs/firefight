@@ -19,15 +19,15 @@ function Theory({ hypothesis }: { hypothesis: InvestigationHypothesis }) {
 
   return (
     <li className="flex gap-3">
-      <span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border ${TONE_CLASSES[tone]}`}>
+      <span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${TONE_CLASSES[tone]}`}>
         <StatusIcon className="size-3" strokeWidth={1.75} />
       </span>
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-[11px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
+        <span className="text-[11px] font-medium tracking-[0.12em] text-fg-muted uppercase">
           {labelFor(HYPOTHESIS_LABELS, hypothesis.status)}
           {hypothesis.confidence != null && ` · ${Math.round(hypothesis.confidence * 100)}% sure`}
         </span>
-        <span className="text-sm leading-relaxed">{hypothesis.assertion}</span>
+        <span className="text-sm leading-relaxed text-fg-body">{hypothesis.assertion}</span>
         <StepLinks steps={hypothesis.steps} />
       </div>
     </li>
@@ -37,7 +37,7 @@ function Theory({ hypothesis }: { hypothesis: InvestigationHypothesis }) {
 // Every theory it weighed, the one it kept and the ones it ruled out, each with the steps that decided it.
 export function Theories({ hypotheses }: { hypotheses: InvestigationHypothesis[] }) {
   if (hypotheses.length === 0) {
-    return <p className="text-sm text-muted-foreground">It did not write down any theories.</p>
+    return <p className="text-sm text-fg-muted">It did not write down any theories.</p>
   }
 
   return (
