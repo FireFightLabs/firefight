@@ -18,6 +18,15 @@ module Integrations
         assert_includes sent, '{"method":"POST","path":"/graphql","body":{"query":"{ viewer { zones { zoneTag } } }","variables":{"zone":"abc"}}}'
       end
 
+      test "a Workers log query is the one other POST taken, with its body as data" do
+        path = "/accounts/acc/workers/observability/telemetry/query"
+        sent = Cloudflare.reading("execute", "method" => "POST", "path" => path, "body" => { "queryId" => "q", "parameters" => { "view" => "events" } })["code"]
+
+        assert_includes sent, %({"method":"POST","path":"#{path}","body":{"queryId":"q","parameters":{"view":"events"}}})
+        assert_raises(Refused) { Cloudflare.reading("execute", "method" => "POST", "path" => path, "body" => "events") }
+        assert_raises(Refused) { Cloudflare.reading("execute", "method" => "POST", "path" => "/accounts/acc/workers/scripts/api/deployments", "body" => {}) }
+      end
+
       test "anything that is not one read is refused before anything is sent" do
         [
           { "method" => "DELETE", "path" => "/zones/abc" },

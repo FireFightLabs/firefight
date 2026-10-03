@@ -51,6 +51,25 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     assert_equal [ "C1", "1.2" ], [ @plan.progress_channel_id, @plan.progress_message_id ]
   end
 
+  test "a step that named a capability runs as the provider call it was resolved to, and a failed answer fails the step" do
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_WORKER, external_id: "api",
+                                  name: "api", url: "https://dash.cloudflare.com/acc1/workers-and-pages", integration_environment: @cloudflare.integration_environments.first,
+                                  first_seen_at: Time.current, last_seen_at: Time.current)
+    @plan.destroy!
+    finding = @investigation.reload.finding
+    Investigation::RemediationPlan.propose!(finding, { "summary" => "Roll api back", "steps" => [
+      { "kind" => "action", "description" => "Put api back on version 8", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "ver-8" } }
+    ] })
+    plan = finding.reload.remediation_plan
+    Integrations::McpExecutor.expects(:call).with { |tool:, arguments:, **| tool == @execute && arguments["code"].include?("/accounts/acc1/workers/scripts/api/deployments") }
+                             .returns("content" => [ { "type" => "text", "text" => "Error: version not found" } ], "isError" => true)
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
+
+    step = plan.steps.reload.sole
+    assert_equal [ "rollback", "cloudflare.execute", "failed" ], [ step.tool_name, step.action_key, step.status ]
+  end
+
   test "marking a person's step done lets what waits on it run, and the fix settles once every step ended" do
     Integrations::McpExecutor.stubs(:call).returns("content" => [])
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_SLACK) }
