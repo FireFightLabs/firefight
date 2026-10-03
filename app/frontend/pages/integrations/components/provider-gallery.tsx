@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 
 import { Input } from "@/components/ui/input"
+import { ProviderAbout } from "@/pages/integrations/components/provider-about"
 import { ProviderTile } from "@/pages/integrations/components/provider-tile"
 import type { Integration } from "@/types/serializers"
 import type { IntegrationProvider } from "@/types/serializers"
@@ -25,6 +26,11 @@ export function ProviderGallery({
 }) {
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<Filter>("All applications")
+  const [about, setAbout] = useState<IntegrationProvider | null>(null)
+
+  function closeAbout() {
+    setAbout(null)
+  }
 
   // The Connected/Disconnected split means nothing until something is connected.
   const showFilters = integrations.length > 0
@@ -47,8 +53,11 @@ export function ProviderGallery({
     matching.forEach((provider) => {
       byCategory.set(provider.category, [...(byCategory.get(provider.category) ?? []), provider])
     })
-    return [...byCategory.entries()]
-  }, [providers, integrations, search, activeFilter])
+    // In the registry's order, so the groups read the same every time.
+    const order = Object.keys(categories)
+    const rank = (category: string) => (order.includes(category) ? order.indexOf(category) : order.length)
+    return [...byCategory.entries()].sort(([first], [second]) => rank(first) - rank(second))
+  }, [providers, integrations, search, activeFilter, categories])
 
   return (
     <div className="flex flex-col gap-8">
@@ -103,6 +112,7 @@ export function ProviderGallery({
                 canManage={canManage}
                 onConnect={onConnect}
                 onDetails={onDetails}
+                onAbout={setAbout}
               />
             ))}
           </div>
@@ -112,6 +122,8 @@ export function ProviderGallery({
       {grouped.length === 0 && (
         <p className="text-muted-foreground py-8 text-center text-sm">No integrations match.</p>
       )}
+
+      <ProviderAbout provider={about} onClose={closeAbout} />
     </div>
   )
 }

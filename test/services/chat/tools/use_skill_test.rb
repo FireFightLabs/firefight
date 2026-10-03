@@ -41,7 +41,7 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     connect_northflank(%w[list_resources query_metrics search_logs])
 
     assert_includes use_skill.parameters_schema.dig("properties", "skill", "enum"), "northflank_resources"
-    assert_includes use_skill.description, "northflank telemetry:\nnorthflank_"
+    assert_includes use_skill.description, "northflank cloud and hosting:\nnorthflank_"
   end
 
   test "a provider's skill makes its tools callable under the names the connection gives them" do

@@ -3,18 +3,18 @@ require "test_helper"
 class IntegrationProviderTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    @telemetry = IntegrationProvider.category_for!("telemetry")
+    @telemetry = IntegrationProvider.category_for!("observability")
   end
 
   test "a category is found by its slug or its name, whatever the case" do
-    assert_equal "Telemetry", IntegrationProvider.category_for!("Telemetry").name
-    assert_equal @telemetry, IntegrationProvider.category_for!("TELEMETRY")
+    assert_equal "Observability", IntegrationProvider.category_for!("Observability").name
+    assert_equal @telemetry, IntegrationProvider.category_for!("OBSERVABILITY")
   end
 
   test "a category that does not exist is refused with the ones that do" do
     error = assert_raises(ArgumentError) { IntegrationProvider.category_for!("monitoring") }
 
-    assert_match "telemetry (Telemetry)", error.message
+    assert_match "observability (Observability)", error.message
   end
 
   test "a card holds every provider in the category, connected ones first" do
@@ -22,7 +22,7 @@ class IntegrationProviderTest < ActiveSupport::TestCase
 
     rows = IntegrationProvider.card_for(@workspace, @telemetry).rows
 
-    assert_equal IntegrationProvider.all.count { |provider| provider.category == "Telemetry" }, rows.size
+    assert_equal IntegrationProvider.all.count { |provider| provider.category == "Observability" }, rows.size
     assert_equal "datadog", rows.first.provider.key
     assert_equal IntegrationProvider::STATE_CONNECTED, rows.first.state
     assert_equal [ { id: datadog.id, name: "Datadog" } ], rows.first.connections
@@ -53,7 +53,7 @@ class IntegrationProviderTest < ActiveSupport::TestCase
   end
 
   test "a category's key is the same one the agent's tool groups use" do
-    assert_equal Chat::Tools::Groups.category_key("Telemetry"), @telemetry.slug
+    assert_equal Chat::Tools::Groups.category_key("Observability"), @telemetry.slug
   end
 
   test "a connection that was removed counts as never connected" do

@@ -5,6 +5,9 @@ module Integrations
     module Adapter
       def supports?(key, kind) = self::SUPPORTS.fetch(key, []).include?(kind)
 
+      # The capabilities this provider answers for some kind of resource, in the order they are listed.
+      def capabilities = SPECS.keys.select { |key| self::SUPPORTS.key?(key) }
+
       def runs?(key, tool_name) = self::TOOLS[key] == tool_name
 
       def wraps?(tool_name) = self::WRAPPED.include?(tool_name)

@@ -1,4 +1,5 @@
 import { router } from "@inertiajs/react"
+import { IconInfoCircle } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -13,12 +14,14 @@ export function ProviderTile({
   canManage,
   onConnect,
   onDetails,
+  onAbout,
 }: {
   provider: IntegrationProvider
   integrations: Integration[]
   canManage: boolean
   onConnect: (provider: IntegrationProvider) => void
   onDetails: (integration: Integration) => void
+  onAbout: (provider: IntegrationProvider) => void
 }) {
   // Several connections become a list, since a provider backing two accounts
   // has no single on/off state.
@@ -34,7 +37,17 @@ export function ProviderTile({
       <div className="flex items-start gap-4">
         <ProviderMark providerKey={provider.key} mark={provider.mark} color={provider.color} size={48} />
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-semibold">{provider.name}</div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-[15px] font-semibold">{provider.name}</div>
+            <button
+              type="button"
+              onClick={() => onAbout(provider)}
+              aria-label={`About ${provider.name}`}
+              className="text-fg-muted hover:text-fg-primary focus-visible:ring-ring -m-1 rounded p-1 transition-colors outline-none focus-visible:ring-2"
+            >
+              <IconInfoCircle className="size-4" />
+            </button>
+          </div>
           <p className="text-muted-foreground mt-1 line-clamp-2 text-[13px] leading-relaxed">
             {provider.description}
           </p>

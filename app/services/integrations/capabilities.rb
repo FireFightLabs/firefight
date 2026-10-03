@@ -115,6 +115,23 @@ module Integrations
 
     def self.spec(key) = SPECS.fetch(key)
 
+    # What Halon can do through a provider, in a sentence a person reads in its details. A provider without an adapter
+    # is still used through its own tools.
+    PHRASES = {
+      LOGS => "read its logs", METRICS => "read its metrics", DEPLOYS => "see what was deployed", STATUS => "check how a resource stands",
+      ERRORS => "read its errors", TRACES => "read its traces", ROLLBACK => "roll a resource back", RESTART => "restart a service",
+      SCALE => "scale a service"
+    }.freeze
+
+    def self.halon_sentence(provider, name)
+      own = "Halon uses #{name}'s own tools that you switch on, in chats and investigations."
+      keys = adapter_for(provider)&.capabilities.to_a
+      return own if keys.empty?
+
+      "Halon can #{keys.map { |key| PHRASES.fetch(key) }.to_sentence} for anything #{name} runs, through the tools you switch on. " \
+        "It also uses #{name}'s other tools that you switch on."
+    end
+
     def self.adapter_for(provider) = ADAPTERS[provider.to_s]&.constantize
 
     # Provider tools an adapter answers one to one, which an agent holding the capability is not offered as well.

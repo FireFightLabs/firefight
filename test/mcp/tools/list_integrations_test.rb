@@ -12,15 +12,15 @@ class Mcp::Tools::ListIntegrationsTest < ActiveSupport::TestCase
   test "without a category it says what is connected in each, so the agent can ask which the person wants" do
     body = Mcp::Tools::ListIntegrations.perform(workspace: @workspace, args: {}).structured_content
 
-    telemetry = body[:categories].find { |category| category[:category] == "telemetry" }
+    telemetry = body[:categories].find { |category| category[:category] == "observability" }
     assert_equal [ "Datadog" ], telemetry[:connected]
     assert_equal IntegrationProvider.category_list.size, body[:categories].size
   end
 
   test "with a category it lists every provider in it and where each stands" do
-    body = Mcp::Tools::ListIntegrations.perform(workspace: @workspace, args: { category: "Telemetry" }).structured_content
+    body = Mcp::Tools::ListIntegrations.perform(workspace: @workspace, args: { category: "Observability" }).structured_content
 
-    assert_equal "telemetry", body[:category]
+    assert_equal "observability", body[:category]
     datadog = body[:providers].find { |provider| provider[:key] == "datadog" }
     assert_equal IntegrationProvider::STATE_CONNECTED, datadog[:state]
   end
@@ -32,7 +32,7 @@ class Mcp::Tools::ListIntegrationsTest < ActiveSupport::TestCase
   test "the categories are listed in its parameter, so a model picks one that exists" do
     description = Mcp::Tools::ListIntegrations.schema_for(@workspace).dig(:properties, :category, :description)
 
-    assert_match "telemetry (Telemetry)", description
+    assert_match "observability (Observability)", description
   end
 
   test "it reads what the integrations page reads, so it asks the same permission" do
