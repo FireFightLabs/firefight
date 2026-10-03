@@ -153,7 +153,7 @@ export function EntryDetailSheet({
               <IconClock className="size-3" />
               Created {formatDate(entry.createdAt)}
             </div>
-            <span className="text-muted-foreground/30">|</span>
+            <span className="text-fg-disabled">|</span>
             <div>
               Updated {formatDate(entry.updatedAt)}
             </div>

@@ -1,4 +1,4 @@
-const HIGHLIGHT_CLASSES = ["ring-2", "ring-primary/60", "rounded-md"]
+const HIGHLIGHT_CLASSES = ["ring-2", "ring-brand", "rounded-md"]
 const HIGHLIGHT_MS = 1600
 
 export function actionAnchorId(actionId: string) {

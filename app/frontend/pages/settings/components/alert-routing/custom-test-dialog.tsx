@@ -166,7 +166,7 @@ export function CustomTestDialog({
                   <span>would notify: <span className="text-foreground">{result.resolution.notify}</span></span>
                 )}
                 {result.resolution.notes.map((note, index) => (
-                  <span key={index} className="text-amber-500/80">⚠ {note}</span>
+                  <span key={index} className="text-warning">⚠ {note}</span>
                 ))}
               </div>
             )}

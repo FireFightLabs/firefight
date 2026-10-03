@@ -17,13 +17,13 @@ export function StatCard({ stat }: { stat: DashboardStat }) {
   return (
     <Card className="@container/card border border-border">
       <CardHeader>
-        <CardDescription>{stat.label}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+        <CardDescription className="text-fg-secondary">{stat.label}</CardDescription>
+        <CardTitle className="text-2xl font-semibold tabular-nums text-fg-headline @[250px]/card:text-3xl">
           {stat.value}
         </CardTitle>
         {stat.change && (
           <CardAction>
-            <Badge variant="outline">
+            <Badge variant="outline" className="border-border-strong text-fg-body">
               <TrendIcon />
               {stat.change}
             </Badge>
@@ -31,10 +31,10 @@ export function StatCard({ stat }: { stat: DashboardStat }) {
         )}
       </CardHeader>
       <CardFooter className="flex-col items-start gap-2 pt-2 text-sm">
-        <div className="line-clamp-1 flex items-center gap-2 font-medium text-foreground/80">
+        <div className="line-clamp-1 flex items-center gap-2 font-medium text-fg-body">
           {stat.trendDescription}
         </div>
-        <div className="text-muted-foreground text-xs">{stat.detail}</div>
+        <div className="text-fg-muted text-xs">{stat.detail}</div>
       </CardFooter>
     </Card>
   )

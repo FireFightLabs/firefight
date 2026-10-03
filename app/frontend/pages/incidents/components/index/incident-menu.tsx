@@ -111,7 +111,7 @@ export function IncidentMenu({
           <Button
             variant="outline"
             size="icon"
-            className="size-8 border-border bg-card hover:bg-accent focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="size-8 border-border bg-card hover:bg-accent"
           >
             <IconDotsVertical className="size-4" />
             <span className="sr-only">Incident actions</span>

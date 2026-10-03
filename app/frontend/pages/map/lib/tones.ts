@@ -1,30 +1,37 @@
 import type { ResourceMapHealth, ResourceMapKind } from "@/lib/generated/constants"
 
-// One colour per kind of resource, so a database reads apart from a service at a glance.
+// One chart colour per family of resource, so a database reads apart from a service at a glance.
+// Lime is left out, since on this page it means healthy.
+const SERVING = "bg-stage-active-tint text-chart-2 ring-stage-active-border"
+const ROUTING = "bg-surface-selected text-fg-body ring-border-strong"
+const STORING = "bg-stage-triage-tint text-chart-3 ring-stage-triage-border"
+const RUNNING = "bg-warning-tint text-chart-4 ring-warning/30"
+const SOURCE = "bg-stage-canceled-tint text-chart-5 ring-stage-canceled-border"
+
 export const KIND_TONES: Record<ResourceMapKind, string> = {
-  service: "bg-sky-500/15 text-sky-300 ring-sky-400/25",
-  build_service: "bg-amber-500/15 text-amber-300 ring-amber-400/25",
-  job: "bg-indigo-500/15 text-indigo-300 ring-indigo-400/25",
-  database: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
-  branch: "bg-fuchsia-500/15 text-fuchsia-300 ring-fuchsia-400/25",
-  repository: "bg-slate-400/15 text-slate-200 ring-slate-300/20",
-  domain: "bg-teal-500/15 text-teal-300 ring-teal-400/25",
-  zone: "bg-orange-500/15 text-orange-300 ring-orange-400/25",
-  worker: "bg-orange-500/15 text-orange-300 ring-orange-400/25",
-  site: "bg-sky-500/15 text-sky-300 ring-sky-400/25",
-  bucket: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
-  kv_namespace: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
-  queue: "bg-indigo-500/15 text-indigo-300 ring-indigo-400/25",
-  database_proxy: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
-  tunnel: "bg-teal-500/15 text-teal-300 ring-teal-400/25",
-  load_balancer: "bg-teal-500/15 text-teal-300 ring-teal-400/25",
-  origin_pool: "bg-sky-500/15 text-sky-300 ring-sky-400/25",
-  access_app: "bg-rose-500/15 text-rose-300 ring-rose-400/25",
+  service: SERVING,
+  build_service: RUNNING,
+  job: RUNNING,
+  database: STORING,
+  branch: SOURCE,
+  repository: SOURCE,
+  domain: ROUTING,
+  zone: ROUTING,
+  worker: RUNNING,
+  site: SERVING,
+  bucket: STORING,
+  kv_namespace: STORING,
+  queue: RUNNING,
+  database_proxy: STORING,
+  tunnel: ROUTING,
+  load_balancer: ROUTING,
+  origin_pool: ROUTING,
+  access_app: SERVING,
 }
 
 export const HEALTH_DOTS: Record<ResourceMapHealth, string> = {
-  ok: "bg-emerald-400 shadow-[0_0_0_3px] shadow-emerald-400/15",
-  busy: "bg-amber-400 shadow-[0_0_0_3px] shadow-amber-400/15",
-  failing: "bg-red-400 shadow-[0_0_0_3px] shadow-red-400/20",
-  unknown: "bg-muted-foreground/50",
+  ok: "bg-success",
+  busy: "bg-warning",
+  failing: "bg-error",
+  unknown: "bg-fg-disabled",
 }

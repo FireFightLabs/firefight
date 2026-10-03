@@ -112,8 +112,8 @@ export function GrantDialog({
                 onClick={() => switchMode(option)}
                 className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   mode === option
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-surface-selected text-fg-primary ring-1 ring-border-strong"
+                    : "text-fg-secondary hover:text-fg-primary"
                 }`}
               >
                 {option === "set" ? "Permission set" : "Single ability"}

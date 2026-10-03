@@ -25,7 +25,7 @@ import { OptionDialog, type OptionDialogState } from "@/pages/settings/component
 import { OptionsTable } from "@/pages/settings/components/options-table"
 import { slugColumnHint } from "@/pages/settings/lib/constants"
 
-const DEFAULT_TYPE_COLOR = "#6366F1"
+const DEFAULT_TYPE_COLOR = "#A98AEA"
 
 export function TypesTab({ types, canManage }: { types: IncidentTypeSettings[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentTypeSettings>>(null)

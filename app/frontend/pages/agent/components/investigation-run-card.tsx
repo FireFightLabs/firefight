@@ -78,7 +78,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
           </Button>
         )}
         {run.incidentId && (
-          <Link href={incidentPath(run.incidentId)} className="text-[12.5px] text-ink-2 hover:text-ink">
+          <Link href={incidentPath(run.incidentId)} className="text-[12.5px] text-ink-2 hover:text-ink transition-colors duration-150">
             On {run.incidentIdentifier}
           </Link>
         )}

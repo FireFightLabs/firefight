@@ -179,10 +179,10 @@ export default function OperatorHalon() {
                 <TableRow key={tool.actionKey}>
                   <TableCell className="font-mono text-[13px]">{tool.actionKey}</TableCell>
                   <TableCell className="text-right font-mono">{count(tool.calls)}</TableCell>
-                  <TableCell className={`text-right font-mono ${tool.errors > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>
+                  <TableCell className={`text-right font-mono ${tool.errors > 0 ? "text-error" : "text-muted-foreground"}`}>
                     {percent(tool.errors, tool.calls)}
                   </TableCell>
-                  <TableCell className={`text-right font-mono ${tool.denied > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>{tool.denied}</TableCell>
+                  <TableCell className={`text-right font-mono ${tool.denied > 0 ? "text-warning" : "text-muted-foreground"}`}>{tool.denied}</TableCell>
                   <TableCell className="text-muted-foreground text-right font-mono">{milliseconds(tool.medianMs)}</TableCell>
                 </TableRow>
               ))}
@@ -197,7 +197,7 @@ export default function OperatorHalon() {
         <Section title="Model calls" note="Runs, their re-read and chat turns">
           <div className="grid grid-cols-2 gap-3 p-5">
             <Stat label="Calls" value={count(model.calls)} />
-            <Stat label="Failed" value={count(model.errors)} note={percent(model.errors, model.calls)} tone={model.errors > 0 ? "rose" : "neutral"} />
+            <Stat label="Failed" value={count(model.errors)} note={percent(model.errors, model.calls)} tone={model.errors > 0 ? "error" : "neutral"} />
             <Stat label="Median" value={milliseconds(model.medianMs)} />
             <Stat label="p90" value={milliseconds(model.p90Ms)} />
           </div>
@@ -261,7 +261,7 @@ export default function OperatorHalon() {
         <Link
           href={runsHref({ ending: null })}
           preserveScroll
-          className={`rounded-full border px-3 py-1 text-xs ${ending === null ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+          className={`rounded-full border px-3 py-1 text-xs ${ending === null ? "border-brand-border bg-brand-tint text-brand" : "border-border text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg-primary"}`}
         >
           All runs
         </Link>
@@ -270,7 +270,7 @@ export default function OperatorHalon() {
             key={choice}
             href={runsHref({ ending: choice })}
             preserveScroll
-            className={`rounded-full border px-3 py-1 text-xs ${ending === choice ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-full border px-3 py-1 text-xs ${ending === choice ? "border-brand-border bg-brand-tint text-brand" : "border-border text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg-primary"}`}
           >
             {ENDING_LABELS[choice]}
           </Link>
@@ -302,7 +302,7 @@ export default function OperatorHalon() {
                     {run.ending !== OPERATOR_HALON_ENDINGS.ANSWERED && run.errorSummary && (
                       <span className="text-muted-foreground max-w-56 truncate text-xs">{run.errorSummary}</span>
                     )}
-                    {run.notPosted && <span className="text-xs text-rose-600 dark:text-rose-400">not posted</span>}
+                    {run.notPosted && <span className="text-xs text-error">not posted</span>}
                   </div>
                 </TableCell>
                 <TableCell className="text-right font-mono">{run.turns}</TableCell>

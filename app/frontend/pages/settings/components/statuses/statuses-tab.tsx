@@ -44,7 +44,7 @@ export function StatusesTab({ lifecycleStages, canManage }: { lifecycleStages: L
         createDescription={creatingIn ? `Create a new status in the ${creatingIn.name} stage.` : undefined}
         createPath={incidentStatusesPath()}
         editPath={incidentStatusPath}
-        defaultColor="#6B7280"
+        defaultColor="#9D9F9D"
         namePlaceholder="e.g. Mitigating"
         descriptionPlaceholder="When is an incident in this status?"
         extraParams={creatingIn ? { lifecycle_stage_key: creatingIn.key } : undefined}

@@ -12,6 +12,11 @@ module TypescriptConstants
         "TRIAGE" => IncidentLifecycleStage::TRIAGE, "ACTIVE" => IncidentLifecycleStage::ACTIVE,
         "CLOSED" => IncidentLifecycleStage::CLOSED, "CANCELED" => IncidentLifecycleStage::CANCELED
       }, nil),
+      Export.new("DEFAULT_STATUS_SLUGS", {
+        "TRIAGING" => IncidentStatus::SLUG_TRIAGING, "INVESTIGATING" => IncidentStatus::SLUG_INVESTIGATING,
+        "IDENTIFIED" => IncidentStatus::SLUG_IDENTIFIED, "MONITORING" => IncidentStatus::SLUG_MONITORING,
+        "RESOLVED" => IncidentStatus::SLUG_RESOLVED, "CANCELED" => IncidentStatus::SLUG_CANCELED
+      }, nil),
       Export.new("INTEGRATION_CONNECT_WITH", { "CONNECTION_URL" => IntegrationProvider::CONNECT_CONNECTION_URL, "API_TOKEN" => IntegrationProvider::CONNECT_API_TOKEN }, nil),
       Export.new("INTEGRATION_KINDS", {
         "MCP" => Integration::KIND_MCP, "HTTP" => Integration::KIND_HTTP, "NATIVE" => Integration::KIND_NATIVE

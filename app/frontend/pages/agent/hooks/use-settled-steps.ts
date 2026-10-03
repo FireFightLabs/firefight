@@ -5,6 +5,8 @@ import type { AgentStep } from "@/pages/agent/types"
 // A tool usually answers within a few dozen milliseconds, so a step's running and done events land in
 // the same frame and the spinner never paints. Each step is shown running for at least this long, and
 // steps that finish together settle one after another, so a person sees the work happen in order.
+// Only work that happens while the person watches is paced. A step already finished when the list
+// first renders, an opened chat or a turn that just saved, shows finished at once.
 const SHOW_RUNNING_FOR_MS = 450
 const SETTLE_APART_MS = 220
 
@@ -16,18 +18,24 @@ interface Shown {
 export function useSettledSteps(steps: AgentStep[]): AgentStep[] {
   const shown = useRef<Map<string, Shown>>(new Map())
   const lastSettle = useRef(0)
+  const mounted = useRef(false)
   const [ now, setNow ] = useState(() => Date.now())
 
   useEffect(() => {
     const clock = Date.now()
     for (const step of steps) {
-      const entry = shown.current.get(step.key) ?? { since: clock, settleAt: null }
+      const seen = shown.current.get(step.key)
+      const entry = seen ?? { since: clock, settleAt: null }
+      if (!seen && !mounted.current && step.status !== AGENT_STEP_STATUSES.RUNNING) {
+        entry.settleAt = 0
+      }
       if (step.status !== AGENT_STEP_STATUSES.RUNNING && entry.settleAt === null) {
         entry.settleAt = Math.max(entry.since + SHOW_RUNNING_FOR_MS, lastSettle.current + SETTLE_APART_MS, clock)
         lastSettle.current = entry.settleAt
       }
       shown.current.set(step.key, entry)
     }
+    mounted.current = true
     for (const key of shown.current.keys()) {
       if (!steps.some((step) => step.key === key)) {
         shown.current.delete(key)

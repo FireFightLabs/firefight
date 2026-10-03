@@ -82,7 +82,7 @@ export function SearchableMultiSelect({
                 <button
                   type="button"
                   onClick={() => remove(id)}
-                  className="ml-0.5 rounded-sm hover:bg-muted-foreground/20 p-0.5"
+                  className="ml-0.5 rounded-sm hover:bg-surface-selected p-0.5"
                 >
                   <IconX className="size-3" />
                 </button>
@@ -97,7 +97,7 @@ export function SearchableMultiSelect({
             <span className="text-muted-foreground">
               {value.length === 0 ? placeholder : addMoreText}
             </span>
-            <IconChevronDown className="size-4 shrink-0 opacity-50" />
+            <IconChevronDown className="size-4 shrink-0 text-fg-muted" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">

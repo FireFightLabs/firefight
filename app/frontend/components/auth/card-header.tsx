@@ -14,15 +14,15 @@ export function CardHeader({ title, subtitle, overline }: CardHeaderProps) {
       <FireFightLogo className="size-10" />
       <div className="space-y-4">
         {overline ? (
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
             {overline}
           </p>
         ) : null}
-        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        <h1 className="text-3xl font-semibold tracking-tight text-fg-headline sm:text-4xl">
           {title}
         </h1>
         {subtitle ? (
-          <p className="text-[15px] leading-relaxed text-muted-foreground">
+          <p className="text-[15px] leading-relaxed text-fg-body">
             {subtitle}
           </p>
         ) : null}

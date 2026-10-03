@@ -119,7 +119,7 @@ export function AlertSourcesTab({
                       <div className="flex items-center gap-2.5">
                         <IconBellRinging className="size-4 text-muted-foreground" />
                         <span className="font-medium">{source.name}</span>
-                        <span className="text-xs text-muted-foreground/70">
+                        <span className="text-xs text-fg-muted">
                           {providerLabel(source.provider)}
                         </span>
                       </div>

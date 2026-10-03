@@ -10,17 +10,17 @@ export function AlertsPanel({ alerts }: { alerts: Incident["alerts"] }) {
 
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">Alerts</h3>
+      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.10em] text-fg-primary">Alerts</h3>
       <ul className="flex flex-col gap-2.5">
         {alerts.map((alert) => (
           <li key={alert.id} className="flex items-start gap-2.5">
             <span
-              className={`mt-1 size-2 shrink-0 rounded-full ${alert.status === "firing" ? "bg-rose-400" : "bg-emerald-400"}`}
+              className={`mt-1 size-2 shrink-0 rounded-full ${alert.status === "firing" ? "bg-error" : "bg-success"}`}
               aria-hidden
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] leading-snug text-foreground">{alert.title}</p>
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+              <p className="truncate text-[13px] leading-snug text-fg-primary">{alert.title}</p>
+              <p className="flex items-center gap-1.5 text-xs text-fg-muted">
                 <IconBellRinging className="size-3" />
                 {alert.sourceName}
                 <span>·</span>
