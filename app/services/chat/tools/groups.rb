@@ -25,10 +25,10 @@ module Chat::Tools::Groups
   FIREFIGHT = [
     Firefight.new(
       key: INCIDENT_HISTORY, title: "Incidents and what happened before",
-      covers: "search incidents, find ones that read like this, read one, what was said in its channel, past investigations",
+      covers: "search incidents, find ones that read like this, read one, what was said in its channel, past investigations, how accurate Halon has been",
       tools: [
         Mcp::Tools::SEARCH_INCIDENTS, Mcp::Tools::SEARCH_SIMILAR, Mcp::Tools::GET_INCIDENT,
-        Mcp::Tools::GET_INCIDENT_TRANSCRIPT, Mcp::Tools::GET_INVESTIGATION
+        Mcp::Tools::GET_INCIDENT_TRANSCRIPT, Mcp::Tools::GET_INVESTIGATION, Mcp::Tools::GET_HALON_PERFORMANCE
       ]
     ),
     Firefight.new(

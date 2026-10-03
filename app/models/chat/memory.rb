@@ -120,6 +120,9 @@ class Chat::Memory < ApplicationRecord
 
   def confirmed? = state == STATE_CONFIRMED
 
+  # A lesson as it is shown beside the answer it came from.
+  def lesson = { id: id, text: text, confirmed: confirmed? }
+
   def about = subject.respond_to?(:name) ? subject.name : nil
 
   # How Halon reads it: the fact, what it is about, and whether anyone vouched for it.
