@@ -42,7 +42,7 @@ export function AiRewriteDialog({ open, onOpenChange, onSubmit }: AiRewriteDialo
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <IconSparkles className="size-4 text-primary" />
+            <IconSparkles className="size-4 text-brand" />
             Rewrite with AI
           </DialogTitle>
           <DialogDescription>

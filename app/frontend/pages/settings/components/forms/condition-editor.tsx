@@ -236,7 +236,7 @@ export function ConditionEditor({ field, form, incidentTypes, severities, status
     }
 
     return (
-      <span className="flex items-center gap-1 rounded-md bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-600 dark:text-cyan-400">
+      <span className="flex items-center gap-1 rounded-md bg-info-tint px-2 py-0.5 text-[11px] text-info">
         <IconFilter className="size-3" />
         {conditionSummary(field.conditions!, sources)}
       </span>
@@ -251,8 +251,8 @@ export function ConditionEditor({ field, form, incidentTypes, severities, status
           className={cn(
             "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] transition-colors",
             hasConditions
-              ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/15"
-              : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/30"
+              ? "bg-info-tint text-info hover:bg-info/20"
+              : "text-fg-muted hover:text-fg-primary hover:bg-surface-hover"
           )}
         >
           <IconFilter className="size-3" />

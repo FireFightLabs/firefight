@@ -36,7 +36,7 @@ function ClaimControl({ onClaim, blockedReason }: { onClaim: () => void; blocked
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="shrink-0 cursor-not-allowed text-[11px] text-muted-foreground/40">Claim</span>
+          <span className="shrink-0 cursor-not-allowed text-[11px] text-fg-disabled">Claim</span>
         </TooltipTrigger>
         <TooltipContent>{blockedReason}</TooltipContent>
       </Tooltip>
@@ -47,7 +47,7 @@ function ClaimControl({ onClaim, blockedReason }: { onClaim: () => void; blocked
     <button
       type="button"
       onClick={onClaim}
-      className="shrink-0 rounded text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="shrink-0 rounded text-[11px] text-muted-foreground underline-offset-2 hover:text-fg-primary hover:underline"
     >
       Claim
     </button>
@@ -74,15 +74,15 @@ function StepRow({
   return (
     <li className="flex items-start gap-2 py-1">
       <IconCircleCheck
-        className={`mt-0.5 size-3.5 shrink-0 ${step.done ? "text-emerald-500 dark:text-emerald-400" : "text-muted-foreground/30"}`}
+        className={`mt-0.5 size-3.5 shrink-0 ${step.done ? "text-success" : "text-fg-disabled"}`}
         strokeWidth={1.75}
         aria-hidden
       />
       <span className="min-w-0 flex-1">
-        <span className={`block text-[12.5px] leading-snug ${step.done ? "text-muted-foreground/60 line-through" : "text-foreground"}`}>
+        <span className={`block text-[12.5px] leading-snug ${step.done ? "text-fg-muted line-through" : "text-fg-primary"}`}>
           {step.title}
         </span>
-        {step.assignee && <span className="text-[11px] text-muted-foreground/70">{step.assignee}</span>}
+        {step.assignee && <span className="text-[11px] text-fg-muted">{step.assignee}</span>}
       </span>
       {canEdit && !step.done && !step.assignee && (
         <ClaimControl onClaim={claim} blockedReason={claimBlockedReason} />
@@ -119,13 +119,13 @@ function RunbookEntry({
           onClick={toggle}
           disabled={runbook.stepsCount === 0}
           aria-expanded={open}
-          className="mt-0.5 shrink-0 rounded text-muted-foreground/70 hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-0.5 shrink-0 rounded text-fg-muted transition-colors duration-120 hover:text-fg-primary disabled:text-fg-disabled"
         >
           <Chevron className="size-3.5" />
           <span className="sr-only">{open ? "Hide steps" : "Show steps"}</span>
         </button>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-[13px] leading-snug text-foreground">
+          <p className="flex items-center gap-1.5 text-[13px] leading-snug text-fg-primary">
             {/* The same target the timeline's runbook entry opens. */}
             <Link
               href={settingsRunbooksPath({ [RUNBOOK_QUERY_PARAM]: runbook.runbookId })}
@@ -138,14 +138,14 @@ function RunbookEntry({
                 href={runbook.externalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                className="shrink-0 text-muted-foreground hover:text-fg-primary"
                 aria-label={`Open ${runbook.name} runbook link`}
               >
                 <IconExternalLink className="size-3.5" />
               </a>
             )}
           </p>
-          <p className="text-xs text-muted-foreground/70">{progressLabel(runbook)}</p>
+          <p className="text-xs text-fg-muted">{progressLabel(runbook)}</p>
         </div>
       </div>
 
@@ -183,12 +183,12 @@ export function RunbooksPanel({
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">Runbooks</h3>
+        <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-fg-primary">Runbooks</h3>
         <AttachRunbookDialog incidentId={incidentId} runbooks={attachable} />
       </div>
 
       {runbooks.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground/70">
+        <p className="text-[13px] text-fg-muted">
           None attached. Attach one to post its steps in the incident channel.
         </p>
       ) : (

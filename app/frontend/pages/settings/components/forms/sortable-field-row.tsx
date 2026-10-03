@@ -58,7 +58,7 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
       style={style}
       className={cn(
         "group border-b border-dashed border-border px-4 py-5 last:border-b-0",
-        isDragging && "relative rounded-xl border-solid border-cyan-500/30 bg-background shadow-lg",
+        isDragging && "relative rounded-xl border-solid border-border-control bg-surface-popover shadow-popover",
         !isVisible && "opacity-40",
       )}
     >
@@ -67,7 +67,7 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
           <button
             ref={setActivatorNodeRef}
             type="button"
-            className="mt-0.5 flex shrink-0 cursor-grab touch-none items-center text-muted-foreground/30 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+            className="mt-0.5 flex shrink-0 cursor-grab touch-none items-center text-fg-disabled transition-colors hover:text-fg-secondary active:cursor-grabbing"
             {...attributes}
             {...listeners}
           >
@@ -79,29 +79,29 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
           <div className="flex items-baseline gap-1.5">
             <span className="text-sm font-semibold">{field.label}</span>
             {isRequired && <span className="text-destructive">*</span>}
-            {!isRequired && <span className="text-xs text-muted-foreground/50">(optional)</span>}
+            {!isRequired && <span className="text-xs text-fg-muted">(optional)</span>}
           </div>
           {field.hint && (
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{field.hint}</p>
           )}
           {field.inactiveReason && (
-            <p className="mt-1 text-xs italic leading-relaxed text-muted-foreground/70">{field.inactiveReason}</p>
+            <p className="mt-1 text-xs italic leading-relaxed text-fg-muted">{field.inactiveReason}</p>
           )}
           <div className="mt-2 max-w-lg">
             {isSelect ? (
               <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">
-                <span className="flex-1 text-sm text-muted-foreground/50">{placeholder}</span>
-                <svg className="size-3.5 text-muted-foreground/30" viewBox="0 0 16 16" fill="none">
+                <span className="flex-1 text-sm text-fg-muted">{placeholder}</span>
+                <svg className="size-3.5 text-fg-muted" viewBox="0 0 16 16" fill="none">
                   <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
             ) : isMultiline ? (
               <div className="rounded-md border border-border bg-muted px-3 pt-2.5 pb-12">
-                <span className="text-sm text-muted-foreground/50">{placeholder}</span>
+                <span className="text-sm text-fg-muted">{placeholder}</span>
               </div>
             ) : (
               <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3">
-                <span className="text-sm text-muted-foreground/50">{placeholder}</span>
+                <span className="text-sm text-fg-muted">{placeholder}</span>
               </div>
             )}
           </div>
@@ -168,7 +168,7 @@ export function SortableFieldRow({ field, form, incidentTypes, severities, statu
             <Button
               variant="ghost"
               size="sm"
-              className="ml-auto h-6 gap-1 rounded-md px-2 text-[11px] text-muted-foreground/40 hover:text-destructive"
+              className="ml-auto h-6 gap-1 rounded-md px-2 text-[11px] text-fg-disabled hover:text-destructive"
               onClick={onRemove}
             >
               <IconTrash className="size-3" />

@@ -74,7 +74,7 @@ function ActionMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="size-6 shrink-0 text-muted-foreground/50 hover:text-foreground"
+          className="size-6 shrink-0 text-fg-muted hover:text-fg-primary"
         >
           <IconDotsVertical className="size-3.5" />
           <span className="sr-only">Item actions</span>
@@ -111,12 +111,12 @@ export function ActionItem({
   const isDone = action.status === "done"
 
   return (
-    <div id={actionAnchorId(action.id)} className="group py-3 border-b border-border/60 last:border-b-0 transition-shadow">
+    <div id={actionAnchorId(action.id)} className="group py-3 border-b border-border last:border-b-0 transition-shadow">
       <div className="flex items-start gap-3">
         <div className={`mt-0.5 shrink-0 ${statusColor}`}>
           <StatusIcon className="block size-[15px]" strokeWidth={1.75} />
         </div>
-        <p className={`flex-1 text-[13px] leading-[1.5] ${isDone ? "line-through text-muted-foreground/60" : "text-foreground"}`}>
+        <p className={`flex-1 text-[13px] leading-[1.5] ${isDone ? "line-through text-fg-muted" : "text-fg-primary"}`}>
           {action.description}
         </p>
         {canEdit && !isDone && (
@@ -125,13 +125,13 @@ export function ActionItem({
           </span>
         )}
       </div>
-      <div className="mt-1 flex items-center gap-1.5 pl-[27px] text-xs text-muted-foreground/60">
+      <div className="mt-1 flex items-center gap-1.5 pl-[27px] text-xs text-fg-muted">
         {action.assignee ? (
           <AssigneeMark assignee={action.assignee} />
         ) : (
-          <span className="italic text-muted-foreground/40">Unassigned</span>
+          <span className="italic text-fg-muted">Unassigned</span>
         )}
-        <span className="text-muted-foreground/50">·</span>
+        <span className="text-fg-disabled">·</span>
         <span className={statusColor}>{actionStatusLabels[action.status]}</span>
       </div>
     </div>

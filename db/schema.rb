@@ -455,6 +455,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
   end
 
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "allowed_tool_names", default: [], null: false
     t.boolean "cancelled", default: false, null: false
     t.datetime "created_at", null: false
     t.jsonb "found_tool_names", default: [], null: false
@@ -480,6 +481,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
     t.bigint "spent_micros", default: 0, null: false
     t.string "token_digest", null: false
     t.datetime "updated_at", null: false
+    t.integer "web_lookups", default: 0, null: false
     t.uuid "workspace_id", null: false
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
     t.index ["workspace_id"], name: "index_code_agent_sessions_on_workspace_id"
@@ -1802,6 +1804,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
     t.boolean "transcript_access_enabled", default: false, null: false
     t.integer "transcript_retention_days", default: 30
     t.datetime "updated_at", null: false
+    t.boolean "web_search_enabled", default: true, null: false
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
     t.index ["platform"], name: "index_workspaces_on_platform"

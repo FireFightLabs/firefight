@@ -1,4 +1,5 @@
 import { router } from "@inertiajs/react"
+import { IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,7 @@ export function StopRun({ investigationId }: { investigationId: string }) {
 
   return (
     <Button type="button" size="sm" variant="outline" disabled={stopping} onClick={stop}>
+      {stopping && <IconLoader2 className="motion-safe:animate-spin" />}
       {stopping ? "Stopping" : "Stop"}
     </Button>
   )

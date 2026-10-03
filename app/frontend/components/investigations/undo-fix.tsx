@@ -41,7 +41,7 @@ export function UndoFix({ investigationId, fix }: { investigationId: string; fix
 
   if (fix.writingUndo) {
     return (
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <p className="flex items-center gap-1.5 text-xs text-fg-secondary">
         <IconLoader2 className="size-3.5 animate-spin" />
         Halon is writing the undo.
       </p>
@@ -53,7 +53,7 @@ export function UndoFix({ investigationId, fix }: { investigationId: string; fix
 
   return (
     <div className="flex flex-col gap-1.5">
-      {fix.undoError && <p className="text-xs text-amber-700 dark:text-amber-400">{fix.undoError}</p>}
+      {fix.undoError && <p className="text-xs text-warning">{fix.undoError}</p>}
       <Button type="button" size="sm" variant="outline" className="w-fit" onClick={openDialog}>
         Undo fix
       </Button>

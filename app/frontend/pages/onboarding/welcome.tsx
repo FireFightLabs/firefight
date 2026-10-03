@@ -18,16 +18,16 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
 
   return (
     <AuthLayout title="Welcome to Firefight">
-      <Card variant="glow">
+      <Card variant="feature">
         <FireFightLogo className="mx-auto size-8" />
 
-        <div className="mt-5 border-t border-primary/25" />
+        <div className="mt-5 border-t border-border" />
 
-        <h1 className="mt-6 text-3xl font-medium tracking-tight text-foreground">
+        <h1 className="mt-6 text-3xl font-medium tracking-tight text-fg-headline">
           You&apos;re in, <em className="italic">{firstName}.</em>
         </h1>
 
-        <div className="mt-5 space-y-4 text-sm leading-relaxed text-foreground/85">
+        <div className="mt-5 space-y-4 text-sm leading-relaxed text-fg-body">
           <p>Thanks for giving Firefight a try.</p>
 
           <p>
@@ -44,7 +44,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
             If you need anything, email me at{" "}
             <a
               href="mailto:uros@firefight.app"
-              className="font-medium text-foreground underline decoration-border underline-offset-[3px] transition-colors hover:decoration-foreground"
+              className="font-medium text-fg-primary underline decoration-border-control underline-offset-[3px] transition-colors duration-120 hover:decoration-fg-primary"
             >
               uros@firefight.app
             </a>
@@ -52,14 +52,14 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
           </p>
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-primary/25 py-4">
+        <div className="mt-6 flex items-center justify-between border-t border-border py-4">
           <div className="flex items-center gap-3">
             <FounderAvatar />
             <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight text-foreground">
+              <p className="text-sm font-semibold tracking-tight text-fg-primary">
                 Uros Nikolic
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-xs text-fg-muted">
                 Co-Founder, Firefight
               </p>
             </div>
@@ -72,7 +72,7 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
           />
         </div>
 
-        <Button asChild className="mt-4 w-full cursor-pointer transition-shadow hover:shadow-[0_0_12px_rgba(115,211,238,0.2)]">
+        <Button asChild className="mt-4 w-full cursor-pointer">
           <a href={dashboardPath()}>
             Continue to {workspaceName}
             <span aria-hidden="true" className="text-base">→</span>

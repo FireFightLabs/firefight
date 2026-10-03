@@ -68,10 +68,11 @@ export function stopRun(investigationId: string) {
 export interface ConfirmationAnswer {
   toolCallId: string
   approved: boolean
+  forChat: boolean
 }
 
 export function answerConfirmations(conversationId: string, answers: ConfirmationAnswer[]) {
-  const decisions = answers.map((answer) => ({ tool_call_id: answer.toolCallId, approved: answer.approved }))
+  const decisions = answers.map((answer) => ({ tool_call_id: answer.toolCallId, approved: answer.approved, for_chat: answer.forChat }))
   router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, only: OPEN_CHAT })
 }
 

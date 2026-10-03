@@ -6,6 +6,14 @@ class IncidentStatus < ApplicationRecord
 
   NOUN = "status".freeze
 
+  # The seeded statuses. The dashboard gives each its own icon, since several share a stage.
+  SLUG_TRIAGING = "triaging".freeze
+  SLUG_INVESTIGATING = "investigating".freeze
+  SLUG_IDENTIFIED = "identified".freeze
+  SLUG_MONITORING = "monitoring".freeze
+  SLUG_RESOLVED = "resolved".freeze
+  SLUG_CANCELED = "canceled".freeze
+
   belongs_to :incident_lifecycle_stage
 
   scope :in_stage, ->(keys) { joins(:incident_lifecycle_stage).where(incident_lifecycle_stages: { key: keys }) }

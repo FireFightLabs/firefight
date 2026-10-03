@@ -268,7 +268,7 @@ export function LifecycleFormDialog({
                     value={answers[field.key]}
                     onChange={(next) => change(field, next)}
                   />
-                  {field.hint && <p className="text-xs leading-relaxed text-muted-foreground/80">{field.hint}</p>}
+                  {field.hint && <p className="text-xs leading-relaxed text-fg-muted">{field.hint}</p>}
                 </div>
               ))
             )}

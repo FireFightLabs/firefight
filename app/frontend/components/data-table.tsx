@@ -32,12 +32,14 @@ function rowClickHandler<TData>(row: Row<TData>, onRowClick?: (record: TData) =>
 }
 
 export function DataTable<TData>({ table, emptyMessage = "No results found.", onRowClick }: DataTableProps<TData>) {
-  const rowClassName = onRowClick ? "cursor-pointer" : undefined
+  const rowClassName = onRowClick
+    ? "cursor-pointer transition-colors duration-120 hover:bg-surface-hover"
+    : "transition-colors duration-120 hover:bg-surface-hover"
   return (
     <Card className="overflow-hidden py-0">
       <CardContent className="p-0">
         <Table>
-          <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableHeader className="sticky top-0 z-10 bg-surface-header">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -62,10 +64,10 @@ export function DataTable<TData>({ table, emptyMessage = "No results found.", on
                 </TableRow>
               ))
             ) : (
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableCell
                   colSpan={table.getAllColumns().length}
-                  className="h-24 text-center"
+                  className="h-24 text-center text-fg-muted"
                 >
                   {emptyMessage}
                 </TableCell>

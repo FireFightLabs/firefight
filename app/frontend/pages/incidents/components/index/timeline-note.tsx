@@ -16,19 +16,19 @@ import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 
 export type Milestone = NonNullable<TimelineEvent["milestone"]>
 
-export type NoteAccent = "emerald" | "amber" | "rose" | "neutral"
+export type NoteAccent = "success" | "warning" | "error" | "neutral"
 
 // Colour only where a kind changes how the incident reads, so the timeline
 // does not turn into a rainbow.
 export const noteAccent: Record<Milestone["kind"], NoteAccent> = {
   hypothesis: "neutral",
   finding: "neutral",
-  root_cause: "rose",
-  mitigation: "emerald",
+  root_cause: "error",
+  mitigation: "success",
   decision: "neutral",
-  blocker: "amber",
+  blocker: "warning",
   impact: "neutral",
-  recovery: "emerald",
+  recovery: "success",
 }
 
 export function NoteQuote({ milestone, withDivider }: { milestone: Milestone; withDivider: boolean }) {
@@ -51,7 +51,7 @@ export function NoteQuote({ milestone, withDivider }: { milestone: Milestone; wi
             href={milestone.permalink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-fg-primary"
           >
             <IconExternalLink className="size-3.5" />
             Open in Slack
@@ -91,7 +91,7 @@ export function DismissNoteAction({
           <Button
             variant="ghost"
             size="icon"
-            className="size-7 text-muted-foreground/60 hover:text-foreground"
+            className="size-7 text-fg-muted hover:text-fg-primary"
           >
             <IconDotsVertical className="size-4" />
             <span className="sr-only">Note actions</span>

@@ -13,7 +13,7 @@ const MACHINE_ICONS: Partial<Record<ActorCompact["kind"], Icon>> = {
 
 export function ActorChip({ actor, fallback }: { actor?: ActorCompact; fallback: string }) {
   if (!actor) {
-    return <span className="text-muted-foreground">{fallback}</span>
+    return <span className="text-fg-muted">{fallback}</span>
   }
 
   const MachineIcon = MACHINE_ICONS[actor.kind]
@@ -22,7 +22,7 @@ export function ActorChip({ actor, fallback }: { actor?: ActorCompact; fallback:
     <div className="flex items-center gap-2">
       <Avatar className="size-5">
         {actor.avatarUrl ? <AvatarImage src={actor.avatarUrl} alt={actor.name} /> : null}
-        <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
+        <AvatarFallback className="text-[10px] font-semibold bg-avatar text-avatar-foreground">
           {MachineIcon ? <MachineIcon className="size-3" aria-label="Agent" /> : actor.initials}
         </AvatarFallback>
       </Avatar>

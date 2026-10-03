@@ -1,6 +1,6 @@
 module Mcp
   module Tools
-    # The three settings under Settings, Workspace. Transcript access is here rather than on
+    # The settings under Settings, Workspace. Transcript access is here rather than on
     # Permissions on purpose: a grant says who may ask, this says whether there is anything to ask for.
     class UpdateWorkspaceSettings < Base
       SETTINGS = Workspace::Settings::KEYS
@@ -11,8 +11,8 @@ module Mcp
       tool_name UPDATE_WORKSPACE_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
       description "Change the workspace's own settings: whether incident transcripts may be read at all, " \
-                  "how many days they are kept, and how long after an incident ends its channel is " \
-                  "archived. Give only the settings to change. Read the current values with " \
+                  "how many days they are kept, how long after an incident ends its channel is " \
+                  "archived, and whether Halon may search and read the public web. Give only the settings to change. Read the current values with " \
                   "get_workspace_config. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
       # Workspace wide and made rarely, so a chat asks before any of them.
       annotations(**DESTRUCTIVE)
@@ -20,7 +20,8 @@ module Mcp
         properties: {
           transcript_access_enabled: { type: "boolean", description: "Whether incident channel transcripts may be read by AI and over the API at all" },
           transcript_retention_days: { type: [ "integer", "null" ], description: "Days to keep a transcript after the incident ends. null keeps them forever" },
-          archive_channel_delay: { type: "string", enum: ARCHIVE_VALUES, description: "How long after an incident ends its channel is archived. #{ARCHIVE_CHOICES}" }
+          archive_channel_delay: { type: "string", enum: ARCHIVE_VALUES, description: "How long after an incident ends its channel is archived. #{ARCHIVE_CHOICES}" },
+          web_search_enabled: { type: "boolean", description: "Whether Halon and its coding agent may search and read the public web, through Firefight" }
         }
       )
 

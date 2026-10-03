@@ -67,7 +67,7 @@ export function AddActionDialog({
     <Button
       variant="ghost"
       size="icon"
-      className="size-7 text-foreground/60 hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:pointer-events-none"
+      className="size-7 text-fg-secondary hover:bg-surface-hover hover:text-fg-primary disabled:pointer-events-none disabled:text-fg-disabled"
       aria-label="Add action item"
       disabled={disabled}
     >
@@ -101,7 +101,7 @@ export function AddActionDialog({
                 id="action-desc"
                 placeholder="What needs to be done?"
                 rows={3}
-                className="resize-none focus-visible:ring-1 focus-visible:ring-ring/20"
+                className="resize-none"
                 value={data.description}
                 onChange={(event) => setData("description", event.target.value)}
                 required
@@ -122,7 +122,7 @@ export function AddActionDialog({
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" size="sm" className="bg-muted hover:bg-muted/70 border-border" disabled={processing}>Cancel</Button>
+              <Button type="button" variant="outline" size="sm" disabled={processing}>Cancel</Button>
             </DialogClose>
             <Button type="submit" size="sm" disabled={processing || !data.description.trim()}>
               {processing ? "Creating…" : "Create"}

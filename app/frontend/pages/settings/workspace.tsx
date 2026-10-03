@@ -27,6 +27,7 @@ export default function Workspace() {
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
+  const [webSearch, setWebSearch] = useState(settings.webSearchEnabled)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
 
@@ -54,6 +55,7 @@ export default function Workspace() {
         transcript_access_enabled: transcriptAccess,
         transcript_retention_days: retention,
         archive_channel_delay: archiveDelay,
+        web_search_enabled: webSearch,
       },
       { preserveScroll: true, onSuccess: succeed, onError: fail, onFinish: finish },
     )
@@ -161,6 +163,29 @@ export default function Workspace() {
                 that end after you save, so one that is already resolved keeps the delay it was
                 given.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Halon</CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            <div className="flex items-start justify-between gap-6">
+              <div className="max-w-prose">
+                <Label htmlFor="web-search" className="text-foreground">
+                  Let Halon search the web
+                </Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  On by default. Halon and the agent that writes code fixes can search and read public web
+                  pages through Firefight, such as a library&apos;s documentation or a provider&apos;s status
+                  page, and cite what they used. A search never carries anything that looks like a credential.
+                  Turn it off and they work only from what your connections and code show.
+                </p>
+              </div>
+              <Switch id="web-search" checked={webSearch} onCheckedChange={setWebSearch} />
             </div>
           </CardContent>
         </Card>

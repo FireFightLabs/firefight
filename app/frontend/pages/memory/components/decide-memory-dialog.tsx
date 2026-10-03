@@ -77,7 +77,7 @@ export function DecideMemoryDialog({ memory, decision, onClose }: DecideMemoryDi
             <DialogDescription>{copy.description}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 pt-3 pb-5">
-            {!correcting && memory && <blockquote className="rounded-lg border-l-2 border-border bg-muted/40 px-3 py-2 text-sm">{memory.text}</blockquote>}
+            {!correcting && memory && <blockquote className="edge-bar rounded-lg bg-muted/40 px-3 py-2 [--edge-bar:var(--border-strong)] text-sm">{memory.text}</blockquote>}
             {correcting && <TextField id="memory-correction" label="What is true" value={data.text} limit={CHAT_MEMORY_TEXT_LIMIT} onChange={writeText} />}
             <TextField
               id="memory-reason"

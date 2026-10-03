@@ -60,7 +60,7 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
         <p className="text-sm leading-relaxed">{description(resource)}</p>
         <Details resource={resource} />
         {resource.url && (
-          <a href={resource.url} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 text-sm text-primary hover:underline">
+          <a href={resource.url} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 text-sm text-link hover:underline">
             Open in {resource.providerName}
             <IconExternalLink className="size-3.5" />
           </a>
@@ -310,7 +310,7 @@ function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
   }
 
   return (
-    <div className={`flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-sm ${link.unconfirmed ? "border-dashed border-primary/50 bg-primary/5" : "border-border bg-background/50"}`}>
+    <div className={`flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-sm ${link.unconfirmed ? "border-dashed border-brand-border bg-brand-tint" : "border-border bg-surface-card"}`}>
       <span>
         <b className="font-semibold">{from?.name}</b> {RELATION_SENTENCES[link.relation]}{" "}
         <button type="button" onClick={pickOther} className="font-semibold hover:underline">
@@ -369,7 +369,7 @@ function Remembered({ resource }: { resource: ResourceMapResource }) {
     return (
       <p className="text-sm text-muted-foreground">
         Nothing yet. Halon learns about it from incidents, or you can{" "}
-        <Link href={memoryPath()} className="text-primary hover:underline">
+        <Link href={memoryPath()} className="text-link hover:underline">
           add memories and instructions
         </Link>
         .
@@ -388,7 +388,7 @@ function Remembered({ resource }: { resource: ResourceMapResource }) {
       {resource.memories.map(([ id, state, text ]) => (
         <MemoryNote key={id} state={state} text={text} />
       ))}
-      <Link href={memoryPath()} className="w-fit text-sm text-primary hover:underline">
+      <Link href={memoryPath()} className="w-fit text-sm text-link hover:underline">
         Review on the Memory page
       </Link>
     </div>

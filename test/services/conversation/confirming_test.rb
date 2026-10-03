@@ -50,6 +50,55 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     assert @conversation.reload.answer_owed?, "the resumed turn owes an answer again"
   end
 
+  test "allowing a call for the rest of the chat approves the other open calls to that tool and stops it asking" do
+    ask_about("call_1", "call_2")
+    turn = Conversation::Turn.new(@conversation, asker: @member)
+    action = system_action("permissions.delete")
+    assert turn.confirms?(action, tool_name: "delete_permission_set")
+
+    assert_enqueued_with(job: ConversationReplyJob) do
+      assert Conversation::Confirming.decide(@conversation, [ { tool_call_id: "call_1", approved: true, for_chat: true } ], by: @member)
+    end
+
+    assert_equal [ Chat::APPROVAL_APPROVED ] * 2, @chat.tool_calls.where(tool_call_id: %w[call_1 call_2]).pluck(:approval)
+    assert_equal [ "delete_permission_set" ], @chat.reload.allowed_tool_names
+    assert_not Conversation::Turn.new(@conversation.reload, asker: @member).confirms?(action, tool_name: "delete_permission_set")
+    assert Conversation::Turn.new(@conversation, asker: @member).confirms?(action, tool_name: "another_tool"), "only the allowed tool stops asking"
+  end
+
+  test "a plain confirmation allows nothing for later, and allowing a tool twice keeps one entry" do
+    ask_about("call_1", "call_2")
+
+    Conversation::Confirming.decide(@conversation, [ { tool_call_id: "call_1", approved: true } ], by: @member)
+    assert_empty @chat.reload.allowed_tool_names
+    assert_equal Chat::APPROVAL_REQUESTED, @chat.tool_calls.find_by!(tool_call_id: "call_2").approval
+
+    @chat.allow_tool!("delete_permission_set")
+    @chat.allow_tool!("delete_permission_set")
+    assert_equal [ "delete_permission_set" ], @chat.reload.allowed_tool_names
+  end
+
+  test "an approval rule still asks for an allowed tool, since it wants each call signed off" do
+    @chat.allow_tool!("delete_permission_set")
+    Conversation::Turn.any_instance.stubs(:self_approvable?).returns(true)
+
+    assert Conversation::Turn.new(@conversation.reload, asker: @member).confirms?(system_action("permissions.delete"), tool_name: "delete_permission_set")
+  end
+
+  test "Allow for this chat in Slack approves the call and allows its tool" do
+    ask_about("call_1")
+    Slack::Client.stubs(:update_message).returns({ ok: true })
+
+    Interactions::AgentConfirmationHandler.execute(Interaction.new(
+      type: Interaction::BLOCK_ACTIONS, platform: Platforms::SLACK, team_id: @workspace.platform_id,
+      user_id: @member.platform_user_id, channel_id: "C_INCIDENT", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT,
+      action_value: "#{@conversation.id}:call_1", message_id: "1700000000.000200"
+    ))
+
+    assert_equal Chat::APPROVAL_APPROVED, @chat.tool_calls.find_by!(tool_call_id: "call_1").approval
+    assert @chat.reload.allows_tool?("delete_permission_set")
+  end
+
   test "a Slack button answers the question and redraws the message with the answer" do
     ask_about("call_1")
     Slack::Client.expects(:update_message).with do |arguments|
@@ -72,7 +121,8 @@ class Conversation::ConfirmingTest < ActiveSupport::TestCase
     responder = stub(run: FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_WAITING, turns_used: 1, spent_micros: 0))
     FirefightAi::Responder.stubs(:new).returns(responder)
     Slack::Client.expects(:stop_stream).with do |arguments|
-      arguments[:blocks].to_json.include?(Identifiers::AGENT_CONFIRM)
+      blocks = arguments[:blocks].to_json
+      blocks.include?(Identifiers::AGENT_CONFIRM) && blocks.include?(Identifiers::AGENT_ALLOW_FOR_CHAT)
     end.returns({ ok: true, ts: "1" })
 
     Conversation::Runner.new(@conversation, asker: @member).run

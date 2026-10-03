@@ -38,19 +38,19 @@ interface RowProps {
 
 function Row({ id, marker, tone, title, at, aside, connected, children }: RowProps) {
   return (
-    <li id={id} className="relative scroll-mt-6 pb-5 target:[&_.story-card]:border-primary/60">
+    <li id={id} className="relative scroll-mt-6 pb-5 target:[&_.story-card]:border-brand">
       {connected && <div aria-hidden className="absolute top-7 bottom-0 left-[14px] w-px bg-border" />}
       <div className="flex items-center gap-4">
         <div className={`relative z-10 flex size-[28px] shrink-0 items-center justify-center rounded-full border ${TONE_CLASSES[tone]}`}>
           {marker}
         </div>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-sm">{title}</div>
-        <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-muted-foreground/80">
+        <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-fg-muted">
           {aside}
           {at && <span>{formatTime(at)}</span>}
         </span>
       </div>
-      {children && <div className="story-card mt-2.5 ml-[44px] rounded-lg border border-border bg-card px-3.5 py-2.5 transition-colors">{children}</div>}
+      {children && <div className="story-card mt-2.5 ml-[44px] rounded-lg border border-border bg-surface-card px-3.5 py-2.5 transition-colors duration-200">{children}</div>}
     </li>
   )
 }
@@ -70,17 +70,17 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
       return (
         <Row
           marker={<IconMarker icon={IconMessageQuestion} />}
-          tone="primary"
+          tone="brand"
           title={
             <>
-              <span className="font-medium">{who}</span>
-              <span className="text-muted-foreground">{investigation.question ? "asked" : "asked for an investigation"}</span>
+              <span className="font-medium text-fg-primary">{who}</span>
+              <span className="text-fg-secondary">{investigation.question ? "asked" : "asked for an investigation"}</span>
             </>
           }
           at={investigation.createdAt}
           connected={connected}
         >
-          {investigation.question && <p className="text-sm leading-relaxed">{investigation.question}</p>}
+          {investigation.question && <p className="text-sm leading-relaxed text-fg-body">{investigation.question}</p>}
         </Row>
       )
     }
@@ -91,12 +91,12 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
       return (
         <Row
           id={`step-${step.position}`}
-          marker={step.status === INVESTIGATION_STEP_STATUS.RUNNING ? <IconLoader2 className="size-3.5 animate-spin" /> : <span className="font-mono text-[11px] tabular-nums">{step.position}</span>}
+          marker={step.status === INVESTIGATION_STEP_STATUS.RUNNING ? <IconLoader2 className="size-3.5 motion-safe:animate-spin" /> : <span className="font-mono text-[11px] tabular-nums">{step.position}</span>}
           tone={tone}
-          title={<span className="font-medium text-foreground/95">{step.label}</span>}
+          title={<span className="font-medium text-fg-primary">{step.label}</span>}
           aside={
             <>
-              {step.status === INVESTIGATION_STEP_STATUS.FAILED && <span className="text-rose-600 dark:text-rose-400">{labelFor(STEP_LABELS, step.status)}</span>}
+              {step.status === INVESTIGATION_STEP_STATUS.FAILED && <span className="text-error">{labelFor(STEP_LABELS, step.status)}</span>}
               {step.seconds != null && <span>{formatSeconds(step.seconds)}</span>}
             </>
           }
@@ -105,7 +105,7 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
         >
           <StepDetails step={step} />
           {stepCharts.map((chart) => (
-            <div key={chart.id} className="mt-3 rounded-lg border border-border bg-card px-3 py-2.5">
+            <div key={chart.id} className="mt-3 rounded-lg border border-border bg-surface-card px-3 py-2.5">
               <MetricChart chart={chart} />
             </div>
           ))}
@@ -116,12 +116,12 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
       return (
         <Row
           marker={<IconMarker icon={IconBulb} />}
-          tone="violet"
-          title={<span className="text-muted-foreground">New theory</span>}
+          tone="open"
+          title={<span className="text-fg-secondary">New theory</span>}
           at={entry.hypothesis.createdAt}
           connected={connected}
         >
-          <p className="text-sm leading-relaxed">{entry.hypothesis.assertion}</p>
+          <p className="text-sm leading-relaxed text-fg-body">{entry.hypothesis.assertion}</p>
         </Row>
       )
     case "settled": {
@@ -131,11 +131,11 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
         <Row
           marker={<IconMarker icon={confirmed ? IconCircleCheck : IconCircleX} />}
           tone={hypothesisTone(hypothesis)}
-          title={<span className="font-medium">{labelFor(SETTLED_LABELS, hypothesis.status)}</span>}
+          title={<span className="font-medium text-fg-primary">{labelFor(SETTLED_LABELS, hypothesis.status)}</span>}
           connected={connected}
         >
           <div className="flex flex-col gap-1.5">
-            <p className={`text-sm leading-relaxed ${confirmed ? "" : "text-muted-foreground"}`}>{hypothesis.assertion}</p>
+            <p className={`text-sm leading-relaxed ${confirmed ? "text-fg-body" : "text-fg-muted"}`}>{hypothesis.assertion}</p>
             <StepLinks steps={hypothesis.steps} />
           </div>
         </Row>
@@ -146,17 +146,17 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
       return (
         <Row
           marker={<IconMarker icon={IconMessagePlus} />}
-          tone="primary"
+          tone="brand"
           title={
             <>
-              <span className="font-medium">{note.author?.name ?? "A responder"}</span>
-              <span className="text-muted-foreground">{note.takenAt ? "added" : "added, waiting for the next step"}</span>
+              <span className="font-medium text-fg-primary">{note.author?.name ?? "A responder"}</span>
+              <span className="text-fg-secondary">{note.takenAt ? "added" : "added, waiting for the next step"}</span>
             </>
           }
           at={note.createdAt}
           connected={connected}
         >
-          <p className="text-sm leading-relaxed">{note.content}</p>
+          <p className="text-sm leading-relaxed text-fg-body">{note.content}</p>
         </Row>
       )
     }
@@ -170,9 +170,9 @@ function EndRow({ investigation }: { investigation: InvestigationDetail }) {
     return (
       <>
         <Row
-          marker={<IconLoader2 className="size-3.5 animate-spin" />}
-          tone="primary"
-          title={<span className="text-muted-foreground">Still working. This updates as it goes.</span>}
+          marker={<IconLoader2 className="size-3.5 motion-safe:animate-spin" />}
+          tone="active"
+          title={<span className="text-fg-secondary">Still working. This updates as it goes.</span>}
           aside={investigation.stopBlockedReason == null && <StopRun investigationId={investigation.id} />}
           connected={false}
         />
@@ -188,8 +188,8 @@ function EndRow({ investigation }: { investigation: InvestigationDetail }) {
     return (
       <Row
         marker={<IconMarker icon={IconFlag} />}
-        tone="emerald"
-        title={<span className="font-medium">Answered</span>}
+        tone="success"
+        title={<span className="font-medium text-fg-primary">Answered</span>}
         at={investigation.completedAt}
         connected={false}
       />
@@ -198,12 +198,12 @@ function EndRow({ investigation }: { investigation: InvestigationDetail }) {
   return (
     <Row
       marker={<IconMarker icon={IconAlertTriangle} />}
-      tone="amber"
-      title={<span className="font-medium">Stopped</span>}
+      tone="warning"
+      title={<span className="font-medium text-fg-primary">Stopped</span>}
       at={investigation.completedAt}
       connected={false}
     >
-      <p className="text-sm text-muted-foreground">{investigation.stoppedBecause ?? "Stopped without an answer."}</p>
+      <p className="text-sm text-fg-secondary">{investigation.stoppedBecause ?? "Stopped without an answer."}</p>
     </Row>
   )
 }

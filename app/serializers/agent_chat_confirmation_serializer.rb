@@ -7,6 +7,12 @@ class AgentChatConfirmationSerializer < BaseSerializer
     tool_call.tool_call_id
   end
 
+  # The tool's own name, so allowing one call for the rest of the chat can answer the others asked about it.
+  type :string
+  def tool
+    tool_call.name
+  end
+
   type :string
   def question
     Chat::Tools.confirmation(tool_call).question

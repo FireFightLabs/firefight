@@ -125,7 +125,7 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
     <div className="relative">
       <BubbleMenu
         editor={editor}
-        className="flex items-center gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
+        className="flex items-center gap-0.5 rounded-lg border border-border-strong bg-popover p-1 shadow-popover"
       >
         <Button
           variant="ghost"
@@ -179,7 +179,7 @@ export function PostmortemEditor({ content, onUpdate, incidentId }: PostmortemEd
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 text-primary"
+              className="size-7 text-brand hover:text-brand-hover"
               onMouseDown={(event) => {
                 event.preventDefault()
                 const { from, to } = editor.state.selection

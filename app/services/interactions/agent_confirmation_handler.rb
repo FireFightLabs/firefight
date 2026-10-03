@@ -15,8 +15,9 @@ module Interactions
       )
       return unless member
 
-      approved = interaction.action_id == Identifiers::AGENT_CONFIRM
-      Conversation::Confirming.decide(conversation, [ { tool_call_id: tool_call_id, approved: approved } ], by: member)
+      for_chat = interaction.action_id == Identifiers::AGENT_ALLOW_FOR_CHAT
+      approved = for_chat || interaction.action_id == Identifiers::AGENT_CONFIRM
+      Conversation::Confirming.decide(conversation, [ { tool_call_id: tool_call_id, approved: approved, for_chat: for_chat } ], by: member)
       Conversation::Confirming.redraw(
         conversation, tool_call_id,
         channel_id: interaction.channel_id, message_id: interaction.message_id
