@@ -74,6 +74,7 @@ module FirefightAi
         - #{Evidence::RULE}
         - #{Evidence::REFUSAL_RULE}
         - When the cause may sit in a library the code uses, read that library at the version the repository installs with library_source, and its documentation with search_web and read_web_page, before deciding how it behaves. Cite the page or the file.
+        - A past incident's finding_outcome says what the team made of that answer. A confirmed one is a worked example, and one marked wrong is a mistake not to repeat, never a lead.
 
         How to finish:
         - Call conclude with the theory the evidence supports, the evidence behind it, and what you could not check. Each line of evidence is one claim and the step numbers it rests on. A claim with no step behind it is refused, so do not state what no result showed.

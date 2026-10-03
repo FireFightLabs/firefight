@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1100,6 +1100,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
     t.jsonb "proposed_solution", default: {}, null: false
     t.datetime "published_at"
     t.string "published_state", default: "unpublished", null: false
+    t.datetime "relearned_at"
     t.string "remediation_type"
     t.boolean "suggests_incident", default: false, null: false
     t.text "summary"

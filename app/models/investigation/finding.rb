@@ -60,5 +60,16 @@ class Investigation::Finding < ApplicationRecord
     counts = tally
     agreed = counts.size == 1 ? counts.keys.first : nil
     update!(outcome: agreed, outcome_at: agreed ? Time.current : nil, outcome_by: nil)
+    relearn_after_mistake if saved_change_to_outcome? && outcome == OUTCOME_WRONG
+  end
+
+  # Marked wrong once its incident had ended, so what the mistake taught is learned, and the channel asked to confirm it.
+  # Once per answer, claimed in one statement, so a room changing its mind back and forth never asks the model again.
+  def relearn_after_mistake
+    incident = investigation.incident
+    return unless defined?(FirefightAi) && !investigation.rehearsal? && incident&.closed?
+    return unless self.class.where(id: id, relearned_at: nil).update_all(relearned_at: Time.current) == 1
+
+    ActiveRecord.after_all_transactions_commit { IncidentMistakeLearningJob.perform_later(incident.id) }
   end
 end

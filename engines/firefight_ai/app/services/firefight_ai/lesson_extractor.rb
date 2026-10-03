@@ -21,14 +21,15 @@ module FirefightAi
     end
 
     # subjects are the names a lesson may be about. known are lessons learned before, for the sources to agree with or
-    # contradict.
-    def extract(incident, sources:, subjects: [], known: [])
+    # contradict. only_mistakes asks for the one lesson about what Halon got wrong, when an answer was marked wrong late.
+    def extract(incident, sources:, subjects: [], known: [], only_mistakes: false)
       sources = sources.select { |source| source.text.present? }
       return Result.new(lessons: [], verdicts: []) if sources.empty?
 
-      content = call_ai(incident, prompt(incident, sources, subjects, known)).parsed
+      content = call_ai(incident, prompt(incident, sources, subjects, known, only_mistakes)).parsed
       content = content.is_a?(Hash) ? content.with_indifferent_access : {}
-      Result.new(lessons: lessons(content, subjects), verdicts: verdicts(content, known))
+      found = lessons(content, subjects)
+      Result.new(lessons: only_mistakes ? found.first(1) : found, verdicts: verdicts(content, known))
     end
 
     private
@@ -84,14 +85,17 @@ module FirefightAi
         - Only what the sources show. Never guess.
         - At most #{MOST} lessons. If the incident taught nothing lasting, return an empty list. That is a good answer.
         - Never a live value (a count, a rate, what is failing now), a secret, or anything about a person.
+        - When a source says what Halon got wrong, and the other sources show what was really going on, one lesson can say what the symptom turned out to mean and what it was not, so the next investigation does not repeat the mistake. For example "A 5xx spike on web right after a deploy has meant the disk filled, not the deploy". When the sources do not show the real cause, write nothing about it.
         - Set about to one of the names given, copied exactly, or leave it empty.
         - For each lesson learned before, say whether the sources agree with it, contradict it, or say nothing about it. When they contradict it, give what is right instead.
+        - Never restate a lesson learned before, in any words.
         - Plain sentences, no markdown, no em dashes, no semicolons.
       PROMPT
     end
 
-    def prompt(incident, sources, subjects, known)
+    def prompt(incident, sources, subjects, known, only_mistakes)
       parts = [ "Incident: #{incident.identifier} #{incident.name}" ]
+      parts << "Write only the lesson about what Halon got wrong, at most one, and none when the sources do not show what was really going on." if only_mistakes
       parts << "Names a lesson may be about:\n#{subjects.map { |name| "- #{name}" }.join("\n")}" if subjects.any?
       parts << "Lessons learned before:\n#{known.map { |each| "- #{each.id}: #{each.text}" }.join("\n")}" if known.any?
       sources.each { |source| parts << "## #{source.title}\n#{source.text.last(MAX_SOURCE_CHARS)}" }

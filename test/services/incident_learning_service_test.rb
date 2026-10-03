@@ -1,6 +1,7 @@
 require "test_helper"
 
 class IncidentLearningServiceTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -66,6 +67,51 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     assert_equal workspace_memberships(:alice_workspace_one), right.confirmed_by
     assert_equal Chat::Memory::STATE_REJECTED, wrong.reload.state
     assert_equal "The cause was the connection pool", wrong.replaced_by.text
+  end
+
+  test "an answer marked wrong, and a fix that was undone, reach the lessons as mistakes, never as facts" do
+    run = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+                                            status: Investigation::STATUS_SUCCEEDED)
+    finding = run.create_finding!(summary: "The deploy at 14:02 did it", outcome: Investigation::Finding::OUTCOME_WRONG)
+    fix = Investigation::RemediationPlan.create!(finding: finding, summary: "Roll the deploy back", status: Investigation::RemediationPlan::STATUS_APPLIED)
+    Investigation::RemediationPlan.create!(finding: finding, undoes: fix, summary: "Redeploy", status: Investigation::RemediationPlan::STATUS_APPLIED)
+    seen = nil
+    FirefightAi::LessonExtractor.any_instance.stubs(:extract).with { |_incident, sources:, **| (seen = sources) || true }
+                                .returns(FirefightAi::LessonExtractor::Result.new(lessons: [], verdicts: []))
+
+    IncidentLearningService.new(@workspace).learn!(@incident)
+
+    texts = seen.to_h { |source| [ source.title, source.text ] }
+    assert_not_includes texts["What the investigation found"], "The deploy at 14:02 did it"
+    assert_includes texts["What Halon got wrong"], "Halon's answer, which the team marked wrong: The deploy at 14:02 did it"
+    assert_includes texts["What Halon got wrong"], "The fix Halon proposed (Roll the deploy back) was applied and then undone"
+  end
+
+  test "an answer marked wrong after its incident ended learns again, and one marked while it runs waits for the end" do
+    run = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+                                            status: Investigation::STATUS_SUCCEEDED)
+    finding = run.create_finding!(summary: "The deploy did it")
+    member = workspace_memberships(:alice_workspace_one)
+
+    assert_no_enqueued_jobs(only: IncidentMistakeLearningJob) { finding.record_verdict!(Investigation::Finding::OUTCOME_WRONG, by: member) }
+
+    Incident.any_instance.stubs(:closed?).returns(true)
+    finding.record_verdict!(Investigation::Finding::OUTCOME_CONFIRMED, by: member)
+    assert_enqueued_with(job: IncidentMistakeLearningJob, args: [ @incident.id ]) { finding.record_verdict!(Investigation::Finding::OUTCOME_WRONG, by: member) }
+    finding.record_verdict!(Investigation::Finding::OUTCOME_CONFIRMED, by: member)
+    assert_no_enqueued_jobs(only: IncidentMistakeLearningJob) { finding.record_verdict!(Investigation::Finding::OUTCOME_WRONG, by: member) }
+  end
+
+  test "a late mistake asks only for its lesson, against every lesson the incident has, and an archived channel only keeps it" do
+    rejected = Chat::Memory.learn!(@workspace, text: "Deploys break checkout", subject: nil, source: @incident).memory
+    rejected.reject!(by: workspace_memberships(:alice_workspace_one), reason: "No")
+    FirefightAi::LessonExtractor.any_instance.expects(:extract).with { |_incident, only_mistakes:, known:, **| only_mistakes && known.map(&:id).include?(rejected.id) }
+                                .returns(FirefightAi::LessonExtractor::Result.new(lessons: [ lesson("A 5xx after a deploy has meant a full disk") ], verdicts: []))
+    @adapter.stubs(:post_learned_memories).raises(AdapterError::IsArchived)
+
+    saved = IncidentLearningService.new(@workspace).learn_from_mistake!(@incident)
+
+    assert_equal [ "A 5xx after a deploy has meant a full disk" ], saved.map(&:text)
   end
 
   private

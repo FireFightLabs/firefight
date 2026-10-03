@@ -80,6 +80,20 @@ class Investigation::IncidentSeedTest < ActiveSupport::TestCase
 
     assert_equal [ "INC-003" ], past_incidents.map { |entry| entry["identifier"] }
     assert_equal "The connection pool was sized for one worker.", past_incidents.first["finding"]
+    assert_equal "not rated", past_incidents.first["finding_outcome"]
+  end
+
+  test "a past answer says what the team made of it, and a confirmed one is preferred over one marked wrong" do
+    source = alert_source("Grafana")
+    attach_alert(source, fingerprint: "pool", fields: { "title" => "Pool exhausted" })
+    past = incidents(:resolved_minor_ws1)
+    attach_alert(source, fingerprint: "pool", incident: past, fields: { "title" => "Pool exhausted" }, status: Alert::STATUS_RESOLVED)
+    record_finding(past, "The deploy did it.").update!(outcome: Investigation::Finding::OUTCOME_WRONG)
+    record_finding(past, "The disk filled.").update!(outcome: Investigation::Finding::OUTCOME_CONFIRMED)
+
+    entry = @investigation.build_seed_pack!["past_incidents"].sole
+
+    assert_equal [ "The disk filled.", "confirmed" ], [ entry["finding"], entry["finding_outcome"] ]
   end
 
   test "a past incident with the same fingerprint from another source is not a match" do

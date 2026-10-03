@@ -22,6 +22,21 @@ class IncidentLearningService
     saved
   end
 
+  # An answer marked wrong after its incident ended. Only the lesson about the mistake is asked for, read against every
+  # lesson the incident already has, rejected ones too, so nothing the channel saw is posted again. A completed
+  # postmortem is read too, since it is the best account of what really happened.
+  def learn_from_mistake!(incident)
+    return [] unless learns?
+
+    postmortem = incident.postmortem if incident.postmortem&.completed?
+    known = incident_memories(incident, rejected: true)
+    result = extractor.extract(incident, sources: sources(incident, postmortem), subjects: subjects(incident).keys, only_mistakes: true,
+                                         known: known.map { |memory| FirefightAi::LessonExtractor::Known.new(id: memory.id, text: memory.text) })
+    saved = save(incident, result.lessons)
+    announce(incident, saved) if saved.any?
+    saved
+  end
+
   # Someone in the channel confirming or rejecting one of the incident's lessons, then the message redrawn to show it.
   # Returns false when the lesson is not the incident's.
   def decide!(incident_id:, memory_id:, member:, confirmed:, channel_id:, message_id:)
@@ -55,17 +70,36 @@ class IncidentLearningService
     source = FirefightAi::LessonExtractor::Source
     [
       source.new(title: "What the investigation found", text: findings(incident)),
+      source.new(title: "What Halon got wrong", text: mistakes(incident)),
       source.new(title: "Summary", text: FirefightAi::IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)&.content.to_s),
       source.new(title: "Channel transcript (chronological)", text: transcript(incident)),
       (source.new(title: "The postmortem", text: ActionView::Base.full_sanitizer.sanitize(postmortem.html_content).to_s.squish) if postmortem)
     ].compact
   end
 
-  # A finding people marked wrong teaches nothing.
+  def answers(incident)
+    @answers ||= incident.investigations.seen.order(:created_at)
+                         .includes(finding: [ :winning_hypothesis, { remediation_plan: :undo_plan } ]).filter_map(&:finding)
+  end
+
+  # What the team stood by. An answer they marked wrong is never read as a fact, only as a mistake below.
   def findings(incident)
-    incident.investigations.includes(:finding).filter_map(&:finding)
-            .reject { |finding| finding.outcome == Investigation::Finding::OUTCOME_WRONG || finding.summary.blank? }
-            .map { |finding| "- #{finding.summary}#{" (#{finding.outcome} by the team)" if finding.outcome}" }.join("\n")
+    answers(incident).reject { |finding| finding.outcome == Investigation::Finding::OUTCOME_WRONG || finding.summary.blank? }
+                     .map { |finding| "- #{finding.summary}#{" (#{finding.outcome} by the team)" if finding.outcome}" }.join("\n")
+  end
+
+  # An answer the team marked wrong, and a fix that had to be undone, so a lesson can say what really happened and what
+  # misled Halon, for the next incident not to repeat it.
+  def mistakes(incident)
+    answers(incident).flat_map do |finding|
+      fix = finding.remediation_plan
+      wrong = finding.outcome == Investigation::Finding::OUTCOME_WRONG && finding.summary.present?
+      undone = fix&.undo_plan && [ Investigation::RemediationPlan::STATUS_APPLIED, Investigation::RemediationPlan::STATUS_PARTLY_APPLIED ].include?(fix.undo_plan.status)
+      [
+        ("- Halon's answer, which the team marked wrong: #{finding.summary}#{" The cause Halon gave: #{finding.winning_hypothesis.assertion}" if finding.winning_hypothesis}" if wrong),
+        ("- The fix Halon proposed (#{fix.summary}) was applied and then undone, which can mean it was wrong or only a temporary measure." if undone)
+      ].compact
+    end.join("\n")
   end
 
   def transcript(incident)
@@ -109,11 +143,14 @@ class IncidentLearningService
     end
   end
 
+  # A channel archived since the incident ended cannot be posted in, so the lessons wait on the Memory page instead.
   def announce(incident, saved)
     return if incident.channel_id.blank?
 
     @workspace.adapter.post_learned_memories(channel_id: incident.channel_id, incident_id: incident.id,
                                              incident_identifier: incident.identifier, memories: shown(saved))
+  rescue AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel => error
+    Rails.logger.info({ event: "incident_learning.not_posted", incident_id: incident.id, error: error.class.name }.to_json)
   end
 
   def shown(memories)
