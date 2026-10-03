@@ -140,6 +140,8 @@ module Identifiers
   MARK_FIX_STEP_DONE = "mark_fix_step_done"
   # On a fix that was applied. Halon writes the steps that reverse it, for a person to apply.
   UNDO_FIX = "undo_fix"
+  # On a fix being applied. The steps that have not run never will.
+  CANCEL_FIX = "cancel_fix"
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"

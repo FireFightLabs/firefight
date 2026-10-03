@@ -93,7 +93,8 @@ export const REMEDIATION_PLAN_STATUSES = [
   "proposed",
   "applying",
   "applied",
-  "partly_applied"
+  "partly_applied",
+  "cancelled"
 ] as const
 export type RemediationPlanStatus = (typeof REMEDIATION_PLAN_STATUSES)[number]
 

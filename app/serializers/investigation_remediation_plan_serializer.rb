@@ -35,6 +35,16 @@ class InvestigationRemediationPlanSerializer < BaseSerializer
   type :boolean
   def writing_undo = plan.writing_undo?
 
+  # Why it cannot be cancelled now, when it cannot. Cancel shows only while it is being applied.
+  type :string, optional: true
+  def cancel_blocked_reason = plan.cancel_blocked_reason
+
+  type :string, optional: true
+  def cancelled_by = plan.cancelled_by&.display_name
+
+  type :string, optional: true
+  def cancelled_at = plan.cancelled_at&.utc&.iso8601
+
   # An undo reads as one, applied with its own wording.
   type :boolean
   def is_undo = plan.undo?

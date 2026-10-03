@@ -64,6 +64,7 @@ class InteractionDispatcher
     Identifiers::APPLY_FIX => Interactions::ApplyFixHandler,
     Identifiers::MARK_FIX_STEP_DONE => Interactions::MarkFixStepDoneHandler,
     Identifiers::UNDO_FIX => Interactions::UndoFixHandler,
+    Identifiers::CANCEL_FIX => Interactions::CancelFixHandler,
     Identifiers::APPROVE_ABILITY => Interactions::ApproveAbilityHandler,
     Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler,
     Identifiers::AGENT_CONFIRM => Interactions::AgentConfirmationHandler,

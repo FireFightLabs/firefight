@@ -180,6 +180,19 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Investigation::RemediationPlan::STATUS_APPLYING, undo.reload.status
   end
 
+  test "a fix being applied is cancelled from the run page, and says who stopped it" do
+    plan = build_fix_plan(@workspace)
+    plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_WEB)
+    investigation = plan.finding.investigation
+
+    post investigation_fix_cancel_url(investigation), params: { plan_id: plan.id }
+
+    assert_equal Investigation::FixRunner::CANCELLED, flash[:notice]
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    fix = inertia_props.dig(IncidentsController::PROP_OPEN_INVESTIGATION, "finding", "fix")
+    assert_equal [ "cancelled", "Alice Smith", "Only a fix being applied can be cancelled." ], [ fix["status"], fix["cancelledBy"], fix["cancelBlockedReason"] ]
+  end
+
   private
 
   def investigation_run(**attributes)

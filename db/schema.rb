@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1128,6 +1128,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.string "applied_from"
     t.datetime "approved_at"
     t.uuid "approved_by_id"
+    t.datetime "cancelled_at"
+    t.uuid "cancelled_by_id"
     t.datetime "created_at", null: false
     t.uuid "finding_id", null: false
     t.string "progress_channel_id"
@@ -1141,6 +1143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.datetime "updated_at", null: false
     t.text "verify"
     t.index ["approved_by_id"], name: "index_investigation_remediation_plans_on_approved_by_id"
+    t.index ["cancelled_by_id"], name: "index_investigation_remediation_plans_on_cancelled_by_id"
     t.index ["finding_id"], name: "index_investigation_remediation_plans_on_finding_id"
     t.index ["finding_id"], name: "index_remediation_plans_one_fix_per_finding", unique: true, where: "(undoes_id IS NULL)"
     t.index ["undo_requested_by_id"], name: "index_investigation_remediation_plans_on_undo_requested_by_id"
@@ -1926,6 +1929,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
   add_foreign_key "investigation_remediation_plans", "investigation_findings", column: "finding_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_plans", "investigation_remediation_plans", column: "undoes_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "cancelled_by_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "undo_requested_by_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "ability_approvals", column: "approval_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "ability_invocations", column: "invocation_id", on_delete: :nullify
