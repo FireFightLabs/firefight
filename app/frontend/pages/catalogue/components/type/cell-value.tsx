@@ -17,14 +17,14 @@ export function CellValue({
   workspaceMembers: WorkspaceMember[]
 }) {
   if (value === null || value === undefined || value === "") {
-    return <span className="text-muted-foreground/40">-</span>
+    return <span className="text-fg-disabled">-</span>
   }
 
   if (attr.attributeType === "boolean") {
     return value ? (
-      <IconCircleCheck className="size-4 text-emerald-500" />
+      <IconCircleCheck className="size-4 text-success" />
     ) : (
-      <IconCircleX className="size-4 text-muted-foreground/40" />
+      <IconCircleX className="size-4 text-fg-disabled" />
     )
   }
 
@@ -73,7 +73,7 @@ export function CellValue({
   if (attr.attributeType === "workspace_member") {
     const member = workspaceMembers.find((candidate) => candidate.id === String(value))
     if (!member) {
-      return <span className="text-sm text-muted-foreground/40">-</span>
+      return <span className="text-sm text-fg-disabled">-</span>
     }
     return (
       <div className="flex items-center gap-1.5">

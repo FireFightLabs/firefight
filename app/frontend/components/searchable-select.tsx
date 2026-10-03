@@ -65,7 +65,7 @@ export function SearchableSelect({
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}
-          <IconChevronDown className="size-4 shrink-0 opacity-50" />
+          <IconChevronDown className="size-4 shrink-0 text-fg-muted" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(event) => event.preventDefault()}>

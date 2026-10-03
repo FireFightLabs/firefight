@@ -63,11 +63,11 @@ export function RunbookStepsEditor({ steps, onChange }: {
           {steps.map((step, index) => (
             <div key={step.key} className="flex gap-2 rounded-md border border-border/60 p-2.5">
               <div className="flex flex-col items-center gap-1 pt-1.5">
-                <IconGripVertical className="size-4 text-muted-foreground/40" />
+                <IconGripVertical className="size-4 text-fg-disabled" />
                 <div className="flex flex-col">
                   <button
                     type="button"
-                    className="text-muted-foreground/60 hover:text-foreground disabled:opacity-30"
+                    className="text-fg-muted hover:text-foreground disabled:opacity-30"
                     disabled={index === 0}
                     onClick={() => move(index, -1)}
                   >
@@ -75,7 +75,7 @@ export function RunbookStepsEditor({ steps, onChange }: {
                   </button>
                   <button
                     type="button"
-                    className="text-muted-foreground/60 hover:text-foreground disabled:opacity-30"
+                    className="text-fg-muted hover:text-foreground disabled:opacity-30"
                     disabled={index === steps.length - 1}
                     onClick={() => move(index, 1)}
                   >
@@ -98,7 +98,7 @@ export function RunbookStepsEditor({ steps, onChange }: {
               </div>
               <button
                 type="button"
-                className="pt-1.5 text-muted-foreground/60 hover:text-destructive"
+                className="pt-1.5 text-fg-muted hover:text-destructive"
                 onClick={() => remove(index)}
               >
                 <IconX className="size-4" />

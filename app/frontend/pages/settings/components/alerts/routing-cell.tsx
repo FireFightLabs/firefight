@@ -17,7 +17,7 @@ export function RoutingCell({ alert }: { alert: AlertSettings }) {
   }
   if (alert.routingState === "unmatched") {
     return (
-      <span className="text-xs text-amber-500/90" title="No routing rule matched this alert. It was stored but created nothing.">
+      <span className="text-xs text-warning" title="No routing rule matched this alert. It was stored but created nothing.">
         Unmatched
       </span>
     )
@@ -30,7 +30,7 @@ export function RoutingCell({ alert }: { alert: AlertSettings }) {
     )
   }
   return (
-    <span className="text-xs text-muted-foreground/60" title="Routing has not completed yet. It is retried automatically every couple of minutes.">
+    <span className="text-xs text-fg-muted" title="Routing has not completed yet. It is retried automatically every couple of minutes.">
       Pending
     </span>
   )

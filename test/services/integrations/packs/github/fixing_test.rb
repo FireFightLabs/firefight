@@ -40,6 +40,8 @@ module Integrations
           config = JSON.parse(sent[4])
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
           assert_equal({ "edit" => "allow", "bash" => "allow", "webfetch" => "deny", "websearch" => "deny" }, config["permission"])
+          assert_equal "https://ff.example.com/code_agent/tools", config.dig("mcp", "firefight", "url")
+          assert_equal "Bearer #{config.dig('provider', 'anthropic', 'options', 'apiKey')}", config.dig("mcp", "firefight", "headers", "Authorization")
           assert_equal "anthropic/claude-sonnet-4-5", sent[6]
           session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
           assert_equal session, CodeAgentSession.where(id: session.id).where.not(closed_at: nil).sole, "the session ends with the change"

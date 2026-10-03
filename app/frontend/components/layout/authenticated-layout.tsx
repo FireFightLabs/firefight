@@ -10,6 +10,7 @@ import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { SiteHeader } from "@/components/navigation/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { TOAST_OPTIONS } from "@/lib/toast-options";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface AuthenticatedLayoutProps {
@@ -30,10 +31,10 @@ function DisconnectedBanner() {
   return (
     <Alert
       variant="destructive"
-      className="mx-6 mt-6 w-auto flex items-center justify-between gap-4"
+      className="mx-6 mt-6 w-auto flex items-center justify-between gap-4 border-border border-l-2 border-l-error bg-error-tint text-fg-primary *:data-[slot=alert-description]:text-fg-body"
     >
       <div className="flex items-start gap-3">
-        <IconPlugConnectedX className="mt-0.5 size-5 shrink-0" />
+        <IconPlugConnectedX className="mt-0.5 size-5 shrink-0 text-error" />
         <div>
           <AlertTitle>Slack is disconnected</AlertTitle>
           <AlertDescription>
@@ -48,7 +49,7 @@ function DisconnectedBanner() {
           <a href={onboardingReinstallPath()}>Reconnect Slack</a>
         </Button>
       ) : (
-        <span className="text-xs shrink-0">
+        <span className="text-xs shrink-0 text-fg-secondary">
           Ask a workspace admin to reconnect it.
         </span>
       )}
@@ -108,7 +109,7 @@ export function AuthenticatedLayout({
             </div>
           </div>
         </SidebarInset>
-        <Toaster />
+        <Toaster toastOptions={TOAST_OPTIONS} />
         <FlashToaster />
       </SidebarProvider>
     </TooltipProvider>

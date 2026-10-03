@@ -39,6 +39,16 @@ class IncidentSeverity < ApplicationRecord
     rank < other_severity.rank
   end
 
+  # One to three bars by where this sits among the workspace's enabled severities, top third
+  # most, so a badge still reads without its colour. Lists preload workspace: :incident_severities.
+  def signal_bars
+    peers = workspace.incident_severities.select(&:enabled?)
+    return 3 if peers.size <= 1
+
+    more_severe = peers.count { |peer| peer.rank > rank }
+    3 - (more_severe * 3 / peers.size)
+  end
+
   private
 
   def ensure_rank

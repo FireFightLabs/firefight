@@ -37,7 +37,7 @@ export function IncidentsTable({ incidents, pagination, filters, severityOptions
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex items-center px-4 lg:px-6">
-        <h2 className="text-lg font-semibold">Recent Incidents</h2>
+        <h2 className="text-lg font-semibold text-fg-primary">Recent Incidents</h2>
       </div>
 
       <IncidentsTableToolbar

@@ -51,6 +51,24 @@ class CodeAgentSession < ApplicationRecord
     self.class.where(id: id).where("calls_running > 0").update_all([ "calls_running = calls_running - 1, updated_at = ?", Time.current ])
   end
 
+  # A web lookup the coding agent makes, through the gateway as Halon's agent so the ledger holds it under this
+  # workspace. Returns what the block returns.
+  def look_up_web!(params, &)
+    AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: Ability::Action::WEB_READ, workspace: workspace,
+                              params: params, context: { source: AbilityGateway::SOURCE_CODE_AGENT,
+                                                         triggered_by_label: "Coding agent for #{repository}" }, &)
+  end
+
+  # A coding agent looks a few things up for one change. More is something else spending Firefight's searches.
+  MAX_WEB_LOOKUPS = 40
+  TOO_MANY_LOOKUPS = "This code change has used its #{MAX_WEB_LOOKUPS} web lookups.".freeze
+
+  # Claimed in SQL, so lookups at once cannot all slip past the cap. False when it is spent.
+  def count_web_lookup!
+    self.class.where(id: id).where("web_lookups < ?", MAX_WEB_LOOKUPS)
+        .update_all([ "web_lookups = web_lookups + 1, updated_at = ?", Time.current ]) == 1
+  end
+
   def close!
     self.class.where(id: id, closed_at: nil).update_all(closed_at: Time.current, updated_at: Time.current)
   end

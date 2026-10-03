@@ -7,7 +7,7 @@ export function FounderAvatar() {
 
   if (errored) {
     return (
-      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold tracking-tight text-foreground">
+      <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold tracking-tight text-fg-primary">
         UN
       </span>
     )

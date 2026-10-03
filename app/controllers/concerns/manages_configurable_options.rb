@@ -77,7 +77,7 @@ module ManagesConfigurableOptions
 
   private
 
-  DEFAULT_COLOR = "#6B7280".freeze
+  DEFAULT_COLOR = "#9D9F9D".freeze
 
   def option_model
     raise NotImplementedError

@@ -1,8 +1,10 @@
 import { router } from "@inertiajs/react"
+import { IconAlertTriangle, IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { ApplyFix } from "@/components/investigations/apply-fix"
 import { CancelFix } from "@/components/investigations/cancel-fix"
+import { FixStepStatus } from "@/components/investigations/fix-step-status"
 import { UndoFix } from "@/components/investigations/undo-fix"
 import {
   DECISION_LABELS,
@@ -69,6 +71,7 @@ function MarkDone({ investigationId, step }: { investigationId: string; step: In
 
   return (
     <Button type="button" size="sm" variant="outline" className="w-fit" disabled={marking} onClick={markDone}>
+      {marking && <IconLoader2 className="motion-safe:animate-spin" />}
       {marking ? "Marking done" : "Mark done"}
     </Button>
   )
@@ -78,32 +81,37 @@ function Step({ investigationId, step }: { investigationId: string; step: Invest
   const status = stepStatus(step)
 
   return (
-    <li className="flex gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5">
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold tabular-nums">
+    <li className="flex gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-selected text-[11px] font-semibold tabular-nums text-fg-body">
         {step.position}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-muted">
           <span className="font-medium uppercase tracking-wider">{REMEDIATION_STEP_LABELS[step.kind]}</span>
           {where(step) && <code className="truncate font-mono">{where(step)}</code>}
           {after(step) && <span>{after(step)}</span>}
         </span>
-        <span>{step.description}</span>
-        {step.missing && <span className="text-xs text-amber-700 dark:text-amber-400">Needs: {step.missing}</span>}
-        {step.undo && <span className="text-xs text-muted-foreground">To undo: {step.undo}</span>}
+        <span className="text-fg-primary">{step.description}</span>
+        {step.missing && (
+          <span className="flex items-start gap-1.5 text-xs text-warning">
+            <IconAlertTriangle className="mt-px size-3.5 shrink-0" />
+            Needs: {step.missing}
+          </span>
+        )}
+        {step.undo && <span className="text-xs text-fg-secondary">To undo: {step.undo}</span>}
         {step.arguments && (
-          <details className="text-xs text-muted-foreground">
-            <summary className="w-fit cursor-pointer select-none hover:text-foreground">What it sends</summary>
-            <pre className="mt-1.5 max-h-48 overflow-auto rounded-md bg-muted/60 px-2.5 py-2 font-mono whitespace-pre-wrap">{step.arguments}</pre>
+          <details className="text-xs text-fg-secondary">
+            <summary className="w-fit cursor-pointer select-none hover:text-fg-primary">What it sends</summary>
+            <pre className="mt-1.5 max-h-48 overflow-auto rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono whitespace-pre-wrap text-fg-body">{step.arguments}</pre>
           </details>
         )}
-        {status && <span className="text-xs font-medium">{status}</span>}
+        {status && <FixStepStatus status={step.status} label={status} />}
         {step.result && (
-          <pre className="max-h-40 overflow-auto rounded-md bg-muted/60 px-2.5 py-2 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
+          <pre className="max-h-40 overflow-auto rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono text-xs whitespace-pre-wrap text-fg-body">
             {step.result}
           </pre>
         )}
-        {receipt(step) && <span className="text-xs text-muted-foreground/80">{receipt(step)}</span>}
+        {receipt(step) && <span className="text-xs text-fg-muted">{receipt(step)}</span>}
         {step.markDoneBlockedReason == null && <MarkDone investigationId={investigationId} step={step} />}
       </div>
     </li>
@@ -117,14 +125,14 @@ export function FixPlan({ investigationId, fix }: { investigationId: string; fix
 
   return (
     <div className="flex flex-col gap-3">
-      <p>{fix.summary}</p>
+      <p className="text-fg-primary">{fix.summary}</p>
       <ol className="flex flex-col gap-2.5">
         {fix.steps.map((step) => (
           <Step key={step.id} investigationId={investigationId} step={step} />
         ))}
       </ol>
-      {fix.verify && <p className="text-xs text-muted-foreground">How to tell it worked: {fix.verify}</p>}
-      {applied && <p className="text-xs font-medium">{applied}</p>}
+      {fix.verify && <p className="text-xs text-fg-secondary">How to tell it worked: {fix.verify}</p>}
+      {applied && <p className="text-xs font-medium text-fg-body">{applied}</p>}
       {fix.appliable && <ApplyFix investigationId={investigationId} fix={fix} />}
       <CancelFix investigationId={investigationId} fix={fix} />
       <UndoFix investigationId={investigationId} fix={fix} />

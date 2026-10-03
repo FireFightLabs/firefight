@@ -62,17 +62,17 @@ export function InlineSelect({
     <DropdownMenu>
       <DropdownMenuTrigger
         disabled={saving}
-        className="group inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        className="group inline-flex items-center gap-1 rounded-full outline-none disabled:opacity-60"
       >
         {trigger}
-        <IconChevronDown className="size-3 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground" />
+        <IconChevronDown className="size-3 shrink-0 text-fg-muted transition-colors duration-120 group-hover:text-fg-body" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="max-h-72 overflow-y-auto">
         {choices.map((choice) => (
           <DropdownMenuItem
             key={choice.value}
             onSelect={() => pick(choice.value)}
-            className={choice.value === selected ? "font-medium text-foreground" : ""}
+            className={choice.value === selected ? "font-medium text-fg-primary" : ""}
           >
             {choice.label}
           </DropdownMenuItem>

@@ -15,11 +15,11 @@ function SubscriberChip({ subscriber }: { subscriber: Subscriber }) {
     <li className="flex min-w-0 items-center gap-2">
       <Avatar className="size-5">
         {member.avatarUrl ? <AvatarImage src={member.avatarUrl} alt={member.name} /> : null}
-        <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
+        <AvatarFallback className="bg-avatar text-[10px] font-semibold text-avatar-foreground">
           {member.initials}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate text-[13px] text-foreground">{member.name}</span>
+      <span className="truncate text-[13px] text-fg-primary">{member.name}</span>
     </li>
   )
 }
@@ -46,14 +46,14 @@ export function SubscribersPanel({
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">Subscribers</h3>
+        <h3 className="text-[12px] font-semibold uppercase tracking-[0.10em] text-fg-primary">Subscribers</h3>
         <Button type="button" variant="outline" size="xs" onClick={toggle}>
           {subscribed ? "Unsubscribe" : "Subscribe"}
         </Button>
       </div>
 
       {subscribers.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground/70">
+        <p className="text-[13px] text-fg-muted">
           Nobody yet. A subscriber gets every update Firefight posts about this incident as a direct message.
         </p>
       ) : (

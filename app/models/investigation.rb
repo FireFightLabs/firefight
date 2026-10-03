@@ -165,7 +165,7 @@ class Investigation < ApplicationRecord
   end
 
   # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
-  def confirms?(_action) = false
+  def confirms?(_action, declared_destructive: false, **) = declared_destructive
 
   # A run investigates and never changes anything. A fix is applied by a person, so a tool that can write is offered
   # only when each call can be shown to read.

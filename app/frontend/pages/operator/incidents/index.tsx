@@ -55,7 +55,7 @@ export default function OperatorIncidents() {
                 <TableCell className="text-muted-foreground">{incident.declaredAt ? formatDateTime(incident.declaredAt) : "-"}</TableCell>
                 <TableCell>
                   {incident.problems > 0 ? (
-                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${TONE_CLASSES.rose}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${TONE_CLASSES.error}`}>
                       <span className="size-1.5 rounded-full bg-current" />
                       {incident.problems} failed
                     </span>

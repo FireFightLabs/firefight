@@ -8,7 +8,7 @@ export function LastEventCell({ source }: { source: AlertSourceSettings }) {
 
   if (lastRejectedAt && rejected > received) {
     return (
-      <span className="text-xs text-amber-500/90" title={`Last rejected ${formatDateTime(lastRejectedAt)}`}>
+      <span className="text-xs text-warning" title={`Last rejected ${formatDateTime(lastRejectedAt)}`}>
         Rejected: {source.lastRejectionReason}
       </span>
     )
@@ -16,5 +16,5 @@ export function LastEventCell({ source }: { source: AlertSourceSettings }) {
   if (lastReceivedAt && received > 0) {
     return <span className="text-xs text-muted-foreground">{formatDateTime(lastReceivedAt)}</span>
   }
-  return <span className="text-xs text-muted-foreground/60">Never</span>
+  return <span className="text-xs text-fg-muted">Never</span>
 }

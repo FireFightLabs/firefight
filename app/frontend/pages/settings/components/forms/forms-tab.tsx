@@ -59,14 +59,14 @@ function iconForForm(slug: string) {
 function iconTintForForm(slug: string) {
   switch (slug) {
     case "declare":
-      return "bg-rose-500/12 text-rose-700 dark:text-rose-300"
+      return "bg-error-tint text-error"
     case "resolve":
-      return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
-    // Matches the grey the seeded Canceled status already uses.
+      return "bg-success-tint text-success"
+    // The Canceled stage's grey, since cancelling is that stage.
     case "cancel":
-      return "bg-slate-500/12 text-slate-600 dark:text-slate-300"
+      return "bg-stage-canceled-tint text-stage-canceled"
     default:
-      return "bg-cyan-500/12 text-cyan-700 dark:text-cyan-300"
+      return "bg-info-tint text-info"
   }
 }
 
@@ -168,11 +168,11 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                   isSelected
-                    ? "bg-background font-medium text-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                    ? "bg-surface-selected font-medium text-fg-primary"
+                    : "text-fg-secondary hover:bg-surface-hover hover:text-fg-primary"
                 )}
               >
-                <span className={cn("rounded-md p-1", isSelected ? iconTintForForm(form.slug) : "text-muted-foreground/60")}>
+                <span className={cn("rounded-md p-1", isSelected ? iconTintForForm(form.slug) : "text-fg-muted")}>
                   {iconForForm(form.slug)}
                 </span>
                 <span className="flex-1 truncate">{form.name}</span>
@@ -182,7 +182,7 @@ export function FormsTab({ forms, customFields, incidentTypes, severities, statu
         </div>
 
         {selectedForm && (
-          <Card className="overflow-hidden border-border shadow-[0_26px_80px_-52px_rgba(8,15,30,0.32)]">
+          <Card className="overflow-hidden border-border">
             <CardHeader className="border-b border-border px-5 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">

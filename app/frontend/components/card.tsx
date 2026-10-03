@@ -16,7 +16,7 @@ const cardVariants = cva("", {
   variants: {
     variant: {
       default: "",
-      glow: "gap-0 rounded-[14px] border-primary/30 px-8 pb-8 pt-10 shadow-[0_1px_2px_0_rgba(0,0,0,0.2),0_20px_60px_0_rgba(0,0,0,0.4),0_0px_60px_0_rgba(115,211,238,0.06)] sm:px-10 sm:pb-10 sm:pt-12",
+      feature: "gap-0 rounded-[14px] border-border px-8 pb-8 pt-10 shadow-none sm:px-10 sm:pb-10 sm:pt-12",
     },
   },
   defaultVariants: { variant: "default" },

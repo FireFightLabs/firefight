@@ -86,11 +86,11 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
   }`
   const content = (
     <>
-      {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-0.5 rounded-full bg-primary" />}
-      <ItemIcon className={`size-4 ${active ? "text-primary" : ""}`} stroke={1.6} />
+      {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-0.5 rounded-full bg-brand" />}
+      <ItemIcon className={`size-4 ${active ? "text-fg-primary" : ""}`} stroke={1.6} />
       {item.title}
       {badge ? (
-        <span className="ml-auto rounded-full bg-rose-500/15 px-1.5 font-mono text-[11px] text-rose-600 dark:text-rose-400">{badge}</span>
+        <span className="ml-auto rounded-full bg-error-tint px-1.5 font-mono text-[11px] text-error">{badge}</span>
       ) : null}
     </>
   )
@@ -156,7 +156,7 @@ export function OperatorLayout({ title, children }: { title: string; children: R
           <div className="flex h-16 items-center gap-3 border-b border-border px-5">
             <FireFightLogo className="size-7" />
             <span className="font-semibold">Firefight</span>
-            <span className="rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[9.5px] font-medium tracking-[0.14em] text-primary uppercase">
+            <span className="rounded-full border border-brand-border bg-brand-tint px-2 py-0.5 text-[9.5px] font-medium tracking-[0.14em] text-brand uppercase">
               Operator
             </span>
           </div>
@@ -164,7 +164,7 @@ export function OperatorLayout({ title, children }: { title: string; children: R
           <nav aria-label="Operator console" className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-6">
             {SECTIONS.map((section) => (
               <div key={section.title} className="flex flex-col gap-1">
-                <p className="px-3 pb-2 text-[10.5px] font-medium tracking-[0.18em] text-muted-foreground/75 uppercase">{section.title}</p>
+                <p className="px-3 pb-2 text-[10.5px] font-medium tracking-[0.18em] text-fg-muted uppercase">{section.title}</p>
                 {section.items.map((item) => (
                   <NavLink key={item.title} item={item} active={isActive(item, page.url)} badge={item.href === operatorRootPath() ? attention : undefined} />
                 ))}

@@ -32,9 +32,9 @@ export function ResourceNode({ data }: NodeProps<ResourceFlowNode>) {
   return (
     <div
       className={cn(
-        "group flex h-16 w-[216px] items-center gap-3 rounded-xl border bg-gradient-to-b from-card to-card/70 px-3 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_8px_24px_-12px_rgba(0,0,0,0.6)] transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px",
-        incident ? "border-destructive/60 ring-4 ring-destructive/15" : "border-border/80 hover:border-foreground/25",
-        focused && !incident && "border-primary/70 ring-4 ring-primary/15",
+        "group flex h-16 w-[216px] items-center gap-3 rounded-xl border bg-surface-card px-3 transition-[border-color,background-color] duration-[120ms] hover:bg-surface-hover",
+        incident ? "border-danger" : "border-border hover:border-border-control",
+        focused && !incident && "border-brand",
         alone && !incident && !focused && "border-dashed opacity-80",
       )}
     >

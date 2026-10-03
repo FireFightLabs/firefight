@@ -16,7 +16,7 @@ export function ProviderMark({
 
   return (
     <div
-      className="ring-border/60 flex flex-none items-center justify-center rounded-lg font-bold text-white ring-1"
+      className="ring-border/60 flex flex-none items-center justify-center rounded-lg font-bold text-fg-headline ring-1"
       style={{ width: size, height: size, backgroundColor: color, fontSize: size * 0.3 }}
       aria-hidden="true"
     >

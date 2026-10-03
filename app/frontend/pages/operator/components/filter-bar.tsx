@@ -60,7 +60,7 @@ export function FilterBar({ filter, windows, workspaces }: FilterProps) {
             type="button"
             aria-pressed={filter.window === choice}
             onClick={() => pickWindow(choice)}
-            className={`h-7 rounded-md px-2.5 text-xs transition-colors ${filter.window === choice ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+            className={`h-7 rounded-md px-2.5 text-xs transition-colors ${filter.window === choice ? "bg-surface-selected text-fg-primary" : "text-fg-secondary hover:bg-surface-hover hover:text-fg-primary"}`}
           >
             {WINDOW_LABELS[choice]}
           </button>

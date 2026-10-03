@@ -57,8 +57,8 @@ export default function OperatorHalonRegressionRun() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Passed" value={percent(run.passed, run.passed + run.failed)} note={`${run.passed} of ${run.passed + run.failed} graded`} />
-        <Stat label="Newly failing" value={newlyFailing} note="passed in the run before" tone={newlyFailing > 0 ? "rose" : "neutral"} />
-        <Stat label="Could not finish" value={run.errored} note={running ? `${run.pending} still replaying` : "not counted either way"} tone={run.errored > 0 ? "amber" : "neutral"} />
+        <Stat label="Newly failing" value={newlyFailing} note="passed in the run before" tone={newlyFailing > 0 ? "error" : "neutral"} />
+        <Stat label="Could not finish" value={run.errored} note={running ? `${run.pending} still replaying` : "not counted either way"} tone={run.errored > 0 ? "warning" : "neutral"} />
         <Stat label="Spent" value={dollars(spent(cases))} note="on the replays" />
       </div>
 
@@ -85,7 +85,7 @@ export default function OperatorHalonRegressionRun() {
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">
                     <RegressionStatus status={entry.status} />
-                    {entry.newlyFailing && <span className="text-xs text-rose-600 dark:text-rose-400">Passed before</span>}
+                    {entry.newlyFailing && <span className="text-xs text-error">Passed before</span>}
                   </div>
                 </TableCell>
                 <TableCell className="whitespace-normal">

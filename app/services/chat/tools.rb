@@ -57,7 +57,8 @@ module Chat::Tools
   # A tool that only reads is the agent looking something up, which the page shows as thinking rather than as a change.
   def self.kind(tool_name, workspace)
     name = tool_name.to_s
-    reading = name == ReadResult.tool_name || firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name)
+    reading = name == ReadResult.tool_name || [ Web::SEARCH, Web::READ ].include?(name) || firefight_reading_names.include?(name) ||
+              workspace.reading_tool_names.include?(name)
     reading ? KIND_READ : KIND_ACT
   end
 

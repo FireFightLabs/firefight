@@ -2,7 +2,8 @@ import type { SVGAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
-const BRAND_COLOR = "#73D3EE";
+// A CSS fill, since an SVG fill attribute cannot read a custom property.
+const BRAND_COLOR = "var(--lime)";
 
 interface FireFightLogoProps
   extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
@@ -12,12 +13,13 @@ interface FireFightLogoProps
 export function FireFightLogo({
   className,
   color = BRAND_COLOR,
+  style,
   ...rest
 }: FireFightLogoProps) {
   return (
     <svg
       viewBox="20 20 34 39"
-      fill={color}
+      style={{ fill: color, ...style }}
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       className={cn("size-9", className)}

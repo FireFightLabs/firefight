@@ -32,6 +32,7 @@ import { FireFightLogo } from "@/components/fire-fight-logo"
 import { NavMain } from "@/components/navigation/nav-main"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { NavUser } from "@/components/navigation/nav-user"
+import { useRememberedScroll } from "@/hooks/use-remembered-scroll"
 import {
   Sidebar,
   SidebarContent,
@@ -131,6 +132,7 @@ const navSections: SidebarNavSection[] = [
 ]
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
+  const navScroll = useRememberedScroll<HTMLDivElement>("app-sidebar")
   const {
     currentUser,
     currentWorkspace,
@@ -191,18 +193,18 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                   <>
                     <Avatar className="size-8 rounded-lg">
                       <AvatarImage src={currentWorkspace.avatarUrl} alt={currentWorkspace.name} />
-                      <AvatarFallback className="rounded-lg text-xs">
+                      <AvatarFallback className="rounded-lg bg-avatar text-xs text-avatar-foreground">
                         {currentWorkspace.name.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="truncate text-base font-bold tracking-tight">
+                    <span className="truncate text-base font-semibold tracking-tight text-fg-headline">
                       {currentWorkspace.name}
                     </span>
                   </>
                 ) : (
                   <>
                     <FireFightLogo style={{ width: "2rem", height: "2rem" }} className="shrink-0" />
-                    <span className="text-base font-bold tracking-tight">FireFight</span>
+                    <span className="text-base font-semibold tracking-tight text-fg-headline">FireFight</span>
                   </>
                 )}
               </Link>
@@ -210,7 +212,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="pt-8 px-2">
+      <SidebarContent ref={navScroll} className="pt-8 px-2">
         <NavMain sections={sections} />
       </SidebarContent>
       <SidebarFooter>
