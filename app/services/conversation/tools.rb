@@ -3,7 +3,7 @@ module Conversation::Tools
   def self.for(turn, offer:)
     [
       Chat::Tools::Open.new(turn, offer: offer, skills: true), Chat::Tools::UseSkill.new(turn, offer: offer), Chat::Tools::ReadResult.new(turn),
-      StartInvestigation.new(turn), *Chat::Tools.memory(turn), Chat::Tools::CorrectMemory.new(turn)
+      StartInvestigation.new(turn), *Chat::Tools.memory(turn), Chat::Tools::CorrectMemory.new(turn), *Chat::Tools::Web.all(turn)
     ]
   end
 end

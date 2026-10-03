@@ -5,6 +5,7 @@ module Integrations
     class Github < NativePack
       include Code
       include Fixing
+      include Libraries
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       PATH_FORMAT = /\A[^\/\0][^\0]*\z/
