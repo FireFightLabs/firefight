@@ -28,6 +28,20 @@ class InvestigationRemediationPlanSerializer < BaseSerializer
   type :string, optional: true
   def applied_at = plan.approved_at&.utc&.iso8601
 
+  # Why it cannot be undone now, when it cannot. Undo fix shows only on a fix that was applied.
+  type :string, optional: true
+  def undo_blocked_reason = plan.undo_blocked_reason
+
+  type :boolean
+  def writing_undo = plan.writing_undo?
+
+  # An undo reads as one, applied with its own wording.
+  type :boolean
+  def is_undo = plan.undo?
+
+  type :string, optional: true
+  def undo_error = plan.undo_error
+
   has_many :steps, serializer: InvestigationRemediationStepSerializer do
     plan.steps.includes(:invocation, :done_by)
   end

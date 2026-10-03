@@ -111,6 +111,21 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     assert_nil step.raw_result, "nothing here reads raw output, and the tool must not either"
   end
 
+  test "a fix's undo is read back with it once written" do
+    run = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
+    run.steps.create!(position: 1, tool_name: "commit_lookup", label: "Commit lookup", action_key: "github.commit_lookup",
+                      status: Investigation::Step::STATUS_SUCCEEDED, started_at: Time.current)
+    run.record_hypothesis!(assertion: "The deploy did it", status: Investigation::Hypothesis::STATUS_SUPPORTED, steps: [ 1 ])
+    finding = run.conclude!(summary: "The deploy raised the pool", hypothesis_assertion: "The deploy did it",
+                            evidence: [ { claim: "The commit raised it", steps: [ 1 ] } ],
+                            fix: { summary: "Revert it", steps: [ { kind: "manual", description: "Put the pool back" } ] })
+    finding.remediation_plan.propose_undo!("summary" => "Raise it again", "steps" => [ { "kind" => "manual", "description" => "Set the pool to 20" } ])
+
+    body = Mcp::Tools::GetInvestigation.perform(workspace: @workspace, args: { investigation: run.id }).structured_content
+
+    assert_equal [ "Revert it", "Raise it again" ], [ body.dig(:finding, :fix, :summary), body.dig(:finding, :fix, :undo, :summary) ]
+  end
+
   test "a run can be found by its incident, newest first" do
     older = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
     older.finish!(status: Investigation::STATUS_FAILED, error_summary: "x")

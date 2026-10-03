@@ -518,6 +518,16 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_undo_plan(channel_id:, thread_id:, plan:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: "How to undo it: #{plan.summary}", blocks: Slack::Messages::InvestigationRun.undo(plan: plan)
+      )
+      { message_id: result[:ts], channel_id: channel_id }
+    end
+  end
+
   def post_fix_progress(channel_id:, thread_id:, plan:)
     translate_errors do
       result = Slack::Client.post_message(

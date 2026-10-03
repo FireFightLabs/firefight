@@ -25,6 +25,14 @@ export const FIX_STATUS_LABELS: Record<RemediationPlanStatus, string | null> = {
   partly_applied: "Partly applied",
 }
 
+// The same, for an undo.
+export const UNDO_STATUS_LABELS: Record<RemediationPlanStatus, string | null> = {
+  proposed: null,
+  applying: "Undoing",
+  applied: "Undone",
+  partly_applied: "Partly undone",
+}
+
 export const FIX_STEP_STATUS_LABELS: Record<RemediationStepStatus, string | null> = {
   proposed: null,
   running: "Running",

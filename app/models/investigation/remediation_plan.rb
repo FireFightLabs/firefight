@@ -21,6 +21,10 @@ class Investigation::RemediationPlan < ApplicationRecord
 
   belongs_to :finding, class_name: "Investigation::Finding"
   belongs_to :approved_by, class_name: "WorkspaceMembership", optional: true
+  # An undo reverses the fix it undoes, and is applied the same way.
+  belongs_to :undoes, class_name: "Investigation::RemediationPlan", optional: true
+  has_one :undo_plan, class_name: "Investigation::RemediationPlan", foreign_key: :undoes_id, inverse_of: :undoes, dependent: :destroy
+  belongs_to :undo_requested_by, class_name: "WorkspaceMembership", optional: true
   has_many :steps, -> { order(:position) }, class_name: "Investigation::RemediationStep", foreign_key: :plan_id, inverse_of: :plan,
                                              dependent: :destroy
 
@@ -103,7 +107,50 @@ class Investigation::RemediationPlan < ApplicationRecord
   # Whether anything is moving on its own now, which is when the run page keeps itself current. A step held for approval
   # or waiting on a person is not, so the page does not poll for hours.
   def moving?
+    return true if writing_undo?
+
     applying? && steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING || (step.runs_itself? && step.proposed? && step.ready?(steps)) }
+  end
+
+  def undo? = undoes_id.present?
+
+  # Writing an undo is one model call, so one asked for longer ago than this lost its worker and can be asked again.
+  UNDO_WRITING_STALE_AFTER = 10.minutes
+
+  def writing_undo? = undo_requested_at.present? && undo_requested_at > UNDO_WRITING_STALE_AFTER.ago && undo_plan.nil? && undo_error.nil?
+
+  # Why this fix cannot be undone now, or nil. Only what went through changed anything to put back.
+  def undo_blocked_reason
+    return "This is already the undo of a fix." if undo?
+    return "Only a fix that was applied can be undone." unless [ STATUS_APPLIED, STATUS_PARTLY_APPLIED ].include?(status)
+    return "Nothing in this fix went through, so there is nothing to undo." if steps.none?(&:done?)
+    return "Halon is writing the undo." if writing_undo?
+    return "Its undo is already written, to apply like the fix." if undo_plan
+
+    Investigation.unavailable_reason(finding.investigation.workspace)
+  end
+
+  # Claims writing the undo for one person, so two clicks write it once. A failed or lost writing can be asked again.
+  def request_undo!(by:)
+    stale = UNDO_WRITING_STALE_AFTER.ago
+    won = self.class.where(id: id).where("undo_requested_at IS NULL OR undo_error IS NOT NULL OR undo_requested_at < ?", stale)
+                    .update_all(undo_requested_at: Time.current, undo_requested_by_id: by.id, undo_error: nil, updated_at: Time.current)
+    reload
+    won == 1
+  end
+
+  def undo_failed!(reason)
+    update!(undo_error: reason)
+  end
+
+  # The undo, checked like any fix, on the same finding.
+  def propose_undo!(fix)
+    checked = self.class.check!(finding.investigation.workspace, fix)
+    transaction do
+      plan = self.class.create!(finding: finding, undoes: self, summary: checked.summary, verify: checked.verify)
+      checked.steps.each { |step| step.update!(plan: plan) }
+      plan
+    end
   end
 
   # Claims the one progress message, so two workers never post two. False when one is already there.

@@ -16,7 +16,7 @@ class InvestigationFindingSerializer < BaseSerializer
     finding.evidence_items.includes(citations: :source)
   end
 
-  has_one :remediation_plan, as: :fix, serializer: InvestigationRemediationPlanSerializer, optional: true do
+  has_one :remediation_plan, as: :fix, serializer: InvestigationFixPlanSerializer, optional: true do
     finding.remediation_plan
   end
 

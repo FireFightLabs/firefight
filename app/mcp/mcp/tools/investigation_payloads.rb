@@ -48,8 +48,10 @@ module Mcp
       end
 
       def self.fix(plan)
+        undo = plan.undo_plan
         {
-          summary: plan.summary, verify: plan.verify,
+          summary: plan.summary, verify: plan.verify, undo_error: plan.undo_error,
+          undo: undo && fix(undo),
           steps: plan.steps.map do |step|
             # The arguments stay out, since the agent wrote them and they are for running the tool, not for reading.
             { position: step.position, kind: step.kind, description: step.description, repository: step.repository, action: step.action_key,

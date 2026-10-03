@@ -1,5 +1,5 @@
 import { InvestigationStory, investigationTitle } from "@/components/investigations/investigation-story"
-import { useLiveInvestigation } from "@/components/investigations/use-live-investigation"
+import { fixMoving, useLiveInvestigation } from "@/components/investigations/use-live-investigation"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { whenClosed } from "@/lib/handlers"
 import type { InvestigationDetail } from "@/types/serializers"
@@ -14,7 +14,7 @@ interface InvestigationSheetProps {
 
 // A run read over the page it belongs to, its incident or the chat that asked for it.
 export function InvestigationSheet({ investigation, prop, onClose, onDeclare }: InvestigationSheetProps) {
-  useLiveInvestigation(investigation?.status, prop, investigation?.finding?.fix?.moving)
+  useLiveInvestigation(investigation?.status, prop, fixMoving(investigation?.finding?.fix))
 
   return (
     <Sheet open={investigation != null} onOpenChange={whenClosed(onClose)}>

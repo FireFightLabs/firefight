@@ -33,6 +33,7 @@ export function ApplyFix({ investigationId, fix }: { investigationId: string; fi
   const [ applying, setApplying ] = useState(false)
   const runs = fix.steps.filter((step) => step.runsItself)
   const byHand = fix.steps.length - runs.length
+  const what = fix.isUndo ? "undo" : "fix"
 
   function openDialog() {
     setOpen(true)
@@ -49,12 +50,12 @@ export function ApplyFix({ investigationId, fix }: { investigationId: string; fi
 
   function apply() {
     setApplying(true)
-    router.post(investigationFixPath(investigationId), {}, { preserveScroll: true, onFinish: finished })
+    router.post(investigationFixPath(investigationId), { plan_id: fix.id }, { preserveScroll: true, onFinish: finished })
   }
 
   const button = (
     <Button type="button" size="sm" className="w-fit" disabled={fix.applyBlockedReason != null} onClick={openDialog}>
-      Apply fix
+      Apply {what}
     </Button>
   )
 
@@ -73,7 +74,7 @@ export function ApplyFix({ investigationId, fix }: { investigationId: string; fi
       <Dialog open={open} onOpenChange={whenClosed(closeDialog)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Apply this fix?</DialogTitle>
+            <DialogTitle>Apply this {what}?</DialogTitle>
             <DialogDescription>{whatRuns(runs.length, byHand)}</DialogDescription>
           </DialogHeader>
           <ol className="flex flex-col gap-1.5 text-sm">
@@ -89,7 +90,7 @@ export function ApplyFix({ investigationId, fix }: { investigationId: string; fi
           </ol>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button type="button" disabled={applying} onClick={apply}>{applying ? "Applying" : "Apply fix"}</Button>
+            <Button type="button" disabled={applying} onClick={apply}>{applying ? "Applying" : `Apply ${what}`}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

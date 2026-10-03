@@ -156,6 +156,30 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Firefight runs step 1 itself once the fix is applied.", flash[:alert]
   end
 
+  test "an applied fix's undo is asked for from the run page, shown under the fix, and applied by its own address" do
+    plan = build_fix_plan(@workspace)
+    plan.update_columns(status: Investigation::RemediationPlan::STATUS_APPLIED)
+    plan.steps.update_all(status: Investigation::RemediationStep::STATUS_DONE)
+    FirefightAi.stubs(:context_window).returns(200_000)
+    investigation = plan.finding.investigation
+
+    assert_enqueued_with(job: InvestigationUndoJob) { post investigation_fix_undo_url(investigation) }
+    assert_equal Investigation::UndoWriter::WRITING, flash[:notice]
+
+    undo = plan.propose_undo!("summary" => "Put it back", "verify" => "Rule is listed again",
+                              "steps" => [ { "kind" => "action", "description" => "Recreate", "tool" => "cloudflare_execute" } ])
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    shown = inertia_props.dig(IncidentsController::PROP_OPEN_INVESTIGATION, "finding", "fix")
+    assert_equal [ "Put it back", "This is already the undo of a fix." ], [ shown.dig("undo", "summary"), shown.dig("undo", "undoBlockedReason") ]
+    assert_equal [ "Remove the rule", nil, "Rule is listed again" ], [ shown["summary"], shown["verify"], shown.dig("undo", "verify") ],
+                 "the undo never writes over the fix it is nested in"
+    assert_equal [ false, true ], [ shown["isUndo"], shown.dig("undo", "isUndo") ]
+    assert_equal JSON.pretty_generate("code" => "delete"), shown.dig("steps", 0, "arguments"), "a tool step shows what it sends before anyone applies it"
+
+    assert_enqueued_with(job: InvestigationFixJob, args: [ undo.id ]) { post investigation_fix_url(investigation), params: { plan_id: undo.id } }
+    assert_equal Investigation::RemediationPlan::STATUS_APPLYING, undo.reload.status
+  end
+
   private
 
   def investigation_run(**attributes)
