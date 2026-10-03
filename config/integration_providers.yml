@@ -15,14 +15,14 @@
 # Section headings on the gallery. A provider naming a category that is not
 # listed here still renders, it just shows no tagline, so adding a provider
 # in a new category stays a registry edit rather than a code change.
+# Listed in the order the gallery shows them.
 categories:
+  Cloud and hosting: Where your apps run, and what you can change there
+  Observability: Logs, metrics, traces and errors for investigations
+  Databases: Your data and how it is set up
   Code: Correlate incidents with what shipped
   Issues: Tickets and follow-up work tied to incidents
-  Telemetry: Logs, metrics and traces for investigations
-  Errors: Error tracking tied to incidents
   Knowledge: Runbooks and documentation as context
-  Databases: Read-only data checks
-  Edge: Traffic, security and caching in front of your app
   Custom: Anything with an MCP server
 
 providers:
@@ -48,7 +48,7 @@ providers:
     map: unchecked
   - key: newrelic
     name: New Relic
-    category: Telemetry
+    category: Observability
     mark: NR
     color: "#1ce783"
     description: Query logs, metrics and traces during investigations.
@@ -58,7 +58,7 @@ providers:
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: datadog
     name: Datadog
-    category: Telemetry
+    category: Observability
     mark: DD
     color: "#632ca6"
     description: Query logs, metrics and monitors during investigations.
@@ -68,7 +68,7 @@ providers:
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: northflank
     name: Northflank
-    category: Telemetry
+    category: Cloud and hosting
     mark: NF
     color: "#0aa4d8"
     description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when the API token's role allows it.
@@ -79,7 +79,7 @@ providers:
     map: firefight
   - key: grafana
     name: Grafana
-    category: Telemetry
+    category: Observability
     mark: GF
     color: "#f46800"
     description: Reach dashboards and datasources behind your Grafana.
@@ -89,7 +89,7 @@ providers:
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: cloudflare
     name: Cloudflare
-    category: Edge
+    category: Cloud and hosting
     mark: CF
     color: "#f38020"
     description: Read traffic, security events, DNS and cache, and block IPs, add rules or purge the cache when you allow it.
@@ -100,7 +100,7 @@ providers:
     map: firefight
   - key: sentry
     name: Sentry
-    category: Errors
+    category: Observability
     mark: SN
     color: "#362d59"
     description: Search error issues and releases tied to an incident.

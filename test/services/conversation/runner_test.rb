@@ -290,7 +290,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   test "a category of integrations shown in a thread is posted under the answer, with a way to connect or manage each" do
     grafana = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "grafana", name: "Grafana", settings: { "server_url" => "https://gf.example/mcp" })
     fake(reply: "Here are the telemetry tools.", steps: [
-      FirefightAi::AgentLoop::Step.new(key: "call_1", tool: Mcp::Tools::LIST_INTEGRATIONS, status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: { "category" => "telemetry" }),
+      FirefightAi::AgentLoop::Step.new(key: "call_1", tool: Mcp::Tools::LIST_INTEGRATIONS, status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: { "category" => "observability" }),
       FirefightAi::AgentLoop::Step.new(key: "call_1", tool: nil, status: FirefightAi::AgentLoop::STEP_DONE)
     ])
     Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1" })

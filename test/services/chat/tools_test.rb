@@ -89,7 +89,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     assert_includes keys, Chat::Tools::Groups::INCIDENT_HISTORY
     assert_includes keys, "connection_#{@integration.slug}"
-    assert_includes keys, "telemetry"
+    assert_includes keys, "observability"
   end
 
   test "opening a group makes the tools the agent may use callable and says what each one does" do
@@ -174,9 +174,9 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   test "a kind of tool nobody has connected says so, and names what could be connected" do
-    assert_match(/^Telemetry: .*nothing connected/, open_tool.description)
+    assert_match(/^Observability: .*nothing connected/, open_tool.description)
 
-    answer = open_tool.call(group: "telemetry")
+    answer = open_tool.call(group: "observability")
 
     assert_match "Nothing is connected", answer
     assert_match "Datadog", answer
@@ -620,10 +620,10 @@ class Chat::ToolsTest < ActiveSupport::TestCase
   end
 
   test "showing a category of integrations carries a card to draw, and nothing else does" do
-    card = Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "Telemetry" }).card
+    card = Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "Observability" }).card
 
     assert_equal Chat::Tools::CARD_INTEGRATIONS, card.kind
-    assert_equal "telemetry", card.category
+    assert_equal "observability", card.category
     assert_nil Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, {}).card
     assert_nil Chat::Tools.step(Mcp::Tools::LIST_INTEGRATIONS, { "category" => "monitoring" }).card
     assert_nil Chat::Tools.step(Mcp::Tools::SEARCH_INCIDENTS, { "query" => "checkout" }).card

@@ -72,14 +72,14 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     conversation = start_chat
     conversation.ask!("what can we connect for logs")
     reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
-    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "Telemetry" })
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::LIST_INTEGRATIONS, arguments: { "category" => "Observability" })
     conversation.chat.add_message(role: :tool, content: "{}", tool_call_id: "call_1")
 
     get agent_chat_url(conversation), headers: inertia_headers
 
     step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
-    assert_equal({ "kind" => Chat::Tools::CARD_INTEGRATIONS, "category" => "telemetry" }, step["card"])
-    telemetry = inertia_props["integrationCards"].find { |card| card["category"] == "telemetry" }
+    assert_equal({ "kind" => Chat::Tools::CARD_INTEGRATIONS, "category" => "observability" }, step["card"])
+    telemetry = inertia_props["integrationCards"].find { |card| card["category"] == "observability" }
     assert_includes telemetry["rows"].map { |row| row.dig("provider", "key") }, "datadog"
   end
 

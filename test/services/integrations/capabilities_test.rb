@@ -109,6 +109,15 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     assert_equal "build", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "builder").arguments["type"]
   end
 
+  test "a provider's details say what Halon can do through it, in the capabilities' order, and one with no adapter is used through its tools" do
+    assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, and roll a resource back " \
+                 "for anything Cloudflare runs. It also uses Cloudflare's own tools that you switch on.", Integrations::Capabilities.halon_sentence("cloudflare", "Cloudflare")
+    assert_equal "Halon uses Datadog's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("datadog", "Datadog")
+    details = IntegrationProviderSerializer.one(IntegrationProvider.find("cloudflare"))
+    assert details[:onMap]
+    assert_not IntegrationProviderSerializer.one(IntegrationProvider.find("datadog"))[:onMap]
+  end
+
   private
 
   def connect(provider, name, tools, slug: nil, entry: catalog_entries(:production_env))
