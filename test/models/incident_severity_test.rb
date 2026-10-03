@@ -420,4 +420,12 @@ class IncidentSeverityTest < ActiveSupport::TestCase
     assert_equal workspace.incident_severities.count, created.rank
     assert_equal (1..workspace.incident_severities.count).to_a, workspace.incident_severities.ordered.pluck(:position)
   end
+
+  test "signal_bars place a severity in thirds among its workspace's enabled severities" do
+    assert_equal 3, incident_severities(:critical_ws1).signal_bars
+    assert_equal 2, incident_severities(:major_ws1).signal_bars
+    assert_equal 1, incident_severities(:minor_ws1).signal_bars
+
+    assert_equal [ 3, 3, 2, 1 ], %i[p0_ws2 p1_ws2 p2_ws2 p3_ws2].map { |name| incident_severities(name).signal_bars }
+  end
 end

@@ -142,14 +142,14 @@ export function SortableOptionRow(props: OptionRowProps) {
       style={style}
       className={cn(
         !props.option.enabled && "opacity-50",
-        isDragging && "relative bg-background shadow-lg",
+        isDragging && "relative bg-surface-popover shadow-popover",
       )}
     >
       <TableCell>
         <button
           ref={setActivatorNodeRef}
           type="button"
-          className="flex cursor-grab touch-none items-center text-muted-foreground/50 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+          className="flex cursor-grab touch-none items-center text-fg-muted transition-colors hover:text-fg-primary active:cursor-grabbing"
           aria-label={`Reorder ${props.option.name}`}
           {...attributes}
           {...listeners}

@@ -32,7 +32,7 @@ export default function Install() {
           subtitle={
             <>
               Connect Firefight to{" "}
-              <span className="font-medium text-foreground">{teamName}</span>.
+              <span className="font-medium text-fg-primary">{teamName}</span>.
               <br />
               The bot needs the following permissions:
             </>
@@ -43,9 +43,9 @@ export default function Install() {
           {PERMISSIONS.map((permission) => (
             <li
               key={permission}
-              className="flex items-start gap-3 text-sm text-foreground"
+              className="flex items-start gap-3 text-sm text-fg-primary"
             >
-              <IconCheck className="mt-[3px] size-4 shrink-0 text-primary" stroke={2.5} />
+              <IconCheck className="mt-[3px] size-4 shrink-0 text-brand" stroke={2.5} />
               <span>{permission}</span>
             </li>
           ))}

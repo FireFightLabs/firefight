@@ -8,18 +8,18 @@ const UNASSIGNED = ""
 
 function Holder({ member }: { member: Incident["roles"][number]["member"] }) {
   if (!member) {
-    return <span className="text-[13px] text-muted-foreground/70">Unassigned</span>
+    return <span className="text-[13px] text-fg-muted">Unassigned</span>
   }
 
   return (
     <div className="flex min-w-0 items-center gap-2">
       <Avatar className="size-5">
         {member.avatarUrl ? <AvatarImage src={member.avatarUrl} alt={member.name} /> : null}
-        <AvatarFallback className="bg-primary/20 text-[10px] font-semibold text-primary">
+        <AvatarFallback className="bg-avatar text-[10px] font-semibold text-avatar-foreground">
           {member.initials}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate text-[13px] text-foreground">{member.name}</span>
+      <span className="truncate text-[13px] text-fg-primary">{member.name}</span>
     </div>
   )
 }
@@ -43,7 +43,7 @@ export function RolesPanel({
 
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.10em] text-foreground">Roles</h3>
+      <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.10em] text-fg-primary">Roles</h3>
       <ul className="flex flex-col gap-2.5">
         {roles.map((role) => (
           <li key={role.id} className="flex items-center justify-between gap-3">

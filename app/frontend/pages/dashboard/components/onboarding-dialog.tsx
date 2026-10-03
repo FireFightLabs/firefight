@@ -40,10 +40,10 @@ export function OnboardingDialog({
           <DialogDescription>Takes about three minutes. The test incident is not counted in your metrics.</DialogDescription>
         </DialogHeader>
 
-        <ol className="flex flex-col gap-2.5 pl-5 text-sm leading-relaxed text-foreground/85 list-decimal marker:text-muted-foreground">
+        <ol className="flex flex-col gap-2.5 pl-5 text-sm leading-relaxed text-fg-body list-decimal marker:text-muted-foreground">
           {steps.map((step) => (
             <li key={step.title}>
-              <span className="font-medium text-foreground">{step.title}</span> {step.detail}
+              <span className="font-medium text-fg-primary">{step.title}</span> {step.detail}
             </li>
           ))}
         </ol>
@@ -56,14 +56,14 @@ export function OnboardingDialog({
             {incidentsChannelUrl ? (
               <a
                 href={incidentsChannelUrl}
-                className="text-xs text-muted-foreground underline decoration-border underline-offset-[3px] transition-colors hover:text-foreground hover:decoration-foreground"
+                className="text-xs text-muted-foreground underline decoration-border underline-offset-[3px] transition-colors hover:text-fg-primary hover:decoration-foreground"
               >
                 Open #incidents instead
               </a>
             ) : (
               <span />
             )}
-            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onDismiss}>
+            <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
               Not now
             </Button>
           </div>

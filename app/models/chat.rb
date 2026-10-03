@@ -103,10 +103,23 @@ class Chat < ApplicationRecord
   end
 
   # One guarded update, so a second click on the same question loses rather than deciding it twice.
-  def decide!(tool_call_id, approved:)
+  # Allowing a call for the rest of the chat approves it and stops later calls to the same tool from asking.
+  def decide!(tool_call_id, approved:, for_chat: false)
     decision = approved ? APPROVAL_APPROVED : APPROVAL_DENIED
-    tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: decision, updated_at: Time.current) > 0
+    decided = tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: decision, updated_at: Time.current) > 0
+    allow_tool!(tool_calls.where(tool_call_id: tool_call_id).pick(:name)) if decided && approved && for_chat
+    decided
   end
+
+  # Kept in one statement, so two answers allowing tools at once both land.
+  def allow_tool!(tool_name)
+    return if tool_name.blank?
+
+    self.class.where(id: id).where.not("allowed_tool_names @> ?::jsonb", [ tool_name ].to_json)
+      .update_all([ "allowed_tool_names = allowed_tool_names || ?::jsonb", [ tool_name ].to_json ])
+  end
+
+  def allows_tool?(tool_name) = tool_name.present? && allowed_tool_names.include?(tool_name)
 
   # The calls put to the person in the same pause as this one.
   def asked_with(tool_call_id)

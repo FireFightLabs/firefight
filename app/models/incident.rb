@@ -85,7 +85,7 @@ class Incident < ApplicationRecord
   scope :with_list_associations, -> {
     includes(
       { incident_status: :incident_lifecycle_stage },
-      :incident_severity,
+      { incident_severity: { workspace: :incident_severities } },
       :declared_by,
       incident_role_assignments: [ :incident_role, { workspace_membership: :user } ]
     )
@@ -93,7 +93,7 @@ class Incident < ApplicationRecord
   scope :with_detail_associations, -> {
     includes(
       { incident_status: :incident_lifecycle_stage },
-      :incident_severity,
+      { incident_severity: { workspace: :incident_severities } },
       :incident_type,
       :declared_by,
       :postmortem,

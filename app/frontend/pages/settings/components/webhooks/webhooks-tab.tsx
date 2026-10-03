@@ -100,7 +100,7 @@ export function WebhooksTab({
                     </TableCell>
                     <TableCell className="text-center">
                       {webhook.active ? (
-                        <Badge variant="secondary" className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                        <Badge variant="secondary" className="gap-1 bg-success-tint text-success">
                           <IconCircleCheck className="size-3" />
                           Active
                         </Badge>

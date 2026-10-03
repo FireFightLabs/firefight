@@ -1,13 +1,15 @@
 import { useState } from "react"
 import { Head, Link, usePage } from "@inertiajs/react"
-import { IconChevronLeft } from "@tabler/icons-react"
+import { IconChevronLeft, IconLayoutSidebarLeftExpand, IconPencilPlus } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { ChatList } from "@/pages/agent/components/chat-list"
 import { StartExamples, StartHeading } from "@/pages/agent/components/chat-start"
 import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
+import { ListButton } from "@/pages/agent/components/list-button"
 import { Thread } from "@/pages/agent/components/thread"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
+import { useChatListCollapsed } from "@/pages/agent/hooks/use-chat-list-collapsed"
 import { OPEN_CHAT_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
 import { InvestigationSheet } from "@/components/investigations/investigation-sheet"
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
@@ -25,6 +27,7 @@ export default function AgentPage() {
   // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list.
   const [ composing, setComposing ] = useState(false)
   const [ declaring, setDeclaring ] = useState(false)
+  const chatList = useChatListCollapsed()
 
   function fillComposer(draft: string) {
     setFill((current) => ({ draft, key: (current?.key ?? 0) + 1 }))
@@ -60,15 +63,22 @@ export default function AgentPage() {
   return (
     <AuthenticatedLayout title="Chat" sidebarCollapsed>
       <Head title="Chat" />
-      <div className="agent-ui agent-chat">
+      <div className="agent-ui agent-chat" data-list={chatList.collapsed ? "collapsed" : "open"}>
         <ChatList
           chats={conversations}
           archivedCount={archivedCount}
           currentId={conversationId}
           className={listClass}
           onNewChat={beginNewChat}
+          onCollapse={chatList.collapse}
         />
-        <section className={`agent-thread min-w-0 grid-cols-[minmax(0,1fr)] ${threadClass}`}>
+        <section className={`agent-thread relative min-w-0 grid-cols-[minmax(0,1fr)] ${threadClass}`}>
+          {chatList.collapsed && (
+            <div className="absolute top-3 left-3 z-10 hidden items-center gap-0.5 md:flex">
+              <ListButton icon={IconLayoutSidebarLeftExpand} label="Show chats" onClick={chatList.expand} />
+              <ListButton icon={IconPencilPlus} label="New chat" onClick={beginNewChat} />
+            </div>
+          )}
           <div className="flex min-h-0 flex-col">
             {conversation ? (
               <>

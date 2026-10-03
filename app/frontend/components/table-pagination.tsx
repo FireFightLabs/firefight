@@ -39,19 +39,19 @@ export function TablePagination({
 
   return (
     <div className="flex items-center justify-between px-4 lg:px-6">
-      <div className="hidden flex-1 text-sm text-foreground/60 lg:flex">
+      <div className="hidden flex-1 text-sm text-fg-secondary lg:flex">
         {totalCount} {totalLabel}
       </div>
       <div className="flex w-full items-center gap-8 lg:w-fit">
         <div className="hidden items-center gap-2 lg:flex">
-          <Label htmlFor="rows-per-page" className="text-sm font-medium text-foreground/60">
+          <Label htmlFor="rows-per-page" className="text-sm font-medium text-fg-secondary">
             Rows per page
           </Label>
           <Select
             value={`${perPage}`}
             onValueChange={(value) => onPerPageChange(Number(value))}
           >
-            <SelectTrigger size="sm" className="w-20 cursor-pointer focus-visible:ring-1 focus-visible:ring-border focus-visible:border-border" id="rows-per-page">
+            <SelectTrigger size="sm" className="w-20 cursor-pointer focus-visible:border-border" id="rows-per-page">
               <SelectValue placeholder={perPage} />
             </SelectTrigger>
             <SelectContent side="top">
@@ -63,7 +63,7 @@ export function TablePagination({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex w-fit items-center justify-center text-sm font-medium text-foreground/60">
+        <div className="flex w-fit items-center justify-center text-sm font-medium text-fg-secondary">
           Page {page} of {totalPages}
         </div>
         <div className="ml-auto flex items-center gap-3 lg:ml-0">

@@ -96,7 +96,7 @@ app/frontend/
     confirm-delete-dialog.tsx  # Used by settings, incidents and the agent chat
     agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
-    layout/                # App shell (authenticated-layout, theme-toggle)
+    layout/                # App shell (authenticated-layout)
     navigation/            # Sidebar, nav items, site header
     ui/                    # shadcn/ui primitives — NEVER modify directly
   pages/                   # Routes + co-located feature code
@@ -140,7 +140,7 @@ app/frontend/
   hooks/                   # Cross-page hooks (use-mobile)
   lib/                     # Cross-page utilities (routes, utils, formatters)
     generated/             # constants.ts, emitted by bin/rails typescript:constants
-  styles/                  # Stylesheets imported by application.css, never entrypoints themselves
+  styles/                  # theme.css (the palette) and agent-ui.css, imported by application.css, never entrypoints themselves
   entrypoints/             # Vite entrypoints (inertia.tsx, application.css)
 ```
 
@@ -334,11 +334,17 @@ capitalized. That is the accepted trade-off, not an oversight.
 
 ## Theme
 
-Dark navy theme with cyan primary accent. Colors defined as CSS custom properties in `application.css` using oklch. Both light and dark themes supported via `.dark` class toggle.
+One dark palette, shared with the landing site: near-black surfaces barely tinted green, an off-white primary action and a lime brand colour. It lives in `styles/theme.css`, imported by `application.css`, and is the only place a colour is defined. The app always runs dark (`<html class="dark">`), so there is no light palette.
 
-- Background hue: 255 (navy blue tint, not pure gray)
-- Primary: hue 195 (cyan/teal)
-- Chroma on dark backgrounds: 0.035 (visibly blue, not grayish)
+- **Tokens, then shadcn.** `theme.css` defines the palette as plain custom properties (`--bg`, `--surface-card`, `--text-body`, `--lime`, `--danger`, `--stage-active`...) and points shadcn's variables at them (`--primary` is the off-white button, `--accent` and `--muted` are the hover surface). Components use semantic Tailwind names registered in its `@theme` block: `text-fg-primary`, `bg-surface-header`, `text-brand`, `bg-brand-tint`, `text-success`, `bg-error-tint`, `border-border-strong`. Never a raw hex, never a Tailwind palette class like `text-emerald-400`.
+- **Colour means something.** Off-white is the primary action, one per view. Lime is brand detail, a positive outcome, "you are here" and focus. Danger red is destructive or critical. Severity is the admin's colour on a solid badge with a signal-bar icon (`SeverityCompact.signalBars`, one to three bars by where the severity sits among the workspace's). A status is a tinted badge in its own colour with an icon. Nothing is told by colour alone.
+- **`primary` is the button, not the accent.** shadcn's `primary` is the off-white action. A highlight, active marker or link is `brand`, so the two never get confused again.
+- **Flat.** Structure comes from 1px borders, not shadows or background jumps. Only floating layers (menus, popovers, tooltips, dialogs) carry `--shadow-popover`. No glows, no gradients.
+- **Restyling the primitives.** `components/ui` stays untouched, so the few places where a primitive's classes disagree with the palette (the outline and destructive buttons, toggles, checkboxes, tooltips, focus) are restyled in `theme.css` by `data-slot` and `data-variant`. Those rules are unlayered on purpose, so they beat the primitive's own utilities.
+- **Focus** is a 2px lime outline with a 2px offset on every control, never the primitives' translucent ring.
+- **Markers are a straight bar.** An active item, a toast or a banner marks its state with the `edge-bar` utility (`[--edge-bar:var(--warning)]` for the colour), a 2px bar on the left edge drawn as a background image. Never `border-l-2` on a rounded box, which bends around the corners.
+- **Seeded defaults** use the palette: severities red, orange and yellow, statuses by lifecycle stage (violet, cyan, lime, grey), types and catalogue types the chart colours. Admins still pick any colour.
+- **Server-rendered pages** that load no bundle (`layouts/oauth.html.erb`) mirror the tokens they need by value, and say so.
 
 ## Incident timeline
 

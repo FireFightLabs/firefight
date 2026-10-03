@@ -101,11 +101,11 @@ function ResourceRow({ resource, count, onPick }: { resource: ResourceMapResourc
       <TableCell className="text-muted-foreground">{resource.providerName} · {resource.account}</TableCell>
       <TableCell className="text-right tabular-nums">
         {resource.dependentIds.length}
-        {resource.suggestedDependentIds.length > 0 && <span className="text-primary"> +{resource.suggestedDependentIds.length} suggested</span>}
+        {resource.suggestedDependentIds.length > 0 && <span className="text-brand"> +{resource.suggestedDependentIds.length} suggested</span>}
       </TableCell>
       <TableCell className="text-right tabular-nums">
         {count ? count.facts : <span className="text-muted-foreground">None found</span>}
-        {count && count.suggested > 0 && <span className="text-primary"> +{count.suggested} suggested</span>}
+        {count && count.suggested > 0 && <span className="text-brand"> +{count.suggested} suggested</span>}
       </TableCell>
       <TableCell className="text-muted-foreground">{resource.catalogEntries.map((entry) => entry.name).join(", ") || "-"}</TableCell>
       <TableCell className="text-right tabular-nums">{resource.recentIncidentCount}</TableCell>

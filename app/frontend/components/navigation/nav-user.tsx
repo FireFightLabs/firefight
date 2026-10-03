@@ -68,13 +68,13 @@ export function NavUser({
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">
+                <AvatarFallback className="rounded-lg bg-avatar text-avatar-foreground">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="truncate font-medium text-fg-primary">{user.name}</span>
+                <span className="truncate text-xs text-fg-muted">
                   {user.email}
                 </span>
               </div>
@@ -91,13 +91,13 @@ export function NavUser({
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">
+                  <AvatarFallback className="rounded-lg bg-avatar text-avatar-foreground">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="truncate font-medium text-fg-primary">{user.name}</span>
+                  <span className="truncate text-xs text-fg-muted">
                     {user.email}
                   </span>
                 </div>
@@ -106,7 +106,7 @@ export function NavUser({
             <DropdownMenuSeparator />
             {workspaces.length > 1 && (
               <>
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                <DropdownMenuLabel className="text-xs text-fg-muted">
                   Workspaces
                 </DropdownMenuLabel>
                 {workspaces.map((workspace) => (
@@ -116,13 +116,13 @@ export function NavUser({
                   >
                     <Avatar className="h-5 w-5 rounded">
                       <AvatarImage src={workspace.avatarUrl} alt={workspace.name} />
-                      <AvatarFallback className="rounded text-[10px]">
+                      <AvatarFallback className="rounded bg-avatar text-[10px] text-avatar-foreground">
                         {workspace.name.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate">{workspace.name}</span>
                     {workspace.id === currentWorkspaceId && (
-                      <IconCheck className="ml-auto size-4" />
+                      <IconCheck className="ml-auto size-4 text-brand" />
                     )}
                   </DropdownMenuItem>
                 ))}

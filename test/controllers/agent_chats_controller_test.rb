@@ -368,6 +368,23 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_empty conversation.chat.awaiting_decision
   end
 
+  test "allowing a call for the rest of the chat keeps its tool from asking again" do
+    conversation = start_chat
+    conversation.ask!("delete the test permission sets")
+    message = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    %w[call_1 call_2].each { |id| message.ruby_llm_tool_calls.create!(tool_call_id: id, name: "delete_permission_set", arguments: { "slug" => id }) }
+    conversation.chat.request_decisions!(%w[call_1 call_2])
+
+    get agent_chat_url(conversation), headers: inertia_headers
+    assert_equal [ "delete_permission_set" ] * 2, inertia_props["confirmations"].map { |confirmation| confirmation["tool"] }
+
+    assert_enqueued_with(job: ConversationReplyJob) do
+      post agent_chat_confirm_url(conversation), params: { decisions: [ { tool_call_id: "call_1", approved: "true", for_chat: "true" } ] }
+    end
+    assert_empty conversation.chat.awaiting_decision
+    assert conversation.chat.reload.allows_tool?("delete_permission_set")
+  end
+
   test "a step says what it was about without the page choosing" do
     conversation = start_chat
     conversation.ask!("what changed today")

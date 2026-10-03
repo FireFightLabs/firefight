@@ -64,7 +64,7 @@ export function RunbookDetailSheet({
               href={runbook.externalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+              className="inline-flex items-center gap-1.5 text-sm text-link hover:underline"
             >
               <IconExternalLink className="size-3.5" />
               Open the linked document

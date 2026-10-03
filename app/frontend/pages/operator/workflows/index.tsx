@@ -53,7 +53,7 @@ export default function OperatorWorkflows() {
         <Link
           href={query({ state: null })}
           preserveScroll
-          className={`rounded-full border px-3 py-1 text-xs ${filter.state === null ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+          className={`rounded-full border px-3 py-1 text-xs ${filter.state === null ? "border-brand-border bg-brand-tint text-brand" : "border-border text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg-primary"}`}
         >
           All <span className="font-mono">{total}</span>
         </Link>
@@ -62,7 +62,7 @@ export default function OperatorWorkflows() {
             key={state}
             href={query({ state })}
             preserveScroll
-            className={`rounded-full border px-3 py-1 text-xs capitalize ${filter.state === state ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-full border px-3 py-1 text-xs capitalize ${filter.state === state ? "border-brand-border bg-brand-tint text-brand" : "border-border text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg-primary"}`}
           >
             {state} <span className="font-mono">{counts[state] ?? 0}</span>
           </Link>
@@ -99,7 +99,7 @@ export default function OperatorWorkflows() {
                 <TableCell><WorkflowState state={workflow.state} /></TableCell>
                 <TableCell className="text-muted-foreground">
                   <span className="font-mono">{workflow.stepsDone}/{workflow.stepsTotal}</span>
-                  {workflow.failedStep && <span className="ml-2 font-mono text-xs text-rose-400">{workflow.failedStep}</span>}
+                  {workflow.failedStep && <span className="ml-2 font-mono text-xs text-error">{workflow.failedStep}</span>}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{formatDateTime(workflow.createdAt)}</TableCell>
               </TableRow>

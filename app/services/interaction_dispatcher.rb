@@ -68,6 +68,7 @@ class InteractionDispatcher
     Identifiers::DENY_ABILITY => Interactions::DenyAbilityHandler,
     Identifiers::AGENT_CONFIRM => Interactions::AgentConfirmationHandler,
     Identifiers::AGENT_CANCEL => Interactions::AgentConfirmationHandler,
+    Identifiers::AGENT_ALLOW_FOR_CHAT => Interactions::AgentConfirmationHandler,
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler
   }.freeze

@@ -1,0 +1,403 @@
+/* The dashboard palette. Every colour in the app comes from here, and it shares its base
+   (background, lime, off-white, text scale) with the landing site so the two match.
+   Components use the semantic tokens below, never raw hex. */
+
+:root,
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #121312;
+  --surface-sidebar: #121312;
+  --surface-card: #151615;
+  --surface-header: #181a18;
+  --surface-hover: #1b1c1b;
+  --surface-selected: #1e201e;
+  --surface-input: #1b1c1b;
+  --surface-popover: #1d1f1d;
+  --surface-code: #0f100f;
+
+  /* Borders */
+  --border: #252725;
+  --border-strong: #323332;
+  --border-control: #464846;
+
+  /* Text */
+  --text-headline: #f9f8f5;
+  --text-primary: #e0e2e0;
+  --text-body: #bcbebc;
+  --text-secondary: #9d9f9d;
+  --text-muted: #858785;
+  --text-disabled: #626462;
+
+  /* Lime, the brand: details, positive outcomes, "you are here", focus */
+  --lime: #9ee464;
+  --lime-hover: #aff07c;
+  --lime-press: #88cd4c;
+  --on-lime: #121312;
+  --lime-tint: #192c14;
+  --lime-tint-border: #2c491f;
+  --focus-ring: #9ee464;
+  --link: #9ee464;
+
+  /* Primary button, off-white. Hover goes darker. */
+  --btn-primary: #f9f8f5;
+  --btn-primary-hover: #f2f0ed;
+  --btn-primary-press: #ebe9e5;
+  --on-btn-primary: #121312;
+
+  /* Destructive */
+  --danger: #f05653;
+  --danger-hover: #f86a65;
+  --danger-press: #da4141;
+  --on-danger: #121312;
+
+  /* Severity, solid badges with dark text */
+  --sev-minor: #efd369;
+  --sev-major: #f18336;
+  --sev-critical: #f05653;
+  --on-sev: #121312;
+
+  /* Lifecycle stages, tinted badges and status dots */
+  --stage-triage: #a98aea;
+  --stage-triage-tint: #271e39;
+  --stage-triage-border: #483867;
+  --stage-active: #70d5ed;
+  --stage-active-tint: #002a33;
+  --stage-active-border: #004c5d;
+  --stage-closed: #9ee464;
+  --stage-closed-tint: #1a290e;
+  --stage-closed-border: #314b1b;
+  --stage-canceled: #9d9f9d;
+  --stage-canceled-tint: #1e201e;
+  --stage-canceled-border: #323332;
+
+  /* Feedback, toasts and banners */
+  --success: #9ee464;
+  --success-tint: #1a290e;
+  --error: #f05653;
+  --error-tint: #391917;
+  --warning: #f18336;
+  --warning-tint: #371c0b;
+  --info: #70d5ed;
+  --info-tint: #002a33;
+  --success-border: #314b1b;
+  --error-border: #6e3330;
+  --warning-border: #6b3916;
+  --info-border: #004c5d;
+
+  /* Controls */
+  --toggle-on-track: #9ee464;
+  --toggle-on-knob: #121312;
+  --toggle-off-track: #323332;
+  --toggle-off-knob: #858785;
+  --checkbox-checked: #9ee464;
+  --checkbox-border: #464846;
+
+  /* Overlays and details */
+  --overlay: rgb(10 11 10 / 0.72);
+  --shadow-popover: 0 8px 24px rgb(10 11 10 / 0.4);
+  --tooltip-bg: #1d1f1d;
+  --tooltip-border: #323332;
+  --tooltip-text: #e0e2e0;
+  --skeleton: #1b1c1b;
+  --skeleton-shimmer: #222322;
+  --scrollbar: #323332;
+  --scrollbar-hover: #464846;
+  --avatar-bg: #1e201e;
+  --avatar-text: #bcbebc;
+
+  /* Charts, used in this order */
+  --chart-1: #9ee464;
+  --chart-2: #70d5ed;
+  --chart-3: #a98aea;
+  --chart-4: #f18336;
+  --chart-5: #9d9f9d;
+
+  /* shadcn/ui, pointed at the tokens above */
+  --radius: 0.625rem;
+  --background: var(--bg);
+  --foreground: var(--text-body);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-body);
+  --popover: var(--surface-popover);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--btn-primary);
+  --primary-foreground: var(--on-btn-primary);
+  --secondary: var(--surface-hover);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-hover);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--surface-hover);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger);
+  --input: var(--border);
+  --ring: var(--focus-ring);
+  --sidebar: var(--surface-sidebar);
+  --sidebar-foreground: var(--text-body);
+  --sidebar-primary: var(--lime);
+  --sidebar-primary-foreground: var(--on-lime);
+  --sidebar-accent: var(--surface-hover);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--focus-ring);
+}
+
+@theme inline {
+  --color-brand: var(--lime);
+  --color-brand-hover: var(--lime-hover);
+  --color-brand-press: var(--lime-press);
+  --color-on-brand: var(--on-lime);
+  --color-brand-tint: var(--lime-tint);
+  --color-brand-border: var(--lime-tint-border);
+  --color-link: var(--link);
+
+  --color-fg-headline: var(--text-headline);
+  --color-fg-primary: var(--text-primary);
+  --color-fg-body: var(--text-body);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-disabled: var(--text-disabled);
+
+  --color-surface-card: var(--surface-card);
+  --color-surface-header: var(--surface-header);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-input: var(--surface-input);
+  --color-surface-popover: var(--surface-popover);
+  --color-surface-code: var(--surface-code);
+
+  --color-border-strong: var(--border-strong);
+  --color-border-control: var(--border-control);
+
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-press: var(--danger-press);
+  --color-on-danger: var(--on-danger);
+
+  --color-sev-minor: var(--sev-minor);
+  --color-sev-major: var(--sev-major);
+  --color-sev-critical: var(--sev-critical);
+  --color-on-sev: var(--on-sev);
+
+  --color-stage-triage: var(--stage-triage);
+  --color-stage-triage-tint: var(--stage-triage-tint);
+  --color-stage-triage-border: var(--stage-triage-border);
+  --color-stage-active: var(--stage-active);
+  --color-stage-active-tint: var(--stage-active-tint);
+  --color-stage-active-border: var(--stage-active-border);
+  --color-stage-closed: var(--stage-closed);
+  --color-stage-closed-tint: var(--stage-closed-tint);
+  --color-stage-closed-border: var(--stage-closed-border);
+  --color-stage-canceled: var(--stage-canceled);
+  --color-stage-canceled-tint: var(--stage-canceled-tint);
+  --color-stage-canceled-border: var(--stage-canceled-border);
+
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-error: var(--error);
+  --color-error-tint: var(--error-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+  --color-success-border: var(--success-border);
+  --color-error-border: var(--error-border);
+  --color-warning-border: var(--warning-border);
+  --color-info-border: var(--info-border);
+
+  --color-overlay: var(--overlay);
+  --color-avatar: var(--avatar-bg);
+  --color-avatar-foreground: var(--avatar-text);
+  --shadow-popover: var(--shadow-popover);
+}
+
+/* A straight 2px bar on the left edge, stopping short of rounded corners so it never bends
+   around them. Drawn as a background image, so it needs no extra element and never clashes
+   with a library's own pseudo elements. Colour with --edge-bar, inset with --edge-bar-inset. */
+@utility edge-bar {
+  background-image: linear-gradient(var(--edge-bar, var(--lime)), var(--edge-bar, var(--lime)));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 2px calc(100% - 2 * var(--edge-bar-inset, 6px));
+}
+
+::selection {
+  background: var(--lime-tint-border);
+  color: var(--text-headline);
+}
+
+/* The shadcn primitives in components/ui stay untouched, so the few places where their
+   classes disagree with the palette are restyled here by data-slot. These rules are unlayered
+   and so beat any class a page passes, which is why they only touch what pages never
+   customise (state colours, focus, tooltips). Anything else is done by re-pointing a token
+   on the element, so a page's own classes still win. */
+
+/* Focus is a flat lime outline everywhere, never the primitives' translucent glow. */
+:where(button, a, input, select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+[data-slot]:focus-visible {
+  --tw-ring-color: transparent;
+}
+
+:where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="input-group"]):focus-visible,
+:where([data-slot="input-group"]):focus-within {
+  border-color: var(--border-control);
+}
+
+:where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"])[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* Buttons */
+[data-slot="button"] {
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+/* Outline buttons draw their edge and fill from --input, so pointing it at the strong border
+   restyles them while a page's own classes still apply. */
+[data-slot="button"][data-variant="outline"] {
+  --input: var(--border-strong);
+}
+
+/* Ghost buttons hover on the full hover surface. The primitive's half strength wash is too
+   faint on these dark surfaces to read as a hover. */
+[data-slot="button"][data-variant="ghost"]:hover:not(:disabled) {
+  background-color: var(--surface-hover);
+}
+
+[data-slot="button"][data-variant="destructive"] {
+  background-color: var(--danger);
+  color: var(--on-danger);
+}
+
+[data-slot="button"][data-variant="destructive"]:hover:not(:disabled) {
+  background-color: var(--danger-hover);
+}
+
+[data-slot="button"][data-variant="destructive"]:active:not(:disabled) {
+  background-color: var(--danger-press);
+}
+
+/* Badges */
+[data-slot="badge"][data-variant="destructive"] {
+  background-color: var(--danger);
+  color: var(--on-danger);
+}
+
+/* Toggles, checkboxes and radios are lime when on, with a dark mark. */
+[data-slot="switch"][data-state="checked"] {
+  background-color: var(--toggle-on-track);
+}
+
+[data-slot="switch"][data-state="unchecked"] {
+  background-color: var(--toggle-off-track);
+}
+
+[data-slot="switch-thumb"][data-state="checked"] {
+  background-color: var(--toggle-on-knob);
+}
+
+[data-slot="switch-thumb"][data-state="unchecked"] {
+  background-color: var(--toggle-off-knob);
+}
+
+[data-slot="checkbox"] {
+  border-color: var(--checkbox-border);
+  background-color: transparent;
+}
+
+[data-slot="checkbox"][data-state="checked"],
+[data-slot="checkbox"][data-state="indeterminate"] {
+  background-color: var(--checkbox-checked);
+  border-color: var(--checkbox-checked);
+  color: var(--on-lime);
+}
+
+[data-slot="radio-group-item"] {
+  border-color: var(--checkbox-border);
+}
+
+[data-slot="radio-group-item"][data-state="checked"] {
+  border-color: var(--checkbox-checked);
+}
+
+[data-slot="radio-group-indicator"] span {
+  background-color: var(--checkbox-checked);
+}
+
+/* Menus and selects float, so they carry the strong edge and the popover shadow. */
+:where([data-slot="dropdown-menu-content"], [data-slot="select-content"], [data-slot="popover-content"], [data-slot="dropdown-menu-sub-content"]) {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-popover);
+}
+
+[data-slot="select-item-indicator"],
+[data-slot="dropdown-menu-checkbox-item"] [data-slot="dropdown-menu-checkbox-item-indicator"] {
+  color: var(--lime);
+}
+
+/* Tooltips are dark, bordered and quiet, not an inverted light chip. */
+[data-slot="tooltip-content"] {
+  background-color: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  border: 1px solid var(--tooltip-border);
+  box-shadow: var(--shadow-popover);
+}
+
+/* The arrow is a rotated square that Radix turns to face each side, so the two edges that
+   show are always its right and bottom. */
+[data-slot="tooltip-content"] svg.rotate-45 {
+  background-color: var(--tooltip-bg);
+  fill: var(--tooltip-bg);
+  border-right: 1px solid var(--tooltip-border);
+  border-bottom: 1px solid var(--tooltip-border);
+}
+
+/* Overlays */
+:where([data-slot="dialog-overlay"], [data-slot="sheet-overlay"]) {
+  background-color: var(--overlay);
+}
+
+/* The table header row sits on its own surface. */
+[data-slot="table-header"] {
+  background-color: var(--surface-header);
+}
+
+[data-slot="table-head"] {
+  color: var(--text-secondary);
+}
+
+/* Sidebar items stay neutral until hovered. The active one gets a lime marker. */
+[data-slot="sidebar-group-label"] {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+[data-slot="sidebar-menu-button"] {
+  color: var(--text-body);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+[data-slot="sidebar-menu-button"]:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+[data-slot="sidebar-menu-button"][data-active="true"] {
+  background-color: var(--surface-selected);
+  background-image: linear-gradient(var(--lime), var(--lime));
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 2px calc(100% - 12px);
+  color: var(--text-primary);
+}
+
+/* Scrollbars */
+* {
+  scrollbar-color: var(--scrollbar) transparent;
+}
