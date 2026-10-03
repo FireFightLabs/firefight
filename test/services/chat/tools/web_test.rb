@@ -19,12 +19,25 @@ class Chat::Tools::WebTest < ActiveSupport::TestCase
     assert_equal [ Ability::Invocation::DECISION_ALLOW, SystemAgent.investigator ], [ step.invocation.decision, step.invocation.principal ]
   end
 
+  test "a lookup one provider failed and the next answered is one step and one ledger row" do
+    Integrations::WebSearch::Tavily.any_instance.stubs(:configured?).returns(true)
+    Integrations::WebSearch::Firecrawl.any_instance.stubs(:configured?).returns(true)
+    Integrations::WebSearch::Tavily.any_instance.expects(:search).raises(Integrations::WebSearch::Error, "Tavily answered 500: down")
+    Integrations::WebSearch::Firecrawl.any_instance.expects(:search).returns([ Integrations::WebSearch::Result.new(title: "Retries", url: "https://sidekiq.org", text: "25 times") ])
+    search = Chat::Tools::Web.all(@investigation).find { |tool| tool.name == Chat::Tools::Web::SEARCH }
+
+    assert_includes search.call(query: "sidekiq retry"), "25 times"
+    assert_equal 1, @investigation.steps.where(action_key: Ability::Action::WEB_READ).count
+    assert_equal 1, Ability::Invocation.where(workspace: @workspace, action_key: Ability::Action::WEB_READ).count
+  end
+
   test "a page that is not public, or a deployment with no search key, is said rather than read" do
     read = Chat::Tools::Web.all(@investigation).find { |tool| tool.name == Chat::Tools::Web::READ }
 
     assert_match "public http", read.call(url: "http://localhost/admin")
-    Integrations::Tavily.stubs(:configured?).returns(false)
-    assert_match "TAVILY_API_KEY", read.call(url: "https://example.com/docs")
+    Integrations::WebSearch::Tavily.any_instance.stubs(:configured?).returns(false)
+    Integrations::WebSearch::Firecrawl.any_instance.stubs(:configured?).returns(false)
+    assert_match "TAVILY_API_KEY or FIRECRAWL_API_KEY", read.call(url: "https://example.com/docs")
   end
 
   test "a workspace that switched web search off is offered neither tool, and its day's lookups are capped" do

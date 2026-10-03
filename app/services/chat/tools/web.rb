@@ -44,7 +44,7 @@ class Chat::Tools::Web < RubyLLM::Tool
     return blocked if blocked
     said = @agent_run.tool_call(action_key: ACTION, params: params, tool_name: name, label: label(params)) { look_up(params) }
     Chat::Tools.hand_over(@agent_run, name, said)
-  rescue Integrations::Tavily::NotConfigured, ArgumentError => error
+  rescue Integrations::WebSearch::NotConfigured, ArgumentError => error
     Chat::Tools.mark_failed(@agent_run, tool_call&.id)
     error.message
   rescue Integrations::Error => error
