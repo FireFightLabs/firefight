@@ -96,9 +96,21 @@ class Investigation::IncidentSeed
         "summary" => past.summary,
         "declared_at" => past.declared_at&.iso8601,
         "resolved_at" => past.resolved_at&.iso8601,
-        "finding" => past.investigations.seen.filter_map { |run| run.finding&.summary }.first
+        **past_answer(past)
       }
     end
+  end
+
+  NOT_RATED = "not rated".freeze
+
+  # The answer a past incident's run gave, with what the team said of it, so a wrong one is read as a mistake to avoid
+  # and a confirmed one as a worked example. A confirmed answer is preferred.
+  def past_answer(past)
+    found = past.investigations.reject(&:rehearsal?).sort_by(&:created_at).filter_map(&:finding).select { |finding| finding.summary.present? }
+    answer = found.find { |finding| finding.outcome == Investigation::Finding::OUTCOME_CONFIRMED } || found.first
+    return {} unless answer
+
+    { "finding" => answer.summary, "finding_outcome" => answer.outcome || NOT_RATED }
   end
 
   def past_incidents(alerts)

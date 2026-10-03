@@ -73,6 +73,7 @@ module FirefightAi
         - For a failing page or endpoint, find its route and the code that handles it, then check that everything that runs before the handler, its filters and callbacks and the methods they call, is defined. Only then look at data or configuration.
         - #{Evidence::RULE}
         - #{Evidence::REFUSAL_RULE}
+        - A past incident's finding_outcome says what the team made of that answer. A confirmed one is a worked example, and one marked wrong is a mistake not to repeat, never a lead.
 
         How to finish:
         - Call conclude with the theory the evidence supports, the evidence behind it, and what you could not check. Each line of evidence is one claim and the step numbers it rests on. A claim with no step behind it is refused, so do not state what no result showed.
