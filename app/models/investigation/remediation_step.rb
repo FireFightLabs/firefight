@@ -57,9 +57,9 @@ class Investigation::RemediationStep < ApplicationRecord
     when KIND_PULL_REQUEST
       step.repository = asked["repository"].to_s.strip.presence || refuse(position, "names no repository. Give the repository the change goes in")
     when KIND_ACTION
-      tool = runnable_tool(workspace, asked["tool"].to_s, position)
       refuse(position, "has its arguments as something other than an object") unless asked["arguments"].nil? || asked["arguments"].is_a?(Hash)
-      step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: asked["arguments"] || {})
+      tool, arguments = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position)
+      step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments)
     when KIND_MANUAL
       step.missing = asked["missing"].presence
     end
@@ -181,6 +181,22 @@ class Investigation::RemediationStep < ApplicationRecord
     seen = ResourceMap::Resource.present.find_by(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository)
     tools.find { |tool| seen && tool.integration_id == seen.integration_environment&.integration_id } || (tools.first if tools.one?)
   end
+
+  # The provider tool a step runs and its own arguments. A capability, such as rollback, is resolved now to the
+  # connection that holds the resource, so the step shows and runs exactly the provider call it will make.
+  def self.action_of(workspace, name, arguments, position)
+    spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name }
+    return [ runnable_tool(workspace, name, position), arguments ] unless spec
+    refuse(position, "names #{name}, which only reads. A fix has to change something") unless spec.writes
+
+    call = Integrations::Capabilities.resolve(workspace, spec.key, arguments.transform_keys(&:to_s))
+    environment = call.environment_entry&.slug
+    [ runnable_tool(workspace, call.tool.model_facing_name, position),
+      environment ? call.arguments.merge(Integration::Tool::ENVIRONMENT_ARG => environment) : call.arguments ]
+  rescue Integrations::Capabilities::Unroutable => error
+    refuse(position, "names #{name}, which cannot run here: #{error.message.delete_suffix('.')}. Make it a manual step and say so")
+  end
+  private_class_method :action_of
 
   def self.runnable_tool(workspace, name, position)
     tool = Integration::Tool.in_workspace(workspace).find { |each| each.model_facing_name == name }

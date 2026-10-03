@@ -42,7 +42,7 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
     return "There is no skill called #{asked}. The skills are: #{skills.map(&:name).join(', ')}." unless skill
     return guide(skill, arguments.stringify_keys["reference"]) if arguments.stringify_keys["reference"].present?
 
-    entries = Chat::Tools.catalog(@agent_run).select { |entry| entry.source == skill.source && skill.tools.include?(entry.handle) }
+    entries = Chat::Tools.catalog(@agent_run).select { |entry| skill_tool?(skill, entry) }
     ready, refused = entries.partition { |entry| entry.state == Chat::Tools::STATE_READY }
     @offer.call(ready.map(&:tool)) if ready.any?
 
@@ -52,6 +52,11 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
   private
 
   def skills = @skills ||= Chat::Skill.available_to(@agent_run.workspace)
+
+  # A provider's skill drives that provider's own tools, and the capabilities that answer for its resources.
+  def skill_tool?(skill, entry)
+    skill.tools.include?(entry.handle) && (entry.source == skill.source || entry.group == Chat::Tools::Groups::RESOURCES)
+  end
 
   def listing
     skills.group_by { |skill| [ skill.source, skill.domain ] }.map do |(source, domain), grouped|
@@ -94,8 +99,9 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
     end.join("\n")
   end
 
+  # A capability the skill names is missing when the provider tool it runs as is switched off, so that tool is named.
   def switched_off(skill, entries)
-    missing = skill.tools - entries.map(&:handle)
+    missing = (skill.tools - entries.map(&:handle)).map { |name| Integrations::Capabilities.provider_tool(skill.source, name) || name }.uniq
     return if skill.firefight? || missing.empty?
 
     provider = IntegrationProvider.find(skill.source)&.name || skill.source

@@ -35,6 +35,25 @@ class Investigation::RemediationPlanTest < ActiveSupport::TestCase
     assert_equal "No chat tool is connected", manual.missing
   end
 
+  test "a step can name a capability, and it is kept as the provider call it will make, a read never being a fix" do
+    environment_row = @workspace.integrations.find_by!(slug: "cloudflare").integration_environments.first
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_WORKER, external_id: "api",
+                                  name: "api", url: "https://dash.cloudflare.com/acc1/workers-and-pages", integration_environment: environment_row,
+                                  first_seen_at: Time.current, last_seen_at: Time.current)
+
+    checked = Investigation::RemediationPlan.check!(@workspace, { "summary" => "Roll api back", "steps" => [
+      { "kind" => "action", "description" => "Put api back on the last good version", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "ver-8" } }
+    ] })
+
+    step = checked.steps.sole
+    assert_equal [ "rollback", "cloudflare.execute" ], [ step.tool_name, step.action_key ]
+    assert_includes step.arguments["code"], '"path":"/accounts/acc1/workers/scripts/api/deployments"'
+    error = assert_raises(Investigation::RemediationPlan::Refused) do
+      Investigation::RemediationPlan.check!(@workspace, { "summary" => "Look", "steps" => [ { "kind" => "action", "description" => "Read logs", "tool" => "search_logs", "arguments" => { "resource" => "api" } } ] })
+    end
+    assert_match "only reads", error.message
+  end
+
   test "naming a cause without a fix is sent back, and nothing is recorded" do
     error = assert_raises(Investigation::RemediationPlan::Refused) { conclude(fix: nil) }
 

@@ -31,38 +31,49 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   private
 
-  def invoke(given, tool_call_id:, approval_id: nil)
+  def invoke(given, tool_call_id:)
     environment_entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
-    arguments = reading(given.except(Integration::Tool::ENVIRONMENT_ARG))
-    scope = environment_entry ? { "environment" => environment_entry.id } : {}
+    run(reading(given.except(Integration::Tool::ENVIRONMENT_ARG)), environment_entry: environment_entry, tool_call_id: tool_call_id)
+  rescue Integration::UnknownEnvironment, Integrations::ReadGuards::Refused => error
+    failed(tool_call_id, error.message)
+  end
 
+  public
+
+  # Runs the tool with arguments that are already its own, as this tool's action, through the gateway. A capability
+  # call runs through here too, so it is authorized, approved, ledgered and replayed exactly like the tool itself.
+  # shown_as is the name the agent called, present reads the provider's answer back into the capability's shapes.
+  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil)
+    scope = environment_entry ? { "environment" => environment_entry.id } : {}
     result = nil
     said = @agent_run.tool_call(
-      action_key: @tool.action_key, params: arguments, scope: scope, tool_name: name,
-      label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
+      action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
+      label: Chat::Tools.label(shown_as, arguments), **{ approval_id: approval_id }.compact
     ) do
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
+      result = present.call(result) if present
       text_of(result)
     end
     keep_charts(tool_call_id, result, said.step)
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, name, said), reminder ].compact.join("\n\n")
-  rescue Integration::UnknownEnvironment, Integrations::ReadGuards::Refused => error
-    failed(tool_call_id, error.message)
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)
-      return invoke(given, tool_call_id: tool_call_id, approval_id: pending.approval.id)
+      return run(arguments, environment_entry: environment_entry, tool_call_id: tool_call_id, shown_as: shown_as, present: present,
+                            approval_id: pending.approval.id)
     end
 
     Chat::Tools.waiting_for_approval(@tool.action_key)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.
-    failed(tool_call_id, FirefightAi::Evidence.frame(name, "#{@tool.action_key} failed: #{error.message}"))
+    failed(tool_call_id, FirefightAi::Evidence.frame(shown_as, "#{@tool.action_key} failed: #{error.message}"))
   end
+
+  private
 
   # The words still go to the model. The mark is for whoever reads the chat afterwards.
   def failed(tool_call_id, text)

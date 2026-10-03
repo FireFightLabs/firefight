@@ -1,10 +1,10 @@
 ---
 name: northflank_resources
 when: Checking whether a Northflank service or database is short of CPU, memory or disk, or needs more instances
-tools: [describe_resource, query_metrics, list_containers, search_logs]
+tools: [resource_status, query_metrics, list_containers, search_logs]
 ---
-1. Call `describe_resource` for the plan and instances of a service, or the plan, replicas and storage of a database.
-2. Call `query_metrics` with `metrics` cpu and memory, and diskUsage for a database, over a range long enough to show the normal level before the problem. Each container is its own series, so one container near its limit shows even when the others look fine.
+1. Call `resource_status` for the plan and instances of a service, or the plan, replicas and storage of a database.
+2. Call `query_metrics` with `metrics` cpu and memory, and disk for a database, over a range long enough to show the normal level before the problem. Each container is its own series, so one container near its limit shows even when the others look fine.
 3. Read it against the plan:
    - Northflank's alerts count 90% for a short while as a spike and 90% for 5 minutes as sustained. Sustained is what hurts.
    - CPU and memory rising with requests means the service needs a bigger plan or more instances.

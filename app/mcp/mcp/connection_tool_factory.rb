@@ -10,7 +10,9 @@ module Mcp
     def self.tools_for(workspace, principal)
       resolved = Ability::Resolver.resolve(principal, workspace)
 
+      # A tool that shares a capability's name is left out, since two tools of one name break the whole listing.
       Integration::Tool.in_workspace(workspace)
+                       .reject { |tool| Integrations::Capabilities.tool_names.include?(tool.model_facing_name) }
                        .select { |tool| tool.callable_by?(principal, resolved) }
                        .map { |tool| build(tool) }
     end
