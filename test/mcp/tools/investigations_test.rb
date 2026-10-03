@@ -167,4 +167,28 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     assert_equal Investigation::STATUS_FAILED, body[:status]
     assert_no_match(/ContextLength/, body.to_json)
   end
+
+  test "an agent reads how Halon has done, with the answers marked wrong and what was learned from each" do
+    run = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400,
+                                            status: Investigation::STATUS_SUCCEEDED)
+    run.create_finding!(summary: "The deploy did it", outcome: Investigation::Finding::OUTCOME_WRONG, outcome_at: Time.current)
+    lesson = Chat::Memory.learn!(@workspace, text: "A 5xx after a deploy has meant a full disk", subject: nil, source: @incident).memory
+
+    body = Mcp::Tools::GetHalonPerformance.perform(workspace: @workspace, args: { days: "7" }).structured_content
+
+    assert_equal 7, body[:days]
+    assert_equal({ rated: 1, right: 0, partly_right: 0, wrong: 1, not_rated: 0 }, body[:answers])
+    mistake = body[:marked_wrong].sole
+    assert_equal [ @incident.identifier, "The deploy did it" ], [ mistake[:incident], mistake[:answer] ]
+    assert_equal [ { id: lesson.id, text: "A 5xx after a deploy has meant a full disk", confirmed: false } ], mistake[:lessons]
+  end
+
+  test "a workspace without Halon is told why rather than given zeros" do
+    Investigation.stubs(:unavailable_reason).returns("Halon is not on for this workspace.")
+
+    response = Mcp::Tools::GetHalonPerformance.perform(workspace: @workspace, args: {})
+
+    assert response.error?
+    assert_includes response.content.first[:text], "Halon is not on for this workspace."
+  end
 end
