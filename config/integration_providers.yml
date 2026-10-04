@@ -147,19 +147,19 @@ providers:
     connect_fields:
       - key: organization
         label: Organization
-        hint: "Its slug, under Settings, General Settings in Sentry, or the name before .sentry.io in its address."
-        placeholder: e.g. acme
+        hint: "The organization's slug, under Settings, General Settings in Sentry, or the name before .sentry.io in its address."
+        placeholder: acme
         path: true
         pattern: '(?![0-9]+\z)[A-Za-z0-9][A-Za-z0-9-]{0,49}(?<!-)'
-        allowed: "letters, numbers and dashes, up to 50, not starting or ending with a dash and not only numbers"
+        allowed: "letters, numbers and dashes, at most 50 characters, not starting or ending with a dash and not only numbers"
       - key: project
         label: Project
         hint: "A project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
-        placeholder: e.g. checkout
+        placeholder: checkout
         path: true
         optional: true
         pattern: '(?![0-9]+\z)[a-z0-9_-]{1,50}'
-        allowed: "lowercase letters, numbers, dashes and underscores, up to 50, not only numbers"
+        allowed: "lowercase letters, numbers, dashes and underscores, at most 50 characters, not only numbers"
     source_links: server
     source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none

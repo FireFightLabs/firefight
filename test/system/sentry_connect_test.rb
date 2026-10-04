@@ -10,7 +10,7 @@ class SentryConnectTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       assert_text "Connect Sentry"
-      assert_text "Its slug, under Settings, General Settings in Sentry"
+      assert_text "The organization's slug, under Settings, General Settings in Sentry"
       assert_text "Leave it empty to reach every project"
       fill_in "Organization", with: "acme"
       fill_in "Project", with: "checkout"

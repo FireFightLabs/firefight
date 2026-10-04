@@ -13,9 +13,9 @@ module Integrations
 
       PROVIDER_KEY = "sentry".freeze
       NAME = "Sentry".freeze
-      WATCHED = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ].freeze
       SUPPORTS = {}.freeze
-      OBSERVES = { ERRORS => WATCHED, DEPLOYS => WATCHED }.freeze
+      # Sentry's releases are of what sends it errors, so both read the same kinds.
+      OBSERVES = { ERRORS => Adapter::ERROR_KINDS, DEPLOYS => Adapter::ERROR_KINDS }.freeze
       SEARCH_ISSUES = "search_issues".freeze
       EXECUTE = "execute_sentry_tool".freeze
       FIND_RELEASES = "find_releases".freeze

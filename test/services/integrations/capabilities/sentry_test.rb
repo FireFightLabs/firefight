@@ -39,6 +39,14 @@ class Integrations::Capabilities::SentryTest < ActiveSupport::TestCase
     assert_nil errors.fallback
   end
 
+  test "Sentry answers errors and releases for a site, whose frontend sends it errors" do
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/prod", kind: ResourceMap::KIND_SITE, external_id: "shop-id",
+                                  name: "shop", integration_environment: @northflank_row, first_seen_at: Time.current, last_seen_at: Time.current)
+
+    assert_equal "shop", resolve(Integrations::Capabilities::ERRORS, "resource" => "shop").arguments["projectSlugOrId"]
+    assert_equal({ "projectSlug" => "shop" }, resolve(Integrations::Capabilities::DEPLOYS, "resource" => "shop", "connection" => "sentry").arguments["arguments"])
+  end
+
   test "a range with a start is sent as a comparison on when the issue was last seen, in the window that covers it" do
     travel_to Time.utc(2026, 9, 10, 12) do
       errors = resolve(Integrations::Capabilities::ERRORS, "resource" => "web", "start" => "2026-09-08T10:00:00Z", "end" => "2026-09-08T11:00:00Z")
