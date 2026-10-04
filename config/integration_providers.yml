@@ -202,6 +202,36 @@ providers:
     server_url: https://mcp.pscale.dev/mcp/planetscale
     source_links: firefight
     map: firefight
+  - key: clickhouse
+    name: ClickHouse
+    category: Databases
+    mark: CH
+    color: "#151515"
+    description: Read-only queries, service state, server logs, failed queries and metrics of your ClickHouse Cloud services.
+    server_url: https://mcp.clickhouse.cloud/mcp
+    site: https://console.clickhouse.cloud
+    source_links: firefight
+    map: firefight
+  - key: turso
+    name: Turso
+    category: Databases
+    mark: TU
+    color: "#4ff8d2"
+    description: Read-only queries, top queries and the state of your Turso databases and their branches.
+    server_url: https://mcp.turso.ai/mcp
+    source_links: none
+    source_links_note: "Turso documents no dashboard address for a database, and its tools' answers carry none."
+    map: firefight
+  - key: upstash
+    name: Upstash
+    category: Databases
+    mark: UP
+    color: "#00e9a3"
+    description: State and metrics of your Upstash Redis databases, and QStash delivery logs and dead letter queues.
+    server_url: https://mcp.upstash.com/mcp
+    site: https://console.upstash.com
+    source_links: firefight
+    map: firefight
   - key: postgresql
     name: PostgreSQL
     category: Databases
