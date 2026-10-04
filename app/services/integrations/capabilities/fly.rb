@@ -20,7 +20,7 @@ module Integrations
       METRIC_MAP = PACK::METRICS.keys.index_with(&:itself).freeze
       PASSED = %w[text regex exclude limit minutes start end].freeze
 
-      def self.route(key, resource, given, tool: nil)
+      def self.route(key, resource, given, tool: nil, settings: nil)
         name = resource.external_id
         case key
         when LOGS

@@ -35,8 +35,8 @@ module Integrations
       test "a wrong key or workspace is said on the form before anything is saved" do
         RenderApi.any_instance.stubs(:owner).raises(RenderApi::Error, "Render answered 401: Authorization information is missing or invalid.")
 
-        assert_equal "Paste an API key.", Render.credential_refusal(Render::WORKSPACE => "tea-1")
-        assert_match "Render refused this key or workspace. Render answered 401", Render.credential_refusal(Render::API_KEY => "x", Render::WORKSPACE => "tea-1")
+        assert_equal "Paste an API key.", Render.credential_refusal({ Render::WORKSPACE => "tea-1" })
+        assert_match "Render refused this key or workspace. Render answered 401", Render.credential_refusal({ Render::API_KEY => "x", Render::WORKSPACE => "tea-1" })
       end
 
       test "the resources list says what each is and whether it runs, and a suspended one says why" do

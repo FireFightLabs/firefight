@@ -88,7 +88,7 @@ module Integrations
                "text" => { "type" => "string", "description" => "Only lines containing this text (optional)" },
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **Hosting::RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -104,7 +104,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS },
                               "description" => "Which metrics (optional, the usual ones for the resource)" },
-               **Hosting::RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -169,7 +169,7 @@ module Integrations
 
       # Reads the project with the token and finds the environment in it, so a wrong token, project or environment is
       # said on the form before anything is saved.
-      def self.credential_refusal(values)
+      def self.credential_refusal(values, region: nil)
         token, project, environment = [ API_TOKEN, PROJECT, ENVIRONMENT ].map { |key| values[key].to_s.strip }
         return "Paste an API token." if token.empty?
         return "Enter the project id." if project.empty?
@@ -213,8 +213,8 @@ module Integrations
         type = arguments["type"].presence || APP
         fail! "type must be one of #{LOG_TYPES.join(', ')}." unless LOG_TYPES.include?(type)
 
-        started, ended = Hosting.window(arguments)
-        limit = Hosting.limit(arguments, LOG_LIMIT)
+        started, ended = Capabilities::Answers.range(arguments)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         lines = case type
         when APP then app_logs(environment_row, resource, started, ended, limit, arguments)
         when BUILD then build_logs(environment_row, resource, started, ended, limit, arguments)
@@ -227,7 +227,7 @@ module Integrations
 
       def query_metrics(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        started, ended = Hosting.window(arguments)
+        started, ended = Capabilities::Answers.range(arguments)
         asked = Array(arguments["metrics"]).map(&:to_s) & METRICS
         asked = (resource[:type] == DATABASE ? DATABASE_METRICS : DEFAULT_METRICS) if asked.empty?
         sample = [ ((ended - started) / POINTS).ceil, MIN_SAMPLE ].max
@@ -240,7 +240,7 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
         deployments = api(environment_row).deployments(project_of(environment_row), environment(environment_row)["id"], resource[:id],
-                                                       limit: Hosting.limit(arguments, DEPLOYMENT_LIMIT))
+                                                       limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
         page = link(environment_row, resource)
         return Telemetry.result("#{resource[:name]} has no deployments.", link: page) if deployments.empty?
 

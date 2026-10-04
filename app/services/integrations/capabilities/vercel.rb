@@ -14,7 +14,7 @@ module Integrations
       WRAPPED = TOOLS.values.excluding(TOOLS[LOGS]).freeze
       STREAMS = { STREAM_APP => "runtime", "build" => "build" }.freeze
 
-      def self.route(key, resource, given, tool: nil)
+      def self.route(key, resource, given, tool: nil, settings: nil)
         id = resource.external_id
         case key
         when LOGS then Route.new(tool_name: TOOLS[LOGS], arguments: { "resource" => id, "type" => stream(given) }.merge(logs(given)))

@@ -19,7 +19,7 @@ module Integrations
       STREAMS = { STREAM_APP => PACK::APP, "build" => PACK::BUILD, "requests" => PACK::HTTP }.freeze
       METRIC_MAP = PACK::METRICS.index_with(&:itself).freeze
 
-      def self.route(key, resource, given, tool: nil)
+      def self.route(key, resource, given, tool: nil, settings: nil)
         id = resource.external_id
         case key
         when LOGS then Route.new(tool_name: TOOLS[LOGS], arguments: { "resource" => id, "type" => stream(given) }.compact.merge(logs(given)))

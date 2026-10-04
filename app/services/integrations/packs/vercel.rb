@@ -114,13 +114,13 @@ module Integrations
         [
           CredentialField.new(key: API_TOKEN, label: "Access token", secret: true, placeholder: "",
                               hint: "A Vercel access token created under Account Settings, Tokens, scoped to the team. It acts with the access of the person who created it."),
-          CredentialField.new(key: TEAM, label: "Team", secret: false, placeholder: "team_... or my-team",
+          CredentialField.new(key: TEAM, label: "Team", secret: false, optional: true, placeholder: "team_... or my-team",
                               hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team.")
         ]
       end
 
       # Lists one project with the token, so a wrong token or team is said on the form before anything is saved.
-      def self.credential_refusal(values)
+      def self.credential_refusal(values, region: nil)
         token = values[API_TOKEN].to_s.strip
         return "Paste an access token." if token.empty?
 
@@ -165,7 +165,7 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         project = find_project(environment_row, arguments["resource"])
         target = PRODUCTION if ActiveModel::Type::Boolean.new.cast(arguments["production_only"])
-        deployments = api(environment_row).deployments(project["id"], limit: Hosting.limit(arguments, DEPLOYMENT_LIMIT), target: target)
+        deployments = api(environment_row).deployments(project["id"], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT), target: target)
         link = project_link(environment_row, project)
         return Telemetry.result("#{project['name']} has no deployments.", link: link) if deployments.empty?
 
@@ -181,7 +181,7 @@ module Integrations
         # A build that failed is the newest deployment, not the one serving production.
         asked = arguments["deployment"].presence || (latest_id(environment_row, project) if build)
         deployment = find_deployment(environment_row, project, asked)
-        limit = Hosting.limit(arguments, LOG_LIMIT)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         if build
           build_logs(environment_row, project, deployment, arguments, limit)
         else

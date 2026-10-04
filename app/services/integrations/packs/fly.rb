@@ -97,7 +97,7 @@ module Integrations
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **Hosting::RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -113,7 +113,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS.keys },
                               "description" => "Which metrics (optional, #{DEFAULT_METRICS.join(', ')})" },
-               **Hosting::RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -165,7 +165,7 @@ module Integrations
 
       # Lists the organization's apps with the token, so a wrong token or organization is said on the form before
       # anything is saved.
-      def self.credential_refusal(values)
+      def self.credential_refusal(values, region: nil)
         token = values[API_TOKEN].to_s.strip
         organization = values[ORGANIZATION].to_s.strip
         return "Paste an API token." if token.empty?
@@ -206,8 +206,8 @@ module Integrations
 
       def search_logs(environment_row:, arguments:)
         resource = find_app(environment_row, arguments["resource"])
-        started, ended = Hosting.window(arguments)
-        limit = Hosting.limit(arguments, LOG_LIMIT)
+        started, ended = Capabilities::Answers.range(arguments)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         pattern = regex(arguments["regex"])
         read, complete = read_logs(environment_row, resource, started, ended)
         lines = read.select { |line| kept?(line.text.to_s, arguments["text"], arguments["exclude"], pattern) }.sort_by(&:at).reverse
@@ -222,7 +222,7 @@ module Integrations
 
       def query_metrics(environment_row:, arguments:)
         resource = find_app(environment_row, arguments["resource"])
-        started, ended = Hosting.window(arguments)
+        started, ended = Capabilities::Answers.range(arguments)
         asked = Array(arguments["metrics"]).map(&:to_s) & METRICS.keys
         asked = DEFAULT_METRICS if asked.empty?
         step = [ ((ended - started) / POINTS).ceil, MIN_STEP ].max
@@ -232,7 +232,7 @@ module Integrations
 
       def list_deployments(environment_row:, arguments:)
         resource = find_app(environment_row, arguments["resource"])
-        releases = sorted_releases(environment_row, resource, Hosting.limit(arguments, RELEASE_LIMIT))
+        releases = sorted_releases(environment_row, resource, Capabilities::Answers.limit(arguments, RELEASE_LIMIT))
         return Telemetry.result("#{resource[:name]} has no releases.", link: link(environment_row, resource)) if releases.empty?
 
         rows = releases.map { |release| release_line(release) }

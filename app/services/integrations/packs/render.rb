@@ -101,7 +101,7 @@ module Integrations
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression, in RE2 syntax (optional)" },
                "type" => { "type" => "string", "enum" => LOG_TYPES, "description" => "Which logs (optional, every type)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **Hosting::RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -117,7 +117,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRICS.keys },
                               "description" => "Which metrics (optional, the usual ones for the resource)" },
-               **Hosting::RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -147,7 +147,7 @@ module Integrations
                "resource" => RESOURCE,
                "limit" => { "type" => "integer", "description" => "At most this many events (optional, #{EVENT_LIMIT})" },
                "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{EVENT_MINUTES})" },
-               "start" => Hosting::RANGE["start"], "end" => Hosting::RANGE["end"]
+               "start" => Capabilities::RANGE["start"], "end" => Capabilities::RANGE["end"]
              },
              "required" => [ "resource" ]
            },
@@ -161,8 +161,9 @@ module Integrations
            read_only: false
 
       tool :rollback_deploy,
-           description: "Put a service back on an earlier deploy, by the deploy id list_deployments shows. Render deploys that " \
-                        "build again without building, while it still keeps it. Autodeploy stays on, so the next commit deploys again",
+           description: "Put a service back on an earlier deploy, by the deploy id list_deployments shows. Render puts that " \
+                        "build back live without building again, while it still keeps the build. Autodeploy stays on, so the " \
+                        "next commit deploys again",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -196,7 +197,7 @@ module Integrations
       end
 
       # Reads the workspace with the key, so a wrong key or workspace is said on the form before anything is saved.
-      def self.credential_refusal(values)
+      def self.credential_refusal(values, region: nil)
         key = values[API_KEY].to_s.strip
         workspace = values[WORKSPACE].to_s.strip
         return "Paste an API key." if key.empty?
@@ -231,8 +232,8 @@ module Integrations
 
       def search_logs(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
-        started, ended = Hosting.window(arguments)
-        limit = Hosting.limit(arguments, LOG_LIMIT)
+        started, ended = Capabilities::Answers.range(arguments)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         # A regular expression goes in text between slashes, as Render's log search reads one.
         texts = [ arguments["text"].presence, (arguments["regex"].present? ? "/#{arguments['regex']}/" : nil) ].compact
         query = {
@@ -255,7 +256,7 @@ module Integrations
         resource = find_resource(environment_row, arguments["resource"])
         fail! "#{resource[:name]} is a static site, and Render keeps no metrics for one." if resource[:type] == STATIC_SITE
 
-        started, ended = Hosting.window(arguments)
+        started, ended = Capabilities::Answers.range(arguments)
         asked = Array(arguments["metrics"]).map(&:to_s) & METRICS.keys
         asked = DEFAULT_METRICS.fetch(resource[:type], FALLBACK_METRICS) if asked.empty?
         kept, missing = asked.partition { |name| METRICS.fetch(name).applies.include?(resource[:type]) }
@@ -269,7 +270,7 @@ module Integrations
         resource = find_resource(environment_row, arguments["resource"])
         fail! "#{resource[:name]} is a datastore, and only services have deploys." if DATASTORES.include?(resource[:type])
 
-        deploys = api(environment_row).deploys(resource[:id], limit: Hosting.limit(arguments, DEPLOY_LIMIT))
+        deploys = api(environment_row).deploys(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT))
         return Telemetry.result("#{resource[:name]} has no deploys.", link: link(resource)) if deploys.empty?
 
         rows = deploys.map { |deploy| deploy_line(resource, deploy) }
@@ -280,9 +281,9 @@ module Integrations
         resource = find_resource(environment_row, arguments["resource"])
         fail! "#{resource[:name]} is a datastore, and Render lists events for services only." if DATASTORES.include?(resource[:type])
 
-        started, ended = Telemetry.range(arguments, default_minutes: EVENT_MINUTES, max_minutes: Hosting::MAX_MINUTES)
+        started, ended = Telemetry.range(arguments, default_minutes: EVENT_MINUTES, max_minutes: Capabilities::MAX_MINUTES)
         events = api(environment_row).events(resource[:id], "startTime" => started.utc.iso8601, "endTime" => ended.utc.iso8601,
-                                                            "limit" => Hosting.limit(arguments, EVENT_LIMIT))
+                                                            "limit" => Capabilities::Answers.limit(arguments, EVENT_LIMIT))
         return Telemetry.result("#{resource[:name]} had no events from #{started.utc.iso8601} to #{ended.utc.iso8601}.", link: link(resource)) if events.empty?
 
         rows = events.map { |event| event_line(event) }

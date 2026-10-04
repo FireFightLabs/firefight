@@ -26,8 +26,9 @@ module Integrations
       test "a wrong token or team is said on the form before anything is saved" do
         VercelApi.any_instance.stubs(:check!).raises(VercelApi::Error, "Vercel answered 403: Not authorized")
 
-        assert_equal "Paste an access token.", Vercel.credential_refusal(Vercel::TEAM => "acme")
-        assert_equal "Vercel refused this token or team. Vercel answered 403: Not authorized", Vercel.credential_refusal(Vercel::API_TOKEN => "x")
+        assert_equal "Paste an access token.", Vercel.credential_refusal({ Vercel::TEAM => "acme" })
+        assert_equal "Vercel refused this token or team. Vercel answered 403: Not authorized", Vercel.credential_refusal({ Vercel::API_TOKEN => "x" })
+        assert_equal [ Vercel::TEAM ], Vercel.credential_fields.select(&:optional).map(&:key), "the team may be left empty for a personal account"
       end
 
       test "projects are listed with their production state" do

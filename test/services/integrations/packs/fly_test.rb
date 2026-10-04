@@ -23,8 +23,8 @@ module Integrations
       test "a wrong token or organization is said on the form, and the health check lists the organization's apps" do
         FlyApi.any_instance.stubs(:apps).raises(FlyApi::Error, "Fly answered 401: unauthorized")
 
-        assert_equal "Enter the organization's slug.", Fly.credential_refusal(Fly::API_TOKEN => "x")
-        assert_match "Fly.io refused this token or organization. Fly answered 401", Fly.credential_refusal(Fly::API_TOKEN => "x", Fly::ORGANIZATION => "acme")
+        assert_equal "Enter the organization's slug.", Fly.credential_refusal({ Fly::API_TOKEN => "x" })
+        assert_match "Fly.io refused this token or organization. Fly answered 401", Fly.credential_refusal({ Fly::API_TOKEN => "x", Fly::ORGANIZATION => "acme" })
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
