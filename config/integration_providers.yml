@@ -134,6 +134,17 @@ providers:
     read_only_tools: [search, docs]
     source_links: firefight
     map: firefight
+  - key: aws
+    name: AWS
+    category: Cloud and hosting
+    mark: AWS
+    color: "#ff9900"
+    description: Logs, metrics, deployments and status of the ECS services, Lambda functions, EC2 instances and RDS databases in an AWS account, and fixes to ECS services and Lambda aliases when the access key's policy allows them.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
   - key: sentry
     name: Sentry
     category: Observability

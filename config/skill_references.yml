@@ -54,3 +54,18 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# AWS's agent guides are Apache 2.0, from the skills in AWS's Agent Toolkit repository. Each folder is one guide's
+# references: ECS and containers, EC2, Lambda and serverless, CloudWatch, Lambda timeouts, failing applications and RDS.
+aws:
+  repository: https://github.com/aws/agent-toolkit-for-aws
+  license: LICENSE
+  notice: NOTICE
+  paths:
+    skills/core-skills/aws-containers/references: containers
+    skills/core-skills/aws-compute/references: compute
+    skills/core-skills/aws-serverless/references: serverless
+    skills/core-skills/aws-observability/references/cloudwatch: cloudwatch
+    skills/specialized-skills/serverless-skills/debugging-lambda-timeouts/references: lambda-timeouts
+    skills/specialized-skills/operations-skills/troubleshooting-application-failures/references: application-failures
+    skills/specialized-skills/database-skills/rds-oss/references: rds
