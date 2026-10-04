@@ -19,22 +19,20 @@ class DatabaseConnectTest < ApplicationSystemTestCase
     end
   end
 
-  test "Supabase asks which project and what access on one-click connect, and puts them in the server's address" do
+  test "Supabase asks which project and what access on one-click connect, read only unless someone chooses otherwise" do
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "supabase")
 
     within("[role=dialog]") do
-      assert_button "Continue with Supabase", disabled: true
       assert_field "Project"
       assert_text "Read only leaves out every tool that changes the database or the project."
+      assert_selector "#connect-read_only", text: "Read only"
       fill_in "Project", with: "abcdefghijklmnopqrst"
-      find("#connect-read_only").click
+      assert_includes find_link("Continue with Supabase")[:href], "abcdefghijklmnopqrst"
     end
-    find("[role=option]", text: "Read only").click
     page.save_screenshot(Rails.root.join("tmp/screenshots/supabase-connect-fields.png"))
-    within("[role=dialog]") do
-      href = find_link("Continue with Supabase")[:href]
-      assert_includes href, "abcdefghijklmnopqrst"
-      assert_includes href, "read_only"
-    end
+
+    within("[role=dialog]") { find("#connect-read_only").click }
+    find("[role=option]", text: "Read and write").click
+    within("[role=dialog]") { assert_includes find_link("Continue with Supabase")[:href], "false" }
   end
 end

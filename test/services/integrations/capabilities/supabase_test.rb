@@ -89,8 +89,9 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
 
     assert_equal "https://mcp.supabase.com/mcp?project_ref=#{REF}&read_only=true", entry.server_url_for(nil, "project_ref" => REF, "read_only" => "true")
     assert_equal "https://mcp.supabase.com/mcp?read_only=false", entry.server_url_for(nil, "read_only" => "false")
+    assert_equal "https://mcp.supabase.com/mcp?read_only=true", entry.server_url_for(nil, {})
     assert_match "Access can only be", entry.connect_fields.find { |field| field.key == "read_only" }.refusal("maybe")
-    assert_equal "Access is required.", entry.connect_fields.find { |field| field.key == "read_only" }.refusal("")
+    assert_nil entry.connect_fields.find { |field| field.key == "read_only" }.refusal("")
   end
 
   private

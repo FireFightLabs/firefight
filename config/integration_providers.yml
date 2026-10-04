@@ -202,8 +202,9 @@ providers:
         optional: true
       - key: read_only
         label: Access
-        hint: Read only leaves out every tool that changes the database or the project. Supabase gives read and write when none is chosen, so choose one.
+        hint: Read only leaves out every tool that changes the database or the project.
         query: read_only
+        default: "true"
         options:
           - { value: "true", label: Read only }
           - { value: "false", label: Read and write }
