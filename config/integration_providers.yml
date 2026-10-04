@@ -144,6 +144,45 @@ providers:
     source_links: unchecked
     map: none
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
+  - key: posthog
+    name: PostHog
+    category: Product analytics
+    mark: PH
+    color: "#000000"
+    description: How many users an incident reaches, their sessions, errors, logs and traces, and recent feature flag changes, with a flag turned off when you allow it.
+    # PostHog Cloud's two regions. mcp.posthog.com is the US address its MCP docs give, and mcp-eu.posthog.com the one
+    # its server's README gives EU accounts so OAuth reaches the EU instance (PostHog/posthog, services/mcp/README.md).
+    # mode=tools lists each PostHog tool on its own (README, Server mode), so each can be switched on and permissioned.
+    # Without it the server wraps every tool in one exec tool.
+    regions:
+      - { key: us, label: US (us.posthog.com), server_url: "https://mcp.posthog.com/mcp?mode=tools", site: "https://us.posthog.com" }
+      - { key: eu, label: EU (eu.posthog.com), server_url: "https://mcp-eu.posthog.com/mcp?mode=tools", site: "https://eu.posthog.com" }
+    source_links: firefight
+    map: none
+    map_note: "It holds what people do in your product, not infrastructure."
+  - key: mixpanel
+    name: Mixpanel
+    category: Product analytics
+    mark: MP
+    color: "#7856ff"
+    description: How many users an incident reaches, what they did before it, and which feature flags changed, with a flag changed when you allow it.
+    # Mixpanel's MCP servers by data residency, from its MCP page (docs.mixpanel.com/docs/mcp, MCP Server URLs), and
+    # the app each region's project pages are on, the domains its dynamic client registration names.
+    regions:
+      - { key: us, label: US (mixpanel.com), server_url: "https://mcp.mixpanel.com/mcp", site: "https://mixpanel.com" }
+      - { key: eu, label: EU (eu.mixpanel.com), server_url: "https://mcp-eu.mixpanel.com/mcp", site: "https://eu.mixpanel.com" }
+      - { key: in, label: India (in.mixpanel.com), server_url: "https://mcp-in.mixpanel.com/mcp", site: "https://in.mixpanel.com" }
+    # Mixpanel's MCP page describes these as reads. Listed so a lookup never asks to be confirmed, whatever the server marks.
+    read_only_tools: [run_query, get_query_schema, get_report, display_query, list_dashboards, get_dashboard, get_business_context,
+                      get_projects, list_organizations, get_events, list_properties, get_property_values, search_entities, get_issues,
+                      get_lexicon_url, find_duplicate_groups, get_custom_property, get_cohort, list_cohorts, describe_cohort_schema,
+                      get_lookup_table, get_metric, list_metrics, get_user_replays_data, list_experiments, get_experiment,
+                      get_experiment_setup_guidance, get_experiment_results_interpretation_guidance, explain_experiment_health_check,
+                      run_experiment_pre_launch_checks, search_prior_experiments, list_feature_flags, get_feature_flag,
+                      get_feature_flag_setup_guidance, get_feature_flag_lifecycle_guidance, get_audit_log]
+    source_links: firefight
+    map: none
+    map_note: "It holds what people do in your product, not infrastructure."
   - key: linear
     name: Linear
     category: Issues

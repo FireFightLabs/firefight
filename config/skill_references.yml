@@ -54,3 +54,34 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# PostHog's agent skills (MIT). Single guides are named, since the folders hold a setup guide for every SDK.
+posthog:
+  repository: https://github.com/PostHog/skills
+  license: LICENSE
+  paths:
+    skills/posthog/logs/skills/all/references/start-here.md: logs/start-here.md
+    skills/posthog/logs/skills/all/references/search.md: logs/search.md
+    skills/posthog/logs/skills/all/references/troubleshooting.md: logs/troubleshooting.md
+    skills/posthog/logs/skills/all/references/best-practices.md: logs/best-practices.md
+    skills/posthog/logs/skills/all/references/link-session-replay.md: logs/link-session-replay.md
+    skills/posthog/error-tracking/skills/all/references/monitoring.md: error-tracking/monitoring.md
+    skills/posthog/error-tracking/skills/all/references/fingerprints.md: error-tracking/fingerprints.md
+    skills/posthog/error-tracking/skills/all/references/alerts.md: error-tracking/alerts.md
+    skills/posthog/error-tracking/skills/all/references/assigning-issues.md: error-tracking/assigning-issues.md
+    skills/posthog/error-tracking/skills/all/references/upload-source-maps.md: error-tracking/upload-source-maps.md
+    skills/posthog/feature-flags/skills/api/references/api.md: feature-flags/api.md
+    skills/posthog/feature-flags/skills/api/references/best-practices.md: feature-flags/best-practices.md
+    skills/posthog/tools-and-features/skills/hogql/references: hogql
+
+# Mixpanel's agent skills (Apache 2.0).
+mixpanel:
+  repository: https://github.com/mixpanel/skills
+  license: LICENSE
+  paths:
+    plugins/mixpanel/skills/manage-feature-flags: feature-flags
+    plugins/mixpanel/skills/manage-feature-flags/references: feature-flags
+    plugins/mixpanel/skills/monitor-metrics: metrics
+    plugins/mixpanel/skills/monitor-metrics/references: metrics
+    plugins/mixpanel/skills/monitor-metrics/commands: metrics
+    plugins/mixpanel/skills/analyze-report/references: reports
