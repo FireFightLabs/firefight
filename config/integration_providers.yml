@@ -134,6 +134,33 @@ providers:
     read_only_tools: [search, docs]
     source_links: firefight
     map: firefight
+  - key: google_cloud
+    name: Google Cloud
+    category: Cloud and hosting
+    mark: GC
+    color: "#4285f4"
+    description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, and rollbacks, restarts and scaling when the service account may make them.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
+  - key: azure
+    name: Azure
+    category: Cloud and hosting
+    mark: AZ
+    color: "#0078d4"
+    description: Logs, metrics and deployments of App Service, Functions and Container Apps, with Azure SQL and PostgreSQL, and slot swaps, restarts and scaling when the service principal may make them.
+    kind: native
+    connect_with: api_token
+    # Azure's clouds, each with its own sign-in, Resource Manager and Log Analytics hosts, which Packs::Azure::CLOUDS
+    # keeps by key. The portals are the ones Microsoft Entra's national clouds page lists.
+    regions:
+      - { key: global, label: Global (portal.azure.com), site: "https://portal.azure.com" }
+      - { key: us_government, label: US Government (portal.azure.us), site: "https://portal.azure.us" }
+      - { key: china, label: "China, operated by 21Vianet (portal.azure.cn)", site: "https://portal.azure.cn" }
+    source_links: firefight
+    map: firefight
   - key: sentry
     name: Sentry
     category: Observability
