@@ -46,7 +46,7 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
     assert_match "https://supabase.com/dashboard/project/#{REF}/logs/postgres-logs", text
 
     failed = call.present_result({ "content" => [ { "type" => "text", "text" => { "result" => "<untrusted-data-1>\n{\"error\":{\"message\":\"bad sql\"}}\n</untrusted-data-1>" }.to_json } ] })
-    assert_equal [ true, "Supabase could not read the logs: bad sql" ], [ failed["isError"], failed["content"].first["text"] ]
+    assert_equal [ true, "Supabase could not read the logs: bad sql." ], [ failed["isError"], failed["content"].first["text"] ]
   end
 
   test "what Supabase cannot read is said" do

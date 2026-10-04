@@ -102,7 +102,7 @@ module Integrations
         failure = inner.is_a?(Hash) ? inner["error"] : nil
         if failure.present?
           said = failure.is_a?(Hash) ? (failure["message"] || failure.to_json) : failure.to_s
-          return { "isError" => true, "content" => [ { "type" => "text", "text" => "Supabase could not read the logs: #{said}" } ] }
+          return { "isError" => true, "content" => [ { "type" => "text", "text" => Sentence.join("Supabase could not read the logs", said) } ] }
         end
 
         rows = Array(inner.is_a?(Hash) ? inner["result"] : inner)

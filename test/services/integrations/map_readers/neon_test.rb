@@ -52,9 +52,30 @@ module Integrations
           answer(tool)
         end.map
 
-        assert_includes snapshot.gaps, "list_postgres_endpoints is switched off for Neon, so the computes of shop are not on the map."
-        assert_includes snapshot.gaps, "Neon refused to list the databases on shop/main: branch_not_found"
+        assert_includes snapshot.gaps.map(&:text), "list_postgres_endpoints is switched off for Neon, so the computes of shop are not on the map."
+        assert_includes snapshot.gaps.map(&:text), "Neon refused to list the databases on shop/main: branch_not_found."
+        assert_equal [ ResourceMap::KIND_COMPUTE ], snapshot.unread_kinds
         assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_BRANCH ], snapshot.resources.map(&:kind)
+      end
+
+      test "a project list Neon refuses keeps every database, branch and compute on the map rather than taking them as gone" do
+        snapshot = Neon.new do |tool, _arguments|
+          next { "content" => [ { "type" => "text", "text" => "rate limited" } ], "isError" => true } if tool == Neon::LIST_PROJECTS
+
+          answer(tool)
+        end.map
+
+        assert_empty snapshot.resources
+        assert_equal Neon::ALL_KINDS.sort, snapshot.unread_kinds.sort
+      end
+
+      test "Neon's own words read as Firefight's" do
+        words = Integrations::Provider.for(Neon::PROVIDER)
+
+        { "idle" => ResourceMap::Resource::HEALTH_OK, "init" => ResourceMap::Resource::HEALTH_BUSY, "disabled" => ResourceMap::Resource::HEALTH_BUSY,
+          "archived" => ResourceMap::Resource::HEALTH_BUSY, "active" => ResourceMap::Resource::HEALTH_OK, Neon::LISTED => ResourceMap::Resource::HEALTH_OK }.each do |word, health|
+          assert_equal health, ResourceMap::Resource.new(status: words.status_of(word)).health, word
+        end
       end
 
       test "only the default and latest branches have their databases read, and the rest is said" do
@@ -68,7 +89,7 @@ module Integrations
         assert_equal Neon::DATABASE_READS, read.size
         assert_equal "br-1", read.first
         assert_includes read, "br-#{Neon::DATABASE_READS + 2}"
-        assert_includes snapshot.gaps, "The databases on 2 more branches of shop were not read, only on its default and latest #{Neon::DATABASE_READS}."
+        assert_includes snapshot.gaps.map(&:text), "The databases on 2 more branches of shop were not read, only on its default and latest #{Neon::DATABASE_READS}."
       end
 
       private

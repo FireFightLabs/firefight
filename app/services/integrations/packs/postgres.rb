@@ -79,6 +79,8 @@ module Integrations
 
       CERTIFICATES = "certificates".freeze
       PROVIDER = "postgresql".freeze
+      # A database that answered the sweep is running.
+      RUNNING = "running".freeze
 
       def self.connection_refusal(url, certificates) = Connection.refusal(url, certificates)
 
@@ -243,7 +245,7 @@ module Integrations
           SQL
           ResourceMap::Found.new(
             provider: PROVIDER, account: connection.host, kind: ResourceMap::KIND_DATABASE,
-            external_id: "#{connection.host}:#{connection.port}/#{row['database']}", name: row["database"],
+            external_id: "#{connection.host}:#{connection.port}/#{row['database']}", name: row["database"], status: RUNNING,
             details: { "engine" => "PostgreSQL #{row['version']}", "type" => row["role"] }
           )
         end

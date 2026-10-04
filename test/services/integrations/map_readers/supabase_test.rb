@@ -25,18 +25,22 @@ module Integrations
         assert_equal "https://supabase.com/dashboard/project/zyxwvutsrqponmlkjihg", feature.url
         assert_equal "feature/checkout", feature.details["branch"]
         assert_equal [ ResourceMap::RELATION_BRANCH_OF ] * 2, snapshot.links.map(&:relation)
-        assert_equal ResourceMap::Resource::HEALTH_FAILING, ResourceMap::Resource.new(status: feature.status).health
-        assert_equal ResourceMap::Resource::HEALTH_OK, ResourceMap::Resource.new(status: project.status).health
+        words = Integrations::Provider.for(Supabase::PROVIDER)
+        assert_equal ResourceMap::Resource::HEALTH_FAILING, ResourceMap::Resource.new(status: words.status_of(feature.status)).health
+        assert_equal ResourceMap::Resource::HEALTH_OK, ResourceMap::Resource.new(status: words.status_of(project.status)).health
+        assert_equal ResourceMap::Resource::HEALTH_BUSY, ResourceMap::Resource.new(status: words.status_of("INACTIVE")).health
       end
 
       test "a list switched off, or one Supabase refuses, is a gap in the map" do
         off = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? nil : answer(tool) }.map
-        assert_equal [ "list_projects is switched off for Supabase, so the projects are not on the map." ], off.gaps
+        assert_equal [ [ "list_projects is switched off for Supabase, so the projects are not on the map.", [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ] ] ],
+                     off.gaps.map { |gap| [ gap.text, gap.kinds ] }
+        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], off.unread_kinds
 
         refused = Supabase.new do |tool, _arguments|
           tool == Supabase::LIST_BRANCHES ? { "isError" => true, "content" => [ { "type" => "text", "text" => "Failed to list branches" } ] } : answer(tool)
         end.map
-        assert_equal [ "Supabase refused to list the branches of shop: Failed to list branches" ], refused.gaps
+        assert_equal [ "Supabase refused to list the branches of shop: Failed to list branches." ], refused.gaps.map(&:text)
         assert_equal [ ResourceMap::KIND_DATABASE ], refused.resources.map(&:kind)
       end
 
@@ -51,7 +55,7 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst", "abcdefghijklmnopqrst" ], [ project.kind, project.external_id, project.name ]
         assert_equal 2, branches.size
         assert_equal [ Supabase::LIST_BRANCHES ], asked.map(&:first)
-        assert_match "scoped to project abcdefghijklmnopqrst", snapshot.gaps.sole
+        assert_match "scoped to project abcdefghijklmnopqrst", snapshot.gaps.sole.text
       end
 
       private
