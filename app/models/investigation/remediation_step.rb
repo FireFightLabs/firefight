@@ -27,6 +27,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # A step running longer than this lost its worker, since a tool call is capped well under it.
   STALE_AFTER = 15.minutes
   # A code change installs the repository's dependencies and runs a coding agent for up to 15 minutes before it opens.
+  # A connected coding agent is followed for a shorter time than this, and stopped at its own limit.
   CODE_STALE_AFTER = 45.minutes
   STATUS_WORDS = {
     STATUS_PROPOSED => "not started", STATUS_RUNNING => "running", STATUS_WAITING_APPROVAL => "waiting for approval",
@@ -116,7 +117,7 @@ class Investigation::RemediationStep < ApplicationRecord
   # through.
   def mark_done_blocked_reason(siblings = plan.steps)
     return "Firefight runs step #{position} itself once the fix is applied." if action?
-    return "Firefight opens step #{position}'s pull request itself once the fix is applied." if pull_request? && runs_itself?
+    return code_runs_itself_reason if pull_request? && runs_itself?
     return "Step #{position} is already #{STATUS_WORDS.fetch(status)}." unless proposed?
     return "Step #{position} waits on step #{depends_on.join(' and ')}, which #{depends_on.size == 1 ? 'is' : 'are'} not done yet." unless ready?(siblings)
 
@@ -153,6 +154,13 @@ class Investigation::RemediationStep < ApplicationRecord
 
   def mark_done!(by:) = move!(from: STATUS_PROPOSED, to: STATUS_DONE, done_by_id: by.id, finished_at: Time.current)
 
+  # What a long running step has done so far, such as where its coding agent is working, shown while it runs. Only a
+  # running step takes it, so a late report never overwrites how the step ended.
+  def progress!(text)
+    self.class.where(id: id, status: STATUS_RUNNING)
+        .update_all(result: self.class.redacted(text)&.truncate(RESULT_LIMIT), updated_at: Time.current) == 1
+  end
+
   # A tool's words are kept to be read, never a credential it handed back, which is redacted before it is stored.
   def finish!(status, result: nil, invocation_id: nil)
     move!(from: [ STATUS_RUNNING, STATUS_WAITING_APPROVAL ], to: status, result: self.class.redacted(result)&.truncate(RESULT_LIMIT),
@@ -172,14 +180,23 @@ class Investigation::RemediationStep < ApplicationRecord
   # Everything the agent wrote into the step, which the secret check reads, since a fix is shown and kept.
   def text = [ description, repository, missing, undo, arguments.to_json ].compact.join(" ")
 
-  # A code host's tool that writes a change, on the connection whose sweep put the repository on the map. With one such
-  # connection, that one.
+  # The coding agent the workspace chose, while its tool is switched on. Otherwise a code host's tool that writes a
+  # change, on the connection whose sweep put the repository on the map. With one such connection, that one.
   def code_tool(workspace)
-    writers = IntegrationProvider.all.select(&:code_fix_tool).to_h { |provider| [ provider.key, provider.code_fix_tool ] }
+    return workspace.code_fix_agent_tool if workspace.code_fix_agent.present?
+
+    writers = IntegrationProvider.code_hosts.to_h { |provider| [ provider.key, provider.code_fix_tool ] }
     tools = Integration::Tool.in_workspace(workspace).where(integrations: { provider: writers.keys }, read_only: false).to_a
                              .select { |tool| writers[tool.integration.provider] == tool.name }
     seen = ResourceMap::Resource.present.find_by(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository)
     tools.find { |tool| seen && tool.integration_id == seen.integration_environment&.integration_id } || (tools.first if tools.one?)
+  end
+
+  def code_runs_itself_reason
+    agent = plan.finding.investigation.workspace.code_fix_agent_connection
+    return "Firefight opens step #{position}'s pull request itself once the fix is applied." unless agent
+
+    "Firefight hands step #{position}'s change to #{agent.name} once the fix is applied, and #{agent.name} opens the pull request."
   end
 
   # The provider tool a step runs and its own arguments. A capability, such as rollback, is resolved now to the

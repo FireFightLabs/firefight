@@ -39,6 +39,22 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     assert_nil @workspace.reload.transcript_retention_days
   end
 
+  test "a connected coding agent is chosen by its slug to write code fixes, and null chooses Firefight's own again" do
+    @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "factory", name: "Factory", slug: "factory")
+
+    response = Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { code_fix_agent: "factory" })
+
+    assert_equal "factory", @workspace.reload.code_fix_agent
+    assert_equal "factory", response.structured_content[:code_fix_agent]
+
+    Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { code_fix_agent: nil })
+    assert_nil @workspace.reload.code_fix_agent
+
+    refused = Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { code_fix_agent: "nowhere" })
+    assert refused.error?
+    assert_nil @workspace.reload.code_fix_agent
+  end
+
   test "the archive delay takes the same choices as the settings page, by value or label" do
     Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(
       workspace: @workspace, principal: @admin, args: { archive_channel_delay: "1 hour" }
@@ -90,6 +106,6 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     body = Mcp::Tools::GetWorkspaceConfig.perform_with_principal(workspace: @workspace, principal: @admin, args: {}).structured_content
 
     assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay,
-                   web_search_enabled: true, halon_regression_enabled: false }, body[:settings])
+                   web_search_enabled: true, halon_regression_enabled: false, code_fix_agent: nil }, body[:settings])
   end
 end

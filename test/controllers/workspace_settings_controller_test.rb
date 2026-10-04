@@ -43,6 +43,42 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 7.days, @workspace.transcripts_purge_after
   end
 
+  test "a connected coding agent can be chosen to write code fixes, and Firefight's own agent chosen back" do
+    @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin", slug: "devin")
+
+    patch settings_workspace_path, params: { code_fix_agent: "devin" }
+
+    assert_redirected_to settings_workspace_path
+    assert_equal "Workspace settings were updated.", flash[:notice]
+    assert_equal "devin", @workspace.reload.code_fix_agent
+
+    patch settings_workspace_path, params: { code_fix_agent: "" }
+    assert_nil @workspace.reload.code_fix_agent
+  end
+
+  test "only a coding agent connected to the workspace can write code fixes" do
+    @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
+
+    patch settings_workspace_path, params: { code_fix_agent: "github" }
+
+    assert_redirected_to settings_workspace_path
+    assert_nil @workspace.reload.code_fix_agent
+  end
+
+  test "the screen offers Firefight's own agent and each connected coding agent, and says when the chosen one cannot run" do
+    @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "cursor", name: "Cursor", slug: "cursor")
+    @workspace.update!(code_fix_agent: "cursor")
+
+    get settings_workspace_path, headers: {
+      "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version.to_s
+    }
+
+    settings = JSON.parse(response.body).dig("props", "settings")
+    assert_equal [ { "value" => nil, "label" => "Firefight's own agent" }, { "value" => "cursor", "label" => "Cursor" } ], settings["codeFixAgents"]
+    assert_equal "cursor", settings["codeFixAgent"]
+    assert_equal "Cursor's fix_code tool is switched off, so code steps wait for a person. Switch it on under Integrations.", settings["codeFixAgentBlockedReason"]
+  end
+
   test "the screen says what the workspace has chosen" do
     @workspace.update!(transcript_access_enabled: true, transcript_retention_days: 14)
 

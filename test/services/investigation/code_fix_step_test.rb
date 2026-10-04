@@ -53,4 +53,45 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
     assert_equal "github.fix_code", code.invocation.action_key
     assert_equal "acme/infra", code.arguments["repo"], "the arguments are fixed when it starts, so an approval still matches on resume"
   end
+
+  test "a coding agent the workspace chose writes the change instead of the code host, and a person does it while the agent is off" do
+    devin = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin", slug: "devin")
+    devin.integration_environments.create!
+    devin_fix = devin.tools.create!(name: "fix_code", description: "Hands a change to Devin", params_schema: {}, enabled: true, read_only: false)
+    code = @plan.steps.third
+    assert_equal @fix_code, code.tool_to_run, "Firefight's own agent writes it until someone chooses another"
+
+    @workspace.update!(code_fix_agent: "devin")
+    assert_equal devin_fix, code.reload.tool_to_run
+    assert_equal "Firefight hands step 3's change to Devin once the fix is applied, and Devin opens the pull request.", code.mark_done_blocked_reason
+
+    devin_fix.update!(enabled: false)
+    assert_not code.reload.runs_itself?, "the chosen agent is off, so the change is a person's, never quietly Firefight's own"
+    assert_equal "Devin's fix_code tool is switched off, so code steps wait for a person. Switch it on under Integrations.", @workspace.code_fix_agent_blocked_reason
+  end
+
+  test "what the coding agent says while it works shows on the step, and its answer replaces it" do
+    devin = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin", slug: "devin")
+    Integrations::Packs::Devin.store_credentials!(devin.integration_environments.create!,
+                                                  Integrations::Packs::Devin::API_KEY => "cog_key", Integrations::Packs::Devin::ORGANIZATION => "org-abc")
+    devin.tools.create!(name: "fix_code", description: "Hands a change to Devin", params_schema: {}, enabled: true, read_only: false)
+    @workspace.update!(code_fix_agent: "devin")
+    Integrations::McpExecutor.stubs(:call).returns("content" => [])
+    Integrations::Packs::Devin.any_instance.stubs(:pause)
+    Integrations::DevinApi.any_instance.expects(:create_session).with { |body| body["prompt"].include?("Why: A WAF rule blocked checkout") }
+                          .returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
+    seen = nil
+    Integrations::DevinApi.any_instance.stubs(:session).with { seen ||= @plan.steps.third.reload.result }
+                          .returns("status" => "exit", "acus_consumed" => 1, "pull_requests" => [ { "pr_url" => "https://github.com/acme/infra/pull/9" } ])
+    Integrations::DevinApi.any_instance.stubs(:messages).returns("items" => [])
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
+
+    code = @plan.steps.third.reload
+    assert_equal "Devin is writing the change in session devin-1. Follow it at https://app.devin.ai/sessions/devin-1.", seen
+    assert_equal "done", code.status
+    assert code.result.start_with?("Devin opened https://github.com/acme/infra/pull/9 for acme/infra.")
+    assert_equal "devin.fix_code", code.invocation.action_key
+    assert_not code.progress!("Too late"), "a step that ended keeps how it ended"
+  end
 end

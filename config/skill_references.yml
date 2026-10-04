@@ -54,3 +54,10 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# Devin's handoff guide, MIT licensed, which Devin's API docs point to for handing work to Devin from another agent.
+devin:
+  repository: https://github.com/club-cog/devin-handoff
+  license: LICENSE
+  paths:
+    .agents/skills/devin-handoff: handoff

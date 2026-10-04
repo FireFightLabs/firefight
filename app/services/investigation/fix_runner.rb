@@ -147,7 +147,7 @@ class Investigation::FixRunner
     authorization = step.authorize_call!(tool, scope: scope, arguments: arguments, approval_id: approval_id)
     finish_call(step, authorization) do
       integration.executor.call(tool: tool, environment_row: integration.resolve_environment(environment_entry&.id), arguments: arguments,
-                                box_key: @plan.finding.investigation.code_box_key)
+                                box_key: @plan.finding.investigation.code_box_key, progress: progress_of(step))
     end
   rescue Integration::UnknownEnvironment => error
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message)
@@ -162,6 +162,16 @@ class Investigation::FixRunner
   rescue StandardError => error
     Rails.logger.warn({ event: "fix.step_not_started", step_id: step.id, error: error.class.name }.to_json)
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH)
+  end
+
+  # A tool that runs long, such as a coding agent writing a change, says how it is going. The step shows it and the
+  # thread is redrawn, and a report that cannot be kept never stops the step.
+  def progress_of(step)
+    lambda do |text|
+      publish! if step.progress!(text)
+    rescue StandardError => error
+      Rails.logger.warn({ event: "fix.progress_not_kept", step_id: step.id, error: error.class.name }.to_json)
+    end
   end
 
   # The tool's own words are the result, failure or not. The ledger row says whether the call went through.
