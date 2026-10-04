@@ -172,6 +172,24 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Container crash: Website (Blog)", alert.title
   end
 
+  test "pagerduty's ping is accepted with nothing stored, and a triggered incident becomes an alert" do
+    source = AlertSource.create!(workspace: @workspace, name: "PagerDuty", provider: AlertSource::PROVIDER_PAGERDUTY)
+    headers = { "Content-Type" => "application/json", AlertProviders::Pagerduty::TOKEN_HEADER => source.secret_token }
+    ping = { "event" => { "id" => "p1", "event_type" => "pagey.ping", "data" => { "type" => "ping" } } }
+
+    post "/api/v1/alerts/#{source.endpoint_path}", params: ping.to_json, headers: headers
+
+    assert_response :success
+    assert_equal 0, source.alerts.count
+
+    triggered = { "event" => { "id" => "e1", "event_type" => "incident.triggered",
+                               "data" => { "id" => "PGR0VU2", "type" => "incident", "title" => "A little bump in the road", "number" => 2 } } }
+    post "/api/v1/alerts/#{source.endpoint_path}", params: triggered.to_json, headers: headers
+
+    assert_response :success
+    assert_equal "A little bump in the road", source.alerts.sole.title
+  end
+
   test "rate limit returns 429 before verification work" do
     Rails.cache.stubs(:increment).returns(AlertSource::DEFAULT_RATE_LIMIT_PER_MINUTE + 1)
 
