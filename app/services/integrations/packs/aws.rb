@@ -249,9 +249,9 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights. For Halon to apply fixes, it can also update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
-                              hint: "The secret shown once when the access key was created.")
+                              hint: "The secret AWS shows once, when you create the access key.")
         ]
       end
 
@@ -451,7 +451,7 @@ module Integrations
 
             ResourceMap::Baseline::Found.new(key: resource.key, metric: name, label: metric.title, unit: metric.summed ? per_minute(metric.unit) : metric.unit, points: points)
           end
-        rescue AwsApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue AwsApi::Error, NativePack::Error => error
           Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
@@ -508,7 +508,7 @@ module Integrations
 
             gaps << "Only the first #{AwsApi::MAX_PAGES} pages of #{KIND_PLURALS.fetch(kind)} in #{region} were read."
             unread << kind
-          rescue AwsApi::RateLimited => error
+          rescue Integrations::RateLimited => error
             gaps << "AWS asked to slow down while listing #{KIND_PLURALS.fetch(kind)} in #{region}, so the rest was not read: #{error.message}"
             return Reading.new(entries: entries, gaps: gaps, unread: kinds)
           rescue AwsApi::Error => error
@@ -942,7 +942,7 @@ module Integrations
       # A refusal other than a permission or a slow down reads as no history, and the current deployments are shown instead.
       def deployment_history(aws, entry)
         aws.call(:ecs, entry.region, :list_service_deployments, cluster: entry.cluster, service: entry.arn, max_results: 100)[:service_deployments]
-      rescue AwsApi::Denied, AwsApi::RateLimited
+      rescue AwsApi::Denied, Integrations::RateLimited
         raise
       rescue AwsApi::Error
         []

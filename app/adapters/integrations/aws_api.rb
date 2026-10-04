@@ -7,7 +7,9 @@ module Integrations
   class AwsApi
     class Error < Integrations::Error; end
     # Asked too often, so a caller making many calls stops rather than keep being refused.
-    class RateLimited < Error; end
+    class RateLimited < Error
+      include Integrations::RateLimited
+    end
     # The keys are wrong, or their policy does not allow the call.
     class Denied < Error; end
     class NotFound < Error; end

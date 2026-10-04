@@ -47,6 +47,7 @@ module Integrations
 
         assert_match "AWS answered #{code}", error.message
         assert_kind_of Integrations::Error, error
+        assert_equal kind == AwsApi::RateLimited, error.is_a?(Integrations::RateLimited)
       end
     end
 
