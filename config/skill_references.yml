@@ -54,3 +54,16 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# Grafana's MCP server documents its own tools under Apache 2.0. Grafana's, Loki's and Tempo's own documentation is AGPL,
+# so what the Grafana skills take from it is written in our own words. The guide to Grafana's incident product is left
+# out, since Halon runs incidents in Firefight.
+grafana:
+  repository: https://github.com/grafana/mcp-grafana
+  license: LICENSE
+  paths:
+    docs/sources/guides: guides
+    docs/sources/reference: reference
+    docs/sources/troubleshooting: troubleshooting
+  exclude:
+    - docs/sources/guides/use-grafana-incident.md

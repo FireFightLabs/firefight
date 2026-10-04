@@ -120,7 +120,7 @@ providers:
     color: "#f46800"
     description: Reach dashboards and datasources behind your Grafana.
     server_url: ""
-    source_links: unchecked
+    source_links: firefight
     map: none
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: cloudflare
