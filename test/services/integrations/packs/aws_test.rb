@@ -29,15 +29,15 @@ module Integrations
       end
 
       test "keys, regions and AWS's refusal are said on the form before anything is saved" do
-        assert_equal "Paste an access key ID.", Aws.credential_refusal(Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1")
-        assert_equal "Enter at least one region, such as us-east-1.", Aws.credential_refusal(Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => " , ")
-        assert_match "no region called europe-west1", Aws.credential_refusal(Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "europe-west1")
+        assert_equal "Paste an access key ID.", Aws.credential_refusal({ Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1" })
+        assert_equal "Enter at least one region, such as us-east-1.", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => " , " })
+        assert_match "no region called europe-west1", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "europe-west1" })
 
         AwsApi.any_instance.stubs(:identity).raises(AwsApi::Denied, "AWS answered InvalidClientTokenId: The security token included in the request is invalid.")
         assert_equal "AWS refused these keys. AWS answered InvalidClientTokenId: The security token included in the request is invalid.",
-                     Aws.credential_refusal(Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1")
+                     Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1" })
         AwsApi.any_instance.stubs(:identity).returns(account: ACCOUNT)
-        assert_nil Aws.credential_refusal(Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1")
+        assert_nil Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1" })
       end
 
       test "the health check asks AWS who the keys belong to" do

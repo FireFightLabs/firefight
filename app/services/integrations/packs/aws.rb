@@ -76,8 +76,6 @@ module Integrations
       # A week read for a baseline comes back an hour a point, well inside GetMetricData's limit on points.
       BASELINE_PERIOD = 3600
 
-      DEFAULT_MINUTES = 60
-      MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
       QUERY_ROWS = 500
       QUERY_LIMIT = 10_000
@@ -109,11 +107,6 @@ module Integrations
       UNESCAPED_SLASH = %r{(?<!\\)/}
       ARN = /\Aarn:(?<partition>[a-z-]+):(?<service>[a-z0-9-]+):(?<region>[a-z0-9-]*):(?<account>\d*):(?<resource>.+)\z/
 
-      RANGE = {
-        "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{DEFAULT_MINUTES})" },
-        "start" => { "type" => "string", "description" => "Start of the range as an ISO 8601 time, instead of minutes (optional)" },
-        "end" => { "type" => "string", "description" => "End of the range as an ISO 8601 time (optional, now)" }
-      }.freeze
       RESOURCE = { "type" => "string", "description" => "An ECS service, Lambda function, EC2 instance or RDS database, by its name or ARN as list_resources shows it" }.freeze
 
       tool :list_resources,
@@ -150,7 +143,7 @@ module Integrations
                "regex" => { "type" => "string", "description" => "Only lines matching this regular expression (optional)" },
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -168,7 +161,7 @@ module Integrations
                "query" => { "type" => "string", "description" => "The Logs Insights query" },
                "region" => { "type" => "string", "description" => "The region the log groups are in (optional, the connection's first region)" },
                "limit" => { "type" => "integer", "description" => "At most this many rows (optional, #{QUERY_ROWS})" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => %w[log_groups query]
            },
@@ -186,7 +179,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => METRIC_NAMES },
                               "description" => "Which metrics, by their CloudWatch name (optional, the resource's usual ones)" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -325,8 +318,8 @@ module Integrations
       def search_logs(environment_row:, arguments:)
         entry = find_resource(environment_row, arguments["resource"])
         region, groups, streams = log_source(environment_row, entry)
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
-        limit = limit(arguments, LOG_LIMIT)
+        started, ended = Capabilities::Answers.range(arguments)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         query = log_query(arguments, streams, limit)
         rows = run_query(environment_row, region, groups, query, started, ended, limit)
         lines = rows.filter_map do |row|
@@ -345,8 +338,8 @@ module Integrations
         region = arguments["region"].presence || regions(environment_row).first
         fail!("This connection does not read #{region}. It reads #{regions(environment_row).join(', ')}.") if regions(environment_row).exclude?(region)
 
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
-        shown = limit(arguments, QUERY_ROWS)
+        started, ended = Capabilities::Answers.range(arguments)
+        shown = Capabilities::Answers.limit(arguments, QUERY_ROWS)
         rows = run_query(environment_row, region, groups, query, started, ended, QUERY_LIMIT)
         link = console_link(region, "cloudwatch/home", "logs:")
         return Telemetry.result("The query matched nothing in #{groups.join(', ')} from #{started.utc.iso8601} to #{ended.utc.iso8601}.", link: link) if rows.empty?
@@ -364,7 +357,7 @@ module Integrations
         fail!("#{KIND_ARTICLED.fetch(entry.kind).upcase_first} has no #{missing.join(', ')} in CloudWatch. It has #{known.keys.join(', ')}.") if missing.any?
 
         names = asked.presence || DEFAULT_METRICS.fetch(entry.kind)
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Capabilities::Answers.range(arguments)
         period = period_for(started, ended)
         series = metric_data(environment_row, entry, names, started, ended, period)
         link = metrics_link(entry)
@@ -379,8 +372,8 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         entry = find_resource(environment_row, arguments["resource"])
         case entry.kind
-        when SERVICE then service_deployments(environment_row, entry, limit(arguments, DEPLOYMENT_LIMIT))
-        when FUNCTION then function_versions(environment_row, entry, limit(arguments, VERSION_LIMIT))
+        when SERVICE then service_deployments(environment_row, entry, Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
+        when FUNCTION then function_versions(environment_row, entry, Capabilities::Answers.limit(arguments, VERSION_LIMIT))
         else fail!("#{entry.name} is #{KIND_ARTICLED.fetch(entry.kind)}, and only ECS services and Lambda functions have deployments.")
         end
       end
@@ -388,7 +381,7 @@ module Integrations
       # ECS keeps a stopped task for about an hour, its own guide says, so older stops are only in the service's events.
       def list_tasks(environment_row:, arguments:)
         entry = ecs_service!(environment_row, arguments["resource"], "have tasks")
-        most = limit(arguments, TASK_LIMIT)
+        most = Capabilities::Answers.limit(arguments, TASK_LIMIT)
         aws = api(environment_row)
         arns = %w[RUNNING STOPPED].flat_map do |state|
           Array(aws.call(:ecs, entry.region, :list_tasks, cluster: entry.cluster, service_name: entry.name, desired_status: state, max_results: most)[:task_arns])
@@ -507,8 +500,6 @@ module Integrations
       def account_of(environment_row)
         (@accounts ||= {})[environment_row.id] ||= api(environment_row).identity(regions(environment_row).first)[:account]
       end
-
-      def limit(arguments, most) = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, most ].min : most
 
       # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap and leaves the rest
       # read, and being asked to slow down stops the read, with every kind left unread.
@@ -899,7 +890,7 @@ module Integrations
         3600
       end
 
-      # Each metric's points in time order, as Firefight shows them: scaled to their unit and a sum per period made per minute.
+      # Each metric's points in time order, scaled to their unit, with a sum per period made a sum per minute.
       def metric_data(environment_row, entry, names, started, ended, period)
         dimensions = dimensions_of(entry)
         queries = names.each_with_index.map do |name, index|
