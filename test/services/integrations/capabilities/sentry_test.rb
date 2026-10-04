@@ -95,6 +95,9 @@ class Integrations::Capabilities::SentryTest < ActiveSupport::TestCase
 
     @sentry.update!(settings: { "server_url" => "https://mcp.sentry.dev/mcp/acme/checkout" })
     assert_match "only reads the checkout project", unroutable(Integrations::Capabilities::ERRORS, "resource" => "web")
+    ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/prod", kind: ResourceMap::KIND_SERVICE, external_id: "v1-id",
+                                  name: "web.v1.", integration_environment: @northflank_row, first_seen_at: Time.current, last_seen_at: Time.current)
+    assert_equal "This Sentry connection only reads the checkout project, not web.v1.", unroutable(Integrations::Capabilities::ERRORS, "resource" => "web.v1.")
   end
 
   test "the connect form asks the organization and an optional project, and builds the address Sentry documents from them" do

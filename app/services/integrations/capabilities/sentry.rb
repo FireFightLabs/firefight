@@ -59,7 +59,7 @@ module Integrations
         if scope.project
           return if scope.project.casecmp?(resource.name)
 
-          raise Unroutable, "This Sentry connection only reads the #{scope.project} project, not #{resource.name}."
+          raise Unroutable, Sentence.ended("This Sentry connection only reads the #{scope.project} project, not #{resource.name}")
         end
         unless resource.name.match?(SLUG)
           raise Unroutable, "#{resource.name} cannot be the name of a Sentry project, so ask with Sentry's own tools for the project it reports to."
@@ -113,7 +113,7 @@ module Integrations
 
           rows = data["releases"].first(limit).map { |release| release_line(release) }
           if rows.empty?
-            next Telemetry.result("Sentry has no releases for #{resource.name}.", link: nil).merge(Telemetry::STRUCTURED => { "releases" => [] })
+            next Telemetry.result(Sentence.ended("Sentry has no releases for #{resource.name}"), link: nil).merge(Telemetry::STRUCTURED => { "releases" => [] })
           end
 
           more = data["hasMore"] || data["releases"].size > limit ? " Older releases were not listed." : ""
