@@ -12,11 +12,10 @@ module Integrations
       held = ResourceMap::Resource.present.where(integration_environment: environment_row).to_a
       watched = Capabilities.watched(environment_row, Capabilities::METRICS) - held
       resources = held + watched
-      return 0 if resources.empty?
-
       window = (now - ResourceMap::Baseline::WINDOW)..now
-      found = environment_row.integration.executor.baselines_of(environment_row, resources, window)
-      # Nothing to read, such as a reader whose tool was switched off, is no failure, so an earlier error is cleared too.
+      found = environment_row.integration.executor.baselines_of(environment_row, resources, window) if resources.any?
+      # Nothing to read, such as no resources on the map or a reader whose tool was switched off, is no failure, so an
+      # earlier error is cleared too.
       recorded = found ? ResourceMap::Baseline.record!(environment_row, resources, named(found, watched, environment_row.integration.name),
                                                        window_from: window.begin, window_to: window.end) : 0
       environment_row.update!(baseline_error: nil)

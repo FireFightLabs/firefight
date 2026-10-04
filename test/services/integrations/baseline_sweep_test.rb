@@ -34,6 +34,12 @@ module Integrations
       Packs::Northflank.any_instance.stubs(:baselines_of).returns(nil)
       assert_equal 0, BaselineSweep.run!(@row)
       assert_nil @row.reload.baseline_error, "a connection with nothing to read is not failing, so the earlier error goes"
+
+      ResourceMap::Resource.where(integration_environment: @row).update_all(removed_at: Time.current)
+      @row.update!(baseline_error: "Northflank answered 503")
+      Packs::Northflank.any_instance.expects(:baselines_of).never
+      assert_equal 0, BaselineSweep.run!(@row)
+      assert_nil @row.reload.baseline_error, "a connection with nothing on the map is not failing either"
     end
 
     test "the daily job queues one read per connection" do
