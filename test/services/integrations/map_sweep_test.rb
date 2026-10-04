@@ -39,7 +39,7 @@ module Integrations
       end
       assert read.all? { |provider| provider.map == IntegrationProvider::MAP_FIREFIGHT }, "a provider with a reader has to say it is on the map"
       unchecked = IntegrationProvider.all.select { |provider| provider.map == IntegrationProvider::MAP_UNCHECKED }.map(&:key)
-      assert_equal %w[gitlab neon supabase postgresql], unchecked, "A provider added since the rule was written lands with its reader"
+      assert_equal %w[neon supabase postgresql], unchecked, "A provider added since the rule was written lands with its reader"
       assert_raises(ArgumentError) { IntegrationProvider.declared({ "key" => "acme", "map" => "later" }, "map", IntegrationProvider::MAPS, IntegrationProvider::MAP_EXPLAINED) }
     end
 

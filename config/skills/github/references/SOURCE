@@ -1,0 +1,7 @@
+actions/troubleshoot-workflows.md https://raw.githubusercontent.com/github/docs/main/content/actions/how-tos/troubleshoot-workflows.md
+actions/use-workflow-run-logs.md https://raw.githubusercontent.com/github/docs/main/content/actions/how-tos/monitor-workflows/use-workflow-run-logs.md
+actions/enable-debug-logging.md https://raw.githubusercontent.com/github/docs/main/content/actions/how-tos/monitor-workflows/enable-debug-logging.md
+actions/re-run-workflows-and-jobs.md https://raw.githubusercontent.com/github/docs/main/content/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs.md
+deployments/deployment-environments.md https://raw.githubusercontent.com/github/docs/main/content/actions/concepts/workflows-and-actions/deployment-environments.md
+deployments/deployments-and-environments.md https://raw.githubusercontent.com/github/docs/main/content/actions/reference/workflows-and-actions/deployments-and-environments.md
+deployments/view-deployment-history.md https://raw.githubusercontent.com/github/docs/main/content/actions/how-tos/deploy/configure-and-manage-deployments/view-deployment-history.md

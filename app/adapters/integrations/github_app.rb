@@ -15,6 +15,7 @@ module Integrations
     TOKEN_REFRESH_MARGIN = 5.minutes
     # A deployment gathers a handful of statuses (queued, in progress, success, inactive), so this reads all of them.
     DEPLOYMENT_STATUS_LIMIT = 20
+    DOWNLOAD_LIMIT = 2_000_000
 
     BLAME_QUERY = <<~GRAPHQL.freeze
       query($owner: String!, $name: String!, $expression: String!, $path: String!) {
@@ -93,6 +94,19 @@ module Integrations
         commit = post("/repos/#{repo}/git/commits", { message: message, tree: tree["sha"], parents: [ head ] }, token: token)
         post("/repos/#{repo}/git/refs", { ref: "refs/heads/#{branch}", sha: commit["sha"] }, token: token)
         post("/repos/#{repo}/pulls", { title: title, head: branch, base: base, body: body, draft: false }, token: token)
+      end
+
+      # A file GitHub answers with a redirect to a short-lived signed address, such as a job's log. The address is fetched
+      # without the token, on a public host only, and the text is cut to its last limit bytes, where a job says why it failed.
+      def download(path, token:, limit: DOWNLOAD_LIMIT)
+        uri = URI.parse("#{API_ROOT}#{path}")
+        request = Net::HTTP::Get.new(uri)
+        request["Authorization"] = "Bearer #{token}"
+        apply_api_headers(request)
+        response = Http.request(uri, request, error_class: Error)
+        parse_response(response) unless response.is_a?(Net::HTTPRedirection)
+
+        Http.download(response["location"], provider_key: PROVIDER_KEY, error_class: Error, limit: limit)
       end
 
       # Blame at a given commit exists only in GitHub's GraphQL API.

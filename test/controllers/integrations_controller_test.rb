@@ -89,6 +89,60 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ { "label" => "Project", "value" => "firefight" } ], shown
   end
 
+  test "GitLab connects with an access token and the address of a GitLab of its own, and discovers its tools" do
+    Integrations::GitlabApi.any_instance.stubs(:get).returns([])
+
+    post integrations_path, params: { provider: "gitlab", name: "GitLab", credentials: { Integrations::Packs::Gitlab::TOKEN => "glpat-s3cret" },
+                                      fields: { Integrations::Packs::Gitlab::URL => "https://gitlab.example.com" } }
+
+    integration = @workspace.integrations.find_by!(name: "GitLab")
+    assert_equal Integration::KIND_NATIVE, integration.kind
+    row = integration.integration_environments.sole
+    settings = Integrations::ConnectionSettings.of(row)
+    assert_equal [ "https://gitlab.example.com", "glpat-s3cret" ], [ settings.field(Integrations::Packs::Gitlab::URL), settings.credential(Integrations::Packs::Gitlab::TOKEN) ]
+    assert_includes integration.tools.pluck(:name), "ci_status"
+
+    get integrations_path, headers: inertia_headers
+    assert_not_includes response.body, "glpat-s3cret"
+    provider = inertia_props["providers"].find { |candidate| candidate["key"] == "gitlab" }
+    assert_equal [ Integrations::Packs::Gitlab::TOKEN ], provider["credentialFields"].map { |field| field["key"] }
+    assert_equal [ [ Integrations::Packs::Gitlab::URL, true ] ], provider["connectFields"].map { |field| [ field["key"], field["optional"] ] }
+  end
+
+  test "GitLab can still connect through its own MCP server with one-click OAuth, as before" do
+    stub_begin_flow
+
+    get oauth_start_integrations_url(provider: "gitlab", kind: Integration::KIND_MCP)
+
+    assert_redirected_to "https://auth.example/authorize"
+    Integrations::OauthClient.stubs(:exchange).returns("access_token" => "at-1", "refresh_token" => "rt-1", "expires_at" => 1.hour.from_now.iso8601, "client_id" => "cid")
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "get_merge_request" } ])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    get oauth_callback_integrations_url(state: "abc", code: "authcode")
+
+    integration = @workspace.integrations.find_by!(provider: "gitlab")
+    assert_equal [ Integration::KIND_MCP, "https://gitlab.com/api/v4/mcp" ], [ integration.kind, integration.server_url ]
+    assert integration.tools.exists?(name: "get_merge_request")
+  end
+
+  test "one-click connect for GitLab without asking for its MCP server is not offered, since it connects with a token" do
+    get oauth_start_integrations_url(provider: "gitlab")
+
+    assert_redirected_to integrations_path
+    assert_equal "One-click connect is not configured for this integration on this install.", flash[:alert]
+    assert_not @workspace.integrations.exists?(provider: "gitlab")
+  end
+
+  test "GitLab's MCP server can be connected with a token pasted by hand, as before" do
+    Integrations::McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "get_merge_request" } ])
+    Integrations::McpClient.any_instance.stubs(:ping).returns(true)
+
+    post integrations_path, params: { provider: "gitlab", name: "GitLab", server_url: "https://gitlab.com/api/v4/mcp", authorization: "Bearer x" }
+
+    assert_equal Integration::KIND_MCP, @workspace.integrations.find_by!(provider: "gitlab").kind
+  end
+
   test "a Northflank token that is refused is said on the form and nothing is saved" do
     Integrations::NorthflankApi.any_instance.stubs(:project).raises(Integrations::NorthflankApi::Error, "Northflank answered 401: Unauthorized")
 
