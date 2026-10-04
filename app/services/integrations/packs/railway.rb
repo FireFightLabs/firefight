@@ -13,7 +13,6 @@ module Integrations
       PROVIDER = "Railway".freeze
       PROVIDER_KEY = "railway".freeze
       GITHUB = "github".freeze
-      DASHBOARD = "https://railway.com".freeze
 
       # How the CLI tells a service instance apart (railwayapp/cli, src/resources.rs): a cron schedule makes a cron job,
       # and an image naming a database engine makes a database.
@@ -302,7 +301,7 @@ module Integrations
           latest = instance["latestDeployment"] || {}
           item = ResourceMap::Found.new(
             provider: PROVIDER_KEY, account: account, kind: KINDS.fetch(resource[:type]), external_id: resource[:id], name: resource[:name],
-            status: latest["status"]&.downcase, url: service_url(project, environment["id"], resource[:id]),
+            status: latest["status"]&.downcase, url: service_url(environment_row, project, environment["id"], resource[:id]),
             details: { "type" => resource[:engine] ? "#{resource[:engine]} #{DATABASE}" : resource[:type], "instances" => instance["numReplicas"],
                        "region" => instance["region"], ResourceMap::DEPLOYED_COMMIT => latest.dig("meta", "commitHash") }.compact
           )
@@ -387,15 +386,18 @@ module Integrations
 
       # The service page, as the CLI prints it (railwayapp/cli, src/commands/up.rs). Railway documents no address for a
       # deployment, logs or metrics page, so every result links to the service.
-      def service_url(project, environment_id, service_id) = "#{DASHBOARD}/project/#{project}/service/#{service_id}?environmentId=#{environment_id}"
+      def service_url(environment_row, project, environment_id, service_id) = "#{site(environment_row)}/project/#{project}/service/#{service_id}?environmentId=#{environment_id}"
+
+      # Railway's app, the registry's site for this provider.
+      def site(environment_row) = ConnectionSettings.of(environment_row).site
 
       def link(environment_row, resource)
-        Telemetry::Link.new(provider: PROVIDER, url: service_url(project_of(environment_row), environment(environment_row)["id"], resource[:id]))
+        Telemetry::Link.new(provider: PROVIDER, url: service_url(environment_row, project_of(environment_row), environment(environment_row)["id"], resource[:id]))
       end
 
       # The project page, as railway open prints it (railwayapp/cli, src/commands/open.rs).
       def project_link(environment_row)
-        Telemetry::Link.new(provider: PROVIDER, url: "#{DASHBOARD}/project/#{project_of(environment_row)}?environmentId=#{environment(environment_row)['id']}")
+        Telemetry::Link.new(provider: PROVIDER, url: "#{site(environment_row)}/project/#{project_of(environment_row)}?environmentId=#{environment(environment_row)['id']}")
       end
 
       # Railway's log filter (docs, content/docs/observability/logs.md): quoted phrases, - to leave one out, AND between.

@@ -13,7 +13,6 @@ module Integrations
       PROVIDER = "Vercel".freeze
       PROVIDER_KEY = "vercel".freeze
       GITHUB = "github".freeze
-      DASHBOARD = "https://vercel.com".freeze
       PRODUCTION = "production".freeze
       READY = "READY".freeze
 
@@ -391,7 +390,7 @@ module Integrations
       # Without a known slug there is no page to name.
       def project_link(environment_row, project)
         slug = owner_slug(environment_row)
-        slug ? Telemetry::Link.new(provider: PROVIDER, url: "#{DASHBOARD}/#{ERB::Util.url_encode(slug)}/#{ERB::Util.url_encode(project['name'])}") : nil
+        slug ? Telemetry::Link.new(provider: PROVIDER, url: "#{ConnectionSettings.of(environment_row).site}/#{ERB::Util.url_encode(slug)}/#{ERB::Util.url_encode(project['name'])}") : nil
       end
 
       # The project's Logs page, the address Vercel's docs open as /[team]/[project]/logs (docs, logs/runtime).

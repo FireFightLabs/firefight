@@ -16,7 +16,6 @@ module Integrations
       # The addresses flyctl prints for an app and a Managed Postgres cluster (superfly/flyctl,
       # internal/command/dashboard/root.go, internal/command/deploy/deploy.go, internal/command/machine/list.go and
       # internal/command/mpg/v2/run_create.go).
-      DASHBOARD = "https://fly.io".freeze
       MONITORING = "monitoring".freeze
       METRICS_PAGE = "metrics".freeze
       MACHINES_PAGE = "machines".freeze
@@ -294,7 +293,7 @@ module Integrations
             nil
           end
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_SERVICE, external_id: name, name: name,
-                                         status: app["status"].presence, url: page(name), details: app_details(machines))
+                                         status: app["status"].presence, url: page(environment_row, name), details: app_details(machines))
           resources << found
           begin
             api.certificates(name).each do |certificate|
@@ -312,7 +311,7 @@ module Integrations
           api.postgres_clusters(organization).each do |cluster|
             found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_DATABASE, external_id: cluster["id"].to_s,
                                            name: cluster["name"].presence || cluster["id"].to_s, status: cluster["status"],
-                                           url: cluster_page(organization, cluster["id"]),
+                                           url: cluster_page(environment_row, organization, cluster["id"]),
                                            details: { "type" => "Managed Postgres", "plan" => cluster["plan"], "region" => cluster["region"] }.compact)
             resources << found
             Array(cluster["attached_apps"]).each do |attached|
@@ -404,12 +403,15 @@ module Integrations
         resource
       end
 
-      def page(app_name, *rest) = [ DASHBOARD, "apps", ERB::Util.url_encode(app_name), *rest ].join("/")
+      # Fly's app, the registry's site for this provider.
+      def site(environment_row) = ConnectionSettings.of(environment_row).site
 
-      def cluster_page(organization, cluster_id) = [ DASHBOARD, "dashboard", ERB::Util.url_encode(organization), "managed_postgres", ERB::Util.url_encode(cluster_id) ].join("/")
+      def page(environment_row, app_name, *rest) = [ site(environment_row), "apps", ERB::Util.url_encode(app_name), *rest ].join("/")
+
+      def cluster_page(environment_row, organization, cluster_id) = [ site(environment_row), "dashboard", ERB::Util.url_encode(organization), "managed_postgres", ERB::Util.url_encode(cluster_id) ].join("/")
 
       def link(environment_row, resource, *rest)
-        url = resource[:type] == POSTGRES ? cluster_page(organization_of(environment_row), resource[:id]) : page(resource[:name], *rest)
+        url = resource[:type] == POSTGRES ? cluster_page(environment_row, organization_of(environment_row), resource[:id]) : page(environment_row, resource[:name], *rest)
         Telemetry::Link.new(provider: PROVIDER, url: url)
       end
 
@@ -534,7 +536,7 @@ module Integrations
           Telemetry::Series.new(label: label, points: prometheus_points(each))
         end
         Telemetry::Chart.new(title: "#{metric.title} of #{resource[:name]}", unit: metric.unit, series: drawn, from: started, to: ended,
-                             link: page(resource[:name], METRICS_PAGE))
+                             link: page(environment_row, resource[:name], METRICS_PAGE))
       end
 
       # Prometheus answers each point as [seconds, "value"].

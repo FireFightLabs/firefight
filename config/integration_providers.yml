@@ -141,6 +141,7 @@ providers:
     color: "#000000"
     description: Projects, deployments and their build and runtime logs, and instant rollback or promotion of a deployment when you allow it.
     server_url: ""
+    site: https://vercel.com
     kind: native
     connect_with: api_token
     connect_fields:
@@ -167,6 +168,7 @@ providers:
     color: "#0b0d0e"
     description: Logs, metrics and deployments of the services in a Railway project, and restarts, rollbacks and scaling when you allow it.
     server_url: ""
+    site: https://railway.com
     kind: native
     connect_with: api_token
     connect_fields:
@@ -181,6 +183,7 @@ providers:
     color: "#24175b"
     description: Logs, metrics, releases and machines of the apps in a Fly.io organization, and restarts and rollbacks when you allow it.
     server_url: ""
+    site: https://fly.io
     kind: native
     connect_with: api_token
     connect_fields:
