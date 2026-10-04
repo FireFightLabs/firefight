@@ -72,16 +72,6 @@ module Integrations
       end
     end
 
-    # Whether a region is one AWS publishes, in any of its partitions.
-    def self.region?(name)
-      ::Aws::Partitions.partitions.any? { |partition| partition.regions.any? { |region| region.name == name } }
-    end
-
-    # The partition a region belongs to, such as aws, aws-cn or aws-us-gov, which ARNs and console addresses start from.
-    def self.partition_of(name)
-      ::Aws::Partitions.partitions.find { |partition| partition.regions.any? { |region| region.name == name } }&.name
-    end
-
     private
 
     def answering

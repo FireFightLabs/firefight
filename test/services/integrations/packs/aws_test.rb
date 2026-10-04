@@ -15,29 +15,36 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "aws", name: "AWS")
         @row = @integration.integration_environments.create!
-        Aws.store_credentials!(@row, Aws::ACCESS_KEY_ID => " AKIAEXAMPLE ", Aws::SECRET_ACCESS_KEY => " secret ", Aws::REGIONS => "EU-west-1,  us-east-1")
+        Aws.store_credentials!(@row, Aws::ACCESS_KEY_ID => " AKIAEXAMPLE ", Aws::SECRET_ACCESS_KEY => " secret ")
+        @row.store_fields!(Aws::REGIONS => %w[eu-west-1 us-east-1])
         @pack = Aws.new(@integration)
         AwsApi.any_instance.stubs(:identity).returns(account: ACCOUNT, arn: "arn:aws:iam::#{ACCOUNT}:user/firefight")
         answer(:describe_services, services: [ service ])
         answer(:describe_task_definition, task_definition: task_definition)
       end
 
-      test "the keys and regions are stored trimmed, and only the three changes are not read only" do
-        assert_equal [ "AKIAEXAMPLE", "secret", "eu-west-1,us-east-1" ], @row.reload.credentials_hash.values_at(Aws::ACCESS_KEY_ID, Aws::SECRET_ACCESS_KEY, Aws::REGIONS)
+      test "the keys are stored trimmed and the regions are a connect field, and only the three changes are not read only" do
+        assert_equal [ "AKIAEXAMPLE", "secret", nil ], @row.reload.credentials_hash.values_at(Aws::ACCESS_KEY_ID, Aws::SECRET_ACCESS_KEY, Aws::REGIONS)
+        regions = IntegrationProvider.find(Aws::PROVIDER_KEY).connect_fields.find { |field| field.key == Aws::REGIONS }
+        assert regions.multiple
+        assert_equal [ "us-east-1", "US East (N. Virginia)" ], regions.options.first.to_h.values_at(:value, :label)
+        assert_nil regions.refusal(%w[eu-west-1 ap-southeast-7])
+        assert_match "Regions can only be", regions.refusal(%w[cn-north-1])
+        assert_equal "Regions is required.", regions.refusal([])
         assert_equal %w[rollback_deployment restart_service scale_service], Aws.tool_definitions.reject(&:read_only).map(&:name)
         assert Aws.credential_fields.find { |field| field.key == Aws::SECRET_ACCESS_KEY }.secret
       end
 
-      test "keys, regions and AWS's refusal are said on the form before anything is saved" do
-        assert_equal "Paste an access key ID.", Aws.credential_refusal({ Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1" })
-        assert_equal "Enter at least one region, such as us-east-1.", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => " , " })
-        assert_match "no region called europe-west1", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "europe-west1" })
+      test "keys, regions and AWS's refusal are said on the form before anything is saved, asking AWS in the first region chosen" do
+        regions = { Aws::REGIONS => %w[eu-west-1 us-east-1] }
+        assert_equal "Paste an access key ID.", Aws.credential_refusal({ Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
+        assert_equal "Choose at least one region.", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: {})
 
         AwsApi.any_instance.stubs(:identity).raises(AwsApi::Denied, "AWS answered InvalidClientTokenId: The security token included in the request is invalid.")
         assert_equal "AWS refused these keys. AWS answered InvalidClientTokenId: The security token included in the request is invalid.",
-                     Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1" })
-        AwsApi.any_instance.stubs(:identity).returns(account: ACCOUNT)
-        assert_nil Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x", Aws::REGIONS => "eu-west-1" })
+                     Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
+        AwsApi.any_instance.expects(:identity).with("eu-west-1").returns(account: ACCOUNT)
+        assert_nil Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
       end
 
       test "the health check asks AWS who the keys belong to" do
@@ -352,13 +359,6 @@ module Integrations
 
         AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, *| operation == :get_metric_data }.raises(AwsApi::RateLimited, "AWS answered Throttling")
         assert_raises(AwsApi::RateLimited) { @pack.baselines_of(@row, [ function_resource ], 7.days.ago..Time.current) }
-      end
-
-      test "a region outside the aws partition gets no console link, since AWS documents those addresses for the aws partition only" do
-        Aws.store_credentials!(@row, Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "b", Aws::REGIONS => "cn-north-1")
-        AwsApi.any_instance.stubs(:all).returns([ [], false ])
-
-        assert_no_match "console", call(:list_resources)
       end
 
       test "AWS's skills cover triage and each kind, and the guides behind them carry AWS's license and notice" do

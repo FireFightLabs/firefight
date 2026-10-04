@@ -50,16 +50,6 @@ module Integrations
       end
     end
 
-    test "a region is known by its code in any partition, and its partition is read from it" do
-      assert AwsApi.region?("eu-west-1")
-      assert AwsApi.region?("cn-north-1")
-      assert_not AwsApi.region?("europe-west1")
-      assert_equal "aws", AwsApi.partition_of("us-east-1")
-      assert_equal "aws-cn", AwsApi.partition_of("cn-north-1")
-      assert_equal "aws-us-gov", AwsApi.partition_of("us-gov-west-1")
-      assert_nil AwsApi.partition_of("nowhere-1")
-    end
-
     private
 
     def stub_client(service, responses)

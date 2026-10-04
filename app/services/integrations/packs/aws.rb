@@ -16,8 +16,8 @@ module Integrations
 
       PROVIDER = "AWS".freeze
       PROVIDER_KEY = "aws".freeze
-      # Console addresses are documented for the aws partition only, so China and GovCloud resources get no link.
-      CONSOLE_PARTITION = "aws".freeze
+      # The regions offered are the commercial ones, so every ARN and console address is in the aws partition.
+      PARTITION = "aws".freeze
 
       SERVICE = ResourceMap::KIND_SERVICE
       FUNCTION = ResourceMap::KIND_FUNCTION
@@ -251,23 +251,19 @@ module Integrations
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
                               hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights. For Halon to apply fixes, it can also update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
-                              hint: "The secret shown once when the access key was created."),
-          CredentialField.new(key: REGIONS, label: "Regions", secret: false, placeholder: "us-east-1, eu-west-1",
-                              hint: "The regions this environment runs in, separated by commas. Halon reads only these.")
+                              hint: "The secret shown once when the access key was created.")
         ]
       end
 
-      # Asks AWS who the keys belong to, so wrong keys or a mistyped region are said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      # Asks AWS who the keys belong to, in the first region chosen, so wrong keys are said on the form before anything is
+      # saved. The registry has already checked the regions are AWS's.
+      def self.credential_refusal(values, region: nil, fields: {})
         key = values[ACCESS_KEY_ID].to_s.strip
         secret = values[SECRET_ACCESS_KEY].to_s.strip
-        regions = regions_from(values[REGIONS])
+        regions = Array(fields[REGIONS])
         return "Paste an access key ID." if key.empty?
         return "Paste the secret access key." if secret.empty?
-        return "Enter at least one region, such as us-east-1." if regions.empty?
-
-        unknown = regions.reject { |region| AwsApi.region?(region) }
-        return "AWS has no region called #{unknown.to_sentence}. Use region codes, such as eu-west-1." if unknown.any?
+        return "Choose at least one region." if regions.empty?
 
         AwsApi.new(access_key_id: key, secret_access_key: secret).identity(regions.first)
         nil
@@ -278,10 +274,7 @@ module Integrations
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(ACCESS_KEY_ID, values[ACCESS_KEY_ID].to_s.strip)
         environment_row.store_credential!(SECRET_ACCESS_KEY, values[SECRET_ACCESS_KEY].to_s.strip)
-        environment_row.store_credential!(REGIONS, regions_from(values[REGIONS]).join(","))
       end
-
-      def self.regions_from(value) = value.to_s.downcase.split(/[\s,]+/).reject(&:empty?).uniq
 
       def list_resources(environment_row:, arguments:)
         kind = arguments["kind"].presence
@@ -483,9 +476,9 @@ module Integrations
       # One client per environment row, so the SDK's clients are reused across one call's requests.
       def api(environment_row)
         (@apis ||= {})[environment_row.id] ||= begin
-          credentials = environment_row.credentials_hash
-          key = credentials[ACCESS_KEY_ID]
-          secret = credentials[SECRET_ACCESS_KEY]
+          settings = ConnectionSettings.of(environment_row)
+          key = settings.credential(ACCESS_KEY_ID)
+          secret = settings.credential(SECRET_ACCESS_KEY)
           fail!("This environment has no AWS access key. Reconnect it on the Integrations page.") if key.blank? || secret.blank?
 
           AwsApi.new(access_key_id: key, secret_access_key: secret)
@@ -493,7 +486,7 @@ module Integrations
       end
 
       def regions(environment_row)
-        found = self.class.regions_from(environment_row.credentials_hash[REGIONS])
+        found = Array(ConnectionSettings.of(environment_row).field(REGIONS))
         found.presence || fail!("This environment names no AWS region. Reconnect it on the Integrations page.")
       end
 
@@ -582,7 +575,7 @@ module Integrations
       # instance.
       def instance_entry(instance, owner, region)
         name = Array(instance[:tags]).find { |tag| tag[:key] == "Name" }&.dig(:value).presence || instance[:instance_id]
-        arn = "arn:#{AwsApi.partition_of(region) || CONSOLE_PARTITION}:ec2:#{region}:#{owner}:instance/#{instance[:instance_id]}"
+        arn = "arn:#{PARTITION}:ec2:#{region}:#{owner}:instance/#{instance[:instance_id]}"
         Entry.new(kind: INSTANCE, arn: arn, name: name, region: region, status: instance.dig(:state, :name),
                   details: { "region" => region, "type" => instance[:instance_type], "instance_id" => instance[:instance_id] }.compact)
       end
@@ -1039,7 +1032,7 @@ module Integrations
       def time(value) = value.respond_to?(:utc) ? value.utc.iso8601 : value.to_s.presence || "unknown"
 
       # Pages in the AWS console, on the regional console host AWS's console guide gives, at the service paths AWS's own
-      # guides link to. Only for the aws partition, the one those addresses are documented for.
+      # guides link to.
       def resource_link(entry)
         case entry.kind
         when SERVICE then console_link(entry.region, "ecs/v2")
@@ -1055,7 +1048,7 @@ module Integrations
       end
 
       def console_link(region, path, fragment = nil)
-        return nil unless region && AwsApi.partition_of(region) == CONSOLE_PARTITION
+        return nil unless region
 
         Telemetry::Link.new(provider: PROVIDER, url: "https://#{region}.console.aws.amazon.com/#{path}?region=#{region}#{"##{fragment}" if fragment}")
       end
