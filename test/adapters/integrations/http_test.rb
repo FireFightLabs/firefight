@@ -22,6 +22,23 @@ module Integrations
       assert_equal "Acme answered 502 with something that is not JSON", assert_raises(AcmeError) { json }.message
     end
 
+    test "a provider's reason is read whether it is words, an object or a list" do
+      {
+        '{"error":"invalid_token"}' => "invalid_token",
+        '{"error":{"message":"Missing scope"}}' => "Missing scope",
+        '{"error":{"detail":"Token expired"}}' => "Token expired",
+        '{"errors":[{"message":"Name taken"},{"detail":"Size too big"}]}' => "Name taken; Size too big",
+        '{"errors":["first","second"]}' => "first; second",
+        '{"error_description":"Bad grant","error":"invalid_grant"}' => "invalid_grant",
+        '{"message":"Not found"}' => "Not found",
+        '{"error":{"code":12},"detail":"Gone"}' => "Gone",
+        '{"other":1}' => "no reason given"
+      }.each do |body, said|
+        Http.stubs(:request).returns(response(400, body))
+        assert_equal "Acme answered 400: #{said}", assert_raises(AcmeError) { json }.message, body
+      end
+    end
+
     test "a 429 is the client's own error, marked rate limited, so either rescue catches it" do
       Http.stubs(:request).returns(response(429, '{"error":{"message":"slow down"}}'))
 

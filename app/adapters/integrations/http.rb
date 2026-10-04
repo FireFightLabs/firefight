@@ -4,8 +4,19 @@ module Integrations
   module Http
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
-    # The fields providers most often put their reason in, tried in order when a client says nothing of its own.
-    REASON = ->(body) { body.dig("error", "message") || body["message"] || body["error_description"] || body["detail"] || body["error"].presence }
+    # The fields providers most often put their reason in, tried in order when a client says nothing of its own. Each may
+    # hold the words, an object with a message or detail, or a list of either.
+    REASON_FIELDS = %w[error message error_description detail errors].freeze
+    REASON = ->(body) { REASON_FIELDS.lazy.filter_map { |field| Http.words(body[field]) }.first }
+
+    # A reason as words, from a string, an object with a message, detail, title or description, or a list of them.
+    def self.words(value)
+      case value
+      when String then value.strip.presence
+      when Hash then %w[message detail title description error].lazy.filter_map { |key| words(value[key]) }.first
+      when Array then value.filter_map { |each| words(each) }.uniq.join("; ").presence
+      end
+    end
 
     # ipaddr connects to an address checked beforehand (PublicAddress.check!), keeping the host name for the certificate.
     # cert_store holds the certificates to trust, for a server whose certificate a workspace pasted. A block is handed
