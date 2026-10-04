@@ -98,7 +98,7 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
 
   test "a resource carries what normal looks like for its metrics, each amount with its unit" do
     now = Time.current
-    ResourceMap::Baseline.record!(@workspace, [ resource("web") ], [ ResourceMap::Baseline::Found.new(key: resource("web").key, metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ now, 0.2 ], [ now - 1.hour, 0.4 ] ]) ],
+    ResourceMap::Baseline.record!(@row, [ resource("web") ], [ ResourceMap::Baseline::Found.new(key: resource("web").key, metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ now, 0.2 ], [ now - 1.hour, 0.4 ] ]) ],
                                   window_from: now - 7.days, window_to: now)
 
     web = inertia_props(resource_map_path)["resources"].find { |each| each["name"] == "web" }

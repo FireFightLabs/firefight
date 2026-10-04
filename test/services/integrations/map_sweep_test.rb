@@ -28,14 +28,14 @@ module Integrations
     test "a provider says whether it is on the map, a reader backs every one that is, and one that is not says why" do
       IntegrationProvider.all.select { |provider| provider.map == IntegrationProvider::MAP_FIREFIGHT }.each do |provider|
         read = if provider.kind == Integration::KIND_MCP
-          McpExecutor::MAP_READERS.key?(provider.key)
+          Provider.for(provider.key).map_reader.present?
         else
           NativePack.for(provider.key).instance_method(:map_of).owner != NativePack
         end
         assert read, "#{provider.key} says it is on the map and nothing reads it"
       end
       read = IntegrationProvider.all.select do |provider|
-        McpExecutor::MAP_READERS.key?(provider.key) || NativePack.for(provider.key)&.instance_method(:map_of)&.owner.then { |owner| owner && owner != NativePack }
+        Provider.for(provider.key).map_reader.present? || NativePack.for(provider.key)&.instance_method(:map_of)&.owner.then { |owner| owner && owner != NativePack }
       end
       assert read.all? { |provider| provider.map == IntegrationProvider::MAP_FIREFIGHT }, "a provider with a reader has to say it is on the map"
       unchecked = IntegrationProvider.all.select { |provider| provider.map == IntegrationProvider::MAP_UNCHECKED }.map(&:key)

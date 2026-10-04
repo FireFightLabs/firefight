@@ -216,7 +216,7 @@ module Integrations
       end
 
       # Reads the project with the token, so a wrong token or project is said on the form before anything is saved.
-      def self.credential_refusal(values)
+      def self.credential_refusal(values, region: nil)
         token = values[API_TOKEN].to_s.strip
         project = values[PROJECT].to_s.strip
         return "Paste an API token." if token.empty?

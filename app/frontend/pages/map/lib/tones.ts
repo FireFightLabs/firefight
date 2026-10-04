@@ -27,6 +27,10 @@ export const KIND_TONES: Record<ResourceMapKind, string> = {
   load_balancer: ROUTING,
   origin_pool: ROUTING,
   access_app: SERVING,
+  virtual_machine: SERVING,
+  function: RUNNING,
+  cluster: RUNNING,
+  compute: RUNNING,
 }
 
 export const HEALTH_DOTS: Record<ResourceMapHealth, string> = {

@@ -6,6 +6,10 @@ class IntegrationEnvironment < ApplicationRecord
   HEALTH_FAILING = "failing"
   HEALTH_STATUSES = [ HEALTH_UNKNOWN, HEALTH_HEALTHY, HEALTH_FAILING ].freeze
   OAUTH_KEY = "oauth".freeze
+  # What the connect form asked for this environment (IntegrationProvider::ConnectField), and what the connection's health
+  # check learned about it. Neither is a secret. Provider code reads both through Integrations::ConnectionSettings.
+  FIELDS_KEY = "fields".freeze
+  LEARNED_KEY = "learned".freeze
 
   belongs_to :integration
   belongs_to :environment, class_name: "CatalogEntry", foreign_key: :catalog_entry_id,
@@ -52,6 +56,20 @@ class IntegrationEnvironment < ApplicationRecord
   # comes back, tokens are minted from it at call time.
   def store_installation!(installation_id)
     update!(base_config: base_config.merge("installation_id" => installation_id.to_s))
+  end
+
+  def fields = base_config.to_h.fetch(FIELDS_KEY, {})
+
+  # Each connect sets them again, so a field left empty this time is gone.
+  def store_fields!(values)
+    update!(base_config: base_config.to_h.merge(FIELDS_KEY => values.to_h.stringify_keys))
+  end
+
+  def learned = base_config.to_h.fetch(LEARNED_KEY, {})
+
+  # The probe owns the shape of what it learned, this row owns writing it.
+  def store_learned!(value)
+    update!(base_config: base_config.to_h.merge(LEARNED_KEY => value))
   end
 
   # Adapters own the shape of what they cache, this row owns writing it.

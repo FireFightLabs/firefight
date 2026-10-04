@@ -69,12 +69,18 @@ module Integrations
       def provider_for(key) = key == Sandboxes.provider_key ? Sandboxes.provider : nil
     end
 
-    def initialize(key:, workspace:, environment_row:)
+    # Where git fetches a repository from and who it signs in as. The code host's pack gives it, with token read only
+    # when a fetch needs one, so this class knows no code host.
+    Remote = Data.define(:root, :user, :token) do
+      def url(repository) = "#{root}/#{repository}.git"
+    end
+
+    def initialize(key:, workspace:, remote:)
       raise Error, "A code tool was called outside a run, so there is no box to read in." if key.blank?
 
       @key = key
       @workspace = workspace
-      @environment_row = environment_row
+      @remote = remote
     end
 
     def exec(repository, **options)
@@ -164,7 +170,7 @@ module Integrations
       box.record_repository!(repository, head: pushed["head"], default_branch: pushed["default_branch"])
     end
 
-    def remote_url(repository) = "https://github.com/#{repository}.git"
+    def remote_url(repository) = @remote.url(repository)
 
     def stored_name(repository) = repository.to_s.sub("/", "__")
 
@@ -176,7 +182,7 @@ module Integrations
     end
 
     def credential
-      @credential ||= Base64.strict_encode64("x-access-token:#{GithubApp.installation_token(@environment_row)}")
+      @credential ||= Base64.strict_encode64("#{@remote.user}:#{@remote.token.call}")
     end
 
     # Held for the length of one transaction, so a second worker waits and then finds what the first one made.

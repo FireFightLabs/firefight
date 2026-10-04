@@ -53,6 +53,52 @@ class Integration < ApplicationRecord
     settings["server_url"]
   end
 
+  # Where a connection keeps the region it was made in and the connect fields that are part of its server's address.
+  REGION_SETTING = "region".freeze
+  FIELDS_SETTING = "fields".freeze
+
+  # The provider's region the connection was made in, by its key (IntegrationProvider::Region), or nil when none was
+  # chosen.
+  def region_key = settings.to_h[REGION_SETTING]
+
+  # The region the connection was made in. One made by pasting a server's address is in the region that server is in,
+  # and a native pack's connection made before its provider listed regions is in the first one. nil when the provider
+  # lists none, or the pasted address is in none of them.
+  def region
+    entry = IntegrationProvider.find(provider)
+    return unless entry
+    return entry.region(region_key) if region_key.present?
+    return entry.region_for_url(server_url) if server_url.present?
+
+    entry.region if native?
+  end
+
+  # The server a connection named name is made to, in a region and with the fields entry's connect form asked. A
+  # connection already there keeps the server it calls, so a token is never asked for one it does not, and a connection
+  # made before its provider listed regions keeps its address. Otherwise it is the region's server with the fields that
+  # are part of its address.
+  def self.server_url_for(workspace, entry, name, region_key, fields)
+    path_values = entry.connect_values(fields, entry.path_fields)
+    existing = workspace.integrations.find_by(slug: slug_for(name), provider: entry.key, kind: entry.kind)
+    same = existing&.server_url.present? && existing.region == entry.region(region_key) && existing.path_fields == path_values
+    same ? existing.server_url : entry.server_url_for(region_key, path_values)
+  end
+
+  # Why connecting another environment in this region, with these fields of the server's address, would move the
+  # connection's other environments to a server their credentials are not for. nil when it would not.
+  def move_blocked_reason(region, path_values, environment_id)
+    return unless persisted?
+    return if self.region == region && path_fields == path_values.to_h.stringify_keys
+    return if integration_environments.none? { |row| row.catalog_entry_id != environment_id.presence }
+
+    place = [ self.region&.label, *path_fields.values ].compact.join(", ").presence || server_url
+    "#{name} reaches #{place} for its other environments. To connect somewhere else, add it as another account with its own name."
+  end
+
+  # The connect fields that are part of the server's address (IntegrationProvider::ConnectField), which belong to the
+  # whole connection.
+  def path_fields = settings.to_h.fetch(FIELDS_SETTING, {})
+
   # Saved row by row because enabling one mints its Ability::Action in an after_save that
   # update_all would skip. reads_only turns the write tools off rather than adding anything.
   def set_all_tools!(enabled, reads_only: false)

@@ -25,22 +25,14 @@ class Integration::Tool < ApplicationRecord
 
   # A call the resource map's sweep makes. The sweep is not a person and holds no grants, so it calls only tools an admin
   # switched on, and each call is recorded under the map sweep with what it read, never the script. Returns the block's result.
-  def swept!(arguments, reads)
-    invocation = AbilityGateway.record!(
-      decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: SystemAgent.map_sweep,
-      action: Ability::Action.lookup(action_key, integration.workspace), action_key: action_key, workspace: integration.workspace,
-      scope: {}, params: arguments.to_h.except("code").merge({ "reads" => reads }.compact), context: { source: AbilityGateway::SOURCE_MAP_SWEEP }
-    )
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    result = yield
-    failed = result.is_a?(Hash) && result["isError"]
-    said = failed ? Array(result["content"]).filter_map { |part| part["text"] }.join.lines.first.to_s.strip.truncate(200) : nil
-    invocation.finalize!(outcome: failed ? Ability::Invocation::OUTCOME_ERROR : Ability::Invocation::OUTCOME_SUCCESS, error_summary: said,
-                         duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
-    result
-  rescue StandardError => error
-    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: error.class.name)
-    raise
+  def swept!(arguments, reads = nil, &)
+    recorded!(SystemAgent.map_sweep, AbilityGateway::SOURCE_MAP_SWEEP, arguments, reads, &)
+  end
+
+  # A call the health check makes to see that a connection reaches the account behind its server. Like the sweep it
+  # calls only tools an admin switched on, and each call is recorded under the health check.
+  def checked!(arguments, reads = nil, &)
+    recorded!(SystemAgent.health_check, AbilityGateway::SOURCE_HEALTH_CHECK, arguments, reads, &)
   end
 
   # A tool name cannot carry the dot an action key separates on.
@@ -107,5 +99,23 @@ class Integration::Tool < ApplicationRecord
 
   def ability_action_stale?
     saved_change_to_enabled? || saved_change_to_read_only? || saved_change_to_params_schema?
+  end
+
+  def recorded!(principal, source, arguments, reads)
+    invocation = AbilityGateway.record!(
+      decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: principal,
+      action: Ability::Action.lookup(action_key, integration.workspace), action_key: action_key, workspace: integration.workspace,
+      scope: {}, params: arguments.to_h.except("code").merge({ "reads" => reads }.compact), context: { source: source }
+    )
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    failed = result.is_a?(Hash) && result["isError"]
+    said = failed ? Array(result["content"]).filter_map { |part| part["text"] }.join.lines.first.to_s.strip.truncate(200) : nil
+    invocation.finalize!(outcome: failed ? Ability::Invocation::OUTCOME_ERROR : Ability::Invocation::OUTCOME_SUCCESS, error_summary: said,
+                         duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
+    result
+  rescue StandardError => error
+    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: error.class.name)
+    raise
   end
 end

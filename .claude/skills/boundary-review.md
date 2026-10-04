@@ -73,6 +73,16 @@ What a model is handed decides what it does. Each of these was found in a real c
 - **A component ships no demo.** Fake rows, a timer that flips states, a `variant` nobody passes. `TaskRows` shipped with all three. If a prop has a default that is sample data, delete the default.
 - **A row is keyed by its id, never its words.** Two steps with the same title shared a React key and one vanished. `row.key` is the step's own key.
 
+## Provider containment
+
+ArchSpec proves no file outside the integrations layer names a provider's code, and `Integrations::ProviderTest` proves none names its key. These are the leaks behind an allowed name.
+
+- **One definition, no shared lists.** A provider is registered only by its file in `app/services/integrations/providers/`. A new hash keyed by provider anywhere else (executors, `SourceLinks`, `Capabilities`, a controller) is a second registry.
+- **Settings, not rows.** Provider code reads what a connection was set up with through `ConnectionSettings` (`region`, `field`, `learned`). A pack or reader reaching into `base_config`, `settings` or `credentials_hash` by a key of its own couples the provider to a column.
+- **Branch on what a provider declares, never on which one it is.** A `provider == "x"` or `case provider` anywhere, including inside the integrations layer outside that provider's files, belongs on the provider's definition or adapter as a declared part or hook (`reaches?`, `subject`, `redacted_fields`).
+- **Copy names no provider outside its own files.** A sentence that names a provider belongs to its pack, adapter or registry entry, not to a controller, a page or the shared contracts.
+- **Shared vocabulary stays shared.** A new map kind, status word or registry category goes where every provider can use it, and is checked against the ones there (a virtual machine is `virtual_machine` whoever runs it).
+
 ## Source links
 
 - **Every cited result links to its page.** A new tool or provider that returns logs, metrics, records or anything else a person would want to check says where it came from, with a link to the provider's own page. A pack passes `link:` to `Telemetry.result`. A remote provider whose results carry no links gets an `Integrations::SourceLinks` builder. A result that cannot link says why, and the provider's `source_links` in `config/integration_providers.yml` says the same.

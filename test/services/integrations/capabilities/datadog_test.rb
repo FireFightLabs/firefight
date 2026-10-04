@@ -141,6 +141,16 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
     assert_match "time range in a way Firefight does not know", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "datadog")
   end
 
+  test "an adapter routes with what its connection was set up with, and one that does not reach a capability is passed over for the platform" do
+    Integrations::Capabilities::Datadog.expects(:route).with { |_key, _resource, _given, tool:, settings:| tool.name == "search_datadog_logs" && settings.region.key == "us1" }
+                                       .returns(Integrations::Capabilities::Route.new(tool_name: "search_datadog_logs", arguments: {}))
+    assert_equal @datadog_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web").environment_row
+
+    Integrations::Capabilities::Datadog.unstub(:route)
+    Integrations::Capabilities::Datadog.stubs(:reaches?).returns(false)
+    assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web").environment_row
+  end
+
   private
 
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)

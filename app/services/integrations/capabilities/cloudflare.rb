@@ -47,7 +47,7 @@ module Integrations
         } } }
       GRAPHQL
 
-      def self.route(key, resource, given, tool: nil)
+      def self.route(key, resource, given, tool: nil, settings: nil)
         account = account_of(resource)
         case [ key, resource.kind ]
         in [ LOGS, _ ] then logs(resource, account, given)

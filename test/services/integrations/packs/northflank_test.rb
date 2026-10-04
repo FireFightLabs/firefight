@@ -85,11 +85,11 @@ module Integrations
       test "a token or project Northflank refuses is said before anything is saved" do
         NorthflankApi.any_instance.stubs(:project).raises(NorthflankApi::Error, "Northflank answered 401: Unauthorized")
 
-        refusal = Northflank.credential_refusal(Northflank::API_TOKEN => "wrong", Northflank::PROJECT => "firefight")
+        refusal = Northflank.credential_refusal({ Northflank::API_TOKEN => "wrong", Northflank::PROJECT => "firefight" })
 
         assert_match "Northflank refused this token or project", refusal
         assert_match "401", refusal
-        assert_equal "Paste an API token.", Northflank.credential_refusal(Northflank::PROJECT => "firefight")
+        assert_equal "Paste an API token.", Northflank.credential_refusal({ Northflank::PROJECT => "firefight" })
       end
 
       test "the project's services and databases are listed with their state" do

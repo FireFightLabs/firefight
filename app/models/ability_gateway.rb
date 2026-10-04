@@ -10,10 +10,12 @@ class AbilityGateway
   SOURCE_CONVERSATION = "conversation"
   # The resource map's sweep, calling a connection's tools with Firefight's own fixed reads.
   SOURCE_MAP_SWEEP = "map_sweep"
+  # The health check, calling a connection's tools to see that it reaches the account behind its server.
+  SOURCE_HEALTH_CHECK = "health_check"
   # A coding agent in the sandbox, writing a fix's code change.
   SOURCE_CODE_AGENT = "code_agent"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
-              SOURCE_CODE_AGENT ].freeze
+              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 

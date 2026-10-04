@@ -22,10 +22,18 @@ module ResourceMap
   KIND_LOAD_BALANCER = "load_balancer".freeze
   KIND_ORIGIN_POOL = "origin_pool".freeze
   KIND_ACCESS_APP = "access_app".freeze
+  # What a cloud runs besides services: a virtual machine (an EC2 instance, a Droplet, a Compute Engine or Azure VM), a
+  # function run on demand (a Lambda, a Cloud Function), a cluster its workloads are part of (GKE, AKS, ECS), and the
+  # compute that serves a database branch, which starts, scales and suspends apart from the data it reads. A website a
+  # host builds and serves is a site.
+  KIND_VIRTUAL_MACHINE = "virtual_machine".freeze
+  KIND_FUNCTION = "function".freeze
+  KIND_CLUSTER = "cluster".freeze
+  KIND_COMPUTE = "compute".freeze
   KINDS = [
     KIND_SERVICE, KIND_BUILD_SERVICE, KIND_JOB, KIND_DATABASE, KIND_BRANCH, KIND_REPOSITORY, KIND_DOMAIN, KIND_ZONE, KIND_WORKER,
     KIND_SITE, KIND_BUCKET, KIND_KV_NAMESPACE, KIND_QUEUE, KIND_DATABASE_PROXY, KIND_TUNNEL, KIND_LOAD_BALANCER, KIND_ORIGIN_POOL,
-    KIND_ACCESS_APP
+    KIND_ACCESS_APP, KIND_VIRTUAL_MACHINE, KIND_FUNCTION, KIND_CLUSTER, KIND_COMPUTE
   ].freeze
 
   # Read as "from runs builds of to", "from is built from to", and so on. From always depends on to, so what fails with a

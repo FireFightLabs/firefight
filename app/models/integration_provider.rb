@@ -27,31 +27,130 @@ class IntegrationProvider
   # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
   # treated as reads rather than as writes that each ask to be confirmed.
 
+  # One place a provider runs its service, such as Datadog's EU1, for a provider that offers several. The connect dialog
+  # offers the choice when there is more than one, and the connection keeps it. server_url is its MCP server, site the
+  # address of the provider's app there, which links open, and authorization_endpoint and token_endpoint its OAuth
+  # endpoints where they are not the ones its server names.
+  Region = Data.define(:key, :label, :server_url, :site, :authorization_endpoint, :token_endpoint) do
+    def initialize(server_url: "", site: nil, authorization_endpoint: nil, token_endpoint: nil, **) = super
+
+    def host
+      URI.parse(server_url.to_s).host&.downcase
+    rescue URI::InvalidURIError
+      nil
+    end
+  end
+
+  # What the connect form asks beside the credentials, such as the account an environment reads. None is a secret. A
+  # field marked path names a part of the server's address, appended to it in the order the fields are listed, so it
+  # belongs to the connection. Every other field belongs to the environment it was connected for.
+  PATH_SEGMENT = /\A[A-Za-z0-9._~-]+\z/
+  ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path) do
+    def initialize(placeholder: "", numeric: false, optional: false, path: false, **) = super
+
+    # Why the form cannot go ahead with this value, or nil when it can.
+    def refusal(value)
+      value = value.to_s.strip
+      return if value.empty? && optional
+      return "#{label} is required." if value.empty?
+      return "#{label} must be a number." if numeric && !value.match?(/\A\d+\z/)
+
+      "#{label} can hold only letters, numbers, dots, dashes, underscores and tildes." if path && !value.match?(PATH_SEGMENT)
+    end
+  end
+
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool) do
-    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, **) = super
+                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields) do
+    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, regions: [],
+                   connect_fields: [], **) = super
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
     def api_token? = connect_with == CONNECT_API_TOKEN
+
+    # Whether the connect dialog asks which region, which it does only when there is more than one.
+    def regional? = regions.size > 1
+
+    # The region by its key. Without a key, the first one listed. nil for a provider without regions or a key it does not have.
+    def region(key = nil) = key.present? ? regions.find { |each| each.key == key.to_s } : regions.first
+
+    # The region whose server is at the address's host, for a connection made by pasting the server's address.
+    def region_for_url(url)
+      host = URI.parse(url.to_s).host&.downcase
+      host && regions.find { |each| each.host == host }
+    rescue URI::InvalidURIError
+      nil
+    end
+
+    def path_fields = connect_fields.select(&:path)
+
+    def environment_fields = connect_fields.reject(&:path)
+
+    # The values the form gave for fields, trimmed, keeping only the fields asked about and leaving out empty ones.
+    def connect_values(values, fields = connect_fields)
+      given = values.to_h.stringify_keys
+      fields.to_h { |field| [ field.key, given[field.key].to_s.strip ] }.compact_blank
+    end
+
+    # Why the connect form cannot go ahead with this region and these values, or nil when it can. fields are the ones
+    # the form asked, since the form for a pasted server address does not ask the fields that are part of the address.
+    def connect_refusal(region_key, values, fields = connect_fields)
+      if region_key.present? && regions.any? && region(region_key).nil?
+        return "#{name} has no region called #{region_key}. Choose one of #{regions.map(&:label).to_sentence(last_word_connector: ' or ')}."
+      end
+
+      given = values.to_h.stringify_keys
+      fields.filter_map { |field| field.refusal(given[field.key]) }.first
+    end
+
+    # The server's address for a region and the fields that are part of it, in the order they are listed. An optional
+    # field left empty ends the address there, so a later one never takes its place.
+    def server_url_for(region_key, values)
+      base = region(region_key)&.server_url || server_url
+      parts = path_fields.map { |field| values.to_h.stringify_keys[field.key].to_s.strip }
+      parts = parts.take_while(&:present?)
+      parts.empty? ? base : [ base.to_s.chomp("/"), *parts ].join("/")
+    end
   end
 
   def self.all
     @all ||= registry.fetch("providers").map do |raw|
+      regions = regions_of(raw)
       Entry.new(
         key: raw.fetch("key"), name: raw.fetch("name"), category: raw.fetch("category"),
         mark: raw.fetch("mark"), color: raw.fetch("color"),
-        description: raw.fetch("description"), server_url: raw["server_url"].to_s,
+        # A provider with regions has the first one's server, so a connection that names none reaches the same place.
+        description: raw.fetch("description"), server_url: regions.first&.server_url || raw["server_url"].to_s,
         # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP,
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
         source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
         # The tool of a code host's pack that writes a change and opens it for review, which a fix's code steps run.
-        code_fix_tool: raw["code_fix_tool"].presence
+        code_fix_tool: raw["code_fix_tool"].presence,
+        regions: regions, connect_fields: connect_fields_of(raw)
       )
     end.freeze
   end
+
+  # A provider lists its regions or its server_url, never both, and a region a connection keeps by its key has one.
+  def self.regions_of(raw)
+    regions = Array(raw["regions"]).map { |region| Region.new(**region.symbolize_keys) }
+    return regions if regions.empty?
+
+    raise ArgumentError, "#{raw['key']} lists regions and a server_url, and the regions' servers are the ones it has" if raw["server_url"].present?
+    raise ArgumentError, "#{raw['key']} lists a region key twice" unless regions.map(&:key).uniq.size == regions.size
+
+    regions
+  end
+
+  def self.connect_fields_of(raw)
+    fields = Array(raw["connect_fields"]).map { |field| ConnectField.new(**field.symbolize_keys) }
+    raise ArgumentError, "#{raw['key']} lists a connect field key twice" unless fields.map(&:key).uniq.size == fields.size
+
+    fields
+  end
+  private_class_method :regions_of, :connect_fields_of
 
   # A provider that says nothing, or something the rule does not know, fails at load rather than being skipped quietly.
   # field is source_links or map, and a value that is not Firefight's own work says why in the field's note.
@@ -67,9 +166,10 @@ class IntegrationProvider
     all.find { |entry| entry.key == key }
   end
 
-  # Registry data, so a provider in a new category needs no code change.
+  # Registry data, so a provider in a new category needs no code change. A category no provider is in yet is left out,
+  # so neither the gallery nor Halon's tool groups show it empty.
   def self.categories
-    @categories ||= registry.fetch("categories", {}).freeze
+    @categories ||= registry.fetch("categories", {}).select { |name, _tagline| all.any? { |entry| entry.category == name } }.freeze
   end
 
   Category = Data.define(:slug, :name, :tagline)

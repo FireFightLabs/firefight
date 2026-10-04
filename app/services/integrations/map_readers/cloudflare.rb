@@ -6,7 +6,7 @@ module Integrations
     # Hyperdrive, Tunnels, load balancers and their pools, and Access applications. A zone's rules, certificates and
     # SSL mode are read into its details, so a change to them is recorded. Logs, analytics, billing and Cloudflare's
     # own catalogs are left out on purpose, and every other product the API offers is named as not on the map yet.
-    class Cloudflare
+    class Cloudflare < RemoteReader
       PROVIDER = "cloudflare".freeze
       EXECUTE = "execute".freeze
       SEARCH = "search".freeze
@@ -75,10 +75,8 @@ module Integrations
 
       Stop = Class.new(StandardError)
 
-      # call_tool runs one of the connection's tools by its name and answers what it returned, or nil when the admin has
-      # it switched off.
-      def initialize(&call_tool)
-        @call_tool = call_tool
+      def initialize(...)
+        super
         @resources = []
         @links = []
         @gaps = []
@@ -326,7 +324,7 @@ module Integrations
       def run(what, code, kinds: [], tool: EXECUTE)
         arguments = { "code" => code }
         arguments["account_id"] = @account["id"] if tool == EXECUTE && @account
-        result = @call_tool.call(tool, arguments, what)
+        result = call(tool, arguments, what)
         if result.nil?
           @switched_off << tool
           return nil

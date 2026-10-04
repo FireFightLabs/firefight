@@ -31,13 +31,13 @@ module Integrations
 
       # A regular expression, or a stream other than what the app printed, is the platform's to answer, and so is any
       # metric but one Datadog keeps the same way everywhere, asked alone, since its tool reads one metric a call.
-      def self.accepts?(key, given)
+      def self.accepts?(key, given, settings: nil)
         return Array(given["metrics"]).size == 1 && METRIC_MAP.key?(Array(given["metrics"]).first.to_s) if key == METRICS
 
         given["regex"].blank? && given["stream"].in?([ nil, "", STREAM_APP ])
       end
 
-      def self.route(key, resource, given, tool:)
+      def self.route(key, resource, given, tool:, settings: nil)
         return metric(resource, given, tool) if key == METRICS
 
         raise Unroutable, "Datadog searches by text, not by a regular expression. Give text instead." if given["regex"].present?

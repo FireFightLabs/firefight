@@ -33,16 +33,22 @@ class IntegrationsController < InertiaController
     reserved = Integration.name_blocked_reason(params.require(:name))
     return redirect_back(fallback_location: integrations_path, alert: reserved) if reserved
 
+    # The server's whole address is pasted here, so only the fields that are not part of it are asked.
+    asked = provider&.environment_fields.to_a
+    refusal = provider&.connect_refusal(nil, fields_param(provider), asked)
+    return redirect_back(fallback_location: integrations_path, alert: refusal) if refusal
+
     integration = current_workspace.integrations.create!(
       kind: kind,
       provider: provider&.key || params[:provider].to_s,
       name: params.require(:name),
       settings: settings_for(kind) { params.require(:server_url) }
     )
-    integration.integration_environments.create!(
+    environment_row = integration.integration_environments.create!(
       catalog_entry_id: params[:environment_id].presence,
       credentials: params[:authorization].present? ? { "authorization" => params[:authorization] }.to_json : nil
     )
+    environment_row.store_fields!(provider.connect_values(fields_param(provider), asked)) if asked.any?
     Integrations::ConnectionRefresh.run!(integration)
 
     connected(integration.name, return_to_param)
@@ -60,6 +66,7 @@ class IntegrationsController < InertiaController
     return redirect_to integrations_path, alert: tool.toggle_blocked_reason if tool.toggle_blocked_reason
 
     tool.update!(enabled: !tool.enabled?)
+    Integrations::ConnectionRefresh.tools_changed(@integration)
     redirect_to integrations_path
   end
 
@@ -68,6 +75,7 @@ class IntegrationsController < InertiaController
       ActiveModel::Type::Boolean.new.cast(params[:enabled]),
       reads_only: ActiveModel::Type::Boolean.new.cast(params[:reads_only])
     )
+    Integrations::ConnectionRefresh.tools_changed(@integration)
     redirect_to integrations_path
   end
 
@@ -100,12 +108,20 @@ class IntegrationsController < InertiaController
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
-    flow = Integrations::OauthFlow.begin(provider, redirect_uri: oauth_callback_integrations_url)
+    refusal = provider.connect_refusal(params[:region].presence, fields_param(provider))
+    return redirect_to integrations_path, alert: refusal if refusal
+
+    region = provider.region(params[:region].presence)&.key
+
+    name = params[:name].presence || provider.name
+    server_url = Integration.server_url_for(current_workspace, provider, name, region, fields_param(provider))
+    flow = Integrations::OauthFlow.begin(provider, redirect_uri: oauth_callback_integrations_url, server_url: server_url, region: region)
     session[:integration_oauth] = {
-      "provider" => provider.key, "name" => params[:name].presence || provider.name,
+      "provider" => provider.key, "name" => name,
       "environment_id" => environment_id_param,
       "state" => flow[:state], "verifier" => flow[:verifier],
       "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
+      "server_url" => server_url, "region" => region, "fields" => provider.connect_values(fields_param(provider)),
       "return_to" => return_to_param
     }
     redirect_to flow[:authorize_url], allow_other_host: true
@@ -126,7 +142,8 @@ class IntegrationsController < InertiaController
       provider, pending, code: params[:code].to_s, redirect_uri: oauth_callback_integrations_url
     )
 
-    environment_row = connect!(provider, pending["name"], pending["environment_id"])
+    environment_row = connect!(provider, pending["name"], pending["environment_id"], region: pending["region"], fields: pending["fields"],
+                                                                                    server_url: pending["server_url"])
     environment_row.store_oauth!(credentials)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
@@ -147,14 +164,13 @@ class IntegrationsController < InertiaController
   # The same name connects another environment, or replaces the URL of one already connected. The URL is checked before
   # anything is saved, so a mistyped or private address is said on the form.
   def connect_with_url(provider)
-    pack = Integrations::NativePack.for(provider.key)
     url = params[:connection_url].to_s
-    certificates = params.fetch(:certificates, {}).permit(*pack.certificate_fields).to_h
-    refusal = pack.connection_refusal(url, certificates)
+    certificates = params.fetch(:certificates, {}).permit(*Integrations::Credentials.certificate_fields(provider.key)).to_h
+    refusal = Integrations::Credentials.url_refusal(provider.key, url, certificates)
     return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection: refusal } }) if refusal
 
     environment_row = connect!(provider, params.require(:name), environment_id_param)
-    pack.store_connection!(environment_row, url: url, certificates: certificates)
+    Integrations::Credentials.store_url!(environment_row, url: url, certificates: certificates)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)
@@ -165,13 +181,13 @@ class IntegrationsController < InertiaController
   # Like a URL, the same name connects another environment or replaces its credentials. The pack checks the values with
   # the provider before anything is saved, so a wrong token is said on the form.
   def connect_with_credentials(provider)
-    pack = Integrations::NativePack.for(provider.key)
-    values = params.fetch(:credentials, {}).permit(*pack.credential_fields.map(&:key)).to_h
-    refusal = pack.credential_refusal(values)
+    values = params.fetch(:credentials, {}).permit(*Integrations::Credentials.fields_for(provider.key).map(&:key)).to_h
+    region = params[:region].presence
+    refusal = provider.connect_refusal(region, {}, []) || Integrations::Credentials.refusal(provider.key, values, region: provider.region(region))
     return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection: refusal } }) if refusal
 
-    environment_row = connect!(provider, params.require(:name), environment_id_param)
-    pack.store_credentials!(environment_row, values)
+    environment_row = connect!(provider, params.require(:name), environment_id_param, region: region)
+    Integrations::Credentials.store!(environment_row, values)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)
@@ -182,7 +198,7 @@ class IntegrationsController < InertiaController
   # The callback brings back an installation id, not tokens. Server-to-server tokens are minted from it at call time.
   def native_install_start(provider)
     state = SecureRandom.hex(16)
-    install_url = Integrations::NativePack.for(provider.key)&.install_url(state: state)
+    install_url = Integrations::Credentials.install_url(provider.key, state: state)
     if install_url.blank?
       return redirect_to integrations_path, alert: "One-click connect is not configured for this integration on this install."
     end
@@ -227,8 +243,10 @@ class IntegrationsController < InertiaController
   end
 
   # Keyed on the slug so one provider can back several accounts with their own credentials.
-  # Reconnecting under the default name revives the existing row.
-  def connect!(provider, name, environment_id)
+  # Reconnecting under the default name revives the existing row. The region and the connect fields that are part of the
+  # server's address belong to the whole connection, so another environment cannot move it somewhere else. The other
+  # fields belong to the environment connected now, and a way of connecting that asks none leaves them as they were.
+  def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil)
     slug = Integration.slug_for(name)
     reserved = Integration.name_blocked_reason(name)
     raise NameTaken, reserved if reserved
@@ -236,13 +254,27 @@ class IntegrationsController < InertiaController
     integration = current_workspace.integrations.find_or_initialize_by(slug: slug)
     raise NameTaken if integration.persisted? && integration.provider != provider.key
 
+    path_values = provider.connect_values(fields, provider.path_fields)
+    moved = integration.move_blocked_reason(provider.region(region), path_values, environment_id) if provider.regions.any? || path_values.any?
+    raise NameTaken, moved if moved
+
     integration.assign_attributes(
       kind: provider.kind, provider: provider.key, name: name,
-      settings: settings_for(provider.kind) { provider.server_url },
+      settings: settings_for(provider.kind) { server_url || provider.server_url_for(region, path_values) }
+                  .merge({ Integration::REGION_SETTING => provider.region(region)&.key, Integration::FIELDS_SETTING => path_values.presence }.compact),
       deleted_at: nil, disabled_at: nil
     )
     integration.save!
-    integration.integration_environments.find_or_create_by!(catalog_entry_id: environment_id.presence)
+    environment_row = integration.integration_environments.find_or_create_by!(catalog_entry_id: environment_id.presence)
+    environment_row.store_fields!(provider.connect_values(fields, provider.environment_fields)) if fields && provider.environment_fields.any?
+    environment_row
+  end
+
+  # What the connect form asked beside the credentials, only the fields the provider declares.
+  def fields_param(provider)
+    return {} unless provider
+
+    params.fetch(:fields, {}).permit(*provider.connect_fields.map(&:key)).to_h
   end
 
   def set_integration

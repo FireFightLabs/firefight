@@ -50,6 +50,14 @@ module Integrations
       end
     end
 
+    test "a long running tool tells whoever runs it how it is going, and nobody need be listening" do
+      heard = []
+      OtherPack.new(Integration.new, progress: ->(text) { heard << text }).report("Writing the change")
+
+      assert_equal [ "Writing the change" ], heard
+      assert_nil OtherPack.new(Integration.new).report("Nobody hears this")
+    end
+
     test "default health check accepts" do
       assert_nil FakeNativePack.new(@integration).check_health!(nil)
     end

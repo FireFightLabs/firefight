@@ -123,6 +123,28 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     assert_not IntegrationProviderSerializer.one(IntegrationProvider.find("datadog"))[:onMap]
   end
 
+  test "an adapter says what it answers for and how each capability reads, and a pack may say it in its own words" do
+    adapter = Module.new do
+      extend Integrations::Capabilities::Adapter
+
+      const_set(:SUPPORTS, { Integrations::Capabilities::LOGS => [ ResourceMap::KIND_REPOSITORY ] }.freeze)
+      const_set(:TOOLS, { Integrations::Capabilities::LOGS => "job_logs" }.freeze)
+      const_set(:WRAPPED, [].freeze)
+
+      def self.subject(name) = "the repositories #{name} builds"
+
+      def self.phrase(key) = key == Integrations::Capabilities::LOGS ? "read their build logs" : super
+    end
+    Integrations::Capabilities.stubs(:adapter_for).with("acme").returns(adapter)
+
+    assert_equal "Halon can read their build logs for the repositories Acme builds, through the tools you switch on. It also uses Acme's other tools that you switch on.",
+                 Integrations::Capabilities.halon_sentence("acme", "Acme")
+
+    Integrations::NativePack.stubs(:halon_sentence).returns("Firefight hands Acme a fix's code change.")
+    Integrations::Provider.stubs(:for).with("acme").returns(Integrations::Provider.new(key: "acme", pack: "Integrations::NativePack"))
+    assert_equal "Firefight hands Acme a fix's code change.", Integrations::Capabilities.halon_sentence("acme", "Acme")
+  end
+
   private
 
   def connect(provider, name, tools, slug: nil, entry: catalog_entries(:production_env))

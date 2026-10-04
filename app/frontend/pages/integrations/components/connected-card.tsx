@@ -22,6 +22,12 @@ import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
 type HealthStatus = Integration["environments"][number]["healthStatus"];
+type EnvironmentSettings = Integration["environments"][number]["settings"];
+
+// What the connection was set up with beside its credentials, such as its region and the account an environment reads.
+function settingsText(settings: EnvironmentSettings) {
+  return settings.map((setting) => `${setting.label} ${setting.value}`).join(", ");
+}
 
 const HEALTH_LABEL: Record<
   HealthStatus,
@@ -124,6 +130,11 @@ export function ConnectedCard({
                   <Badge variant={rowHealth.variant} className="shrink-0">
                     {rowHealth.label}
                   </Badge>
+                  {environment.settings.length > 0 && (
+                    <p className="text-muted-foreground min-w-0 flex-1 truncate text-xs" title={settingsText(environment.settings)}>
+                      {settingsText(environment.settings)}
+                    </p>
+                  )}
                   {canManage && environments.length > 0 ? (
                     <EnvironmentSelect
                       compact

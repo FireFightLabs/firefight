@@ -155,6 +155,9 @@ module Integrations
 
     private
 
-    def reading(key) = CodeReading.new(key: key, workspace: @workspace, environment_row: @row)
+    def reading(key)
+      remote = CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(@row) })
+      CodeReading.new(key: key, workspace: @workspace, remote: remote)
+    end
   end
 end

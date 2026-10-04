@@ -3,7 +3,7 @@ module Integrations
     # PlanetScale on the resource map: every organization the connection reaches, its databases and their branches. It
     # reads through PlanetScale's own server, with only the tools an admin switched on, so the map never reaches past the
     # allowlist. A tool that is off, or a list PlanetScale refuses, is a gap rather than a failed sweep.
-    class Planetscale
+    class Planetscale < RemoteReader
       PROVIDER = "planetscale".freeze
       LIST_ORGANIZATIONS = "planetscale_list_organizations".freeze
       LIST_DATABASES = "planetscale_list_databases".freeze
@@ -11,10 +11,8 @@ module Integrations
       PER_PAGE = 100
       MAX_PAGES = 10
 
-      # call_tool runs one of the connection's tools by its name and answers what it returned, or nil when the admin has
-      # it switched off.
-      def initialize(&call_tool)
-        @call_tool = call_tool
+      def initialize(...)
+        super
         @resources = []
         @links = []
         @gaps = []
@@ -66,7 +64,7 @@ module Integrations
       end
 
       def read(tool, what, arguments)
-        result = @call_tool.call(tool, arguments)
+        result = call(tool, arguments)
         if result.nil?
           @gaps << "#{tool} is switched off for PlanetScale, so the #{what} are not on the map."
           return

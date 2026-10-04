@@ -27,7 +27,7 @@ module Integrations
         "cfd_tunnel" => "tunnels", "workers" => "workers-and-pages", "pages" => "workers-and-pages", "audit_logs" => "audit-log"
       }.freeze
 
-      def initialize(_integration); end
+      def initialize(_settings); end
 
       def link(tool_name:, arguments:, text: "")
         return unless tool_name == EXECUTE

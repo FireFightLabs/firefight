@@ -1,7 +1,13 @@
 module Integrations
   module Capabilities
-    # What every provider's adapter declares: the kinds of resource each capability covers, the provider tool each one
-    # runs as, and the provider tools it answers one to one. route is the adapter's own.
+    # What every provider's adapter declares: the kinds of resource each capability covers (SUPPORTS for what it runs,
+    # OBSERVES for what it watches that others run), the provider tool each one runs as (TOOLS), and the provider tools it
+    # answers one to one (WRAPPED). route is the adapter's own:
+    #
+    #   route(key, resource, given, tool:, settings:)  a Route, or raises Unroutable with words an agent can act on
+    #
+    # tool is the connection's Integration::Tool, nil when only a refusal is wanted, and settings the connection's
+    # ConnectionSettings, for what it was set up with, its region and what its health check learned.
     module Adapter
       def supports?(key, kind) = self::SUPPORTS.fetch(key, []).include?(kind)
 
@@ -17,15 +23,29 @@ module Integrations
 
       # Whether it can take what was asked. A platform takes everything its route does. An observability tool that
       # cannot is passed over for the platform, unless it was named.
-      def accepts?(_key, _given) = true
+      def accepts?(_key, _given, settings: nil) = true
+
+      # Whether a connection knows enough to answer a capability at all, such as which of its datasources holds logs.
+      # One that does not is passed over, so the platform answers as it did before the tool was connected.
+      def reaches?(_settings, _key) = true
 
       # Why it would not take what was asked, in the words its route raises.
-      def route_refusal(key, resource, given)
-        route(key, resource, given, tool: nil)
+      def route_refusal(key, resource, given, settings: nil)
+        route(key, resource, given, tool: nil, settings: settings)
         nil
       rescue Unroutable => error
         error.message
       end
+
+      # What Halon answers for through it, in the sentence a person reads in the provider's details. A platform answers
+      # for what it runs, an observability tool for the services it watches.
+      def subject(name)
+        watches = observed.any? && self::SUPPORTS.empty?
+        watches ? "the services on the map that #{name} watches, by their name in #{name}" : "anything #{name} runs"
+      end
+
+      # How a capability reads in that sentence.
+      def phrase(key) = PHRASES.fetch(key)
 
       def runs?(key, tool_name) = self::TOOLS[key] == tool_name
 

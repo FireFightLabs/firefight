@@ -241,7 +241,12 @@ module Integrations
 
         private
 
-        def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, environment_row: environment_row)
+        def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, remote: remote(environment_row))
+
+        # GitHub's repositories, fetched with the installation's token as GitHub asks for one (x-access-token).
+        def remote(environment_row)
+          CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(environment_row) })
+        end
 
         # Commands a repository chooses reach the network, so they wait for the workspace's AI SRE switch.
         def running_commands!

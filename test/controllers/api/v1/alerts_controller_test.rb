@@ -12,6 +12,21 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
          headers: { "Content-Type" => "application/json", "Authorization" => "Bearer #{token}" }
   end
 
+  test "a payload its provider sends on purpose and turns into no alert is accepted with nothing stored, and anything else is refused" do
+    AlertProviders::Generic.stubs(:normalize).returns([])
+    AlertProviders::Generic.stubs(:ignored?).returns(true)
+    post_alert({ "event" => "ping" })
+
+    assert_response :success
+    assert_equal({ "ok" => true, "received" => 0, "failed" => 0 }, response.parsed_body)
+    assert_equal 0, @source.alerts.count
+    assert @source.reload.last_received_at.present?
+
+    AlertProviders::Generic.unstub(:ignored?)
+    post_alert({ "event" => "ping" })
+    assert_response :unprocessable_entity
+  end
+
   test "unknown endpoint path returns 404" do
     post_alert({ "title" => "x" }, path: "nope")
     assert_response :not_found

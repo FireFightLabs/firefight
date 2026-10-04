@@ -21,7 +21,7 @@ module Integrations
     test "a remote provider that relies on Firefight for its links has a builder" do
       remote = IntegrationProvider.all.select { |provider| provider.kind == Integration::KIND_MCP && provider.source_links == IntegrationProvider::SOURCE_LINKS_FIREFIGHT }
 
-      assert_equal remote.map(&:key).sort, SourceLinks::BUILDERS.keys.sort
+      assert_equal remote.map(&:key).sort, Provider.all.select(&:source_links).map(&:key).sort
     end
 
     test "a declaration the rule does not know, or a server that does not say why, is refused when the registry loads" do
@@ -54,8 +54,9 @@ module Integrations
       result = { "content" => [ { "type" => "text", "text" => "ok" } ] }
 
       sentry = @workspace.integrations.build(kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry")
+      row = sentry.integration_environments.build
 
-      assert_equal result, SourceLinks.attach(result, integration: sentry, tool_name: "search_issues", arguments: {})
+      assert_equal result, SourceLinks.attach(result, settings: ConnectionSettings.of(row), tool_name: "search_issues", arguments: {})
     end
   end
 end

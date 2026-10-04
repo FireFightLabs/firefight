@@ -22,6 +22,10 @@ class Api::V1::AlertsController < ActionController::API
 
     payload = JSON.parse(raw_body)
     items = adapter.normalize(payload, source: source)
+    if items.empty? && adapter.ignored?(payload)
+      source.record_received!
+      return render json: { ok: true, received: 0, failed: 0 }
+    end
     if items.empty?
       return reject(source, "unrecognized payload", :unprocessable_entity,
                     error: "unrecognized payload for provider #{source.provider}")

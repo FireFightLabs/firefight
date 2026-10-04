@@ -61,6 +61,17 @@ export function providerLabel(value: string): string {
   return isAlertProvider(value) ? PROVIDER_LABELS[value] : value
 }
 
+// How each provider is pointed at a source's URL, typed against the providers so a new one cannot be left without.
+const SETUP_INSTRUCTIONS: Record<AlertProvider, string> = {
+  generic: "Send alerts as POST requests with the token in an Authorization: Bearer header (or X-Firefight-Token).",
+  northflank:
+    "In Northflank, create a webhook notification integration with this URL and paste the token into its integration token field (sent as X-Northflank-Notification-Integration-Token).",
+}
+
+export function setupInstructionsFor(value: string): string {
+  return isAlertProvider(value) ? SETUP_INSTRUCTIONS[value] : SETUP_INSTRUCTIONS.generic
+}
+
 export const NORMALIZED_FIELDS = ALERT_NORMALIZED_FIELDS
 
 export type RuleCondition = PolicyRule["conditions"][number]

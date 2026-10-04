@@ -14,6 +14,11 @@ module AlertProviders
       raise NotImplementedError
     end
 
+    # Whether a payload that normalizes to no alert is one the provider sends on purpose and expects accepted, such as a
+    # test ping or an event the source does not turn into alerts. It is accepted with nothing stored, so the provider
+    # never stops sending. Anything else that normalizes to nothing is refused as unrecognized.
+    def self.ignored?(_payload) = false
+
     def self.normalize_status(value)
       RESOLVED_STATUS_VALUES.include?(value.to_s.downcase.strip) ? Alert::STATUS_RESOLVED : Alert::STATUS_FIRING
     end

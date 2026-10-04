@@ -26,10 +26,21 @@ import {
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { ConnectionUrlForm } from "@/components/integrations/connection-url-form";
 import { CredentialsForm } from "@/components/integrations/credentials-form";
+import { ConnectFields, connectFieldsComplete } from "@/components/integrations/connect-fields";
+import { defaultRegion, RegionSelect } from "@/components/integrations/region-select";
 import { INTEGRATION_CONNECT_WITH } from "@/lib/generated/constants";
 import { whenClosed } from "@/lib/handlers";
 
-function oauthHref(providerKey: string, name: string, environmentId: string, returnTo?: string) {
+interface OauthStart {
+  providerKey: string;
+  name: string;
+  environmentId: string;
+  region: string;
+  fields: Record<string, string>;
+  returnTo?: string;
+}
+
+function oauthHref({ providerKey, name, environmentId, region, fields, returnTo }: OauthStart) {
   const params = new URLSearchParams({ provider: providerKey });
   if (returnTo) {
     params.set("return_to", returnTo);
@@ -41,6 +52,10 @@ function oauthHref(providerKey: string, name: string, environmentId: string, ret
   if (environment) {
     params.set("environment_id", environment);
   }
+  if (region) {
+    params.set("region", region);
+  }
+  Object.entries(fields).forEach(([key, value]) => params.set(`fields[${key}]`, value.trim()));
   return `${oauthStartIntegrationsPath()}?${params.toString()}`;
 }
 
@@ -105,6 +120,13 @@ function ConnectForm({
   const [submitting, setSubmitting] = useState(false);
   const [useToken, setUseToken] = useState(false);
   const [separateAccount, setSeparateAccount] = useState(false);
+  const [region, setRegion] = useState(defaultRegion(provider));
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const regional = provider.regions.length > 1;
+  // The token form takes the server's whole address, so it does not ask the fields that are part of it.
+  const tokenFields = provider.connectFields.filter((field) => !field.path);
+  const oauthFieldsComplete = connectFieldsComplete(provider.connectFields, fields);
+  const tokenFieldsComplete = connectFieldsComplete(tokenFields, fields);
 
   const connectsWithUrl = provider.connectWith === INTEGRATION_CONNECT_WITH.CONNECTION_URL;
   const connectsWithCredentials = provider.connectWith === INTEGRATION_CONNECT_WITH.API_TOKEN;
@@ -118,6 +140,19 @@ function ConnectForm({
 
   function switchToMcpServer() {
     setUseToken(true);
+  }
+
+  function setField(key: string, value: string) {
+    setFields((current) => ({ ...current, [key]: value }));
+  }
+
+  // Each region has its own server, so choosing one in the token form fills in its address.
+  function chooseRegion(key: string) {
+    setRegion(key);
+    const chosen = provider.regions.find((each) => each.key === key);
+    if (chosen) {
+      setServerUrl(chosen.serverUrl);
+    }
   }
 
   function toggleSeparateAccount() {
@@ -136,6 +171,7 @@ function ConnectForm({
         server_url: serverUrl,
         authorization,
         environment_id: toEnvironmentId(environmentId),
+        fields,
         return_to: returnTo,
       },
       { onFinish: () => onDismiss() },
@@ -189,7 +225,7 @@ function ConnectForm({
 
       {oauthAvailable && !useToken && !connectsWithUrl && (
         <div className="flex flex-col gap-4 pt-1">
-          {(environments.length > 0 || separateAccount) && (
+          {(environments.length > 0 || separateAccount || regional || provider.connectFields.length > 0) && (
             <div className="border-border divide-border divide-y rounded-lg border">
               {environments.length > 0 && (
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">
@@ -207,6 +243,20 @@ function ConnectForm({
                   />
                 </div>
               )}
+
+              {regional && (
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Region</p>
+                    <p className="text-muted-foreground text-xs">
+                      Where your {provider.name} account is
+                    </p>
+                  </div>
+                  <RegionSelect compact value={region} regions={provider.regions} onChange={setRegion} />
+                </div>
+              )}
+
+              <ConnectFields compact fields={provider.connectFields} values={fields} onChange={setField} />
 
               {separateAccount && (
                 <div className="flex flex-col gap-1.5 px-3 py-2.5">
@@ -243,13 +293,13 @@ function ConnectForm({
           )}
 
           <div className="flex flex-col gap-2">
-            {separateAccount && (!name.trim() || nameTaken) ? (
+            {(separateAccount && (!name.trim() || nameTaken)) || !oauthFieldsComplete ? (
               <Button size="lg" className="w-full" disabled>
                 Continue with {provider.name}
               </Button>
             ) : (
               <Button asChild size="lg" className="w-full">
-                <a href={oauthHref(provider.key, name, environmentId, returnTo)}>
+                <a href={oauthHref({ providerKey: provider.key, name, environmentId, region, fields, returnTo })}>
                   Continue with {provider.name}
                 </a>
               </Button>
@@ -314,6 +364,12 @@ function ConnectForm({
               }
             />
           </div>
+          {regional && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="connect-region">Region</Label>
+              <RegionSelect id="connect-region" value={region} regions={provider.regions} onChange={chooseRegion} />
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="connect-url">MCP server URL</Label>
             <Input
@@ -347,13 +403,14 @@ function ConnectForm({
               />
             </div>
           )}
+          <ConnectFields fields={tokenFields} values={fields} onChange={setField} />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={onDismiss}>
               Cancel
             </Button>
             <Button
               onClick={submit}
-              disabled={submitting || !name || !serverUrl}
+              disabled={submitting || !name || !serverUrl || !tokenFieldsComplete}
             >
               Connect &amp; discover tools
             </Button>

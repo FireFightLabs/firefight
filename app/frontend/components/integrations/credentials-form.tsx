@@ -11,6 +11,7 @@ import {
   EnvironmentSelect,
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
+import { defaultRegion, RegionSelect } from "@/components/integrations/region-select";
 
 interface CredentialsFormProps {
   provider: IntegrationProvider;
@@ -30,7 +31,8 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const complete = provider.credentialFields.every((field) => (values[field.key] ?? "").trim() !== "");
+  const [region, setRegion] = useState(defaultRegion(provider));
+  const complete = provider.credentialFields.every((field) => field.optional || (values[field.key] ?? "").trim() !== "");
 
   function setValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -49,6 +51,7 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
         provider: provider.key,
         name,
         credentials: values,
+        region,
         environment_id: toEnvironmentId(environmentId),
         return_to: returnTo,
       },
@@ -69,9 +72,18 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
           <EnvironmentSelect value={environmentId} environments={environments} onChange={setEnvironmentId} />
         </div>
       )}
+      {provider.regions.length > 1 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="connect-region">Region</Label>
+          <RegionSelect id="connect-region" value={region} regions={provider.regions} onChange={setRegion} />
+        </div>
+      )}
       {provider.credentialFields.map((field) => (
         <div key={field.key} className="flex flex-col gap-1.5">
-          <Label htmlFor={`connect-${field.key}`}>{field.label}</Label>
+          <Label htmlFor={`connect-${field.key}`}>
+            {field.label}
+            {field.optional && <span className="text-muted-foreground font-normal"> (optional)</span>}
+          </Label>
           <Input
             id={`connect-${field.key}`}
             type={field.secret ? "password" : "text"}
