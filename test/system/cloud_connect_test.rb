@@ -32,7 +32,7 @@ class CloudConnectTest < ApplicationSystemTestCase
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "google_cloud")
 
     within("[role=dialog]") do
-      assert_field "Service account key", type: "password"
+      assert_selector "textarea#connect-service_account_key"
       assert_field "Project"
       assert_no_text "Region"
     end

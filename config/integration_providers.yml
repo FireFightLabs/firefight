@@ -141,6 +141,7 @@ providers:
     color: "#4285f4"
     description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, and rollbacks, restarts and scaling when the service account may make them.
     server_url: ""
+    site: https://console.cloud.google.com
     kind: native
     connect_with: api_token
     # Google's rule for a project id (cloud.google.com/resource-manager/docs/creating-managing-projects).

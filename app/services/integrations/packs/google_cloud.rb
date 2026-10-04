@@ -28,7 +28,6 @@ module Integrations
       }.freeze
       TYPES_BY_KIND = KINDS.invert.freeze
 
-      CONSOLE = "https://console.cloud.google.com".freeze
       # The console pages Google's documentation links to, each opened on the connected project.
       PAGES = { TYPE_RUN => "run/services", TYPE_SQL => "sql", TYPE_MACHINE => "compute/instances", TYPE_CLUSTER => "kubernetes/list" }.freeze
       LOGS_PAGE = "logs/query".freeze
@@ -176,7 +175,7 @@ module Integrations
 
       def self.credential_fields
         [
-          CredentialField.new(key: KEY, label: "Service account key", secret: true, placeholder: "{\"type\": \"service_account\", ...}",
+          CredentialField.new(key: KEY, label: "Service account key", secret: true, multiline: true, placeholder: "{\"type\": \"service_account\", ...}",
                               hint: "The JSON key of a service account with the Viewer, Logs Viewer and Monitoring Viewer roles on the project. " \
                                     "For Halon to apply fixes, add Cloud Run Developer, Cloud SQL Editor and Compute Instance Admin.")
         ]
@@ -208,7 +207,7 @@ module Integrations
         rows = listing.items.map { |item| "#{item[:name]} (#{item[:id]}), #{item[:type]} in #{item[:location]}, #{item[:status]}" }
         gaps = listing.gaps.map { |gap| "Not listed: #{gap}" }
         text = rows.empty? ? "Project #{project} has nothing Firefight reads." : "Project #{project}, #{rows.size} resources.\n#{rows.join("\n")}"
-        Telemetry.result([ text, *gaps ].join("\n"), link: page_link(project, TYPE_RUN))
+        Telemetry.result([ text, *gaps ].join("\n"), link: page_link(environment_row, project, TYPE_RUN))
       end
 
       def search_logs(environment_row:, arguments:)
@@ -237,7 +236,7 @@ module Integrations
         started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
         names = asked.presence || Metrics::DEFAULTS.fetch(target.type)
         alignment = alignment_for(started, ended)
-        link = page_link(target.project, target.type)
+        link = page_link(environment_row, target.project, target.type)
         charts = names.map do |name|
           metric = metric_for(environment_row, target, name, known)
           series = read_series(environment_row, target, metric, started, ended, alignment)
@@ -250,7 +249,7 @@ module Integrations
         target = run_target(environment_row, arguments["resource"])
         service = api(environment_row).run_service(target.project, target.location, target.name)
         revisions = api(environment_row).run_revisions(target.project, target.location, target.name, limit: limit(arguments, REVISION_LIMIT))
-        link = page_link(target.project, TYPE_RUN)
+        link = page_link(environment_row, target.project, TYPE_RUN)
         return Telemetry.result("#{target.name} has no revisions.", link: link) if revisions.empty?
 
         shares = traffic_shares(service)
@@ -266,7 +265,7 @@ module Integrations
         when TYPE_MACHINE then machine_lines(api(environment_row).compute_instance(target.project, target.location, target.name))
         when TYPE_CLUSTER then cluster_lines(api(environment_row).cluster(target.project, target.location, target.name))
         end
-        Telemetry.result(lines.compact.join("\n"), link: page_link(target.project, target.type))
+        Telemetry.result(lines.compact.join("\n"), link: page_link(environment_row, target.project, target.type))
       end
 
       def error_groups(environment_row:, arguments:)
@@ -279,7 +278,7 @@ module Integrations
         groups = api(environment_row).error_group_stats(target.project, query)
         text = arguments["text"].to_s.strip.downcase
         groups = groups.select { |group| group.dig("representative", "message").to_s.downcase.include?(text) } if text.present?
-        link = Telemetry::Link.new(provider: PROVIDER, url: console(target.project, ERRORS_PAGE))
+        link = Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, target.project, ERRORS_PAGE))
         window = period.delete_prefix("PERIOD_").downcase.tr("_", " ")
         return Telemetry.result("Error Reporting has no errors from #{target.name} in the last #{window}.", link: link) if groups.empty?
 
@@ -303,7 +302,7 @@ module Integrations
         changed = service.except("etag").merge("traffic" => [ { "type" => REVISION_TRAFFIC, "revision" => wanted, "percent" => 100 } ])
         operation = api.update_run_service(target.project, target.location, target.name, changed.merge("etag" => service["etag"]).compact)
         Telemetry.result("Google Cloud is sending all of #{target.name}'s traffic to revision #{wanted}#{operation_note(operation)}. " \
-                         "Before, it went #{before}. To undo, send it back there.", link: page_link(target.project, TYPE_RUN))
+                         "Before, it went #{before}. To undo, send it back there.", link: page_link(environment_row, target.project, TYPE_RUN))
       end
 
       def scale_service(environment_row:, arguments:)
@@ -329,7 +328,7 @@ module Integrations
         mask = wanted.keys.map { |field| "scaling.#{field}" }.join(",")
         operation = api.update_run_service(target.project, target.location, target.name, { "scaling" => wanted }, update_mask: mask)
         Telemetry.result("Google Cloud is setting #{target.name} to #{scaling_text(wanted)}#{operation_note(operation)}. " \
-                         "Before, it was #{scaling_text(scaling)}. To undo, set those again.", link: page_link(target.project, TYPE_RUN))
+                         "Before, it was #{scaling_text(scaling)}. To undo, set those again.", link: page_link(environment_row, target.project, TYPE_RUN))
       end
 
       def restart_resource(environment_row:, arguments:)
@@ -345,7 +344,7 @@ module Integrations
         else
           fail!("A #{target.type} has no restart in Google Cloud. For a Cloud Run service, roll back to a revision that worked, or set its instances.")
         end
-        Telemetry.result("#{text} There is nothing to undo.", link: page_link(target.project, target.type))
+        Telemetry.result("#{text} There is nothing to undo.", link: page_link(environment_row, target.project, target.type))
       end
 
       def check_health!(environment_row)
@@ -364,7 +363,7 @@ module Integrations
         links = []
         listing.items.each do |item|
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: project, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
-                                         status: item[:status], url: console(project, PAGES.fetch(item[:type])), details: item[:details])
+                                         status: item[:status], url: console(environment_row, project, PAGES.fetch(item[:type])), details: item[:details])
           resources << found
           item[:hosts].each do |host|
             domain = ResourceMap.domain(host)
@@ -576,14 +575,15 @@ module Integrations
           uri = api(environment_row).get("#{GoogleCloudApi::RUN}/#{revision}")["logUri"] if revision
           return Telemetry::Link.new(provider: PROVIDER, url: uri) if uri.present?
         end
-        Telemetry::Link.new(provider: PROVIDER, url: console(target.project, LOGS_PAGE))
+        Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, target.project, LOGS_PAGE))
       rescue GoogleCloudApi::Error
-        Telemetry::Link.new(provider: PROVIDER, url: console(target.project, LOGS_PAGE))
+        Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, target.project, LOGS_PAGE))
       end
 
-      def page_link(project, type) = Telemetry::Link.new(provider: PROVIDER, url: console(project, PAGES.fetch(type)))
+      def page_link(environment_row, project, type) = Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, project, PAGES.fetch(type)))
 
-      def console(project, page) = "#{CONSOLE}/#{page}?#{{ "project" => project }.to_query}"
+      # The console is the registry's site for Google Cloud.
+      def console(environment_row, project, page) = "#{ConnectionSettings.of(environment_row).site}/#{page}?#{{ "project" => project }.to_query}"
 
       # A Cloud SQL instance's connections are read by its engine's own metric.
       def metric_for(environment_row, target, name, known)

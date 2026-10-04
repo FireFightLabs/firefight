@@ -36,7 +36,6 @@ module Integrations
       POSTGRES_VERSION = "2024-08-01".freeze
       # Azure's clouds by the key of the region the connection was made in, the first being where one with none is.
       CLOUDS = { "global" => AzureApi::GLOBAL, "us_government" => AzureApi::US_GOVERNMENT, "china" => AzureApi::CHINA }.freeze
-      PORTAL = "https://portal.azure.com".freeze
       PORTAL_PAGE = '%<portal>s/#@%<tenant>s/resource%<id>s/overview'.freeze
 
       STREAM_APP = Capabilities::STREAM_APP
@@ -384,8 +383,6 @@ module Integrations
         @api ||= AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription,
                               cloud: self.class.cloud_of(settings.region), token_cache: environment_row)
       end
-
-      def region_of(environment_row) = ConnectionSettings.of(environment_row).region
 
       def subscription_of(environment_row) = ConnectionSettings.of(environment_row).field(SUBSCRIPTION) || fail!("This environment has no Azure subscription. Reconnect it.")
 
@@ -773,7 +770,7 @@ module Integrations
       # directory opens.
       def portal_link(environment_row, resource_id)
         tenant = ConnectionSettings.of(environment_row).field(TENANT)
-        portal = region_of(environment_row)&.site.presence || PORTAL
+        portal = ConnectionSettings.of(environment_row).site
         Telemetry::Link.new(provider: PROVIDER, url: format(PORTAL_PAGE, portal: portal, tenant: tenant, id: resource_id))
       end
     end
