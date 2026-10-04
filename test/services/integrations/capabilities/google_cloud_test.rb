@@ -39,10 +39,12 @@ class Integrations::Capabilities::GoogleCloudTest < ActiveSupport::TestCase
     assert_match "Google Cloud does not keep disk for this resource", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "disk" ])
   end
 
-  test "what Google Cloud does not offer for a kind finds no connection, and the pack's reads are wrapped while its changes are not" do
+  test "what Google Cloud does not offer for a kind finds no connection, and every tool is wrapped, and the details say what a restart reaches" do
     assert_match "no connection offers a restart for it", unroutable(Integrations::Capabilities::RESTART, "resource" => "web")
     assert_match "no connection offers deploys for it", unroutable(Integrations::Capabilities::DEPLOYS, "resource" => "orders")
-    assert_equal %w[search_logs query_metrics list_revisions describe_resource error_groups], Integrations::Capabilities::GoogleCloud::WRAPPED
+    assert_equal %w[search_logs query_metrics list_revisions describe_resource error_groups rollback_service restart_resource scale_service],
+                 Integrations::Capabilities::GoogleCloud::WRAPPED
+    assert_match "restart a Cloud SQL database or a virtual machine", Integrations::Capabilities.halon_sentence("google_cloud", "Google Cloud")
     assert_equal Integrations::Capabilities::SPECS.keys - [ Integrations::Capabilities::TRACES ], Integrations::Capabilities::GoogleCloud.capabilities
   end
 

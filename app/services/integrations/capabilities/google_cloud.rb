@@ -20,9 +20,12 @@ module Integrations
         LOGS => "search_logs", METRICS => "query_metrics", DEPLOYS => "list_revisions", STATUS => "describe_resource",
         ERRORS => "error_groups", ROLLBACK => "rollback_service", RESTART => "restart_resource", SCALE => "scale_service"
       }.freeze
-      CHANGES = [ ROLLBACK, RESTART, SCALE ].freeze
-      WRAPPED = TOOLS.except(*CHANGES).values.freeze
+      # Every tool, the changes too, is answered one to one, so Halon is offered the capability and never the tool as well.
+      WRAPPED = TOOLS.values.freeze
       PASSED = %w[text regex exclude stream limit minutes start end].freeze
+
+      # A restart reaches only some kinds, so the details say which.
+      def self.phrase(key) = key == RESTART ? "restart a Cloud SQL database or a virtual machine" : super
 
       def self.route(key, resource, given, tool: nil, settings: nil)
         id = resource.external_id

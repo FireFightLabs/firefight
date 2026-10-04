@@ -26,9 +26,9 @@ module Integrations
         uri.to_s == "https://cloudresourcemanager.googleapis.com/v1/projects/acme-prod" && request["Authorization"] == "Bearer ya29.token"
       end.twice.returns(response(200, { projectId: "acme-prod" }))
 
-      assert_equal "acme-prod", GoogleCloudApi.new(KEY, token_cache: @row).project("acme-prod")["projectId"]
+      assert_equal "acme-prod", GoogleCloudApi.new(KEY, token_cache: ConnectionSettings.of(@row)).project("acme-prod")["projectId"]
       assert_equal "ya29.token", @row.reload.credentials_hash.dig(GoogleCloudApi::TOKEN_CACHE_KEY, "token")
-      GoogleCloudApi.new(KEY, token_cache: @row).project("acme-prod")
+      GoogleCloudApi.new(KEY, token_cache: ConnectionSettings.of(@row)).project("acme-prod")
     end
 
     test "a key that is not a service account key is refused with what to paste" do
@@ -44,7 +44,7 @@ module Integrations
       assert_equal "Google Cloud answered 403: Cloud SQL Admin API has not been used in project acme-prod",
                    assert_raises(GoogleCloudApi::Forbidden) { api.sql_instances("acme-prod") }.message
       Http.stubs(:request).returns(response(429, { error: { message: "Quota exceeded" } }))
-      assert_raises(GoogleCloudApi::RateLimited) { api.clusters("acme-prod") }
+      assert_raises(Integrations::RateLimited) { api.clusters("acme-prod") }
     end
 
     test "log entries are searched newest first across pages, and an empty page with a token is followed" do
@@ -66,7 +66,7 @@ module Integrations
       Http.stubs(:request).returns(response(200, { items: { "zones/us-central1-a" => { instances: [ { name: "vm-1" } ] },
                                                             "zones/europe-west1-b" => { warning: { code: "NO_RESULTS_ON_PAGE" } } } }))
 
-      assert_equal [ "vm-1" ], GoogleCloudApi.new(KEY).compute_instances("acme-prod").map { |instance| instance["name"] }
+      assert_equal [ "vm-1" ], GoogleCloudApi.new(KEY).compute_instances("acme-prod").items.map { |instance| instance["name"] }
     end
 
     private

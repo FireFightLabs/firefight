@@ -40,22 +40,17 @@ module Integrations
       # Error Reporting reads a time range as one of these periods, so the shortest that covers the range is asked.
       ERROR_PERIODS = { 60 => "PERIOD_1_HOUR", 360 => "PERIOD_6_HOURS", 1440 => "PERIOD_1_DAY", 10_080 => "PERIOD_1_WEEK" }.freeze
       READY = "Ready".freeze
+      # Cloud SQL and Compute Engine states that mean the same as a word the map already reads.
+      STATUS_WORDS = { "online_maintenance" => "maintenance", "pending_stop" => "stopping", "deprovisioning" => "stopping" }.freeze
       MANUAL = "MANUAL".freeze
       REVISION_TRAFFIC = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION".freeze
       POSTGRES = "POSTGRES".freeze
 
-      DEFAULT_MINUTES = 60
-      MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
       REVISION_LIMIT = 20
       ERROR_LIMIT = 20
       LOG_TEXT_LIMIT = 2_000
 
-      RANGE = {
-        "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{DEFAULT_MINUTES})" },
-        "start" => { "type" => "string", "description" => "Start of the range as an ISO 8601 time, instead of minutes (optional)" },
-        "end" => { "type" => "string", "description" => "End of the range as an ISO 8601 time (optional, now)" }
-      }.freeze
       RESOURCE = { "type" => "string", "description" => "A Cloud Run service, Cloud SQL instance, Compute Engine instance or GKE cluster, by name or id, as list_resources shows it" }.freeze
       SERVICE = { "type" => "string", "description" => "A Cloud Run service, by name or id, as list_resources shows it" }.freeze
 
@@ -79,7 +74,7 @@ module Integrations
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "stream" => { "type" => "string", "enum" => STREAMS, "description" => "Which logs of a Cloud Run service: app or requests (optional, app)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -96,7 +91,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => Capabilities::METRIC_NAMES },
                               "description" => "Which metrics (optional, the resource's usual ones)" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -133,7 +128,7 @@ module Integrations
                "resource" => SERVICE,
                "text" => { "type" => "string", "description" => "Only errors whose message contains this text (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many groups (optional, #{ERROR_LIMIT})" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -197,8 +192,9 @@ module Integrations
 
       # A new key drops the token minted with the one before.
       def self.store_credentials!(environment_row, values)
-        environment_row.store_credential!(KEY, values[KEY].to_s.strip)
-        environment_row.store_credential!(GoogleCloudApi::TOKEN_CACHE_KEY, nil)
+        settings = ConnectionSettings.of(environment_row)
+        settings.store_credential!(KEY, values[KEY].to_s.strip)
+        settings.store_credential!(GoogleCloudApi::TOKEN_CACHE_KEY, nil)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -216,8 +212,8 @@ module Integrations
         fail!("stream must be #{STREAMS.join(' or ')}.") unless STREAMS.include?(stream)
         fail!("Only a Cloud Run service keeps request logs. Ask for stream #{STREAM_APP}.") if stream == STREAM_REQUESTS && !target.run?
 
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
-        limit = limit(arguments, LOG_LIMIT)
+        started, ended = Capabilities::Answers.range(arguments)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         filter = [ log_scope(environment_row, target, stream), "timestamp>=#{quote(started.utc.iso8601)}", "timestamp<=#{quote(ended.utc.iso8601)}",
                    *text_filters(arguments) ].join(" AND ")
         entries = api(environment_row).log_entries(target.project, filter, limit: limit)
@@ -233,7 +229,7 @@ module Integrations
         unknown = asked - known.keys
         fail!("A #{target.type} has no #{unknown.join(', ')}. It has #{known.keys.join(', ')}.") if unknown.any?
 
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Capabilities::Answers.range(arguments)
         names = asked.presence || Metrics::DEFAULTS.fetch(target.type)
         alignment = alignment_for(started, ended)
         link = page_link(environment_row, target.project, target.type)
@@ -248,7 +244,7 @@ module Integrations
       def list_revisions(environment_row:, arguments:)
         target = run_target(environment_row, arguments["resource"])
         service = api(environment_row).run_service(target.project, target.location, target.name)
-        revisions = api(environment_row).run_revisions(target.project, target.location, target.name, limit: limit(arguments, REVISION_LIMIT))
+        revisions = api(environment_row).run_revisions(target.project, target.location, target.name, limit: Capabilities::Answers.limit(arguments, REVISION_LIMIT))
         link = page_link(environment_row, target.project, TYPE_RUN)
         return Telemetry.result("#{target.name} has no revisions.", link: link) if revisions.empty?
 
@@ -270,10 +266,10 @@ module Integrations
 
       def error_groups(environment_row:, arguments:)
         target = run_target(environment_row, arguments["resource"])
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Capabilities::Answers.range(arguments)
         minutes = ((ended - started) / 60).ceil
         period = ERROR_PERIODS.find { |covers, _| covers >= minutes }&.last || ERROR_PERIODS.values.last
-        limit = limit(arguments, ERROR_LIMIT)
+        limit = Capabilities::Answers.limit(arguments, ERROR_LIMIT)
         query = { "serviceFilter.service" => target.name, "timeRange.period" => period, "order" => "COUNT_DESC", "pageSize" => limit }
         groups = api(environment_row).error_group_stats(target.project, query)
         text = arguments["text"].to_s.strip.downcase
@@ -393,7 +389,7 @@ module Integrations
             points = points.map { |at, value| [ at, per_minute ? value * 60 : value ] }
             ResourceMap::Baseline::Found.new(key: resource.key, metric: name, label: metric.title, unit: per_minute ? Metrics::PER_MINUTE : metric.unit, points: points)
           end
-        rescue GoogleCloudApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue GoogleCloudApi::Error => error
           Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
@@ -410,7 +406,7 @@ module Integrations
         key = ConnectionSettings.of(environment_row).credential(KEY)
         fail! "This environment has no Google Cloud key. Reconnect it on the Integrations page." if key.blank?
 
-        @api ||= GoogleCloudApi.new(key, token_cache: environment_row)
+        @api ||= GoogleCloudApi.new(key, token_cache: ConnectionSettings.of(environment_row))
       rescue GoogleCloudApi::Error => error
         fail! "#{error.message} Reconnect it on the Integrations page."
       end
@@ -425,13 +421,18 @@ module Integrations
           gaps = []
           unread = []
           {
-            TYPE_RUN => -> { api.run_locations(project).flat_map { |location| api.run_services(project, location) }.map { |service| run_item(service) } },
-            TYPE_SQL => -> { api.sql_instances(project).map { |instance| sql_item(project, instance) } },
-            TYPE_MACHINE => -> { api.compute_instances(project).map { |instance| machine_item(instance) } },
-            TYPE_CLUSTER => -> { api.clusters(project).map { |cluster| cluster_item(project, cluster) } }
+            TYPE_RUN => -> { run_items(api, project) },
+            TYPE_SQL => -> { whole(api.sql_instances(project)) { |instance| sql_item(project, instance) } },
+            TYPE_MACHINE => -> { whole(api.compute_instances(project)) { |instance| machine_item(instance) } },
+            TYPE_CLUSTER => -> { [ api.clusters(project).map { |cluster| cluster_item(project, cluster) }, true ] }
           }.each do |type, read|
-            items.concat(read.call)
-          rescue GoogleCloudApi::RateLimited
+            found, complete = read.call
+            items.concat(found)
+            next if complete
+
+            gaps << "Only the first #{found.size} #{type.pluralize} were read."
+            unread << type
+          rescue Integrations::RateLimited
             raise
           rescue GoogleCloudApi::Error => error
             gaps << "#{type.pluralize} could not be read: #{error.message}"
@@ -439,6 +440,21 @@ module Integrations
           end
           Listing.new(items: items, gaps: gaps, unread: unread)
         end
+      end
+
+      # A list's resources as items, and whether the list was read in full.
+      def whole(read, &) = [ read.items.map(&), read.complete ]
+
+      # Every region's services. A region list or a service list cut short leaves the services incomplete.
+      def run_items(api, project)
+        locations = api.run_locations(project)
+        complete = locations.complete
+        found = locations.items.filter_map { |location| location["locationId"] }.flat_map do |location|
+          services = api.run_services(project, location)
+          complete &&= services.complete
+          services.items.map { |service| run_item(service) }
+        end
+        [ found, complete ]
       end
 
       def run_item(service)
@@ -458,7 +474,7 @@ module Integrations
 
       def sql_item(project, instance)
         { type: TYPE_SQL, id: instance["connectionName"].presence || "#{project}:#{instance['region']}:#{instance['name']}", name: instance["name"],
-          location: instance["region"], status: instance["state"].to_s.downcase, hosts: [],
+          location: instance["region"], status: status_of(instance["state"]), hosts: [],
           details: { TYPE => TYPE_SQL, "engine" => instance["databaseVersion"], "tier" => instance.dig("settings", "tier"),
                      "availability" => instance.dig("settings", "availabilityType"), "region" => instance["region"] }.compact }
       end
@@ -466,15 +482,21 @@ module Integrations
       def machine_item(instance)
         path = URI.parse(instance["selfLink"].to_s).path.to_s[%r{projects/.+\z}]
         zone = instance["zone"].to_s.split("/").last
-        { type: TYPE_MACHINE, id: path, name: instance["name"], location: zone, status: instance["status"].to_s.downcase, hosts: [],
+        { type: TYPE_MACHINE, id: path, name: instance["name"], location: zone, status: status_of(instance["status"]), hosts: [],
           details: { TYPE => TYPE_MACHINE, "zone" => zone, "machine_type" => instance["machineType"].to_s.split("/").last }.compact }
       end
 
       def cluster_item(project, cluster)
         { type: TYPE_CLUSTER, id: "projects/#{project}/locations/#{cluster['location']}/clusters/#{cluster['name']}", name: cluster["name"],
-          location: cluster["location"], status: cluster["status"].to_s.downcase, hosts: [],
+          location: cluster["location"], status: status_of(cluster["status"]), hosts: [],
           details: { TYPE => TYPE_CLUSTER, "location" => cluster["location"], "version" => cluster["currentMasterVersion"],
                      "node_pools" => Array(cluster["nodePools"]).size, "autopilot" => cluster.dig("autopilot", "enabled") }.compact }
+      end
+
+      # Google's state, in the words the map reads health from. A state with the same meaning as one there takes that word.
+      def status_of(state)
+        word = state.to_s.downcase
+        STATUS_WORDS.fetch(word, word)
       end
 
       def run_status(service)
@@ -498,12 +520,13 @@ module Integrations
         target
       end
 
+      # Two resources of one name, such as services in two regions, are never chosen between. The id names one.
       def named(environment_row, wanted)
-        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).where("lower(name) = ?", wanted.downcase).pick(:external_id)
-        return Target.parse(mapped) if mapped
+        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).where("lower(name) = ?", wanted.downcase).pluck(:external_id)
+        found = mapped.presence || catalog(environment_row).items.select { |each| each[:name].to_s.casecmp?(wanted) }.map { |each| each[:id] }
+        fail!("More than one resource is called #{wanted}: #{found.join(', ')}. Name it by its id.") if found.size > 1
 
-        item = catalog(environment_row).items.find { |each| each[:name].to_s.casecmp?(wanted) }
-        item && Target.parse(item[:id])
+        found.first && Target.parse(found.first)
       end
 
       def run_target(environment_row, asked)
@@ -512,8 +535,6 @@ module Integrations
 
         target
       end
-
-      def limit(arguments, most) = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, most ].min : most
 
       def count(value, name, least)
         return nil if value.nil? || value.to_s.strip.empty?

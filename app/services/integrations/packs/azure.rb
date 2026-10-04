@@ -53,19 +53,22 @@ module Integrations
       ELASTIC_TIERS = %w[Dynamic FlexConsumption ElasticPremium].freeze
       # Kudu's deployment states, as its DeployStatus names them.
       DEPLOY_STATES = { 0 => "pending", 1 => "building", 2 => "deploying", 3 => "failed", 4 => "succeeded" }.freeze
+      # Azure's states, as App Service, Container Apps, Azure SQL and PostgreSQL write them, that mean the same as a word the
+      # map already reads health from.
+      STATUS_WORDS = {
+        "online" => "running", "inprogress" => "in_progress", "deleting" => "shutting-down", "recoverypending" => "pending",
+        "recovering" => "restoring", "suspect" => "failed", "offline" => "down", "offlinesecondary" => "down", "standby" => "idle",
+        "shutdown" => "stopped", "emergencymode" => "failed", "autoclosed" => "paused", "copying" => "in_progress",
+        "inaccessible" => "unavailable", "resuming" => "starting", "scaling" => "resizing",
+        "offlinechangingdwperformancetiers" => "resizing", "onlinechangingdwperformancetiers" => "resizing", "disabled" => "deactivated",
+        "dropping" => "shutting-down", "updating" => "modifying"
+      }.freeze
       MISSING_TABLE = /resolve (?:table|scalar|column)/i
 
-      DEFAULT_MINUTES = 60
-      MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
       DEPLOY_LIMIT = 20
       LOG_TEXT_LIMIT = 2_000
 
-      RANGE = {
-        "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{DEFAULT_MINUTES})" },
-        "start" => { "type" => "string", "description" => "Start of the range as an ISO 8601 time, instead of minutes (optional)" },
-        "end" => { "type" => "string", "description" => "End of the range as an ISO 8601 time (optional, now)" }
-      }.freeze
       RESOURCE = { "type" => "string", "description" => "An App Service or Function app, Container App, Azure SQL database or PostgreSQL flexible server, by name or id, as list_resources shows it" }.freeze
       APP = { "type" => "string", "description" => "An App Service or Function app, or a Container App, by name or id, as list_resources shows it" }.freeze
 
@@ -90,7 +93,7 @@ module Integrations
                "exclude" => { "type" => "string", "description" => "Leave out lines containing this text (optional)" },
                "stream" => { "type" => "string", "enum" => STREAMS, "description" => "Which logs: app, requests or system (optional, app)" },
                "limit" => { "type" => "integer", "description" => "At most this many lines (optional, #{LOG_LIMIT})" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -106,7 +109,7 @@ module Integrations
                "resource" => RESOURCE,
                "metrics" => { "type" => "array", "items" => { "type" => "string", "enum" => Capabilities::METRIC_NAMES },
                               "description" => "Which metrics (optional, the resource's usual ones)" },
-               **RANGE
+               **Capabilities::RANGE
              },
              "required" => [ "resource" ]
            },
@@ -184,7 +187,7 @@ module Integrations
         secret = values[SECRET].to_s.strip
         tenant, client, subscription = fields.values_at(TENANT, CLIENT, SUBSCRIPTION).map { |value| value.to_s.strip }
         return "Paste the client secret." if secret.empty?
-        return "Enter the tenant, client id and subscription id." if [ tenant, client, subscription ].any?(&:empty?)
+        return "Enter the tenant, client ID and subscription ID." if [ tenant, client, subscription ].any?(&:empty?)
 
         AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription, cloud: cloud_of(region)).subscription_details
         nil
@@ -196,8 +199,9 @@ module Integrations
 
       # A new secret drops the tokens minted with the one before.
       def self.store_credentials!(environment_row, values)
-        environment_row.store_credential!(SECRET, values[SECRET].to_s.strip)
-        environment_row.store_credential!(AzureApi::TOKEN_CACHE_KEY, nil)
+        settings = ConnectionSettings.of(environment_row)
+        settings.store_credential!(SECRET, values[SECRET].to_s.strip)
+        settings.store_credential!(AzureApi::TOKEN_CACHE_KEY, nil)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -214,8 +218,8 @@ module Integrations
         stream = arguments["stream"].presence || STREAM_APP
         fail!("stream must be one of #{STREAMS.join(', ')}.") unless STREAMS.include?(stream)
 
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
-        limit = limit(arguments, LOG_LIMIT)
+        started, ended = Capabilities::Answers.range(arguments)
+        limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
         source = log_source(environment_row, target, stream)
         timespan = "#{started.utc.iso8601}/#{ended.utc.iso8601}"
         rows = nil
@@ -243,7 +247,7 @@ module Integrations
         unknown = asked - known.keys
         fail!("A #{type} has no #{unknown.join(', ')} in Azure Monitor. It has #{known.keys.join(', ')}.") if unknown.any?
 
-        started, ended = Telemetry.range(arguments, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Capabilities::Answers.range(arguments)
         minutes, grain = Metrics.grain(started, ended)
         link = portal_link(environment_row, target.id)
         charts = (asked.presence || Metrics::DEFAULTS.fetch(type)).map do |name|
@@ -257,7 +261,7 @@ module Integrations
 
       def list_deployments(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
-        limit = limit(arguments, DEPLOY_LIMIT)
+        limit = Capabilities::Answers.limit(arguments, DEPLOY_LIMIT)
         text = if target.site? then site_deployments(environment_row, target, limit)
         elsif target.container? then container_revisions(environment_row, target, limit)
         else fail!("#{target.name} is a #{target.type}, which has no deployments. This works on an app.")
@@ -362,7 +366,7 @@ module Integrations
             points = read_metric(environment_row, metric, scope, window.begin, window.end, 60, Metrics::GRAINS.fetch(60))
             ResourceMap::Baseline::Found.new(key: resource.key, metric: name, label: metric.title, unit: metric.unit, points: points) if points.any?
           end
-        rescue AzureApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue AzureApi::Error => error
           Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
@@ -381,7 +385,7 @@ module Integrations
         fail! "This environment has no Azure service principal. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
 
         @api ||= AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription,
-                              cloud: self.class.cloud_of(settings.region), token_cache: environment_row)
+                              cloud: self.class.cloud_of(settings.region), token_cache: settings)
       end
 
       def subscription_of(environment_row) = ConnectionSettings.of(environment_row).field(SUBSCRIPTION) || fail!("This environment has no Azure subscription. Reconnect it.")
@@ -394,13 +398,18 @@ module Integrations
           gaps = []
           unread = []
           {
-            "App Service and Function apps" => [ [ TYPE_WEB, TYPE_FUNCTION ], -> { api.list("#{root}/Microsoft.Web/sites", WEB_VERSION).map { |site| site_item(site) } } ],
-            "Container Apps" => [ [ TYPE_CONTAINER ], -> { api.list("#{root}/Microsoft.App/containerApps", APP_VERSION).map { |app| container_item(app) } } ],
+            "App Service and Function apps" => [ [ TYPE_WEB, TYPE_FUNCTION ], -> { whole(api.list("#{root}/Microsoft.Web/sites", WEB_VERSION)) { |site| site_item(site) } } ],
+            "Container Apps" => [ [ TYPE_CONTAINER ], -> { whole(api.list("#{root}/Microsoft.App/containerApps", APP_VERSION)) { |app| container_item(app) } } ],
             "Azure SQL databases" => [ [ TYPE_SQL ], -> { sql_items(api, root) } ],
-            "PostgreSQL flexible servers" => [ [ TYPE_POSTGRES ], -> { api.list("#{root}/Microsoft.DBforPostgreSQL/flexibleServers", POSTGRES_VERSION).map { |server| postgres_item(server) } } ]
+            "PostgreSQL flexible servers" => [ [ TYPE_POSTGRES ], -> { whole(api.list("#{root}/Microsoft.DBforPostgreSQL/flexibleServers", POSTGRES_VERSION)) { |server| postgres_item(server) } } ]
           }.each do |what, (types, read)|
-            items.concat(read.call)
-          rescue AzureApi::RateLimited
+            found, complete = read.call
+            items.concat(found)
+            next if complete
+
+            gaps << "Only the first #{found.size} #{what} were read."
+            unread.concat(types)
+          rescue Integrations::RateLimited
             raise
           rescue AzureApi::Error => error
             gaps << "#{what} could not be read: #{error.message}"
@@ -412,7 +421,7 @@ module Integrations
 
       def item(resource, type, status, hosts: [], details: {})
         target = Target.parse(resource["id"])
-        { type: type, id: resource["id"], name: resource["name"], group: target&.group, location: resource["location"], status: status.to_s.downcase.presence || "unknown",
+        { type: type, id: resource["id"], name: resource["name"], group: target&.group, location: resource["location"], status: STATUS_WORDS.fetch(status.to_s.downcase, status.to_s.downcase).presence || "unknown",
           hosts: hosts, details: { TYPE => type, "resource_group" => target&.group, "region" => resource["location"] }.merge(details).compact }
       end
 
@@ -431,13 +440,21 @@ module Integrations
              details: { "revision_mode" => properties.dig("configuration", "activeRevisionsMode"), "latest_revision" => properties["latestReadyRevisionName"] })
       end
 
+      # A list's resources as items, and whether the list was read in full.
+      def whole(read, &) = [ read.items.map(&), read.complete ]
+
       def sql_items(api, root)
-        api.list("#{root}/Microsoft.Sql/servers", SQL_VERSION).flat_map do |server|
-          api.list("#{server['id']}/databases", SQL_VERSION).reject { |database| database["name"] == MASTER }.map do |database|
+        servers = api.list("#{root}/Microsoft.Sql/servers", SQL_VERSION)
+        complete = servers.complete
+        found = servers.items.flat_map do |server|
+          databases = api.list("#{server['id']}/databases", SQL_VERSION)
+          complete &&= databases.complete
+          databases.items.reject { |database| database["name"] == MASTER }.map do |database|
             item(database, TYPE_SQL, database.dig("properties", "status"),
                  details: { "server" => server["name"], "sku" => database.dig("sku", "name"), "objective" => database.dig("properties", "currentServiceObjectiveName") })
           end
         end
+        [ found, complete ]
       end
 
       def postgres_item(server)
@@ -481,9 +498,7 @@ module Integrations
 
       def type_of(target, resource) = target.site? && function?(resource) ? TYPE_FUNCTION : target.type
 
-      def revisions(environment_row, target) = api(environment_row).list("#{target.id}/revisions", APP_VERSION)
-
-      def limit(arguments, most) = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, most ].min : most
+      def revisions(environment_row, target) = api(environment_row).list("#{target.id}/revisions", APP_VERSION).items
 
       def count(value, name)
         return nil if value.nil? || value.to_s.strip.empty?
@@ -611,8 +626,8 @@ module Integrations
 
       def site_deployments(environment_row, target, limit)
         api = api(environment_row)
-        deployments = api.list("#{target.id}/deployments", WEB_VERSION).sort_by { |deployment| deployment.dig("properties", "start_time").to_s }.reverse.first(limit)
-        slots = api.list("#{target.id}/slots", WEB_VERSION).map { |slot| "#{slot['name'].to_s.split('/').last} (#{slot.dig('properties', 'state').to_s.downcase})" }
+        deployments = api.list("#{target.id}/deployments", WEB_VERSION).items.sort_by { |deployment| deployment.dig("properties", "start_time").to_s }.reverse.first(limit)
+        slots = api.list("#{target.id}/slots", WEB_VERSION).items.map { |slot| "#{slot['name'].to_s.split('/').last} (#{slot.dig('properties', 'state').to_s.downcase})" }
         rows = deployments.map do |deployment|
           properties = deployment["properties"].to_h
           [ properties["start_time"], DEPLOY_STATES.fetch(properties["status"], "status #{properties['status']}"), ("active" if properties["active"]),
@@ -646,7 +661,7 @@ module Integrations
 
       def swap_slot(environment_row, target, slot)
         api = api(environment_row)
-        slots = api.list("#{target.id}/slots", WEB_VERSION).map { |each| each["name"].to_s.split("/").last }
+        slots = api.list("#{target.id}/slots", WEB_VERSION).items.map { |each| each["name"].to_s.split("/").last }
         fail!("#{target.name} has no slot called #{slot}. Its slots are #{slots.join(', ').presence || 'none'}.") unless slots.include?(slot)
 
         api.post("#{target.id}/slotsswap", WEB_VERSION, { "targetSlot" => slot, "preserveVnet" => true })

@@ -5,8 +5,6 @@ module Integrations
   # clouds has its own hosts for all three.
   class AzureApi
     class Error < Integrations::Error; end
-    # Asked too often, so a caller making many calls stops rather than keep being refused.
-    class RateLimited < Error; end
     class Forbidden < Error; end
 
     # Where one of Azure's clouds signs in, runs Resource Manager and answers Log Analytics queries. A token's scope is
@@ -28,7 +26,6 @@ module Integrations
     LOG_ANALYTICS = :log_analytics
     TOKEN_CACHE_KEY = "azure_tokens".freeze
     TOKEN_REFRESH_MARGIN = 5.minutes
-    TOO_MANY_REQUESTS = 429
     FORBIDDEN = 403
     PAGE_LIMIT = 10
     METRICS_VERSION = "2023-10-01".freeze
@@ -37,7 +34,7 @@ module Integrations
 
     attr_reader :subscription
 
-    # token_cache is the environment row the tokens are cached on, or nil to keep them for this client only.
+    # token_cache is the ConnectionSettings the tokens are kept with, or nil to keep them for this client only.
     def initialize(tenant:, client_id:, client_secret:, subscription:, cloud: GLOBAL, token_cache: nil)
       @cloud = cloud
       @tenant = tenant
@@ -59,22 +56,13 @@ module Integrations
 
     def put(path, api_version, body) = arm(Net::HTTP::Put, path, api_version, body)
 
-    # Every page of a Resource Manager list, following nextLink up to PAGE_LIMIT pages.
+    # Every page of a Resource Manager list, following nextLink up to PAGE_LIMIT pages, as a Pages::Read that says
+    # whether it holds all of it.
     def list(path, api_version, query = {})
-      items = []
-      page = get(path, api_version, query)
-      PAGE_LIMIT.times do
-        items.concat(Array(page["value"]))
-        link = page["nextLink"].presence
-        break unless link
-
-        uri = URI.parse(link)
-        # The token goes only to the cloud's own Resource Manager, whatever a page names as the next one.
-        raise Error, "Azure named a next page outside Resource Manager, so the list stops here" unless uri.host == URI.parse(@cloud.management).host
-
-        page = send_request(uri, Net::HTTP::Get.new(uri), MANAGEMENT)
+      Pages.read(max_pages: PAGE_LIMIT) do |link|
+        page = link ? next_page(link) : get(path, api_version, query)
+        [ page["value"], page["nextLink"] ]
       end
-      items
     end
 
     # A Kusto query over the logs of one resource, by its Resource Manager id, whatever Log Analytics workspace keeps them.
@@ -87,7 +75,7 @@ module Integrations
     # Azure Monitor's metrics of one resource (Metrics_List), with the parameters as the API names them.
     def metrics(resource_id, query) = get("#{resource_id}/providers/Microsoft.Insights/metrics", METRICS_VERSION, query)
 
-    def segment(value) = ERB::Util.url_encode(value.to_s)
+    def segment(value) = Http.segment(value)
 
     private
 
@@ -103,6 +91,14 @@ module Integrations
       answer
     end
 
+    # The token goes only to the cloud's own Resource Manager, whatever a page names as the next one.
+    def next_page(link)
+      uri = URI.parse(link)
+      raise Error, "Azure named a next page outside Resource Manager, so the list stops here" unless uri.host == URI.parse(@cloud.management).host
+
+      send_request(uri, Net::HTTP::Get.new(uri), MANAGEMENT)
+    end
+
     def arm(verb, path, api_version, body, query = {})
       uri = URI.parse("#{@cloud.management}#{path}")
       uri.query = URI.encode_www_form(query.compact.merge("api-version" => api_version))
@@ -116,27 +112,11 @@ module Integrations
 
     def send_request(uri, request, audience)
       request["Authorization"] = "Bearer #{access_token(audience)}"
-      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
-      succeeded = response.code.to_i.between?(200, 299)
-      body = response.body.to_s.empty? ? {} : JSON.parse(response.body)
-      return body if succeeded
-
-      reason = body.dig("error", "message") || body["message"] || "no reason given"
-      error = case response.code.to_i
-      when TOO_MANY_REQUESTS then RateLimited
-      when FORBIDDEN then Forbidden
-      else Error
-      end
-      raise error, "Azure answered #{response.code}: #{reason}"
-    rescue JSON::ParserError
-      # A change Azure accepted stays one it accepted, whatever came back with it.
-      return {} if succeeded
-
-      raise Error, "Azure answered #{response.code} with something that is not JSON"
+      Http.json(uri, request, error_class: Error, provider_name: "Azure", refine: ->(code, _reason) { Forbidden if code == FORBIDDEN })
     end
 
     def access_token(audience)
-      cached = @token_cache&.credentials_hash&.dig(TOKEN_CACHE_KEY, audience.to_s)
+      cached = @token_cache&.credential(TOKEN_CACHE_KEY)&.dig(audience.to_s)
       if cached.present?
         expires_at = Time.zone.parse(cached["expires_at"].to_s)
         return cached["token"] if expires_at && expires_at > TOKEN_REFRESH_MARGIN.from_now
@@ -162,7 +142,7 @@ module Integrations
       expires_at = body["expires_in"].to_i.seconds.from_now
       @tokens[audience] = { token: body["access_token"], expires_at: expires_at }
       if @token_cache
-        tokens = @token_cache.credentials_hash[TOKEN_CACHE_KEY].to_h.merge(audience.to_s => { "token" => body["access_token"], "expires_at" => expires_at.utc.iso8601 })
+        tokens = @token_cache.credential(TOKEN_CACHE_KEY).to_h.merge(audience.to_s => { "token" => body["access_token"], "expires_at" => expires_at.utc.iso8601 })
         @token_cache.store_credential!(TOKEN_CACHE_KEY, tokens)
       end
       body["access_token"]

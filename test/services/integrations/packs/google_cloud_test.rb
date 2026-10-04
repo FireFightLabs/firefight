@@ -22,17 +22,17 @@ module Integrations
         GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => " #{KEY} ")
         @row.store_fields!(GoogleCloud::PROJECT => "acme-prod")
         @pack = GoogleCloud.new(@integration)
-        GoogleCloudApi.any_instance.stubs(:run_locations).returns([ "us-central1" ])
-        GoogleCloudApi.any_instance.stubs(:run_services).returns([ SERVICE ])
+        GoogleCloudApi.any_instance.stubs(:run_locations).returns(pages([ { "locationId" => "us-central1" } ]))
+        GoogleCloudApi.any_instance.stubs(:run_services).returns(pages([ SERVICE ]))
         GoogleCloudApi.any_instance.stubs(:run_service).returns(SERVICE)
-        GoogleCloudApi.any_instance.stubs(:sql_instances).returns([
+        GoogleCloudApi.any_instance.stubs(:sql_instances).returns(pages([
           { "name" => "orders", "connectionName" => SQL_ID, "region" => "us-central1", "state" => "RUNNABLE", "databaseVersion" => "POSTGRES_16",
             "settings" => { "tier" => "db-custom-2-7680", "availabilityType" => "REGIONAL" } }
-        ])
-        GoogleCloudApi.any_instance.stubs(:compute_instances).returns([
+        ]))
+        GoogleCloudApi.any_instance.stubs(:compute_instances).returns(pages([
           { "id" => "4242", "name" => "worker-1", "status" => "RUNNING", "zone" => "https://www.googleapis.com/compute/v1/projects/acme-prod/zones/us-central1-a",
             "selfLink" => "https://www.googleapis.com/compute/v1/#{VM_ID}", "machineType" => ".../machineTypes/e2-medium" }
-        ])
+        ]))
         GoogleCloudApi.any_instance.stubs(:clusters).returns([ { "name" => "apps", "location" => "europe-west1", "status" => "RUNNING", "currentMasterVersion" => "1.33" } ])
       end
 
@@ -202,6 +202,21 @@ module Integrations
         assert_match "Compute Engine instances could not be read", snapshot.gaps.first
       end
 
+      test "two resources of one name are refused rather than one chosen, and a list cut short is a gap with its kind unread" do
+        other = SERVICE.merge("name" => "projects/acme-prod/locations/europe-west1/services/web")
+        GoogleCloudApi.any_instance.stubs(:run_locations).returns(pages([ { "locationId" => "us-central1" }, { "locationId" => "europe-west1" } ]))
+        GoogleCloudApi.any_instance.stubs(:run_services).with("acme-prod", "us-central1").returns(pages([ SERVICE ]))
+        GoogleCloudApi.any_instance.stubs(:run_services).with("acme-prod", "europe-west1").returns(pages([ other ]))
+
+        assert_match "More than one resource is called web", assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "web") }.message
+
+        GoogleCloudApi.any_instance.stubs(:sql_instances).returns(pages([ { "name" => "orders", "connectionName" => SQL_ID, "state" => "ONLINE_MAINTENANCE" } ], complete: false))
+        snapshot = GoogleCloud.new(@integration).map_of(@row)
+        assert_includes snapshot.gaps, "Only the first 1 Cloud SQL instances were read."
+        assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
+        assert_equal "maintenance", snapshot.resources.find { |resource| resource.external_id == SQL_ID }.status
+      end
+
       test "a week of readings becomes a baseline per metric, with a rate per second read per minute" do
         resource = ResourceMap::Resource.create!(workspace: @workspace, provider: "google_cloud", account: "acme-prod", kind: ResourceMap::KIND_SERVICE, external_id: RUN_ID,
                                                  name: "web", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
@@ -223,6 +238,8 @@ module Integrations
       end
 
       private
+
+      def pages(items, complete: true) = Integrations::Pages::Read.new(items: items, complete: complete)
 
       def call(tool, arguments = {})
         GoogleCloud.new(@integration).call(tool.to_s, environment_row: @row, arguments: arguments)["content"].map { |part| part["text"] }.join("\n")

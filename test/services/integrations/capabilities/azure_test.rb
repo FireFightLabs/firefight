@@ -40,7 +40,8 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
   test "Azure answers no errors or traces, and a database has no deploys" do
     assert_equal Integrations::Capabilities::SPECS.keys - [ Integrations::Capabilities::ERRORS, Integrations::Capabilities::TRACES ], Integrations::Capabilities::Azure.capabilities
     assert_match "no connection offers deploys for it", unroutable(Integrations::Capabilities::DEPLOYS, "resource" => "catalog")
-    assert_equal %w[search_logs query_metrics list_deployments describe_resource], Integrations::Capabilities::Azure::WRAPPED
+    assert_equal %w[search_logs query_metrics list_deployments describe_resource rollback_app restart_resource scale_app], Integrations::Capabilities::Azure::WRAPPED
+    assert_match "restart an app or a PostgreSQL server", Integrations::Capabilities.halon_sentence("azure", "Azure")
   end
 
   private

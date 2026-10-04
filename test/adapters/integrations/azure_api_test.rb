@@ -8,7 +8,7 @@ module Integrations
       @workspace = workspaces(:slack_workspace_one)
       integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure")
       @row = integration.integration_environments.create!
-      @api = AzureApi.new(tenant: "contoso.onmicrosoft.com", client_id: "client", client_secret: "s3cret", subscription: SUBSCRIPTION, token_cache: @row)
+      @api = AzureApi.new(tenant: "contoso.onmicrosoft.com", client_id: "client", client_secret: "s3cret", subscription: SUBSCRIPTION, token_cache: ConnectionSettings.of(@row))
     end
 
     test "the secret is traded for one token per audience, each cached on the row" do
@@ -58,7 +58,7 @@ module Integrations
           .returns(response(200, { value: [ { name: "web" } ], nextLink: "https://management.azure.com/next?api-version=2025-03-01&$skiptoken=2" }))
       Http.stubs(:request).with { |uri, *| uri.path == "/next" }.returns(response(200, { value: [ { name: "api" } ] }))
 
-      assert_equal %w[web api], @api.list("/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.Web/sites", "2025-03-01").map { |site| site["name"] }
+      assert_equal %w[web api], @api.list("/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.Web/sites", "2025-03-01").items.map { |site| site["name"] }
 
       id = "/subscriptions/#{SUBSCRIPTION}/resourceGroups/rg/providers/Microsoft.Web/sites/web"
       Http.expects(:request).with do |uri, request, **|
@@ -73,7 +73,7 @@ module Integrations
       Http.stubs(:request).returns(response(403, { error: { code: "AuthorizationFailed", message: "The client does not have authorization" } }))
       assert_equal "Azure answered 403: The client does not have authorization", assert_raises(AzureApi::Forbidden) { @api.subscription_details }.message
       Http.stubs(:request).returns(response(429, { error: { message: "Too many requests" } }))
-      assert_raises(AzureApi::RateLimited) { @api.subscription_details }
+      assert_raises(Integrations::RateLimited) { @api.subscription_details }
       Http.stubs(:request).returns(stub(code: "202", body: ""))
       assert_equal({}, @api.post("/subscriptions/#{SUBSCRIPTION}/resourceGroups/rg/providers/Microsoft.Web/sites/web/restart", "2025-03-01"))
     end

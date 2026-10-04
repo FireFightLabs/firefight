@@ -4,8 +4,6 @@ module Integrations
   # service accounts), and the token is cached on the environment row until close to expiry.
   class GoogleCloudApi
     class Error < Integrations::Error; end
-    # Asked too often, so a caller making many calls stops rather than keep being refused.
-    class RateLimited < Error; end
     class Forbidden < Error; end
 
     TOKEN_URI = "https://oauth2.googleapis.com/token".freeze
@@ -15,7 +13,6 @@ module Integrations
     ASSERTION_LIFETIME = 1.hour
     TOKEN_REFRESH_MARGIN = 5.minutes
     SERVICE_ACCOUNT = "service_account".freeze
-    TOO_MANY_REQUESTS = 429
     FORBIDDEN = 403
     PAGE_LIMIT = 10
 
@@ -42,7 +39,7 @@ module Integrations
       raise Error, "The key is not JSON. Paste the whole JSON key file Google gave you."
     end
 
-    # token_cache is the environment row the token is cached on, or nil to keep it for this client only.
+    # token_cache is the ConnectionSettings the token is kept with, or nil to keep it for this client only.
     def initialize(key_text, token_cache: nil)
       @key = self.class.parse_key(key_text)
       @token_cache = token_cache
@@ -54,7 +51,7 @@ module Integrations
     def project(project_id) = get("#{RESOURCE_MANAGER}/projects/#{segment(project_id)}")
 
     # Cloud Run's regions, from the v1 API, since the v2 API lists services one region at a time.
-    def run_locations(project_id) = list("#{RUN_LOCATIONS}/projects/#{segment(project_id)}/locations", "locations").filter_map { |location| location["locationId"] }
+    def run_locations(project_id) = list("#{RUN_LOCATIONS}/projects/#{segment(project_id)}/locations", "locations")
 
     def run_services(project_id, location) = list("#{RUN}/projects/#{segment(project_id)}/locations/#{segment(location)}/services", "services")
 
@@ -75,18 +72,13 @@ module Integrations
 
     def restart_sql_instance(project_id, name) = post("#{SQL_ADMIN}/projects/#{segment(project_id)}/instances/#{segment(name)}/restart")
 
-    # Every zone's instances. aggregatedList answers a map of scopes to their instances, so it is read page by page here.
+    # Every zone's instances. aggregatedList answers a map of scopes to their instances.
     def compute_instances(project_id)
       url = "#{COMPUTE}/projects/#{segment(project_id)}/aggregated/instances"
-      instances = []
-      token = nil
-      PAGE_LIMIT.times do
+      Pages.read(max_pages: PAGE_LIMIT) do |token|
         page = get(url, "pageToken" => token)
-        instances.concat(page["items"].to_h.values.flat_map { |scope| Array(scope["instances"]) })
-        token = page["nextPageToken"].presence
-        break unless token
+        [ page["items"].to_h.values.flat_map { |scope| Array(scope["instances"]) }, page["nextPageToken"] ]
       end
-      instances
     end
 
     def compute_instance(project_id, zone, name) = get(instance_path(project_id, zone, name))
@@ -115,7 +107,7 @@ module Integrations
     end
 
     # Cloud Monitoring's time series for one metric. query uses its own parameter names, such as interval.startTime.
-    def time_series(project_id, query) = list("#{MONITORING}/projects/#{segment(project_id)}/timeSeries", "timeSeries", query)
+    def time_series(project_id, query) = list("#{MONITORING}/projects/#{segment(project_id)}/timeSeries", "timeSeries", query).items
 
     # Error Reporting's groups of errors. query uses its own parameter names, such as serviceFilter.service.
     def error_group_stats(project_id, query)
@@ -132,20 +124,16 @@ module Integrations
 
     def patch(url, body, query = {}) = write(Net::HTTP::Patch, url, body, query)
 
-    # Every page of a list, up to PAGE_LIMIT pages, read from the key the API lists under.
+    # Every page of a list, up to PAGE_LIMIT pages, read from the key the API lists under, as a Pages::Read that says
+    # whether it holds all of it.
     def list(url, key, query = {})
-      items = []
-      token = nil
-      PAGE_LIMIT.times do
+      Pages.read(max_pages: PAGE_LIMIT) do |token|
         page = get(url, query.merge("pageToken" => token))
-        items.concat(Array(page[key]))
-        token = page["nextPageToken"].presence
-        break unless token
+        [ page[key], page["nextPageToken"] ]
       end
-      items
     end
 
-    def segment(value) = ERB::Util.url_encode(value.to_s)
+    def segment(value) = Http.segment(value)
 
     private
 
@@ -164,27 +152,11 @@ module Integrations
 
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{access_token}"
-      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
-      succeeded = response.code.to_i.between?(200, 299)
-      body = response.body.to_s.empty? ? {} : JSON.parse(response.body)
-      return body if succeeded
-
-      reason = body.dig("error", "message") || body["message"] || "no reason given"
-      error = case response.code.to_i
-      when TOO_MANY_REQUESTS then RateLimited
-      when FORBIDDEN then Forbidden
-      else Error
-      end
-      raise error, "Google Cloud answered #{response.code}: #{reason}"
-    rescue JSON::ParserError
-      # A change Google accepted stays one it accepted, whatever came back with it.
-      return {} if succeeded
-
-      raise Error, "Google Cloud answered #{response.code} with something that is not JSON"
+      Http.json(uri, request, error_class: Error, provider_name: "Google Cloud", refine: ->(code, _reason) { Forbidden if code == FORBIDDEN })
     end
 
     def access_token
-      cached = @token_cache&.credentials_hash&.dig(TOKEN_CACHE_KEY)
+      cached = @token_cache&.credential(TOKEN_CACHE_KEY)
       if cached.present?
         expires_at = Time.zone.parse(cached["expires_at"].to_s)
         return cached["token"] if expires_at && expires_at > TOKEN_REFRESH_MARGIN.from_now

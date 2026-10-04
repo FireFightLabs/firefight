@@ -12,18 +12,18 @@ class CloudConnectTest < ApplicationSystemTestCase
     within("[role=dialog]") do
       assert_field "Client secret", type: "password"
       assert_field "Tenant"
-      assert_field "Client id"
-      assert_field "Subscription id"
+      assert_field "Client ID"
+      assert_field "Subscription ID"
       find("#connect-region").click
     end
     find("[role=option]", text: "US Government (portal.azure.us)").click
     within("[role=dialog]") do
       fill_in "Client secret", with: "s3cret"
       fill_in "Tenant", with: "contoso.onmicrosoft.us"
-      fill_in "Client id", with: "22222222-2222-3333-4444-555555555555"
-      fill_in "Subscription id", with: "prod"
+      fill_in "Client ID", with: "22222222-2222-3333-4444-555555555555"
+      fill_in "Subscription ID", with: "prod"
       click_button "Connect"
-      assert_text "Subscription id can hold only a GUID"
+      assert_text "Subscription ID can hold only a GUID"
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/azure-connect.png"))
   end

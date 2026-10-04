@@ -34,16 +34,16 @@ module Integrations
         Azure.store_credentials!(@row, Azure::SECRET => " s3cret ")
         @row.store_fields!(FIELDS)
         @pack = Azure.new(@integration)
-        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns([ SITE, FUNCTION ])
-        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.returns([ APP ])
-        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Sql/servers") }.returns([ { "id" => "#{GROUP}/Microsoft.Sql/servers/shop-sql", "name" => "shop-sql" } ])
-        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/servers/shop-sql/databases") }.returns([
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns(pages([ SITE, FUNCTION ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.returns(pages([ APP ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Sql/servers") }.returns(pages([ { "id" => "#{GROUP}/Microsoft.Sql/servers/shop-sql", "name" => "shop-sql" } ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/servers/shop-sql/databases") }.returns(pages([
           { "id" => "#{GROUP}/Microsoft.Sql/servers/shop-sql/databases/master", "name" => "master", "properties" => { "status" => "Online" } },
           { "id" => SQL_ID, "name" => "orders", "location" => "westeurope", "sku" => { "name" => "GP_S_Gen5_2" }, "properties" => { "status" => "Online" } }
-        ])
-        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns([
+        ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns(pages([
           { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "sku" => { "name" => "Standard_D2ds_v4" }, "properties" => { "state" => "Ready", "version" => "16" } }
-        ])
+        ]))
         AzureApi.any_instance.stubs(:get).with(WEB_ID, Azure::WEB_VERSION).returns(SITE)
         AzureApi.any_instance.stubs(:get).with(FUNCTION_ID, Azure::WEB_VERSION).returns(FUNCTION)
         AzureApi.any_instance.stubs(:get).with(APP_ID, Azure::APP_VERSION).returns(APP)
@@ -60,7 +60,7 @@ module Integrations
         values = { Azure::SECRET => "wrong" }
 
         assert_match "Azure refused this service principal or subscription. Microsoft refused the service principal: AADSTS7000215", Azure.credential_refusal(values, fields: FIELDS)
-        assert_equal "Enter the tenant, client id and subscription id.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
+        assert_equal "Enter the tenant, client ID and subscription ID.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
         assert_equal "Paste the client secret.", Azure.credential_refusal({}, fields: FIELDS)
         assert_equal [ Azure::SECRET ], Azure.credential_fields.map(&:key)
         subscription = IntegrationProvider.find("azure").connect_fields.find { |field| field.key == Azure::SUBSCRIPTION }
@@ -69,7 +69,7 @@ module Integrations
 
       test "a connection in a sovereign cloud reaches that cloud and links to its portal" do
         @integration.update!(settings: @integration.settings.to_h.merge(Integration::REGION_SETTING => "us_government"))
-        AzureApi.expects(:new).with { |**options| options[:cloud] == AzureApi::US_GOVERNMENT }.returns(stub(subscription_details: {}, list: [], segment: ""))
+        AzureApi.expects(:new).with { |**options| options[:cloud] == AzureApi::US_GOVERNMENT }.returns(stub(subscription_details: {}, list: pages([]), segment: ""))
 
         assert_match "https://portal.azure.us/\#@contoso.onmicrosoft.com/resource/subscriptions/#{SUBSCRIPTION}/overview", call(:list_resources)
 
@@ -83,7 +83,7 @@ module Integrations
         assert_match "storefront (#{WEB_ID}), App Service app in shop, westeurope, running", text
         assert_match "jobs (#{FUNCTION_ID}), Function app in shop", text
         assert_match "api (#{APP_ID}), Container App in shop, westeurope, running", text
-        assert_match "orders (#{SQL_ID}), Azure SQL database in shop, westeurope, online", text
+        assert_match "orders (#{SQL_ID}), Azure SQL database in shop, westeurope, running", text
         assert_match "catalog (#{PG_ID}), PostgreSQL flexible server in shop, westeurope, ready", text
         assert_no_match "master", text
       end
@@ -148,14 +148,14 @@ module Integrations
       end
 
       test "an App Service app's deployments and slots, and a Container App's revisions, show what went out" do
-        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/deployments" }.returns([
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/deployments" }.returns(pages([
           { "name" => "abc123", "properties" => { "status" => 4, "start_time" => "2026-10-03T09:00:00Z", "author" => "ana", "message" => "Fix checkout\nmore", "active" => true } }
-        ])
-        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns([ { "name" => "storefront/staging", "properties" => { "state" => "Running" } } ])
-        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns([
+        ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([ { "name" => "storefront/staging", "properties" => { "state" => "Running" } } ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns(pages([
           { "name" => "api--v2", "properties" => { "createdTime" => "2026-10-03T09:00:00Z", "active" => true, "healthState" => "Healthy", "runningState" => "Running",
                                                    "replicas" => 2, "trafficWeight" => 100, "template" => { "containers" => [ { "image" => "acme.azurecr.io/api:v2" } ] } } }
-        ])
+        ]))
 
         assert_match "2026-10-03T09:00:00Z, succeeded, active, by ana, \"Fix checkout\", deployment abc123\nDeployment slots, which rollback_app swaps with production: staging (running).",
                      call(:list_deployments, "resource" => "storefront")
@@ -164,12 +164,12 @@ module Integrations
       end
 
       test "a rollback swaps a slot the app has, or sends a Container App's traffic to an earlier revision, activating it first" do
-        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns([ { "name" => "storefront/staging" } ])
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([ { "name" => "storefront/staging" } ]))
         AzureApi.any_instance.expects(:post).with("#{WEB_ID}/slotsswap", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true }).returns({})
         assert_match "To undo, swap staging with production again.", call(:rollback_app, "resource" => "storefront", "to" => "staging")
         assert_match "has no slot called canary", assert_raises(Integrations::Error) { call(:rollback_app, "resource" => "storefront", "to" => "canary") }.message
 
-        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns([ { "name" => "api--v1", "properties" => { "active" => false } } ])
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns(pages([ { "name" => "api--v1", "properties" => { "active" => false } } ]))
         AzureApi.any_instance.expects(:post).with("#{APP_ID}/revisions/api--v1/activate", Azure::APP_VERSION).returns({})
         AzureApi.any_instance.expects(:patch).with do |id, _version, body|
           id == APP_ID && body.dig("properties", "configuration", "ingress", "traffic") == [ { "revisionName" => "api--v1", "weight" => 100 } ] &&
@@ -189,8 +189,8 @@ module Integrations
       test "a restart reaches each kind as Azure offers it, and Azure SQL has none" do
         AzureApi.any_instance.expects(:post).with("#{WEB_ID}/restart", Azure::WEB_VERSION).returns({})
         AzureApi.any_instance.expects(:post).with("#{PG_ID}/restart", Azure::POSTGRES_VERSION).returns({})
-        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns([ { "name" => "api--v2", "properties" => { "active" => true } },
-                                                                                                    { "name" => "api--v1", "properties" => { "active" => false } } ])
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{APP_ID}/revisions" }.returns(pages([ { "name" => "api--v2", "properties" => { "active" => true } },
+                                                                                                    { "name" => "api--v1", "properties" => { "active" => false } } ]))
         AzureApi.any_instance.expects(:post).with("#{APP_ID}/revisions/api--v2/restart", Azure::APP_VERSION).returns({})
 
         assert_match "Azure is restarting storefront.", call(:restart_resource, "resource" => "storefront")
@@ -236,6 +236,18 @@ module Integrations
         assert_match "Azure SQL databases could not be read", snapshot.gaps.first
       end
 
+      test "a list cut short is a gap with its kind unread, and Azure's states read as the map's words" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns(pages([
+          { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "properties" => { "state" => "Updating" } }
+        ], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_includes snapshot.gaps, "Only the first 1 PostgreSQL flexible servers were read."
+        assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
+        assert_equal %w[modifying running], snapshot.resources.select { |resource| [ PG_ID, SQL_ID ].include?(resource.external_id) }.map(&:status).sort
+      end
+
       test "a week of readings becomes a baseline per metric" do
         resource = ResourceMap::Resource.create!(workspace: @workspace, provider: "azure", account: SUBSCRIPTION, kind: ResourceMap::KIND_DATABASE, external_id: PG_ID,
                                                  name: "catalog", details: { "type" => Azure::TYPE_POSTGRES }, integration_environment: @row,
@@ -255,6 +267,8 @@ module Integrations
       end
 
       private
+
+      def pages(items, complete: true) = Integrations::Pages::Read.new(items: items, complete: complete)
 
       def table(columns, rows) = { "tables" => [ { "name" => "PrimaryResult", "columns" => columns.map { |name| { "name" => name } }, "rows" => rows } ] }
 
