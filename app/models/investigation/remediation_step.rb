@@ -188,8 +188,11 @@ class Investigation::RemediationStep < ApplicationRecord
     writers = IntegrationProvider.code_hosts.to_h { |provider| [ provider.key, provider.code_fix_tool ] }
     tools = Integration::Tool.in_workspace(workspace).where(integrations: { provider: writers.keys }, read_only: false).to_a
                              .select { |tool| writers[tool.integration.provider] == tool.name }
-    seen = ResourceMap::Resource.present.find_by(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository)
-    tools.find { |tool| seen && tool.integration_id == seen.integration_environment&.integration_id } || (tools.first if tools.one?)
+    # A path two code hosts both hold, such as a mirror, is two repositories, so it is the code hosts' own that count.
+    seen = ResourceMap::Resource.present.where(workspace: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository, provider: writers.keys)
+                                .includes(:integration_environment).filter_map { |resource| resource.integration_environment&.integration_id }
+    holders = tools.select { |tool| seen.include?(tool.integration_id) }
+    holders.one? ? holders.first : (tools.first if tools.one?)
   end
 
   def code_runs_itself_reason

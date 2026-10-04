@@ -133,10 +133,10 @@ module Integrations
       end
 
       def refused_hint(error)
-        case error.status
-        when 401 then "Check the API key, or reconnect Devin with a new one."
-        when 403 then "The service user needs the UseDevinSessions permission to start sessions and ManageOrgSessions to stop one."
-        when 404 then "Check the organization id and the session id."
+        case error
+        when DevinApi::Unauthorized then "Check the API key, or reconnect Devin with a new one."
+        when DevinApi::Forbidden then "The service user needs the UseDevinSessions permission to start sessions and ManageOrgSessions to stop one."
+        when DevinApi::NotFound then "Check the organization id and the session id."
         end
       end
 

@@ -22,7 +22,6 @@ module Integrations
       # A pull request's address as GitHub, GitLab, Bitbucket and Azure DevOps write it.
       PULL_REQUEST_URL = %r{https://[^\s<>()\[\]"'`]+/(?:pull|merge_requests|pull-requests|pullrequest)/\d+}
       REPOSITORY_URL = %r{\Ahttps://[^\s/]+/[^\s]+\z}
-      CODE_HOSTS = { "github.com" => "GitHub", "gitlab.com" => "GitLab", "bitbucket.org" => "Bitbucket", "dev.azure.com" => "Azure DevOps" }.freeze
 
       PHASE_WORKING = :working
       # Waiting on a person in the provider's own app, such as a question the agent asked. Followed until the limit.
@@ -80,8 +79,8 @@ module Integrations
 
       # Its work is a fix's code change rather than a capability, so it says so in its own words.
       def self.halon_sentence(name)
-        "Firefight hands a fix's code changes to #{name} once you choose it under Settings, Workspace and switch on fix_code, " \
-          "and Halon reads how a change went through session_status. An investigation never starts one."
+        "Firefight hands a fix's code change to #{name} once you choose it under Settings, Workspace and switch on fix_code. " \
+          "Halon follows the change with session_status. An investigation never starts one."
       end
 
       def self.store_credentials!(environment_row, values)
@@ -92,7 +91,7 @@ module Integrations
         repo = required(arguments, "repo")
         title = required(arguments, "title").truncate(TITLE_LIMIT)
         base = arguments["base"].to_s.strip.presence
-        prompt = redacted(handoff(repo, base, required(arguments, "brief"), arguments["summary"].presence || title, arguments["context"]))
+        prompt = Chat::SecretFree.redacted(handoff(repo, base, required(arguments, "brief"), arguments["summary"].presence || title, arguments["context"]))
         session = begin
           start(environment_row, repo: repo, base: base, title: title, prompt: prompt)
         rescue CodingAgentApi::Error => error
@@ -194,11 +193,6 @@ module Integrations
         ].compact.join("\n\n")
       end
 
-      # Anything that looks like a credential never leaves Firefight for the provider.
-      def redacted(text)
-        Chat::SecretFree::SECRET_PATTERNS.reduce(text) { |kept, (name, pattern)| kept.gsub(pattern, "[REDACTED:#{name}]") }
-      end
-
       def started(session)
         [ "#{self.class::NAME} is writing the change in session #{session.id}.", follow_line(session) ].compact.join(" ")
       end
@@ -239,9 +233,10 @@ module Integrations
         Telemetry::Link.new(provider: self.class::NAME, url: session.page) if session.page
       end
 
+      # Named for the code host the registry lists at the address's site, or for its host when none is listed.
       def pull_request_link(url)
-        host = URI.parse(url).host.to_s
-        Telemetry::Link.new(provider: CODE_HOSTS.fetch(host, host), url: url)
+        host = ResourceMap.repository_of(url)&.provider
+        Telemetry::Link.new(provider: host ? ResourceMap.provider_name(host) : URI.parse(url).host.to_s, url: url)
       rescue URI::InvalidURIError
         Telemetry::Link.new(provider: self.class::NAME, url: url)
       end
@@ -249,12 +244,17 @@ module Integrations
       def pull_requests_in(text) = text.to_s.scan(PULL_REQUEST_URL).uniq
 
       # A repository's address: the one given, or where the resource map saw it, since the map holds what a code host
-      # reported and an address is never pieced together from a name.
+      # reported and an address is never pieced together from a name. A path two code hosts both hold, such as a mirror,
+      # is two repositories, so it is refused rather than one picked.
       def repository_url(repo)
         return repo if repo.match?(REPOSITORY_URL)
 
-        ResourceMap::Resource.present.where(workspace: integration.workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repo)
-                             .where.not(url: [ nil, "" ]).pick(:url)
+        seen = ResourceMap::Resource.present.where(workspace: integration.workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repo)
+                                    .where.not(url: [ nil, "" ]).pluck(:provider, :url).uniq(&:last)
+        return seen.first&.last if seen.size < 2
+
+        hosts = seen.map { |provider, _url| ResourceMap.provider_name(provider) }.uniq.to_sentence
+        fail! "#{repo} is on the map from #{hosts}. Give repo as the address of the one to change."
       end
 
       def required(arguments, key) = arguments[key].to_s.strip.presence || fail!("Give #{key}.")

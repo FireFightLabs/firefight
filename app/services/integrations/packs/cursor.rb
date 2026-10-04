@@ -18,7 +18,7 @@ module Integrations
 
       def self.credential_fields
         [
-          CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "Your Cursor API key",
+          CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "",
                               hint: "A user API key from the API Keys page of Cursor's dashboard, or a service account's key. Cloud agents reach the repository and open pull requests through the source control connected in Cursor.")
         ]
       end
@@ -85,7 +85,7 @@ module Integrations
       end
 
       def refused_hint(error)
-        "Check the API key, or reconnect Cursor with a new one." if error.status == 401
+        "Check the API key, or reconnect Cursor with a new one." if error.is_a?(CursorApi::Unauthorized)
       end
 
       def api(environment_row) = CursorApi.new(key_of(environment_row))

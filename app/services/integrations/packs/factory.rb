@@ -25,8 +25,8 @@ module Integrations
 
       def self.credential_fields
         [
-          CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "Your Factory API key",
-                              hint: "A Factory API key, from Settings, API Keys in Factory. A service account's key keeps the work off a teammate's account. Factory switches its sessions API on for selected organizations.")
+          CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "",
+                              hint: "A Factory API key, from Settings, API Keys in Factory. A service account's key keeps the work off a teammate's account. Factory switches its sessions API on only for some organizations.")
         ]
       end
 
@@ -116,9 +116,9 @@ module Integrations
       end
 
       def refused_hint(error)
-        case error.status
-        when 401 then "Check the API key, or reconnect Factory with a new one."
-        when 403 then "Factory switches its sessions API on for selected organizations, so ask Factory to switch it on for yours."
+        case error
+        when FactoryApi::Unauthorized then "Check the API key, or reconnect Factory with a new one."
+        when FactoryApi::Forbidden then "Factory switches its sessions API on only for some organizations, so ask Factory to switch it on for yours."
         end
       end
 

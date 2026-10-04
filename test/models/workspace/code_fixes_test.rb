@@ -37,7 +37,7 @@ class Workspace::CodeFixesTest < ActiveSupport::TestCase
 
     @devin.update!(disabled_at: Time.current)
     assert_nil @workspace.code_fix_agent_tool
-    assert_equal "Devin for web is turned off, so code steps wait for a person until it is turned on again.", @workspace.code_fix_agent_blocked_reason
+    assert_equal "Devin for web is switched off, so code steps wait for a person until it is switched on again.", @workspace.code_fix_agent_blocked_reason
 
     @devin.update!(deleted_at: Time.current)
     assert_equal "The coding agent chosen to write code fixes was removed, so code steps wait for a person. Choose another one.", @workspace.code_fix_agent_blocked_reason

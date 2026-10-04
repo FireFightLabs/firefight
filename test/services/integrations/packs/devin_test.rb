@@ -18,8 +18,8 @@ module Integrations
       end
 
       test "the provider's details say what Firefight does with it in its own words" do
-        assert_equal "Firefight hands a fix's code changes to Devin once you choose it under Settings, Workspace and switch on fix_code, " \
-                     "and Halon reads how a change went through session_status. An investigation never starts one.",
+        assert_equal "Firefight hands a fix's code change to Devin once you choose it under Settings, Workspace and switch on fix_code. " \
+                     "Halon follows the change with session_status. An investigation never starts one.",
                      Capabilities.halon_sentence("devin", "Devin")
       end
 
@@ -87,7 +87,7 @@ module Integrations
 
       test "a few failed reads are waited out, and more say Firefight lost the session with its link" do
         DevinApi.any_instance.stubs(:create_session).returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
-        DevinApi.any_instance.stubs(:session).raises(DevinApi::Error.new("Devin answered 502: Bad gateway", status: 502))
+        DevinApi.any_instance.stubs(:session).raises(DevinApi::Error.new("Devin answered 502: Bad gateway"))
 
         error = assert_raises(NativePack::Error) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS) }
 
@@ -95,7 +95,7 @@ module Integrations
       end
 
       test "a refused start says what to change" do
-        DevinApi.any_instance.stubs(:create_session).raises(DevinApi::Error.new("Devin answered 403: Forbidden", status: 403))
+        DevinApi.any_instance.stubs(:create_session).raises(DevinApi::Forbidden.new("Devin answered 403: Forbidden"))
 
         error = assert_raises(NativePack::Error) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS) }
 
@@ -117,7 +117,7 @@ module Integrations
 
         assert_equal [ Devin::API_KEY ], Devin.credential_fields.map(&:key)
         assert_nil fields.fetch(Devin::ORGANIZATION).refusal("org-abc123")
-        assert_match "org- followed by letters and numbers", fields.fetch(Devin::ORGANIZATION).refusal("abc").to_s
+        assert_match "org- followed by letters, numbers, dashes and underscores", fields.fetch(Devin::ORGANIZATION).refusal("abc").to_s
         assert fields.fetch(Devin::MAX_ACUS).optional
         assert_equal 5, ConnectionSettings.of(@row).field(Devin::MAX_ACUS).to_i, "a limit left empty is Devin's default from the registry"
         assert_nil @row.reload.credentials_hash[Devin::ORGANIZATION]
@@ -135,7 +135,7 @@ module Integrations
         assert_nil Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
         assert_nil @pack.check_health!(@row)
 
-        DevinApi.any_instance.stubs(:whoami).raises(DevinApi::Error.new("Devin answered 401: Unauthorized", status: 401))
+        DevinApi.any_instance.stubs(:whoami).raises(DevinApi::Unauthorized.new("Devin answered 401: Unauthorized"))
         assert_equal "Devin refused this key. Devin answered 401: Unauthorized", Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
       end
 

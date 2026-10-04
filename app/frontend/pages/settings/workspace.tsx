@@ -246,7 +246,7 @@ export default function Workspace() {
                 request through your code host connection. Pick a coding agent you connected and Firefight hands it the
                 change and the evidence instead. That agent opens the pull request itself, and the fix shows how it is
                 going until it finishes or hits its time limit. Both go through your permissions and approval rules.
-                An investigation never starts one.
+                An investigation never starts a code fix on its own.
               </p>
               {!connectedAgents && (
                 <p className="mt-2 text-sm text-muted-foreground">

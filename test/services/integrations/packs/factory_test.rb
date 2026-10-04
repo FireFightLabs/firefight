@@ -67,8 +67,8 @@ module Integrations
         assert_match "Factory stopped without opening a pull request: Firefight stopped it at the 30 minute limit.",
                      assert_raises(NativePack::Error) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS) }.message
 
-        FactoryApi.any_instance.stubs(:create_session).raises(FactoryApi::Error.new("Factory answered 403: Not enabled", status: 403))
-        assert_equal "Factory did not start the change. Factory answered 403: Not enabled. Factory switches its sessions API on for selected " \
+        FactoryApi.any_instance.stubs(:create_session).raises(FactoryApi::Forbidden.new("Factory answered 403: Not enabled"))
+        assert_equal "Factory did not start the change. Factory answered 403: Not enabled. Factory switches its sessions API on only for some " \
                      "organizations, so ask Factory to switch it on for yours.",
                      assert_raises(NativePack::Error) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS) }.message
       end

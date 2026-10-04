@@ -27,11 +27,11 @@ module Integrations
     test "Devin's problem detail is its refusal, and a 429 is its own error" do
       Http.stubs(:request).returns(response(403, { title: "Forbidden", status: 403, detail: "Missing permission UseDevinSessions" }))
 
-      error = assert_raises(DevinApi::Error) { DevinApi.new("cog_key", "org-abc").whoami }
+      error = assert_raises(DevinApi::Forbidden) { DevinApi.new("cog_key", "org-abc").whoami }
 
-      assert_equal [ "Devin answered 403: Missing permission UseDevinSessions", 403 ], [ error.message, error.status ]
+      assert_equal "Devin answered 403: Missing permission UseDevinSessions", error.message
       Http.stubs(:request).returns(response(429, { title: "Too Many Requests", status: 429 }))
-      assert_raises(CodingAgentApi::RateLimited) { DevinApi.new("cog_key", "org-abc").whoami }
+      assert_kind_of Integrations::RateLimited, assert_raises(DevinApi::Error) { DevinApi.new("cog_key", "org-abc").whoami }
     end
 
     test "Cursor creates an agent, reads and cancels its run, and says its own error message" do

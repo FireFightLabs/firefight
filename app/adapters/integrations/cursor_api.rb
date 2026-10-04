@@ -19,10 +19,5 @@ module Integrations
     def cancel(agent_id, run_id) = call(:post, "/agents/#{segment(agent_id)}/runs/#{segment(run_id)}/cancel")
 
     def usage(agent_id) = call(:get, "/agents/#{segment(agent_id)}/usage")
-
-    private
-
-    # Errors come as { error: { code, message } }.
-    def reason(body) = body.dig("error", "message").presence
   end
 end

@@ -31,8 +31,5 @@ module Integrations
     private
 
     def root = @root
-
-    # Errors come as { detail, status, title }, whose detail says what went wrong.
-    def reason(body) = body["detail"].presence || body["title"].presence
   end
 end

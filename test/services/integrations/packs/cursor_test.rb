@@ -42,10 +42,25 @@ module Integrations
         assert_equal "Cursor needs the repository's address, and acme/web is not on the resource map. Give repo as the address its code host shows.", error.message
       end
 
+      test "a repository two code hosts both hold is two repositories, so its address has to be given" do
+        %w[github gitlab].each do |host|
+          connection = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: host, name: host.capitalize, slug: host)
+          ResourceMap.record!(connection.integration_environments.create!(base_config: { "installation_id" => "1" }), ResourceMap::Snapshot.new(resources: [
+            ResourceMap::Found.new(provider: host, account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/web", name: "acme/web",
+                                   url: "https://#{host}.com/acme/web")
+          ]))
+        end
+        CursorApi.any_instance.expects(:create_agent).never
+
+        error = assert_raises(NativePack::Error) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS) }
+
+        assert_equal "acme/web is on the map from GitHub and GitLab. Give repo as the address of the one to change.", error.message
+      end
+
       test "a run that finished without a pull request is read again before it counts, and a cancelled one says so" do
         CursorApi.any_instance.stubs(:create_agent).returns("agent" => { "id" => "bc-1", "url" => "https://cursor.com/agents/bc-1" }, "run" => { "id" => "run-1" })
         CursorApi.any_instance.expects(:run).times(Cursor::PULL_REQUEST_GRACE + 1).returns(cursor_run("FINISHED", result: "Nothing to change."))
-        CursorApi.any_instance.stubs(:usage).raises(CursorApi::Error.new("Cursor answered 500: down", status: 500))
+        CursorApi.any_instance.stubs(:usage).raises(CursorApi::Error.new("Cursor answered 500: down"))
 
         error = assert_raises(NativePack::Error) { @pack.fix_code(environment_row: @row, arguments: ARGUMENTS.merge("repo" => "https://github.com/acme/web")) }
         assert_equal "Cursor finished without opening a pull request.\nWhat Cursor said: Nothing to change.\nFollow it at https://cursor.com/agents/bc-1.", error.message
@@ -80,7 +95,7 @@ module Integrations
         assert_nil Cursor.credential_refusal({ Cursor::API_KEY => "crsr_key" })
         assert_equal "Paste a Cursor API key.", Cursor.credential_refusal({ Cursor::API_KEY => " " })
 
-        CursorApi.any_instance.stubs(:me).raises(CursorApi::Error.new("Cursor answered 401: Invalid API key", status: 401))
+        CursorApi.any_instance.stubs(:me).raises(CursorApi::Unauthorized.new("Cursor answered 401: Invalid API key"))
         assert_equal "Cursor refused this key. Cursor answered 401: Invalid API key", Cursor.credential_refusal({ Cursor::API_KEY => "crsr_key" })
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end

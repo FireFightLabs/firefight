@@ -28,8 +28,5 @@ module Integrations
     private
 
     def sessions_path = "/organizations/#{segment(@organization)}/sessions"
-
-    # Errors come as RFC 9457 problem details, whose detail says what went wrong.
-    def reason(body) = body["detail"].presence&.to_s || body["title"].presence
   end
 end

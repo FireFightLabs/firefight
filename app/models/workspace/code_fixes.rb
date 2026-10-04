@@ -37,7 +37,7 @@ module Workspace::CodeFixes
 
     integration = code_fix_agent_connection
     return "The coding agent chosen to write code fixes was removed, so code steps wait for a person. Choose another one." if integration.nil? || integration.deleted_at
-    return "#{integration.name} is turned off, so code steps wait for a person until it is turned on again." if integration.disabled_at
+    return "#{integration.name} is switched off, so code steps wait for a person until it is switched on again." if integration.disabled_at
     return "#{integration.name}'s fix_code tool is switched off, so code steps wait for a person. Switch it on under Integrations." unless code_fix_agent_tool
 
     nil
