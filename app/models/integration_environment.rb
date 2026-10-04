@@ -17,6 +17,12 @@ class IntegrationEnvironment < ApplicationRecord
   validates :catalog_entry_id, uniqueness: { scope: :integration_id }
 
   scope :enabled, -> { where(enabled: true) }
+  # Rows that reach something: enabled, of a connection that is switched on and not removed, and not wired to an
+  # environment that was deleted.
+  scope :reachable, -> {
+    enabled.joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
+           .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
+  }
 
   def credentials_hash
     JSON.parse(credentials.presence || "{}")

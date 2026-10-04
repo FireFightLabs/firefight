@@ -278,11 +278,12 @@ module Chat::Tools
 
     Integrations::Capabilities.offered(agent_run.workspace, tools: tools).map do |spec, able|
       writes = agent_run.reads_only? && spec.writes
-      ready = !writes && principal.present? && able.any? { |tool| tool.callable_by?(principal, resolved) }
+      callable = principal ? able.select { |tool| tool.callable_by?(principal, resolved) } : []
+      ready = !writes && callable.any?
       Entry.new(
         name: spec.tool_name, description: clean(spec.description, ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
-        tool: (Capability.new(agent_run, spec, able) if ready),
+        tool: (Capability.new(agent_run, spec, able, callable: callable) if ready),
         group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: spec.tool_name
       )
     end

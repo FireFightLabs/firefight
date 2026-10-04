@@ -25,7 +25,7 @@ class IntegrationGroupsTest < ApplicationSystemTestCase
 
     find("button[aria-label='About Datadog']").click
     within("[role='dialog']") do
-      assert_text "Halon uses Datadog's own tools that you switch on"
+      assert_text "for the services on the map that Datadog watches"
       assert_no_text "On the map"
     end
   end

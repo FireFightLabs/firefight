@@ -40,10 +40,16 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   public
 
+  # Whether the last run was refused or the provider failed it.
+  def failed? = @failed == true
+
   # Runs the tool with arguments that are already its own, as this tool's action, through the gateway. A capability
   # call runs through here too, so it is authorized, approved, ledgered and replayed exactly like the tool itself.
   # shown_as is the name the agent called, present reads the provider's answer back into the capability's shapes.
-  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil)
+  # alone is false when this is one of several answers to one call, so a failure here leaves the card to the caller.
+  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true)
+    @alone = alone
+    @failed = false
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     result = nil
     said = @agent_run.tool_call(
@@ -64,7 +70,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)
       return run(arguments, environment_entry: environment_entry, tool_call_id: tool_call_id, shown_as: shown_as, present: present,
-                            approval_id: pending.approval.id)
+                            approval_id: pending.approval.id, alone: alone)
     end
 
     Chat::Tools.waiting_for_approval(@tool.action_key)
@@ -77,7 +83,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # The words still go to the model. The mark is for whoever reads the chat afterwards.
   def failed(tool_call_id, text)
-    Chat::Tools.mark_failed(@agent_run, tool_call_id)
+    @failed = true
+    Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
     text
   end
 

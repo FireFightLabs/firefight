@@ -16,7 +16,11 @@ class Integration < ApplicationRecord
 
   validates :kind, inclusion: { in: KINDS }
   validates :provider, :name, presence: true
+  # all asks every connection at once (connection: all), so no connection can be called it.
+  SLUG_ALL = "all".freeze
+
   validates :slug, presence: true, format: { with: /\A[a-z0-9_]+\z/ }
+  validate :slug_not_reserved, on: :create
   validates :slug, uniqueness: { scope: :workspace_id, conditions: -> { where(deleted_at: nil) } },
                    unless: :deleted?
   validate :slug_immutable, on: :update
@@ -75,6 +79,11 @@ class Integration < ApplicationRecord
 
   # The environment a caller named by slug, or nil for the connection's default. Every way in
   # resolves it here, so an unknown one is refused with the same words from a chat and over MCP.
+  # Why a new connection cannot take this name, or nil when it can.
+  def self.name_blocked_reason(name)
+    "All is kept for asking every connection at once. Pick a different name." if slug_for(name) == SLUG_ALL
+  end
+
   def environment_entry_for(slug)
     return nil if slug.blank?
 
@@ -97,5 +106,9 @@ class Integration < ApplicationRecord
   # and ledger rows.
   def slug_immutable
     errors.add(:slug, "cannot be changed after creation") if slug_changed?
+  end
+
+  def slug_not_reserved
+    errors.add(:slug, "is kept for asking every connection at once") if slug == SLUG_ALL
   end
 end

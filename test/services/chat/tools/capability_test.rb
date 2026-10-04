@@ -38,6 +38,61 @@ class Chat::Tools::CapabilityTest < ActiveSupport::TestCase
     assert_equal [ "northflank.search_logs", { "resource" => "web-id", "text" => "timeout" } ], [ step.action_key, step.params ]
   end
 
+  test "connection all asks every connection that can answer, each as its own step headed with where it came from" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    logs = datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                                 params_schema: { "type" => "object", "properties" => { "query" => {}, "service" => {}, "from" => {}, "to" => {} } })
+    grant!([ *@tools.values, logs ])
+    Integrations::NativeExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+    Integrations::McpExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "datadog lines" } ])
+    search = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "search_logs" }.tool
+
+    answer = search.call("resource" => "web", "connection" => "all")
+
+    assert_match(/From northflank:\n.*northflank lines/m, answer)
+    assert_match(/From datadog:\n.*datadog lines/m, answer)
+    assert_equal %w[datadog.search_datadog_logs northflank.search_logs], @investigation.steps.where(tool_name: "search_logs").pluck(:action_key).sort
+  end
+
+  test "under connection all the card reads failed only when no connection answered" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    logs = datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                                 params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+    grant!([ *@tools.values, logs ])
+    chat = @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    reply = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "search_logs", arguments: {})
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+    Integrations::McpExecutor.stubs(:call).raises(Integrations::Error, "Datadog is down")
+    search = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "search_logs" }.tool
+
+    answer = search.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {}), "resource" => "web", "connection" => "all")
+
+    assert_match "northflank lines", answer
+    assert_match "Datadog is down", answer
+    assert_empty chat.failed_tool_call_ids
+
+    Integrations::NativeExecutor.stubs(:call).raises(Integrations::Error, "Northflank is down")
+    search.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {}), "resource" => "web", "connection" => "all")
+    assert_equal [ "call_1" ], chat.failed_tool_call_ids
+  end
+
+  test "a connection tool refused before it runs, such as for an unknown environment, still marks its card failed" do
+    grant!(@tools.values)
+    chat = @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_2", name: "northflank_list_containers", arguments: {})
+    containers = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "northflank_list_containers" }.tool
+
+    answer = containers.call(tool_call: RubyLLM::ToolCall.new(id: "call_2", name: "northflank_list_containers", arguments: {}), "environment" => "nowhere")
+
+    assert_match "Unknown environment", answer
+    assert_equal [ "call_2" ], chat.failed_tool_call_ids
+  end
+
   test "a read never waits for the person, a change is never made while investigating, and what cannot be routed is said" do
     grant!(@tools.values)
     catalog = Chat::Tools.catalog(@investigation)

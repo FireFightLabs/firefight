@@ -18,9 +18,14 @@ module Integrations
 
     RESOURCE_ARG = "resource".freeze
     CONNECTION_ARG = "connection".freeze
+    # connection: all asks every connection that can answer, each answer labelled with where it came from.
+    ALL = Integration::SLUG_ALL
+    # What an observability tool answers by default when the platform that runs a resource could too.
+    SIGNALS = [ LOGS, METRICS, TRACES, ERRORS ].freeze
     # app is what the code prints, requests the traffic reaching it, internal the calls between services, cdn what a
     # CDN in front of it served, backup and restore a database's own jobs.
-    LOG_STREAMS = %w[app build requests internal cdn backup restore].freeze
+    STREAM_APP = "app".freeze
+    LOG_STREAMS = [ STREAM_APP, *%w[build requests internal cdn backup restore] ].freeze
     # The metric names every adapter maps to its provider's own, so a question reads the same whatever answers it.
     METRIC_NAMES = %w[cpu memory requests errors http_4xx http_5xx cpu_time network_in network_out tcp_connections disk bandwidth].freeze
     DEFAULT_MINUTES = 60
@@ -39,7 +44,7 @@ module Integrations
 
     SPECS = [
       Spec.new(key: LOGS, tool_name: "search_logs", writes: false, what: "logs",
-               description: "Log lines of one resource on the map, newest first, from whichever connection runs it. Filter by text " \
+               description: "Log lines of one resource on the map, newest first, from whichever connection runs or watches it. Filter by text " \
                             "or a regular expression. stream picks what the app prints (app, the default), its builds, or the " \
                             "requests reaching it, where the provider keeps them",
                params: {
@@ -51,7 +56,7 @@ module Integrations
                  "limit" => LIMIT, **RANGE
                }, required: []),
       Spec.new(key: METRICS, tool_name: "query_metrics", writes: false, what: "metrics",
-               description: "Metrics of one resource on the map over time, from whichever connection runs it, with min, average, " \
+               description: "Metrics of one resource on the map over time, from whichever connection runs or watches it, with min, average, " \
                             "max and latest for each. The person sees each metric as a chart. A metric the provider does not " \
                             "keep for that resource is named as missing",
                params: {
@@ -92,7 +97,8 @@ module Integrations
 
     ADAPTERS = {
       Packs::Northflank::PROVIDER_KEY => "Integrations::Capabilities::Northflank",
-      MapReaders::Cloudflare::PROVIDER => "Integrations::Capabilities::Cloudflare"
+      MapReaders::Cloudflare::PROVIDER => "Integrations::Capabilities::Cloudflare",
+      Datadog::PROVIDER_KEY => "Integrations::Capabilities::Datadog"
     }.freeze
 
     # What an adapter answers: the provider tool to run, its own arguments, and how to read its answer back into the
@@ -100,6 +106,12 @@ module Integrations
     Route = Data.define(:tool_name, :arguments, :present) do
       def initialize(present: nil, **) = super
     end
+
+    # A connection that can answer for a resource: one that runs it, or an observability tool that watches it.
+    Candidate = Data.define(:resource, :row, :adapter, :observer)
+
+    # A connection asked under connection: all that could not answer, and why.
+    Refused = Data.define(:environment_row, :reason)
 
     # A request resolved to one connection: the resource, the row that reaches it, and the provider tool it runs as.
     Call = Data.define(:spec, :resource, :environment_row, :tool, :arguments, :present) do
@@ -125,10 +137,13 @@ module Integrations
 
     def self.halon_sentence(provider, name)
       own = "Halon uses #{name}'s own tools that you switch on, in chats and investigations."
-      keys = adapter_for(provider)&.capabilities.to_a
+      adapter = adapter_for(provider)
+      keys = adapter&.capabilities.to_a
       return own if keys.empty?
 
-      "Halon can #{keys.map { |key| PHRASES.fetch(key) }.to_sentence} for anything #{name} runs, through the tools you switch on. " \
+      # A platform answers for what it runs, an observability tool for the services it watches.
+      what = adapter.observed.any? && adapter::SUPPORTS.empty? ? "the services on the map that #{name} watches, by their name in #{name}" : "anything #{name} runs"
+      "Halon can #{keys.map { |key| PHRASES.fetch(key) }.to_sentence} for #{what}, through the tools you switch on. " \
         "It also uses #{name}'s other tools that you switch on."
     end
 
@@ -168,16 +183,46 @@ module Integrations
     def self.schema(spec, connections)
       properties = { RESOURCE_ARG => { "type" => "string", "description" => "The resource, by its name or id on the resource map" } }
       if connections.size > 1
-        properties[CONNECTION_ARG] = { "type" => "string", "enum" => connections,
-                                       "description" => "The connection to ask, when more than one holds the resource (optional)" }
+        choices = spec.writes ? connections : [ *connections, ALL ]
+        properties[CONNECTION_ARG] = { "type" => "string", "enum" => choices,
+                                       "description" => "The connection to ask when more than one can answer (optional). Without it, an observability " \
+                                                        "tool answers logs, metrics, traces and errors, and the platform that runs the resource " \
+                                                        "answers the rest. Follow the team's instructions when they say which to ask.#{" all asks every one." unless spec.writes}" }
       end
       { "type" => "object", "properties" => properties.merge(spec.params), "required" => [ RESOURCE_ARG, *spec.required ] }
     end
 
-    # Finds the resource, the connection that holds it and can answer, and the provider call to make. Raises Unroutable
-    # with words an agent can act on when there is none, or more than one and the request did not say which.
-    def self.resolve(workspace, key, given)
+    # Finds the resource, the connection that can answer for it, and the provider call to make. Raises Unroutable with
+    # words an agent can act on when there is none, or more than one and the request did not say which.
+    # tools are the ones the caller may run, every switched on tool when not given. An observability tool is asked only
+    # through one of them, so connecting one never takes away a read the platform answers today.
+    def self.resolve(workspace, key, given, tools = nil)
+      tools ||= Integration::Tool.in_workspace(workspace).to_a
       spec = spec(key)
+      candidates, reference = candidates_for(workspace, spec, given, tools)
+      call_for(workspace, spec, choose(candidates, given, reference, spec), given)
+    end
+
+    # Every connection that can answer for the resource, for connection: all, as a Call or a Refused for each. A change
+    # is never made everywhere at once.
+    def self.resolve_all(workspace, key, given, tools = nil)
+      tools ||= Integration::Tool.in_workspace(workspace).to_a
+      spec = spec(key)
+      raise Unroutable, "#{ALL} is only for reading, so a change names one connection." if spec.writes
+
+      candidates, reference = candidates_for(workspace, spec, given, tools)
+      one_resource!(candidates, reference)
+      candidates.uniq { |candidate| candidate.row.id }.map do |candidate|
+        call_for(workspace, spec, candidate, given)
+      rescue Unroutable => error
+        Refused.new(environment_row: candidate.row, reason: error.message)
+      end
+    end
+
+    # One connection's answer under connection: all, headed with where it came from.
+    def self.headed(environment_row, text) = "From #{connection_label(environment_row)}:\n#{text}"
+
+    def self.candidates_for(workspace, spec, given, tools)
       reference = given[RESOURCE_ARG].to_s.strip
       raise Unroutable, "Say which resource, by its name or id on the resource map." if reference.empty?
 
@@ -185,27 +230,31 @@ module Integrations
       raise Unroutable, "Nothing on the resource map is called #{reference}. get_resource_map lists what is there." if named.empty?
 
       candidates = holders(named, spec)
-      raise Unroutable, "#{reference} is on the map, but no connection that holds it offers #{spec.what} for it." if candidates.empty?
+      candidates += observers(workspace, candidates, named, spec, tools)
+      raise Unroutable, "#{reference} is on the map, but no connection offers #{spec.what} for it." if candidates.empty?
 
-      resource, row, adapter = choose(candidates, given[CONNECTION_ARG], reference)
-      route = adapter.route(spec.key, resource, given.except(RESOURCE_ARG, CONNECTION_ARG))
-      tool = Integration::Tool.in_workspace(workspace).find_by(integration_id: row.integration_id, name: route.tool_name)
+      [ candidates, reference ]
+    end
+
+    def self.call_for(workspace, spec, candidate, given)
+      tool_name = candidate.adapter.tool_for(spec.key)
+      tool = Integration::Tool.in_workspace(workspace).find_by(integration_id: candidate.row.integration_id, name: tool_name)
       unless tool
-        raise Unroutable, "#{row.integration.name} would answer this with its #{route.tool_name} tool, which is switched off. " \
+        raise Unroutable, "#{candidate.row.integration.name} would answer this with its #{tool_name} tool, which is switched off. " \
                           "An admin can switch it on in Integrations."
       end
 
-      Call.new(spec: spec, resource: resource, environment_row: row, tool: tool, arguments: route.arguments, present: route.present)
+      route = candidate.adapter.route(spec.key, candidate.resource, given.except(RESOURCE_ARG, CONNECTION_ARG), tool: tool)
+      Call.new(spec: spec, resource: candidate.resource, environment_row: candidate.row, tool: tool, arguments: route.arguments, present: route.present)
     end
 
-    # Every resource of that name with a connection that holds it and can answer, as [resource, row, adapter]. A
-    # hostname is answered by what serves it, one link away, by a link that is a fact, never a suggestion no one
-    # confirmed.
+    # Every resource of that name with a connection that holds it and can answer. A hostname is answered by what serves
+    # it, one link away, by a link that is a fact, never a suggestion no one confirmed.
     def self.holders(resources, spec, follow: true)
       found = resources.flat_map do |resource|
         resource.holders.filter_map do |row|
           adapter = adapter_for(row.integration.provider)
-          [ resource, row, adapter ] if adapter&.supports?(spec.key, resource.kind)
+          Candidate.new(resource: resource, row: row, adapter: adapter, observer: false) if adapter&.supports?(spec.key, resource.kind)
         end
       end
       return found if found.any? || !follow
@@ -215,28 +264,60 @@ module Integrations
       holders(served.uniq, spec, follow: false)
     end
 
-    # One resource on one connection. Two resources of the same name are told apart by their id, two connections by
-    # connection, so a request never lands on a resource it did not mean.
-    def self.choose(candidates, connection, reference)
-      unique = candidates.uniq { |resource, row, _adapter| [ resource.id, row.id ] }
+    # The observability tools connected to the workspace, which answer for a resource they watch though another
+    # connection runs it, such as Datadog for a service Northflank runs.
+    # A row wired to an environment answers only for a resource held in that same environment.
+    def self.observers(workspace, holding, named, spec, tools)
+      rows = IntegrationEnvironment.reachable.includes(:integration, :environment).where(integrations: { workspace_id: workspace.id }).to_a
+      watching = rows.filter_map do |row|
+        adapter = adapter_for(row.integration.provider)
+        [ row, adapter ] if adapter && tools.any? { |tool| tool.integration_id == row.integration_id && tool.name == adapter.tool_for(spec.key) }
+      end
+      resources = holding.map(&:resource).uniq.presence || named
+      resources.flat_map do |resource|
+        environments = resource.holders.filter_map(&:catalog_entry_id)
+        watching.filter_map do |row, adapter|
+          next unless adapter.observes?(spec.key, resource.kind)
+          next if environments.any? && row.catalog_entry_id && environments.exclude?(row.catalog_entry_id)
+
+          Candidate.new(resource: resource, row: row, adapter: adapter, observer: true)
+        end
+      end
+    end
+
+    # One resource on one connection. Two resources of the same name are told apart by their id. Between connections,
+    # an observability tool answers logs, metrics, traces and errors by default, and the one that runs the resource
+    # answers the rest, so a request never lands somewhere it did not mean and Halon need not choose every time.
+    def self.choose(candidates, given, reference, spec)
+      connection = given[CONNECTION_ARG]
+      unique = candidates.uniq { |candidate| [ candidate.resource.id, candidate.row.id ] }
       if connection.present?
-        unique = unique.select { |_resource, row, _adapter| connection_label(row) == connection.to_s || row.integration.slug == connection.to_s }
-        raise Unroutable, "#{connection} does not hold #{reference}. Choose connection from: #{labels(candidates).join(', ')}." if unique.empty?
+        unique = unique.select { |candidate| connection_label(candidate.row) == connection.to_s || candidate.row.integration.slug == connection.to_s }
+        raise Unroutable, "#{connection} cannot answer for #{reference}. Choose connection from: #{labels(candidates).join(', ')}." if unique.empty?
       end
       return unique.first if unique.one?
 
-      resources = unique.map(&:first).uniq
-      if resources.size > 1
-        named = resources.map { |resource| "#{resource.kind} #{resource.name} (id #{resource.external_id}, #{resource.provider})" }
-        rows = labels(unique)
-        choice = rows.size > 1 ? ", or choose connection from: #{rows.join(', ')}" : ""
-        raise Unroutable, "More than one resource is called #{reference}: #{named.join('; ')}. Name it by its id#{choice}."
-      end
+      one_resource!(unique, reference)
+      able = unique.reject { |candidate| candidate.observer && !candidate.adapter.accepts?(spec.key, given) }
+      preferred = able.select { |candidate| candidate.observer == SIGNALS.include?(spec.key) }
+      return preferred.first if preferred.one?
+      return able.first if able.one?
+      raise Unroutable, unique.map { |candidate| candidate.adapter.route_refusal(spec.key, candidate.resource, given) }.compact.join(" ") if able.empty?
 
-      raise Unroutable, "More than one connection holds #{reference}. Choose connection from: #{labels(unique).join(', ')}."
+      raise Unroutable, "More than one connection can answer for #{reference}. Choose connection from: #{labels(unique).join(', ')}, or #{ALL}."
     end
 
-    def self.labels(candidates) = candidates.map { |_resource, row, _adapter| connection_label(row) }.uniq
-    private_class_method :holders, :choose, :labels
+    def self.one_resource!(candidates, reference)
+      resources = candidates.map(&:resource).uniq
+      return if resources.one?
+
+      named = resources.map { |resource| "#{resource.kind} #{resource.name} (id #{resource.external_id}, #{resource.provider})" }
+      rows = labels(candidates)
+      choice = rows.size > 1 ? ", or choose connection from: #{rows.join(', ')}" : ""
+      raise Unroutable, "More than one resource is called #{reference}: #{named.join('; ')}. Name it by its id#{choice}."
+    end
+
+    def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq
+    private_class_method :candidates_for, :call_for, :holders, :observers, :choose, :one_resource!, :labels
   end
 end

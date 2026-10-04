@@ -34,8 +34,10 @@ class Chat::Chart < ApplicationRecord
 
   # Keeps the charts in one tool result. A chart that cannot be read is left out, so a malformed result never fails the
   # tool call it came with.
+  # Several answers to one call (connection: all) each add theirs after the ones already kept.
   def self.record!(chat, tool_call_id, charts, step_position: nil)
-    Array(charts).each_with_index do |chart, index|
+    kept = chat.charts.where(tool_call_id: tool_call_id).count
+    Array(charts).each.with_index(kept) do |chart, index|
       from = Time.zone.parse(chart["from"].to_s)
       to = Time.zone.parse(chart["to"].to_s)
       next if from.nil? || to.nil? || chart["title"].blank?

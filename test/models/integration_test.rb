@@ -62,4 +62,20 @@ class IntegrationTest < ActiveSupport::TestCase
     global_row = global.integration_environments.create!(catalog_entry_id: nil)
     assert_equal global_row, global.resolve_environment(nil)
   end
+
+  test "no connection can be called all, since all asks every connection at once" do
+    integration = workspaces(:slack_workspace_one).integrations.new(kind: Integration::KIND_MCP, provider: "custom", name: "All", slug: Integration::SLUG_ALL)
+
+    assert_not integration.valid?
+    assert_includes integration.errors[:slug], "is kept for asking every connection at once"
+    assert_match "Pick a different name", Integration.name_blocked_reason("All")
+    assert_nil Integration.name_blocked_reason("Datadog")
+  end
+
+  test "a connection already called all before the name was kept still saves" do
+    integration = workspaces(:slack_workspace_one).integrations.new(kind: Integration::KIND_MCP, provider: "custom", name: "All", slug: Integration::SLUG_ALL)
+    integration.save!(validate: false)
+
+    assert integration.update(name: "All of it")
+  end
 end

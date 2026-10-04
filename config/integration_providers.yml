@@ -63,7 +63,7 @@ providers:
     color: "#632ca6"
     description: Query logs, metrics and monitors during investigations.
     server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
-    source_links: unchecked
+    source_links: firefight
     map: none
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: northflank

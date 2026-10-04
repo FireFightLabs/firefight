@@ -26,6 +26,37 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
     assert Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.search_logs")
   end
 
+  test "connection all asks every connection that can answer, each authorized and ledgered as its own action" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                          params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+    Integrations::NativeExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+    Integrations::McpExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "datadog lines" } ])
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice },
+                                                 { resource: "web", connection: "all" })
+
+    text = response.content.first[:text]
+    assert_match(/From northflank:\n.*northflank lines/m, text)
+    assert_match(/From datadog:\n.*datadog lines/m, text)
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: "datadog.search_datadog_logs")
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.search_logs")
+    assert_not response.error?
+    assert_nil response.structured_content
+  end
+
+  test "under connection all the answer is an error only when every connection failed, and a refusal is named for its connection" do
+    Integrations::NativeExecutor.expects(:call).raises(Integrations::Error, "Northflank is down")
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice },
+                                                 { resource: "web", connection: "all" })
+
+    assert response.error?
+    assert_match(/From northflank:\n.*Northflank is down/m, response.content.first[:text])
+  end
+
   test "a resource nothing holds is said, not sent" do
     response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "checkout" })
 

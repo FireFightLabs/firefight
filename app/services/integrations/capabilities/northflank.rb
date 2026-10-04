@@ -25,7 +25,7 @@ module Integrations
       }.freeze
       PASSED = %w[text regex exclude limit minutes start end].freeze
 
-      def self.route(key, resource, given)
+      def self.route(key, resource, given, tool: nil)
         id = resource.external_id
         case key
         when LOGS
