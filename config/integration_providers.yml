@@ -141,7 +141,12 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
-    source_links: unchecked
+    # Sentry's server holds a connection to the organization, and optionally the project, its address names.
+    connect_fields:
+      - { key: organization, label: Organization, hint: "Its slug, under Settings, General Settings in Sentry, or the name before .sentry.io in its address.", placeholder: e.g. acme, path: true }
+      - { key: project, label: Project, hint: "A project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name.", placeholder: e.g. checkout, path: true, optional: true }
+    source_links: server
+    source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
   - key: linear

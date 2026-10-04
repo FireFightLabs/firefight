@@ -72,6 +72,27 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
+  # Sentry's server is open source, so its skills are held to the tools it defines, as a native pack's are to the pack.
+  # test/fixtures/files/sentry_mcp_tools.txt is that list, with each tool's parameters, when the skills were written.
+  test "every Sentry tool and parameter a Sentry skill names is one its server defines, reached the way the server offers it" do
+    defined = file_fixture("sentry_mcp_tools.txt").readlines.reject { |line| line.start_with?("#") }.to_h do |line|
+      name, surface, *parameters = line.split
+      [ name, { surface: surface, parameters: parameters } ]
+    end
+    capabilities = Integrations::Capabilities::SPECS.values.select { |spec| Integrations::Capabilities::Sentry::TOOLS.key?(spec.key) }.map(&:tool_name)
+    skills = Chat::Skill.all.select { |skill| skill.source == Integrations::Capabilities::Sentry::PROVIDER_KEY }
+
+    assert_equal %w[sentry_bad_release sentry_errors sentry_triage], skills.map(&:name).sort
+    skills.each do |skill|
+      (skill.tools - capabilities).each { |tool| assert_equal "direct", defined.dig(tool, :surface), "#{skill.name} names #{tool}, which the server does not list" }
+      run = skill.steps.scan(/with name (\w+)/).flatten
+      run.each { |name| assert_equal "catalog", defined.dig(name, :surface), "#{skill.name} runs #{name}, which the server's catalog does not have" }
+      # Issue properties a query names, from Sentry's search docs, docs/concepts/search/searchable-properties/issues.mdx.
+      known = (skill.tools + run).flat_map { |name| defined.dig(name, :parameters).to_a } + %w[firstSeen lastSeen firstRelease]
+      skill.steps.scan(/\b[a-z]+[A-Z][A-Za-z]*\b/).uniq.each { |word| assert_includes known, word, "#{skill.name} names #{word}, which none of its tools takes" }
+    end
+  end
+
   test "every guide a skill lists is one its source keeps, and a source's guides carry their license and origin" do
     Chat::Skill.all.each do |skill|
       skill.references.each do |path|
