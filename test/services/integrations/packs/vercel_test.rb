@@ -115,10 +115,10 @@ module Integrations
 
       test "a rollback says new deployments stop going live, and a queued promotion says so" do
         VercelApi.any_instance.stubs(:deployment).with("dpl_1").returns("id" => "dpl_1", "projectId" => "prj_1", "target" => "production")
-        VercelApi.any_instance.expects(:rollback).with("prj_1", "dpl_1", description: "bad deploy").returns(VercelApi::Answer.new(status: 201, body: {}))
+        VercelApi.any_instance.expects(:rollback).with("prj_1", "dpl_1", description: "bad deploy").returns(Integrations::Http::Answer.new(status: 201, body: {}))
         assert_match "New deployments no longer go live on their own", call(:rollback_deployment, "resource" => "shop", "deployment" => "dpl_1", "reason" => "bad deploy")
 
-        VercelApi.any_instance.stubs(:promote).returns(VercelApi::Answer.new(status: 202, body: {}))
+        VercelApi.any_instance.stubs(:promote).returns(Integrations::Http::Answer.new(status: 202, body: {}))
         assert_match "queued the promotion of dpl_1", call(:promote_deployment, "resource" => "shop", "deployment" => "dpl_1")
       end
 

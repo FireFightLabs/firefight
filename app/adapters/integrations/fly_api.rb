@@ -12,8 +12,6 @@ module Integrations
     API_ROOT = "https://api.fly.io".freeze
     PROVIDER = "Fly".freeze
     CONFLICT = 409
-    # Fly puts its reason in error as a string (spec, ErrorResponse), which the shared reader would try to dig into.
-    REASON = ->(body) { (body["error"] if body["error"].is_a?(String)).presence || body["message"].presence }
     # A token from fly tokens create holds macaroons, which flyctl sends under the FlyV1 scheme, and anything else under
     # Bearer (superfly/fly-go, tokens/tokens.go).
     MACAROON = /(?:\A|,)\s*(?:fm1r|fm1a|fm2)_/
@@ -120,7 +118,7 @@ module Integrations
     def send_request(uri, request, read_timeout: READ_TIMEOUT)
       request["Authorization"] = authorization
       request["Accept"] = "application/json"
-      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, reason: REASON, read_timeout: read_timeout,
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, read_timeout: read_timeout,
                               refine: ->(code, _reason) { Conflict if code == CONFLICT })
     end
 

@@ -16,8 +16,6 @@ module Integrations
     # The runtime log stream ends with a row like this when Vercel stops it (vercel/vercel, packages/cli/src/util/logs.ts).
     STREAM_END = "delimiter".freeze
 
-    # What a promotion answered, with its HTTP status as well as its body.
-    Answer = Data.define(:status, :body)
 
     def initialize(token, team = nil)
       @token = token
@@ -95,10 +93,7 @@ module Integrations
       uri = uri("/v10/projects/#{segment(project_id)}/promote/#{segment(deployment_id)}")
       request = changing(Net::HTTP::Post.new(uri))
       authorize(request)
-      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
-      refuse(response.code, response.body) unless response.code.to_i.between?(200, 299)
-
-      Answer.new(status: response.code.to_i, body: parse_row(response.body.to_s) || {})
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: method(:refined), with_status: true)
     end
 
     private
@@ -141,8 +136,7 @@ module Integrations
       Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: method(:refined))
     end
 
-    # An answer read here rather than by Http.json (a stream, or a promotion whose status matters) that is not a 2xx, said
-    # in the same words Http.json uses (docs, rest-api/errors).
+    # A streamed answer that is not a 2xx, said in the same words Http.json uses (docs, rest-api/errors).
     def refuse(code, body)
       reason = (parse_row(body.to_s) || {}).dig("error", "message").presence || "no reason given"
       error = code.to_i == Http::TOO_MANY_REQUESTS ? Error.new("Vercel answered #{code}: #{reason}").extend(Integrations::RateLimited) : refined(code, reason).new("Vercel answered #{code}: #{reason}")
