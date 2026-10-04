@@ -223,7 +223,7 @@ module Integrations
         NorthflankApi.new(token).project(project)
         nil
       rescue NorthflankApi::Error => error
-        "Northflank refused this token or project. #{error.message}"
+        "Northflank refused this token or project. #{Sentence.of(error)}".strip
       end
 
       def self.store_credentials!(environment_row, values)
@@ -281,7 +281,7 @@ module Integrations
         rescue NorthflankApi::Error => error
           raise unless error.message.start_with?("Northflank answered 403")
 
-          fail!("#{error.message}. The API token's role cannot make this change. In Northflank, give the role permission " \
+          fail!("#{Sentence.of(error)} The API token's role cannot make this change. In Northflank, give the role permission " \
                 "to update services (Project, Services, General, Update), then run it again.")
         end
         Telemetry.result("Northflank answered #{verb} #{path}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
@@ -447,7 +447,7 @@ module Integrations
         begin
           api.jobs(project).each { |job| mapping.job(job) }
         rescue NorthflankApi::Error => error
-          gaps << "Jobs could not be read: #{error.message}"
+          gaps << ResourceMap::Gap.new(text: Sentence.join("Jobs could not be read", error), kinds: [ ResourceMap::KIND_JOB ])
         end
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps)
       end
@@ -658,7 +658,7 @@ module Integrations
 
         "Latest backups: #{backups.map { |backup| "#{backup['createdAt']} #{backup['status']}" }.join('; ')}"
       rescue NorthflankApi::Error => error
-        "Backups could not be read: #{error.message}"
+        Sentence.join("Backups could not be read", error)
       end
 
       def deployment_line(deployment)

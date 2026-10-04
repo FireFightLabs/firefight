@@ -143,7 +143,7 @@ class IntegrationsController < InertiaController
     }
     redirect_to flow[:authorize_url], allow_other_host: true
   rescue Integrations::OauthFlow::Error => e
-    redirect_to integrations_path, alert: "Could not start one-click connect: #{e.message}"
+    redirect_to integrations_path, alert: Integrations::Sentence.join("Could not start one-click connect", e)
   end
 
   def oauth_callback
@@ -167,7 +167,7 @@ class IntegrationsController < InertiaController
 
     connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
   rescue Integrations::OauthFlow::Error => e
-    redirect_to integrations_path, alert: "Could not connect: #{e.message}"
+    redirect_to integrations_path, alert: Integrations::Sentence.join("Could not connect", e)
   rescue NameTaken => e
     redirect_to integrations_path, alert: e.message
   end

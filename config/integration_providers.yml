@@ -81,7 +81,7 @@ providers:
     category: Observability
     mark: DD
     color: "#632ca6"
-    description: Query logs, metrics and monitors during investigations.
+    description: Query logs, metrics and monitors.
     # Datadog's sites (docs.datadoghq.com/getting_started/site) with the MCP server each one documents
     # (DataDog/documentation, hugo/assets/scripts/config/regions.config.js, mcp_server_endpoint). US1-FED and US2-FED
     # have no MCP server, so they are not offered.
@@ -101,7 +101,7 @@ providers:
     category: Cloud and hosting
     mark: NF
     color: "#0aa4d8"
-    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when the API token's role allows it.
+    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token

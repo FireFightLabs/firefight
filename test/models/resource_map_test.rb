@@ -20,15 +20,26 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_nil ResourceMap.repository("linear", "acme/web")
   end
 
-  test "a status word reads as one agreed health, and a resource switched off on purpose is busy, not failing" do
+  test "a gap names the kinds it could not read, and a sweep never takes a resource of one of them as gone" do
+    ResourceMap.record!(@row, snapshot(found(ResourceMap::KIND_SERVICE, "web"), found(ResourceMap::KIND_JOB, "nightly")))
+    gap = ResourceMap::Gap.new(text: "Jobs could not be read: 503.", kinds: [ ResourceMap::KIND_JOB ])
+
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ found(ResourceMap::KIND_SERVICE, "web") ], gaps: [ gap ]))
+
+    assert_nil ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "nightly").removed_at
+    assert_equal [ "Jobs could not be read: 503." ], @row.reload.map_gaps
+    error = assert_raises(ArgumentError) { ResourceMap::Snapshot.new(resources: [], gaps: [ "Jobs could not be read" ]) }
+    assert_match "names the kinds it could not read", error.message
+  end
+
+  test "Firefight's own status words read as one health each, and a word in no list reads unknown" do
     health = ->(status) { ResourceMap::Resource.new(status: status).health }
 
-    assert_equal %w[ok ok busy busy busy failing failing unknown],
-                 [ "live", "runnable", "scaled down", "progressing", "suspended", "build_failed", "unavailable", "weird" ].map(&health)
+    assert_equal %w[ok busy busy failing unknown], [ "running", "paused", "stopped", "unavailable", "scaled down" ].map(&health)
   end
 
   test "a sweep puts what the connection reaches on the map, with the links it declares" do
-    ResourceMap.record!(@row, snapshot(web, repository, links: [ link(web, repository, ResourceMap::RELATION_BUILT_FROM) ], gaps: [ "Jobs could not be read" ]))
+    ResourceMap.record!(@row, snapshot(web, repository, links: [ link(web, repository, ResourceMap::RELATION_BUILT_FROM) ], gaps: [ ResourceMap::Gap.new(text: "Jobs could not be read", kinds: []) ]))
 
     service = resource("web")
     assert_equal "running", service.status
@@ -132,7 +143,7 @@ class ResourceMapTest < ActiveSupport::TestCase
     app = ResourceMap.domain("app.acme.com")
     ResourceMap.record!(@row, snapshot(web, app, links: [ link(app, web, ResourceMap::RELATION_SERVED_BY) ]))
 
-    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ web ], unread_kinds: [ ResourceMap::KIND_DOMAIN ]))
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ web ], gaps: [ ResourceMap::Gap.new(text: "Hostnames could not be read.", kinds: [ ResourceMap::KIND_DOMAIN ]) ]))
 
     assert_nil resource("app.acme.com").removed_at
     assert ResourceMap::Link.exists?(from_resource: resource("app.acme.com"), to_resource: resource("web"))
@@ -193,4 +204,6 @@ class ResourceMapTest < ActiveSupport::TestCase
   def snapshot(*resources, links: [], gaps: []) = ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
 
   def resource(external_id) = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: external_id)
+
+  def found(kind, id) = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: kind, external_id: id, name: id)
 end

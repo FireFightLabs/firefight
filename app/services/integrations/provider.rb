@@ -11,24 +11,37 @@ module Integrations
   #   health_probe     a RemoteReader that checks a remote server reaches the account behind it (a pack checks its own)
   #   source_links     a builder that links a remote server's result to the page it came from
   #   read_guard       a ReadGuards module, telling a read from a change for a tool that can make both
-  # redacted_fields names answer fields that hold a credential, which never reach the model.
+  # redacted_fields names answer fields that hold a credential, which never reach the model. status_words maps the
+  # provider's own status words onto Firefight's (ResourceMap::Resource::STATUS_HEALTH), applied to everything its
+  # connection puts on the map, so a resource never reads unknown for a word that means one Firefight has.
   class Provider
     PARTS = %i[pack adapter map_reader baseline_reader health_probe source_links read_guard].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/
 
-    attr_reader :key, :redacted_fields
+    attr_reader :key, :redacted_fields, :status_words
 
-    def initialize(key:, redacted_fields: [], **parts)
+    def initialize(key:, redacted_fields: [], status_words: {}, **parts)
       unknown = parts.keys - PARTS
       raise ArgumentError, "#{key} names parts a provider does not have: #{unknown.join(', ')}" if unknown.any?
 
       @key = key
       @redacted_fields = redacted_fields.map(&:to_s).freeze
+      @status_words = status_words.to_h { |word, firefight| [ word.to_s.downcase, firefight.to_s ] }.freeze
       @parts = parts.transform_values(&:to_s).freeze
     end
 
     PARTS.each do |part|
       define_method(part) { @parts[part]&.constantize }
+    end
+
+    # A status as Firefight's word for it, or as the provider gave it when it maps none.
+    def status_of(word) = word.nil? ? nil : status_words.fetch(word.to_s.downcase, word)
+
+    # The snapshot with every resource's status in Firefight's words.
+    def in_firefight_words(snapshot)
+      return snapshot if status_words.empty?
+
+      snapshot.with(resources: snapshot.resources.map { |found| found.with(status: status_of(found.status)) })
     end
 
     # The class names this definition gives, so a test can load every one.

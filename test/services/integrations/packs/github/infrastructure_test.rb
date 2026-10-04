@@ -43,7 +43,7 @@ module Integrations
           snapshot = Github.new(@integration).map_of(@row)
 
           assert_equal %w[acme/empty acme/cdk], snapshot.code_read
-          assert_equal [ "1 infrastructure file in acme/infra is over 200 KB and was not read." ], snapshot.gaps
+          assert_equal [ "1 infrastructure file in acme/infra is over 200 KB and was not read." ], snapshot.gap_texts
         end
 
         test "a tree too large to list, or files that cannot be read, are gaps, one per repository" do
@@ -51,7 +51,7 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/infra/git/blobs/a.tf", token: "ghs_token").raises(GithubApp::Error, "GitHub: Not Found")
           GithubApp.stubs(:get).with("/repos/acme/infra/git/blobs/b.tf", token: "ghs_token").raises(GithubApp::Error, "GitHub: Not Found")
 
-          gaps = Github.new(@integration).map_of(@row).gaps
+          gaps = Github.new(@integration).map_of(@row).gap_texts
 
           assert_includes gaps, "acme/infra is too large to list in full, so some of its infrastructure files may be missing."
           assert_includes gaps, "2 infrastructure files in acme/infra could not be read: GitHub: Not Found"
@@ -64,7 +64,7 @@ module Integrations
 
           assert_empty snapshot.code_files
           assert_empty snapshot.code_read
-          assert_equal [ "Not every repository was searched for infrastructure files, since GitHub's rate limit was reached after 0 of 3 repositories." ], snapshot.gaps
+          assert_equal [ "Not every repository was searched for infrastructure files, since GitHub's rate limit was reached after 0 of 3 repositories." ], snapshot.gap_texts
         end
 
         test "repositories past what is listed are not taken as gone" do
@@ -76,7 +76,7 @@ module Integrations
           snapshot = Github.new(@integration).map_of(@row)
 
           assert_equal [ ResourceMap::KIND_REPOSITORY ], snapshot.unread_kinds
-          assert_includes snapshot.gaps, "Only the first 1 of 1500 repositories were listed."
+          assert_includes snapshot.gap_texts, "Only the first 1 of 1500 repositories were listed."
         end
 
         private

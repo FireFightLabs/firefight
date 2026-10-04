@@ -117,14 +117,29 @@ module ResourceMap
   CERTAINTY_POSSIBLE = "possible".freeze
   CERTAINTIES = [ CERTAINTY_LIKELY, CERTAINTY_POSSIBLE ].freeze
 
+  # Something a sweep could not read, as the words a person reads and the kinds of resource it would have put on the map.
+  # A gap always names its kinds, empty only for what holds no resource back (a setting, a file), so a sweep that could
+  # not read something never takes what it would have found as gone.
+  Gap = Data.define(:text, :kinds) do
+    def initialize(text:, kinds:) = super(text: text, kinds: Array(kinds))
+  end
+
   # What one sweep of one connection saw. A resource is named by its key, the same whichever connection reports it, so a
-  # repository two services build from is one resource. gaps are the parts the sweep could not read, in words.
-  # unread_kinds are the kinds the sweep could not read in full, so nothing of those kinds, and no link touching one, that
-  # it did not report is taken as gone.
+  # repository two services build from is one resource. gaps are what the sweep could not read (Gap), and the kinds
+  # they name are unread, so nothing of those kinds, and no link touching one, that it did not report is taken as gone.
   # code_files are the infrastructure files a code host's sweep read, for ResourceMap::CodeDefinitions, and code_read the
   # repositories it read in full, the only ones whose suggestions it may take away.
-  Snapshot = Data.define(:resources, :links, :gaps, :unread_kinds, :code_files, :code_read) do
-    def initialize(resources:, links: [], gaps: [], unread_kinds: [], code_files: [], code_read: []) = super
+  Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read) do
+    def initialize(resources:, links: [], gaps: [], code_files: [], code_read: [])
+      loose = gaps.reject { |gap| gap.is_a?(Gap) }
+      raise ArgumentError, "a gap names the kinds it could not read (ResourceMap::Gap), not only words: #{loose.first.inspect}" if loose.any?
+
+      super(resources:, links:, gaps: gaps.uniq, code_files:, code_read:)
+    end
+
+    def unread_kinds = gaps.flat_map(&:kinds).uniq
+
+    def gap_texts = gaps.map(&:text).uniq
   end
 
   Found = Data.define(:provider, :account, :kind, :external_id, :name, :status, :url, :details) do
@@ -159,7 +174,7 @@ module ResourceMap
         Link.find_or_initialize_by(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
                                    origin: ORIGIN_DECLARED, integration_environment: environment_row).update!(last_seen_at: at)
       end
-      environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gaps)
+      environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gap_texts)
     end
   end
 

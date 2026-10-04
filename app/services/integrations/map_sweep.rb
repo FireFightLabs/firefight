@@ -23,6 +23,7 @@ module Integrations
       snapshot = environment_row.integration.executor.map_of(environment_row)
       return false unless snapshot
 
+      snapshot = Provider.for(environment_row.integration.provider).in_firefight_words(snapshot)
       ResourceMap.record!(environment_row, snapshot)
       workspace = environment_row.integration.workspace
       ResourceMap::CodeDefinitions.new(workspace).record!(environment_row, snapshot.code_files, read_in_full: snapshot.code_read)

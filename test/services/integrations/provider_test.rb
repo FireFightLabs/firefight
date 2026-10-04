@@ -26,6 +26,23 @@ module Integrations
       assert_raises(ArgumentError) { Provider.new(key: "acme", poller: "Acme::Poller") }
     end
 
+    test "every status word a provider maps is one of Firefight's own" do
+      firefight = ResourceMap::Resource::STATUS_HEALTH.keys
+      Provider.all.each do |definition|
+        definition.status_words.each_value do |word|
+          assert_includes firefight, word, "#{definition.key} maps a status onto #{word}, which is not one of Firefight's words"
+        end
+      end
+    end
+
+    test "a provider's status words are put in Firefight's words when its connection is swept" do
+      definition = Provider.new(key: "acme", status_words: { "Current" => "ready", "scaled down" => "stopped" })
+      found = ->(status) { ResourceMap::Found.new(provider: "acme", account: "a", kind: ResourceMap::KIND_SERVICE, external_id: status.to_s, name: status.to_s, status: status) }
+      snapshot = ResourceMap::Snapshot.new(resources: [ found.("current"), found.("Scaled down"), found.("odd"), found.(nil) ])
+
+      assert_equal [ "ready", "stopped", "odd", nil ], definition.in_firefight_words(snapshot).resources.map(&:status)
+    end
+
     test "the registry's promises are kept by the definitions" do
       IntegrationProvider.all.each do |entry|
         definition = Provider.for(entry.key)

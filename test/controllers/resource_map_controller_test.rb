@@ -12,7 +12,7 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     builder = found(ResourceMap::KIND_BUILD_SERVICE, "builder")
     ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [ web, builder, found(ResourceMap::KIND_DATABASE, "db") ],
                                                         links: [ ResourceMap::FoundLink.new(from: web.key, to: builder.key, relation: ResourceMap::RELATION_RUNS_BUILDS_OF) ],
-                                                        gaps: [ "Jobs could not be read" ]))
+                                                        gaps: [ ResourceMap::Gap.new(text: "Jobs could not be read", kinds: []) ]))
   end
 
   test "the page lists every resource with what depends on it, the links and what each connection could not read" do

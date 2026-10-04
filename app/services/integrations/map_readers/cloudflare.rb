@@ -82,24 +82,23 @@ module Integrations
         @gaps = []
         @served = []
         @switched_off = []
-        @unread_kinds = []
       end
 
       def map
         begin
           listed = pages("accounts", "/accounts", {}, %w[id name], per_page: ZONES_PER_PAGE, kinds: ResourceMap::KINDS)
           if @switched_off.include?(EXECUTE)
-            return ResourceMap::Snapshot.new(resources: [], gaps: [ "execute is switched off for Cloudflare, so nothing it holds is on the map." ],
-                                             unread_kinds: ResourceMap::KINDS)
+            off = ResourceMap::Gap.new(text: "execute is switched off for Cloudflare, so nothing it holds is on the map.", kinds: ResourceMap::KINDS)
+            return ResourceMap::Snapshot.new(resources: [], gaps: [ off ])
           end
 
           listed.each { |account| read_account(account) }
         rescue Stop
-          @unread_kinds = ResourceMap::KINDS
-          @gaps << "Cloudflare asked Firefight to slow down, so the rest is read on the next sweep."
+          gap("Cloudflare asked Firefight to slow down, so the rest is read on the next sweep.", kinds: ResourceMap::KINDS)
         end
-        @gaps << not_yet
-        ResourceMap::Snapshot.new(resources: resources, links: @links.uniq, gaps: @gaps.compact.uniq, unread_kinds: @unread_kinds.uniq)
+        # Products not on the map yet hold nothing the map already has.
+        gap(not_yet, kinds: []) if not_yet
+        ResourceMap::Snapshot.new(resources: resources, links: @links.uniq, gaps: gaps)
       end
 
       private
@@ -297,8 +296,7 @@ module Integrations
       # Something that could not be read, said in the gaps. kinds are what it would have put on the map, so nothing of
       # those kinds is taken as gone this sweep. A setting that could not be read holds nothing back.
       def unread(what, reason, kinds)
-        @unread_kinds.concat(kinds)
-        @gaps << "Cloudflare could not read the #{what}: #{reason.to_s.lines.first.to_s.strip.truncate(200)}"
+        gap(Sentence.join("Cloudflare could not read the #{what}", reason.to_s.truncate(200)), kinds: kinds)
       end
 
       # Every page of a list, up to MAX_PAGES, by page number or by cursor, whichever Cloudflare answers with.
@@ -316,8 +314,7 @@ module Integrations
           more = cursor || (info["total_pages"].to_i > page)
           return rows unless more
         end
-        @unread_kinds.concat(kinds)
-        @gaps << "Only the first #{MAX_PAGES * per_page} #{what} were read."
+        gap("Only the first #{MAX_PAGES * per_page} #{what} were read.", kinds: kinds)
         rows
       end
 

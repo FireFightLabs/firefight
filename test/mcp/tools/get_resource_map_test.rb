@@ -14,7 +14,7 @@ module Mcp
           resources: [ web, builder, repository ],
           links: [ ResourceMap::FoundLink.new(from: web.key, to: builder.key, relation: ResourceMap::RELATION_RUNS_BUILDS_OF),
                    ResourceMap::FoundLink.new(from: builder.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM) ],
-          gaps: [ "Jobs could not be read" ]
+          gaps: [ ResourceMap::Gap.new(text: "Jobs could not be read", kinds: []) ]
         ))
       end
 

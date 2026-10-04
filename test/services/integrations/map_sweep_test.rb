@@ -58,6 +58,16 @@ module Integrations
       assert_not logged.sole.params.key?("code")
     end
 
+    test "a sweep writes each status in Firefight's words, as the provider's definition maps them" do
+      row = connection("northflank", Integration::KIND_NATIVE)
+      Provider.stubs(:for).returns(Provider.new(key: "northflank", status_words: { "current" => "ready" }))
+      found = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web", status: "current")
+      NativeExecutor.stubs(:map_of).returns(ResourceMap::Snapshot.new(resources: [ found ]))
+
+      assert MapSweep.run!(row)
+      assert_equal [ "ready", ResourceMap::Resource::HEALTH_OK ], ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web").then { |web| [ web.status, web.health ] }
+    end
+
     private
 
     def connection(provider, kind, settings: {})

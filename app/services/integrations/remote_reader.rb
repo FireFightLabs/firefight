@@ -28,24 +28,34 @@ module Integrations
     # A switched on tool's answer, or nil when it is off. reads says in words what the call read, for the activity log.
     def call(name, arguments = {}, reads = nil) = @call_tool.call(name, arguments, reads)
 
-    # What a reader could not read, in words, for the map's gaps.
+    # What a reader could not read, for the map's gaps (ResourceMap::Gap).
     def gaps = @gaps ||= []
 
-    # A tool's answer read as data, a list or an object, past the line linking to its page. A tool that is off, a
-    # refusal or an answer that is not data is a gap in words and answers nil, so a map reader goes on with the rest.
-    def listing(tool, what, arguments = {})
-      result = call(tool, arguments)
-      return gap("#{tool} is switched off for #{provider_name}, so the #{what} are not on the map.") if result.nil?
-      return gap("#{provider_name} refused to list the #{what}: #{Capabilities::Answers.text(result).strip.truncate(200)}") if result["isError"]
+    # Records what could not be read and the kinds of resource it would have put on the map, which the sweep then takes
+    # nothing of as gone. kinds is empty only for what holds no resource back. Answers nil.
+    def gap(words, kinds:)
+      gaps << ResourceMap::Gap.new(text: words, kinds: kinds)
+      nil
+    end
 
-      Capabilities::Answers.data(result) || gap("#{provider_name} answered the #{what} with something that is not JSON.")
+    # A tool's answer read as data, a list or an object, past the line linking to its page. A tool that is off, a
+    # refusal or an answer that is not data is a gap naming kinds, what the list holds, and answers nil, so a map reader
+    # goes on with the rest.
+    def listing(tool, what, arguments = {}, kinds:)
+      result = call(tool, arguments)
+      return gap("#{tool} is switched off for #{provider_name}, so the #{what} are not on the map.", kinds: kinds) if result.nil?
+      if result["isError"]
+        return gap(Sentence.join("#{provider_name} refused to list the #{what}", Capabilities::Answers.text(result).truncate(200)), kinds: kinds)
+      end
+
+      Capabilities::Answers.data(result) || gap("#{provider_name} answered the #{what} with something that is not JSON.", kinds: kinds)
     end
 
     # Raises Refused with the provider's own words when a tool's answer is an error, for a health probe.
     def refused!(tool, result)
       return result unless result&.dig("isError")
 
-      raise Refused, "#{provider_name} refused #{tool}: #{Capabilities::Answers.text(result).strip.truncate(300)}"
+      raise Refused, Sentence.join("#{provider_name} refused #{tool}", Capabilities::Answers.text(result).truncate(300))
     end
 
     # The provider's name as a person reads it, the reader's NAME or else its registry entry's.
@@ -55,12 +65,6 @@ module Integrations
       IntegrationProvider.find(settings&.provider_key.to_s)&.name || self.class.name.demodulize
     end
 
-    private
-
-    def gap(words)
-      gaps << words
-      nil
-    end
 
     def on?(name) = @tools.key?(name)
 

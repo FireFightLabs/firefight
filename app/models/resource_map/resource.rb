@@ -37,36 +37,19 @@ class ResourceMap::Resource < ApplicationRecord
     places.lazy.filter_map { |kind, id| found.find { |each| each[0] == kind && each[1] == id }&.last }.first
   end
 
-  # How a provider's own status word reads at a glance. Providers name their states differently, so the words each one
-  # uses are gathered here and anything else is unknown rather than guessed. They are one agreed set. A provider maps its
-  # own word to one of these where it means the same, and a new word joins the right list here. Among them are AWS's
-  # RDS and EC2 states written as AWS writes them, Neon's and Supabase's project and compute states, Render's deploy
-  # and datastore states, Google Cloud's Cloud SQL, Compute Engine and GKE states, and the words Kubernetes workloads
-  # read as. A resource switched off on purpose (stopped, suspended, scaled down) is busy, as paused is, not failing.
+  # Firefight's own words for how a resource stands, and how each reads at a glance. A provider maps its own status
+  # words onto these in its definition (Integrations::Provider, status_words), so the map's words stay this small set
+  # whatever the provider, and a word that is in no list reads unknown rather than guessed. A resource switched off on
+  # purpose is stopped, which is busy, as paused is.
   HEALTH_OK = "ok".freeze
   HEALTH_BUSY = "busy".freeze
   HEALTH_FAILING = "failing".freeze
   HEALTH_UNKNOWN = "unknown".freeze
   HEALTHS = [ HEALTH_OK, HEALTH_BUSY, HEALTH_FAILING, HEALTH_UNKNOWN ].freeze
   STATUS_HEALTH = {
-    HEALTH_OK => [
-      *%w[completed ready success succeeded running healthy active deployed sleeping available idle scheduled live runnable],
-      *%w[active_healthy migrations_passed functions_deployed]
-    ],
-    HEALTH_BUSY => [
-      *%w[in_progress pending deploying building starting staging queued resizing paused progressing provisioning reconciling],
-      *%w[restarting stopping stopped suspending suspended terminated repairing created deactivated],
-      "scaled down",
-      *%w[backing-up creating maintenance modifying rebooting renaming storage-optimization upgrading shutting-down],
-      *%w[init coming_up going_down restoring pausing creating_project running_migrations],
-      *%w[build_in_progress update_in_progress pre_deploy_in_progress pending_create pending_delete]
-    ],
-    HEALTH_FAILING => [
-      *%w[failed failure error errored crashed unhealthy down degraded unavailable],
-      *%w[storage-full restore-error inaccessible-encryption-credentials incompatible-network incompatible-option-group],
-      *%w[incompatible-parameters incompatible-restore active_unhealthy init_failed restore_failed pause_failed],
-      *%w[migrations_failed functions_failed build_failed update_failed pre_deploy_failed recovery_failed]
-    ]
+    HEALTH_OK => %w[completed ready success running healthy active deployed sleeping],
+    HEALTH_BUSY => %w[in_progress pending deploying building starting staging queued resizing paused stopped],
+    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy down degraded unavailable]
   }.flat_map { |health, words| words.map { |word| [ word, health ] } }.to_h.freeze
 
   def health = STATUS_HEALTH.fetch(status.to_s.downcase, HEALTH_UNKNOWN)

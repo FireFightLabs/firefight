@@ -76,23 +76,23 @@ module Integrations
       test "products the API offers that are neither read nor left out on purpose are named as not on the map yet" do
         snapshot = read(products: %w[account:workers account:billing account:gateway zone:dns_records zone:snippets])
 
-        assert_includes snapshot.gaps, "Not on the map yet, by API path: account:gateway, zone:snippets."
+        assert_includes snapshot.gap_texts, "Not on the map yet, by API path: account:gateway, zone:snippets."
       end
 
       test "with execute switched off nothing is read, and the map says why" do
         snapshot = Cloudflare.new { |_tool, _arguments| nil }.map
 
         assert_empty snapshot.resources
-        assert_equal [ "execute is switched off for Cloudflare, so nothing it holds is on the map." ], snapshot.gaps
+        assert_equal [ "execute is switched off for Cloudflare, so nothing it holds is on the map." ], snapshot.gap_texts
       end
 
       test "a list Cloudflare refuses is a gap, and being asked to slow down stops the read for today" do
-        refused = read(errors: { %r{d1/database} => "Cloudflare API error: 10000: Authentication error" })
-        assert_includes refused.gaps, "Cloudflare could not read the D1 databases: Cloudflare API error: 10000: Authentication error"
+        refused = read(errors: { %r{d1/database} => "Cloudflare API error: 10000: Authentication error." })
+        assert_includes refused.gap_texts, "Cloudflare could not read the D1 databases: Cloudflare API error: 10000: Authentication error."
         assert_equal [ ResourceMap::KIND_DATABASE ], refused.unread_kinds
 
         limited = read(errors: { %r{workers/scripts"} => "Cloudflare API error: 971: Please wait and consider throttling your request speed" })
-        assert_includes limited.gaps, "Cloudflare asked Firefight to slow down, so the rest is read on the next sweep."
+        assert_includes limited.gap_texts, "Cloudflare asked Firefight to slow down, so the rest is read on the next sweep."
         assert_not limited.resources.any? { |found| found.kind == ResourceMap::KIND_BUCKET }
         assert_equal ResourceMap::KINDS, limited.unread_kinds
       end
@@ -103,14 +103,14 @@ module Integrations
 
         assert snapshot.resources.any? { |found| found.name == "uploads" && found.kind == ResourceMap::KIND_BUCKET }
         assert_includes snapshot.unread_kinds, ResourceMap::KIND_BUCKET
-        assert snapshot.gaps.any? { |gap| gap.start_with?("Cloudflare could not read the R2 buckets: Cloudflare's server cut the answer short") }
+        assert snapshot.gap_texts.any? { |gap| gap.start_with?("Cloudflare could not read the R2 buckets: Cloudflare's server cut the answer short") }
       end
 
       test "a zone setting that could not be read is a gap and holds nothing back, a Worker route list that could not is not" do
-        zone = { "id" => "z1", "unread" => [ "page rules", "Worker routes" ], "error" => "Cloudflare API error: 10000: Authentication error", "settings" => {} }
+        zone = { "id" => "z1", "unread" => [ "page rules", "Worker routes" ], "error" => "Cloudflare API error: 10000: Authentication error.", "settings" => {} }
         snapshot = read(raw: { %r{/settings/ssl} => [ zone ].to_json })
 
-        assert_includes snapshot.gaps, "Cloudflare could not read the page rules of firefight.app: Cloudflare API error: 10000: Authentication error"
+        assert_includes snapshot.gap_texts, "Cloudflare could not read the page rules of firefight.app: Cloudflare API error: 10000: Authentication error."
         assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
       end
 

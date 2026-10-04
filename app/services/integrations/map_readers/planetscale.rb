@@ -17,7 +17,6 @@ module Integrations
         @resources = []
         @links = []
         @gaps = []
-        @unread_kinds = []
       end
 
       def map
@@ -26,7 +25,7 @@ module Integrations
           databases = list(LIST_DATABASES, "databases in #{org}", { "organization" => org }, kinds: [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ])
           databases.each { |database| database(org, database) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: @gaps.uniq, unread_kinds: @unread_kinds.uniq)
+        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps)
       end
 
       private
@@ -57,13 +56,10 @@ module Integrations
         read = Pages.read(max_pages: MAX_PAGES) do |page|
           arguments = { "queryParameters" => { "page" => page || 1, "per_page" => PER_PAGE } }
           arguments["pathParameters"] = path if path.any?
-          body = listing(tool, what, arguments)
+          body = listing(tool, what, arguments, kinds: kinds)
           body ? [ Array(body["data"]), (body["next_page"].presence && (page || 1) + 1) ] : [ [], nil ]
         end
-        if read.incomplete?
-          @gaps << "Only the first #{MAX_PAGES * PER_PAGE} #{what} were read."
-          @unread_kinds.concat(kinds)
-        end
+        gap("Only the first #{MAX_PAGES * PER_PAGE} #{what} were read.", kinds: kinds) if read.incomplete?
         read.items
       end
     end

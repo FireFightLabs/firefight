@@ -17,7 +17,7 @@ module Integrations
         assert_equal [ "planetscale", "acme", ResourceMap::KIND_BRANCH, "shop/main" ], branch.key
         assert branch.details["production"]
         assert_equal [ [ branch.key, database.key, ResourceMap::RELATION_BRANCH_OF ] ], snapshot.links.map { |link| [ link.from, link.to, link.relation ] }
-        assert_empty snapshot.gaps
+        assert_empty snapshot.gap_texts
       end
 
       test "a long list is read page by page" do
@@ -42,10 +42,10 @@ module Integrations
           { "content" => [ { "type" => "text", "text" => "forbidden" } ], "isError" => true }
         end.map
 
-        assert_equal [ "PlanetScale refused to list the databases in acme: forbidden" ], snapshot.gaps
+        assert_equal [ "PlanetScale refused to list the databases in acme: forbidden." ], snapshot.gap_texts
 
         switched_off = Planetscale.new { |tool, _arguments| tool == Planetscale::LIST_BRANCHES ? nil : answer(tool) }.map
-        assert_equal [ "planetscale_list_branches is switched off for PlanetScale, so the branches of shop are not on the map." ], switched_off.gaps
+        assert_equal [ "planetscale_list_branches is switched off for PlanetScale, so the branches of shop are not on the map." ], switched_off.gap_texts
         assert_equal [ ResourceMap::KIND_DATABASE ], switched_off.resources.map(&:kind)
       end
 
@@ -61,7 +61,7 @@ module Integrations
 
         snapshot = McpExecutor.map_of(row)
 
-        assert_match "planetscale_list_branches is switched off", snapshot.gaps.sole
+        assert_match "planetscale_list_branches is switched off", snapshot.gap_texts.sole
       end
 
       private

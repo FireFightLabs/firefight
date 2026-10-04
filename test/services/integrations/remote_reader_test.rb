@@ -96,13 +96,14 @@ module Integrations
                   "words" => { "content" => [ { "type" => "text", "text" => "no data here" } ] } }
       listing = reader.new { |name, _arguments, _reads| answers[name] }
 
-      assert_equal [ { "id" => 1 } ], listing.listing("on", "projects")
-      assert_nil listing.listing("off", "projects")
-      assert_nil listing.listing("refused", "projects")
-      assert_nil listing.listing("words", "projects")
-      assert_equal [ "off is switched off for Acme, so the projects are not on the map.", "Acme refused to list the projects: 403 forbidden",
-                     "Acme answered the projects with something that is not JSON." ], listing.gaps
-      assert_equal "Acme refused refused: 403 forbidden", assert_raises(RemoteReader::Refused) { listing.refused!("refused", answers["refused"]) }.message
+      assert_equal [ { "id" => 1 } ], listing.listing("on", "projects", kinds: [ ResourceMap::KIND_SERVICE ])
+      assert_nil listing.listing("off", "projects", kinds: [ ResourceMap::KIND_SERVICE ])
+      assert_nil listing.listing("refused", "projects", kinds: [ ResourceMap::KIND_SERVICE ])
+      assert_nil listing.listing("words", "projects", kinds: [ ResourceMap::KIND_SERVICE ])
+      assert_equal [ "off is switched off for Acme, so the projects are not on the map.", "Acme refused to list the projects: 403 forbidden.",
+                     "Acme answered the projects with something that is not JSON." ], listing.gaps.map(&:text)
+      assert(listing.gaps.all? { |gap| gap.kinds == [ ResourceMap::KIND_SERVICE ] })
+      assert_equal "Acme refused refused: 403 forbidden.", assert_raises(RemoteReader::Refused) { listing.refused!("refused", answers["refused"]) }.message
       assert_equal answers["on"], listing.refused!("on", answers["on"])
     end
 
