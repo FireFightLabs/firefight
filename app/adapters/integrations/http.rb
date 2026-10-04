@@ -5,8 +5,11 @@ module Integrations
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
     # The fields providers most often put their reason in, tried in order when a client says nothing of its own. Each may
-    # hold the words, an object with a message or detail, or a list of either.
-    REASON_FIELDS = %w[error message error_description detail errors].freeze
+    # hold the words, an object with a message or detail, or a list of either. OAuth's error_description is the readable
+    # one (RFC 6749, section 5.2), and its error only a code, so the description comes first.
+    REASON_FIELDS = %w[error_description error message detail errors].freeze
+    # An answer with its status, for a caller that has to tell answers apart by it, such as 202 queued from 201 done.
+    Answer = Data.define(:status, :body)
     REASON = ->(body) { REASON_FIELDS.lazy.filter_map { |field| Http.words(body[field]) }.first }
 
     # A reason as words, from a string, an object with a message, detail, title or description, or a list of them.
@@ -33,12 +36,13 @@ module Integrations
     # The answer read as JSON. A 2xx answer that is not JSON still counts as done and reads as {}, so a change that went
     # through is never reported as failed. Anything else raises "<provider> answered <code>: <reason>", RateLimited for a
     # 429, the class refine names for the code and reason, or error_class. reason reads the provider's own words from
-    # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited.
-    def self.json(uri, request, error_class:, provider_name:, reason: REASON, refine: nil, rate_limited: nil, read_timeout: 30, **)
+    # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited. with_status answers an Answer
+    # holding the status and the body.
+    def self.json(uri, request, error_class:, provider_name:, reason: REASON, refine: nil, rate_limited: nil, read_timeout: 30, with_status: false, **)
       response = self.request(uri, request, error_class: error_class, read_timeout: read_timeout, **)
       code = response.code.to_i
       body = parsed(response.body)
-      return body || {} if code.between?(200, 299)
+      return with_status ? Answer.new(status: code, body: body || {}) : body || {} if code.between?(200, 299)
 
       said = (body.is_a?(Hash) && reason.call(body)).presence || "no reason given"
       raise (rate_limited || error_class).new("#{provider_name} answered #{code}: #{said}").extend(RateLimited) if code == TOO_MANY_REQUESTS

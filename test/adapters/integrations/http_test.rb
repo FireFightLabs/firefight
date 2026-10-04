@@ -29,7 +29,7 @@ module Integrations
         '{"error":{"detail":"Token expired"}}' => "Token expired",
         '{"errors":[{"message":"Name taken"},{"detail":"Size too big"}]}' => "Name taken; Size too big",
         '{"errors":["first","second"]}' => "first; second",
-        '{"error_description":"Bad grant","error":"invalid_grant"}' => "invalid_grant",
+        '{"error_description":"Bad grant","error":"invalid_grant"}' => "Bad grant",
         '{"message":"Not found"}' => "Not found",
         '{"error":{"code":12},"detail":"Gone"}' => "Gone",
         '{"other":1}' => "no reason given"
@@ -37,6 +37,14 @@ module Integrations
         Http.stubs(:request).returns(response(400, body))
         assert_equal "Acme answered 400: #{said}", assert_raises(AcmeError) { json }.message, body
       end
+    end
+
+    test "a caller that tells answers apart by their status is given it with the body" do
+      Http.stubs(:request).returns(response(202, '{"state":"queued"}'))
+      assert_equal Http::Answer.new(status: 202, body: { "state" => "queued" }), json(with_status: true)
+
+      Http.stubs(:request).returns(response(201, ""))
+      assert_equal [ 201, {} ], json(with_status: true).then { |answer| [ answer.status, answer.body ] }
     end
 
     test "a 429 is the client's own error, marked rate limited, so either rescue catches it" do
