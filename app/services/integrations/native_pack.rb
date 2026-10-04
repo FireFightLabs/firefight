@@ -6,9 +6,10 @@ module Integrations
 
     # One value a pack connected with credentials (connect_with: api_token) asks for on the connect form. A secret one is
     # typed into a password field and never shown again. An optional one may be left empty, and the pack says what empty
-    # means.
-    CredentialField = Data.define(:key, :label, :hint, :placeholder, :secret, :optional) do
-      def initialize(optional: false, **) = super
+    # means. A multiline one is pasted into a text area, such as a service account's JSON key, and is still never shown
+    # again.
+    CredentialField = Data.define(:key, :label, :hint, :placeholder, :secret, :optional, :multiline) do
+      def initialize(optional: false, multiline: false, **) = super
     end
 
     class << self

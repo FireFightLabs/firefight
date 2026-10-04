@@ -41,29 +41,43 @@ class IntegrationProvider
     end
   end
 
-  # What the connect form asks beside the credentials, such as the account an environment reads. None is a secret. A
-  # field marked path names a part of the server's address, appended to it in the order the fields are listed, so it
-  # belongs to the connection. Every other field belongs to the environment it was connected for.
+  # What the connect form asks beside the credentials, such as the account an environment reads. None is a secret.
+  #
+  # A field marked path names a part of the server's address, appended to it in the order the fields are listed, and a
+  # field with query is the address's query parameter of that name. Both belong to the connection. A field with learned
+  # is chosen after connecting, from what the connection's health check learned under that key (a list of value and
+  # label), on the connection's details. Every other field belongs to the environment it was connected for.
   #
   # pattern is the shape a value must have, matched whole, and allowed says in words what it allows, for the form to
   # say when a value does not fit. A path field without a pattern of its own takes a slug's, so no value can carry a
-  # slash, a query or a fragment into the address and reach somewhere else.
+  # slash, a query or a fragment into the address and reach somewhere else. default is what a field left empty holds,
+  # so a field with one may be left empty.
   SLUG_PATTERN = "[A-Za-z0-9][A-Za-z0-9._-]*".freeze
   SLUG_ALLOWED = "letters, numbers, dots, dashes and underscores, starting with a letter or number".freeze
-  # One choice of a field that picks from a documented list, such as one of a cloud's regions.
+  # One choice of a field that picks from a list, such as one of a cloud's regions.
   ConnectOption = Data.define(:value, :label)
   # options makes a field a choice from that list, and multiple lets it hold several, kept as a list, such as every
   # region an account runs in.
-  ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path, :pattern, :allowed, :options, :multiple) do
-    def initialize(placeholder: "", numeric: false, optional: false, path: false, pattern: nil, allowed: nil, options: [], multiple: false, **)
+  ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path, :query, :pattern, :allowed, :options, :multiple,
+                             :default, :learned) do
+    def initialize(placeholder: "", numeric: false, optional: false, path: false, query: nil, pattern: nil, allowed: nil, options: [],
+                   multiple: false, default: nil, learned: nil, **)
       raise ArgumentError, "connect field #{key} has a pattern without saying in allowed what it allows" if pattern.present? && allowed.blank?
-      raise ArgumentError, "connect field #{key} holds several values without a list to choose them from" if multiple && options.empty?
-      raise ArgumentError, "connect field #{key} is part of the address, so it holds one value" if path && multiple
+      raise ArgumentError, "connect field #{key} holds several values without a list to choose them from" if multiple && options.empty? && learned.blank?
+      raise ArgumentError, "connect field #{key} is part of the address, so it holds one value" if (path || query.present?) && multiple
+      raise ArgumentError, "connect field #{key} is both part of the address's path and its query" if path && query.present?
+      raise ArgumentError, "connect field #{key} is chosen after connecting, so it cannot be part of the address" if learned.present? && (path || query.present?)
 
       options = options.map { |option| option.is_a?(ConnectOption) ? option : ConnectOption.new(**option.to_h.symbolize_keys) }
       pattern, allowed = SLUG_PATTERN, SLUG_ALLOWED if path && pattern.blank? && options.empty?
-      super(placeholder:, numeric:, optional:, path:, pattern:, allowed:, options:, multiple:, **)
+      default = default&.to_s
+      optional ||= default.present?
+      placeholder = default if placeholder.blank? && default.present?
+      super(placeholder:, numeric:, optional:, path:, query: query.presence, pattern:, allowed:, options:, multiple:, default:,
+            learned: learned.presence, **)
     end
+
+    def address? = path || query.present?
 
     # A value as the form gave it, trimmed. A field that holds several gives a list, any other one string.
     def value_of(given)
@@ -72,25 +86,43 @@ class IntegrationProvider
       given.to_s.strip
     end
 
-    # Why the form cannot go ahead with this value, or nil when it can.
-    def refusal(given)
+    # The choices a field offers. A field chosen after connecting offers the list its connection learned, any other its own.
+    def options_from(learned_values)
+      return options unless learned
+
+      Array(learned_values.to_h[learned]).filter_map { |option| ConnectOption.new(value: option["value"].to_s, label: option["label"].to_s) if option.is_a?(Hash) }
+    end
+
+    # Why the form cannot go ahead with this value, or nil when it can. choices are what a field chosen after connecting
+    # offers, from what its connection learned.
+    def refusal(given, choices: options)
       value = value_of(given)
       return if value.empty? && optional
       return "#{label} is required." if value.empty?
-      return "#{label} can only be #{options.map(&:label).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}." if options.any? && (Array(value) - options.map(&:value)).any?
+      return "#{label} can only be #{choices.map(&:label).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}." if (choices.any? || learned) && (Array(value) - choices.map(&:value)).any?
       return "#{label} must be a number." if numeric && !value.match?(/\A\d+\z/)
 
       "#{label} can hold only #{allowed}." if pattern && !value.match?(/\A(?:#{pattern})\z/)
     end
 
     # How a value reads to a person, by its options' labels where it has them.
-    def shown(value) = Array(value).map { |each| options.find { |option| option.value == each }&.label || each }.join(", ")
+    def shown(value, choices: options) = Array(value).map { |each| choices.find { |option| option.value == each }&.label || each }.join(", ")
   end
 
+  # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with
+  # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields) do
+                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site) do
     def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], **) = super
+                   connect_fields: [], site: nil, **) = super
+
+    # A native provider connected with credentials that also has an MCP server of its own, which a person may connect
+    # through instead.
+    def mcp_alternative? = kind == Integration::KIND_NATIVE && api_token? && server_url.present?
+
+    # How a connection is made. It goes through the provider's MCP server when that was asked for and it has one, and its own
+    # way otherwise.
+    def connect_kind(asked) = asked.to_s == Integration::KIND_MCP && mcp_alternative? ? Integration::KIND_MCP : kind
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
@@ -110,19 +142,28 @@ class IntegrationProvider
       nil
     end
 
-    def path_fields = connect_fields.select(&:path)
+    # The fields that are part of the server's address, in its path or its query, which belong to the connection.
+    def address_fields = connect_fields.select(&:address?)
 
-    def environment_fields = connect_fields.reject(&:path)
+    # The fields the connect form asks for an environment.
+    def environment_fields = connect_fields.reject { |field| field.address? || field.learned }
+
+    # The fields chosen after connecting, from what the connection learned.
+    def learned_fields = connect_fields.select(&:learned)
+
+    # The fields a connect form asks, for a connection made the provider's own way or, reaching a native provider's MCP
+    # server instead, none, since its fields are the native connection's.
+    def asked_fields(kind = self.kind) = kind == self.kind ? connect_fields.reject(&:learned) : []
 
     # The values the form gave for fields, trimmed, keeping only the fields asked about and leaving out empty ones.
-    def connect_values(values, fields = connect_fields)
+    def connect_values(values, fields = asked_fields)
       given = values.to_h.stringify_keys
       fields.to_h { |field| [ field.key, field.value_of(given[field.key]) ] }.compact_blank
     end
 
     # Why the connect form cannot go ahead with this region and these values, or nil when it can. fields are the ones
     # the form asked, since the form for a pasted server address does not ask the fields that are part of the address.
-    def connect_refusal(region_key, values, fields = connect_fields)
+    def connect_refusal(region_key, values, fields = asked_fields)
       if region_key.present? && regions.any? && region(region_key).nil?
         return "#{name} has no region called #{region_key}. Choose one of #{regions.map(&:label).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}."
       end
@@ -131,14 +172,18 @@ class IntegrationProvider
       fields.filter_map { |field| field.refusal(given[field.key]) }.first
     end
 
-    # The server's address for a region and the fields that are part of it, in the order they are listed. An optional
-    # field left empty ends the address there, so a later one never takes its place. Each part is escaped as well as
-    # checked, so a value can only ever be one segment of the address.
+    # The server's address for a region and the fields that are part of it. Path fields are appended in the order they
+    # are listed, and an optional one left empty ends the path there, so a later one never takes its place. Query fields
+    # join the address's own query, and one left empty is left out. Each value is escaped as well as checked, so it can
+    # only ever be one segment or one parameter of the address.
     def server_url_for(region_key, values)
-      base = region(region_key)&.server_url || server_url
-      parts = path_fields.map { |field| field.value_of(values.to_h.stringify_keys[field.key]) }
-      parts = parts.take_while(&:present?).map { |part| ERB::Util.url_encode(part) }
-      parts.empty? ? base : [ base.to_s.chomp("/"), *parts ].join("/")
+      given = values.to_h.stringify_keys
+      uri = URI.parse((region(region_key)&.server_url || server_url).to_s)
+      parts = connect_fields.select(&:path).map { |field| field.value_of(given[field.key]) }.take_while(&:present?)
+      uri.path = [ uri.path.chomp("/"), *parts.map { |part| ERB::Util.url_encode(part) } ].join("/") if parts.any?
+      query = connect_fields.select(&:query).filter_map { |field| [ field.query, field.value_of(given[field.key]) ] if field.value_of(given[field.key]).present? }
+      uri.query = URI.encode_www_form(URI.decode_www_form(uri.query.to_s) + query) if query.any?
+      uri.to_s
     end
   end
 
@@ -157,7 +202,7 @@ class IntegrationProvider
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
         # The tool of a code host's pack that writes a change and opens it for review, which a fix's code steps run.
         code_fix_tool: raw["code_fix_tool"].presence,
-        regions: regions, connect_fields: connect_fields_of(raw)
+        regions: regions, connect_fields: connect_fields_of(raw), site: raw["site"].presence
       )
     end.freeze
   end
@@ -168,6 +213,7 @@ class IntegrationProvider
     return regions if regions.empty?
 
     raise ArgumentError, "#{raw['key']} lists regions and a server_url, and the regions' servers are the ones it has" if raw["server_url"].present?
+    raise ArgumentError, "#{raw['key']} lists regions and a site, and the regions' sites are the ones it has" if raw["site"].present?
     raise ArgumentError, "#{raw['key']} lists a region key twice" unless regions.map(&:key).uniq.size == regions.size
 
     regions

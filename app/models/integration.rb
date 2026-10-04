@@ -77,10 +77,10 @@ class Integration < ApplicationRecord
   # connection already there keeps the server it calls, so a token is never asked for one it does not, and a connection
   # made before its provider listed regions keeps its address. Otherwise it is the region's server with the fields that
   # are part of its address.
-  def self.server_url_for(workspace, entry, name, region_key, fields)
-    path_values = entry.connect_values(fields, entry.path_fields)
-    existing = workspace.integrations.find_by(slug: slug_for(name), provider: entry.key, kind: entry.kind)
-    same = existing&.server_url.present? && existing.region == entry.region(region_key) && existing.path_fields == path_values
+  def self.server_url_for(workspace, entry, name, region_key, fields, kind: entry.kind)
+    path_values = entry.connect_values(fields, entry.address_fields)
+    existing = workspace.integrations.find_by(slug: slug_for(name), provider: entry.key, kind: kind)
+    same = existing&.server_url.present? && existing.region == entry.region(region_key) && existing.address_fields == path_values
     same ? existing.server_url : entry.server_url_for(region_key, path_values)
   end
 
@@ -88,16 +88,16 @@ class Integration < ApplicationRecord
   # connection's other environments to a server their credentials are not for. nil when it would not.
   def move_blocked_reason(region, path_values, environment_id)
     return unless persisted?
-    return if self.region == region && path_fields == path_values.to_h.stringify_keys
+    return if self.region == region && address_fields == path_values.to_h.stringify_keys
     return if integration_environments.none? { |row| row.catalog_entry_id != environment_id.presence }
 
-    place = [ self.region&.label, *path_fields.values ].compact.join(", ").presence || server_url
+    place = [ self.region&.label, *address_fields.values ].compact.join(", ").presence || server_url
     "#{name} reaches #{place} for its other environments. To connect somewhere else, add it as another account with its own name."
   end
 
-  # The connect fields that are part of the server's address (IntegrationProvider::ConnectField), which belong to the
-  # whole connection.
-  def path_fields = settings.to_h.fetch(FIELDS_SETTING, {})
+  # The connect fields that are part of the server's address, in its path or its query (IntegrationProvider::ConnectField),
+  # which belong to the whole connection.
+  def address_fields = settings.to_h.fetch(FIELDS_SETTING, {})
 
   # Saved row by row because enabling one mints its Ability::Action in an after_save that
   # update_all would skip. reads_only turns the write tools off rather than adding anything.

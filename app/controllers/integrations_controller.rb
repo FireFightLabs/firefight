@@ -6,10 +6,10 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :destroy ]
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -26,15 +26,17 @@ class IntegrationsController < InertiaController
   def create
     provider = IntegrationProvider.find(params[:provider]) || IntegrationProvider.find(Integration::PROVIDER_CUSTOM_MCP)
     return connect_with_url(provider) if provider&.connection_url? && params.key?(:connection_url)
-    return connect_with_credentials(provider) if provider&.api_token?
+    # A provider connected with credentials may offer its own MCP server instead, which the token form reaches.
+    return connect_with_credentials(provider) if provider&.api_token? && (params.key?(:credentials) || !provider.mcp_alternative?)
 
     # A database connected from a URL can also be reached through an MCP server the team runs.
-    kind = provider.nil? || provider.connection_url? ? Integration::KIND_MCP : provider.kind
+    kind = provider.nil? || provider.connection_url? || provider.mcp_alternative? ? Integration::KIND_MCP : provider.kind
     reserved = Integration.name_blocked_reason(params.require(:name))
     return redirect_back(fallback_location: integrations_path, alert: reserved) if reserved
 
-    # The server's whole address is pasted here, so only the fields that are not part of it are asked.
-    asked = provider&.environment_fields.to_a
+    # The server's whole address is pasted here, so only the fields that are not part of it are asked, and none when it
+    # is a native provider's own MCP server.
+    asked = provider&.mcp_alternative? ? [] : provider&.environment_fields.to_a
     refusal = provider&.connect_refusal(nil, fields_param(provider), asked)
     return redirect_back(fallback_location: integrations_path, alert: refusal) if refusal
 
@@ -98,30 +100,45 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, alert: "This connection already has credentials for that environment."
   end
 
+  # Chooses a value the connection learned to choose from, such as which of several datasources holds its logs.
+  def choose
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    field = IntegrationProvider.find(@integration.provider)&.learned_fields&.find { |each| each.key == params[:key].to_s }
+    return redirect_to integrations_path, alert: "#{@integration.name} has no such choice." unless field
+
+    refusal = row.choose!(field, params[:value])
+    return redirect_to integrations_path, alert: refusal if refusal
+
+    redirect_to integrations_path, notice: "#{@integration.name} now uses #{field.shown(row.fields[field.key], choices: field.options_from(row.learned))} for #{field.label.downcase_first}."
+  end
+
   # A full-page navigation to the provider. Nothing is persisted until the customer
   # returns authorized, so abandoning it leaves no half-connected row.
   def oauth_start
     provider = IntegrationProvider.find(params[:provider].to_s)
     return redirect_to integrations_path, alert: "Unknown integration." if provider.nil?
-    return native_install_start(provider) if provider.kind == Integration::KIND_NATIVE
+
+    kind = provider.connect_kind(params[:kind])
+    return native_install_start(provider) if kind == Integration::KIND_NATIVE
     if provider.server_url.blank?
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
     end
 
-    refusal = provider.connect_refusal(params[:region].presence, fields_param(provider))
+    asked = provider.asked_fields(kind)
+    refusal = provider.connect_refusal(params[:region].presence, fields_param(provider), asked)
     return redirect_to integrations_path, alert: refusal if refusal
 
     region = provider.region(params[:region].presence)&.key
 
     name = params[:name].presence || provider.name
-    server_url = Integration.server_url_for(current_workspace, provider, name, region, fields_param(provider))
+    server_url = Integration.server_url_for(current_workspace, provider, name, region, provider.connect_values(fields_param(provider), asked), kind: kind)
     flow = Integrations::OauthFlow.begin(provider, redirect_uri: oauth_callback_integrations_url, server_url: server_url, region: region)
     session[:integration_oauth] = {
       "provider" => provider.key, "name" => name,
       "environment_id" => environment_id_param,
       "state" => flow[:state], "verifier" => flow[:verifier],
       "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
-      "server_url" => server_url, "region" => region, "fields" => provider.connect_values(fields_param(provider)),
+      "server_url" => server_url, "region" => region, "fields" => provider.connect_values(fields_param(provider), asked), "kind" => kind,
       "return_to" => return_to_param
     }
     redirect_to flow[:authorize_url], allow_other_host: true
@@ -136,14 +153,15 @@ class IntegrationsController < InertiaController
            ActiveSupport::SecurityUtils.secure_compare(pending["state"].to_s, params[:state].to_s)
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
     end
-    return native_install_callback(provider, pending) if provider.kind == Integration::KIND_NATIVE
+    kind = provider.connect_kind(pending["kind"])
+    return native_install_callback(provider, pending) if kind == Integration::KIND_NATIVE
 
     credentials = Integrations::OauthFlow.exchange(
       provider, pending, code: params[:code].to_s, redirect_uri: oauth_callback_integrations_url
     )
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"], region: pending["region"], fields: pending["fields"],
-                                                                                    server_url: pending["server_url"])
+                                                                                    server_url: pending["server_url"], kind: kind)
     environment_row.store_oauth!(credentials)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
@@ -248,7 +266,7 @@ class IntegrationsController < InertiaController
   # Reconnecting under the default name revives the existing row. The region and the connect fields that are part of the
   # server's address belong to the whole connection, so another environment cannot move it somewhere else. The other
   # fields belong to the environment connected now, and a way of connecting that asks none leaves them as they were.
-  def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil)
+  def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil, kind: provider.kind)
     slug = Integration.slug_for(name)
     reserved = Integration.name_blocked_reason(name)
     raise NameTaken, reserved if reserved
@@ -256,19 +274,22 @@ class IntegrationsController < InertiaController
     integration = current_workspace.integrations.find_or_initialize_by(slug: slug)
     raise NameTaken if integration.persisted? && integration.provider != provider.key
 
-    path_values = provider.connect_values(fields, provider.path_fields)
+    path_values = provider.connect_values(fields, provider.address_fields)
     moved = integration.move_blocked_reason(provider.region(region), path_values, environment_id) if provider.regions.any? || path_values.any?
     raise NameTaken, moved if moved
 
     integration.assign_attributes(
-      kind: provider.kind, provider: provider.key, name: name,
-      settings: settings_for(provider.kind) { server_url || provider.server_url_for(region, path_values) }
+      kind: kind, provider: provider.key, name: name,
+      settings: settings_for(kind) { server_url || provider.server_url_for(region, path_values) }
                   .merge({ Integration::REGION_SETTING => provider.region(region)&.key, Integration::FIELDS_SETTING => path_values.presence }.compact),
       deleted_at: nil, disabled_at: nil
     )
     integration.save!
     environment_row = integration.integration_environments.find_or_create_by!(catalog_entry_id: environment_id.presence)
-    environment_row.store_fields!(provider.connect_values(fields, provider.environment_fields)) if fields && provider.environment_fields.any?
+    if fields && kind == provider.kind && provider.environment_fields.any?
+      chosen = environment_row.fields.slice(*provider.learned_fields.map(&:key))
+      environment_row.store_fields!(chosen.merge(provider.connect_values(fields, provider.environment_fields)))
+    end
     environment_row
   end
 

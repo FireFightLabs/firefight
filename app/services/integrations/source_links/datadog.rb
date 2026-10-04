@@ -11,7 +11,7 @@ module Integrations
       RELATIVE = /\A#{Capabilities::Datadog::NOW}(?:-(?<minutes>\d+)m)?\z/o
 
       def initialize(settings)
-        @site = settings.region&.site
+        @site = settings.site
       end
 
       def link(tool_name:, arguments:, text: "")

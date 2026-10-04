@@ -31,5 +31,23 @@ module Integrations
       assert_equal [ %w[us eu], "secret", nil ], [ settings.field(:regions), settings.credential(:api_token), settings.credential("missing") ]
       assert_equal [ @workspace, "sentry", "Sentry", "https://mcp.sentry.dev/mcp/acme" ], [ settings.workspace, settings.provider_key, settings.name, settings.server_url ]
     end
+
+    test "a connection's site is its region's, or the provider's own for one that runs in one place, and an empty field is its default" do
+      datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog",
+                                                settings: { "server_url" => "https://mcp.datadoghq.eu/v1/mcp", "region" => "eu1" })
+      assert_equal "https://app.datadoghq.eu", ConnectionSettings.of(datadog.integration_environments.create!).site
+
+      acme = IntegrationProvider.find("linear").with(key: "acme", site: "https://app.acme.example", connect_fields: [
+        IntegrationProvider::ConnectField.new(key: "limit", label: "Limit", hint: "At most.", default: "5")
+      ])
+      IntegrationProvider.stubs(:find).with("acme").returns(acme)
+      row = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "acme", name: "Acme", settings: { "server_url" => "https://mcp.acme.example" })
+                      .integration_environments.create!
+      settings = ConnectionSettings.of(row)
+
+      assert_equal [ "https://app.acme.example", "5" ], [ settings.site, settings.field(:limit) ]
+      row.store_fields!("limit" => "8")
+      assert_equal "8", ConnectionSettings.of(row.reload).field(:limit)
+    end
   end
 end

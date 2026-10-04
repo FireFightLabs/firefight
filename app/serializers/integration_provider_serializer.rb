@@ -34,7 +34,7 @@ class IntegrationProviderSerializer < BaseSerializer
   end
 
   # What the connect form asks for when a provider connects with credentials, as the provider's pack declares it.
-  type "{ key: string; label: string; hint: string; placeholder: string; secret: boolean; optional: boolean }[]"
+  type "{ key: string; label: string; hint: string; placeholder: string; secret: boolean; optional: boolean; multiline: boolean }[]"
   def credential_fields
     return [] unless provider.api_token?
 
@@ -48,10 +48,17 @@ class IntegrationProviderSerializer < BaseSerializer
   # What the connect form asks beside the credentials, as the registry declares it. A path field is part of the server's
   # address, so the form for a pasted address does not ask it.
   # A field with options is a choice from them, and one marked multiple holds several. allowed says what a value may hold.
-  type "{ key: string; label: string; hint: string; placeholder: string; numeric: boolean; optional: boolean; path: boolean; allowed: string | null; options: { value: string; label: string }[]; multiple: boolean }[]"
+  # Fields chosen after connecting are not asked here. address says a field is part of the server's address, which the
+  # form for a pasted address does not ask.
+  type "{ key: string; label: string; hint: string; placeholder: string; numeric: boolean; optional: boolean; address: boolean; allowed: string | null; options: { value: string; label: string }[]; multiple: boolean; default: string | null }[]"
   def connect_fields
-    provider.connect_fields.map do |field|
-      field.to_h.except(:pattern).merge(options: field.options.map(&:to_h))
+    provider.connect_fields.reject(&:learned).map do |field|
+      field.to_h.slice(:key, :label, :hint, :placeholder, :numeric, :optional, :allowed, :multiple, :default)
+           .merge(address: field.address?, options: field.options.map(&:to_h))
     end
   end
+
+  # Whether the connect form offers the provider's own MCP server beside its credentials.
+  type :boolean
+  def mcp_alternative = provider.mcp_alternative?
 end

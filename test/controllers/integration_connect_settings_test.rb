@@ -80,7 +80,7 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
       acme = @workspace.integrations.find_by!(provider: "acme")
       row = acme.integration_environments.sole
       assert_equal "https://mcp.acme.example/mcp/acme-co/web", acme.server_url
-      assert_equal({ "organization" => "acme-co", "project" => "web" }, acme.path_fields)
+      assert_equal({ "organization" => "acme-co", "project" => "web" }, acme.address_fields)
       assert_equal({ "account" => "42" }, row.fields)
       settings = Integrations::ConnectionSettings.of(row)
       assert_equal %w[acme-co 42], [ settings.field("organization"), settings.field(:account) ]
@@ -161,6 +161,68 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
 
     post integrations_url, params: { provider: "northflank", name: "Northflank two", credentials: { api_token: "nf" }, fields: { project: "shop", regions: [ "mars-1" ] } }
     assert_equal "Regions can only be US East (N. Virginia) or Europe (Ireland).", session[:inertia_errors].to_h.with_indifferent_access[:connection]
+  end
+
+  test "a query field shapes the server's address the token is asked for, and the connection keeps it" do
+    entries = IntegrationProvider.all
+    supa = entries.find { |entry| entry.key == "linear" }.with(
+      key: "supa", name: "Supa", server_url: "https://mcp.supa.example/mcp",
+      connect_fields: [ IntegrationProvider::ConnectField.new(key: "project_ref", label: "Project", hint: "Its ref.", query: "project_ref") ]
+    )
+    IntegrationProvider.stubs(:all).returns(entries + [ supa ])
+    Integrations::OauthClient.expects(:begin_flow).with(has_entries(server_url: "https://mcp.supa.example/mcp?project_ref=ab+c")).returns(flow)
+    Integrations::OauthClient.stubs(:exchange).returns("access_token" => "at")
+
+    get oauth_start_integrations_url(provider: "supa", fields: { project_ref: "ab c" })
+    get oauth_callback_integrations_url(state: "abc", code: "c")
+
+    connection = @workspace.integrations.find_by!(provider: "supa")
+    assert_equal [ "https://mcp.supa.example/mcp?project_ref=ab+c", { "project_ref" => "ab c" } ], [ connection.server_url, connection.address_fields ]
+  end
+
+  test "a native provider with an MCP server of its own connects through it when asked, one-click or with a token, asking none of the pack's fields" do
+    entries = IntegrationProvider.all
+    northflank = IntegrationProvider.find("northflank").with(server_url: "https://mcp.northflank.example/mcp")
+    IntegrationProvider.stubs(:all).returns(entries.map { |entry| entry.key == "northflank" ? northflank : entry })
+    Integrations::OauthClient.expects(:begin_flow).with(has_entries(server_url: "https://mcp.northflank.example/mcp")).returns(flow)
+    Integrations::OauthClient.stubs(:exchange).returns("access_token" => "at")
+
+    get oauth_start_integrations_url(provider: "northflank", kind: Integration::KIND_MCP)
+    get oauth_callback_integrations_url(state: "abc", code: "c")
+
+    through_server = @workspace.integrations.find_by!(provider: "northflank")
+    assert_equal [ Integration::KIND_MCP, "https://mcp.northflank.example/mcp" ], [ through_server.kind, through_server.server_url ]
+    assert_empty through_server.integration_environments.sole.fields
+
+    post integrations_url, params: { provider: "northflank", name: "Northflank token", server_url: "https://mcp.northflank.example/mcp", authorization: "Bearer x" }
+    assert_equal Integration::KIND_MCP, @workspace.integrations.find_by!(name: "Northflank token").kind
+
+    get integrations_url, headers: inertia_headers
+    assert inertia_props["providers"].find { |provider| provider["key"] == "northflank" }["mcpAlternative"]
+  end
+
+  test "a value the connection learned to choose from is chosen on its details, says so, and refuses anything else" do
+    entries = IntegrationProvider.all
+    logs = IntegrationProvider::ConnectField.new(key: "logs_source", label: "Logs datasource", hint: "Where its logs are.", learned: "loki")
+    grafana = IntegrationProvider.find("grafana").with(connect_fields: [ logs ])
+    IntegrationProvider.stubs(:all).returns(entries.map { |entry| entry.key == "grafana" ? grafana : entry })
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "grafana", name: "Grafana", settings: { "server_url" => "https://gf.example/mcp" })
+    row = integration.integration_environments.create!
+    row.store_learned!("loki" => [ { "value" => "a1", "label" => "Loki EU" }, { "value" => "b2", "label" => "Loki US" } ])
+
+    get integrations_url, headers: inertia_headers
+    choice = inertia_props["integrations"].find { |each| each["provider"] == "grafana" }["environments"].sole["choices"].sole
+    assert_equal [ "logs_source", nil, %w[a1 b2] ], [ choice["key"], choice["value"], choice["options"].map { |option| option["value"] } ]
+
+    patch choose_integration_url(integration), params: { environment_row_id: row.id, key: "logs_source", value: "b2" }
+    assert_equal "Grafana now uses Loki US for logs datasource.", flash[:notice]
+    assert_equal "b2", Integrations::ConnectionSettings.of(row.reload).field(:logs_source)
+
+    patch choose_integration_url(integration), params: { environment_row_id: row.id, key: "logs_source", value: "zz" }
+    assert_equal "Logs datasource can only be Loki EU or Loki US.", flash[:alert]
+    patch choose_integration_url(integration), params: { environment_row_id: row.id, key: "other", value: "a1" }
+    assert_equal "Grafana has no such choice.", flash[:alert]
+    assert_equal "b2", row.reload.fields["logs_source"]
   end
 
   test "the gallery offers a provider's regions and the fields it asks" do

@@ -65,6 +65,16 @@ class IntegrationEnvironment < ApplicationRecord
     update!(base_config: base_config.to_h.merge(FIELDS_KEY => values.to_h.stringify_keys))
   end
 
+  # A field chosen after connecting from what the connection learned (IntegrationProvider::ConnectField with learned).
+  # Answers why the value cannot be chosen, or nil once it is kept.
+  def choose!(field, value)
+    refusal = field.refusal(value, choices: field.options_from(learned))
+    return refusal if refusal
+
+    update!(base_config: base_config.to_h.merge(FIELDS_KEY => fields.merge(field.key => field.value_of(value)).compact_blank))
+    nil
+  end
+
   def learned = base_config.to_h.fetch(LEARNED_KEY, {})
 
   # The probe owns the shape of what it learned, this row owns writing it.

@@ -25,9 +25,16 @@ module Integrations
     # address is in none of them.
     def region = @integration.region
 
-    # What the connect form asked, by the field's key, for this environment or the whole connection, or nil. A field
-    # that holds several values answers a list.
-    def field(key) = @row.fields[key.to_s].presence || @integration.path_fields[key.to_s].presence
+    # The address of the provider's app the connection is in, which links open. It is the region's site, or the registry's
+    # site for a provider that runs in one place. nil when neither is known.
+    def site = region&.site || IntegrationProvider.find(provider_key)&.site
+
+    # What the connect form asked, by the field's key, for this environment or the whole connection, or the field's
+    # default when it was left empty, or nil. A field that holds several values answers a list.
+    def field(key)
+      @row.fields[key.to_s].presence || @integration.address_fields[key.to_s].presence ||
+        IntegrationProvider.find(provider_key)&.connect_fields&.find { |each| each.key == key.to_s }&.default
+    end
 
     # A value a native pack stored with its credentials (NativePack.store_credentials!), such as an API token, or nil.
     # Only the pack that stored it reads it, to call its provider. It never reaches the model, a chat, an MCP response

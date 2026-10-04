@@ -71,8 +71,70 @@ class IntegrationProviderRegionsTest < ActiveSupport::TestCase
     assert_equal "https://mcp.acme.example/mcp/acme%2Fx%3Fy%23z", entry.server_url_for(nil, "org" => "acme/x?y#z")
   end
 
+  test "a field with a default may be left empty, shows its default, and is read as it" do
+    limit = IntegrationProvider::ConnectField.new(key: "limit", label: "Limit", hint: "At most this many.", numeric: true, default: 5)
+
+    assert limit.optional
+    assert_equal [ "5", "5" ], [ limit.default, limit.placeholder ]
+    assert_nil limit.refusal("")
+    assert_equal "Limit must be a number.", limit.refusal("five")
+  end
+
+  test "query fields join the address's own query, escaped, and one left empty is left out" do
+    entry = acme(IntegrationProvider::ConnectField.new(key: "project_ref", label: "Project", hint: "Its ref.", query: "project_ref"),
+                 IntegrationProvider::ConnectField.new(key: "read_only", label: "Read only", hint: "Whether.", query: "read_only", optional: true))
+
+    assert_equal "https://mcp.acme.example/mcp?features=db&project_ref=abc%26x%3D1", entry.server_url_for(nil, "project_ref" => "abc&x=1")
+    assert_equal "https://mcp.acme.example/mcp?features=db&project_ref=abc&read_only=true", entry.server_url_for(nil, "project_ref" => "abc", "read_only" => "true")
+    assert_equal %w[project_ref read_only], entry.address_fields.map(&:key)
+    assert_empty entry.environment_fields
+    assert_raises(ArgumentError) { IntegrationProvider::ConnectField.new(key: "x", label: "X", hint: "X.", query: "x", path: true) }
+  end
+
+  test "a field chosen after connecting takes its choices from what the connection learned, and the connect form never asks it" do
+    logs = IntegrationProvider::ConnectField.new(key: "logs_source", label: "Logs datasource", hint: "Where logs are.", learned: "loki")
+    entry = acme(logs)
+    learned = { "loki" => [ { "value" => "a1", "label" => "Loki EU" }, { "value" => "b2", "label" => "Loki US" } ] }
+
+    assert_equal [ logs ], entry.learned_fields
+    assert_empty entry.asked_fields
+    assert_empty entry.environment_fields
+    assert_equal %w[a1 b2], logs.options_from(learned).map(&:value)
+    assert_nil logs.refusal("b2", choices: logs.options_from(learned))
+    assert_equal "Logs datasource can only be Loki EU or Loki US.", logs.refusal("zz", choices: logs.options_from(learned))
+    assert_equal "Loki US", logs.shown("b2", choices: logs.options_from(learned))
+  end
+
+  test "a native provider with credentials and an MCP server of its own may be connected through the server instead" do
+    native = acme.with(kind: Integration::KIND_NATIVE, connect_with: IntegrationProvider::CONNECT_API_TOKEN)
+
+    assert native.mcp_alternative?
+    assert_equal [ Integration::KIND_MCP, Integration::KIND_NATIVE, Integration::KIND_NATIVE ],
+                 [ native.connect_kind("mcp"), native.connect_kind(nil), native.connect_kind("http") ]
+    assert_not native.with(server_url: "").mcp_alternative?
+    assert_not acme.mcp_alternative?
+    assert_equal Integration::KIND_MCP, acme.connect_kind("mcp")
+  end
+
+  test "a provider that runs in one place has a site, and one with regions has a site per region" do
+    assert_equal "https://app.acme.example", acme.with(site: "https://app.acme.example").site
+    assert_raises(ArgumentError) do
+      IntegrationProvider.send(:regions_of, { "key" => "acme", "site" => "https://x", "regions" => [ { "key" => "us", "label" => "US" } ] })
+    end
+  end
+
   test "only categories a provider is in are offered" do
     assert IntegrationProvider.categories.keys.all? { |name| IntegrationProvider.all.any? { |entry| entry.category == name } }
     assert_includes IntegrationProvider.categories.keys, "Observability"
+  end
+
+  private
+
+  def acme(*fields)
+    IntegrationProvider::Entry.new(
+      key: "acme", name: "Acme", category: "Observability", mark: "AC", color: "#000000", description: "Acme.", kind: Integration::KIND_MCP,
+      server_url: "https://mcp.acme.example/mcp?features=db", source_links: IntegrationProvider::SOURCE_LINKS_NONE,
+      map: IntegrationProvider::MAP_NONE, connect_fields: fields
+    )
   end
 end
