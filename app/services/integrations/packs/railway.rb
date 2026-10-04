@@ -12,7 +12,8 @@ module Integrations
 
       PROVIDER = "Railway".freeze
       PROVIDER_KEY = "railway".freeze
-      GITHUB = "github".freeze
+      # Railway builds from GitHub repositories and names one as owner/name (schema, ServiceSource.repo).
+      GITHUB_SITE = "https://github.com".freeze
 
       # How the CLI tells a service instance apart (railwayapp/cli, src/resources.rs): a cron schedule makes a cron job,
       # and an image naming a database engine makes a database.
@@ -158,7 +159,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                              hint: "An account token, or a workspace token for the project's workspace, created under Account Settings, Tokens. A project token is not accepted, since it cannot apply fixes.")
+                              hint: "An account token, or a workspace token for the project's workspace, created under Account Settings, Tokens. Firefight does not accept a project token, since it cannot apply fixes.")
         ]
       end
 
@@ -314,7 +315,11 @@ module Integrations
             links << ResourceMap::FoundLink.new(from: domain.key, to: item.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
         end
-        ResourceMap::Snapshot.new(resources: found, links: links)
+        listed = instances(environment_row)
+        return ResourceMap::Snapshot.new(resources: found, links: links) unless listed.incomplete?
+
+        ResourceMap::Snapshot.new(resources: found, links: links, gaps: [ "Only the first #{listed.items.size} services were read." ],
+                                  unread_kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN ])
       end
 
       # What normal looks like for its services and databases: a week of CPU and memory, one reading an hour. A resource
@@ -333,7 +338,7 @@ module Integrations
             points = answered.select { |each| each["measurement"] == measurement }.flat_map { |each| points(each["values"]) }
             ResourceMap::Baseline::Found.new(key: resource.key, metric: name, label: title, unit: unit, points: points) if points.any?
           end
-        rescue RailwayApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue RailwayApi::Error => error
           Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
@@ -366,7 +371,7 @@ module Integrations
       end
 
       def resources(environment_row)
-        @resources ||= api(environment_row).service_instances(project_of(environment_row), environment(environment_row)["id"]).map do |instance|
+        @resources ||= instances(environment_row).items.map do |instance|
           engine = engine_of(instance.dig("source", "image"))
           type = if instance["cronSchedule"].present? then CRON_JOB
           elsif engine then DATABASE
@@ -375,6 +380,9 @@ module Integrations
           { id: instance["serviceId"], name: instance["serviceName"], type: type, engine: engine, instance: instance }
         end
       end
+
+      # The environment's service instances, as a Pages::Read that says whether they were read to the end.
+      def instances(environment_row) = @instances ||= api(environment_row).service_instances(project_of(environment_row), environment(environment_row)["id"])
 
       def engine_of(image) = ENGINES.find { |_, words| words.any? { |word| image.to_s.downcase.include?(word) } }&.first
 
@@ -513,11 +521,10 @@ module Integrations
       end
 
       def repository(item, repo, found, links)
-        path = repo.to_s.delete_prefix("https://github.com/").delete_suffix(".git")
-        return unless path.match?(%r{\A[\w.-]+/[\w.-]+\z})
+        path = repo.to_s.delete_prefix("#{GITHUB_SITE}/").delete_suffix(".git")
+        repository = ResourceMap.repository_of("#{GITHUB_SITE}/#{path}") if path.match?(%r{\A[\w.-]+/[\w.-]+\z})
+        return unless repository
 
-        repository = ResourceMap::Found.new(provider: GITHUB, account: path.split("/").first, kind: ResourceMap::KIND_REPOSITORY,
-                                            external_id: path, name: path, url: "https://github.com/#{path}")
         found << repository
         links << ResourceMap::FoundLink.new(from: item.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
       end
@@ -547,7 +554,7 @@ module Integrations
       def source_line(instance)
         source = instance["source"] || {}
         what = source["repo"].present? ? "Runs #{source['repo']}" : ("Runs the image #{source['image']}" if source["image"].present?)
-        [ what, ("start command #{Hosting.redacted(instance['startCommand'])}" if instance["startCommand"].present?) ].compact.join(", ").presence
+        [ what, ("start command #{instance['startCommand']}" if instance["startCommand"].present?) ].compact.join(", ").presence
       end
 
       # meta is untyped JSON. commitHash is the one key the CLI reads (src/commands/mcp/handler.rs), so the rest is read

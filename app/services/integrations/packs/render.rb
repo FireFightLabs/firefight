@@ -11,7 +11,6 @@ module Integrations
 
       PROVIDER = "Render".freeze
       PROVIDER_KEY = "render".freeze
-      GITHUB = "github".freeze
 
       # Render's service types (spec, schema serviceType), and how each sits on the map.
       WEB_SERVICE = "web_service".freeze
@@ -190,7 +189,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "rnd_...",
-                              hint: "A Render API key, created under Account Settings, API Keys. It acts as the person who created it, with their access to the workspace.")
+                              hint: "A Render API key, created under Account Settings, API Keys. It acts with the access of the person who created it.")
         ]
       end
 
@@ -335,10 +334,13 @@ module Integrations
         account = workspace_of(environment_row)
         reading = MapReading.new(account)
         gaps = []
-        api.services(account).each do |service|
+        unread = []
+        services = api.services(account)
+        bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ], gaps, unread)
+        services.items.each do |service|
           deploy = begin
             api.deploys(service["id"], limit: 1).first
-          rescue RenderApi::RateLimited
+          rescue Integrations::RateLimited
             raise
           rescue RenderApi::Error => error
             gaps << "The latest deploy of #{service['name']} could not be read: #{error.message}"
@@ -348,17 +350,30 @@ module Integrations
           next unless [ WEB_SERVICE, STATIC_SITE ].include?(service["type"])
 
           begin
-            api.custom_domains(service["id"]).each { |domain| reading.domain(found, domain["name"]) }
-          rescue RenderApi::RateLimited
+            domains = api.custom_domains(service["id"])
+            bounded(domains, "custom domains of #{service['name']}", [ ResourceMap::KIND_DOMAIN ], gaps, unread)
+            domains.items.each { |domain| reading.domain(found, domain["name"]) }
+          rescue Integrations::RateLimited
             raise
           rescue RenderApi::Error => error
             gaps << "The custom domains of #{service['name']} could not be read: #{error.message}"
           end
         end
-        api.postgres_databases(account).each { |database| reading.datastore(POSTGRES, database) }
-        api.key_values(account).each { |store| reading.datastore(KEY_VALUE, store) }
-        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps)
+        [ [ POSTGRES, api.postgres_databases(account), "Postgres databases" ], [ KEY_VALUE, api.key_values(account), "Key Value instances" ] ].each do |type, stores, what|
+          bounded(stores, what, [ ResourceMap::KIND_DATABASE ], gaps, unread)
+          stores.items.each { |store| reading.datastore(type, store) }
+        end
+        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, unread_kinds: unread.uniq)
       end
+
+      # A list read only up to its bound is a gap, and what it holds is not taken as gone.
+      def bounded(read, what, kinds, gaps, unread)
+        return unless read.incomplete?
+
+        gaps << "Only the first #{read.items.size} #{what} were read."
+        unread.concat(kinds)
+      end
+      private :bounded
 
       # What normal looks like for its services and datastores: a week of CPU, memory and, for a datastore, active
       # connections, one reading an hour, instances added up. A resource Render cannot read keeps yesterday's baselines,
@@ -377,7 +392,7 @@ module Integrations
                                               "endTime" => window.end.utc.iso8601, "resolutionSeconds" => BASELINE_RESOLUTION)
             baseline(resource, name, series)
           end
-        rescue RenderApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue RenderApi::Error => error
           Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
@@ -440,17 +455,13 @@ module Integrations
           found.key
         end
 
-        # The repository a service builds from. Only GitHub's addresses are read, as for every other provider.
+        # The repository a service builds from, on whichever code host the registry knows.
         def repository(from, url)
-          path = URI.parse(url.to_s).path.to_s.delete_prefix("/").delete_suffix(".git") if url.to_s.start_with?("https://github.com/")
-          return if path.blank? || path.count("/") != 1
+          found = ResourceMap.repository_of(url)
+          return unless found
 
-          found = ResourceMap::Found.new(provider: GITHUB, account: path.split("/").first, kind: ResourceMap::KIND_REPOSITORY,
-                                         external_id: path, name: path, url: "https://github.com/#{path}")
           @resources << found
           @links << ResourceMap::FoundLink.new(from: from, to: found.key, relation: ResourceMap::RELATION_BUILT_FROM)
-        rescue URI::InvalidURIError
-          nil
         end
       end
 
@@ -469,14 +480,14 @@ module Integrations
         @resources ||= begin
           api = api(environment_row)
           workspace = workspace_of(environment_row)
-          services = api.services(workspace).map do |service|
+          services = api.services(workspace).items.map do |service|
             { id: service["id"], name: service["name"], type: service["type"], url: service["dashboardUrl"],
               status: service["suspended"] == SUSPENDED ? "suspended by #{Array(service['suspenders']).join(', ').presence || 'Render'}" : "running" }
           end
-          databases = api.postgres_databases(workspace).map do |database|
+          databases = api.postgres_databases(workspace).items.map do |database|
             { id: database["id"], name: database["name"], type: POSTGRES, url: database["dashboardUrl"], status: database["status"].to_s }
           end
-          stores = api.key_values(workspace).map do |store|
+          stores = api.key_values(workspace).items.map do |store|
             { id: store["id"], name: store["name"], type: KEY_VALUE, url: store["dashboardUrl"], status: store["status"].to_s }
           end
           services + databases + stores
@@ -577,7 +588,7 @@ module Integrations
       def source_line(service, commands)
         what = service["repo"] ? "Runs #{service['repo']}#{", branch #{service['branch']}" if service['branch']}" : ("Runs the image #{service['imagePath']}" if service["imagePath"])
         start = commands["startCommand"] || commands["dockerCommand"]
-        [ what, ("start command #{Hosting.redacted(start)}" if start.present?) ].compact.join(", ").presence
+        [ what, ("start command #{start}" if start.present?) ].compact.join(", ").presence
       end
 
       def recent_events(environment_row, resource)
@@ -585,7 +596,7 @@ module Integrations
         return "Events in the last day: none" if events.empty?
 
         "Events in the last day, newest first:\n#{events.map { |event| event_line(event) }.join("\n")}"
-      rescue RenderApi::RateLimited
+      rescue Integrations::RateLimited
         raise
       rescue RenderApi::Error => error
         "Events could not be read: #{error.message}"

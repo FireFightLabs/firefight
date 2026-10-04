@@ -4,22 +4,19 @@ module Integrations
   # id or slug, as the spec's teamId and slug parameters take it, and a token made for one team names none.
   class VercelApi
     class Error < Integrations::Error; end
-    # Asked too often, so a caller making many calls stops rather than keep being refused.
-    class RateLimited < Error; end
     # Refused by the plan, such as a rollback past the previous production deployment on Hobby (spec, requestRollback 402).
     class PlanLimited < Error; end
 
     API_ROOT = "https://api.vercel.com".freeze
     TEAM_ID = /\Ateam_/
-    TOO_MANY_REQUESTS = 429
+    PROVIDER = "Vercel".freeze
     PAYMENT_REQUIRED = 402
     PAGE_SIZE = 100
     MAX_PAGES = 10
     # The runtime log stream ends with a row like this when Vercel stops it (vercel/vercel, packages/cli/src/util/logs.ts).
     STREAM_END = "delimiter".freeze
 
-    # What a change answered, with its HTTP status as well as its body, since a promotion can be queued (202) rather
-    # than done (201).
+    # What a promotion answered, with its HTTP status as well as its body.
     Answer = Data.define(:status, :body)
 
     def initialize(token, team = nil)
@@ -27,18 +24,13 @@ module Integrations
       @team = team.to_s.strip.presence
     end
 
-    # Every project, across the pages Vercel answers in one of its three list shapes (spec, getProjects).
+    # Every project, as a Pages::Read, across the pages Vercel answers in one of its three list shapes (spec, getProjects).
     def projects
-      rows = []
-      from = nil
-      MAX_PAGES.times do
+      Pages.read(max_pages: MAX_PAGES) do |from|
         answer = get("/v10/projects", "limit" => PAGE_SIZE, "from" => from)
         listed = answer.is_a?(Array) ? answer : Array(answer["projects"])
-        rows.concat(listed)
-        from = answer.is_a?(Hash) ? answer.dig("pagination", "next") : nil
-        break if from.blank? || listed.size < PAGE_SIZE
+        [ listed, (answer.dig("pagination", "next") if answer.is_a?(Hash) && listed.size == PAGE_SIZE) ]
       end
-      rows
     end
 
     # The cheapest call Vercel documents for checking a token, which works for every token scope (docs, rest-api/getting-started).
@@ -73,51 +65,59 @@ module Integrations
       rows = []
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + seconds
       catch(:enough) do
-        Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, open_timeout: Http::OPEN_TIMEOUT, read_timeout: seconds) do |connection|
-          connection.request(request) do |response|
-            raise_for(response.code, response.read_body) unless response.code.to_i.between?(200, 299)
+        Http.request(uri, request, error_class: Error, read_timeout: seconds) do |response|
+          refuse(response.code, response.read_body) unless response.code.to_i.between?(200, 299)
 
-            buffer = +""
-            response.read_body do |chunk|
-              buffer << chunk
-              while (line = buffer.slice!(/\A[^\n]*\n/))
-                row = parse_row(line)
-                throw :enough if row && row["source"] == STREAM_END && row["rowId"].to_s.empty?
-                rows << row if row
-                throw :enough if rows.size >= limit
-              end
-              throw :enough if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+          buffer = +""
+          response.read_body do |chunk|
+            buffer << chunk
+            while (line = buffer.slice!(/\A[^\n]*\n/))
+              row = parse_row(line)
+              throw :enough if row && row["source"] == STREAM_END && row["rowId"].to_s.empty?
+              rows << row if row
+              throw :enough if rows.size >= limit
             end
+            throw :enough if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
           end
         end
       end
       rows
     rescue Net::ReadTimeout
       rows
-    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => error
-      raise Error, "could not reach #{uri.host} (#{error.class.name})"
     end
 
     def rollback(project_id, deployment_id, description: nil)
       post("/v1/projects/#{segment(project_id)}/rollback/#{segment(deployment_id)}", { "description" => description.presence })
     end
 
-    def promote(project_id, deployment_id) = post("/v10/projects/#{segment(project_id)}/promote/#{segment(deployment_id)}")
+    # A promotion is queued (202) behind a rolling release in progress, or done (201), so it answers its status too.
+    def promote(project_id, deployment_id)
+      uri = uri("/v10/projects/#{segment(project_id)}/promote/#{segment(deployment_id)}")
+      request = changing(Net::HTTP::Post.new(uri))
+      authorize(request)
+      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
+      refuse(response.code, response.body) unless response.code.to_i.between?(200, 299)
+
+      Answer.new(status: response.code.to_i, body: parse_row(response.body.to_s) || {})
+    end
 
     private
 
     def get(path, query = {})
       uri = uri(path, query)
-      request = Net::HTTP::Get.new(uri)
-      send_request(uri, request).body
+      send_request(uri, Net::HTTP::Get.new(uri))
     end
 
     def post(path, query = {})
       uri = uri(path, query)
-      request = Net::HTTP::Post.new(uri)
+      send_request(uri, changing(Net::HTTP::Post.new(uri)))
+    end
+
+    def changing(request)
       request["Content-Type"] = "application/json"
+      request["Accept"] = "application/json"
       request.body = "{}"
-      send_request(uri, request)
+      request
     end
 
     def uri(path, query = {})
@@ -138,26 +138,18 @@ module Integrations
     def send_request(uri, request)
       authorize(request)
       request["Accept"] ||= "application/json"
-      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
-      raise_for(response.code, response.body) unless response.code.to_i.between?(200, 299)
-
-      Answer.new(status: response.code.to_i, body: response.body.to_s.strip.empty? ? {} : JSON.parse(response.body))
-    rescue JSON::ParserError
-      # A change that went through stays one that went through, whatever came back with it.
-      Answer.new(status: response.code.to_i, body: {})
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: method(:refined))
     end
 
-    # Vercel's error body is { error: { code, message } } (docs, rest-api/errors).
-    def raise_for(code, body)
-      parsed = parse_row(body.to_s) || {}
-      reason = parsed.dig("error", "message").presence || "no reason given"
-      error = case code.to_i
-      when TOO_MANY_REQUESTS then RateLimited
-      when PAYMENT_REQUIRED then PlanLimited
-      else Error
-      end
-      raise error, "Vercel answered #{code}: #{reason}"
+    # An answer read here rather than by Http.json (a stream, or a promotion whose status matters) that is not a 2xx, said
+    # in the same words Http.json uses (docs, rest-api/errors).
+    def refuse(code, body)
+      reason = (parse_row(body.to_s) || {}).dig("error", "message").presence || "no reason given"
+      error = code.to_i == Http::TOO_MANY_REQUESTS ? Error.new("Vercel answered #{code}: #{reason}").extend(Integrations::RateLimited) : refined(code, reason).new("Vercel answered #{code}: #{reason}")
+      raise error
     end
+
+    def refined(code, _reason) = code.to_i == PAYMENT_REQUIRED ? PlanLimited : Error
 
     def parse_row(line)
       row = JSON.parse(line)
@@ -166,6 +158,6 @@ module Integrations
       nil
     end
 
-    def segment(value) = ERB::Util.url_encode(value.to_s)
+    def segment(value) = Http.segment(value)
   end
 end

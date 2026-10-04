@@ -12,11 +12,11 @@ module Integrations
         Vercel.store_credentials!(@row, Vercel::API_TOKEN => " tok ")
         @row.store_fields!(Vercel::TEAM => "acme")
         @pack = Vercel.new(@integration)
-        VercelApi.any_instance.stubs(:projects).returns([
+        VercelApi.any_instance.stubs(:projects).returns(Integrations::Pages::Read.new(items: [
           { "id" => "prj_1", "name" => "shop", "accountId" => "team_1", "framework" => "nextjs",
             "link" => { "type" => "github", "org" => "acme", "repo" => "shop", "productionBranch" => "main" },
             "targets" => { "production" => { "id" => "dpl_2", "readyState" => "READY", "meta" => { "githubCommitSha" => "c4e4267d46e638ac" } } } }
-        ])
+        ], complete: true))
       end
 
       test "the token and team are stored trimmed, and only the rollback and promotion change anything" do

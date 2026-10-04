@@ -19,7 +19,7 @@ module Integrations
       Http.expects(:request).with { |uri, *| !uri.query.include?("from") }.returns(response(200, { projects: page, pagination: { count: 100, next: "abc" } }))
       Http.expects(:request).with { |uri, *| URI.decode_www_form(uri.query).include?([ "from", "abc" ]) }.returns(response(200, [ { id: "prj_last" } ]))
 
-      assert_equal VercelApi::PAGE_SIZE + 1, VercelApi.new("tok").projects.size
+      assert_equal VercelApi::PAGE_SIZE + 1, VercelApi.new("tok").projects.items.size
     end
 
     test "a rollback the plan refuses is its own error, in Vercel's words, and a promotion says whether it was queued" do
@@ -33,7 +33,7 @@ module Integrations
       assert_equal 202, VercelApi.new("tok").promote("prj_1", "dpl_2").status
 
       Http.stubs(:request).returns(response(429, { error: { code: "rate_limited", message: "Too many requests" } }))
-      assert_raises(VercelApi::RateLimited) { VercelApi.new("tok").project("web") }
+      assert_raises(Integrations::RateLimited) { VercelApi.new("tok").project("web") }
     end
 
     test "runtime logs are read from the live stream until it ends, and only whole rows count" do

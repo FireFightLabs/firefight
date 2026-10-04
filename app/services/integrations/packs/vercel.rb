@@ -12,7 +12,6 @@ module Integrations
 
       PROVIDER = "Vercel".freeze
       PROVIDER_KEY = "vercel".freeze
-      GITHUB = "github".freeze
       PRODUCTION = "production".freeze
       READY = "READY".freeze
 
@@ -234,7 +233,7 @@ module Integrations
                        ResourceMap::DEPLOYED_COMMIT => meta(production, COMMIT_SHA) }.compact
           )
           resources << found
-          repository = github_repository(project["link"])
+          repository = repository(project["link"])
           if repository
             resources << repository
             links << ResourceMap::FoundLink.new(from: found.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
@@ -245,11 +244,16 @@ module Integrations
               resources << host
               links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
             end
-          rescue VercelApi::RateLimited
+          rescue Integrations::RateLimited
             raise
           rescue VercelApi::Error => error
             gaps << "The domains of #{project['name']} could not be read: #{error.message}"
           end
+        end
+        listed = project_list(environment_row)
+        if listed.incomplete?
+          gaps << "Only the first #{listed.items.size} projects were read."
+          return ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, unread_kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN ])
         end
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
       end
@@ -270,7 +274,10 @@ module Integrations
         VercelApi.new(token, settings.field(TEAM))
       end
 
-      def projects(environment_row) = @projects ||= api(environment_row).projects
+      def projects(environment_row) = project_list(environment_row).items
+
+      # The team's projects, as a Pages::Read that says whether they were read to the end.
+      def project_list(environment_row) = @project_list ||= api(environment_row).projects
 
       def find_project(environment_row, asked)
         fail! "Say which project, by name or id. list_resources shows them." if asked.to_s.strip.empty?
@@ -372,12 +379,11 @@ module Integrations
           ("not verified" unless domain["verified"]) ].compact.join(", ")
       end
 
-      def github_repository(link)
-        return nil unless link.is_a?(Hash) && link["type"] == GITHUB && link["org"].present? && link["repo"].present?
+      # The repository a project builds from. Vercel's link types are the registry's keys of the code hosts it links to.
+      def repository(link)
+        return nil unless link.is_a?(Hash) && link["org"].present? && link["repo"].present?
 
-        path = "#{link['org']}/#{link['repo']}"
-        ResourceMap::Found.new(provider: GITHUB, account: link["org"], kind: ResourceMap::KIND_REPOSITORY, external_id: path, name: path,
-                               url: "https://github.com/#{path}")
+        ResourceMap.repository(link["type"], "#{link['org']}/#{link['repo']}")
       end
 
       def meta(deployment, keys) = keys.filter_map { |key| deployment.to_h.dig("meta", key).presence }.first
@@ -409,7 +415,7 @@ module Integrations
         elsif team.present? then team
         else api(environment_row).user["username"].presence
         end
-      rescue VercelApi::RateLimited
+      rescue Integrations::RateLimited
         raise
       rescue VercelApi::Error
         @owner_slug = nil

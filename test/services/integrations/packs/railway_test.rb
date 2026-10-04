@@ -14,7 +14,7 @@ module Integrations
         @row.store_fields!(Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "Production")
         @pack = Railway.new(@integration)
         RailwayApi.any_instance.stubs(:project).with("prj-1").returns(PROJECT)
-        RailwayApi.any_instance.stubs(:service_instances).with("prj-1", "env-prod").returns([
+        RailwayApi.any_instance.stubs(:service_instances).with("prj-1", "env-prod").returns(Integrations::Pages::Read.new(items: [
           { "serviceId" => "svc-web", "serviceName" => "web", "numReplicas" => 2, "region" => "us-west2", "startCommand" => "bin/start",
             "restartPolicyType" => "ON_FAILURE", "restartPolicyMaxRetries" => 10, "source" => { "repo" => "acme/shop" },
             "latestDeployment" => { "id" => "dep-2", "status" => "CRASHED", "createdAt" => "2026-10-01T09:00:00Z", "canRollback" => true,
@@ -24,7 +24,7 @@ module Integrations
           { "serviceId" => "svc-db", "serviceName" => "Postgres", "source" => { "image" => "ghcr.io/railwayapp-templates/postgres-ssl:16" },
             "restartPolicyType" => "ALWAYS", "latestDeployment" => { "id" => "dep-db", "status" => "SUCCESS" } },
           { "serviceId" => "svc-cron", "serviceName" => "nightly", "cronSchedule" => "0 3 * * *", "restartPolicyType" => "NEVER" }
-        ])
+        ], complete: true))
       end
 
       test "the credentials are stored trimmed, and only the restart, rollback and scale change anything" do
@@ -123,10 +123,10 @@ module Integrations
 
         assert_match "from 1 to 50", assert_raises(NativePack::Error) { call(:scale_service, "resource" => "web", "instances" => 0) }.message
         @pack = Railway.new(@integration)
-        RailwayApi.any_instance.stubs(:service_instances).returns([
+        RailwayApi.any_instance.stubs(:service_instances).returns(Integrations::Pages::Read.new(items: [
           { "serviceId" => "svc-web", "serviceName" => "web", "latestDeployment" => { "id" => "dep-2", "meta" => { "serviceManifest" => { "deploy" => {
             "multiRegionConfig" => { "us-west2" => { "numReplicas" => 2 }, "europe-west4-drams3a" => { "numReplicas" => 1 } } } } } } }
-        ])
+        ], complete: true))
         assert_match "runs in us-west2, europe-west4-drams3a", assert_raises(NativePack::Error) { call(:scale_service, "resource" => "web", "instances" => 3) }.message
       end
 
@@ -153,8 +153,8 @@ module Integrations
         found = @pack.baselines_of(@row, [ web, repository ], 7.days.ago..Time.current)
 
         assert_equal [ [ "memory", "GB", [ 0.5, 0.7 ] ] ], found.map { |each| [ each.metric, each.unit, each.points.map(&:last) ] }
-        RailwayApi.any_instance.stubs(:metrics).raises(RailwayApi::RateLimited, "Railway answered 429: slow down")
-        assert_raises(RailwayApi::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
+        RailwayApi.any_instance.stubs(:metrics).raises(RailwayApi::Error.new("Railway answered 429: slow down").extend(Integrations::RateLimited))
+        assert_raises(Integrations::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
       end
 
       test "the health check finds the environment in the project" do

@@ -181,8 +181,8 @@ module Integrations
         found = @pack.baselines_of(@row, [ web, db ], 7.days.ago..Time.current)
 
         assert_equal [ [ "cpu", "CPUs", [ 0.4 ] ] ], found.map { |each| [ each.metric, each.unit, each.points.map(&:last) ] }
-        FlyApi.any_instance.stubs(:query_range).raises(FlyApi::RateLimited, "Fly answered 429")
-        assert_raises(FlyApi::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
+        FlyApi.any_instance.stubs(:query_range).raises(FlyApi::Error.new("Fly answered 429").extend(Integrations::RateLimited))
+        assert_raises(Integrations::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
       end
 
       private

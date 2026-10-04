@@ -156,7 +156,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "FlyV1 fm2_...",
-                              hint: "A token from fly tokens create org, or fly tokens create readonly for Halon to only read. Paste it whole, with FlyV1 in front.")
+                              hint: "A token from fly tokens create org. For Halon to only read, use fly tokens create readonly. Paste it whole, with FlyV1 in front.")
         ]
       end
 
@@ -286,7 +286,7 @@ module Integrations
           name = app["name"]
           machines = begin
             api.machines(name).select { |machine| app_machine?(machine) }
-          rescue FlyApi::RateLimited
+          rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error
             gaps << "The machines of #{name} could not be read: #{error.message}"
@@ -301,7 +301,7 @@ module Integrations
               resources << host
               links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
             end
-          rescue FlyApi::RateLimited
+          rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error
             gaps << "The certificates of #{name} could not be read: #{error.message}"
@@ -321,7 +321,7 @@ module Integrations
                                                   relation: ResourceMap::RELATION_USES)
             end
           end
-        rescue FlyApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue FlyApi::Error => error
           gaps << "Managed Postgres clusters could not be read: #{error.message}"
@@ -344,7 +344,7 @@ module Integrations
             points = series.flat_map { |each| prometheus_points(each) }.group_by(&:first).map { |at, pairs| [ at, pairs.sum(&:last) ] }.sort_by(&:first)
             ResourceMap::Baseline::Found.new(key: resource.key, metric: name, label: metric.title, unit: metric.unit, points: points) if points.any?
           end
-        rescue FlyApi::RateLimited
+        rescue Integrations::RateLimited
           raise
         rescue FlyApi::Error => error
           Rails.logger.warn("baseline_sweep.resource_failed resource=#{resource.id} error=#{error.message}")
@@ -380,7 +380,7 @@ module Integrations
             api.postgres_clusters(organization).map do |cluster|
               { id: cluster["id"].to_s, name: cluster["name"].presence || cluster["id"].to_s, type: POSTGRES, status: cluster["status"] }
             end
-          rescue FlyApi::RateLimited
+          rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error
             []
@@ -590,7 +590,7 @@ module Integrations
               next
             end
             said << "#{where}: #{done}, but not started again within #{FlyApi::WAIT_SECONDS} seconds"
-          rescue FlyApi::RateLimited
+          rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error
             said << "#{where}: not changed, #{error.message.delete_prefix('Fly answered ')}"

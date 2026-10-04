@@ -12,20 +12,20 @@ module Integrations
         Render.store_credentials!(@row, Render::API_KEY => " rnd_key ")
         @row.store_fields!(Render::WORKSPACE => "tea-1")
         @pack = Render.new(@integration)
-        RenderApi.any_instance.stubs(:services).with("tea-1").returns([
+        RenderApi.any_instance.stubs(:services).with("tea-1").returns(Integrations::Pages::Read.new(items: [
           { "id" => "srv-web", "name" => "web", "type" => "web_service", "suspended" => "not_suspended", "dashboardUrl" => WEB_PAGE,
             "repo" => "https://github.com/acme/app", "branch" => "main",
             "serviceDetails" => { "plan" => "standard", "region" => "oregon", "numInstances" => 2, "url" => "https://web.onrender.com" } },
           { "id" => "crn-1", "name" => "nightly", "type" => "cron_job", "suspended" => "suspended", "suspenders" => [ "stuck_crashlooping" ],
             "dashboardUrl" => "https://dashboard.render.com/cron/crn-1", "serviceDetails" => {} }
-        ])
-        RenderApi.any_instance.stubs(:postgres_databases).with("tea-1").returns([
+        ], complete: true))
+        RenderApi.any_instance.stubs(:postgres_databases).with("tea-1").returns(Integrations::Pages::Read.new(items: [
           { "id" => "dpg-1", "name" => "db", "status" => "available", "version" => "16", "plan" => "pro_4gb", "region" => "oregon",
             "dashboardUrl" => "https://dashboard.render.com/d/dpg-1" }
-        ])
-        RenderApi.any_instance.stubs(:key_values).with("tea-1").returns([
+        ], complete: true))
+        RenderApi.any_instance.stubs(:key_values).with("tea-1").returns(Integrations::Pages::Read.new(items: [
           { "id" => "red-1", "name" => "cache", "status" => "available", "plan" => "starter", "dashboardUrl" => "https://dashboard.render.com/r/red-1" }
-        ])
+        ], complete: true))
       end
 
       test "the key and workspace are stored trimmed, and only the restart, rollback and scale change anything" do
@@ -39,7 +39,7 @@ module Integrations
 
         assert_equal "Paste an API key.", Render.credential_refusal({}, fields: { Render::WORKSPACE => "tea-1" })
         assert_match "Render refused this key or workspace. Render answered 401", Render.credential_refusal({ Render::API_KEY => "x" }, fields: { Render::WORKSPACE => "tea-1" })
-        assert_match "can hold only a workspace id, which starts with tea-", IntegrationProvider.find(Render::PROVIDER_KEY).connect_fields.sole.refusal("my-team")
+        assert_match "can hold only tea- followed by lowercase letters and numbers", IntegrationProvider.find(Render::PROVIDER_KEY).connect_fields.sole.refusal("my-team")
       end
 
       test "the resources list says what each is and whether it runs, and a suspended one says why" do
@@ -117,7 +117,7 @@ module Integrations
         text = call(:describe_resource, "resource" => "web")
 
         assert_match "Autoscaling between 1 and 4 instances on cpu 70%", text
-        assert_match "Runs https://github.com/acme/app, branch main, start command API_TOKEN=[REDACTED:github_token] npm start", text
+        assert_match "Runs https://github.com/acme/app, branch main, start command API_TOKEN=ghp_#{'a' * 36} npm start", text
         assert_match "Health check path: none, so Render only checks that a port is open", text
         assert_match "Events in the last day: none", text
       end
@@ -160,6 +160,22 @@ module Integrations
         assert_equal [ "The custom domains of web could not be read: Render answered 403: no" ], snapshot.gaps
       end
 
+      test "a name two resources share is refused, with the ids to name one by" do
+        RenderApi.any_instance.stubs(:key_values).returns(Integrations::Pages::Read.new(items: [ { "id" => "red-2", "name" => "db", "status" => "available" } ], complete: true))
+
+        assert_match "More than one is called db: dpg-1, red-2. Name it by its id.", assert_raises(NativePack::Error) { call(:describe_resource, "resource" => "db") }.message
+      end
+
+      test "a list read only up to its bound is a gap, and what it holds is not taken as gone" do
+        RenderApi.any_instance.stubs(:services).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        RenderApi.any_instance.stubs(:postgres_databases).returns(Integrations::Pages::Read.new(items: [ { "id" => "dpg-1", "name" => "db" } ], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ "Only the first 1 Postgres databases were read." ], snapshot.gaps
+        assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
+      end
+
       test "a week of cpu and memory per resource, instances added up, and being asked to slow down stops the read" do
         web = ResourceMap::Resource.new(provider: "render", account: "tea-1", kind: ResourceMap::KIND_SERVICE, external_id: "srv-web", name: "web",
                                         details: { "type" => "web service" })
@@ -173,8 +189,8 @@ module Integrations
         found = @pack.baselines_of(@row, [ web, cache ], 7.days.ago..Time.current)
 
         assert_equal [ [ "cpu", "CPU", [ 0.5 ] ] ], found.map { |each| [ each.metric, each.unit, each.points.map(&:last) ] }
-        RenderApi.any_instance.stubs(:metrics).raises(RenderApi::RateLimited, "Render answered 429: rate limit exceeded")
-        assert_raises(RenderApi::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
+        RenderApi.any_instance.stubs(:metrics).raises(RenderApi::Error.new("Render answered 429: rate limit exceeded").extend(Integrations::RateLimited))
+        assert_raises(Integrations::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
       end
 
       test "the health check reads the workspace" do

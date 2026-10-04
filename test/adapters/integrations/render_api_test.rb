@@ -24,8 +24,19 @@ module Integrations
 
       services = @api.services("tea-1")
 
-      assert_equal RenderApi::PAGE_SIZE + 1, services.size
-      assert_equal "srv-last", services.last["id"]
+      assert_equal RenderApi::PAGE_SIZE + 1, services.items.size
+      assert_equal "srv-last", services.items.last["id"]
+      assert_not services.incomplete?
+    end
+
+    test "a list still going at the last page it reads says it was not read to its end" do
+      full = Array.new(RenderApi::PAGE_SIZE) { |index| { cursor: "c#{index}", postgres: { id: "dpg-#{index}" } } }
+      Http.stubs(:request).returns(response(200, full))
+
+      databases = @api.postgres_databases("tea-1")
+
+      assert databases.incomplete?
+      assert_equal RenderApi::PAGE_SIZE * RenderApi::MAX_PAGES, databases.items.size
     end
 
     test "a change is sent as JSON, and Render's refusal comes back in its own words" do
@@ -42,7 +53,7 @@ module Integrations
     test "being asked to slow down is its own error" do
       Http.stubs(:request).returns(response(429, { message: "rate limit exceeded" }))
 
-      assert_raises(RenderApi::RateLimited) { @api.owner("tea-1") }
+      assert_raises(Integrations::RateLimited) { @api.owner("tea-1") }
     end
 
     private

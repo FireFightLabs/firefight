@@ -1,6 +1,6 @@
 require "application_system_test_case"
 
-class HostingConnectTest < ApplicationSystemTestCase
+class AppHostsConnectTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     sign_in(users(:alice), @workspace)
@@ -40,7 +40,7 @@ class HostingConnectTest < ApplicationSystemTestCase
       fill_in "API key", with: "rnd_key"
       fill_in "Workspace", with: "my-team"
       click_button "Connect"
-      assert_text "Workspace can hold only a workspace id, which starts with tea-."
+      assert_text "Workspace can hold only tea- followed by lowercase letters and numbers."
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/render-connect.png"))
 

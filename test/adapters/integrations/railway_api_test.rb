@@ -21,7 +21,9 @@ module Integrations
       Http.expects(:request).with { |_, request, **| JSON.parse(request.body)["variables"]["after"].nil? }.returns(response(200, page.("a", true)))
       Http.expects(:request).with { |_, request, **| JSON.parse(request.body)["variables"]["after"] == "c-a" }.returns(response(200, page.("b", false)))
 
-      assert_equal %w[a b], @api.service_instances("prj-1", "env-1").map { |instance| instance["serviceId"] }
+      read = @api.service_instances("prj-1", "env-1")
+      assert_equal %w[a b], read.items.map { |instance| instance["serviceId"] }
+      assert_not read.incomplete?
     end
 
     test "a refusal Railway answers with 200 and an errors list is raised in its own words" do
@@ -38,7 +40,7 @@ module Integrations
       assert @api.rollback("dep-1")
 
       Http.stubs(:request).returns(response(429, { errors: [ { message: "Rate limit exceeded" } ] }))
-      assert_raises(RailwayApi::RateLimited) { @api.restart("dep-1") }
+      assert_raises(Integrations::RateLimited) { @api.restart("dep-1") }
     end
 
     private

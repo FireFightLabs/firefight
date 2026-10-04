@@ -47,7 +47,7 @@ module Integrations
       Http.stubs(:request).returns(response(409, { error: "version mismatch" }))
       assert_raises(FlyApi::Conflict) { FlyApi.new("t").restart_machine("web", "m1") }
       Http.stubs(:request).returns(response(429, {}))
-      assert_raises(FlyApi::RateLimited) { FlyApi.new("t").app("web") }
+      assert_raises(Integrations::RateLimited) { FlyApi.new("t").app("web") }
       Http.stubs(:request).returns(response(401, { error: "unauthorized" }))
       assert_equal "Fly answered 401: unauthorized", assert_raises(FlyApi::Error) { FlyApi.new("t").app("web") }.message
     end

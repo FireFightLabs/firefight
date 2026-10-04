@@ -4,11 +4,9 @@ module Integrations
   # parameters encoded as the Go client generated from it does (render-oss/render-mcp-server, pkg/client/client_gen.go).
   class RenderApi
     class Error < Integrations::Error; end
-    # Asked too often, so a caller making many calls stops rather than keep being refused.
-    class RateLimited < Error; end
 
     API_ROOT = "https://api.render.com/v1".freeze
-    TOO_MANY_REQUESTS = 429
+    PROVIDER = "Render".freeze
     # Render answers at most this many rows a page, and a list is read for at most this many pages.
     PAGE_SIZE = 100
     MAX_PAGES = 10
@@ -19,8 +17,8 @@ module Integrations
 
     def owner(owner_id) = get("/owners/#{segment(owner_id)}")
 
-    # Every service, Postgres database and Key Value instance in the workspace. ownerId is comma separated, as the spec's
-    # form style without explode asks.
+    # Every service, Postgres database and Key Value instance in the workspace, each as a Pages::Read that says whether the
+    # list was read to its end. ownerId is comma separated, as the spec's form style without explode asks.
     def services(owner_id) = list("/services", "service", "ownerId" => owner_id)
 
     def postgres_databases(owner_id) = list("/postgres", "postgres", "ownerId" => owner_id)
@@ -57,15 +55,10 @@ module Integrations
 
     # Every page of a list, which Render answers as an array of { cursor, <key> } pairs, up to MAX_PAGES.
     def list(path, key, query = {})
-      rows = []
-      cursor = nil
-      MAX_PAGES.times do
+      Pages.read(max_pages: MAX_PAGES) do |cursor|
         answered = Array(get(path, query.merge("limit" => PAGE_SIZE, "cursor" => cursor)))
-        rows.concat(answered.filter_map { |pair| pair[key] })
-        cursor = answered.last&.dig("cursor")
-        break if answered.size < PAGE_SIZE || cursor.blank?
+        [ answered.filter_map { |pair| pair[key] }, (answered.last&.dig("cursor") if answered.size == PAGE_SIZE) ]
       end
-      rows
     end
 
     def page(path, key, query) = Array(get(path, query)).filter_map { |pair| pair[key] }
@@ -90,18 +83,7 @@ module Integrations
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{@api_key}"
       request["Accept"] = "application/json"
-      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
-      succeeded = response.code.to_i.between?(200, 299)
-      body = response.body.to_s.strip.empty? ? {} : JSON.parse(response.body)
-      return body if succeeded
-
-      reason = (body["message"] if body.is_a?(Hash)).presence || "no reason given"
-      raise (response.code.to_i == TOO_MANY_REQUESTS ? RateLimited : Error), "Render answered #{response.code}: #{reason}"
-    rescue JSON::ParserError
-      # A change that went through stays one that went through, whatever came back with it.
-      return {} if succeeded
-
-      raise Error, "Render answered #{response.code} with something that is not JSON"
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER)
     end
 
     # A list value is sent once per value (resource=a&resource=b), which is how /logs and /metrics read one.
@@ -110,6 +92,6 @@ module Integrations
       URI.encode_www_form(pairs)
     end
 
-    def segment(value) = ERB::Util.url_encode(value.to_s)
+    def segment(value) = Http.segment(value)
   end
 end

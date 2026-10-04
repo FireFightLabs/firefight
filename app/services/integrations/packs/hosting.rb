@@ -1,20 +1,21 @@
 module Integrations
   module Packs
-    # What the packs for platforms that run a team's apps share: how a resource is found by its name or id, how a command
-    # they show is redacted, and how a count becomes a rate, so each pack only maps its provider's API.
+    # What the packs for platforms that run a team's apps share: how a resource is found by its name or id, and how a
+    # count becomes a rate, so each pack only maps its provider's API.
     module Hosting
-      # The row whose id or name is the one asked for, whatever its case, or nil. rows are hashes with :id and :name.
+      # The row whose id or name is the one asked for, whatever its case, or nil. rows are hashes with :id and :name. An id
+      # names one row. A name two rows share names neither, so the caller is asked for the id rather than given the first.
       def self.named(rows, asked)
         wanted = asked.to_s.strip.downcase
         return if wanted.empty?
 
-        rows.find { |row| [ row[:id], row[:name] ].compact.map { |value| value.to_s.downcase }.include?(wanted) }
-      end
+        by_id = rows.find { |row| row[:id].to_s.downcase == wanted }
+        return by_id if by_id
 
-      # A command a provider reports, such as a start command, with anything that looks like a credential hidden, since a
-      # team sometimes writes one inline and no secret reaches the model.
-      def self.redacted(text)
-        Chat::SecretFree::SECRET_PATTERNS.reduce(text.to_s) { |said, (name, pattern)| said.gsub(pattern, "[REDACTED:#{name}]") }
+        matches = rows.select { |row| row[:name].to_s.downcase == wanted }
+        return matches.first unless matches.size > 1
+
+        raise NativePack::Error, "More than one is called #{asked}: #{matches.map { |row| row[:id] }.join(', ')}. Name it by its id."
       end
 
       # A count per step as a count per minute, so a live reading can be compared with a baseline.

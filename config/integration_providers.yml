@@ -158,7 +158,7 @@ providers:
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: workspace, label: Workspace, placeholder: tea-..., pattern: "tea-[a-z0-9]+", allowed: "a workspace id, which starts with tea-", hint: "The id of the Render workspace this environment runs in, shown on the workspace's Settings page." }
+      - { key: workspace, label: Workspace, placeholder: tea-..., pattern: "tea-[a-z0-9]+", allowed: "tea- followed by lowercase letters and numbers", hint: "The id of the Render workspace this environment runs in, shown on the workspace's Settings page." }
     source_links: firefight
     map: firefight
   - key: railway
@@ -173,7 +173,7 @@ providers:
     connect_with: api_token
     connect_fields:
       - { key: project, label: Project, placeholder: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, hint: "The id of the Railway project, shown in its Settings and in its URL after /project/." }
-      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connects to, by its name or id." }
+      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads, by its name or id." }
     source_links: firefight
     map: firefight
   - key: fly
