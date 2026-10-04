@@ -51,7 +51,7 @@ class IntegrationRegionTest < ApplicationSystemTestCase
     regions = IntegrationProvider::ConnectField.new(key: "regions", label: "Regions", hint: "The regions this account runs in.", multiple: true,
                                                     options: [ { "value" => "us-east-1", "label" => "US East (N. Virginia)" },
                                                                { "value" => "eu-west-1", "label" => "Europe (Ireland)" } ])
-    entries = IntegrationProvider.all.map { |entry| entry.key == "northflank" ? northflank.with(connect_fields: [ regions ]) : entry }
+    entries = IntegrationProvider.all.map { |entry| entry.key == "northflank" ? northflank.with(connect_fields: northflank.connect_fields + [ regions ]) : entry }
     IntegrationProvider.stubs(:all).returns(entries)
 
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "northflank")

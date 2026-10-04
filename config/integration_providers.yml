@@ -101,6 +101,11 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    connect_fields:
+      - key: project
+        label: Project
+        hint: The id of the Northflank project this environment runs in, as it appears in the project's URL.
+        placeholder: my-project
     source_links: firefight
     map: firefight
   - key: grafana

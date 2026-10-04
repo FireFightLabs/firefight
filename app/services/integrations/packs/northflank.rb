@@ -206,19 +206,19 @@ module Integrations
            },
            read_only: true
 
+      # The project is not a secret, so it is a connect field in the registry, shown on the connection's card, and read
+      # with ConnectionSettings#field.
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. For Halon to apply fixes, its role can also update services."),
-          CredentialField.new(key: PROJECT, label: "Project", secret: false, placeholder: "my-project",
-                              hint: "The id of the Northflank project this environment runs in, as it appears in the project's URL.")
+                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. For Halon to apply fixes, its role can also update services.")
         ]
       end
 
       # Reads the project with the token, so a wrong token or project is said on the form before anything is saved.
       def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
-        project = values[PROJECT].to_s.strip
+        project = fields.to_h.stringify_keys[PROJECT].to_s.strip
         return "Paste an API token." if token.empty?
         return "Enter the project id." if project.empty?
 
@@ -230,7 +230,6 @@ module Integrations
 
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(API_TOKEN, values[API_TOKEN].to_s.strip)
-        environment_row.store_credential!(PROJECT, values[PROJECT].to_s.strip)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -569,7 +568,7 @@ module Integrations
         NorthflankApi.new(token)
       end
 
-      def project_of(environment_row) = ConnectionSettings.of(environment_row).credential(PROJECT) || fail!("This environment has no Northflank project. Reconnect it.")
+      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Northflank project. Reconnect it.")
 
       def resources(environment_row)
         @resources ||= begin
