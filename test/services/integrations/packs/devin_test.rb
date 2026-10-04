@@ -33,7 +33,7 @@ module Integrations
 
       test "a change is a session with the brief and the ACU limit, followed until Devin opens the pull request" do
         DevinApi.any_instance.expects(:create_session).with do |body|
-          body["title"] == "Stop the checkout timeout" && body["max_acu_limit"] == Devin::DEFAULT_ACU_LIMIT &&
+          body["title"] == "Stop the checkout timeout" && body["max_acu_limit"] == 5 &&
             body["prompt"].start_with?("Fix this in the repository acme/web.") && body["prompt"].include?("Checkout times out after the deploy.") &&
             body["prompt"].include?("Its description says what it does and why: Raise the timeout to what the gateway allows.")
         end.returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
@@ -50,7 +50,7 @@ module Integrations
       end
 
       test "the ACU limit the connection sets is Devin's, and anything that looks like a credential never reaches Devin" do
-        @row.store_fields!(Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "12")
+        @row.store_fields!(Devin::ORGANIZATION => "org-abc", Devin::MAX_ACUS => "12")
         DevinApi.any_instance.expects(:create_session).with do |body|
           body["max_acu_limit"] == 12 && body["prompt"].include?("[REDACTED:github_token]") && !body["prompt"].include?("ghp_")
         end.returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
@@ -118,14 +118,14 @@ module Integrations
         assert_equal [ Devin::API_KEY ], Devin.credential_fields.map(&:key)
         assert_nil fields.fetch(Devin::ORGANIZATION).refusal("org-abc123")
         assert_match "org- followed by letters and numbers", fields.fetch(Devin::ORGANIZATION).refusal("abc").to_s
-        assert fields.fetch(Devin::ACU_LIMIT).optional
-        assert_includes fields.fetch(Devin::ACU_LIMIT).hint, "empty for #{Devin::DEFAULT_ACU_LIMIT}."
+        assert fields.fetch(Devin::MAX_ACUS).optional
+        assert_equal 5, ConnectionSettings.of(@row).field(Devin::MAX_ACUS).to_i, "a limit left empty is Devin's default from the registry"
         assert_nil @row.reload.credentials_hash[Devin::ORGANIZATION]
       end
 
       test "the key is checked against Devin, and a service user of another organization is refused on the form" do
         assert_equal "Enter the ACU limit as a whole number above zero, or leave it empty.",
-                     Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "0" })
+                     Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc", Devin::MAX_ACUS => "0" })
         DevinApi.any_instance.stubs(:whoami).returns("principal_type" => "service_user", "org_id" => "org-other")
         assert_equal "This service user belongs to the organization org-other, not org-abc.",
                      Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })

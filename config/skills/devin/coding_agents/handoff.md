@@ -10,5 +10,5 @@ Devin writes a code change in its own machine, opens the pull request itself and
 2. Put in the finding everything Devin needs to reproduce and fix it: the exact error text, the file and line from a stack trace, the request or input that fails, the commit or deploy it began with, and the test or check that shows it is fixed. Leave out credentials and customer data, since anything that looks like a credential is redacted before it leaves Firefight.
 3. Devin starts from the repository's default branch. Name another branch in `base` when the fix belongs on a release branch.
 4. One step is one repository and one pull request. A fix that needs changes in two repositories is two steps, the second waiting on the first, and the second is told about the first in `context`.
-5. Devin stops at the ACU limit the connection sets, 5 unless an admin set another, and Firefight stops the session after 30 minutes. A change too large for that is a person's step, or several smaller ones.
+5. Devin stops at the ACU limit set on the connection, and Firefight stops the session after 30 minutes. A change too large for that is a person's step, or several smaller ones.
 6. In a chat, call `fix_code` only once the person agreed to the change. It runs as them, and an approval rule can hold it. The answer names the pull request and the session, and gives both links to the person.

@@ -7,9 +7,7 @@ module Integrations
     class Devin < CodingAgent
       NAME = "Devin".freeze
       ORGANIZATION = "organization".freeze
-      ACU_LIMIT = "acu_limit".freeze
-      # What one change may use unless the connection sets another, in Devin's own unit of work.
-      DEFAULT_ACU_LIMIT = 5
+      MAX_ACUS = "max_acus".freeze
       WHOLE_NUMBER = /\A[1-9]\d*\z/
       SERVICE_USER = "service_user".freeze
 
@@ -51,7 +49,7 @@ module Integrations
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
         organization = fields[ORGANIZATION].to_s
-        limit = fields[ACU_LIMIT].to_s
+        limit = fields[MAX_ACUS].to_s
         return "Paste a Devin API key." if key.empty?
         return "Enter the organization id." if organization.empty?
         return "Enter the ACU limit as a whole number above zero, or leave it empty." unless limit.empty? || limit.match?(WHOLE_NUMBER)
@@ -142,9 +140,9 @@ module Integrations
         end
       end
 
+      # The registry's default stands in for a limit left empty.
       def acu_limit(environment_row)
-        limit = ConnectionSettings.of(environment_row).field(ACU_LIMIT).to_s
-        limit.match?(WHOLE_NUMBER) ? limit.to_i : DEFAULT_ACU_LIMIT
+        ConnectionSettings.of(environment_row).field(MAX_ACUS).to_i
       end
 
       def organization_of(environment_row)

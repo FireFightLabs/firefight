@@ -233,7 +233,7 @@ providers:
     # Devin names an organization org- followed by its id (Devin's OpenAPI document, the org_id parameter).
     connect_fields:
       - { key: organization, label: Organization ID, hint: "Shown at the top of Settings, Devin API in Devin.", placeholder: "org-...", pattern: "org-[A-Za-z0-9_-]+", allowed: "org- followed by letters and numbers, as Devin shows it" }
-      - { key: acu_limit, label: ACU limit per change, hint: "The most ACUs Devin may use on one change, which Devin enforces. Leave it empty for 5.", placeholder: "5", numeric: true, optional: true }
+      - { key: max_acus, label: ACU limit per change, hint: "The most ACUs Devin may use on one change, which Devin enforces.", numeric: true, default: 5 }
   - key: cursor
     name: Cursor
     category: Coding agents
