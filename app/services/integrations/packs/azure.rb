@@ -173,26 +173,19 @@ module Integrations
 
       def self.credential_fields
         [
-          CredentialField.new(key: TENANT, label: "Tenant id", secret: false, placeholder: "00000000-0000-0000-0000-000000000000",
-                              hint: "The Microsoft Entra tenant the service principal belongs to, as its app registration's overview shows it."),
-          CredentialField.new(key: CLIENT, label: "Client id", secret: false, placeholder: "00000000-0000-0000-0000-000000000000",
-                              hint: "The service principal's application (client) id."),
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
-                              hint: "A client secret of that app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
-                                    "on the subscription. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change."),
-          CredentialField.new(key: SUBSCRIPTION, label: "Subscription id", secret: false, placeholder: "00000000-0000-0000-0000-000000000000",
-                              hint: "The Azure subscription this environment runs in.")
+                              hint: "A client secret of the service principal's app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
+                                    "on the subscription. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change.")
         ]
       end
 
       # Reads the subscription with the principal, so a wrong secret or subscription is said on the form before anything
-      # is saved.
-      def self.credential_refusal(values, region: nil)
-        tenant, client, secret, subscription = values.values_at(TENANT, CLIENT, SECRET, SUBSCRIPTION).map { |value| value.to_s.strip }
-        return "Enter the tenant id." if tenant.empty?
-        return "Enter the client id." if client.empty?
+      # is saved. The tenant, client and subscription are connect fields, whose format the registry already checked.
+      def self.credential_refusal(values, region: nil, fields: {})
+        secret = values[SECRET].to_s.strip
+        tenant, client, subscription = fields.values_at(TENANT, CLIENT, SUBSCRIPTION).map { |value| value.to_s.strip }
         return "Paste the client secret." if secret.empty?
-        return "Enter the subscription id, a GUID such as 00000000-0000-0000-0000-000000000000." unless subscription.match?(AzureApi::GUID)
+        return "Enter the tenant, client id and subscription id." if [ tenant, client, subscription ].any?(&:empty?)
 
         AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription, cloud: cloud_of(region)).subscription_details
         nil
@@ -202,9 +195,10 @@ module Integrations
 
       def self.cloud_of(region) = CLOUDS.fetch(region&.key.to_s, AzureApi::GLOBAL)
 
-      # Replaces what was there, so a token minted with an earlier secret is never used again.
+      # A new secret drops the tokens minted with the one before.
       def self.store_credentials!(environment_row, values)
-        environment_row.update!(credentials: [ TENANT, CLIENT, SECRET, SUBSCRIPTION ].index_with { |key| values[key].to_s.strip }.to_json)
+        environment_row.store_credential!(SECRET, values[SECRET].to_s.strip)
+        environment_row.store_credential!(AzureApi::TOKEN_CACHE_KEY, nil)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -382,18 +376,18 @@ module Integrations
       private
 
       def api(environment_row)
-        values = environment_row.credentials_hash
-        if [ TENANT, CLIENT, SECRET, SUBSCRIPTION ].any? { |key| values[key].blank? }
-          fail! "This environment has no Azure service principal. Reconnect it on the Integrations page."
-        end
+        settings = ConnectionSettings.of(environment_row)
+        tenant, client, subscription = settings.field(TENANT), settings.field(CLIENT), settings.field(SUBSCRIPTION)
+        secret = settings.credential(SECRET)
+        fail! "This environment has no Azure service principal. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
 
-        @api ||= AzureApi.new(tenant: values[TENANT], client_id: values[CLIENT], client_secret: values[SECRET], subscription: values[SUBSCRIPTION],
-                              cloud: self.class.cloud_of(region_of(environment_row)), token_cache: environment_row)
+        @api ||= AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription,
+                              cloud: self.class.cloud_of(settings.region), token_cache: environment_row)
       end
 
       def region_of(environment_row) = ConnectionSettings.of(environment_row).region
 
-      def subscription_of(environment_row) = environment_row.credentials_hash[SUBSCRIPTION].presence || fail!("This environment has no Azure subscription. Reconnect it.")
+      def subscription_of(environment_row) = ConnectionSettings.of(environment_row).field(SUBSCRIPTION) || fail!("This environment has no Azure subscription. Reconnect it.")
 
       def catalog(environment_row)
         @catalog ||= begin
@@ -778,7 +772,7 @@ module Integrations
       # A resource's page in the portal, in the form Microsoft's own docs print it, with the tenant so the right
       # directory opens.
       def portal_link(environment_row, resource_id)
-        tenant = environment_row.credentials_hash[TENANT]
+        tenant = ConnectionSettings.of(environment_row).field(TENANT)
         portal = region_of(environment_row)&.site.presence || PORTAL
         Telemetry::Link.new(provider: PROVIDER, url: format(PORTAL_PAGE, portal: portal, tenant: tenant, id: resource_id))
       end

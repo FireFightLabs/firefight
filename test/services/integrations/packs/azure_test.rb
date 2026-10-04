@@ -12,6 +12,8 @@ module Integrations
       PG_ID = "#{GROUP}/Microsoft.DBforPostgreSQL/flexibleServers/catalog".freeze
       PLAN_ID = "#{GROUP}/Microsoft.Web/serverfarms/shop-plan".freeze
       ENVIRONMENT_ID = "#{GROUP}/Microsoft.App/managedEnvironments/shop-env".freeze
+      FIELDS = { Azure::TENANT => "contoso.onmicrosoft.com", Azure::CLIENT => "22222222-2222-3333-4444-555555555555",
+                 Azure::SUBSCRIPTION => SUBSCRIPTION }.freeze
       PORTAL = 'https://portal.azure.com/#@contoso.onmicrosoft.com/resource'.freeze
       SITE = { "id" => WEB_ID, "name" => "storefront", "kind" => "app,linux", "location" => "westeurope",
                "properties" => { "state" => "Running", "serverFarmId" => PLAN_ID, "sku" => "PremiumV3",
@@ -29,7 +31,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "azure", name: "Azure")
         @row = @integration.integration_environments.create!
-        Azure.store_credentials!(@row, Azure::TENANT => "contoso.onmicrosoft.com", Azure::CLIENT => "client", Azure::SECRET => " s3cret ", Azure::SUBSCRIPTION => SUBSCRIPTION)
+        Azure.store_credentials!(@row, Azure::SECRET => " s3cret ")
+        @row.store_fields!(FIELDS)
         @pack = Azure.new(@integration)
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns([ SITE, FUNCTION ])
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.returns([ APP ])
@@ -47,18 +50,21 @@ module Integrations
         AzureApi.any_instance.stubs(:get).with(SQL_ID, Azure::SQL_VERSION).returns({ "id" => SQL_ID, "name" => "orders", "properties" => { "status" => "Online" } })
       end
 
-      test "the principal is stored trimmed in place of what was there, and only the three changes are not read only" do
+      test "only the secret is a credential, stored trimmed, and only the three changes are not read only" do
         assert_equal "s3cret", @row.reload.credentials_hash[Azure::SECRET]
         assert_equal %w[rollback_app restart_resource scale_app], Azure.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a principal or subscription Azure refuses is said before anything is saved" do
         AzureApi.any_instance.stubs(:subscription_details).raises(AzureApi::Error, "Microsoft refused the service principal: AADSTS7000215: Invalid client secret provided.")
-        values = { Azure::TENANT => "contoso.onmicrosoft.com", Azure::CLIENT => "client", Azure::SECRET => "wrong", Azure::SUBSCRIPTION => SUBSCRIPTION }
+        values = { Azure::SECRET => "wrong" }
 
-        assert_match "Azure refused this service principal or subscription. Microsoft refused the service principal: AADSTS7000215", Azure.credential_refusal(values)
-        assert_match "a GUID", Azure.credential_refusal(values.merge(Azure::SUBSCRIPTION => "prod"))
-        assert_equal "Paste the client secret.", Azure.credential_refusal(values.except(Azure::SECRET))
+        assert_match "Azure refused this service principal or subscription. Microsoft refused the service principal: AADSTS7000215", Azure.credential_refusal(values, fields: FIELDS)
+        assert_equal "Enter the tenant, client id and subscription id.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
+        assert_equal "Paste the client secret.", Azure.credential_refusal({}, fields: FIELDS)
+        assert_equal [ Azure::SECRET ], Azure.credential_fields.map(&:key)
+        subscription = IntegrationProvider.find("azure").connect_fields.find { |field| field.key == Azure::SUBSCRIPTION }
+        assert_match "a GUID", subscription.refusal("prod")
       end
 
       test "a connection in a sovereign cloud reaches that cloud and links to its portal" do
@@ -67,9 +73,8 @@ module Integrations
 
         assert_match "https://portal.azure.us/\#@contoso.onmicrosoft.com/resource/subscriptions/#{SUBSCRIPTION}/overview", call(:list_resources)
 
-        values = { Azure::TENANT => "t", Azure::CLIENT => "c", Azure::SECRET => "s", Azure::SUBSCRIPTION => SUBSCRIPTION }
         AzureApi.expects(:new).with { |**options| options[:cloud] == AzureApi::CHINA }.returns(stub(subscription_details: {}))
-        assert_nil Azure.credential_refusal(values, region: IntegrationProvider.find("azure").region("china"))
+        assert_nil Azure.credential_refusal({ Azure::SECRET => "s" }, region: IntegrationProvider.find("azure").region("china"), fields: FIELDS)
       end
 
       test "every kind is listed with its group and region, a function app told apart from a web app, and master left out" do

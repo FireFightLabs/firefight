@@ -19,7 +19,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "google_cloud", name: "Google Cloud")
         @row = @integration.integration_environments.create!
-        GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => " #{KEY} ", GoogleCloud::PROJECT => " acme-prod ")
+        GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => " #{KEY} ")
+        @row.store_fields!(GoogleCloud::PROJECT => "acme-prod")
         @pack = GoogleCloud.new(@integration)
         GoogleCloudApi.any_instance.stubs(:run_locations).returns([ "us-central1" ])
         GoogleCloudApi.any_instance.stubs(:run_services).returns([ SERVICE ])
@@ -35,20 +36,22 @@ module Integrations
         GoogleCloudApi.any_instance.stubs(:clusters).returns([ { "name" => "apps", "location" => "europe-west1", "status" => "RUNNING", "currentMasterVersion" => "1.33" } ])
       end
 
-      test "the key and project are stored trimmed in place of what was there, and only the three changes are not read only" do
+      test "only the key is a credential, stored trimmed with the token minted before dropped, and only the three changes are not read only" do
         @row.store_credential!(GoogleCloudApi::TOKEN_CACHE_KEY, { "token" => "old" })
-        GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => KEY, GoogleCloud::PROJECT => "acme-prod")
+        GoogleCloud.store_credentials!(@row, GoogleCloud::KEY => KEY)
 
-        assert_equal({ GoogleCloud::KEY => KEY, GoogleCloud::PROJECT => "acme-prod" }, @row.reload.credentials_hash)
+        assert_equal({ GoogleCloud::KEY => KEY }, @row.reload.credentials_hash.compact)
+        assert_equal [ GoogleCloud::KEY ], GoogleCloud.credential_fields.map(&:key)
         assert_equal %w[rollback_service scale_service restart_resource], GoogleCloud.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a key or project Google refuses is said before anything is saved" do
         GoogleCloudApi.any_instance.stubs(:project).raises(GoogleCloudApi::Error, "Google Cloud answered 403: The caller does not have permission")
 
-        assert_match "Google Cloud refused this key or project. Google Cloud answered 403", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY, GoogleCloud::PROJECT => "acme-prod" })
-        assert_equal "Paste the service account's JSON key.", GoogleCloud.credential_refusal({ GoogleCloud::PROJECT => "acme-prod" })
-        assert_match "not JSON", GoogleCloud.credential_refusal({ GoogleCloud::KEY => "nope", GoogleCloud::PROJECT => "acme-prod" })
+        assert_match "Google Cloud refused this key or project. Google Cloud answered 403", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY }, fields: { GoogleCloud::PROJECT => "acme-prod" })
+        assert_equal "Paste the service account's JSON key.", GoogleCloud.credential_refusal({}, fields: { GoogleCloud::PROJECT => "acme-prod" })
+        assert_equal "Enter the project id.", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY })
+        assert_match "not JSON", GoogleCloud.credential_refusal({ GoogleCloud::KEY => "nope" }, fields: { GoogleCloud::PROJECT => "acme-prod" })
       end
 
       test "every product's resources are listed, and one Google refuses is named rather than failing the list" do

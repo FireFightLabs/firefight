@@ -8,7 +8,8 @@ class Integrations::Capabilities::GoogleCloudTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "google_cloud", name: "Google Cloud", slug: "gcp")
-    @row = integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id, credentials: { project: "acme-prod" }.to_json)
+    @row = integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id)
+    @row.store_fields!("project" => "acme-prod")
     Integrations::Packs::GoogleCloud.tool_definitions.each do |definition|
       integration.tools.create!(name: definition.name, description: definition.description, read_only: definition.read_only, enabled: true,
                                 params_schema: definition.params_schema)

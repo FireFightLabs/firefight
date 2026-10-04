@@ -178,16 +178,15 @@ module Integrations
         [
           CredentialField.new(key: KEY, label: "Service account key", secret: true, placeholder: "{\"type\": \"service_account\", ...}",
                               hint: "The JSON key of a service account with the Viewer, Logs Viewer and Monitoring Viewer roles on the project. " \
-                                    "For Halon to apply fixes, add Cloud Run Developer, Cloud SQL Editor and Compute Instance Admin."),
-          CredentialField.new(key: PROJECT, label: "Project", secret: false, placeholder: "my-project",
-                              hint: "The id of the Google Cloud project this environment runs in, as the project picker shows it.")
+                                    "For Halon to apply fixes, add Cloud Run Developer, Cloud SQL Editor and Compute Instance Admin.")
         ]
       end
 
-      # Reads the project with the key, so a wrong key or project is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      # Reads the project with the key, so a wrong key or project is said on the form before anything is saved. The
+      # project is a connect field, whose format the registry already checked.
+      def self.credential_refusal(values, region: nil, fields: {})
         key = values[KEY].to_s.strip
-        project = values[PROJECT].to_s.strip
+        project = fields[PROJECT].to_s.strip
         return "Paste the service account's JSON key." if key.empty?
         return "Enter the project id." if project.empty?
 
@@ -197,9 +196,10 @@ module Integrations
         "Google Cloud refused this key or project. #{error.message}"
       end
 
-      # Replaces what was there, so a token minted with an earlier key is never used again.
+      # A new key drops the token minted with the one before.
       def self.store_credentials!(environment_row, values)
-        environment_row.update!(credentials: { KEY => values[KEY].to_s.strip, PROJECT => values[PROJECT].to_s.strip }.to_json)
+        environment_row.store_credential!(KEY, values[KEY].to_s.strip)
+        environment_row.store_credential!(GoogleCloudApi::TOKEN_CACHE_KEY, nil)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -408,7 +408,7 @@ module Integrations
       private
 
       def api(environment_row)
-        key = environment_row.credentials_hash[KEY]
+        key = ConnectionSettings.of(environment_row).credential(KEY)
         fail! "This environment has no Google Cloud key. Reconnect it on the Integrations page." if key.blank?
 
         @api ||= GoogleCloudApi.new(key, token_cache: environment_row)
@@ -416,7 +416,7 @@ module Integrations
         fail! "#{error.message} Reconnect it on the Integrations page."
       end
 
-      def project_of(environment_row) = environment_row.credentials_hash[PROJECT].presence || fail!("This environment has no Google Cloud project. Reconnect it.")
+      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Google Cloud project. Reconnect it.")
 
       def catalog(environment_row)
         @catalog ||= begin
