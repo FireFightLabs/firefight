@@ -134,6 +134,77 @@ providers:
     read_only_tools: [search, docs]
     source_links: firefight
     map: firefight
+  - key: modal
+    name: Modal
+    category: Cloud and hosting
+    mark: MD
+    color: "#1b1d1a"
+    description: Logs, functions and deployment history of your Modal apps, and rolling an app back, rolling over its containers or changing a function's autoscaler when you allow it.
+    site: https://modal.com
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
+    connect_fields:
+      # The name rule of Modal's client, is_valid_environment_name in modal/_utils/name_utils.py.
+      - { key: environment, label: Environment, placeholder: main, optional: true, pattern: '[a-zA-Z0-9][a-zA-Z0-9._-]{1,63}',
+          allowed: "letters, numbers, dots, dashes and underscores, starting with a letter or number, at most 64 characters",
+          hint: "The Modal environment this connection reads, such as main. Leave it empty for the workspace's default environment." }
+  - key: digitalocean
+    name: DigitalOcean
+    category: Cloud and hosting
+    mark: DO
+    color: "#0080ff"
+    description: Logs, metrics and deployments of App Platform apps, Droplets and managed databases, and rollbacks, restarts and scaling when you allow it.
+    site: https://cloud.digitalocean.com
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
+  - key: netlify
+    name: Netlify
+    category: Cloud and hosting
+    mark: NL
+    color: "#00c7b7"
+    description: Deploys and state of your Netlify sites, and rolling a site back to an earlier deploy when you allow it.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
+  - key: convex
+    name: Convex
+    category: Cloud and hosting
+    mark: CX
+    color: "#ee342f"
+    description: Function logs, errors, pushes and state of a Convex deployment.
+    site: https://dashboard.convex.dev
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
+    connect_fields:
+      - { key: deployment_url, label: Deployment URL, placeholder: "https://happy-animal-123.convex.cloud",
+          pattern: 'https://[a-z0-9-]+(\.[a-z0-9-]+)*\.convex\.cloud/?', allowed: "an https address ending in convex.cloud",
+          hint: "The deployment's URL, as Settings shows it in the Convex dashboard. It ends in convex.cloud." }
+  - key: trigger_dev
+    name: Trigger.dev
+    category: Cloud and hosting
+    mark: TR
+    color: "#1a1b1f"
+    description: Task runs, logs, errors and deployments of a Trigger.dev environment, and promoting an earlier version when you allow it.
+    site: https://cloud.trigger.dev
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: firefight
+    connect_fields:
+      - { key: project, label: Project ref, placeholder: proj_..., pattern: 'proj_[a-z0-9]+', allowed: "proj_ followed by lowercase letters and numbers",
+          hint: "The project's ref, starting with proj_, as in your trigger.config.ts. Links to runs use it." }
   - key: sentry
     name: Sentry
     category: Observability
