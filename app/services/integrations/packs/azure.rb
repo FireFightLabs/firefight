@@ -53,16 +53,6 @@ module Integrations
       ELASTIC_TIERS = %w[Dynamic FlexConsumption ElasticPremium].freeze
       # Kudu's deployment states, as its DeployStatus names them.
       DEPLOY_STATES = { 0 => "pending", 1 => "building", 2 => "deploying", 3 => "failed", 4 => "succeeded" }.freeze
-      # Azure's states, as App Service, Container Apps, Azure SQL and PostgreSQL write them, that mean the same as a word the
-      # map already reads health from.
-      STATUS_WORDS = {
-        "online" => "running", "inprogress" => "in_progress", "deleting" => "shutting-down", "recoverypending" => "pending",
-        "recovering" => "restoring", "suspect" => "failed", "offline" => "down", "offlinesecondary" => "down", "standby" => "idle",
-        "shutdown" => "stopped", "emergencymode" => "failed", "autoclosed" => "paused", "copying" => "in_progress",
-        "inaccessible" => "unavailable", "resuming" => "starting", "scaling" => "resizing",
-        "offlinechangingdwperformancetiers" => "resizing", "onlinechangingdwperformancetiers" => "resizing", "disabled" => "deactivated",
-        "dropping" => "shutting-down", "updating" => "modifying"
-      }.freeze
       MISSING_TABLE = /resolve (?:table|scalar|column)/i
 
       LOG_LIMIT = 200
@@ -187,12 +177,12 @@ module Integrations
         secret = values[SECRET].to_s.strip
         tenant, client, subscription = fields.values_at(TENANT, CLIENT, SUBSCRIPTION).map { |value| value.to_s.strip }
         return "Paste the client secret." if secret.empty?
-        return "Enter the tenant, client ID and subscription ID." if [ tenant, client, subscription ].any?(&:empty?)
+        return "Enter the tenant, client id and subscription id." if [ tenant, client, subscription ].any?(&:empty?)
 
         AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription, cloud: cloud_of(region)).subscription_details
         nil
       rescue AzureApi::Error => error
-        "Azure refused this service principal or subscription. #{error.message}"
+        Sentence.join("Azure refused this service principal or subscription", error)
       end
 
       def self.cloud_of(region) = CLOUDS.fetch(region&.key.to_s, AzureApi::GLOBAL)
@@ -207,7 +197,7 @@ module Integrations
       def list_resources(environment_row:, arguments:)
         listing = catalog(environment_row)
         rows = listing.items.map { |item| "#{item[:name]} (#{item[:id]}), #{item[:type]} in #{item[:group]}, #{item[:location]}, #{item[:status]}" }
-        gaps = listing.gaps.map { |gap| "Not listed: #{gap}" }
+        gaps = listing.gaps.map { |gap| "Not listed: #{gap.text}" }
         subscription = subscription_of(environment_row)
         text = rows.empty? ? "Subscription #{subscription} has nothing Firefight reads." : "Subscription #{subscription}, #{rows.size} resources.\n#{rows.join("\n")}"
         Telemetry.result([ text, *gaps ].join("\n"), link: portal_link(environment_row, "/subscriptions/#{subscription}"))
@@ -348,7 +338,7 @@ module Integrations
             links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps, unread_kinds: listing.unread.map { |type| KINDS.fetch(type) }.uniq)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps)
       end
 
       # What normal looks like for each app and database, read an hour at a time over the window. A resource Azure will
@@ -374,7 +364,7 @@ module Integrations
         end
       end
 
-      Listing = Data.define(:items, :gaps, :unread)
+      Listing = Data.define(:items, :gaps)
 
       private
 
@@ -396,7 +386,6 @@ module Integrations
           root = "/subscriptions/#{api.segment(subscription_of(environment_row))}/providers"
           items = []
           gaps = []
-          unread = []
           {
             "App Service and Function apps" => [ [ TYPE_WEB, TYPE_FUNCTION ], -> { whole(api.list("#{root}/Microsoft.Web/sites", WEB_VERSION)) { |site| site_item(site) } } ],
             "Container Apps" => [ [ TYPE_CONTAINER ], -> { whole(api.list("#{root}/Microsoft.App/containerApps", APP_VERSION)) { |app| container_item(app) } } ],
@@ -407,21 +396,19 @@ module Integrations
             items.concat(found)
             next if complete
 
-            gaps << "Only the first #{found.size} #{what} were read."
-            unread.concat(types)
+            gaps << ResourceMap::Gap.new(text: "Only the first #{found.size} #{what} were read.", kinds: types.map { |type| KINDS.fetch(type) }.uniq)
           rescue Integrations::RateLimited
             raise
           rescue AzureApi::Error => error
-            gaps << "#{what} could not be read: #{error.message}"
-            unread.concat(types)
+            gaps << ResourceMap::Gap.new(text: Sentence.join("#{what} could not be read", error), kinds: types.map { |type| KINDS.fetch(type) }.uniq)
           end
-          Listing.new(items: items, gaps: gaps, unread: unread)
+          Listing.new(items: items, gaps: gaps)
         end
       end
 
       def item(resource, type, status, hosts: [], details: {})
         target = Target.parse(resource["id"])
-        { type: type, id: resource["id"], name: resource["name"], group: target&.group, location: resource["location"], status: STATUS_WORDS.fetch(status.to_s.downcase, status.to_s.downcase).presence || "unknown",
+        { type: type, id: resource["id"], name: resource["name"], group: target&.group, location: resource["location"], status: status.to_s.downcase.presence || "unknown",
           hosts: hosts, details: { TYPE => type, "resource_group" => target&.group, "region" => resource["location"] }.merge(details).compact }
       end
 
@@ -480,15 +467,13 @@ module Integrations
         target
       end
 
+      # Two resources of one name, such as apps in two resource groups, are never chosen between. The id names one.
       def named(environment_row, wanted)
         mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).where("lower(name) = ?", wanted.downcase).pluck(:external_id)
-        fail!("More than one resource is called #{wanted}. Name it by its id, as list_resources shows it.") if mapped.size > 1
-        return Target.parse(mapped.first) if mapped.any?
+        found = mapped.presence || catalog(environment_row).items.select { |each| each[:name].to_s.casecmp?(wanted) }.map { |each| each[:id] }
+        fail!("More than one resource is called #{wanted}: #{found.join(', ')}. Name it by its id.") if found.size > 1
 
-        found = catalog(environment_row).items.select { |each| each[:name].to_s.casecmp?(wanted) }
-        fail!("More than one resource is called #{wanted}. Name it by its id, as list_resources shows it.") if found.size > 1
-
-        found.first && Target.parse(found.first[:id])
+        found.first && Target.parse(found.first)
       end
 
       def read(environment_row, target)

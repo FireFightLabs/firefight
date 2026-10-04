@@ -45,11 +45,14 @@ module Integrations
       assert_match "outside Resource Manager", assert_raises(AzureApi::Error) { @api.list("/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.Web/sites", "2025-03-01") }.message
     end
 
-    test "a refused secret says Microsoft's reason" do
+    test "a refused secret says Microsoft's reason, and a 429 from sign-in is a rate limit" do
       Http.stubs(:request).returns(response(401, { error: "invalid_client", error_description: "AADSTS7000215: Invalid client secret provided.\r\nTrace ID: x" }))
 
-      assert_equal "Microsoft refused the service principal: AADSTS7000215: Invalid client secret provided.",
+      assert_equal "Microsoft answered 401: AADSTS7000215: Invalid client secret provided",
                    assert_raises(AzureApi::Error) { @api.subscription_details }.message
+
+      Http.stubs(:request).returns(response(429, { error: "temporarily_unavailable", error_description: "Too many requests" }))
+      assert_raises(Integrations::RateLimited) { @api.subscription_details }
     end
 
     test "a list follows nextLink, and a resource's logs are queried by its id with no doubled slash" do

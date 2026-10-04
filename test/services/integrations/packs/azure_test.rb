@@ -56,11 +56,11 @@ module Integrations
       end
 
       test "a principal or subscription Azure refuses is said before anything is saved" do
-        AzureApi.any_instance.stubs(:subscription_details).raises(AzureApi::Error, "Microsoft refused the service principal: AADSTS7000215: Invalid client secret provided.")
+        AzureApi.any_instance.stubs(:subscription_details).raises(AzureApi::Error, "Microsoft answered 401: AADSTS7000215: Invalid client secret provided")
         values = { Azure::SECRET => "wrong" }
 
-        assert_match "Azure refused this service principal or subscription. Microsoft refused the service principal: AADSTS7000215", Azure.credential_refusal(values, fields: FIELDS)
-        assert_equal "Enter the tenant, client ID and subscription ID.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
+        assert_match "Azure refused this service principal or subscription: Microsoft answered 401: AADSTS7000215: Invalid client secret provided.", Azure.credential_refusal(values, fields: FIELDS)
+        assert_equal "Enter the tenant, client id and subscription id.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
         assert_equal "Paste the client secret.", Azure.credential_refusal({}, fields: FIELDS)
         assert_equal [ Azure::SECRET ], Azure.credential_fields.map(&:key)
         subscription = IntegrationProvider.find("azure").connect_fields.find { |field| field.key == Azure::SUBSCRIPTION }
@@ -83,7 +83,7 @@ module Integrations
         assert_match "storefront (#{WEB_ID}), App Service app in shop, westeurope, running", text
         assert_match "jobs (#{FUNCTION_ID}), Function app in shop", text
         assert_match "api (#{APP_ID}), Container App in shop, westeurope, running", text
-        assert_match "orders (#{SQL_ID}), Azure SQL database in shop, westeurope, running", text
+        assert_match "orders (#{SQL_ID}), Azure SQL database in shop, westeurope, online", text
         assert_match "catalog (#{PG_ID}), PostgreSQL flexible server in shop, westeurope, ready", text
         assert_no_match "master", text
       end
@@ -215,6 +215,14 @@ module Integrations
         assert_match "adds and removes instances on its own", assert_raises(Integrations::Error) { call(:scale_app, "resource" => "storefront", "instances" => 2) }.message
       end
 
+      test "two resources of one name are refused with both ids rather than one chosen" do
+        twin = SITE.merge("id" => "/subscriptions/#{SUBSCRIPTION}/resourceGroups/other/providers/Microsoft.Web/sites/storefront")
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns(pages([ SITE, twin ]))
+
+        error = assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "storefront") }
+        assert_equal "More than one resource is called storefront: #{WEB_ID}, #{twin['id']}. Name it by its id.", error.message
+      end
+
       test "a resource in another subscription is never reached" do
         AzureApi.any_instance.expects(:post).never
 
@@ -233,7 +241,7 @@ module Integrations
         assert_equal({ "type" => "App Service app", "resource_group" => "shop", "region" => "westeurope", "plan" => "shop-plan", "sku" => "PremiumV3" }, storefront.details)
         assert_equal %w[api.happy.westeurope.azurecontainerapps.io shop.example.com storefront.azurewebsites.net], snapshot.links.map { |link| link.from.last }.sort
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
-        assert_match "Azure SQL databases could not be read", snapshot.gaps.first
+        assert_match "Azure SQL databases could not be read", snapshot.gap_texts.first
       end
 
       test "a list cut short is a gap with its kind unread, and Azure's states read as the map's words" do
@@ -243,9 +251,11 @@ module Integrations
 
         snapshot = @pack.map_of(@row)
 
-        assert_includes snapshot.gaps, "Only the first 1 PostgreSQL flexible servers were read."
+        assert_includes snapshot.gap_texts, "Only the first 1 PostgreSQL flexible servers were read."
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
-        assert_equal %w[modifying running], snapshot.resources.select { |resource| [ PG_ID, SQL_ID ].include?(resource.external_id) }.map(&:status).sort
+        statuses = snapshot.resources.select { |resource| [ PG_ID, SQL_ID ].include?(resource.external_id) }.map(&:status)
+        assert_equal %w[online updating], statuses.sort
+        assert_equal %w[pending running], statuses.map { |status| Integrations::Providers::Azure.status_of(status) }.sort
       end
 
       test "a week of readings becomes a baseline per metric" do

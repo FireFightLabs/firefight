@@ -48,7 +48,7 @@ module Integrations
       test "a key or project Google refuses is said before anything is saved" do
         GoogleCloudApi.any_instance.stubs(:project).raises(GoogleCloudApi::Error, "Google Cloud answered 403: The caller does not have permission")
 
-        assert_match "Google Cloud refused this key or project. Google Cloud answered 403", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY }, fields: { GoogleCloud::PROJECT => "acme-prod" })
+        assert_match "Google Cloud refused this key or project: Google Cloud answered 403", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY }, fields: { GoogleCloud::PROJECT => "acme-prod" })
         assert_equal "Paste the service account's JSON key.", GoogleCloud.credential_refusal({}, fields: { GoogleCloud::PROJECT => "acme-prod" })
         assert_equal "Enter the project id.", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY })
         assert_match "not JSON", GoogleCloud.credential_refusal({ GoogleCloud::KEY => "nope" }, fields: { GoogleCloud::PROJECT => "acme-prod" })
@@ -199,7 +199,7 @@ module Integrations
         assert snapshot.links.all? { |link| link.to == web.key && link.relation == ResourceMap::RELATION_SERVED_BY }
         assert_includes snapshot.resources.map(&:kind), ResourceMap::KIND_CLUSTER
         assert_equal [ ResourceMap::KIND_VIRTUAL_MACHINE ], snapshot.unread_kinds
-        assert_match "Compute Engine instances could not be read", snapshot.gaps.first
+        assert_match "Compute Engine instances could not be read", snapshot.gap_texts.first
       end
 
       test "two resources of one name are refused rather than one chosen, and a list cut short is a gap with its kind unread" do
@@ -212,9 +212,10 @@ module Integrations
 
         GoogleCloudApi.any_instance.stubs(:sql_instances).returns(pages([ { "name" => "orders", "connectionName" => SQL_ID, "state" => "ONLINE_MAINTENANCE" } ], complete: false))
         snapshot = GoogleCloud.new(@integration).map_of(@row)
-        assert_includes snapshot.gaps, "Only the first 1 Cloud SQL instances were read."
+        assert_includes snapshot.gap_texts, "Only the first 1 Cloud SQL instances were read."
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
-        assert_equal "maintenance", snapshot.resources.find { |resource| resource.external_id == SQL_ID }.status
+        status = snapshot.resources.find { |resource| resource.external_id == SQL_ID }.status
+        assert_equal [ "online_maintenance", "pending" ], [ status, Integrations::Providers::GoogleCloud.status_of(status) ]
       end
 
       test "a week of readings becomes a baseline per metric, with a rate per second read per minute" do
@@ -233,7 +234,7 @@ module Integrations
         GoogleCloudApi.any_instance.expects(:project).with("acme-prod").returns({ "projectId" => "acme-prod" })
         @pack.check_health!(@row)
 
-        GoogleCloudApi.any_instance.stubs(:project).raises(GoogleCloudApi::Error, "Google refused the service account key: invalid_grant")
+        GoogleCloudApi.any_instance.stubs(:project).raises(GoogleCloudApi::Error, "Google answered 400: invalid_grant")
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 

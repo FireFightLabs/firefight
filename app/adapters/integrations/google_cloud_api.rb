@@ -170,18 +170,13 @@ module Integrations
       uri = URI.parse(TOKEN_URI)
       request = Net::HTTP::Post.new(uri)
       request.set_form_data("grant_type" => GRANT_TYPE, "assertion" => assertion)
-      response = Http.request(uri, request, error_class: Error)
-      body = JSON.parse(response.body.to_s.presence || "{}")
-      unless response.code.to_i.between?(200, 299) && body["access_token"].present?
-        raise Error, "Google refused the service account key: #{body['error_description'] || body['error'] || "HTTP #{response.code}"}"
-      end
+      body = Http.json(uri, request, error_class: Error, provider_name: "Google")
+      raise Error, "Google answered with no access token" if body["access_token"].blank?
 
       @token = body["access_token"]
       @token_expires_at = body["expires_in"].to_i.seconds.from_now
       @token_cache&.store_credential!(TOKEN_CACHE_KEY, "token" => @token, "expires_at" => @token_expires_at.utc.iso8601)
       @token
-    rescue JSON::ParserError
-      raise Error, "Google answered #{response.code} with something that is not JSON"
     end
 
     def assertion

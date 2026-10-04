@@ -40,8 +40,6 @@ module Integrations
       # Error Reporting reads a time range as one of these periods, so the shortest that covers the range is asked.
       ERROR_PERIODS = { 60 => "PERIOD_1_HOUR", 360 => "PERIOD_6_HOURS", 1440 => "PERIOD_1_DAY", 10_080 => "PERIOD_1_WEEK" }.freeze
       READY = "Ready".freeze
-      # Cloud SQL and Compute Engine states that mean the same as a word the map already reads.
-      STATUS_WORDS = { "online_maintenance" => "maintenance", "pending_stop" => "stopping", "deprovisioning" => "stopping" }.freeze
       MANUAL = "MANUAL".freeze
       REVISION_TRAFFIC = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION".freeze
       POSTGRES = "POSTGRES".freeze
@@ -187,7 +185,7 @@ module Integrations
         GoogleCloudApi.new(key).project(project)
         nil
       rescue GoogleCloudApi::Error => error
-        "Google Cloud refused this key or project. #{error.message}"
+        Sentence.join("Google Cloud refused this key or project", error)
       end
 
       # A new key drops the token minted with the one before.
@@ -201,7 +199,7 @@ module Integrations
         project = project_of(environment_row)
         listing = catalog(environment_row)
         rows = listing.items.map { |item| "#{item[:name]} (#{item[:id]}), #{item[:type]} in #{item[:location]}, #{item[:status]}" }
-        gaps = listing.gaps.map { |gap| "Not listed: #{gap}" }
+        gaps = listing.gaps.map { |gap| "Not listed: #{gap.text}" }
         text = rows.empty? ? "Project #{project} has nothing Firefight reads." : "Project #{project}, #{rows.size} resources.\n#{rows.join("\n")}"
         Telemetry.result([ text, *gaps ].join("\n"), link: page_link(environment_row, project, TYPE_RUN))
       end
@@ -367,8 +365,7 @@ module Integrations
             links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
         end
-        unread = listing.unread.map { |type| KINDS.fetch(type) }.uniq
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps, unread_kinds: unread)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps)
       end
 
       # What normal looks like for each Cloud Run service, Cloud SQL instance and Compute Engine instance, read an hour at
@@ -398,7 +395,7 @@ module Integrations
       end
 
       # What the project holds, read product by product, with what could not be read in words.
-      Listing = Data.define(:items, :gaps, :unread)
+      Listing = Data.define(:items, :gaps)
 
       private
 
@@ -408,7 +405,7 @@ module Integrations
 
         @api ||= GoogleCloudApi.new(key, token_cache: ConnectionSettings.of(environment_row))
       rescue GoogleCloudApi::Error => error
-        fail! "#{error.message} Reconnect it on the Integrations page."
+        fail! Sentence.join("This environment's Google Cloud key cannot be used", error, after: "Reconnect it on the Integrations page")
       end
 
       def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Google Cloud project. Reconnect it.")
@@ -419,7 +416,6 @@ module Integrations
           api = api(environment_row)
           items = []
           gaps = []
-          unread = []
           {
             TYPE_RUN => -> { run_items(api, project) },
             TYPE_SQL => -> { whole(api.sql_instances(project)) { |instance| sql_item(project, instance) } },
@@ -430,15 +426,13 @@ module Integrations
             items.concat(found)
             next if complete
 
-            gaps << "Only the first #{found.size} #{type.pluralize} were read."
-            unread << type
+            gaps << ResourceMap::Gap.new(text: "Only the first #{found.size} #{type.pluralize} were read.", kinds: [ KINDS.fetch(type) ])
           rescue Integrations::RateLimited
             raise
           rescue GoogleCloudApi::Error => error
-            gaps << "#{type.pluralize} could not be read: #{error.message}"
-            unread << type
+            gaps << ResourceMap::Gap.new(text: Sentence.join("#{type.pluralize} could not be read", error), kinds: [ KINDS.fetch(type) ])
           end
-          Listing.new(items: items, gaps: gaps, unread: unread)
+          Listing.new(items: items, gaps: gaps)
         end
       end
 
@@ -474,7 +468,7 @@ module Integrations
 
       def sql_item(project, instance)
         { type: TYPE_SQL, id: instance["connectionName"].presence || "#{project}:#{instance['region']}:#{instance['name']}", name: instance["name"],
-          location: instance["region"], status: status_of(instance["state"]), hosts: [],
+          location: instance["region"], status: instance["state"].to_s.downcase, hosts: [],
           details: { TYPE => TYPE_SQL, "engine" => instance["databaseVersion"], "tier" => instance.dig("settings", "tier"),
                      "availability" => instance.dig("settings", "availabilityType"), "region" => instance["region"] }.compact }
       end
@@ -482,21 +476,15 @@ module Integrations
       def machine_item(instance)
         path = URI.parse(instance["selfLink"].to_s).path.to_s[%r{projects/.+\z}]
         zone = instance["zone"].to_s.split("/").last
-        { type: TYPE_MACHINE, id: path, name: instance["name"], location: zone, status: status_of(instance["status"]), hosts: [],
+        { type: TYPE_MACHINE, id: path, name: instance["name"], location: zone, status: instance["status"].to_s.downcase, hosts: [],
           details: { TYPE => TYPE_MACHINE, "zone" => zone, "machine_type" => instance["machineType"].to_s.split("/").last }.compact }
       end
 
       def cluster_item(project, cluster)
         { type: TYPE_CLUSTER, id: "projects/#{project}/locations/#{cluster['location']}/clusters/#{cluster['name']}", name: cluster["name"],
-          location: cluster["location"], status: status_of(cluster["status"]), hosts: [],
+          location: cluster["location"], status: cluster["status"].to_s.downcase, hosts: [],
           details: { TYPE => TYPE_CLUSTER, "location" => cluster["location"], "version" => cluster["currentMasterVersion"],
                      "node_pools" => Array(cluster["nodePools"]).size, "autopilot" => cluster.dig("autopilot", "enabled") }.compact }
-      end
-
-      # Google's state, in the words the map reads health from. A state with the same meaning as one there takes that word.
-      def status_of(state)
-        word = state.to_s.downcase
-        STATUS_WORDS.fetch(word, word)
       end
 
       def run_status(service)

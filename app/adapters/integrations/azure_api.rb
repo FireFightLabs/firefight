@@ -22,6 +22,8 @@ module Integrations
                               log_analytics: "https://api.loganalytics.us")
     CHINA = Cloud.new(login: "https://login.partner.microsoftonline.cn", management: "https://management.chinacloudapi.cn",
                       log_analytics: "https://api.loganalytics.azure.cn")
+    # Microsoft Entra puts its reason in error_description, with a trace on the lines after it.
+    OAUTH_REASON = ->(body) { Sentence.clean(body["error_description"]) || body["error"].presence }
     MANAGEMENT = :management
     LOG_ANALYTICS = :log_analytics
     TOKEN_CACHE_KEY = "azure_tokens".freeze
@@ -132,12 +134,8 @@ module Integrations
       request = Net::HTTP::Post.new(uri)
       request.set_form_data("grant_type" => "client_credentials", "client_id" => @client_id, "client_secret" => @client_secret,
                             "scope" => @cloud.scope(audience))
-      response = Http.request(uri, request, error_class: Error)
-      body = JSON.parse(response.body.to_s.presence || "{}")
-      unless response.code.to_i.between?(200, 299) && body["access_token"].present?
-        reason = body["error_description"].to_s.lines.first.to_s.strip.presence || body["error"] || "HTTP #{response.code}"
-        raise Error, "Microsoft refused the service principal: #{reason}"
-      end
+      body = Http.json(uri, request, error_class: Error, provider_name: "Microsoft", reason: OAUTH_REASON)
+      raise Error, "Microsoft answered with no access token" if body["access_token"].blank?
 
       expires_at = body["expires_in"].to_i.seconds.from_now
       @tokens[audience] = { token: body["access_token"], expires_at: expires_at }
@@ -146,8 +144,6 @@ module Integrations
         @token_cache.store_credential!(TOKEN_CACHE_KEY, tokens)
       end
       body["access_token"]
-    rescue JSON::ParserError
-      raise Error, "Microsoft answered #{response.code} with something that is not JSON"
     end
   end
 end

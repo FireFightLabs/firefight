@@ -31,6 +31,14 @@ module Integrations
       GoogleCloudApi.new(KEY, token_cache: ConnectionSettings.of(@row)).project("acme-prod")
     end
 
+    test "a key Google refuses says its reason, and a 429 from the token endpoint is a rate limit" do
+      Http.stubs(:request).returns(response(400, { error: "invalid_grant", error_description: "Invalid JWT Signature." }))
+      assert_equal "Google answered 400: Invalid JWT Signature.", assert_raises(GoogleCloudApi::Error) { GoogleCloudApi.new(KEY).project("acme-prod") }.message
+
+      Http.stubs(:request).returns(response(429, { error: "rate_limit_exceeded" }))
+      assert_raises(Integrations::RateLimited) { GoogleCloudApi.new(KEY).project("acme-prod") }
+    end
+
     test "a key that is not a service account key is refused with what to paste" do
       assert_match "not JSON", assert_raises(GoogleCloudApi::Error) { GoogleCloudApi.new("ya29") }.message
       assert_match "not a service account key", assert_raises(GoogleCloudApi::Error) { GoogleCloudApi.new({ "type" => "authorized_user" }.to_json) }.message
