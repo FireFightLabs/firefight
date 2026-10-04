@@ -9,7 +9,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "render", name: "Render")
         @row = @integration.integration_environments.create!
-        Render.store_credentials!(@row, Render::API_KEY => " rnd_key ", Render::WORKSPACE => "tea-1")
+        Render.store_credentials!(@row, Render::API_KEY => " rnd_key ")
+        @row.store_fields!(Render::WORKSPACE => "tea-1")
         @pack = Render.new(@integration)
         RenderApi.any_instance.stubs(:services).with("tea-1").returns([
           { "id" => "srv-web", "name" => "web", "type" => "web_service", "suspended" => "not_suspended", "dashboardUrl" => WEB_PAGE,
@@ -28,15 +29,17 @@ module Integrations
       end
 
       test "the key and workspace are stored trimmed, and only the restart, rollback and scale change anything" do
-        assert_equal "rnd_key", @row.reload.credentials_hash[Render::API_KEY]
+        assert_equal "rnd_key", ConnectionSettings.of(@row.reload).credential(Render::API_KEY)
+        assert_nil @row.credentials_hash[Render::WORKSPACE], "the workspace is a connect field, not a credential"
         assert_equal %w[restart_service rollback_deploy scale_service], Render.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a wrong key or workspace is said on the form before anything is saved" do
         RenderApi.any_instance.stubs(:owner).raises(RenderApi::Error, "Render answered 401: Authorization information is missing or invalid.")
 
-        assert_equal "Paste an API key.", Render.credential_refusal({ Render::WORKSPACE => "tea-1" })
-        assert_match "Render refused this key or workspace. Render answered 401", Render.credential_refusal({ Render::API_KEY => "x", Render::WORKSPACE => "tea-1" })
+        assert_equal "Paste an API key.", Render.credential_refusal({}, fields: { Render::WORKSPACE => "tea-1" })
+        assert_match "Render refused this key or workspace. Render answered 401", Render.credential_refusal({ Render::API_KEY => "x" }, fields: { Render::WORKSPACE => "tea-1" })
+        assert_match "can hold only a workspace id, which starts with tea-", IntegrationProvider.find(Render::PROVIDER_KEY).connect_fields.sole.refusal("my-team")
       end
 
       test "the resources list says what each is and whether it runs, and a suspended one says why" do

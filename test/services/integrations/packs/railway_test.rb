@@ -10,7 +10,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "railway", name: "Railway")
         @row = @integration.integration_environments.create!
-        Railway.store_credentials!(@row, Railway::API_TOKEN => " rw-token ", Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "Production")
+        Railway.store_credentials!(@row, Railway::API_TOKEN => " rw-token ")
+        @row.store_fields!(Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "Production")
         @pack = Railway.new(@integration)
         RailwayApi.any_instance.stubs(:project).with("prj-1").returns(PROJECT)
         RailwayApi.any_instance.stubs(:service_instances).with("prj-1", "env-prod").returns([
@@ -27,17 +28,17 @@ module Integrations
       end
 
       test "the credentials are stored trimmed, and only the restart, rollback and scale change anything" do
-        assert_equal "rw-token", @row.reload.credentials_hash[Railway::API_TOKEN]
+        assert_equal "rw-token", ConnectionSettings.of(@row.reload).credential(Railway::API_TOKEN)
         assert_equal %w[restart_deployment rollback_deployment scale_service], Railway.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a wrong token, or an environment the project does not have, is said on the form before anything is saved" do
-        assert_nil Railway.credential_refusal({ Railway::API_TOKEN => "t", Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "env-prod" })
+        assert_nil Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "env-prod" })
         assert_equal "The project has no environment called staging. It has production.",
-                     Railway.credential_refusal({ Railway::API_TOKEN => "t", Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "staging" })
+                     Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "staging" })
         RailwayApi.any_instance.stubs(:project).raises(RailwayApi::Error, "Railway refused this: Not Authorized")
         assert_equal "Railway refused this token or project. Railway refused this: Not Authorized",
-                     Railway.credential_refusal({ Railway::API_TOKEN => "t", Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "production" })
+                     Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "production" })
       end
 
       test "resources are told apart as the CLI does, with their latest deployment's status" do

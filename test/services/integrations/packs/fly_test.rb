@@ -7,7 +7,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "fly", name: "Fly.io")
         @row = @integration.integration_environments.create!
-        Fly.store_credentials!(@row, Fly::API_TOKEN => " FlyV1 fm2_x ", Fly::ORGANIZATION => "acme")
+        Fly.store_credentials!(@row, Fly::API_TOKEN => " FlyV1 fm2_x ")
+        @row.store_fields!(Fly::ORGANIZATION => "acme")
         @pack = Fly.new(@integration)
         FlyApi.any_instance.stubs(:apps).with("acme").returns([ { "name" => "web", "status" => "deployed", "machine_count" => 2 } ])
         FlyApi.any_instance.stubs(:postgres_clusters).with("acme").returns([
@@ -16,7 +17,7 @@ module Integrations
       end
 
       test "the token and organization are stored trimmed, and only the restart and rollback change anything" do
-        assert_equal "FlyV1 fm2_x", @row.reload.credentials_hash[Fly::API_TOKEN]
+        assert_equal "FlyV1 fm2_x", ConnectionSettings.of(@row.reload).credential(Fly::API_TOKEN)
         assert_equal %w[restart_app rollback_release], Fly.tool_definitions.reject(&:read_only).map(&:name)
       end
 
@@ -24,7 +25,7 @@ module Integrations
         FlyApi.any_instance.stubs(:apps).raises(FlyApi::Error, "Fly answered 401: unauthorized")
 
         assert_equal "Enter the organization's slug.", Fly.credential_refusal({ Fly::API_TOKEN => "x" })
-        assert_match "Fly.io refused this token or organization. Fly answered 401", Fly.credential_refusal({ Fly::API_TOKEN => "x", Fly::ORGANIZATION => "acme" })
+        assert_match "Fly.io refused this token or organization. Fly answered 401", Fly.credential_refusal({ Fly::API_TOKEN => "x" }, fields: { Fly::ORGANIZATION => "acme" })
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 

@@ -157,17 +157,15 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "FlyV1 fm2_...",
-                              hint: "A token from fly tokens create org, or fly tokens create readonly for Halon to only read. Paste it whole, with FlyV1 in front."),
-          CredentialField.new(key: ORGANIZATION, label: "Organization", secret: false, placeholder: "my-org",
-                              hint: "The slug of the Fly.io organization this environment runs in, as fly orgs list shows it.")
+                              hint: "A token from fly tokens create org, or fly tokens create readonly for Halon to only read. Paste it whole, with FlyV1 in front.")
         ]
       end
 
       # Lists the organization's apps with the token, so a wrong token or organization is said on the form before
       # anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
-        organization = values[ORGANIZATION].to_s.strip
+        organization = fields[ORGANIZATION].to_s.strip
         return "Paste an API token." if token.empty?
         return "Enter the organization's slug." if organization.empty?
 
@@ -179,7 +177,6 @@ module Integrations
 
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(API_TOKEN, values[API_TOKEN].to_s.strip)
-        environment_row.store_credential!(ORGANIZATION, values[ORGANIZATION].to_s.strip)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -365,13 +362,13 @@ module Integrations
       private
 
       def api(environment_row)
-        token = environment_row.credentials_hash[API_TOKEN]
+        token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
         fail! "This environment has no Fly.io token. Reconnect it on the Integrations page." if token.blank?
 
         FlyApi.new(token)
       end
 
-      def organization_of(environment_row) = environment_row.credentials_hash[ORGANIZATION].presence || fail!("This environment has no Fly.io organization. Reconnect it.")
+      def organization_of(environment_row) = ConnectionSettings.of(environment_row).field(ORGANIZATION) || fail!("This environment has no Fly.io organization. Reconnect it.")
 
       def resources(environment_row)
         @resources ||= begin

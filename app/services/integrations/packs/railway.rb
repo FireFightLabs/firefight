@@ -159,18 +159,15 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                              hint: "An account token, or a workspace token for the project's workspace, created under Account Settings, Tokens. A project token is not accepted, since it cannot apply fixes."),
-          CredentialField.new(key: PROJECT, label: "Project", secret: false, placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                              hint: "The id of the Railway project, shown in its Settings and in its URL after /project/."),
-          CredentialField.new(key: ENVIRONMENT, label: "Environment", secret: false, placeholder: "production",
-                              hint: "The Railway environment this connects to, by its name or id.")
+                              hint: "An account token, or a workspace token for the project's workspace, created under Account Settings, Tokens. A project token is not accepted, since it cannot apply fixes.")
         ]
       end
 
       # Reads the project with the token and finds the environment in it, so a wrong token, project or environment is
       # said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
-        token, project, environment = [ API_TOKEN, PROJECT, ENVIRONMENT ].map { |key| values[key].to_s.strip }
+      def self.credential_refusal(values, region: nil, fields: {})
+        token = values[API_TOKEN].to_s.strip
+        project, environment = [ PROJECT, ENVIRONMENT ].map { |key| fields[key].to_s.strip }
         return "Paste an API token." if token.empty?
         return "Enter the project id." if project.empty?
         return "Enter the environment, by its name or id." if environment.empty?
@@ -184,7 +181,7 @@ module Integrations
       end
 
       def self.store_credentials!(environment_row, values)
-        [ API_TOKEN, PROJECT, ENVIRONMENT ].each { |key| environment_row.store_credential!(key, values[key].to_s.strip) }
+        environment_row.store_credential!(API_TOKEN, values[API_TOKEN].to_s.strip)
       end
 
       # The project's environment named by its id or name, or a refusal that lists the ones there are.
@@ -354,17 +351,17 @@ module Integrations
       private
 
       def api(environment_row)
-        token = environment_row.credentials_hash[API_TOKEN]
+        token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
         fail! "This environment has no Railway token. Reconnect it on the Integrations page." if token.blank?
 
         RailwayApi.new(token)
       end
 
-      def project_of(environment_row) = environment_row.credentials_hash[PROJECT].presence || fail!("This environment has no Railway project. Reconnect it.")
+      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Railway project. Reconnect it.")
 
       def environment(environment_row)
         @environment ||= begin
-          asked = environment_row.credentials_hash[ENVIRONMENT].presence || fail!("This environment has no Railway environment. Reconnect it.")
+          asked = ConnectionSettings.of(environment_row).field(ENVIRONMENT) || fail!("This environment has no Railway environment. Reconnect it.")
           self.class.environment_in(api(environment_row).project(project_of(environment_row)), asked)
         end
       end

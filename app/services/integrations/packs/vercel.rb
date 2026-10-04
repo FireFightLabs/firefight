@@ -113,18 +113,16 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "Access token", secret: true, placeholder: "",
-                              hint: "A Vercel access token created under Account Settings, Tokens, scoped to the team. It acts with the access of the person who created it."),
-          CredentialField.new(key: TEAM, label: "Team", secret: false, optional: true, placeholder: "team_... or my-team",
-                              hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team.")
+                              hint: "A Vercel access token created under Account Settings, Tokens, scoped to the team. It acts with the access of the person who created it.")
         ]
       end
 
       # Lists one project with the token, so a wrong token or team is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
         return "Paste an access token." if token.empty?
 
-        VercelApi.new(token, values[TEAM]).check!
+        VercelApi.new(token, fields[TEAM]).check!
         nil
       rescue VercelApi::Error => error
         "Vercel refused this token or team. #{error.message}"
@@ -132,7 +130,6 @@ module Integrations
 
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(API_TOKEN, values[API_TOKEN].to_s.strip)
-        environment_row.store_credential!(TEAM, values[TEAM].to_s.strip)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -267,10 +264,11 @@ module Integrations
       private
 
       def api(environment_row)
-        token = environment_row.credentials_hash[API_TOKEN]
+        settings = ConnectionSettings.of(environment_row)
+        token = settings.credential(API_TOKEN)
         fail! "This environment has no Vercel access token. Reconnect it on the Integrations page." if token.blank?
 
-        VercelApi.new(token, environment_row.credentials_hash[TEAM])
+        VercelApi.new(token, settings.field(TEAM))
       end
 
       def projects(environment_row) = @projects ||= api(environment_row).projects
@@ -407,7 +405,7 @@ module Integrations
       def owner_slug(environment_row)
         return @owner_slug if defined?(@owner_slug)
 
-        team = environment_row.credentials_hash[TEAM].to_s.strip
+        team = ConnectionSettings.of(environment_row).field(TEAM).to_s.strip
         @owner_slug = if team.match?(VercelApi::TEAM_ID) then api(environment_row).team(team)["slug"].presence
         elsif team.present? then team
         else api(environment_row).user["username"].presence

@@ -143,6 +143,8 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    connect_fields:
+      - { key: team, label: Team, placeholder: team_... or my-team, optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
     source_links: firefight
     map: firefight
   - key: render
@@ -154,6 +156,8 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    connect_fields:
+      - { key: workspace, label: Workspace, placeholder: tea-..., pattern: "tea-[a-z0-9]+", allowed: "a workspace id, which starts with tea-", hint: "The id of the Render workspace this environment runs in, shown on the workspace's Settings page." }
     source_links: firefight
     map: firefight
   - key: railway
@@ -165,6 +169,9 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    connect_fields:
+      - { key: project, label: Project, placeholder: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, hint: "The id of the Railway project, shown in its Settings and in its URL after /project/." }
+      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connects to, by its name or id." }
     source_links: firefight
     map: firefight
   - key: fly
@@ -176,6 +183,8 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    connect_fields:
+      - { key: organization, label: Organization, placeholder: my-org, hint: "The slug of the Fly.io organization this environment runs in, as fly orgs list shows it." }
     source_links: firefight
     map: firefight
   - key: sentry

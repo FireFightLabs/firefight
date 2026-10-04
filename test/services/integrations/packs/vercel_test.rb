@@ -9,7 +9,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "vercel", name: "Vercel")
         @row = @integration.integration_environments.create!
-        Vercel.store_credentials!(@row, Vercel::API_TOKEN => " tok ", Vercel::TEAM => "acme")
+        Vercel.store_credentials!(@row, Vercel::API_TOKEN => " tok ")
+        @row.store_fields!(Vercel::TEAM => "acme")
         @pack = Vercel.new(@integration)
         VercelApi.any_instance.stubs(:projects).returns([
           { "id" => "prj_1", "name" => "shop", "accountId" => "team_1", "framework" => "nextjs",
@@ -19,16 +20,16 @@ module Integrations
       end
 
       test "the token and team are stored trimmed, and only the rollback and promotion change anything" do
-        assert_equal "tok", @row.reload.credentials_hash[Vercel::API_TOKEN]
+        assert_equal "tok", ConnectionSettings.of(@row.reload).credential(Vercel::API_TOKEN)
         assert_equal %w[rollback_deployment promote_deployment], Vercel.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a wrong token or team is said on the form before anything is saved" do
         VercelApi.any_instance.stubs(:check!).raises(VercelApi::Error, "Vercel answered 403: Not authorized")
 
-        assert_equal "Paste an access token.", Vercel.credential_refusal({ Vercel::TEAM => "acme" })
+        assert_equal "Paste an access token.", Vercel.credential_refusal({}, fields: { Vercel::TEAM => "acme" })
         assert_equal "Vercel refused this token or team. Vercel answered 403: Not authorized", Vercel.credential_refusal({ Vercel::API_TOKEN => "x" })
-        assert_equal [ Vercel::TEAM ], Vercel.credential_fields.select(&:optional).map(&:key), "the team may be left empty for a personal account"
+        assert IntegrationProvider.find(Vercel::PROVIDER_KEY).connect_fields.sole.optional, "the team may be left empty for a personal account"
       end
 
       test "projects are listed with their production state" do
@@ -122,7 +123,8 @@ module Integrations
       end
 
       test "projects go on the map with their repository and verified domains, and a team id is turned into its slug for the page" do
-        Vercel.store_credentials!(@row, Vercel::API_TOKEN => "tok", Vercel::TEAM => "team_1")
+        Vercel.store_credentials!(@row, Vercel::API_TOKEN => "tok")
+        @row.store_fields!(Vercel::TEAM => "team_1")
         VercelApi.any_instance.stubs(:team).with("team_1").returns("slug" => "acme")
         VercelApi.any_instance.stubs(:project_domains).returns([
           { "name" => "shop.acme.dev", "verified" => true }, { "name" => "www.acme.dev", "verified" => true, "redirect" => "shop.acme.dev" },
@@ -139,7 +141,8 @@ module Integrations
       end
 
       test "a project whose domains cannot be read is a gap, and with no slug known there is no page" do
-        Vercel.store_credentials!(@row, Vercel::API_TOKEN => "tok", Vercel::TEAM => "")
+        Vercel.store_credentials!(@row, Vercel::API_TOKEN => "tok")
+        @row.store_fields!({})
         VercelApi.any_instance.stubs(:user).raises(VercelApi::Error, "Vercel answered 403: forbidden")
         VercelApi.any_instance.stubs(:project_domains).raises(VercelApi::Error, "Vercel answered 403: forbidden")
 

@@ -190,16 +190,14 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "rnd_...",
-                              hint: "A Render API key, created under Account Settings, API Keys. It acts as the person who created it, with their access to the workspace."),
-          CredentialField.new(key: WORKSPACE, label: "Workspace", secret: false, placeholder: "tea-...",
-                              hint: "The id of the Render workspace this environment runs in, shown on the workspace's Settings page.")
+                              hint: "A Render API key, created under Account Settings, API Keys. It acts as the person who created it, with their access to the workspace.")
         ]
       end
 
       # Reads the workspace with the key, so a wrong key or workspace is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
-        workspace = values[WORKSPACE].to_s.strip
+        workspace = fields[WORKSPACE].to_s.strip
         return "Paste an API key." if key.empty?
         return "Enter the workspace id." if workspace.empty?
 
@@ -211,7 +209,6 @@ module Integrations
 
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(API_KEY, values[API_KEY].to_s.strip)
-        environment_row.store_credential!(WORKSPACE, values[WORKSPACE].to_s.strip)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -460,13 +457,13 @@ module Integrations
       private
 
       def api(environment_row)
-        key = environment_row.credentials_hash[API_KEY]
+        key = ConnectionSettings.of(environment_row).credential(API_KEY)
         fail! "This environment has no Render API key. Reconnect it on the Integrations page." if key.blank?
 
         RenderApi.new(key)
       end
 
-      def workspace_of(environment_row) = environment_row.credentials_hash[WORKSPACE].presence || fail!("This environment has no Render workspace. Reconnect it.")
+      def workspace_of(environment_row) = ConnectionSettings.of(environment_row).field(WORKSPACE) || fail!("This environment has no Render workspace. Reconnect it.")
 
       def resources(environment_row)
         @resources ||= begin
