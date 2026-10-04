@@ -98,6 +98,17 @@ class Integrations::Capabilities::SentryTest < ActiveSupport::TestCase
     assert_nil entry.connect_refusal(nil, "organization" => "acme")
   end
 
+  test "the organization and project take only what Sentry's own slug rules allow" do
+    organization, project = IntegrationProvider.find("sentry").connect_fields
+
+    %w[acme Acme-Co a1].each { |slug| assert_nil organization.refusal(slug), slug }
+    %w[acme- -acme 123 a.b a_b acme/x].each { |slug| assert_match "letters, numbers and dashes", organization.refusal(slug), slug }
+    assert organization.refusal("a" * 51)
+    %w[web web_api check-out].each { |slug| assert_nil project.refusal(slug), slug }
+    %w[Web 42 a.b web/x].each { |slug| assert_match "lowercase letters", project.refusal(slug), slug }
+    assert_nil project.refusal("")
+  end
+
   test "a connection held to no organization, or a resource no project could be called, is refused with what to do" do
     @sentry.update!(settings: { "server_url" => "https://mcp.sentry.dev/mcp" })
     assert_match "connect Sentry again and give its organization", unroutable(Integrations::Capabilities::ERRORS, "resource" => "web")
