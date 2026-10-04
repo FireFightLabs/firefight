@@ -46,7 +46,7 @@ module Integrations
         McpClient.any_instance.stubs(:call_tool).returns({ "isError" => true, "content" => [ { "type" => "text", "text" => "list datasources: 401 Unauthorized" } ] })
 
         assert_not HealthCheckService.check!(@row)
-        assert_equal "Grafana refused list_datasources: list datasources: 401 Unauthorized", @row.reload.health_error
+        assert_equal "Grafana refused list_datasources: list datasources: 401 Unauthorized.", @row.reload.health_error
       end
 
       test "with list_datasources switched off the ping alone decides, and nothing is learned or called" do

@@ -30,7 +30,7 @@ module Integrations
         failures = []
         batches = by_name.keys.each_slice(PER_QUERY).to_a
         readings = batches.flat_map { |names| read(source, names, window, by_name, failures) }
-        raise Refused, "Grafana could not read normal from Prometheus: #{failures.first}" if failures.size == batches.size
+        raise Refused, Sentence.join("Grafana could not read normal from Prometheus", failures.first) if failures.size == batches.size
 
         readings
       end

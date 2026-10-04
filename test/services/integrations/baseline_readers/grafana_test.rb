@@ -57,7 +57,7 @@ module Integrations
         McpClient.any_instance.unstub(:call_tool)
         McpClient.any_instance.stubs(:call_tool).returns({ "isError" => true, "content" => [ { "type" => "text", "text" => "execution: query timed out" } ] })
         assert_equal 0, BaselineSweep.run!(@row, now: NOW)
-        assert_equal "Grafana could not read normal from Prometheus: execution: query timed out", @row.reload.baseline_error
+        assert_equal "Grafana could not read normal from Prometheus: execution: query timed out.", @row.reload.baseline_error
       end
 
       test "a Grafana connection wired to another environment reads nothing for this one" do

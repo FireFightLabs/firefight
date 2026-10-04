@@ -77,7 +77,7 @@ module Integrations
       def parsed(result)
         refused!(LIST_DATASOURCES, result)
         body = Capabilities::Answers.data(result)
-        raise Refused, "Grafana answered its datasources in a shape Firefight does not know." unless body.is_a?(Hash)
+        raise Refused, "Grafana answered its datasources in a shape Firefight does not read." unless body.is_a?(Hash)
 
         body
       end
