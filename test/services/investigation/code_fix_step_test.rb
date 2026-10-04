@@ -72,8 +72,9 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
 
   test "what the coding agent says while it works shows on the step, and its answer replaces it" do
     devin = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin", slug: "devin")
-    Integrations::Packs::Devin.store_credentials!(devin.integration_environments.create!,
-                                                  Integrations::Packs::Devin::API_KEY => "cog_key", Integrations::Packs::Devin::ORGANIZATION => "org-abc")
+    devin_row = devin.integration_environments.create!
+    Integrations::Packs::Devin.store_credentials!(devin_row, Integrations::Packs::Devin::API_KEY => "cog_key")
+    devin_row.store_fields!(Integrations::Packs::Devin::ORGANIZATION => "org-abc")
     devin.tools.create!(name: "fix_code", description: "Hands a change to Devin", params_schema: {}, enabled: true, read_only: false)
     @workspace.update!(code_fix_agent: "devin")
     Integrations::McpExecutor.stubs(:call).returns("content" => [])

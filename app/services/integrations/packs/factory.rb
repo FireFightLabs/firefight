@@ -26,16 +26,14 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "Your Factory API key",
-                              hint: "A Factory API key, from Settings, API Keys in Factory. A service account's key keeps the work off a teammate's account. Factory switches its sessions API on for selected organizations."),
-          CredentialField.new(key: COMPUTER, label: "Droid Computer", secret: false, placeholder: "my-computer",
-                              hint: "The name of the Droid Computer the Droid works on, with your repositories cloned on it. A managed computer pushes and opens pull requests through the GitHub integration set up in Factory.")
+                              hint: "A Factory API key, from Settings, API Keys in Factory. A service account's key keeps the work off a teammate's account. Factory switches its sessions API on for selected organizations.")
         ]
       end
 
       # Reads the computer, so a wrong key, or a computer that is missing or not ready, is said on the form.
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
-        name = values[COMPUTER].to_s.strip
+        name = fields[COMPUTER].to_s
         return "Paste a Factory API key." if key.empty?
         return "Enter the Droid Computer's name." if name.empty?
 
@@ -127,7 +125,7 @@ module Integrations
       def computer(environment_row) = api(environment_row).computer_named(computer_name(environment_row))
 
       def computer_name(environment_row)
-        environment_row.credentials_hash[COMPUTER].presence || fail!("This environment has no Droid Computer. Reconnect it.")
+        ConnectionSettings.of(environment_row).field(COMPUTER) || fail!("This environment has no Droid Computer. Reconnect it.")
       end
 
       # The connection's region picks Factory's Global or EU deployment.

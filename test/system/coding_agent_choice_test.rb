@@ -11,10 +11,14 @@ class CodingAgentChoiceTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       fill_in "API key", with: "cog_key"
-      fill_in "Organization id", with: "org-abc"
+      fill_in "Organization ID", with: "org-abc"
+      page.save_screenshot(Rails.root.join("tmp/screenshots/coding-agent-devin-form.png"))
       click_button "Connect"
     end
+    assert_no_selector "[role=dialog]"
     assert_text "Coding agents"
+    row = workspaces(:slack_workspace_one).integrations.find_by!(provider: "devin").integration_environments.sole
+    assert_equal({ "organization" => "org-abc" }, row.fields)
     page.save_screenshot(Rails.root.join("tmp/screenshots/coding-agent-connected.png"))
 
     visit settings_workspace_path

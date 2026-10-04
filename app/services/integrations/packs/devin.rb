@@ -42,19 +42,16 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "cog_...",
-                              hint: "A service user's API key, from Settings, Devin API, Service users in Devin. The Member role can start sessions and stop the ones that run too long."),
-          CredentialField.new(key: ORGANIZATION, label: "Organization id", secret: false, placeholder: "org-...",
-                              hint: "Your organization's id, shown at the top of Settings, Devin API in Devin."),
-          CredentialField.new(key: ACU_LIMIT, label: "ACU limit per change (optional)", secret: false, placeholder: DEFAULT_ACU_LIMIT.to_s, optional: true,
-                              hint: "The most ACUs Devin may use on one change, which Devin enforces. Leave it empty for #{DEFAULT_ACU_LIMIT}.")
+                              hint: "A service user's API key, from Settings, Devin API, Service users in Devin. The Member role can start sessions and stop the ones that run too long.")
         ]
       end
 
-      # Asks Devin who the key is, so a wrong key, or a service user of another organization, is said on the form.
+      # Asks Devin who the key is, so a wrong key, or a service user of another organization, is said on the form. The
+      # organization and the ACU limit are connect fields, whose format the registry checked already.
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
-        organization = values[ORGANIZATION].to_s.strip
-        limit = values[ACU_LIMIT].to_s.strip
+        organization = fields[ORGANIZATION].to_s
+        limit = fields[ACU_LIMIT].to_s
         return "Paste a Devin API key." if key.empty?
         return "Enter the organization id." if organization.empty?
         return "Enter the ACU limit as a whole number above zero, or leave it empty." unless limit.empty? || limit.match?(WHOLE_NUMBER)
@@ -146,12 +143,12 @@ module Integrations
       end
 
       def acu_limit(environment_row)
-        limit = environment_row.credentials_hash[ACU_LIMIT].to_s
+        limit = ConnectionSettings.of(environment_row).field(ACU_LIMIT).to_s
         limit.match?(WHOLE_NUMBER) ? limit.to_i : DEFAULT_ACU_LIMIT
       end
 
       def organization_of(environment_row)
-        environment_row.credentials_hash[ORGANIZATION].presence || fail!("This environment has no Devin organization. Reconnect it.")
+        ConnectionSettings.of(environment_row).field(ORGANIZATION) || fail!("This environment has no Devin organization. Reconnect it.")
       end
 
       def api(environment_row) = DevinApi.new(key_of(environment_row), organization_of(environment_row))

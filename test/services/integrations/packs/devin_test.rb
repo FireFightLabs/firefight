@@ -10,7 +10,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin")
         @row = @integration.integration_environments.create!
-        Devin.store_credentials!(@row, Devin::API_KEY => " cog_key ", Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "")
+        Devin.store_credentials!(@row, Devin::API_KEY => " cog_key ")
+        @row.store_fields!(Devin::ORGANIZATION => "org-abc")
         @reports = []
         @pack = Devin.new(@integration, progress: ->(text) { @reports << text })
         @pack.stubs(:pause)
@@ -49,7 +50,7 @@ module Integrations
       end
 
       test "the ACU limit the connection sets is Devin's, and anything that looks like a credential never reaches Devin" do
-        Devin.store_credentials!(@row, Devin::API_KEY => "cog_key", Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "12")
+        @row.store_fields!(Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "12")
         DevinApi.any_instance.expects(:create_session).with do |body|
           body["max_acu_limit"] == 12 && body["prompt"].include?("[REDACTED:github_token]") && !body["prompt"].include?("ghp_")
         end.returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
@@ -111,20 +112,31 @@ module Integrations
         assert_match %r{Open this in Devin, and give the person this link with what you found: https://app.devin.ai/sessions/devin-1\z}, text
       end
 
+      test "the organization and the ACU limit are connect fields the registry checks, never stored as credentials" do
+        fields = IntegrationProvider.find("devin").connect_fields.index_by(&:key)
+
+        assert_equal [ Devin::API_KEY ], Devin.credential_fields.map(&:key)
+        assert_nil fields.fetch(Devin::ORGANIZATION).refusal("org-abc123")
+        assert_match "org- followed by letters and numbers", fields.fetch(Devin::ORGANIZATION).refusal("abc").to_s
+        assert fields.fetch(Devin::ACU_LIMIT).optional
+        assert_includes fields.fetch(Devin::ACU_LIMIT).hint, "empty for #{Devin::DEFAULT_ACU_LIMIT}."
+        assert_nil @row.reload.credentials_hash[Devin::ORGANIZATION]
+      end
+
       test "the key is checked against Devin, and a service user of another organization is refused on the form" do
         assert_equal "Enter the ACU limit as a whole number above zero, or leave it empty.",
-                     Devin.credential_refusal({ Devin::API_KEY => "cog_key", Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "0" })
+                     Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc", Devin::ACU_LIMIT => "0" })
         DevinApi.any_instance.stubs(:whoami).returns("principal_type" => "service_user", "org_id" => "org-other")
         assert_equal "This service user belongs to the organization org-other, not org-abc.",
-                     Devin.credential_refusal({ Devin::API_KEY => "cog_key", Devin::ORGANIZATION => "org-abc" })
+                     Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
 
         DevinApi.any_instance.stubs(:whoami).returns("principal_type" => "pat_user", "org_id" => "org-other")
-        assert_nil Devin.credential_refusal({ Devin::API_KEY => "cog_key", Devin::ORGANIZATION => "org-abc" })
+        assert_nil Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
         assert_nil @pack.check_health!(@row)
 
         DevinApi.any_instance.stubs(:whoami).raises(DevinApi::Error.new("Devin answered 401: Unauthorized", status: 401))
-        assert_equal "Devin refused this key. Devin answered 401: Unauthorized", Devin.credential_refusal({ Devin::API_KEY => "cog_key", Devin::ORGANIZATION => "org-abc" })
+        assert_equal "Devin refused this key. Devin answered 401: Unauthorized", Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
       end
 
       private

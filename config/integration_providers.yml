@@ -230,6 +230,10 @@ providers:
     map_note: "It writes code changes and runs nothing of yours."
     code_fix_tool: fix_code
     code_agent: true
+    # Devin names an organization org- followed by its id (Devin's OpenAPI document, the org_id parameter).
+    connect_fields:
+      - { key: organization, label: Organization ID, hint: "Shown at the top of Settings, Devin API in Devin.", placeholder: "org-...", pattern: "org-[A-Za-z0-9_-]+", allowed: "org- followed by letters and numbers, as Devin shows it" }
+      - { key: acu_limit, label: ACU limit per change, hint: "The most ACUs Devin may use on one change, which Devin enforces. Leave it empty for 5.", placeholder: "5", numeric: true, optional: true }
   - key: cursor
     name: Cursor
     category: Coding agents
@@ -255,6 +259,8 @@ providers:
     regions:
       - { key: global, label: Global (app.factory.ai), site: "https://app.factory.ai" }
       - { key: eu, label: EU (app.eu.factory.ai), site: "https://app.eu.factory.ai" }
+    connect_fields:
+      - { key: computer, label: Droid Computer, hint: "The name of the Droid Computer the Droid works on, with your repositories cloned on it. A managed computer pushes and opens pull requests through the GitHub integration set up in Factory.", placeholder: "my-computer" }
     kind: native
     connect_with: api_token
     source_links: firefight

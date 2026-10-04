@@ -11,7 +11,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "factory", name: "Factory")
         @row = @integration.integration_environments.create!
-        Factory.store_credentials!(@row, Factory::API_KEY => "fk_key", Factory::COMPUTER => "builder")
+        Factory.store_credentials!(@row, Factory::API_KEY => "fk_key")
+        @row.store_fields!(Factory::COMPUTER => "builder")
         @reports = []
         @pack = Factory.new(@integration, progress: ->(text) { @reports << text })
         @pack.stubs(:pause)
@@ -40,7 +41,7 @@ module Integrations
 
       test "the region chosen on the connect form picks Factory's deployment, for the form's check and every call after" do
         FactoryApi.expects(:new).with("fk_key", "eu").returns(stub(computer_named: COMPUTER))
-        assert_nil Factory.credential_refusal({ Factory::API_KEY => "fk_key", Factory::COMPUTER => "builder" },
+        assert_nil Factory.credential_refusal({ Factory::API_KEY => "fk_key" }, fields: { Factory::COMPUTER => "builder" },
                                               region: IntegrationProvider.find("factory").region("eu"))
 
         @integration.update!(settings: @integration.settings.to_h.merge(Integration::REGION_SETTING => "eu"))
@@ -75,14 +76,14 @@ module Integrations
       test "a computer that is still being set up or failed is said on the form and by the health check" do
         FactoryApi.any_instance.stubs(:computer_named).returns(COMPUTER.merge("status" => "provisioning"))
         assert_equal "The Droid Computer builder is still being set up. Connect it once Factory shows it as active.",
-                     Factory.credential_refusal({ Factory::API_KEY => "fk_key", Factory::COMPUTER => "builder" })
+                     Factory.credential_refusal({ Factory::API_KEY => "fk_key" }, fields: { Factory::COMPUTER => "builder" })
 
         FactoryApi.any_instance.stubs(:computer_named).returns(COMPUTER.merge("status" => "error"))
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
 
         FactoryApi.any_instance.stubs(:computer_named).returns(COMPUTER)
-        assert_nil Factory.credential_refusal({ Factory::API_KEY => "fk_key", Factory::COMPUTER => "builder" })
-        assert_equal "Enter the Droid Computer's name.", Factory.credential_refusal({ Factory::API_KEY => "fk_key", Factory::COMPUTER => "" })
+        assert_nil Factory.credential_refusal({ Factory::API_KEY => "fk_key" }, fields: { Factory::COMPUTER => "builder" })
+        assert_equal "Enter the Droid Computer's name.", Factory.credential_refusal({ Factory::API_KEY => "fk_key" }, fields: { Factory::COMPUTER => "" })
       end
 
       test "session_status has no session page to link, so it links the pull request when there is one" do

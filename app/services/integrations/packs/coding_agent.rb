@@ -260,7 +260,7 @@ module Integrations
       def required(arguments, key) = arguments[key].to_s.strip.presence || fail!("Give #{key}.")
 
       def key_of(environment_row)
-        environment_row.credentials_hash[API_KEY].presence || fail!("This environment has no #{self.class::NAME} API key. Reconnect it on the Integrations page.")
+        ConnectionSettings.of(environment_row).credential(API_KEY) || fail!("This environment has no #{self.class::NAME} API key. Reconnect it on the Integrations page.")
       end
 
       def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
