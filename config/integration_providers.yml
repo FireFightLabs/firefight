@@ -233,7 +233,7 @@ providers:
     # Devin names an organization org- followed by its id (Devin's OpenAPI document, the org_id parameter).
     connect_fields:
       - { key: organization, label: Organization ID, hint: "The organization's id, shown at the top of Settings, Devin API in Devin.", placeholder: "org-...", pattern: "org-[A-Za-z0-9_-]+", allowed: "org- followed by letters, numbers, dashes and underscores" }
-      - { key: max_acus, label: ACU limit per change, hint: "The most ACUs Devin may use on one change, which Devin enforces.", numeric: true, default: 5 }
+      - { key: max_acus, label: ACU limit per change, hint: "The most ACUs Devin may use on one change, which Devin enforces. Leave it empty for 5.", numeric: true, default: 5 }
   - key: cursor
     name: Cursor
     category: Coding agents
@@ -258,7 +258,7 @@ providers:
     # app, from Factory's Deployment Patterns page, EU deployment and data residency.
     regions:
       - { key: global, label: Global (app.factory.ai), site: "https://app.factory.ai" }
-      - { key: eu, label: Europe (app.eu.factory.ai), site: "https://app.eu.factory.ai" }
+      - { key: eu, label: EU (app.eu.factory.ai), site: "https://app.eu.factory.ai" }
     connect_fields:
       - { key: computer, label: Droid Computer, hint: "The name of the Droid Computer the Droid works on, with your repositories cloned on it. A managed computer pushes and opens pull requests through the GitHub integration set up in Factory.", placeholder: "my-computer" }
     kind: native

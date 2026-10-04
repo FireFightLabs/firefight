@@ -56,7 +56,7 @@ module Integrations
 
         organization_refusal(DevinApi.new(key, organization).whoami, organization)
       rescue DevinApi::Error => error
-        "Devin refused this key. #{error.message}"
+        Sentence.join("Devin refused this key", error)
       end
 
       # A service user belongs to one organization. A personal token works in every organization its owner can reach.

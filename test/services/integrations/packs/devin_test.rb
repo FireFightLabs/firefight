@@ -136,7 +136,7 @@ module Integrations
         assert_nil @pack.check_health!(@row)
 
         DevinApi.any_instance.stubs(:whoami).raises(DevinApi::Unauthorized.new("Devin answered 401: Unauthorized"))
-        assert_equal "Devin refused this key. Devin answered 401: Unauthorized", Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
+        assert_equal "Devin refused this key: Devin answered 401: Unauthorized.", Devin.credential_refusal({ Devin::API_KEY => "cog_key" }, fields: { Devin::ORGANIZATION => "org-abc" })
       end
 
       private

@@ -39,7 +39,7 @@ module Integrations
 
         computer_refusal(FactoryApi.new(key, region&.key).computer_named(name), name)
       rescue FactoryApi::Error => error
-        "Factory refused this key or computer. #{error.message}"
+        Sentence.join("Factory refused this key or computer", error)
       end
 
       def self.computer_refusal(computer, name)

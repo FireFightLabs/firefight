@@ -30,7 +30,7 @@ module Integrations
         CursorApi.new(key).me
         nil
       rescue CursorApi::Error => error
-        "Cursor refused this key. #{error.message}"
+        Sentence.join("Cursor refused this key", error)
       end
 
       def check_health!(environment_row)

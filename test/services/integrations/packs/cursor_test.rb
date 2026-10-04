@@ -96,7 +96,7 @@ module Integrations
         assert_equal "Paste a Cursor API key.", Cursor.credential_refusal({ Cursor::API_KEY => " " })
 
         CursorApi.any_instance.stubs(:me).raises(CursorApi::Unauthorized.new("Cursor answered 401: Invalid API key"))
-        assert_equal "Cursor refused this key. Cursor answered 401: Invalid API key", Cursor.credential_refusal({ Cursor::API_KEY => "crsr_key" })
+        assert_equal "Cursor refused this key: Cursor answered 401: Invalid API key.", Cursor.credential_refusal({ Cursor::API_KEY => "crsr_key" })
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 

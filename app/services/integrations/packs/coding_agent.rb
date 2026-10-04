@@ -130,7 +130,7 @@ module Integrations
       # What to do about a refusal, in the provider's terms, or nil.
       def refused_hint(_error) = nil
 
-      def refusal(error) = [ error.message.sub(/[.\s]*\z/, "."), refused_hint(error) ].compact.join(" ")
+      def refusal(error) = [ Sentence.of(error), refused_hint(error) ].compact.join(" ")
 
       def follow(environment_row, session)
         deadline = clock + TIME_LIMIT.to_i
@@ -164,7 +164,7 @@ module Integrations
         stop(environment_row, session)
         state.with(phase: PHASE_STOPPED, reason: "Firefight stopped it at the #{TIME_LIMIT.in_minutes.to_i} minute limit")
       rescue CodingAgentApi::Error => error
-        state.with(phase: PHASE_STOPPED, reason: "it reached the #{TIME_LIMIT.in_minutes.to_i} minute limit, and stopping it failed (#{error.message}), so stop it in #{self.class::NAME}")
+        state.with(phase: PHASE_STOPPED, reason: "it reached the #{TIME_LIMIT.in_minutes.to_i} minute limit, and stopping it failed (#{Sentence.clean(error)}), so stop it in #{self.class::NAME}")
       end
 
       def answer(repo, session, state)
