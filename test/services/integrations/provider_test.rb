@@ -28,6 +28,7 @@ module Integrations
 
     test "every status word a provider maps is one of Firefight's own" do
       firefight = ResourceMap::Resource::STATUS_HEALTH.keys
+      assert_includes firefight, "stopped", "Firefight's own status words are what providers map onto"
       Provider.all.each do |definition|
         definition.status_words.each_value do |word|
           assert_includes firefight, word, "#{definition.key} maps a status onto #{word}, which is not one of Firefight's words"
