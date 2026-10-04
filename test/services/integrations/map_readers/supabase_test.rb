@@ -14,7 +14,7 @@ module Integrations
       ] }.freeze
 
       test "every project is a database, and each branch is a project of its own linked to it" do
-        snapshot = Supabase.new { |tool, _arguments| answer(tool) }.map
+        snapshot = Supabase.new(settings) { |tool, _arguments| answer(tool) }.map
 
         project, main, feature = snapshot.resources
         assert_equal [ "supabase", "acme", ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst" ], project.key
@@ -41,6 +41,11 @@ module Integrations
       end
 
       private
+
+      def settings
+        integration = Integration.new(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Supabase::PROVIDER)
+        ConnectionSettings.of(integration.integration_environments.build)
+      end
 
       def answer(tool) = { "content" => [ { "type" => "text", "text" => { Supabase::LIST_PROJECTS => PROJECTS, Supabase::LIST_BRANCHES => BRANCHES }.fetch(tool).to_json } ] }
     end

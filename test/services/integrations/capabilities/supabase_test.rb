@@ -75,12 +75,22 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
   end
 
   test "a connection scoped to one project sends no project, and refuses another" do
-    @supabase.update!(settings: { "server_url" => "https://mcp.supabase.com/mcp?project_ref=#{REF}" })
+    @supabase.update!(settings: { "server_url" => "https://mcp.supabase.com/mcp?project_ref=#{REF}", Integration::FIELDS_SETTING => { "project_ref" => REF } })
     @supabase.tools.where(name: %w[query_logs list_migrations]).update_all(params_schema: { "type" => "object", "properties" => { "sql" => {} } })
 
     assert_equal({}, resolve(Capabilities::DEPLOYS, "resource" => "shop").arguments)
-    @supabase.update!(settings: { "server_url" => "https://mcp.supabase.com/mcp?project_ref=zzzzzzzzzzzzzzzzzzzz" })
+    @supabase.update!(settings: { "server_url" => "https://mcp.supabase.com/mcp?project_ref=zzzzzzzzzzzzzzzzzzzz",
+                                  Integration::FIELDS_SETTING => { "project_ref" => "zzzzzzzzzzzzzzzzzzzz" } })
     assert_match "scoped to project zzzzzzzzzzzzzzzzzzzz", unroutable(Capabilities::DEPLOYS, "resource" => "shop")
+  end
+
+  test "the project and the access chosen on the connect form become the server address's query" do
+    entry = IntegrationProvider.find("supabase")
+
+    assert_equal "https://mcp.supabase.com/mcp?project_ref=#{REF}&read_only=true", entry.server_url_for(nil, "project_ref" => REF, "read_only" => "true")
+    assert_equal "https://mcp.supabase.com/mcp?read_only=false", entry.server_url_for(nil, "read_only" => "false")
+    assert_match "Access can only be", entry.connect_fields.find { |field| field.key == "read_only" }.refusal("maybe")
+    assert_equal "Access is required.", entry.connect_fields.find { |field| field.key == "read_only" }.refusal("")
   end
 
   private

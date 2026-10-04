@@ -6,7 +6,7 @@ module Integrations
       REF = "abcdefghijklmnopqrst".freeze
 
       setup do
-        @links = Supabase.new(settings("https://mcp.supabase.com/mcp"))
+        @links = Supabase.new(settings)
       end
 
       test "a result links to its project's dashboard, on the page its answer lives on" do
@@ -21,7 +21,7 @@ module Integrations
       end
 
       test "a connection scoped to one project links to that project" do
-        scoped = Supabase.new(settings("https://mcp.supabase.com/mcp?project_ref=#{REF}&read_only=true"))
+        scoped = Supabase.new(settings("project_ref" => REF, "read_only" => "true"))
 
         assert_equal "https://supabase.com/dashboard/project/#{REF}/database/migrations", scoped.link(tool_name: "list_migrations", arguments: {}).url
       end
@@ -33,9 +33,9 @@ module Integrations
 
       private
 
-      def settings(server_url)
+      def settings(fields = {})
         integration = Integration.new(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Supabase::PROVIDER,
-                                      settings: { "server_url" => server_url })
+                                      settings: { "server_url" => "https://mcp.supabase.com/mcp", Integration::FIELDS_SETTING => fields })
         ConnectionSettings.of(integration.integration_environments.build)
       end
 

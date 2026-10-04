@@ -8,15 +8,16 @@ module Integrations
       NAME = MapReaders::Neon::NAME
       ID = /\A[a-z0-9-]{1,60}\z/
 
-      def initialize(_settings)
+      def initialize(settings)
+        @site = settings.site
       end
 
       def link(tool_name:, arguments:, text: "")
         asked = arguments.to_h.stringify_keys
         project, branch = asked.values_at("project_id", "branch_id").map { |value| value.to_s[ID] }
-        return unless project
+        return unless project && @site
 
-        url = branch ? MapReaders::Neon.branch_page(project, branch) : MapReaders::Neon.project_page(project)
+        url = branch ? MapReaders::Neon.branch_page(@site, project, branch) : MapReaders::Neon.project_page(@site, project)
         Telemetry::Link.new(provider: NAME, url: url)
       end
     end

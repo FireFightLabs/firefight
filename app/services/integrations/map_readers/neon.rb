@@ -8,7 +8,6 @@ module Integrations
     class Neon < RemoteReader
       PROVIDER = "neon".freeze
       NAME = "Neon".freeze
-      CONSOLE = "https://console.neon.tech".freeze
       LIST_ORGANIZATIONS = "list_organizations".freeze
       LIST_PROJECTS = "list_projects".freeze
       LIST_BRANCHES = "list_branches".freeze
@@ -20,9 +19,10 @@ module Integrations
       # Each branch's databases are one call, so a project with many preview branches is read for its busiest first.
       DATABASE_READS = 25
 
-      def self.project_page(project_id) = "#{CONSOLE}/app/projects/#{project_id}"
+      # A page under the console, the registry's site for Neon.
+      def self.project_page(site, project_id) = "#{site}/app/projects/#{project_id}"
 
-      def self.branch_page(project_id, branch_id) = "#{project_page(project_id)}/branches/#{branch_id}"
+      def self.branch_page(site, project_id, branch_id) = "#{project_page(site, project_id)}/branches/#{branch_id}"
 
       def initialize(...)
         super
@@ -58,7 +58,7 @@ module Integrations
         account = project["org_name"].presence || organization&.dig("name").presence || project["org_id"].presence || project["owner_id"].to_s
         database = ResourceMap::Found.new(
           provider: PROVIDER, account: account, kind: ResourceMap::KIND_DATABASE, external_id: id, name: project["name"].presence || id,
-          url: self.class.project_page(id),
+          url: self.class.project_page(settings&.site, id),
           details: { "engine" => ("Postgres #{project['pg_version']}" if project["pg_version"]), "region" => project["region_id"] }.compact
         )
         @resources << database
@@ -75,7 +75,7 @@ module Integrations
       def branch(database, account, branch)
         branch_found = ResourceMap::Found.new(
           provider: PROVIDER, account: account, kind: ResourceMap::KIND_BRANCH, external_id: "#{database.external_id}/#{branch['id']}",
-          name: "#{database.name}/#{branch['name']}", status: branch["current_state"], url: self.class.branch_page(database.external_id, branch["id"]),
+          name: "#{database.name}/#{branch['name']}", status: branch["current_state"], url: self.class.branch_page(settings&.site, database.external_id, branch["id"]),
           details: { ResourceMap::PRODUCTION => branch["default"], "protected" => branch["protected"], "logical_size" => branch["logical_size"] }.compact
         )
         @resources << branch_found
@@ -91,7 +91,7 @@ module Integrations
           compute = ResourceMap::Found.new(
             provider: PROVIDER, account: account, kind: ResourceMap::KIND_COMPUTE, external_id: "#{database.external_id}/#{endpoint['id']}",
             name: endpoint["name"].presence || endpoint["id"], status: (endpoint["disabled"] ? "disabled" : endpoint["current_state"]),
-            url: branch&.url || self.class.project_page(database.external_id),
+            url: branch&.url || database.url,
             details: {
               "type" => endpoint["type"], "branch" => branch&.name&.delete_prefix("#{database.name}/"), "host" => endpoint["host"],
               "autoscaling" => ("#{endpoint['autoscaling_limit_min_cu']} to #{endpoint['autoscaling_limit_max_cu']} CU" if endpoint["autoscaling_limit_max_cu"])

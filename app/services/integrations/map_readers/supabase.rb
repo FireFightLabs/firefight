@@ -8,11 +8,11 @@ module Integrations
     class Supabase < RemoteReader
       PROVIDER = "supabase".freeze
       NAME = "Supabase".freeze
-      DASHBOARD = "https://supabase.com/dashboard/project".freeze
       LIST_PROJECTS = "list_projects".freeze
       LIST_BRANCHES = "list_branches".freeze
 
-      def self.page(ref, path = nil) = [ "#{DASHBOARD}/#{ref}", path ].compact.join("/")
+      # A project's page under the dashboard, the registry's site for Supabase.
+      def self.page(site, ref, path = nil) = [ "#{site}/project/#{ref}", path ].compact.join("/")
 
       def initialize(...)
         super
@@ -34,7 +34,7 @@ module Integrations
         account = project["organization_slug"].presence || project["organization_id"].to_s
         database = ResourceMap::Found.new(
           provider: PROVIDER, account: account, kind: ResourceMap::KIND_DATABASE, external_id: ref, name: project["name"].presence || ref,
-          status: project["status"], url: self.class.page(ref),
+          status: project["status"], url: self.class.page(settings&.site, ref),
           details: { "engine" => ("Postgres #{project.dig('database', 'version')}" if project.dig("database", "version")), "region" => project["region"] }.compact
         )
         @resources << database
@@ -44,7 +44,7 @@ module Integrations
           branch_ref = branch["project_ref"].presence || ref
           found = ResourceMap::Found.new(
             provider: PROVIDER, account: account, kind: ResourceMap::KIND_BRANCH, external_id: branch_ref, name: "#{database.name}/#{branch['name']}",
-            status: branch["status"], url: self.class.page(branch_ref),
+            status: branch["status"], url: self.class.page(settings&.site, branch_ref),
             details: { ResourceMap::PRODUCTION => branch["is_default"], "branch" => branch["git_branch"], "persistent" => branch["persistent"] }.compact
           )
           @resources << found

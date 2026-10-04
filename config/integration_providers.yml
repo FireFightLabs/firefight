@@ -182,6 +182,7 @@ providers:
     color: "#00e599"
     description: Read-only queries and branch history for a Neon Postgres database.
     server_url: https://mcp.neon.tech/mcp
+    site: https://console.neon.tech
     source_links: firefight
     map: firefight
   - key: supabase
@@ -191,6 +192,21 @@ providers:
     color: "#3ecf8e"
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
+    site: https://supabase.com/dashboard
+    connect_fields:
+      - key: project_ref
+        label: Project
+        hint: Leave empty to reach every project the account can see, or give one project's ref, found under Project Settings, to keep the connection to that project.
+        placeholder: abcdefghijklmnopqrst
+        query: project_ref
+        optional: true
+      - key: read_only
+        label: Access
+        hint: Read only leaves out every tool that changes the database or the project. Supabase gives read and write when none is chosen, so choose one.
+        query: read_only
+        options:
+          - { value: "true", label: Read only }
+          - { value: "false", label: Read and write }
     source_links: firefight
     map: firefight
   - key: planetscale

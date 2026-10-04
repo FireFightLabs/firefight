@@ -16,7 +16,7 @@ module Integrations
       DATABASES = [ { "id" => 1, "name" => "neondb", "owner_name" => "neondb_owner" } ].freeze
 
       test "every project is a database, with its branches, the computes serving them and the databases on each" do
-        snapshot = Neon.new { |tool, _arguments| answer(tool) }.map
+        snapshot = Neon.new(settings) { |tool, _arguments| answer(tool) }.map
 
         project, main, preview, compute = snapshot.resources
         assert_equal [ "neon", "Acme", ResourceMap::KIND_DATABASE, "shop-123" ], project.key
@@ -72,6 +72,11 @@ module Integrations
       end
 
       private
+
+      def settings
+        integration = Integration.new(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Neon::PROVIDER)
+        ConnectionSettings.of(integration.integration_environments.build)
+      end
 
       def answer(tool)
         result({ Neon::LIST_ORGANIZATIONS => ORGANIZATIONS, Neon::LIST_PROJECTS => PROJECTS, Neon::LIST_BRANCHES => BRANCHES,

@@ -5,7 +5,7 @@ module Integrations
     # so both are asked by their project ref. Logs come from query_logs, which runs SQL over Supabase's unified log stream
     # and which the hosted server offers in place of get_logs. Firefight writes that SQL with the columns get_logs reads
     # in src/logs.ts, every value a quoted literal. Deploys are the migrations applied, and status is the project as
-    # Supabase's API answers it. A connection scoped to one project, by project_ref on its address, takes no project_id,
+    # Supabase's API answers it. A connection scoped to one project by its project_ref connect field takes no project_id,
     # so project_id goes only to a tool that asks for it.
     module Supabase
       extend Adapter
@@ -40,7 +40,7 @@ module Integrations
 
       def self.route(key, resource, given, tool:, settings: nil)
         ref = resource.external_id
-        scoped!(resource, tool, settings)
+        scoped!(resource, settings)
         case key
         when LOGS then logs(resource, ref, given, tool)
         when DEPLOYS
@@ -53,16 +53,15 @@ module Integrations
       end
 
       # A connection scoped to one project reads only that one, whatever is asked, so another project is refused.
-      def self.scoped!(resource, tool, settings)
-        return unless tool && settings && !takes_project?(tool)
-
-        scoped = Rack::Utils.parse_query(URI.parse(settings.server_url.to_s).query.to_s)[SCOPED_TO]
+      def self.scoped!(resource, settings)
+        scoped = settings&.field(SCOPED_TO)
         return if scoped.blank? || scoped == resource.external_id
 
         raise Unroutable, "This Supabase connection is scoped to project #{scoped}, so it cannot read #{resource.name}. Connect Supabase for that project too."
-      rescue URI::InvalidURIError
-        nil
       end
+
+      # A page of the project under its dashboard address, which the map read.
+      def self.page(resource, path) = resource.url.present? ? "#{resource.url}/#{path}" : nil
 
       def self.takes_project?(tool) = Answers.properties(tool).to_h.key?(PROJECT_ID)
 
@@ -112,14 +111,14 @@ module Integrations
           text = [ row["error_severity"], row["method"], row["path"], row["status_code"], row["event_message"] ].compact_blank.join(" ")
           Telemetry::LogLine.new(at: at, source: resource.name, text: text) if at && text.present?
         end.sort_by(&:at).reverse
-        link = Telemetry::Link.new(provider: PROVIDER, url: MapReaders::Supabase.page(resource.external_id, PAGES.fetch(source)))
+        link = Telemetry::Link.new(provider: PROVIDER, url: page(resource, PAGES.fetch(source)))
         what = source == "edge_logs" ? "API requests to" : "Postgres logs of"
         Telemetry.result(Telemetry.logs_text(lines, asked: "#{what} #{resource.name}", limit: limit), link: link)
       end
 
       def self.deploys_result(resource, data, given)
         migrations = Array(data.is_a?(Hash) ? data["migrations"] : data).sort_by { |migration| migration["version"].to_s }.reverse
-        link = Telemetry::Link.new(provider: PROVIDER, url: MapReaders::Supabase.page(resource.external_id, MIGRATIONS_PAGE))
+        link = Telemetry::Link.new(provider: PROVIDER, url: page(resource, MIGRATIONS_PAGE))
         return Telemetry.result("No migrations have been applied to #{resource.name}.", link: link) if migrations.empty?
 
         shown = migrations.first(Answers.limit(given, DEPLOY_MOST, default: DEPLOY_LIMIT)).map do |migration|
@@ -151,7 +150,7 @@ module Integrations
         Time.zone.at(seconds).utc
       end
 
-      private_class_method :scoped!, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result, :time_of
+      private_class_method :scoped!, :page, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result, :time_of
     end
   end
 end
