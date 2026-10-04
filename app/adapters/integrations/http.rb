@@ -4,6 +4,9 @@ module Integrations
   module Http
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
+    # What a redirect to stored content keeps by default, the tail of a log where it says why something failed.
+    DOWNLOAD_LIMIT = 2_000_000
+    REDIRECTS = [ 301, 302, 303, 307, 308 ].freeze
     # The fields providers most often put their reason in, tried in order when a client says nothing of its own. Each may
     # hold the words, an object with a message or detail, or a list of either. OAuth's error_description is the readable
     # one (RFC 6749, section 5.2), and its error only a code, so the description comes first.
@@ -43,11 +46,20 @@ module Integrations
     # 429, the class refine names for the code and reason, or error_class. reason reads the provider's own words from
     # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited. with_status answers an Answer
     # holding the status, the body and the headers. as: :text answers a 2xx body as the text it is, for an endpoint that
-    # answers text such as a log, with errors read the same way.
+    # answers text such as a log, with errors read the same way. redirect: :download follows a redirect the provider
+    # documents to stored content through download (https only, a public address, no credentials), for provider_key,
+    # keeping its last download_limit bytes as text.
     def self.json(uri, request, error_class:, provider_name:, reason: REASON, refine: nil, rate_limited: nil, read_timeout: 30, with_status: false,
-                  as: :json, **)
+                  as: :json, redirect: nil, provider_key: nil, download_limit: DOWNLOAD_LIMIT, **)
+      raise ArgumentError, "following a redirect to download needs the provider_key its address is checked for" if redirect == :download && provider_key.blank?
+
       response = self.request(uri, request, error_class: error_class, read_timeout: read_timeout, **)
       code = response.code.to_i
+      if redirect == :download && REDIRECTS.include?(code)
+        stored = download(URI.join(uri.to_s, response["location"].to_s).to_s, provider_key: provider_key, error_class: error_class, limit: download_limit)
+        return with_status ? Answer.new(status: code, body: stored, headers: headers_of(response)) : stored
+      end
+
       body = parsed(response.body)
       if code.between?(200, 299)
         kept = as == :text ? String.new(response.body.to_s, encoding: Encoding::UTF_8).scrub : body || {}

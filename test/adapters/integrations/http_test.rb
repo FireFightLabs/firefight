@@ -60,6 +60,23 @@ module Integrations
       assert_equal "Acme answered 404: 404 Job Not Found", assert_raises(AcmeError) { json(as: :text) }.message
     end
 
+    test "a documented redirect to stored content is followed through download, without the provider's credentials" do
+      redirected = response(302, "", headers: { "location" => [ "https://logs.acme.example/step/1?sig=x" ] })
+      redirected.stubs(:[]).with("location").returns("https://logs.acme.example/step/1?sig=x")
+      Http.stubs(:request).returns(redirected)
+      Http.expects(:download).with("https://logs.acme.example/step/1?sig=x", provider_key: "acme", error_class: AcmeError, limit: 20).returns("build failed here")
+
+      assert_equal "build failed here", json(redirect: :download, provider_key: "acme", download_limit: 20)
+    end
+
+    test "without being asked, a redirect is not followed and reads as an answer that is not JSON" do
+      redirected = response(302, "")
+      Http.stubs(:request).returns(redirected)
+      Http.expects(:download).never
+
+      assert_equal "Acme answered 302 with something that is not JSON", assert_raises(AcmeError) { json }.message
+    end
+
     test "a 429 is the client's own error, marked rate limited, so either rescue catches it" do
       Http.stubs(:request).returns(response(429, '{"error":{"message":"slow down"}}'))
 
