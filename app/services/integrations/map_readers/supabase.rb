@@ -18,20 +18,25 @@ module Integrations
         super
         @resources = []
         @links = []
-        @gaps = []
       end
 
       def map
-        projects = read(LIST_PROJECTS, "projects", {})
-        Array(projects&.dig("projects")).each { |project| project(project) }
-        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: @gaps.uniq)
+        scoped = settings&.field(Capabilities::Supabase::SCOPED_TO)
+        if scoped
+          # A connection scoped to one project has no account tools, so the project is known only by its ref.
+          project({ "ref" => scoped })
+          gaps << "This connection is scoped to project #{scoped}, and Supabase gives such a connection no project details, so it is named by its ref."
+        else
+          Array(listing(LIST_PROJECTS, "projects")&.dig("projects")).each { |project| project(project) }
+        end
+        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps.uniq)
       end
 
       private
 
       def project(project)
         ref = project["ref"].presence || project["id"]
-        account = project["organization_slug"].presence || project["organization_id"].to_s
+        account = project["organization_slug"].presence || project["organization_id"].presence || ref
         database = ResourceMap::Found.new(
           provider: PROVIDER, account: account, kind: ResourceMap::KIND_DATABASE, external_id: ref, name: project["name"].presence || ref,
           status: project["status"], url: self.class.page(settings&.site, ref),
@@ -39,8 +44,10 @@ module Integrations
         )
         @resources << database
 
-        branches = read(LIST_BRANCHES, "branches of #{database.name}", { "project_id" => ref })
-        Array(branches&.dig("branches")).each do |branch|
+        # A scoped connection's tools take no project, as the server fills it in.
+        arguments = parameters(LIST_BRANCHES).empty? || parameters(LIST_BRANCHES).key?("project_id") ? { "project_id" => ref } : {}
+        branches = listing(LIST_BRANCHES, "branches of #{database.name}", arguments)
+        Array(branches.is_a?(Hash) ? branches["branches"] : nil).each do |branch|
           branch_ref = branch["project_ref"].presence || ref
           found = ResourceMap::Found.new(
             provider: PROVIDER, account: account, kind: ResourceMap::KIND_BRANCH, external_id: branch_ref, name: "#{database.name}/#{branch['name']}",
@@ -50,24 +57,6 @@ module Integrations
           @resources << found
           @links << ResourceMap::FoundLink.new(from: found.key, to: database.key, relation: ResourceMap::RELATION_BRANCH_OF)
         end
-      end
-
-      # A connection scoped to one project offers no list_projects, so it is said rather than taken as an empty account.
-      def read(tool, what, arguments)
-        result = call(tool, arguments)
-        if result.nil?
-          @gaps << "#{tool} is switched off for #{NAME}, or the connection is scoped to one project, so the #{what} are not on the map."
-          return
-        end
-
-        text = Array(result["content"]).filter_map { |part| part["text"] }.join
-        return JSON.parse(text) unless result["isError"]
-
-        @gaps << "#{NAME} refused to list the #{what}: #{text.truncate(200)}"
-        nil
-      rescue JSON::ParserError
-        @gaps << "#{NAME} answered the #{what} with something that is not JSON."
-        nil
       end
     end
   end

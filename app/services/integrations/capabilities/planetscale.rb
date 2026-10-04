@@ -68,12 +68,10 @@ module Integrations
       # Minutes alone go as the tool's period, such as 30m, so the same request reads the same each time. A start or end
       # goes as from and to, which the tool takes together.
       def self.window(given)
-        if given["start"].blank? && given["end"].blank?
-          minutes = given["minutes"].to_i.positive? ? [ given["minutes"].to_i, MAX_MINUTES ].min : DEFAULT_MINUTES
-          return { "period" => "#{minutes}m" }
-        end
+        minutes = Answers.minutes(given)
+        return { "period" => "#{minutes}m" } if minutes
 
-        started, ended = Telemetry.range(given, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Answers.range(given)
         { "from" => started.utc.iso8601, "to" => ended.utc.iso8601 }
       end
 

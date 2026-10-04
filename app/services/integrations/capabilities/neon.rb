@@ -25,6 +25,9 @@ module Integrations
       DEPLOY_LIMIT = 20
       DEPLOY_MOST = 100
 
+      # A restart here is of a compute, which Neon suspends and starts again.
+      def self.phrase(key) = key == RESTART ? "restart a compute" : PHRASES.fetch(key)
+
       def self.route(key, resource, given, tool: nil, settings: nil)
         project, id = ids_of(resource)
         case key
@@ -72,12 +75,10 @@ module Integrations
       # Minutes alone go as Neon's relative window, such as since 30m, so the same request reads the same each time. A start or
       # end goes as ISO 8601 in UTC, which is the only form query_logs takes.
       def self.window(given)
-        if given["start"].blank? && given["end"].blank?
-          minutes = given["minutes"].to_i.positive? ? [ given["minutes"].to_i, MAX_MINUTES ].min : DEFAULT_MINUTES
-          return { "since" => "#{minutes}m" }
-        end
+        minutes = Answers.minutes(given)
+        return { "since" => "#{minutes}m" } if minutes
 
-        started, ended = Telemetry.range(given, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Answers.range(given)
         { "start_time" => started.utc.iso8601, "end_time" => ended.utc.iso8601 }
       end
 

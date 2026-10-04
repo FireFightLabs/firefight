@@ -31,7 +31,7 @@ module Integrations
 
       test "a list switched off, or one Supabase refuses, is a gap in the map" do
         off = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? nil : answer(tool) }.map
-        assert_equal [ "list_projects is switched off for Supabase, or the connection is scoped to one project, so the projects are not on the map." ], off.gaps
+        assert_equal [ "list_projects is switched off for Supabase, so the projects are not on the map." ], off.gaps
 
         refused = Supabase.new do |tool, _arguments|
           tool == Supabase::LIST_BRANCHES ? { "isError" => true, "content" => [ { "type" => "text", "text" => "Failed to list branches" } ] } : answer(tool)
@@ -40,10 +40,25 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE ], refused.resources.map(&:kind)
       end
 
+      test "a connection scoped to one project puts that project on the map by its ref, with its branches" do
+        asked = []
+        snapshot = Supabase.new(settings("project_ref" => "abcdefghijklmnopqrst")) do |tool, arguments|
+          asked << [ tool, arguments ]
+          answer(tool)
+        end.map
+
+        project, *branches = snapshot.resources
+        assert_equal [ ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst", "abcdefghijklmnopqrst" ], [ project.kind, project.external_id, project.name ]
+        assert_equal 2, branches.size
+        assert_equal [ Supabase::LIST_BRANCHES ], asked.map(&:first)
+        assert_match "scoped to project abcdefghijklmnopqrst", snapshot.gaps.sole
+      end
+
       private
 
-      def settings
-        integration = Integration.new(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Supabase::PROVIDER)
+      def settings(fields = {})
+        integration = Integration.new(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: Supabase::PROVIDER,
+                                      settings: { Integration::FIELDS_SETTING => fields })
         ConnectionSettings.of(integration.integration_environments.build)
       end
 

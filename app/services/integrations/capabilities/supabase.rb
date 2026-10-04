@@ -85,7 +85,7 @@ module Integrations
 
       # The window Supabase reads, which it caps at a day, so a longer one is said rather than cut short unseen.
       def self.window(given)
-        started, ended = Telemetry.range(given, default_minutes: DEFAULT_MINUTES, max_minutes: MAX_MINUTES)
+        started, ended = Answers.range(given)
         if ended - started > WINDOW_MINUTES.minutes
           raise Unroutable, "Supabase reads at most a day of logs a call. Ask for #{WINDOW_MINUTES} minutes or fewer, or a start and end within a day."
         end
@@ -107,7 +107,7 @@ module Integrations
 
         rows = Array(inner.is_a?(Hash) ? inner["result"] : inner)
         lines = rows.filter_map do |row|
-          at = time_of(row["timestamp"])
+          at = Answers.time_of(row["timestamp"])
           text = [ row["error_severity"], row["method"], row["path"], row["status_code"], row["event_message"] ].compact_blank.join(" ")
           Telemetry::LogLine.new(at: at, source: resource.name, text: text) if at && text.present?
         end.sort_by(&:at).reverse
@@ -139,18 +139,7 @@ module Integrations
         Telemetry.result("How #{resource.name} stands on Supabase now: #{facts.compact.join(', ')}.", link: Answers.page(resource, PROVIDER))
       end
 
-      # ClickHouse answers a time as text, and Supabase's other log store as microseconds since the epoch.
-      def self.time_of(value)
-        return Telemetry.parse_time(value) unless value.is_a?(Numeric)
-
-        seconds = if value > 1e14 then value / 1_000_000.0
-        elsif value > 1e11 then value / 1000.0
-        else value
-        end
-        Time.zone.at(seconds).utc
-      end
-
-      private_class_method :scoped!, :page, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result, :time_of
+      private_class_method :scoped!, :page, :takes_project?, :project, :logs, :window, :literal, :logs_result, :deploys_result, :status_result
     end
   end
 end

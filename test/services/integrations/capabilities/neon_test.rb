@@ -85,7 +85,7 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
   end
 
   test "Halon says what it can do through Neon" do
-    assert_equal "Halon can read its logs, see what was deployed, check how a resource stands, and restart a service for anything Neon runs, " \
+    assert_equal "Halon can read its logs, see what was deployed, check how a resource stands, and restart a compute for anything Neon runs, " \
                  "through the tools you switch on. It also uses Neon's other tools that you switch on.", Capabilities.halon_sentence("neon", "Neon")
   end
 

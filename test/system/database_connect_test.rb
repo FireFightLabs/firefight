@@ -24,8 +24,8 @@ class DatabaseConnectTest < ApplicationSystemTestCase
 
     within("[role=dialog]") do
       assert_field "Project"
-      assert_text "Read only leaves out every tool that changes the database or the project."
-      assert_selector "#connect-read_only", text: "Read only"
+      assert_text "Read-only leaves out every tool that changes the database or the project."
+      assert_selector "#connect-read_only", text: "Read-only"
       fill_in "Project", with: "abcdefghijklmnopqrst"
       assert_includes find_link("Continue with Supabase")[:href], "abcdefghijklmnopqrst"
     end
