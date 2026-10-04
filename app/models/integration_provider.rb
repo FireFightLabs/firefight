@@ -72,7 +72,8 @@ class IntegrationProvider
       pattern, allowed = SLUG_PATTERN, SLUG_ALLOWED if path && pattern.blank? && options.empty?
       default = default&.to_s
       optional ||= default.present?
-      placeholder = default if placeholder.blank? && default.present?
+      # A field that picks from a list shows its default by the option's label, any other by the value itself.
+      placeholder = options.find { |option| option.value == default }&.label || default if placeholder.blank? && default.present?
       super(placeholder:, numeric:, optional:, path:, query: query.presence, pattern:, allowed:, options:, multiple:, default:,
             learned: learned.presence, **)
     end
@@ -104,6 +105,9 @@ class IntegrationProvider
 
       "#{label} can hold only #{allowed}." if pattern && !value.match?(/\A(?:#{pattern})\z/)
     end
+
+    # The value as given, or the field's default when it was left empty, as settings.field reads it.
+    def value_or_default(given) = value_of(given).presence || default.to_s
 
     # How a value reads to a person, by its options' labels where it has them.
     def shown(value, choices: options) = Array(value).map { |each| choices.find { |option| option.value == each }&.label || each }.join(", ")
@@ -174,14 +178,18 @@ class IntegrationProvider
 
     # The server's address for a region and the fields that are part of it. Path fields are appended in the order they
     # are listed, and an optional one left empty ends the path there, so a later one never takes its place. Query fields
-    # join the address's own query, and one left empty is left out. Each value is escaped as well as checked, so it can
+    # join the address's own query, and one left empty is left out. A field left empty with a default takes its default,
+    # so the address matches what ConnectionSettings#field answers. Each value is escaped as well as checked, so it can
     # only ever be one segment or one parameter of the address.
     def server_url_for(region_key, values)
       given = values.to_h.stringify_keys
       uri = URI.parse((region(region_key)&.server_url || server_url).to_s)
-      parts = connect_fields.select(&:path).map { |field| field.value_of(given[field.key]) }.take_while(&:present?)
+      parts = connect_fields.select(&:path).map { |field| field.value_or_default(given[field.key]) }.take_while(&:present?)
       uri.path = [ uri.path.chomp("/"), *parts.map { |part| ERB::Util.url_encode(part) } ].join("/") if parts.any?
-      query = connect_fields.select(&:query).filter_map { |field| [ field.query, field.value_of(given[field.key]) ] if field.value_of(given[field.key]).present? }
+      query = connect_fields.select(&:query).filter_map do |field|
+        value = field.value_or_default(given[field.key])
+        [ field.query, value ] if value.present?
+      end
       uri.query = URI.encode_www_form(URI.decode_www_form(uri.query.to_s) + query) if query.any?
       uri.to_s
     end

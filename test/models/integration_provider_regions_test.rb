@@ -91,6 +91,17 @@ class IntegrationProviderRegionsTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) { IntegrationProvider::ConnectField.new(key: "x", label: "X", hint: "X.", query: "x", path: true) }
   end
 
+  test "a part of the address left empty takes its field's default, and a default from a list shows by its label" do
+    read_only = IntegrationProvider::ConnectField.new(key: "read_only", label: "Access", hint: "What it may do.", query: "read_only", default: "true",
+                                                      options: [ { "value" => "true", "label" => "Read only" }, { "value" => "false", "label" => "Read and write" } ])
+    entry = acme(IntegrationProvider::ConnectField.new(key: "org", label: "Organization", hint: "Its slug.", path: true, default: "main"), read_only)
+
+    assert_equal "https://mcp.acme.example/mcp/main?features=db&read_only=true", entry.server_url_for(nil, {})
+    assert_equal "https://mcp.acme.example/mcp/acme?features=db&read_only=false", entry.server_url_for(nil, "org" => "acme", "read_only" => "false")
+    assert_equal "Read only", read_only.placeholder
+    assert_nil read_only.refusal("")
+  end
+
   test "a field chosen after connecting takes its choices from what the connection learned, and the connect form never asks it" do
     logs = IntegrationProvider::ConnectField.new(key: "logs_source", label: "Logs datasource", hint: "Where logs are.", learned: "loki")
     entry = acme(logs)
