@@ -9,7 +9,7 @@ module Integrations
 
       WATCHED = Adapter::APP_KINDS
       SUPPORTS = {}.freeze
-      OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED, ERRORS => WATCHED }.freeze
+      OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED, ERRORS => Adapter::ERROR_KINDS }.freeze
       TOOLS = { LOGS => "search_datadog_logs", METRICS => "get_datadog_metric", TRACES => "search_datadog_spans",
                 ERRORS => "search_datadog_error_tracking_issues" }.freeze
       # The container metrics Datadog documents under every service it tags (its Docker and containerd integrations).

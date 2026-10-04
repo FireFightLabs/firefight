@@ -151,6 +151,14 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web").environment_row
   end
 
+  test "Datadog answers errors for a site too, since a frontend's errors come from the site that serves it" do
+    datadog = Integrations::Capabilities::Datadog
+
+    assert datadog.observes?(Integrations::Capabilities::ERRORS, ResourceMap::KIND_SITE)
+    assert_not datadog.observes?(Integrations::Capabilities::LOGS, ResourceMap::KIND_SITE)
+    assert_equal [ *Integrations::Capabilities::Adapter::APP_KINDS, ResourceMap::KIND_SITE ], Integrations::Capabilities::Adapter::ERROR_KINDS
+  end
+
   private
 
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)

@@ -13,6 +13,8 @@ module Integrations
       # What an observability tool usually watches. APP_KINDS are what runs a team's code, ENDPOINT_KINDS what answers
       # at an address, which an uptime check reaches.
       APP_KINDS = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB ].freeze
+      # What an error tracker watches for errors, sites as well, since a frontend's errors come from the site that serves it.
+      ERROR_KINDS = [ *APP_KINDS, ResourceMap::KIND_SITE ].freeze
       ENDPOINT_KINDS = [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ].freeze
 
       def supports?(key, kind) = self::SUPPORTS.fetch(key, []).include?(kind)
