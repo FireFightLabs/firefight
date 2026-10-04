@@ -54,3 +54,54 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# Honeycomb's agent skill is MIT. Its documentation has no open license, so what the Honeycomb skills take from it is in
+# our own words.
+honeycomb:
+  repository: https://github.com/honeycombio/agent-skill
+  license: LICENSE
+  paths:
+    honeycomb/skills/production-investigation: investigation
+    honeycomb/skills/production-investigation/references: investigation
+    honeycomb/skills/query-patterns: queries
+    honeycomb/skills/query-patterns/references: queries
+    honeycomb/skills/slos-and-triggers: slos
+    honeycomb/skills/slos-and-triggers/references: slos
+
+# Axiom's agent skills are MIT. Only the guides to APL, Axiom and investigating with them are copied, and the ones about
+# other tools, Slack and the skill's own scripts and memory are left out.
+axiom:
+  repository: https://github.com/axiomhq/skills
+  license: LICENSE
+  paths:
+    skills/sre/reference: sre
+  exclude:
+    - skills/sre/reference/api-capabilities.md
+    - skills/sre/reference/api-methods.md
+    - skills/sre/reference/blocks.md
+    - skills/sre/reference/grafana.md
+    - skills/sre/reference/memory-system.md
+    - skills/sre/reference/postmortem-template.md
+    - skills/sre/reference/pyroscope.md
+    - skills/sre/reference/sentry.md
+    - skills/sre/reference/slack-api.md
+    - skills/sre/reference/slack.md
+
+# Pydantic's Logfire skills are MIT. Only the guide to querying is copied, since the others set up instrumentation or
+# drive a browser.
+logfire:
+  repository: https://github.com/pydantic/skills
+  license: LICENSE
+  paths:
+    plugins/logfire/skills/logfire-query: query
+    plugins/logfire/skills/logfire-query/references: query
+
+# SigNoz's agent skills are MIT. Its documentation is CC BY-NC-ND, which a product cannot copy, so what the SigNoz skills
+# take from it is in our own words.
+signoz:
+  repository: https://github.com/SigNoz/agent-skills
+  license: LICENSE
+  paths:
+    plugins/signoz/skills/signoz-generating-queries: queries
+    plugins/signoz/skills/signoz-investigating-alerts: alerts
+    plugins/signoz/skills/signoz-investigating-alerts/references: alerts

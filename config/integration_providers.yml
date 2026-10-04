@@ -144,6 +144,124 @@ providers:
     source_links: unchecked
     map: none
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
+  - key: honeycomb
+    name: Honeycomb
+    category: Observability
+    mark: HC
+    color: "#f2a31b"
+    description: Query traces, errors, SLOs and triggers of the services Honeycomb watches.
+    # Honeycomb's US and EU MCP servers and their apps (docs.honeycomb.io/integrations/mcp/configuration-guide).
+    regions:
+      - { key: us, label: US (ui.honeycomb.io), server_url: "https://mcp.honeycomb.io/mcp", site: "https://ui.honeycomb.io" }
+      - { key: eu, label: EU (ui.eu1.honeycomb.io), server_url: "https://mcp.eu1.honeycomb.io/mcp", site: "https://ui.eu1.honeycomb.io" }
+    source_links: server
+    source_links_note: "Its query results carry a link to the same query in Honeycomb."
+    map: none
+    map_note: "It watches what runs elsewhere and runs nothing of its own."
+    connect_fields:
+      - key: environment_slug
+        label: Environment
+        hint: The slug of the Honeycomb environment this connection reads, as Honeycomb's address shows it after /environments/.
+        placeholder: production
+  - key: axiom
+    name: Axiom
+    category: Observability
+    mark: AX
+    color: "#16161d"
+    description: Query the logs and traces your apps send to Axiom, and its monitors.
+    # Axiom documents one hosted MCP server, in the US (axiomhq/docs, console/intelligence/mcp-server.mdx), and its app
+    # is where its own skill opens queries (axiomhq/skills, skills/sre/scripts/axiom-link).
+    server_url: https://mcp.axiom.co/mcp
+    site: https://app.axiom.co
+    source_links: firefight
+    map: none
+    map_note: "It holds what apps send it and runs nothing of its own."
+    connect_fields:
+      - key: org_id
+        label: Organization ID
+        hint: Your Axiom organization's id, the part of Axiom's address after app.axiom.co/. Links from results open there.
+        placeholder: acme-x1y2
+      - key: logs_dataset
+        label: Logs dataset
+        hint: The Axiom dataset your apps send their logs to.
+        placeholder: logs
+        # Axiom's dataset names (axiomhq/docs, reference/datasets.mdx).
+        pattern: "[A-Za-z0-9-]{1,128}"
+        allowed: letters, numbers and dashes, at most 128 characters
+      - key: traces_dataset
+        label: Traces dataset
+        hint: The Axiom dataset your apps send OpenTelemetry traces to. Leave it empty if they send none.
+        placeholder: otel-traces
+        optional: true
+        pattern: "[A-Za-z0-9-]{1,128}"
+        allowed: letters, numbers and dashes, at most 128 characters
+  - key: betterstack
+    name: Better Stack
+    category: Observability
+    mark: BS
+    color: "#4f46e5"
+    description: Read uptime monitors, incidents, logs and errors in Better Stack.
+    server_url: https://mcp.betterstack.com
+    source_links: server
+    source_links_note: "Its incidents, errors and dashboards carry their own page in Better Stack."
+    map: none
+    map_note: "It watches what runs elsewhere and runs nothing of its own."
+  - key: logfire
+    name: Logfire
+    category: Observability
+    mark: LF
+    color: "#e520e9"
+    description: Query the logs, traces, exceptions and metrics your apps send to Pydantic Logfire.
+    # Logfire's US and EU regions, each its own MCP server and app (pydantic/logfire, docs/how-to-guides/mcp-server.md).
+    regions:
+      - { key: us, label: US (logfire-us.pydantic.dev), server_url: "https://logfire-us.pydantic.dev/mcp", site: "https://logfire-us.pydantic.dev" }
+      - { key: eu, label: EU (logfire-eu.pydantic.dev), server_url: "https://logfire-eu.pydantic.dev/mcp", site: "https://logfire-eu.pydantic.dev" }
+    source_links: firefight
+    map: none
+    map_note: "It holds what apps send it and runs nothing of its own."
+  - key: openstatus
+    name: OpenStatus
+    category: Observability
+    mark: OS
+    color: "#18181b"
+    description: Check how the addresses OpenStatus monitors stand, region by region, and read its status reports.
+    # One MCP server (openstatusHQ/openstatus, apps/server/src/routes/mcp) and one dashboard, which its own notifications
+    # link to (packages/notifications/base/src/utils/message.ts).
+    server_url: https://api.openstatus.dev/mcp
+    site: https://app.openstatus.dev
+    source_links: firefight
+    map: none
+    map_note: "It checks addresses from outside and runs nothing of its own."
+  - key: honeybadger
+    name: Honeybadger
+    category: Observability
+    mark: HB
+    color: "#ea5937"
+    description: Read the errors and uptime checks of the projects Honeybadger watches.
+    # Honeybadger's US and EU hosted MCP servers and apps (honeybadger-io/honeybadger-mcp-server, README.md).
+    regions:
+      - { key: us, label: US (app.honeybadger.io), server_url: "https://mcp.honeybadger.io/mcp", site: "https://app.honeybadger.io" }
+      - { key: eu, label: EU (eu-app.honeybadger.io), server_url: "https://eu-mcp.honeybadger.io/mcp", site: "https://eu-app.honeybadger.io" }
+    source_links: server
+    source_links_note: "Its faults, notices, Insights queries and check-ins carry their own page in Honeybadger."
+    map: none
+    map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
+  - key: signoz
+    name: SigNoz
+    category: Observability
+    mark: SZ
+    color: "#f4532c"
+    description: Query logs, traces, errors and request counts in SigNoz.
+    # SigNoz Cloud's regions, each its own MCP server at mcp.<region>.signoz.cloud (SigNoz/signoz-mcp-server, README.md),
+    # with the regions SigNoz's documentation lists (SigNoz/signoz.io, components/Region/RegionContext.tsx). Every team
+    # has its own address in a region, so a region has no one site and links use the address the health check read.
+    regions:
+      - { key: us, label: US (us.signoz.cloud), server_url: "https://mcp.us.signoz.cloud/mcp" }
+      - { key: eu, label: EU (eu.signoz.cloud), server_url: "https://mcp.eu.signoz.cloud/mcp" }
+      - { key: in, label: India (in.signoz.cloud), server_url: "https://mcp.in.signoz.cloud/mcp" }
+    source_links: firefight
+    map: none
+    map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: linear
     name: Linear
     category: Issues
