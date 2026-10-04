@@ -1,6 +1,6 @@
 module Integrations
   module Capabilities
-    # Datadog watches what other connections run, so it answers logs, traces and errors for a resource on the map by its
+    # Datadog watches what other connections run, so it answers logs, metrics, traces and errors for a resource on the map by its
     # Datadog service, which is the resource's name. It answers through the tools its MCP server offers. The server
     # publishes each tool's parameters but Datadog's docs do not, so the arguments are written against the parameters
     # the connected server reports, and a parameter it does not have is never sent.
@@ -9,8 +9,13 @@ module Integrations
 
       WATCHED = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB ].freeze
       SUPPORTS = {}.freeze
-      OBSERVES = { LOGS => WATCHED, TRACES => WATCHED, ERRORS => WATCHED }.freeze
-      TOOLS = { LOGS => "search_datadog_logs", TRACES => "search_datadog_spans", ERRORS => "search_datadog_error_tracking_issues" }.freeze
+      OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED, ERRORS => WATCHED }.freeze
+      TOOLS = { LOGS => "search_datadog_logs", METRICS => "get_datadog_metric", TRACES => "search_datadog_spans",
+                ERRORS => "search_datadog_error_tracking_issues" }.freeze
+      # The container metrics Datadog documents under every service it tags (its Docker and containerd integrations).
+      # The rest depend on how a team set Datadog up, so the platform answers them.
+      METRIC_MAP = { "cpu" => "container.cpu.usage", "memory" => "container.memory.usage" }.freeze
+      METRIC_NAME = "metric_name".freeze
       # Datadog's tools reach every service Datadog sees, far beyond the map, so they stay offered as they are.
       WRAPPED = [].freeze
       PROVIDER_KEY = "datadog".freeze
@@ -24,10 +29,17 @@ module Integrations
       QUERY = "query".freeze
       NOW = "now".freeze
 
-      # A regular expression, or a stream other than what the app printed, is the platform's to answer.
-      def self.accepts?(_key, given) = given["regex"].blank? && given["stream"].in?([ nil, "", STREAM_APP ])
+      # A regular expression, or a stream other than what the app printed, is the platform's to answer, and so is any
+      # metric but one Datadog keeps the same way everywhere, asked alone, since its tool reads one metric a call.
+      def self.accepts?(key, given)
+        return Array(given["metrics"]).size == 1 && METRIC_MAP.key?(Array(given["metrics"]).first.to_s) if key == METRICS
+
+        given["regex"].blank? && given["stream"].in?([ nil, "", STREAM_APP ])
+      end
 
       def self.route(key, resource, given, tool:)
+        return metric(resource, given, tool) if key == METRICS
+
         raise Unroutable, "Datadog searches by text, not by a regular expression. Give text instead." if given["regex"].present?
         unless accepts?(key, given)
           raise Unroutable, "Datadog holds what an app sends it, so stream must be #{STREAM_APP}. Ask the platform that runs #{resource.name} for the rest."
@@ -43,6 +55,21 @@ module Integrations
           arguments[name] = limit
         end
         Route.new(tool_name: TOOLS.fetch(key), arguments: arguments.merge(range(given, properties)))
+      end
+
+      # One metric of the service, averaged, as Datadog's metric query reads it.
+      def self.metric(resource, given, tool)
+        unless accepts?(METRICS, given)
+          raise Unroutable, "Datadog answers one metric a call, and only #{METRIC_MAP.keys.join(' or ')}. Ask the platform that runs #{resource.name} for the rest."
+        end
+
+        name = METRIC_MAP.fetch(Array(given["metrics"]).first.to_s)
+        properties = tool.params_schema.to_h.fetch("properties", {})
+        arguments = {}
+        arguments[METRIC_NAME] = name if properties.key?(METRIC_NAME)
+        arguments[QUERY] = "avg:#{name}{service:#{resource.name}}" if properties.key?(QUERY)
+        raise Unroutable, "Datadog's metric tool takes its metric in a way Firefight does not know yet, so ask it with Datadog's own tool." if arguments.empty?
+        Route.new(tool_name: TOOLS.fetch(METRICS), arguments: arguments.merge(range(given, properties)))
       end
 
       # The time asked for, as the tool takes it: two top level fields, or one object holding them. Minutes alone are
@@ -71,7 +98,7 @@ module Integrations
       end
 
       def self.quoted(text) = "\"#{text.to_s.delete('"')}\""
-      private_class_method :range, :times, :quoted
+      private_class_method :metric, :range, :times, :quoted
     end
   end
 end

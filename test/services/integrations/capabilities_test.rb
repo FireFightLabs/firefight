@@ -112,7 +112,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
   test "a provider's details say what Halon can do through it, in the capabilities' order, and one with no adapter is used through its tools" do
     assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, and roll a resource back " \
                  "for anything Cloudflare runs, through the tools you switch on. It also uses Cloudflare's other tools that you switch on.", Integrations::Capabilities.halon_sentence("cloudflare", "Cloudflare")
-    assert_equal "Halon can read its logs, read its errors, and read its traces for the services on the map that Datadog watches, by their " \
+    assert_equal "Halon can read its logs, read its metrics, read its errors, and read its traces for the services on the map that Datadog watches, by their " \
                  "name in Datadog, through the tools you switch on. It also uses Datadog's other tools that you switch on.",
                  Integrations::Capabilities.halon_sentence("datadog", "Datadog")
     assert_equal "Halon uses Grafana's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("grafana", "Grafana")

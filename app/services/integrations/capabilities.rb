@@ -114,7 +114,9 @@ module Integrations
     Refused = Data.define(:environment_row, :reason)
 
     # A request resolved to one connection: the resource, the row that reaches it, and the provider tool it runs as.
-    Call = Data.define(:spec, :resource, :environment_row, :tool, :arguments, :present) do
+    # fallback is the platform's call to make when the observability tool asked by default has no answer.
+    Call = Data.define(:spec, :resource, :environment_row, :tool, :arguments, :present, :fallback) do
+      def initialize(fallback: nil, **) = super
       def environment_entry = environment_row.environment
 
       def scope = environment_row.catalog_entry_id ? { "environment" => environment_row.catalog_entry_id } : {}
@@ -200,7 +202,54 @@ module Integrations
       tools ||= Integration::Tool.in_workspace(workspace).to_a
       spec = spec(key)
       candidates, reference = candidates_for(workspace, spec, given, tools)
-      call_for(workspace, spec, choose(candidates, given, reference, spec), given)
+      chosen = choose(candidates, given, reference, spec)
+      call = call_for(workspace, spec, chosen, given)
+      return call unless chosen.observer && given[CONNECTION_ARG].blank?
+
+      call.with(fallback: fallback_for(workspace, spec, candidates, chosen, given))
+    end
+
+    # The platform that runs the resource, asked when the observability tool chosen for it has no answer. nil when
+    # there is none that could be asked.
+    def self.fallback_for(workspace, spec, candidates, chosen, given)
+      platform = candidates.find { |candidate| !candidate.observer && candidate.resource == chosen.resource }
+      platform && call_for(workspace, spec, platform, given)
+    rescue Unroutable
+      nil
+    end
+
+    # Whether an answer says something: not an error, and holding something other than the link back to its page and
+    # lists with nothing in them, at any depth. An answer that does not is no answer, so the platform is asked instead.
+    def self.definitive?(result)
+      return false if result.nil? || (result["isError"] || result[:isError]) == true
+
+      structured = result["structuredContent"] || result[:structuredContent]
+      return holds_something?(structured) unless structured.nil?
+
+      texts = Array(result["content"] || result[:content]).filter_map { |part| part["text"] || part[:text] }
+      texts.reject { |text| Telemetry.link_line?(text) }.any? { |text| holds_something?(parsed(text)) }
+    end
+
+    def self.parsed(text)
+      JSON.parse(text)
+    rescue JSON::ParserError
+      text
+    end
+
+    def self.holds_something?(value)
+      case value
+      when Hash then value.values.any? { |each| holds_something?(each) } && value.values.grep(Array).then { |lists| lists.empty? || lists.any? { |list| holds_something?(list) } }
+      when Array then value.any? { |each| holds_something?(each) }
+      when String then value.strip.present?
+      else !value.nil?
+      end
+    end
+
+    # What Halon reads when the platform answered in place of the observability tool: why, in the tool's own words
+    # when it failed.
+    def self.fell_back(call, failure: nil)
+      why = failure ? "failed (#{failure.strip})" : "found nothing"
+      "#{call.connection} #{why}, so this is from #{call.fallback.connection}."
     end
 
     # Every connection that can answer for the resource, for connection: all, as a Call or a Refused for each. A change
@@ -318,6 +367,6 @@ module Integrations
     end
 
     def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq
-    private_class_method :candidates_for, :call_for, :holders, :observers, :choose, :one_resource!, :labels
+    private_class_method :parsed, :holds_something?, :fallback_for, :candidates_for, :call_for, :holders, :observers, :choose, :one_resource!, :labels
   end
 end

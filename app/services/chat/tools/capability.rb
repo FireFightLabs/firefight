@@ -33,7 +33,13 @@ class Chat::Tools::Capability < RubyLLM::Tool
     return everywhere(given, tool_call) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
     found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given, @callable)
-    connection(found).run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present)
+    return ask(found, tool_call) unless found.fallback
+
+    asked = connection(found)
+    text = ask(found, tool_call, alone: false, asked: asked)
+    return text if asked.waiting? || (!asked.failed? && Integrations::Capabilities.definitive?(asked.last_result))
+
+    "#{Integrations::Capabilities.fell_back(found, failure: (text if asked.failed?))}\n#{ask(found.fallback, tool_call)}"
   rescue Integrations::Capabilities::Unroutable => error
     refused(tool_call, error.message)
   end
@@ -41,6 +47,10 @@ class Chat::Tools::Capability < RubyLLM::Tool
   private
 
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
+
+  def ask(found, tool_call, alone: true, asked: connection(found))
+    asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present, alone: alone)
+  end
 
   # Every connection that can answer, one after another, each answer headed with where it came from. Each call is its
   # own step in the ledger, as the provider's own action. The card reads failed only when none of them answered.

@@ -5,6 +5,9 @@ module Mcp
   class CapabilityToolFactory
     APPROVAL_ID_ARG = ConnectionToolFactory::APPROVAL_ID_ARG
 
+    # A call waiting for someone to approve it, which is an answer of its own and never a reason to ask elsewhere.
+    class Waiting < ::MCP::Tool::Response; end
+
     # Only what the principal could call through at least one connection, and invoke still authorizes each call.
     def self.tools_for(workspace, principal)
       resolved = Ability::Resolver.resolve(principal, workspace)
@@ -35,7 +38,15 @@ module Mcp
       return everywhere(key, server_context, args, given) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
       call = Integrations::Capabilities.resolve(workspace, key, given, callable(key, server_context))
-      invoke_call(call, server_context, approval_id: args[APPROVAL_ID_ARG])
+      response = invoke_call(call, server_context, approval_id: args[APPROVAL_ID_ARG])
+      answer = { content: response.content, structuredContent: response.structured_content, isError: response.error? }
+      return response if call.fallback.nil? || response.is_a?(Waiting) || Integrations::Capabilities.definitive?(answer)
+
+      # The gateway uses an approval id only on the call it approved, so the retry carries it to both.
+      backup = invoke_call(call.fallback, server_context, approval_id: args[APPROVAL_ID_ARG])
+      failure = Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n") if response.error?
+      ::MCP::Tool::Response.new([ { type: "text", text: Integrations::Capabilities.fell_back(call, failure: failure) }, *Array(backup.content) ],
+                                structured_content: backup.structured_content, error: backup.error? && response.error?)
     rescue Integrations::Capabilities::Unroutable => e
       ToolDispatcher.error_response(e.message)
     end
@@ -89,10 +100,9 @@ module Mcp
       ToolDispatcher.error_response("No grant covers '#{tool.action_key}' here. Token scopes are documented at #{Docs::MCP_SERVER}")
     rescue AbilityGateway::PendingApproval => e
       retry_as = alone ? "Retry the identical call" : "Retry with connection: \"#{call.connection}\" instead of #{Integrations::Capabilities::ALL}"
-      ToolDispatcher.error_response(
-        "Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} must approve " \
-        "this call. #{retry_as} with approval_id: \"#{e.approval.id}\" once approved."
-      )
+      text = "Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} must approve " \
+             "this call. #{retry_as} with approval_id: \"#{e.approval.id}\" once approved."
+      Waiting.new([ { type: "text", text: text } ], error: true)
     rescue Integrations::Error => e
       ToolDispatcher.error_response("Upstream tool failed: #{e.message}")
     end

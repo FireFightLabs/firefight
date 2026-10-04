@@ -47,6 +47,21 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
     assert_nil response.structured_content
   end
 
+  test "when Datadog fails, the platform answers and the agent is told so" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                          params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+    Integrations::McpExecutor.expects(:call).raises(Integrations::Error, "Datadog is down")
+    Integrations::NativeExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    assert_not response.error?
+    assert_equal [ "datadog failed (Upstream tool failed: Datadog is down), so this is from northflank.", "northflank lines" ], response.content.map { |part| part[:text] || part["text"] }
+  end
+
   test "under connection all the answer is an error only when every connection failed, and a refusal is named for its connection" do
     Integrations::NativeExecutor.expects(:call).raises(Integrations::Error, "Northflank is down")
 

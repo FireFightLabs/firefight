@@ -43,6 +43,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # Whether the last run was refused or the provider failed it.
   def failed? = @failed == true
 
+  # Whether the last run is waiting for someone to approve it.
+  def waiting? = @waiting == true
+
+  # What the provider answered on the last run, read into the capability's shapes, or nil when it did not answer.
+  attr_reader :last_result
+
   # Runs the tool with arguments that are already its own, as this tool's action, through the gateway. A capability
   # call runs through here too, so it is authorized, approved, ledgered and replayed exactly like the tool itself.
   # shown_as is the name the agent called, present reads the provider's answer back into the capability's shapes.
@@ -50,6 +56,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true)
     @alone = alone
     @failed = false
+    @waiting = false
+    @last_result = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     result = nil
     said = @agent_run.tool_call(
@@ -60,6 +68,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
       result = present.call(result) if present
+      @last_result = result
       text_of(result)
     end
     keep_charts(tool_call_id, result, said.step)
@@ -73,6 +82,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
                             approval_id: pending.approval.id, alone: alone)
     end
 
+    @waiting = true
     Chat::Tools.waiting_for_approval(@tool.action_key)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.

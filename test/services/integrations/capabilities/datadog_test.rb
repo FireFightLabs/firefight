@@ -17,6 +17,9 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
     @datadog_row = datadog.integration_environments.create!
     @logs = datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true, params_schema: RANGE_OBJECT)
     datadog.tools.create!(name: "search_datadog_spans", description: "Spans", read_only: true, enabled: true, params_schema: TOP_LEVEL)
+    metric_schema = RANGE_OBJECT.deep_dup.tap { |schema| schema["properties"] = schema["properties"].except("service").merge("metric_name" => { "type" => "string" }) }
+    datadog.tools.create!(name: "get_datadog_metric", description: "Metric", read_only: true, enabled: true, params_schema: metric_schema)
+    northflank.tools.create!(name: "query_metrics", description: "Metrics", read_only: true, enabled: true, params_schema: { "type" => "object" })
     ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/prod", kind: ResourceMap::KIND_SERVICE, external_id: "web-id",
                                   name: "web", integration_environment: @northflank_row, first_seen_at: Time.current, last_seen_at: Time.current)
   end
@@ -29,6 +32,44 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
     assert_equal "web", logs.arguments["service"]
     assert_equal({ "from" => "now-30m", "to" => "now" }, logs.arguments["time_range"])
     assert_equal @northflank_row, resolve(Integrations::Capabilities::STATUS, "resource" => "web").environment_row
+  end
+
+  test "Datadog answers cpu or memory asked alone, and the platform answers every other metric" do
+    cpu = resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "cpu" ], "minutes" => 30)
+
+    assert_equal [ @datadog_row, "get_datadog_metric" ], [ cpu.environment_row, cpu.tool.name ]
+    assert_equal({ "metric_name" => "container.cpu.usage", "query" => "avg:container.cpu.usage{service:web}",
+                   "time_range" => { "from" => "now-30m", "to" => "now" } }, cpu.arguments)
+    assert_equal @northflank_row, resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => %w[cpu memory]).environment_row
+    assert_equal @northflank_row, resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "http_5xx" ]).environment_row
+    assert_equal @northflank_row, resolve(Integrations::Capabilities::METRICS, "resource" => "web").environment_row
+    assert_match "one metric a call", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "disk" ], "connection" => "datadog")
+    @workspace.integrations.find_by!(slug: "datadog").tools.find_by!(name: "get_datadog_metric").update!(params_schema: TOP_LEVEL.merge("properties" => { "from" => {}, "to" => {} }))
+    assert_match "takes its metric in a way", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "cpu" ])
+  end
+
+  test "Datadog asked by default carries the platform's call to make when it has no answer, and a named one does not" do
+    logs = resolve(Integrations::Capabilities::LOGS, "resource" => "web")
+
+    assert_equal [ @northflank_row, "search_logs" ], [ logs.fallback.environment_row, logs.fallback.tool.name ]
+    assert_nil resolve(Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "datadog").fallback
+    assert_nil resolve(Integrations::Capabilities::STATUS, "resource" => "web").fallback
+  end
+
+  test "an answer is definitive unless it is an error, empty, or a list with nothing in it" do
+    answer = ->(text, error: false) { Integrations::Capabilities.definitive?({ "content" => [ { "type" => "text", "text" => text } ], "isError" => error }) }
+
+    assert answer.call("12 log lines for web")
+    assert answer.call({ "data" => [ { "message" => "timeout" } ], "meta" => {} }.to_json)
+    assert_not answer.call({ "data" => [], "meta" => { "page" => 1 } }.to_json)
+    assert_not answer.call("[]")
+    assert_not answer.call("  ")
+    assert_not answer.call("rate limited", error: true)
+    assert_not Integrations::Capabilities.definitive?(nil)
+    assert_not answer.call({ "series" => [ { "metric" => "container.cpu.usage", "pointlist" => [] } ] }.to_json)
+    assert_not Integrations::Capabilities.definitive?({ "content" => [ { "type" => "text", "text" => "[]" },
+                                                                      { "type" => "text", "text" => Integrations::Telemetry.link_line(Integrations::Telemetry::Link.new(provider: "Datadog", url: "https://app.datadoghq.com/logs")) } ] })
+    assert Integrations::Capabilities.definitive?({ "content" => [], "structuredContent" => { "logs" => [ { "message" => "x" } ] } })
   end
 
   test "Datadog is passed over when its tool is off, the caller may not run it, or it cannot take what was asked" do

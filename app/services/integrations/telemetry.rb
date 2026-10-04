@@ -81,7 +81,11 @@ module Integrations
 
     def self.empty?(chart) = chart.series.all? { |each| each.points.empty? }
 
-    def self.link_line(link) = "Open this in #{link.provider}, and give the person this link with what you found: #{link.url}"
+    LINK_LINE = "Open this in %<provider>s, and give the person this link with what you found: %<url>s".freeze
+
+    def self.link_line(link) = format(LINK_LINE, provider: link.provider, url: link.url)
+
+    def self.link_line?(text) = text.to_s.start_with?(LINK_LINE.split("%<provider>s").first)
 
     # The time range a tool was asked for, as minutes back from now or as an explicit start and end.
     def self.range(arguments, default_minutes:, max_minutes:)

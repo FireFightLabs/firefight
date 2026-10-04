@@ -77,13 +77,13 @@ class Integration < ApplicationRecord
 
   class UnknownEnvironment < StandardError; end
 
-  # The environment a caller named by slug, or nil for the connection's default. Every way in
-  # resolves it here, so an unknown one is refused with the same words from a chat and over MCP.
   # Why a new connection cannot take this name, or nil when it can.
   def self.name_blocked_reason(name)
     "All is kept for asking every connection at once. Pick a different name." if slug_for(name) == SLUG_ALL
   end
 
+  # The environment a caller named by slug, or nil for the connection's default. Every way in
+  # resolves it here, so an unknown one is refused with the same words from a chat and over MCP.
   def environment_entry_for(slug)
     return nil if slug.blank?
 
