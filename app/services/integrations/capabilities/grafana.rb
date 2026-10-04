@@ -9,7 +9,7 @@ module Integrations
 
       PROVIDER_KEY = "grafana".freeze
       NAME = "Grafana".freeze
-      WATCHED = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB ].freeze
+      WATCHED = Adapter::APP_KINDS
       SUPPORTS = {}.freeze
       OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED }.freeze
       TOOLS = { LOGS => "query_loki_logs", METRICS => "query_prometheus", TRACES => "search_tempo_traces" }.freeze

@@ -75,8 +75,7 @@ module Integrations
       end
 
       def parsed(result)
-        raise Refused, "Grafana could not list its datasources: #{Capabilities::Answers.text(result).strip.truncate(300)}" if result["isError"]
-
+        refused!(LIST_DATASOURCES, result)
         body = Capabilities::Answers.data(result)
         raise Refused, "Grafana answered its datasources in a shape Firefight does not know." unless body.is_a?(Hash)
 
