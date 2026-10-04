@@ -208,7 +208,7 @@ module Integrations
         GoogleCloudApi.any_instance.stubs(:run_services).with("acme-prod", "us-central1").returns(pages([ SERVICE ]))
         GoogleCloudApi.any_instance.stubs(:run_services).with("acme-prod", "europe-west1").returns(pages([ other ]))
 
-        assert_match "More than one resource is called web", assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "web") }.message
+        assert_match "More than one Google Cloud resource is called web", assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "web") }.message
 
         GoogleCloudApi.any_instance.stubs(:sql_instances).returns(pages([ { "name" => "orders", "connectionName" => SQL_ID, "state" => "ONLINE_MAINTENANCE" } ], complete: false))
         snapshot = GoogleCloud.new(@integration).map_of(@row)

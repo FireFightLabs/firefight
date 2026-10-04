@@ -508,13 +508,12 @@ module Integrations
         target
       end
 
-      # Two resources of one name, such as services in two regions, are never chosen between. The id names one.
+      # By its name on the map's last sweep, then in the live list. A name two resources share is refused with their ids.
       def named(environment_row, wanted)
-        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).where("lower(name) = ?", wanted.downcase).pluck(:external_id)
-        found = mapped.presence || catalog(environment_row).items.select { |each| each[:name].to_s.casecmp?(wanted) }.map { |each| each[:id] }
-        fail!("More than one resource is called #{wanted}: #{found.join(', ')}. Name it by its id.") if found.size > 1
-
-        found.first && Target.parse(found.first)
+        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).pluck(:external_id, :name).map { |id, name| { id: id, name: name } }
+        found = Named.find(mapped, wanted, id: :id, name: :name, provider: PROVIDER) ||
+                Named.find(catalog(environment_row).items, wanted, id: :id, name: :name, provider: PROVIDER)
+        found && Target.parse(found[:id])
       end
 
       def run_target(environment_row, asked)

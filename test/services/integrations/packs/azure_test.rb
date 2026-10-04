@@ -220,7 +220,7 @@ module Integrations
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Web/sites") }.returns(pages([ SITE, twin ]))
 
         error = assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "storefront") }
-        assert_equal "More than one resource is called storefront: #{WEB_ID}, #{twin['id']}. Name it by its id.", error.message
+        assert_equal "More than one Azure resource is called storefront: #{WEB_ID}, #{twin['id']}. Name it by its id.", error.message
       end
 
       test "a resource in another subscription is never reached" do
