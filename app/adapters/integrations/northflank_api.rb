@@ -4,14 +4,15 @@ module Integrations
   class NorthflankApi
     class Error < Integrations::Error; end
     # Asked too often, so a caller making many calls stops rather than keep being refused.
-    class RateLimited < Error; end
+    class RateLimited < Error
+      include Integrations::RateLimited
+    end
     # Northflank keeps some data behind features an account has to have switched on, and says so with a 401 that has
     # nothing to do with the token.
     class NotEnabled < Error; end
     NOT_ENABLED = /feature flag is not enabled/i
     VERBS = { "GET" => Net::HTTP::Get, "POST" => Net::HTTP::Post, "PATCH" => Net::HTTP::Patch, "PUT" => Net::HTTP::Put,
               "DELETE" => Net::HTTP::Delete }.freeze
-    TOO_MANY_REQUESTS = 429
 
     API_ROOT = "https://api.northflank.com/v1".freeze
     PAGE_SIZE = 100
@@ -94,22 +95,8 @@ module Integrations
 
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{@token}"
-      response = Http.request(uri, request, error_class: Error, read_timeout: 30)
-      succeeded = response.code.to_i.between?(200, 299)
-      body = response.body.to_s.empty? ? {} : JSON.parse(response.body)
-      return body if succeeded
-
-      reason = body.dig("error", "message") || body["message"] || "no reason given"
-      error = if response.code.to_i == TOO_MANY_REQUESTS then RateLimited
-      elsif [ 401, 403 ].include?(response.code.to_i) && reason.to_s.match?(NOT_ENABLED) then NotEnabled
-      else Error
-      end
-      raise error, "Northflank answered #{response.code}: #{reason}"
-    rescue JSON::ParserError
-      # A change that went through stays one that went through, whatever came back with it.
-      return {} if succeeded
-
-      raise Error, "Northflank answered #{response.code} with something that is not JSON"
+      Http.json(uri, request, error_class: Error, provider_name: "Northflank", rate_limited: RateLimited,
+                              refine: ->(code, reason) { NotEnabled if [ 401, 403 ].include?(code) && reason.match?(NOT_ENABLED) })
     end
 
     # A repeated parameter such as metricTypes is sent once per value, which is how Northflank reads a list.
@@ -118,6 +105,6 @@ module Integrations
       URI.encode_www_form(pairs)
     end
 
-    def segment(value) = ERB::Util.url_encode(value.to_s)
+    def segment(value) = Http.segment(value)
   end
 end

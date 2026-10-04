@@ -6,6 +6,27 @@ class ResourceMapTest < ActiveSupport::TestCase
     @row = connection("northflank")
   end
 
+  test "a repository is found by its code host's address, whichever provider names it, and an address on no known host is not" do
+    github = ResourceMap.repository_of("https://github.com/acme/web.git")
+    gitlab = ResourceMap.repository_of("https://gitlab.com/acme/platform/api/")
+
+    assert_equal [ "github", "acme", ResourceMap::KIND_REPOSITORY, "acme/web", "https://github.com/acme/web" ],
+                 [ github.provider, github.account, github.kind, github.external_id, github.url ]
+    assert_equal [ "gitlab", "acme", "acme/platform/api" ], [ gitlab.provider, gitlab.account, gitlab.external_id ]
+    assert_equal github.key, ResourceMap.repository("github", "acme/web").key
+    assert_nil ResourceMap.repository_of("https://git.example.com/acme/web")
+    assert_nil ResourceMap.repository_of("https://github.com/acme")
+    assert_nil ResourceMap.repository_of("not a url at all")
+    assert_nil ResourceMap.repository("linear", "acme/web")
+  end
+
+  test "a status word reads as one agreed health, and a resource switched off on purpose is busy, not failing" do
+    health = ->(status) { ResourceMap::Resource.new(status: status).health }
+
+    assert_equal %w[ok ok busy busy busy failing failing unknown],
+                 [ "live", "runnable", "scaled down", "progressing", "suspended", "build_failed", "unavailable", "weird" ].map(&health)
+  end
+
   test "a sweep puts what the connection reaches on the map, with the links it declares" do
     ResourceMap.record!(@row, snapshot(web, repository, links: [ link(web, repository, ResourceMap::RELATION_BUILT_FROM) ], gaps: [ "Jobs could not be read" ]))
 

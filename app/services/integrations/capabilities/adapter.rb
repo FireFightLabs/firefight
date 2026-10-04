@@ -10,6 +10,11 @@ module Integrations
     # refusal is wanted, and settings the connection's ConnectionSettings, for what it was set up with, its region and
     # what its health check learned. The Route's tool_name is the tool that runs, which may be another of TOOLS[key].
     module Adapter
+      # What an observability tool usually watches. APP_KINDS are what runs a team's code, ENDPOINT_KINDS what answers
+      # at an address, which an uptime check reaches.
+      APP_KINDS = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB ].freeze
+      ENDPOINT_KINDS = [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ].freeze
+
       def supports?(key, kind) = self::SUPPORTS.fetch(key, []).include?(kind)
 
       # An observability tool watches resources others run, by capability and kind. A platform watches nothing.

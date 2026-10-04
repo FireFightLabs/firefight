@@ -70,6 +70,29 @@ module ResourceMap
               url: "https://#{host}")
   end
 
+  # The repository at a code host's address, such as https://github.com/acme/web or a .git address of it, on the map
+  # as the code host's own reader puts it, whichever provider names it. The code host is the registry entry whose site
+  # has the address's host, so any host with a site works and nothing names one. nil for an address on no known host or
+  # with no owner and name.
+  def self.repository_of(url)
+    uri = URI.parse(url.to_s.strip)
+    host = uri.host&.downcase
+    entry = host && IntegrationProvider.all.find { |each| each.site.present? && URI.parse(each.site).host&.downcase == host }
+    path = uri.path.to_s.delete_prefix("/").delete_suffix("/").delete_suffix(".git")
+    return unless entry && path.count("/") >= 1
+
+    Found.new(provider: entry.key, account: path.split("/").first, kind: KIND_REPOSITORY, external_id: path, name: path,
+              url: "#{entry.site.chomp('/')}/#{path}")
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  # The same, by a code host's key and the repository's path, for a provider that names the host rather than an address.
+  def self.repository(provider_key, path)
+    site = IntegrationProvider.find(provider_key.to_s)&.site
+    site && path.present? ? repository_of("#{site.chomp('/')}/#{path}") : nil
+  end
+
   def self.provider_name(key) = IntegrationProvider.find(key)&.name || PROVIDER_NAMES.fetch(key, key.to_s.humanize)
 
   # The registry's mark and colour, so the map draws a provider the way the Integrations page does. nil for a provider

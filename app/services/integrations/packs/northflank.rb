@@ -10,7 +10,6 @@ module Integrations
 
       PROVIDER = "Northflank".freeze
       PROVIDER_KEY = "northflank".freeze
-      GITHUB = "github".freeze
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
       OBSERVE_METRICS = "metrics".freeze
@@ -292,7 +291,7 @@ module Integrations
       # that holds secrets, so no secret reaches the model, the chat or the ledger.
       def answer_text(path, answer)
         shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer)
-        Chat::SecretFree::SECRET_PATTERNS.reduce(shown.to_json) { |text, (name, pattern)| text.gsub(pattern, "[REDACTED:#{name}]") }
+        Chat::SecretFree.redacted(shown.to_json)
                                          .truncate(API_RESULT_LIMIT)
       end
 
@@ -532,15 +531,11 @@ module Integrations
           @links << ResourceMap::FoundLink.new(from: from, to: to, relation: relation)
         end
 
-        # The repository a service builds from, read off its vcsData. Only GitHub's addresses are read.
+        # The repository a service builds from, read off its vcsData, on whichever code host it is.
         def repository(from, source)
-          url = source.to_h["projectUrl"].to_s
-          path = URI.parse(url).path.to_s.delete_prefix("/").delete_suffix(".git") if url.start_with?("https://github.com/")
-          return if path.blank?
+          found = ResourceMap.repository_of(source.to_h["projectUrl"])
+          return unless found
 
-          owner = path.split("/").first
-          found = ResourceMap::Found.new(provider: GITHUB, account: owner, kind: ResourceMap::KIND_REPOSITORY, external_id: path,
-                                         name: path, url: "https://github.com/#{path}")
           @resources << found
           link(from, found.key, ResourceMap::RELATION_BUILT_FROM)
         end

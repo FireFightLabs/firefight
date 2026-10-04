@@ -55,5 +55,5 @@ module WebLookup
 
   def self.secret?(text) = Chat::SecretFree::SECRET_PATTERNS.values.any? { |pattern| text.match?(pattern) }
 
-  def self.redacted(text) = Chat::SecretFree::SECRET_PATTERNS.reduce(text) { |kept, (name, pattern)| kept.gsub(pattern, "[REDACTED:#{name}]") }
+  def self.redacted(text) = Chat::SecretFree.redacted(text)
 end

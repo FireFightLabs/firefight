@@ -4,7 +4,8 @@ module Integrations
     # progress, when given, is called with a sentence each time a long running tool has something to say.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil)
       pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress)
-      ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
+      result = ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
+      Redactions.apply(result, fields: Provider.for(tool.integration.provider).redacted_fields)
     end
 
     def self.tool_definitions(integration)

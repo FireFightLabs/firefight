@@ -36,6 +36,13 @@ module Integrations
         IntegrationProvider.find(provider_key)&.connect_fields&.find { |each| each.key == key.to_s }&.default
     end
 
+    # Every site the provider's regions have, for a link builder that recognises an address on any of them.
+    def region_sites = IntegrationProvider.find(provider_key)&.regions.to_a.filter_map(&:site)
+
+    # Keeps a value a pack or its client caches with the credentials, such as a short-lived access token it minted, read
+    # back with credential. The cache's shape is the pack's own.
+    def store_credential!(key, value) = @row.store_credential!(key.to_s, value)
+
     # A value a native pack stored with its credentials (NativePack.store_credentials!), such as an API token, or nil.
     # Only the pack that stored it reads it, to call its provider. It never reaches the model, a chat, an MCP response
     # or the ledger.

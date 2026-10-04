@@ -7,7 +7,7 @@ module Integrations
     module Datadog
       extend Adapter
 
-      WATCHED = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB ].freeze
+      WATCHED = Adapter::APP_KINDS
       SUPPORTS = {}.freeze
       OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED, ERRORS => WATCHED }.freeze
       TOOLS = { LOGS => "search_datadog_logs", METRICS => "get_datadog_metric", TRACES => "search_datadog_spans",

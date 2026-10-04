@@ -88,5 +88,35 @@ module Integrations
       assert_equal({ "project" => { "name" => "web", "token" => Redactions::REMOVED } }, JSON.parse(result["content"][0]["text"]))
       assert_equal "note \"token\": \"#{Redactions::REMOVED}\"", result["content"][1]["text"]
     end
+
+    test "a listing is the answer as data, and a tool that is off, a refusal or an answer that is not data is a gap" do
+      reader = Class.new(RemoteReader) { const_set(:NAME, "Acme") }
+      answers = { "on" => { "content" => [ { "type" => "text", "text" => '[{"id":1}]' } ] },
+                  "refused" => { "isError" => true, "content" => [ { "type" => "text", "text" => "403 forbidden" } ] },
+                  "words" => { "content" => [ { "type" => "text", "text" => "no data here" } ] } }
+      listing = reader.new { |name, _arguments, _reads| answers[name] }
+
+      assert_equal [ { "id" => 1 } ], listing.listing("on", "projects")
+      assert_nil listing.listing("off", "projects")
+      assert_nil listing.listing("refused", "projects")
+      assert_nil listing.listing("words", "projects")
+      assert_equal [ "off is switched off for Acme, so the projects are not on the map.", "Acme refused to list the projects: 403 forbidden",
+                     "Acme answered the projects with something that is not JSON." ], listing.gaps
+      assert_equal "Acme refused refused: 403 forbidden", assert_raises(RemoteReader::Refused) { listing.refused!("refused", answers["refused"]) }.message
+      assert_equal answers["on"], listing.refused!("on", answers["on"])
+    end
+
+    test "every provider's answer has anything that looks like a credential taken out, whatever the provider" do
+      @listing.update!(name: "list_sources")
+      Provider.stubs(:for).returns(Provider.new(key: "datadog"))
+      McpClient.any_instance.stubs(:call_tool).returns(
+        { "content" => [ { "type" => "text", "text" => "token ghp_#{'a' * 36} in the log" } ], "structuredContent" => { "line" => "key AKIA#{'B' * 16}" } }
+      )
+
+      result = McpExecutor.call(tool: @listing, environment_row: @row, arguments: {})
+
+      assert_equal "token [REDACTED:github_token] in the log", result["content"].first["text"]
+      assert_equal({ "line" => "key [REDACTED:aws_key]" }, result["structuredContent"])
+    end
   end
 end

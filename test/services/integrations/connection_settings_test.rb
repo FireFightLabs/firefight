@@ -49,5 +49,15 @@ module Integrations
       row.store_fields!("limit" => "8")
       assert_equal "8", ConnectionSettings.of(row.reload).field(:limit)
     end
+
+    test "a connection knows every site its provider's regions have, and keeps a value its pack caches with the credentials" do
+      datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", settings: { "server_url" => "https://mcp.datadoghq.com/v1/mcp" })
+      settings = ConnectionSettings.of(datadog.integration_environments.create!)
+
+      assert_includes settings.region_sites, "https://app.datadoghq.eu"
+      assert_equal IntegrationProvider.find("datadog").regions.size, settings.region_sites.size
+      settings.store_credential!(:token_cache, { "token" => "t", "expires_at" => "2026-10-04T12:00:00Z" })
+      assert_equal "t", ConnectionSettings.of(datadog.integration_environments.sole.reload).credential(:token_cache)["token"]
+    end
   end
 end

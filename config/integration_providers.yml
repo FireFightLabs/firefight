@@ -52,6 +52,7 @@ providers:
     description: Correlate incidents with recent pull requests and commits from your repositories.
     server_url: ""
     kind: native
+    site: https://github.com
     source_links: firefight
     map: firefight
     code_fix_tool: fix_code
@@ -62,6 +63,7 @@ providers:
     color: "#fc6d26"
     description: Correlate incidents with merge requests and pipelines.
     server_url: https://gitlab.com/api/v4/mcp
+    site: https://gitlab.com
     source_links: unchecked
     map: unchecked
   - key: newrelic

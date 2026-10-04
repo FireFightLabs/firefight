@@ -5,6 +5,7 @@ module Integrations
     # allowlist. A tool that is off, or a list PlanetScale refuses, is a gap rather than a failed sweep.
     class Planetscale < RemoteReader
       PROVIDER = "planetscale".freeze
+      NAME = "PlanetScale".freeze
       LIST_ORGANIZATIONS = "planetscale_list_organizations".freeze
       LIST_DATABASES = "planetscale_list_databases".freeze
       LIST_BRANCHES = "planetscale_list_branches".freeze
@@ -16,14 +17,16 @@ module Integrations
         @resources = []
         @links = []
         @gaps = []
+        @unread_kinds = []
       end
 
       def map
-        list(LIST_ORGANIZATIONS, "organizations", {}).each do |organization|
+        list(LIST_ORGANIZATIONS, "organizations", {}, kinds: ResourceMap::KINDS).each do |organization|
           org = organization["name"]
-          list(LIST_DATABASES, "databases in #{org}", { "organization" => org }).each { |database| database(org, database) }
+          databases = list(LIST_DATABASES, "databases in #{org}", { "organization" => org }, kinds: [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ])
+          databases.each { |database| database(org, database) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: @gaps.uniq)
+        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: @gaps.uniq, unread_kinds: @unread_kinds.uniq)
       end
 
       private
@@ -36,7 +39,8 @@ module Integrations
         )
         @resources << found
 
-        list(LIST_BRANCHES, "branches of #{database['name']}", { "organization" => org, "database" => database["name"] }).each do |branch|
+        where = { "organization" => org, "database" => database["name"] }
+        list(LIST_BRANCHES, "branches of #{database['name']}", where, kinds: [ ResourceMap::KIND_BRANCH ]).each do |branch|
           branch_found = ResourceMap::Found.new(
             provider: PROVIDER, account: org, kind: ResourceMap::KIND_BRANCH, external_id: "#{database['name']}/#{branch['name']}",
             name: "#{database['name']}/#{branch['name']}", status: branch["state"], url: branch["html_url"],
@@ -47,37 +51,20 @@ module Integrations
         end
       end
 
-      # Every page of a list, up to MAX_PAGES. What could not be read is said once, in words.
-      def list(tool, what, path)
-        rows = []
-        (1..MAX_PAGES).each do |page|
-          arguments = { "queryParameters" => { "page" => page, "per_page" => PER_PAGE } }
+      # Every page of a list, up to MAX_PAGES. What could not be read is said once, in words. A list cut short at the
+      # bound leaves kinds unread, so the sweep takes nothing past it as gone.
+      def list(tool, what, path, kinds:)
+        read = Pages.read(max_pages: MAX_PAGES) do |page|
+          arguments = { "queryParameters" => { "page" => page || 1, "per_page" => PER_PAGE } }
           arguments["pathParameters"] = path if path.any?
-          body = read(tool, what, arguments)
-          return rows unless body
-
-          rows.concat(Array(body["data"]))
-          return rows if body["next_page"].blank?
+          body = listing(tool, what, arguments)
+          body ? [ Array(body["data"]), (body["next_page"].presence && (page || 1) + 1) ] : [ [], nil ]
         end
-        @gaps << "Only the first #{MAX_PAGES * PER_PAGE} #{what} were read."
-        rows
-      end
-
-      def read(tool, what, arguments)
-        result = call(tool, arguments)
-        if result.nil?
-          @gaps << "#{tool} is switched off for PlanetScale, so the #{what} are not on the map."
-          return
+        if read.incomplete?
+          @gaps << "Only the first #{MAX_PAGES * PER_PAGE} #{what} were read."
+          @unread_kinds.concat(kinds)
         end
-
-        text = Array(result["content"]).filter_map { |part| part["text"] }.join
-        return JSON.parse(text) unless result["isError"]
-
-        @gaps << "PlanetScale refused to list the #{what}: #{text.truncate(200)}"
-        nil
-      rescue JSON::ParserError
-        @gaps << "PlanetScale answered the #{what} with something that is not JSON."
-        nil
+        read.items
       end
     end
   end
