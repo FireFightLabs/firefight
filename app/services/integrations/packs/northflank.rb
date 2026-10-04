@@ -11,7 +11,6 @@ module Integrations
       PROVIDER = "Northflank".freeze
       PROVIDER_KEY = "northflank".freeze
       GITHUB = "github".freeze
-      APP_ROOT = "https://app.northflank.com".freeze
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
       OBSERVE_METRICS = "metrics".freeze
@@ -706,8 +705,11 @@ module Integrations
       def app_link(environment_row, team, *rest, query: {})
         return nil if team.blank?
 
+        site = ConnectionSettings.of(environment_row).site
+        return nil if site.blank?
+
         segments = [ "t", team, "project", project_of(environment_row), *rest.compact ].map { |part| ERB::Util.url_encode(part) }
-        url = "#{APP_ROOT}/#{segments.join('/')}"
+        url = "#{site.chomp('/')}/#{segments.join('/')}"
         url = "#{url}?#{query.compact.to_query}" if query.compact.any?
         Telemetry::Link.new(provider: PROVIDER, url: url)
       end

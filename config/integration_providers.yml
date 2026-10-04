@@ -12,6 +12,8 @@
 # map says whether what a provider holds is on the resource map: firefight (a pack's map_of or a reader in
 # McpExecutor::MAP_READERS puts it there), none (it holds no infrastructure, and map_note says why) or unchecked (it
 # may, and no reader exists yet). A new provider that holds infrastructure lands with its reader.
+# site is the address of the app of a provider that runs in one place, which links open, read through
+# Integrations::ConnectionSettings#site.
 # regions lists where a provider runs its service when it offers more than one place, such as a US and an EU site. Each
 # has a key, a label, its MCP server's server_url, the site its app is at, which links open, and authorization_endpoint
 # and token_endpoint only where its OAuth endpoints are not the ones its server names. A provider with regions lists no
@@ -101,6 +103,7 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
+    site: https://app.northflank.com
     connect_fields:
       - key: project
         label: Project
