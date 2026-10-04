@@ -8,8 +8,13 @@ module Integrations
     # hold the words, an object with a message or detail, or a list of either. OAuth's error_description is the readable
     # one (RFC 6749, section 5.2), and its error only a code, so the description comes first.
     REASON_FIELDS = %w[error_description error message detail errors].freeze
-    # An answer with its status, for a caller that has to tell answers apart by it, such as 202 queued from 201 done.
-    Answer = Data.define(:status, :body)
+    # An answer with its status and headers, for a caller that tells answers apart by status (202 queued from 201 done)
+    # or reads a header, such as the next page's number. Header names are lower case.
+    Answer = Data.define(:status, :body, :headers) do
+      def initialize(headers: {}, **) = super
+
+      def header(name) = headers[name.to_s.downcase]
+    end
     REASON = ->(body) { REASON_FIELDS.lazy.filter_map { |field| Http.words(body[field]) }.first }
 
     # A reason as words, from a string, an object with a message, detail, title or description, or a list of them.
@@ -37,12 +42,17 @@ module Integrations
     # through is never reported as failed. Anything else raises "<provider> answered <code>: <reason>", RateLimited for a
     # 429, the class refine names for the code and reason, or error_class. reason reads the provider's own words from
     # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited. with_status answers an Answer
-    # holding the status and the body.
-    def self.json(uri, request, error_class:, provider_name:, reason: REASON, refine: nil, rate_limited: nil, read_timeout: 30, with_status: false, **)
+    # holding the status, the body and the headers. as: :text answers a 2xx body as the text it is, for an endpoint that
+    # answers text such as a log, with errors read the same way.
+    def self.json(uri, request, error_class:, provider_name:, reason: REASON, refine: nil, rate_limited: nil, read_timeout: 30, with_status: false,
+                  as: :json, **)
       response = self.request(uri, request, error_class: error_class, read_timeout: read_timeout, **)
       code = response.code.to_i
       body = parsed(response.body)
-      return with_status ? Answer.new(status: code, body: body || {}) : body || {} if code.between?(200, 299)
+      if code.between?(200, 299)
+        kept = as == :text ? String.new(response.body.to_s, encoding: Encoding::UTF_8).scrub : body || {}
+        return with_status ? Answer.new(status: code, body: kept, headers: headers_of(response)) : kept
+      end
 
       said = (body.is_a?(Hash) && reason.call(body)).presence || "no reason given"
       raise (rate_limited || error_class).new("#{provider_name} answered #{code}: #{said}").extend(RateLimited) if code == TOO_MANY_REQUESTS
@@ -73,11 +83,17 @@ module Integrations
     # One segment of a path, escaped, so a name with a slash or a space stays one segment.
     def self.segment(value) = ERB::Util.url_encode(value.to_s)
 
+    def self.headers_of(response)
+      return {} unless response.respond_to?(:to_hash)
+
+      response.to_hash.to_h { |name, values| [ name.to_s.downcase, Array(values).join(", ") ] }
+    end
+
     def self.parsed(text)
       text.to_s.strip.empty? ? nil : JSON.parse(text)
     rescue JSON::ParserError
       nil
     end
-    private_class_method :parsed
+    private_class_method :parsed, :headers_of
   end
 end

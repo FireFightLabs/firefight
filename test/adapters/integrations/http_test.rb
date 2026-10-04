@@ -47,6 +47,19 @@ module Integrations
       assert_equal [ 201, {} ], json(with_status: true).then { |answer| [ answer.status, answer.body ] }
     end
 
+    test "an answer carries its headers when asked, and an endpoint that answers text is read as text" do
+      Http.stubs(:request).returns(response(200, '[{"id":1}]', headers: { "X-Next-Page" => [ "3" ], "Content-Type" => [ "application/json" ] }))
+      answer = json(with_status: true)
+      assert_equal [ [ { "id" => 1 } ], "3", "3" ], [ answer.body, answer.header("x-next-page"), answer.header("X-Next-Page") ]
+
+      Http.stubs(:request).returns(response(200, "line one\nfailed: tests"))
+      assert_equal "line one\nfailed: tests", json(as: :text)
+      assert_equal "line one\nfailed: tests", json(as: :text, with_status: true).body
+
+      Http.stubs(:request).returns(response(404, '{"message":"404 Job Not Found"}'))
+      assert_equal "Acme answered 404: 404 Job Not Found", assert_raises(AcmeError) { json(as: :text) }.message
+    end
+
     test "a 429 is the client's own error, marked rate limited, so either rescue catches it" do
       Http.stubs(:request).returns(response(429, '{"error":{"message":"slow down"}}'))
 
@@ -86,8 +99,8 @@ module Integrations
 
     def json(**) = Http.json(@uri, Net::HTTP::Get.new(@uri), error_class: AcmeError, provider_name: "Acme", **)
 
-    def response(code, body)
-      stub(code: code.to_s, body: body)
+    def response(code, body, headers: {})
+      stub(code: code.to_s, body: body, to_hash: headers)
     end
   end
 end
