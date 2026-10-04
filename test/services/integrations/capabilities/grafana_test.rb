@@ -79,7 +79,7 @@ class Integrations::Capabilities::GrafanaTest < ActiveSupport::TestCase
     assert_nil resolve(Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "grafana").fallback
   end
 
-  test "a connection whose datasource is not known, or one of several with none the default, is passed over for the platform" do
+  test "a connection whose datasource is not known, or one of several with none the default or chosen, is passed over for the platform" do
     @grafana_row.update!(base_config: {})
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web").environment_row
     assert_match "no connection offers traces", unroutable(Integrations::Capabilities::TRACES, "resource" => "web")
@@ -87,6 +87,9 @@ class Integrations::Capabilities::GrafanaTest < ActiveSupport::TestCase
     two = DATASOURCES + [ { "uid" => "loki-eu", "name" => "Loki EU", "type" => "loki", "default" => false } ]
     @grafana_row.update!(base_config: { "learned" => { "datasources" => two } })
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web").environment_row
+    @grafana_row.store_fields!("logs_datasource" => "loki-eu")
+    assert_equal [ @grafana_row, "loki-eu" ], resolve(Integrations::Capabilities::LOGS, "resource" => "web").then { |call| [ call.environment_row, call.arguments["datasourceUid"] ] }
+    @grafana_row.store_fields!({})
     two.last["default"] = true
     @grafana_row.update!(base_config: { "learned" => { "datasources" => two } })
     assert_equal "loki-eu", resolve(Integrations::Capabilities::LOGS, "resource" => "web").arguments["datasourceUid"]

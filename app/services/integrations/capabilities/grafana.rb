@@ -75,7 +75,7 @@ module Integrations
         source = HealthProbes::Grafana.datasource(settings, SOURCES.fetch(key))
         unless source
           raise Unroutable, "Grafana's #{SOURCE_NAMES.fetch(key)} datasource for this connection is not known. Its health check finds it once " \
-                            "list_datasources is switched on, and picks Grafana's default when there are several."
+                            "list_datasources is switched on. When Grafana has several, choose one on the connection's details in Integrations."
         end
 
         case key

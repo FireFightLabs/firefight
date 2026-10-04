@@ -2,9 +2,9 @@ module Integrations
   module HealthProbes
     # A Grafana MCP server answers a ping without reaching Grafana, so the health check also lists Grafana's datasources,
     # which only works when the server reaches Grafana with its token. It learns the Loki, Prometheus and Tempo
-    # datasources Firefight's reads go to, and Grafana's own address, which its links open. The tools, their arguments
-    # and their answers are from grafana/mcp-grafana (tools/datasources.go for list_datasources, tools/navigation.go for
-    # generate_deeplink).
+    # datasources Firefight's reads go to, each type also as a list a person chooses from on the connection's details,
+    # and Grafana's own address, which its links open. The tools, their arguments and their answers are from
+    # grafana/mcp-grafana (tools/datasources.go for list_datasources, tools/navigation.go for generate_deeplink).
     class Grafana < RemoteReader
       LIST_DATASOURCES = "list_datasources".freeze
       GENERATE_DEEPLINK = "generate_deeplink".freeze
@@ -27,10 +27,17 @@ module Integrations
         Array(settings&.learned&.dig(DATASOURCES)).select { |source| source["type"] == type }
       end
 
-      # The one datasource of a type Firefight reads, which is the only one, or Grafana's default when there are several.
-      # nil when there is none, or several and none of them is the default, since a guess would read the wrong place.
+      # The connect field a person chooses each type's datasource in, on the connection's details.
+      CHOSEN = { LOKI => "logs_datasource", PROMETHEUS => "metrics_datasource", TEMPO => "traces_datasource" }.freeze
+
+      # The one datasource of a type Firefight reads, which is the one a person chose, else the only one, else Grafana's
+      # default. nil when there is none, or several with none chosen and none the default, since a guess would read the
+      # wrong place.
       def self.datasource(settings, type)
         found = datasources(settings, type)
+        chosen = settings&.field(CHOSEN.fetch(type))
+        return found.find { |source| source["uid"] == chosen } if chosen.present? && found.any? { |source| source["uid"] == chosen }
+
         found.one? ? found.first : found.find { |source| source["default"] }
       end
 
@@ -46,7 +53,10 @@ module Integrations
         kept = sources.select { |source| TYPES.include?(source["type"]) }.map do |source|
           { "uid" => source["uid"], "name" => source["name"], "type" => source["type"], "default" => source["isDefault"] == true }
         end
-        { DATASOURCES => kept, ADDRESS => self.class.address(settings) || learned_address(kept.first) }.compact
+        choices = TYPES.index_with do |type|
+          kept.select { |source| source["type"] == type }.map { |source| { "value" => source["uid"], "label" => source["name"].presence || source["uid"] } }
+        end
+        { DATASOURCES => kept, ADDRESS => self.class.address(settings) || learned_address(kept.first), **choices }.compact
       end
 
       private

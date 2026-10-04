@@ -35,6 +35,8 @@ module Integrations
         assert_equal %w[loki-uid prom-uid tempo-uid], @row.learned["datasources"].map { |source| source["uid"] }
         assert_equal "https://acme.grafana.net", Grafana.address(ConnectionSettings.of(@row))
         assert_equal "prom-uid", Grafana.datasource(ConnectionSettings.of(@row), Grafana::PROMETHEUS)["uid"]
+        assert_equal [ { "value" => "loki-uid", "label" => "Loki" } ], @row.learned["loki"]
+        assert_equal [ { "value" => "tempo-uid", "label" => "Tempo" } ], @row.learned["tempo"]
         logged = Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_HEALTH_CHECK)
         assert_equal 3, logged.count
         assert_equal [ SystemAgent.health_check ], logged.map(&:principal).uniq
@@ -75,7 +77,7 @@ module Integrations
         assert_nil Grafana.address(ConnectionSettings.of(@row.reload))
       end
 
-      test "several datasources of a type with none the default are not guessed between" do
+      test "several datasources of a type with none the default are not guessed between, and the one a person chose is read" do
         sources = [ { "uid" => "a", "type" => "loki", "default" => false }, { "uid" => "b", "type" => "loki", "default" => false } ]
         @row.update!(base_config: { "learned" => { "datasources" => sources } })
 
@@ -83,6 +85,11 @@ module Integrations
         sources.last["default"] = true
         @row.update!(base_config: { "learned" => { "datasources" => sources } })
         assert_equal "b", Grafana.datasource(ConnectionSettings.of(@row), Grafana::LOKI)["uid"]
+
+        @row.store_fields!("logs_datasource" => "a")
+        assert_equal "a", Grafana.datasource(ConnectionSettings.of(@row.reload), Grafana::LOKI)["uid"], "the one a person chose wins over the default"
+        @row.store_fields!("logs_datasource" => "gone")
+        assert_equal "b", Grafana.datasource(ConnectionSettings.of(@row.reload), Grafana::LOKI)["uid"], "a choice Grafana no longer has falls back"
       end
 
       private

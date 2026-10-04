@@ -121,6 +121,11 @@ providers:
     description: Reach dashboards and datasources behind your Grafana.
     server_url: ""
     source_links: firefight
+    # Chosen on the connection's details from the datasources its health check found, when Grafana has several of a type.
+    connect_fields:
+      - { key: logs_datasource, label: Logs datasource, hint: Which Loki datasource holds the logs Halon reads., learned: loki }
+      - { key: metrics_datasource, label: Metrics datasource, hint: Which Prometheus datasource holds the metrics Halon reads., learned: prometheus }
+      - { key: traces_datasource, label: Traces datasource, hint: Which Tempo datasource holds the traces Halon reads., learned: tempo }
     map: none
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: cloudflare
