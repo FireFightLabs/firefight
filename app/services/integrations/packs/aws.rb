@@ -268,7 +268,7 @@ module Integrations
         AwsApi.new(access_key_id: key, secret_access_key: secret).identity(regions.first)
         nil
       rescue AwsApi::Error => error
-        "AWS refused these keys. #{error.message}"
+        Sentence.join("AWS refused these keys", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -293,7 +293,7 @@ module Integrations
         end
         asked = region ? [ region ] : regions(environment_row)
         text = sections.any? ? sections.join("\n\n") : "Nothing found in #{asked.join(', ')}."
-        text = "#{text}\n\nNot read:\n#{reading.gaps.join("\n")}" if reading.gaps.any?
+        text = "#{text}\n\nNot read:\n#{reading.gaps.map(&:text).join("\n")}" if reading.gaps.any?
         Telemetry.result(text, link: console_link(asked.first, "console/home"))
       end
 
@@ -431,7 +431,7 @@ module Integrations
           ResourceMap::Found.new(provider: PROVIDER_KEY, account: account, kind: entry.kind, external_id: entry.arn, name: entry.name,
                                  status: entry.status, url: resource_link(entry)&.url, details: entry.details)
         end
-        ResourceMap::Snapshot.new(resources: resources, gaps: reading.gaps, unread_kinds: reading.unread)
+        ResourceMap::Snapshot.new(resources: resources, gaps: reading.gaps)
       end
 
       # What normal looks like, one GetMetricData call per resource for a week an hour a point. Counts become counts per
@@ -469,7 +469,7 @@ module Integrations
       Entry = Data.define(:kind, :arn, :name, :region, :cluster, :status, :details) do
         def initialize(cluster: nil, status: nil, details: {}, **) = super
       end
-      Reading = Data.define(:entries, :gaps, :unread)
+      Reading = Data.define(:entries, :gaps)
 
       private
 
@@ -494,29 +494,26 @@ module Integrations
         (@accounts ||= {})[environment_row.id] ||= api(environment_row).identity(regions(environment_row).first)[:account]
       end
 
-      # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap and leaves the rest
-      # read, and being asked to slow down stops the read, with every kind left unread.
+      # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap naming its kind and
+      # leaves the rest read, and being asked to slow down stops the read with a gap naming every kind.
       def inventory(environment_row, kinds:, regions:)
         entries = []
         gaps = []
-        unread = []
         regions.each do |region|
           kinds.each do |kind|
             found, more = list_kind(environment_row, kind, region)
             entries.concat(found)
             next unless more
 
-            gaps << "Only the first #{AwsApi::MAX_PAGES} pages of #{KIND_PLURALS.fetch(kind)} in #{region} were read."
-            unread << kind
+            gaps << ResourceMap::Gap.new(text: "Only the first #{AwsApi::MAX_PAGES} pages of #{KIND_PLURALS.fetch(kind)} in #{region} were read.", kinds: [ kind ])
           rescue Integrations::RateLimited => error
-            gaps << "AWS asked to slow down while listing #{KIND_PLURALS.fetch(kind)} in #{region}, so the rest was not read: #{error.message}"
-            return Reading.new(entries: entries, gaps: gaps, unread: kinds)
+            text = Sentence.join("AWS asked to slow down while listing #{KIND_PLURALS.fetch(kind)} in #{region}, so the rest was not read", error)
+            return Reading.new(entries: entries, gaps: gaps + [ ResourceMap::Gap.new(text: text, kinds: kinds) ])
           rescue AwsApi::Error => error
-            gaps << "#{KIND_PLURALS.fetch(kind)} in #{region} could not be read: #{error.message}"
-            unread << kind
+            gaps << ResourceMap::Gap.new(text: Sentence.join("#{KIND_PLURALS.fetch(kind)} in #{region} could not be read", error), kinds: [ kind ])
           end
         end
-        Reading.new(entries: entries, gaps: gaps, unread: unread.uniq)
+        Reading.new(entries: entries, gaps: gaps)
       end
 
       def list_kind(environment_row, kind, region)
@@ -607,7 +604,7 @@ module Integrations
         fail!("Nothing called #{wanted} in #{regions(environment_row).join(', ')}. list_resources shows what there is.") if found.empty?
         return found.first if found.one?
 
-        fail!("More than one resource is called #{wanted}: #{found.map { |entry| "#{KIND_NAMES.fetch(entry.kind)} #{entry.arn}" }.join('; ')}. Name it by its ARN.")
+        fail!("More than one resource is called #{wanted}: #{found.map { |entry| "#{KIND_NAMES.fetch(entry.kind)} #{entry.arn}" }.join(', ')}. Name it by its ARN.")
       end
 
       # An ARN in the forms ECS, Lambda, EC2 and RDS document, for a region this connection reads. An ECS service ARN
@@ -1023,8 +1020,8 @@ module Integrations
       def changing(entry)
         yield
       rescue AwsApi::Denied => error
-        fail!("#{error.message.delete_suffix('.')}. The access key's policy does not allow this change to #{entry.name}. Allow the " \
-              "action AWS names in the policy of the access key's IAM user, then run it again.")
+        fail!("#{Sentence.of(error)} The access key's policy does not allow this change to #{entry.name}. Allow the action AWS " \
+              "names in the policy of the access key's IAM user, then run it again.")
       end
 
       def family_revision(arn) = arn.to_s.split("/").last.presence

@@ -41,7 +41,7 @@ module Integrations
         assert_equal "Choose at least one region.", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: {})
 
         AwsApi.any_instance.stubs(:identity).raises(AwsApi::Denied, "AWS answered InvalidClientTokenId: The security token included in the request is invalid.")
-        assert_equal "AWS refused these keys. AWS answered InvalidClientTokenId: The security token included in the request is invalid.",
+        assert_equal "AWS refused these keys: AWS answered InvalidClientTokenId: The security token included in the request is invalid.",
                      Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
         AwsApi.any_instance.expects(:identity).with("eu-west-1").returns(account: ACCOUNT)
         assert_nil Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
@@ -328,8 +328,8 @@ module Integrations
         assert_equal [ ResourceMap::KIND_VIRTUAL_MACHINE, "bastion", "t3.micro" ], found[INSTANCE_ARN].then { |resource| [ resource.kind, resource.name, resource.details["type"] ] }
         assert_equal [ ResourceMap::KIND_DATABASE, "postgres 16.4" ], found[DATABASE_ARN].then { |resource| [ resource.kind, resource.details["engine"] ] }
         assert_equal [ ResourceMap::KIND_FUNCTION ], snapshot.unread_kinds
-        assert_match "Lambda functions in us-east-1 could not be read", snapshot.gaps.sole
-        assert_equal "ok", ResourceMap::Resource.new(status: "available").health
+        assert_match "Lambda functions in us-east-1 could not be read: AWS answered AccessDeniedException", snapshot.gaps.sole.text
+        assert_equal [ ResourceMap::KIND_FUNCTION ], snapshot.gaps.sole.kinds
       end
 
       test "being asked to slow down stops the map's read, with every kind left unread" do
@@ -339,7 +339,7 @@ module Integrations
 
         assert_empty snapshot.resources
         assert_equal Aws::KIND_NAMES.keys, snapshot.unread_kinds
-        assert_match "AWS asked to slow down while listing ECS services in eu-west-1", snapshot.gaps.sole
+        assert_match "AWS asked to slow down while listing ECS services in eu-west-1", snapshot.gaps.sole.text
       end
 
       test "a week of metrics per resource an hour a point, counts made per minute, and a slow down stops the read" do
@@ -370,6 +370,30 @@ module Integrations
         assert_match "Apache License", references.join("LICENSE").read
         assert_match "Amazon.com", references.join("NOTICE").read
         assert_match "Status check failed", Chat::Skill.reference(Aws::PROVIDER_KEY, "compute/troubleshooting.md")
+      end
+
+      test "every state AWS reports for a resource on the map reads a health Firefight knows" do
+        provider = Integrations::Provider.for(Aws::PROVIDER_KEY)
+        reported = {
+          "ECS service" => %w[completed in_progress failed active draining inactive],
+          "Lambda function" => %w[pending active inactive failed deactivating deactivated activenoninvocable deleting],
+          "EC2 instance" => %w[pending running shutting-down terminated stopping stopped],
+          "RDS database" => %w[
+            available backing-up configuring-enhanced-monitoring configuring-iam-database-auth configuring-log-exports converting-to-vpc
+            creating delete-precheck deleting failed inaccessible-encryption-credentials inaccessible-encryption-credentials-recoverable
+            incompatible-create incompatible-network incompatible-option-group incompatible-parameters incompatible-restore
+            insufficient-capacity maintenance modifying moving-to-vpc rebooting resetting-master-credentials renaming restore-error
+            starting stopped stopping storage-config-upgrade storage-full storage-initialization storage-optimization upgrading upgrade-failed
+          ]
+        }
+        reported.each do |kind, words|
+          words.each do |word|
+            health = ResourceMap::Resource.new(status: provider.status_of(word)).health
+            assert_not_equal ResourceMap::Resource::HEALTH_UNKNOWN, health, "#{kind} #{word}"
+          end
+        end
+        assert_equal "ok", ResourceMap::Resource.new(status: provider.status_of("available")).health
+        assert_equal "failing", ResourceMap::Resource.new(status: provider.status_of("storage-full")).health
       end
 
       private

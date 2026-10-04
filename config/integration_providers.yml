@@ -148,7 +148,7 @@ providers:
     connect_fields:
       - key: regions
         label: Regions
-        hint: The regions this environment runs in. Halon reads only these, and reads a region that needs opting in once you enable it for the account.
+        hint: The regions this environment runs in. Halon reads only these, including a region that needs opting in once you enable it for the account.
         multiple: true
         options:
           - { value: us-east-1, label: "US East (N. Virginia)" }
