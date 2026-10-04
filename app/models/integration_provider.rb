@@ -44,19 +44,47 @@ class IntegrationProvider
   # What the connect form asks beside the credentials, such as the account an environment reads. None is a secret. A
   # field marked path names a part of the server's address, appended to it in the order the fields are listed, so it
   # belongs to the connection. Every other field belongs to the environment it was connected for.
-  PATH_SEGMENT = /\A[A-Za-z0-9._~-]+\z/
-  ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path) do
-    def initialize(placeholder: "", numeric: false, optional: false, path: false, **) = super
+  #
+  # pattern is the shape a value must have, matched whole, and allowed says in words what it allows, for the form to
+  # say when a value does not fit. A path field without a pattern of its own takes a slug's, so no value can carry a
+  # slash, a query or a fragment into the address and reach somewhere else.
+  SLUG_PATTERN = "[A-Za-z0-9][A-Za-z0-9._-]*".freeze
+  SLUG_ALLOWED = "letters, numbers, dots, dashes and underscores, starting with a letter or number".freeze
+  # One choice of a field that picks from a documented list, such as one of a cloud's regions.
+  ConnectOption = Data.define(:value, :label)
+  # options makes a field a choice from that list, and multiple lets it hold several, kept as a list, such as every
+  # region an account runs in.
+  ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path, :pattern, :allowed, :options, :multiple) do
+    def initialize(placeholder: "", numeric: false, optional: false, path: false, pattern: nil, allowed: nil, options: [], multiple: false, **)
+      raise ArgumentError, "connect field #{key} has a pattern without saying in allowed what it allows" if pattern.present? && allowed.blank?
+      raise ArgumentError, "connect field #{key} holds several values without a list to choose them from" if multiple && options.empty?
+      raise ArgumentError, "connect field #{key} is part of the address, so it holds one value" if path && multiple
+
+      options = options.map { |option| option.is_a?(ConnectOption) ? option : ConnectOption.new(**option.to_h.symbolize_keys) }
+      pattern, allowed = SLUG_PATTERN, SLUG_ALLOWED if path && pattern.blank? && options.empty?
+      super(placeholder:, numeric:, optional:, path:, pattern:, allowed:, options:, multiple:, **)
+    end
+
+    # A value as the form gave it, trimmed. A field that holds several gives a list, any other one string.
+    def value_of(given)
+      return Array(given).map { |each| each.to_s.strip }.compact_blank.uniq if multiple
+
+      given.to_s.strip
+    end
 
     # Why the form cannot go ahead with this value, or nil when it can.
-    def refusal(value)
-      value = value.to_s.strip
+    def refusal(given)
+      value = value_of(given)
       return if value.empty? && optional
       return "#{label} is required." if value.empty?
+      return "#{label} can only be #{options.map(&:label).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}." if options.any? && (Array(value) - options.map(&:value)).any?
       return "#{label} must be a number." if numeric && !value.match?(/\A\d+\z/)
 
-      "#{label} can hold only letters, numbers, dots, dashes, underscores and tildes." if path && !value.match?(PATH_SEGMENT)
+      "#{label} can hold only #{allowed}." if pattern && !value.match?(/\A(?:#{pattern})\z/)
     end
+
+    # How a value reads to a person, by its options' labels where it has them.
+    def shown(value) = Array(value).map { |each| options.find { |option| option.value == each }&.label || each }.join(", ")
   end
 
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
@@ -89,14 +117,14 @@ class IntegrationProvider
     # The values the form gave for fields, trimmed, keeping only the fields asked about and leaving out empty ones.
     def connect_values(values, fields = connect_fields)
       given = values.to_h.stringify_keys
-      fields.to_h { |field| [ field.key, given[field.key].to_s.strip ] }.compact_blank
+      fields.to_h { |field| [ field.key, field.value_of(given[field.key]) ] }.compact_blank
     end
 
     # Why the connect form cannot go ahead with this region and these values, or nil when it can. fields are the ones
     # the form asked, since the form for a pasted server address does not ask the fields that are part of the address.
     def connect_refusal(region_key, values, fields = connect_fields)
       if region_key.present? && regions.any? && region(region_key).nil?
-        return "#{name} has no region called #{region_key}. Choose one of #{regions.map(&:label).to_sentence(last_word_connector: ' or ')}."
+        return "#{name} has no region called #{region_key}. Choose one of #{regions.map(&:label).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}."
       end
 
       given = values.to_h.stringify_keys
@@ -104,11 +132,12 @@ class IntegrationProvider
     end
 
     # The server's address for a region and the fields that are part of it, in the order they are listed. An optional
-    # field left empty ends the address there, so a later one never takes its place.
+    # field left empty ends the address there, so a later one never takes its place. Each part is escaped as well as
+    # checked, so a value can only ever be one segment of the address.
     def server_url_for(region_key, values)
       base = region(region_key)&.server_url || server_url
-      parts = path_fields.map { |field| values.to_h.stringify_keys[field.key].to_s.strip }
-      parts = parts.take_while(&:present?)
+      parts = path_fields.map { |field| field.value_of(values.to_h.stringify_keys[field.key]) }
+      parts = parts.take_while(&:present?).map { |part| ERB::Util.url_encode(part) }
       parts.empty? ? base : [ base.to_s.chomp("/"), *parts ].join("/")
     end
   end

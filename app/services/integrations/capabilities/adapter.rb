@@ -6,8 +6,9 @@ module Integrations
     #
     #   route(key, resource, given, tool:, settings:)  a Route, or raises Unroutable with words an agent can act on
     #
-    # tool is the connection's Integration::Tool, nil when only a refusal is wanted, and settings the connection's
-    # ConnectionSettings, for what it was set up with, its region and what its health check learned.
+    # tool is the connection's Integration::Tool for the capability's usual tool, nil when it is switched off or only a
+    # refusal is wanted, and settings the connection's ConnectionSettings, for what it was set up with, its region and
+    # what its health check learned. The Route's tool_name is the tool that runs, which may be another of TOOLS[key].
     module Adapter
       def supports?(key, kind) = self::SUPPORTS.fetch(key, []).include?(kind)
 
@@ -19,7 +20,12 @@ module Integrations
       # The capabilities this provider answers for some kind of resource, in the order they are listed.
       def capabilities = SPECS.keys.select { |key| self::SUPPORTS.key?(key) || observed.key?(key) }
 
-      def tool_for(key) = self::TOOLS[key]
+      # A capability's usual tool. TOOLS may list several for one capability, the usual one first, when the route picks
+      # another for some kinds of resource.
+      def tool_for(key) = Array(self::TOOLS[key]).first
+
+      # Every tool a capability may run as.
+      def tools_for(key) = Array(self::TOOLS[key])
 
       # Whether it can take what was asked. A platform takes everything its route does. An observability tool that
       # cannot is passed over for the platform, unless it was named.
@@ -47,7 +53,7 @@ module Integrations
       # How a capability reads in that sentence.
       def phrase(key) = PHRASES.fetch(key)
 
-      def runs?(key, tool_name) = self::TOOLS[key] == tool_name
+      def runs?(key, tool_name) = tools_for(key).include?(tool_name)
 
       def wraps?(tool_name) = self::WRAPPED.include?(tool_name)
 

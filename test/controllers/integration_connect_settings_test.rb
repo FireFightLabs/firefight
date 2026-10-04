@@ -110,7 +110,7 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
       assert_equal "Organization is required.", flash[:alert]
 
       get oauth_start_integrations_url(provider: "acme", fields: { organization: "acme/co", account: "42" })
-      assert_equal "Organization can hold only letters, numbers, dots, dashes, underscores and tildes.", flash[:alert]
+      assert_equal "Organization can hold only letters, numbers, dots, dashes and underscores, starting with a letter or number.", flash[:alert]
 
       get oauth_start_integrations_url(provider: "acme", fields: { organization: "acme", account: "forty" })
       assert_equal "Account must be a number.", flash[:alert]
@@ -131,11 +131,36 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
   end
 
   test "credentials a pack checks are checked in the chosen region" do
-    Integrations::Credentials.expects(:refusal).with("northflank", { "api_token" => "nf", "project" => "shop" }, region: nil).returns("Northflank refused this token.")
+    Integrations::Credentials.expects(:refusal).with("northflank", { "api_token" => "nf", "project" => "shop" }, region: nil, fields: {}).returns("Northflank refused this token.")
 
     post integrations_url, params: { provider: "northflank", name: "Northflank", credentials: { api_token: "nf", project: "shop" } }
 
     assert_equal "Northflank refused this token.", session[:inertia_errors].to_h.with_indifferent_access[:connection]
+  end
+
+  test "a pack's form asks its connect fields too, a list where a field holds several, checked with the credentials and kept on the environment" do
+    northflank = IntegrationProvider.find("northflank")
+    regions = IntegrationProvider::ConnectField.new(key: "regions", label: "Regions", hint: "Where it runs.", multiple: true,
+                                                    options: [ { "value" => "us-east-1", "label" => "US East (N. Virginia)" },
+                                                               { "value" => "eu-west-1", "label" => "Europe (Ireland)" } ])
+    entries = IntegrationProvider.all.map { |entry| entry.key == "northflank" ? northflank.with(connect_fields: [ regions ]) : entry }
+    IntegrationProvider.stubs(:all).returns(entries)
+    Integrations::Credentials.expects(:refusal).with("northflank", { "api_token" => "nf", "project" => "shop" }, region: nil,
+                                                                   fields: { "regions" => %w[us-east-1 eu-west-1] }).returns(nil)
+    Integrations::Credentials.expects(:store!)
+    Integrations::ConnectionRefresh.stubs(:run!)
+
+    post integrations_url, params: { provider: "northflank", name: "Northflank", credentials: { api_token: "nf", project: "shop" },
+                                     fields: { regions: [ "us-east-1", " eu-west-1 ", "" ] } }
+
+    row = @workspace.integrations.find_by!(provider: "northflank").integration_environments.sole
+    assert_equal %w[us-east-1 eu-west-1], Integrations::ConnectionSettings.of(row).field(:regions)
+    get integrations_url, headers: inertia_headers
+    shown = inertia_props["integrations"].find { |integration| integration["provider"] == "northflank" }["environments"].sole["settings"]
+    assert_equal [ { "label" => "Regions", "value" => "US East (N. Virginia), Europe (Ireland)" } ], shown
+
+    post integrations_url, params: { provider: "northflank", name: "Northflank two", credentials: { api_token: "nf", project: "shop" }, fields: { regions: [ "mars-1" ] } }
+    assert_equal "Regions can only be US East (N. Virginia) or Europe (Ireland).", session[:inertia_errors].to_h.with_indifferent_access[:connection]
   end
 
   test "the gallery offers a provider's regions and the fields it asks" do

@@ -497,11 +497,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "oauth_start without a hosted server explains the token path" do
-    get oauth_start_integrations_url(provider: "newrelic")
+    get oauth_start_integrations_url(provider: Integration::PROVIDER_CUSTOM_MCP)
 
     assert_redirected_to integrations_path
     assert_match(/Connect with a token/, flash[:alert])
-    assert_not @workspace.integrations.exists?(provider: "newrelic")
+    assert_not @workspace.integrations.exists?(provider: Integration::PROVIDER_CUSTOM_MCP)
   end
 
   test "a configured provider app skips dynamic registration" do

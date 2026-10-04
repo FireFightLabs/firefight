@@ -47,6 +47,11 @@ class IntegrationProviderSerializer < BaseSerializer
 
   # What the connect form asks beside the credentials, as the registry declares it. A path field is part of the server's
   # address, so the form for a pasted address does not ask it.
-  type "{ key: string; label: string; hint: string; placeholder: string; numeric: boolean; optional: boolean; path: boolean }[]"
-  def connect_fields = provider.connect_fields.map(&:to_h)
+  # A field with options is a choice from them, and one marked multiple holds several. allowed says what a value may hold.
+  type "{ key: string; label: string; hint: string; placeholder: string; numeric: boolean; optional: boolean; path: boolean; allowed: string | null; options: { value: string; label: string }[]; multiple: boolean }[]"
+  def connect_fields
+    provider.connect_fields.map do |field|
+      field.to_h.except(:pattern).merge(options: field.options.map(&:to_h))
+    end
+  end
 end

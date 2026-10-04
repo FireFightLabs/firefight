@@ -45,4 +45,28 @@ class IntegrationRegionTest < ApplicationSystemTestCase
       assert_no_text "Region"
     end
   end
+
+  test "a pack's credentials form asks its connect fields, with a list to choose several from" do
+    northflank = IntegrationProvider.find("northflank")
+    regions = IntegrationProvider::ConnectField.new(key: "regions", label: "Regions", hint: "The regions this account runs in.", multiple: true,
+                                                    options: [ { "value" => "us-east-1", "label" => "US East (N. Virginia)" },
+                                                               { "value" => "eu-west-1", "label" => "Europe (Ireland)" } ])
+    entries = IntegrationProvider.all.map { |entry| entry.key == "northflank" ? northflank.with(connect_fields: [ regions ]) : entry }
+    IntegrationProvider.stubs(:all).returns(entries)
+
+    visit integrations_path(Integration::CONNECT_QUERY_PARAM => "northflank")
+    within("[role=dialog]") do
+      assert_text "The regions this account runs in."
+      click_button "Choose regions"
+    end
+    find("[role=option]", text: "Europe (Ireland)").click
+    find("[role=option]", text: "US East (N. Virginia)").click
+    find("body").send_keys(:escape)
+
+    within("[role=dialog]") do
+      assert_text "Europe (Ireland)"
+      assert_text "US East (N. Virginia)"
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/integration-connect-fields-multiple.png"))
+  end
 end

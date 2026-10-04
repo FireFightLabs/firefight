@@ -52,10 +52,13 @@ module Integrations
 
       # A pack connected with credentials (connect_with: api_token) lists the fields it asks for, says why the values
       # cannot be used or nil, and stores them on an environment row. It owns their shape, so nothing else reads them.
-      # region is the provider's region the person chose (IntegrationProvider::Region), or nil for a provider with one.
+      # region is the provider's region the person chose (IntegrationProvider::Region), or nil for a provider with one,
+      # and fields what the form asked beside the credentials (the registry's connect_fields), so a pack can check that a
+      # project or workspace it names exists before anything is saved. A pack reads what it stored through
+      # ConnectionSettings#credential, and what the form asked through ConnectionSettings#field.
       def credential_fields = []
 
-      def credential_refusal(_values, region: nil)
+      def credential_refusal(_values, region: nil, fields: {})
         raise NotImplementedError, "#{name} does not connect with credentials"
       end
 

@@ -26,7 +26,13 @@ import {
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { ConnectionUrlForm } from "@/components/integrations/connection-url-form";
 import { CredentialsForm } from "@/components/integrations/credentials-form";
-import { ConnectFields, connectFieldsComplete } from "@/components/integrations/connect-fields";
+import {
+  appendConnectValues,
+  ConnectFields,
+  connectFieldsComplete,
+  type ConnectValue,
+  type ConnectValues,
+} from "@/components/integrations/connect-fields";
 import { defaultRegion, RegionSelect } from "@/components/integrations/region-select";
 import { INTEGRATION_CONNECT_WITH } from "@/lib/generated/constants";
 import { whenClosed } from "@/lib/handlers";
@@ -36,7 +42,7 @@ interface OauthStart {
   name: string;
   environmentId: string;
   region: string;
-  fields: Record<string, string>;
+  fields: ConnectValues;
   returnTo?: string;
 }
 
@@ -55,7 +61,7 @@ function oauthHref({ providerKey, name, environmentId, region, fields, returnTo 
   if (region) {
     params.set("region", region);
   }
-  Object.entries(fields).forEach(([key, value]) => params.set(`fields[${key}]`, value.trim()));
+  appendConnectValues(params, fields);
   return `${oauthStartIntegrationsPath()}?${params.toString()}`;
 }
 
@@ -121,7 +127,7 @@ function ConnectForm({
   const [useToken, setUseToken] = useState(false);
   const [separateAccount, setSeparateAccount] = useState(false);
   const [region, setRegion] = useState(defaultRegion(provider));
-  const [fields, setFields] = useState<Record<string, string>>({});
+  const [fields, setFields] = useState<ConnectValues>({});
   const regional = provider.regions.length > 1;
   // The token form takes the server's whole address, so it does not ask the fields that are part of it.
   const tokenFields = provider.connectFields.filter((field) => !field.path);
@@ -142,7 +148,7 @@ function ConnectForm({
     setUseToken(true);
   }
 
-  function setField(key: string, value: string) {
+  function setField(key: string, value: ConnectValue) {
     setFields((current) => ({ ...current, [key]: value }));
   }
 

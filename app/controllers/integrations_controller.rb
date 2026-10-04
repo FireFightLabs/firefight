@@ -183,10 +183,12 @@ class IntegrationsController < InertiaController
   def connect_with_credentials(provider)
     values = params.fetch(:credentials, {}).permit(*Integrations::Credentials.fields_for(provider.key).map(&:key)).to_h
     region = params[:region].presence
-    refusal = provider.connect_refusal(region, {}, []) || Integrations::Credentials.refusal(provider.key, values, region: provider.region(region))
+    fields = provider.connect_values(fields_param(provider), provider.environment_fields)
+    refusal = provider.connect_refusal(region, fields_param(provider), provider.environment_fields) ||
+              Integrations::Credentials.refusal(provider.key, values, region: provider.region(region), fields: fields)
     return redirect_back(fallback_location: integrations_path, inertia: { errors: { connection: refusal } }) if refusal
 
-    environment_row = connect!(provider, params.require(:name), environment_id_param, region: region)
+    environment_row = connect!(provider, params.require(:name), environment_id_param, region: region, fields: fields)
     Integrations::Credentials.store!(environment_row, values)
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
@@ -274,7 +276,7 @@ class IntegrationsController < InertiaController
   def fields_param(provider)
     return {} unless provider
 
-    params.fetch(:fields, {}).permit(*provider.connect_fields.map(&:key)).to_h
+    params.fetch(:fields, {}).permit(*provider.connect_fields.map { |field| field.multiple ? { field.key => [] } : field.key }).to_h
   end
 
   def set_integration

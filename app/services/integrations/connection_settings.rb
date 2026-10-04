@@ -25,8 +25,14 @@ module Integrations
     # address is in none of them.
     def region = @integration.region
 
-    # What the connect form asked, by the field's key, for this environment or the whole connection, or nil.
+    # What the connect form asked, by the field's key, for this environment or the whole connection, or nil. A field
+    # that holds several values answers a list.
     def field(key) = @row.fields[key.to_s].presence || @integration.path_fields[key.to_s].presence
+
+    # A value a native pack stored with its credentials (NativePack.store_credentials!), such as an API token, or nil.
+    # Only the pack that stored it reads it, to call its provider. It never reaches the model, a chat, an MCP response
+    # or the ledger.
+    def credential(key) = @row.credentials_hash[key.to_s].presence
 
     # What the provider's health check learned about this environment, as the probe wrote it.
     def learned = @row.learned

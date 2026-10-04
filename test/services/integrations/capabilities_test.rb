@@ -115,7 +115,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     assert_equal "Halon can read its logs, read its metrics, read its errors, and read its traces for the services on the map that Datadog watches, by their " \
                  "name in Datadog, through the tools you switch on. It also uses Datadog's other tools that you switch on.",
                  Integrations::Capabilities.halon_sentence("datadog", "Datadog")
-    assert_equal "Halon uses Grafana's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("grafana", "Grafana")
+    assert_equal "Halon uses Linear's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("linear", "Linear")
     assert_equal Integrations::Capabilities::SPECS.keys.sort, Integrations::Capabilities::PHRASES.keys.sort, "every capability can be said"
     assert_equal %w[logs metrics deploys status rollback], Integrations::Capabilities::Cloudflare.capabilities
     details = IntegrationProviderSerializer.one(IntegrationProvider.find("cloudflare"))
@@ -143,6 +143,34 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     Integrations::NativePack.stubs(:halon_sentence).returns("Firefight hands Acme a fix's code change.")
     Integrations::Provider.stubs(:for).with("acme").returns(Integrations::Provider.new(key: "acme", pack: "Integrations::NativePack"))
     assert_equal "Firefight hands Acme a fix's code change.", Integrations::Capabilities.halon_sentence("acme", "Acme")
+  end
+
+  test "the route picks which of a capability's tools runs, so a machine and an app restart through their own, each only while switched on" do
+    adapter = Module.new do
+      extend Integrations::Capabilities::Adapter
+
+      restart = Integrations::Capabilities::RESTART
+      const_set(:SUPPORTS, { restart => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_VIRTUAL_MACHINE ] }.freeze)
+      const_set(:TOOLS, { restart => %w[restart_app reboot_machine] }.freeze)
+      const_set(:WRAPPED, [].freeze)
+
+      def self.route(_key, resource, _given, tool: nil, settings: nil)
+        name = resource.kind == ResourceMap::KIND_VIRTUAL_MACHINE ? "reboot_machine" : "restart_app"
+        Integrations::Capabilities::Route.new(tool_name: name, arguments: { "id" => resource.external_id })
+      end
+    end
+    Integrations::Provider.stubs(:for).returns(Integrations::Provider.new(key: "acme"))
+    Integrations::Capabilities.stubs(:adapter_for).returns(adapter)
+    _integration, row = connect("acme", "Acme", %w[reboot_machine])
+    resource!(row, "acme", ResourceMap::KIND_VIRTUAL_MACHINE, "vm-1", "box")
+    resource!(row, "acme", ResourceMap::KIND_SERVICE, "app-1", "storefront")
+
+    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::RESTART, { "resource" => "box" })
+    assert_equal [ "reboot_machine", { "id" => "vm-1" } ], [ call.tool.name, call.arguments ]
+    assert_includes Integrations::Capabilities.offered(@workspace).map { |spec, _tools| spec.key }, Integrations::Capabilities::RESTART
+
+    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::RESTART, { "resource" => "storefront" }) }
+    assert_match "would answer this with its restart_app tool, which is switched off", error.message
   end
 
   private

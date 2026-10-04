@@ -19,8 +19,11 @@ module Integrations
     def self.fields_for(provider_key) = NativePack.for(provider_key)&.credential_fields.to_a
 
     # Why the values cannot be used, read with the provider before anything is saved, or nil. region is the
-    # IntegrationProvider::Region chosen, or nil for a provider that lists none.
-    def self.refusal(provider_key, values, region: nil) = pack!(provider_key).credential_refusal(values, region: region)
+    # IntegrationProvider::Region chosen, or nil for a provider that lists none, and fields what the form asked beside
+    # the credentials.
+    def self.refusal(provider_key, values, region: nil, fields: {})
+      pack!(provider_key).credential_refusal(values, region: region, fields: fields)
+    end
 
     def self.store!(environment_row, values) = pack!(environment_row.integration.provider).store_credentials!(environment_row, values)
 

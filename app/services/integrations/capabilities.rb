@@ -176,7 +176,7 @@ module Integrations
     # The provider's own tool a capability runs as, by the capability's tool name, or nil when it is not one.
     def self.provider_tool(provider, tool_name)
       spec = SPECS.values.find { |each| each.tool_name == tool_name.to_s }
-      spec && adapter_for(provider)&.const_get(:TOOLS)&.[](spec.key)
+      spec && adapter_for(provider)&.tool_for(spec.key)
     end
 
     # Names the capabilities take, so no connection tool is offered under the same name.
@@ -203,17 +203,17 @@ module Integrations
       spec = spec(key)
       candidates, reference = candidates_for(workspace, spec, given, tools)
       chosen = choose(candidates, given, reference, spec)
-      call = call_for(workspace, spec, chosen, given)
+      call = call_for(workspace, spec, chosen, given, tools)
       return call unless chosen.observer && given[CONNECTION_ARG].blank?
 
-      call.with(fallback: fallback_for(workspace, spec, candidates, chosen, given))
+      call.with(fallback: fallback_for(workspace, spec, candidates, chosen, given, tools))
     end
 
     # The platform that runs the resource, asked when the observability tool chosen for it has no answer. nil when
     # there is none that could be asked.
-    def self.fallback_for(workspace, spec, candidates, chosen, given)
+    def self.fallback_for(workspace, spec, candidates, chosen, given, tools)
       platform = candidates.find { |candidate| !candidate.observer && candidate.resource == chosen.resource }
-      platform && call_for(workspace, spec, platform, given)
+      platform && call_for(workspace, spec, platform, given, tools)
     rescue Unroutable
       nil
     end
@@ -262,7 +262,7 @@ module Integrations
       candidates, reference = candidates_for(workspace, spec, given, tools)
       one_resource!(candidates, reference)
       candidates.uniq { |candidate| candidate.row.id }.map do |candidate|
-        call_for(workspace, spec, candidate, given)
+        call_for(workspace, spec, candidate, given, tools)
       rescue Unroutable => error
         Refused.new(environment_row: candidate.row, reason: error.message)
       end
@@ -285,16 +285,34 @@ module Integrations
       [ candidates, reference ]
     end
 
-    def self.call_for(workspace, spec, candidate, given)
-      tool_name = candidate.adapter.tool_for(spec.key)
-      tool = Integration::Tool.in_workspace(workspace).find_by(integration_id: candidate.row.integration_id, name: tool_name)
-      unless tool
-        raise Unroutable, "#{candidate.row.integration.name} would answer this with its #{tool_name} tool, which is switched off. " \
-                          "An admin can switch it on in Integrations."
+    # The route decides which of the provider's tools runs, so a capability can take a different tool for a different
+    # kind of resource (a restart of an app and a reboot of a machine). The capability's usual tool is handed to the
+    # route for its parameters. The tool the route names has to be switched on, and an observability tool answers only
+    # through one the caller may run, so connecting one never takes away a read the platform answers today.
+    def self.call_for(workspace, spec, candidate, given, tools)
+      switched_on = Integration::Tool.in_workspace(workspace).where(integration_id: candidate.row.integration_id)
+      usual = candidate.adapter.tool_for(spec.key)
+      usual_tool = switched_on.find_by(name: usual)
+      begin
+        route = candidate.adapter.route(spec.key, candidate.resource, given.except(RESOURCE_ARG, CONNECTION_ARG), tool: usual_tool, settings: candidate.settings)
+      rescue Unroutable
+        raise switched_off(candidate, usual) unless usual_tool
+
+        raise
       end
 
-      route = candidate.adapter.route(spec.key, candidate.resource, given.except(RESOURCE_ARG, CONNECTION_ARG), tool: tool, settings: candidate.settings)
+      tool = route.tool_name == usual ? usual_tool : switched_on.find_by(name: route.tool_name)
+      raise switched_off(candidate, route.tool_name) unless tool
+      if candidate.observer && tools.none? { |each| each.id == tool.id }
+        raise Unroutable, "#{candidate.row.integration.name} would answer this with its #{tool.name} tool, which you may not run."
+      end
+
       Call.new(spec: spec, resource: candidate.resource, environment_row: candidate.row, tool: tool, arguments: route.arguments, present: route.present)
+    end
+
+    def self.switched_off(candidate, tool_name)
+      Unroutable.new("#{candidate.row.integration.name} would answer this with its #{tool_name} tool, which is switched off. " \
+                     "An admin can switch it on in Integrations.")
     end
 
     # Every resource of that name with a connection that holds it and can answer. A hostname is answered by what serves
@@ -320,7 +338,7 @@ module Integrations
       rows = IntegrationEnvironment.reachable.includes(:integration, :environment).where(integrations: { workspace_id: workspace.id }).to_a
       watching = rows.filter_map do |row|
         adapter = adapter_for(row.integration.provider)
-        [ row, adapter ] if adapter && tools.any? { |tool| tool.integration_id == row.integration_id && tool.name == adapter.tool_for(spec.key) }
+        [ row, adapter ] if adapter && tools.any? { |tool| tool.integration_id == row.integration_id && adapter.runs?(spec.key, tool.name) }
       end
       resources = holding.map(&:resource).uniq.presence || named
       resources.flat_map do |resource|
@@ -384,6 +402,6 @@ module Integrations
     end
 
     def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq
-    private_class_method :parsed, :holds_something?, :fallback_for, :candidates_for, :call_for, :holders, :observers, :choose, :one_resource!, :labels
+    private_class_method :parsed, :holds_something?, :fallback_for, :candidates_for, :call_for, :switched_off, :holders, :observers, :choose, :one_resource!, :labels
   end
 end

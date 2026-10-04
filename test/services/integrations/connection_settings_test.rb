@@ -21,13 +21,14 @@ module Integrations
     test "what the form asked and what the check learned are read from the row, never from its columns by provider code" do
       integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry",
                                                     settings: { "server_url" => "https://mcp.sentry.dev/mcp/acme", "fields" => { "organization" => "acme" } })
-      row = integration.integration_environments.create!
-      row.store_fields!("account" => "42")
+      row = integration.integration_environments.create!(credentials: { "api_token" => "secret" }.to_json)
+      row.store_fields!("account" => "42", "regions" => %w[us eu])
       row.store_learned!("sources" => [ "logs" ])
 
       settings = ConnectionSettings.of(row.reload)
       assert_equal [ "acme", "42", nil ], [ settings.field(:organization), settings.field("account"), settings.field("missing") ]
       assert_equal({ "sources" => [ "logs" ] }, settings.learned)
+      assert_equal [ %w[us eu], "secret", nil ], [ settings.field(:regions), settings.credential(:api_token), settings.credential("missing") ]
       assert_equal [ @workspace, "sentry", "Sentry", "https://mcp.sentry.dev/mcp/acme" ], [ settings.workspace, settings.provider_key, settings.name, settings.server_url ]
     end
   end

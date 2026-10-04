@@ -36,26 +36,35 @@ module Integrations
       end
     end
 
-    # The rest of the app reaches a provider through the shared contracts, so a provider's key never appears as a
-    # literal outside the integrations layer. ArchSpec holds its constants, this holds its name. Alert sources keep their
-    # own list of providers, which is not this one.
-    test "nothing outside the integrations layer names a provider" do
-      keys = IntegrationProvider.all.map(&:key) - [ Integration::PROVIDER_CUSTOM_MCP ]
+    # The rest of the app reaches a provider through the shared contracts, so code outside the integrations layer never
+    # decides by which provider it is. ArchSpec holds the constants, this holds the names. It looks for a provider's key
+    # where a provider is compared or chosen (provider == "x", provider: "x", find("x"), for("x"), when "x"), so a key
+    # that is also a common word, such as modal, collides with nothing. Alert sources keep their own list of providers,
+    # which is not this one.
+    test "nothing outside the integrations layer decides by which provider it is" do
+      keys = (IntegrationProvider.all.map(&:key) - [ Integration::PROVIDER_CUSTOM_MCP ]).map { |key| Regexp.escape(key) }.join("|")
       allowed = %w[app/services/integrations/ app/adapters/integrations/ app/adapters/alert_providers app/models/alert_source.rb
                    app/frontend/lib/generated/ app/frontend/pages/settings/lib/alerts.ts]
-      ruby = /["'](#{keys.join('|')})["']/
-      typescript = /(?:===?|!==?|case)\s*["'](#{keys.join('|')})["']/
+      ruby = /(?:\bprovider\w*\s*(?:[!=]=|:)|\.(?:find|for|adapter_for|provider_tool|halon_sentence)\(|\bwhen)\s*["'](?:#{keys})["']/
+      typescript = /(?:\bprovider\w*|\bkey)\s*(?:[!=]==?|:)\s*["'](?:#{keys})["']|\bcase\s+["'](?:#{keys})["']/
 
-      named = Dir[Rails.root.join("{app,lib}/**/*.{rb,ts,tsx}")].filter_map do |path|
+      named = Dir[Rails.root.join("{app,lib}/**/*.{rb,ts,tsx}")].flat_map do |path|
         relative = Pathname(path).relative_path_from(Rails.root).to_s
-        next if allowed.any? { |prefix| relative.start_with?(prefix) }
+        next [] if allowed.any? { |prefix| relative.start_with?(prefix) }
 
         pattern = relative.end_with?(".rb") ? ruby : typescript
-        lines = File.readlines(path).each_with_index.filter_map { |line, index| "#{relative}:#{index + 1}" if line.match?(pattern) && !line.strip.start_with?("#", "//") }
-        lines.presence
-      end.flatten
+        File.readlines(path).each_with_index.filter_map { |line, index| "#{relative}:#{index + 1}" if line.match?(pattern) && !line.strip.start_with?("#", "//") }
+      end
 
-      assert_empty named, "These name a provider outside the integrations layer. Ask the integrations layer instead."
+      assert_empty named, "These decide by which provider it is outside the integrations layer. Ask the integrations layer instead."
+    end
+
+    test "a provider's key is found where a provider is chosen, and a common word that happens to be one is not" do
+      ruby = /(?:\bprovider\w*\s*(?:[!=]=|:)|\.(?:find|for)\(|\bwhen)\s*["'](?:modal)["']/
+
+      assert_match ruby, 'next if integration.provider == "modal"'
+      assert_match ruby, 'IntegrationProvider.find("modal")'
+      assert_no_match ruby, 'adapter.open_modal(type: "modal", view: view)'
     end
   end
 end

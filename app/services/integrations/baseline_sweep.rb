@@ -16,10 +16,9 @@ module Integrations
 
       window = (now - ResourceMap::Baseline::WINDOW)..now
       found = environment_row.integration.executor.baselines_of(environment_row, resources, window)
-      return 0 unless found
-
-      found = named(found, watched, environment_row.integration.name)
-      recorded = ResourceMap::Baseline.record!(environment_row, resources, found, window_from: window.begin, window_to: window.end)
+      # Nothing to read, such as a reader whose tool was switched off, is no failure, so an earlier error is cleared too.
+      recorded = found ? ResourceMap::Baseline.record!(environment_row, resources, named(found, watched, environment_row.integration.name),
+                                                       window_from: window.begin, window_to: window.end) : 0
       environment_row.update!(baseline_error: nil)
       recorded
     rescue Integrations::Error => error

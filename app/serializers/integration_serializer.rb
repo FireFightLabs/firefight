@@ -52,7 +52,7 @@ class IntegrationSerializer < BaseSerializer
 
     region = ({ label: "Region", value: integration.region.label } if entry.regional? && integration.region)
     values = row.fields.merge(integration.path_fields)
-    fields = entry.connect_fields.filter_map { |field| { label: field.label, value: values[field.key].to_s } if values[field.key].present? }
+    fields = entry.connect_fields.filter_map { |field| { label: field.label, value: field.shown(values[field.key]) } if values[field.key].present? }
     [ region, *fields ].compact
   end
 end

@@ -196,11 +196,11 @@ module Integrations
       private
 
       def read(environment_row, &)
-        credentials = environment_row.credentials_hash
-        url = credentials[CONNECTION_URL]
+        settings = ConnectionSettings.of(environment_row)
+        url = settings.credential(CONNECTION_URL)
         fail! "This environment has no connection URL. Reconnect it on the Integrations page." if url.blank?
 
-        Connection.open(url, credentials[CERTIFICATES] || {}, &)
+        Connection.open(url, settings.credential(CERTIFICATES) || {}, &)
       end
 
       # How Postgres refuses a statement a cursor cannot hold, which is every statement that writes.

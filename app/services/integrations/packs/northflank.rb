@@ -216,7 +216,7 @@ module Integrations
       end
 
       # Reads the project with the token, so a wrong token or project is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
         project = values[PROJECT].to_s.strip
         return "Paste an API token." if token.empty?
@@ -563,13 +563,13 @@ module Integrations
       private
 
       def api(environment_row)
-        token = environment_row.credentials_hash[API_TOKEN]
+        token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
         fail! "This environment has no Northflank token. Reconnect it on the Integrations page." if token.blank?
 
         NorthflankApi.new(token)
       end
 
-      def project_of(environment_row) = environment_row.credentials_hash[PROJECT].presence || fail!("This environment has no Northflank project. Reconnect it.")
+      def project_of(environment_row) = ConnectionSettings.of(environment_row).credential(PROJECT) || fail!("This environment has no Northflank project. Reconnect it.")
 
       def resources(environment_row)
         @resources ||= begin

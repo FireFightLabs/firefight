@@ -12,6 +12,12 @@ import {
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
 import { defaultRegion, RegionSelect } from "@/components/integrations/region-select";
+import {
+  ConnectFields,
+  connectFieldsComplete,
+  type ConnectValue,
+  type ConnectValues,
+} from "@/components/integrations/connect-fields";
 
 interface CredentialsFormProps {
   provider: IntegrationProvider;
@@ -32,7 +38,16 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [region, setRegion] = useState(defaultRegion(provider));
-  const complete = provider.credentialFields.every((field) => field.optional || (values[field.key] ?? "").trim() !== "");
+  const [fields, setFields] = useState<ConnectValues>({});
+  // A pack has no server address, so every connect field it lists belongs to the environment.
+  const connectFields = provider.connectFields.filter((field) => !field.path);
+  const complete =
+    provider.credentialFields.every((field) => field.optional || (values[field.key] ?? "").trim() !== "") &&
+    connectFieldsComplete(connectFields, fields);
+
+  function setField(key: string, value: ConnectValue) {
+    setFields((current) => ({ ...current, [key]: value }));
+  }
 
   function setValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -51,6 +66,7 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
         provider: provider.key,
         name,
         credentials: values,
+        fields,
         region,
         environment_id: toEnvironmentId(environmentId),
         return_to: returnTo,
@@ -99,6 +115,7 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
           </p>
         </div>
       ))}
+      <ConnectFields fields={connectFields} values={fields} onChange={setField} />
       {errors.connection && <p className="text-destructive text-sm">{errors.connection}</p>}
       <div className="flex items-center justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onDismiss}>
