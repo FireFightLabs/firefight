@@ -70,6 +70,27 @@ module Integrations
         assert_match "Nothing is blocked.", text
       end
 
+      test "the database's status says its version, size, connections, totals and replication" do
+        text = call(:database_status)
+
+        assert_match "Now\ndatabase | version | size | up_for | role | connections | max_connections", text
+        assert_match "| primary |", text
+        assert_match "Since statistics were reset\ncommits | rollbacks | deadlocks", text
+        assert_match "No replica streams from this database.", text
+      end
+
+      test "the one database the URL reaches is on the map, named by its host, port and name, with no credential" do
+        snapshot = @pack.map_of(@row)
+        database = snapshot.resources.sole
+        name = ActiveRecord::Base.connection.current_database
+
+        assert_equal [ Postgres::PROVIDER, "127.0.0.1", ResourceMap::KIND_DATABASE, name ], [ database.provider, database.account, database.kind, database.name ]
+        assert_match %r{\A127\.0\.0\.1:\d+/#{name}\z}, database.external_id
+        assert_match(/\APostgreSQL \d+/, database.details["engine"])
+        assert_equal "primary", database.details["type"]
+        assert_no_match "postgres:postgres", database.to_h.to_json
+      end
+
       test "table health reads the statistics Postgres keeps" do
         assert_match "dead_rows", call(:table_health)
       end

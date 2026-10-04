@@ -182,8 +182,8 @@ providers:
     color: "#00e599"
     description: Read-only queries and branch history for a Neon Postgres database.
     server_url: https://mcp.neon.tech/mcp
-    source_links: unchecked
-    map: unchecked
+    source_links: firefight
+    map: firefight
   - key: supabase
     name: Supabase
     category: Databases
@@ -191,8 +191,8 @@ providers:
     color: "#3ecf8e"
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
-    source_links: unchecked
-    map: unchecked
+    source_links: firefight
+    map: firefight
   - key: planetscale
     name: PlanetScale
     category: Databases
@@ -213,7 +213,7 @@ providers:
     connect_with: connection_url
     source_links: none
     source_links_note: "A database reached by its own connection URL has no page to open."
-    map: unchecked
+    map: firefight
   - key: custom_mcp
     name: Custom MCP server
     category: Custom

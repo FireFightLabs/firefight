@@ -70,7 +70,15 @@ module Integrations
            },
            read_only: true
 
+      tool :database_status,
+           description: "How the database stands now: its version, size, how long it has been up, connections against the " \
+                        "limit, the oldest open transaction, its commits, rollbacks, deadlocks and cache hit rate since " \
+                        "statistics were reset, how close it is to transaction ID wraparound, and its replication",
+           params_schema: { "type" => "object", "properties" => {} },
+           read_only: true
+
       CERTIFICATES = "certificates".freeze
+      PROVIDER = "postgresql".freeze
 
       def self.connection_refusal(url, certificates) = Connection.refusal(url, certificates)
 
@@ -187,6 +195,59 @@ module Integrations
           SQL
         end
         rows.empty? ? "No statistics for #{table ? "#{schema}.#{table}" : 'any table'}." : grid(rows)
+      end
+
+      # Every figure comes from statistics views any user who can connect may read, which are pg_stat_activity,
+      # pg_stat_database, pg_stat_replication and pg_database, so it needs no extension and no extra role. A user without
+      # pg_monitor sees only its own sessions' queries, and the replicas without their addresses.
+      def database_status(environment_row:, arguments:)
+        read(environment_row) do |connection|
+          overview = connection.exec(<<~SQL).to_a
+            SELECT current_database() AS database, current_setting('server_version') AS version,
+                   pg_size_pretty(pg_database_size(current_database())) AS size,
+                   date_trunc('second', now() - pg_postmaster_start_time())::text AS up_for,
+                   CASE WHEN pg_is_in_recovery() THEN 'replica' ELSE 'primary' END AS role,
+                   (SELECT count(*) FROM pg_stat_activity) AS connections, current_setting('max_connections') AS max_connections,
+                   (SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock') AS waiting_on_locks,
+                   (SELECT date_trunc('second', max(now() - xact_start))::text FROM pg_stat_activity WHERE xact_start IS NOT NULL
+                      AND pid <> pg_backend_pid()) AS oldest_transaction,
+                   (SELECT age(datfrozenxid) FROM pg_database WHERE datname = current_database()) AS transaction_id_age
+          SQL
+          totals = connection.exec(<<~SQL).to_a
+            SELECT xact_commit AS commits, xact_rollback AS rollbacks, deadlocks, conflicts, temp_files,
+                   pg_size_pretty(temp_bytes) AS temp_written,
+                   round(100.0 * blks_hit / NULLIF(blks_hit + blks_read, 0), 2) AS cache_hit_percent, stats_reset::text AS since
+            FROM pg_stat_database WHERE datname = current_database()
+          SQL
+          replicas = connection.exec(<<~SQL).to_a
+            SELECT application_name AS replica, state, sync_state, replay_lag::text AS replay_lag FROM pg_stat_replication
+          SQL
+          behind = connection.exec(<<~SQL).getvalue(0, 0)
+            SELECT CASE WHEN pg_is_in_recovery() THEN date_trunc('second', now() - pg_last_xact_replay_timestamp())::text END
+          SQL
+          [
+            "Now\n#{grid(overview)}", "Since statistics were reset\n#{grid(totals)}",
+            replicas.any? ? "Replicas\n#{grid(replicas)}" : "No replica streams from this database.",
+            ("This is a replica, last replayed #{behind} ago." if behind)
+          ].compact.join("\n\n")
+        end
+      end
+
+      # The one database the connection URL reaches, named by its host, port and name, which is all the map needs and
+      # holds no credential.
+      def map_of(environment_row)
+        found = read(environment_row) do |connection|
+          row = connection.exec(<<~SQL).to_a.first
+            SELECT current_database() AS database, current_setting('server_version') AS version,
+                   CASE WHEN pg_is_in_recovery() THEN 'replica' ELSE 'primary' END AS role
+          SQL
+          ResourceMap::Found.new(
+            provider: PROVIDER, account: connection.host, kind: ResourceMap::KIND_DATABASE,
+            external_id: "#{connection.host}:#{connection.port}/#{row['database']}", name: row["database"],
+            details: { "engine" => "PostgreSQL #{row['version']}", "type" => row["role"] }
+          )
+        end
+        ResourceMap::Snapshot.new(resources: [ found ])
       end
 
       def check_health!(environment_row)
