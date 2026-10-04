@@ -8,6 +8,26 @@ planetscale:
     skills/mysql/references: mysql
     skills/vitess/references: vitess
 
+render:
+  repository: https://github.com/render-oss/skills
+  license: LICENSE
+  paths:
+    skills/render-debug/references: debug
+    skills/render-monitor/references: monitor
+    skills/render-postgres/references: postgres
+    skills/render-keyvalue/references: keyvalue
+
+# Railway's documentation is MIT licensed. Its pages on deployments, networking troubleshooting and observability back
+# the Railway skills.
+railway:
+  repository: https://github.com/railwayapp/docs
+  license: LICENSE
+  paths:
+    content/docs/deployments: deployments
+    content/docs/deployments/troubleshooting: deployments/troubleshooting
+    content/docs/networking/troubleshooting: networking
+    content/docs/observability: observability
+
 # Cloudflare's documentation is CC BY 4.0. Each page is copied as the markdown Cloudflare serves at its index.md.
 cloudflare:
   site: https://developers.cloudflare.com
@@ -54,3 +74,23 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# Fly.io's documentation (github.com/superfly/docs) is Apache 2.0. Each page is copied as the markdown Fly serves at
+# <page>.md.
+fly:
+  site: https://docs.fly.io
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of Fly.io's documentation (https://fly.io/docs), copied unchanged from the markdown Fly.io
+    publishes for each page at docs.fly.io. The documentation's source, github.com/superfly/docs, is licensed under the
+    Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Fly.io, Inc.
+  pages:
+    errors/error-codes.md: monitoring/error-codes
+    deploy/troubleshooting.md: getting-started/troubleshooting
+    deploy/health-checks.md: reference/health-checks
+    deploy/rollback-guide.md: blueprints/rollback-guide
+    machines/restart-policy.md: machines/guides-examples/machine-restart-policy
+    machines/machine-states.md: machines/machine-states
+    machines/autostop-autostart.md: launch/autostop-autostart
+    monitoring/metrics.md: monitoring/metrics
+    monitoring/logs-api-options.md: monitoring/logs-api-options
