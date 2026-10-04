@@ -134,6 +134,32 @@ providers:
     read_only_tools: [search, docs]
     source_links: firefight
     map: firefight
+  - key: kubernetes
+    name: Kubernetes
+    category: Cloud and hosting
+    mark: K8
+    color: "#326ce5"
+    description: Pod logs, current usage, rollout history and events in your cluster's namespaces, and rollbacks, restarts and scaling of workloads when you allow it.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    # Namespace names are DNS labels, as the Kubernetes API reference gives them. * reads every namespace the token can.
+    connect_fields:
+      - key: server
+        label: API server
+        hint: The cluster's API server address, as server in your kubeconfig. Firefight reaches it over the internet.
+        placeholder: https://cluster.example.com:6443
+        pattern: 'https://[A-Za-z0-9.\-\[\]:]+(/[A-Za-z0-9._~%!$&()*+,;=:@\-/]*)?'
+        allowed: an https address, such as https://cluster.example.com:6443
+      - key: namespaces
+        label: Namespaces
+        hint: The namespaces this environment reaches, separated by commas, or * for every namespace the token can read.
+        placeholder: production, payments
+        pattern: '\*|[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\s*,\s*[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*'
+        allowed: namespace names separated by commas, or * alone
+    source_links: none
+    source_links_note: "Kubernetes has no hosted console of its own, and the dashboard a team may run sits at an address Firefight does not know, so each answer names the kubectl command that shows the same."
+    map: firefight
   - key: sentry
     name: Sentry
     category: Observability
