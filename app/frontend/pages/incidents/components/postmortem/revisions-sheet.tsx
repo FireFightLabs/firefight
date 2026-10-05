@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { withExternalLinksInNewTab } from "@/lib/links"
 import { incidentPostmortemRevisionsPath } from "@/lib/routes"
 
 const updateTypeLabels: Record<string, string> = {
@@ -70,11 +71,18 @@ export function RevisionsSheet({
     // Revisions are newest first, so the next version is the previous index or the live editor content.
     const newerHtml = selectedIndex === 0 ? currentHtml : (revisions[selectedIndex - 1]?.htmlContent ?? currentHtml)
     try {
-      return HtmlDiff.execute(olderHtml, newerHtml)
+      return withExternalLinksInNewTab(HtmlDiff.execute(olderHtml, newerHtml))
     } catch {
       return null
     }
   }, [selectedRevision, selectedIndex, revisions, currentHtml])
+
+  const revisionHtml = useMemo(() => {
+    if (!selectedRevision?.htmlContent) {
+      return null
+    }
+    return withExternalLinksInNewTab(selectedRevision.htmlContent)
+  }, [selectedRevision])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -162,10 +170,10 @@ export function RevisionsSheet({
                   className="prose prose-sm prose-invert max-w-none rounded-lg border bg-surface-code p-4 [&_ins]:rounded-sm [&_ins]:bg-success-tint [&_ins]:px-0.5 [&_ins]:text-success [&_ins]:no-underline [&_del]:rounded-sm [&_del]:bg-error-tint [&_del]:px-0.5 [&_del]:text-error [&_del]:line-through"
                   dangerouslySetInnerHTML={{ __html: diffHtml }}
                 />
-              ) : selectedRevision.htmlContent ? (
+              ) : revisionHtml ? (
                 <div
                   className="prose prose-sm prose-invert max-w-none rounded-lg border bg-surface-code p-4"
-                  dangerouslySetInnerHTML={{ __html: selectedRevision.htmlContent }}
+                  dangerouslySetInnerHTML={{ __html: revisionHtml }}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">
