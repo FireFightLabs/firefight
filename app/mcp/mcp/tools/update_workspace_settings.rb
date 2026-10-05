@@ -12,7 +12,8 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
       description "Change the workspace's own settings: whether incident transcripts may be read at all, " \
                   "how many days they are kept, how long after an incident ends its channel is " \
-                  "archived, whether Halon may search and read the public web, and whether Firefight may test Halon on answers the team rated. Give only the settings to change. Read the current values with " \
+                  "archived, whether Halon may search and read the public web, whether Firefight may test Halon on answers the team rated, " \
+                  "and which connected coding agent writes a fix's code changes. Give only the settings to change. Read the current values with " \
                   "get_workspace_config. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
       # Workspace wide and made rarely, so a chat asks before any of them.
       annotations(**DESTRUCTIVE)
@@ -22,7 +23,8 @@ module Mcp
           transcript_retention_days: { type: [ "integer", "null" ], description: "Days to keep a transcript after the incident ends. null keeps them forever" },
           archive_channel_delay: { type: "string", enum: ARCHIVE_VALUES, description: "How long after an incident ends its channel is archived. #{ARCHIVE_CHOICES}" },
           web_search_enabled: { type: "boolean", description: "Whether Halon and its coding agent may search and read the public web, through Firefight" },
-          halon_regression_enabled: { type: "boolean", description: "Whether Firefight may replay Halon's investigations whose answer the team confirmed or marked wrong, to test new versions of Halon. Off by default" }
+          halon_regression_enabled: { type: "boolean", description: "Whether Firefight may replay Halon's investigations whose answer the team confirmed or marked wrong, to test new versions of Halon. Off by default" },
+          code_fix_agent: { type: [ "string", "null" ], description: "The connection slug of a connected coding agent (the coding_agents category of list_integrations), the prefix of its tools such as devin in devin_fix_code, which then writes a fix's code changes and opens the pull request. null for Firefight's own agent, the default" }
         }
       )
 

@@ -666,6 +666,20 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal [ Chat::Tools::STATE_READS_ONLY, nil ], [ declare.state, declare.tool ]
   end
 
+  test "an investigation never hands a change to a coding agent, and only reads how one went" do
+    devin = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "devin", name: "Devin", slug: "devin")
+    devin.integration_environments.create!
+    fix_code = devin.tools.create!(name: "fix_code", description: "Hands a change to Devin", params_schema: {}, read_only: false, enabled: true)
+    status = devin.tools.create!(name: "session_status", description: "Reads a session", params_schema: {}, read_only: true, enabled: true)
+    grant!(fix_code)
+    grant!(status)
+
+    entries = Chat::Tools.catalog(@investigation).index_by(&:name)
+
+    assert_equal [ Chat::Tools::STATE_READS_ONLY, nil ], [ entries["devin_fix_code"].state, entries["devin_fix_code"].tool ]
+    assert_equal Chat::Tools::STATE_READY, entries["devin_session_status"].state
+  end
+
   test "an investigation sees Cloudflare's execute as one read taken as data, and the script it sends is Firefight's own" do
     cloudflare = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare", slug: "cloudflare",
                                                  settings: { "server_url" => "https://mcp.cloudflare.com/mcp" })

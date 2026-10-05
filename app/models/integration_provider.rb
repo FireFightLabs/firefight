@@ -116,9 +116,9 @@ class IntegrationProvider
   # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site) do
+                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent) do
     def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], site: nil, **) = super
+                   connect_fields: [], site: nil, code_agent: false, **) = super
 
     # A native provider connected with credentials that also has an MCP server of its own, which a person may connect
     # through instead.
@@ -210,7 +210,10 @@ class IntegrationProvider
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
         # The tool of a code host's pack that writes a change and opens it for review, which a fix's code steps run.
         code_fix_tool: raw["code_fix_tool"].presence,
-        regions: regions, connect_fields: connect_fields_of(raw), site: raw["site"].presence
+        regions: regions, connect_fields: connect_fields_of(raw), site: raw["site"].presence,
+        # A coding agent writes a change for any repository in its own environment and opens the pull request itself.
+        # It writes a fix's code changes only once an admin chooses it under Settings, Workspace.
+        code_agent: raw["code_agent"] == true
       )
     end.freeze
   end
@@ -248,6 +251,11 @@ class IntegrationProvider
   def self.find(key)
     all.find { |entry| entry.key == key }
   end
+
+  def self.coding_agents = all.select(&:code_agent)
+
+  # A code host's pack writes a change in Firefight's sandbox for the repositories its connection sees.
+  def self.code_hosts = all.select { |entry| entry.code_fix_tool && !entry.code_agent }
 
   # Registry data, so a provider in a new category needs no code change. A category no provider is in yet is left out,
   # so neither the gallery nor Halon's tool groups show it empty.

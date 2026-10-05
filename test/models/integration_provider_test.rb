@@ -64,6 +64,17 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     assert_equal IntegrationProvider::STATE_NOT_CONNECTED, row.state
   end
 
+  test "a coding agent is a native pack whose tool writes the change, chosen apart from the code hosts" do
+    assert_equal %w[devin cursor factory], IntegrationProvider.coding_agents.map(&:key)
+    assert_equal %w[github], IntegrationProvider.code_hosts.map(&:key)
+    IntegrationProvider.coding_agents.each do |provider|
+      definitions = Integrations::NativePack.for(provider.key).tool_definitions.index_by(&:name)
+      assert_equal [ Integration::KIND_NATIVE, IntegrationProvider::CONNECT_API_TOKEN ], [ provider.kind, provider.connect_with ]
+      assert_not definitions.fetch(provider.code_fix_tool).read_only, "#{provider.key}'s #{provider.code_fix_tool} changes code"
+      assert_equal "Coding agents", provider.category
+    end
+  end
+
   private
 
   def connect!(key)

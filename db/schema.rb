@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1842,6 +1842,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_120000) do
     t.integer "transcript_retention_days", default: 30
     t.datetime "updated_at", null: false
     t.boolean "web_search_enabled", default: true, null: false
+    t.string "code_fix_agent"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
     t.index ["platform"], name: "index_workspaces_on_platform"
