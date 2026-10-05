@@ -102,3 +102,50 @@ grafana:
     docs/sources/troubleshooting: troubleshooting
   exclude:
     - docs/sources/guides/use-grafana-incident.md
+
+# Netlify's agent guides are MIT, in netlify/context-and-tools.
+netlify:
+  repository: https://github.com/netlify/context-and-tools
+  license: LICENSE
+  paths:
+    agent-plugin/skills/netlify-deploy/references: deploy
+    agent-plugin/skills/netlify-config: config
+    agent-plugin/skills/netlify-caching: caching
+    agent-plugin/skills/netlify-functions: functions
+
+# Convex's agent skills are Apache 2.0. Its documentation is FSL-1.1-Apache-2.0, which is not an open licence, so none of
+# it is copied. The skills that recommend Convex as the backend for new work are left out.
+convex:
+  repository: https://github.com/get-convex/agent-skills
+  license: LICENSE
+  paths:
+    skills/convex-insights: insights
+    skills/convex-advisor: advisor
+
+# Trigger.dev's documentation lives in its Apache 2.0 repository as .mdx pages, each copied to the .md path given.
+trigger_dev:
+  repository: https://github.com/triggerdotdev/trigger.dev
+  license: LICENSE
+  paths:
+    docs/runs.mdx: runs.md
+    docs/errors-retrying.mdx: errors-retrying.md
+    docs/queues.mdx: queues.md
+    docs/concurrency.mdx: concurrency.md
+    docs/deployment/overview.mdx: deployment.md
+    docs/logging.mdx: logging.md
+    docs/machines.mdx: machines.md
+    docs/runs/max-duration.mdx: max-duration.md
+    docs/troubleshooting.mdx: troubleshooting.md
+    docs/limits.mdx: limits.md
+
+# DigitalOcean's App Platform agent guides are MIT, in digitalocean-labs/do-app-platform-skills. Its product
+# documentation states no open licence, so none of it is copied.
+digitalocean:
+  repository: https://github.com/digitalocean-labs/do-app-platform-skills
+  license: LICENSE
+  paths:
+    skills/troubleshooting/reference: troubleshooting
+    shared: shared
+    skills/postgres/reference: postgres
+    skills/managed-db-services/reference: databases
+    skills/networking/reference: networking

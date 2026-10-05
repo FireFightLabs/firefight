@@ -66,6 +66,9 @@ gem "httparty"
 # Signed GitHub App JWTs for minting installation tokens
 gem "jwt"
 
+# Modal's API is gRPC only, which its open source client speaks, so the Modal integration calls it the same way
+gem "grpc", require: false
+
 # Persistent HTTP connection pool (for Slack API keep-alive)
 gem "net-http-persistent"
 
