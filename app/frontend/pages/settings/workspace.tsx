@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Head, router, usePage } from "@inertiajs/react"
+import { Head, Link, router, usePage } from "@inertiajs/react"
 import type { Errors } from "@inertiajs/core"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ARCHIVE_CHANNEL_DELAY_CHOICES } from "@/lib/generated/constants"
-import { settingsWorkspacePath } from "@/lib/routes"
+import { integrationsPath, settingsWorkspacePath } from "@/lib/routes"
 import type { WorkspaceSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
@@ -22,6 +22,17 @@ function retentionText(days?: number): string {
   return days ? String(days) : ""
 }
 
+// Firefight's own agent is no connection, and a connection's slug never holds a hyphen, so this never names one.
+const FIREFIGHT_WRITES = "firefight-own-agent"
+
+function agentChoice(slug: string | null | undefined): string {
+  return slug ?? FIREFIGHT_WRITES
+}
+
+function agentSlug(choice: string): string {
+  return choice === FIREFIGHT_WRITES ? "" : choice
+}
+
 export default function Workspace() {
   const { settings } = usePage<WorkspacePageProps>().props
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
@@ -29,6 +40,8 @@ export default function Workspace() {
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
   const [webSearch, setWebSearch] = useState(settings.webSearchEnabled)
   const [regression, setRegression] = useState(settings.halonRegressionEnabled)
+  const [codeFixAgent, setCodeFixAgent] = useState(agentChoice(settings.codeFixAgent))
+  const connectedAgents = settings.codeFixAgents.length > 1
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
 
@@ -58,6 +71,7 @@ export default function Workspace() {
         archive_channel_delay: archiveDelay,
         web_search_enabled: webSearch,
         halon_regression_enabled: regression,
+        code_fix_agent: agentSlug(codeFixAgent),
       },
       { preserveScroll: true, onSuccess: succeed, onError: fail, onFinish: finish },
     )
@@ -203,6 +217,46 @@ export default function Workspace() {
                 </p>
               </div>
               <Switch id="halon-regression" checked={regression} onCheckedChange={setRegression} />
+            </div>
+
+            <div className="max-w-prose">
+              <Label htmlFor="code-fix-agent" className="text-foreground">
+                Write code fixes with
+              </Label>
+              <div className="mt-2">
+                <Select value={codeFixAgent} onValueChange={setCodeFixAgent}>
+                  <SelectTrigger id="code-fix-agent" className="w-72">
+                    <SelectValue placeholder="Choose who writes code fixes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {settings.codeFixAgents.map((choice) => (
+                      <SelectItem key={agentChoice(choice.value)} value={agentChoice(choice.value)}>
+                        {choice.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {errors.code_fix_agent && <p className="mt-2 text-sm text-destructive">{errors.code_fix_agent}</p>}
+              {settings.codeFixAgentBlockedReason && (
+                <p className="mt-2 text-sm text-destructive">{settings.codeFixAgentBlockedReason}</p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                Firefight&apos;s own agent writes a fix&apos;s code change in Firefight&apos;s sandbox and opens the pull
+                request through your code host connection. Pick a coding agent you connected and Firefight hands it the
+                change and the evidence instead. That agent opens the pull request itself, and the fix shows how it is
+                going until it finishes or hits its time limit. Both go through your permissions and approval rules.
+                An investigation never starts a code fix on its own.
+              </p>
+              {!connectedAgents && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No coding agent is connected yet. Connect one under{" "}
+                  <Link href={integrationsPath()} className="underline underline-offset-4">
+                    Integrations
+                  </Link>{" "}
+                  to choose it here.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

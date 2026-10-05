@@ -625,6 +625,60 @@ providers:
     source_links: none
     source_links_note: "A database reached by its own connection URL has no page to open."
     map: firefight
+  # A coding agent writes a fix's code change in its own environment and opens the pull request itself. code_agent marks
+  # one, which writes code changes only once an admin chooses it under Settings, Workspace, instead of Firefight's own.
+  - key: devin
+    name: Devin
+    category: Coding agents
+    mark: DV
+    color: "#14213d"
+    description: Hand a fix's code change to Devin, which writes it in its own environment and opens the pull request, while Firefight follows the session.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: none
+    map_note: "It writes code changes and runs nothing of yours."
+    code_fix_tool: fix_code
+    code_agent: true
+    # Devin names an organization org- followed by its id (Devin's OpenAPI document, the org_id parameter).
+    connect_fields:
+      - { key: organization, label: Organization ID, hint: "The organization's id, shown at the top of Settings, Devin API in Devin.", placeholder: "org-...", pattern: "org-[A-Za-z0-9_-]+", allowed: "org- followed by letters, numbers, dashes and underscores" }
+      - { key: max_acus, label: ACU limit per change, hint: "The most ACUs Devin may use on one change, which Devin enforces. Leave it empty for 5.", numeric: true, default: 5 }
+  - key: cursor
+    name: Cursor
+    category: Coding agents
+    mark: CU
+    color: "#0f0f0f"
+    description: Hand a fix's code change to a Cursor cloud agent, which writes it and opens the pull request, while Firefight follows the run.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: none
+    map_note: "It writes code changes and runs nothing of yours."
+    code_fix_tool: fix_code
+    code_agent: true
+  - key: factory
+    name: Factory
+    category: Coding agents
+    mark: FA
+    color: "#d9480f"
+    description: Hand a fix's code change to a Factory Droid on your Droid Computer, which writes it and opens the pull request, while Firefight follows the session.
+    # Factory's Global deployment and its separate EU one, each with its own API (api.factory.ai, api.eu.factory.ai) and
+    # app, from Factory's Deployment Patterns page, EU deployment and data residency.
+    regions:
+      - { key: global, label: Global (app.factory.ai), site: "https://app.factory.ai" }
+      - { key: eu, label: EU (app.eu.factory.ai), site: "https://app.eu.factory.ai" }
+    connect_fields:
+      - { key: computer, label: Droid Computer, hint: "The name of the Droid Computer the Droid works on, with your repositories cloned on it. A managed computer pushes and opens pull requests through the GitHub integration set up in Factory.", placeholder: "my-computer" }
+    kind: native
+    connect_with: api_token
+    source_links: firefight
+    map: none
+    map_note: "It writes code changes and runs nothing of yours."
+    code_fix_tool: fix_code
+    code_agent: true
   - key: custom_mcp
     name: Custom MCP server
     category: Custom

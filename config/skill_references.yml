@@ -380,3 +380,10 @@ mixpanel:
     plugins/mixpanel/skills/monitor-metrics/references: metrics
     plugins/mixpanel/skills/monitor-metrics/commands: metrics
     plugins/mixpanel/skills/analyze-report/references: reports
+
+# Devin's handoff guide, MIT licensed, which Devin's API docs point to for handing work to Devin from another agent.
+devin:
+  repository: https://github.com/club-cog/devin-handoff
+  license: LICENSE
+  paths:
+    .agents/skills/devin-handoff: handoff
