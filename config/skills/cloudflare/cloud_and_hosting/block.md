@@ -1,9 +1,11 @@
 ---
 name: cloudflare_block
 when: Blocking, challenging or allowing traffic on Cloudflare by IP address, IP range, ASN, country, hostname, path or any other request field, writing or changing a WAF custom rule and its expression, or undoing a block
-tools: [search, execute, docs]
+tools: [get_resource_map, resource_status, search, execute, docs]
 references: [security/ip-access-rules.md, security/ip-access-rules-actions.md, security/ip-access-rules-parameters.md, security/custom-rules.md, security/custom-rules-create-api.md, security/lists.md, security/lists-api-endpoints.md, security/allowlist-only.md, security/block-countries.md, security/security-events.md, rules/expressions.md, rules/operators.md, rules/values.md, rules/edit-expressions.md]
 ---
+Start from the zone on the resource map. `get_resource_map` with the domain names the Cloudflare account that holds it and its id, which is the zone id every endpoint takes, and `resource_status` with the domain reads the zone from Cloudflare. Both only read, so the person is not asked. Find a zone with `execute` only when the map does not have it.
+
 1. Look before blocking. Read the zone's security events for the address or network in question, through `execute` and the firewallEventsAdaptive dataset of the GraphQL Analytics API, so the block rests on what the traffic did. Security events are kept for 24 hours on Free and Pro, 3 days on Business and 30 days on Enterprise.
 2. Pick the mechanism Cloudflare recommends. Cloudflare recommends a WAF custom rule over an IP Access rule for blocking by IP or by country:
    - Many addresses: put them in an IP list, then one custom rule references the list, such as ip.src in $blocked_ips. Adding to the list later updates every rule using it. A list name uses lowercase letters, numbers and underscores only.

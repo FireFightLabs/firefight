@@ -63,7 +63,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
       adapter = Integrations::Capabilities.adapter_for(skill.source)
       capabilities = Integrations::Capabilities::SPECS.values.select { |spec| adapter&.const_get(:TOOLS)&.key?(spec.key) }.index_by(&:tool_name)
       definitions = pack.tool_definitions.index_by(&:name)
-      skill.tools.each { |tool| assert_includes definitions.keys + capabilities.keys, tool, "#{skill.name} names #{tool}" }
+      skill.tools.each { |tool| assert_includes definitions.keys + capabilities.keys + [ Chat::Tools::UseSkill::MAP ], tool, "#{skill.name} names #{tool}" }
       known = skill.tools + skill.tools.flat_map do |tool|
         capabilities[tool] ? Integrations::Capabilities.schema(capabilities[tool], []).fetch("properties").keys : definitions.fetch(tool).params_schema.fetch("properties", {}).keys
       end
@@ -137,7 +137,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
       skills = Chat::Skill.all.select { |skill| skill.source == provider }
       assert skills.size >= 2, "#{provider} has a triage skill and one per kind of incident"
       skills.each do |skill|
-        skill.tools.each { |tool| assert_includes documented + capabilities, tool, "#{skill.name} names #{tool}" }
+        skill.tools.each { |tool| assert_includes documented + capabilities + [ Chat::Tools::UseSkill::MAP ], tool, "#{skill.name} names #{tool}" }
         skill.steps.scan(/`([^`]+)`/).flatten.each { |name| assert_includes skill.tools, name, "#{skill.name} calls #{name} without listing it" }
       end
     end
@@ -164,6 +164,20 @@ class Chat::SkillTest < ActiveSupport::TestCase
     assert_match "20127", skill.steps
     assert_includes skill.references, "rules/operators.md"
     assert_includes Chat::Skill.reference("cloudflare", "rules/operators.md"), "Grouping symbols"
+  end
+
+  # Seen in a real chat, a zone already on the map was found with execute, which asks the person to confirm every call.
+  test "every Cloudflare skill starts from the zone on the map, and lists zones with execute only when the map lacks it" do
+    skills = Chat::Skill.all.select { |skill| skill.source == "cloudflare" }
+
+    assert_equal 6, skills.size
+    skills.each do |skill|
+      assert_includes skill.tools, Chat::Tools::UseSkill::MAP, "#{skill.name} names the map"
+      assert_includes skill.tools, "resource_status", "#{skill.name} reads the zone where the map is not the person's to read"
+      first = skill.steps.lines.find { |line| line.start_with?("1.", "Start from") }
+      assert_match "`get_resource_map`", first, "#{skill.name} finds the zone on the map before anything else"
+    end
+    assert_match "Only when the zone is not on the map, find it with `execute`", Chat::Skill.find("cloudflare_triage").steps
   end
 
   test "a guide is never read as a skill, and nothing outside a source's guides can be read" do

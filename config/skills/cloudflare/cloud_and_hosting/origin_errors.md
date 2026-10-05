@@ -1,9 +1,11 @@
 ---
 name: cloudflare_origin_errors
 when: Finding why visitors get a 5xx error such as 502, 504, 520, 521, 522, 524, 525 or 526 from a site behind Cloudflare
-tools: [search, execute, docs]
+tools: [get_resource_map, resource_status, search, execute, docs]
 references: [errors/cloudflare-5xx-errors.md, errors/error-502-504.md, errors/error-520.md, errors/error-521.md, errors/error-522.md, errors/error-524.md, errors/error-525.md, errors/error-526.md]
 ---
+Start from the zone on the resource map. `get_resource_map` with the domain names the Cloudflare account that holds it and its id, which is the zone id every endpoint takes, and `resource_status` with the domain reads the zone from Cloudflare. Both only read, so the person is not asked. Find a zone with `execute` only when the map does not have it.
+
 1. Get the exact code, the URL and the time. Cloudflare's own guidance is that most 5xx errors are resolved at the origin, and the cause is not always in the origin's logs, so check any load balancer, cache, proxy or firewall between Cloudflare and the origin too.
 2. Read what the code means, from Cloudflare's pages:
    - 520: the origin returned an empty, unknown or unexpected response, such as a crash, a firewall blocking Cloudflare's IPs, headers over 128 KB, or a broken HTTP/2 setup.

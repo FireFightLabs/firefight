@@ -1,9 +1,11 @@
 ---
 name: cloudflare_attack
 when: Handling a traffic spike, a DDoS attack or abusive traffic hitting a site behind Cloudflare
-tools: [search, execute, docs]
+tools: [get_resource_map, resource_status, search, execute, docs]
 references: [security/under-ddos-attack.md, security/under-attack-mode.md, security/security-level.md, security/security-events.md, security/querying-firewall-events.md, security/rate-limiting-rules.md, security/rate-limiting-rules-create-api.md, security/custom-rules-create-api.md, origin/protect-your-origin-server.md]
 ---
+Start from the zone on the resource map. `get_resource_map` with the domain names the Cloudflare account that holds it and its id, which is the zone id every endpoint takes, and `resource_status` with the domain reads the zone from Cloudflare. Both only read, so the person is not asked. Find a zone with `execute` only when the map does not have it.
+
 1. Confirm it is an attack. Cloudflare's signs are a site that is offline or slow, unexpected spikes in requests or bandwidth, and strange requests in the origin's logs. Compare the zone's traffic now with its normal level, through `execute` and the GraphQL Analytics API.
 2. Find who, with the firewallEventsAdaptive dataset: the top client IPs, ASNs, countries, paths and user agents, and what Cloudflare already did about them. Security events are sampled for large volumes, so narrow the time window when the numbers look incomplete.
 3. Stop it with the narrowest tool that works, and say what each one costs before the person confirms:
