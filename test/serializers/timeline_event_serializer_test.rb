@@ -200,18 +200,41 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     assert_equal({ text: "Root cause found", permalink: "https://slack.example/p1" }, rendered[:pin])
   end
 
-  test "details surfaces the update message stored on the eventable" do
+  test "an update's message ships as its own markdown field, not as plain details" do
     incident = incidents(:active_critical_ws1)
     member = workspace_memberships(:alice_workspace_one)
-    message = "Confirmed ~32% checkout error rate across all regions"
+    message = "Confirmed ~32% checkout error rate.\n\n- All regions\n- Since 14:02"
 
     incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member, message: message)
 
-    update = IncidentUpdate.find_by!(message: message)
-    event = update.incident_event
-    rendered = TimelineEventSerializer.one(event)
+    rendered = TimelineEventSerializer.one(IncidentUpdate.find_by!(message: message).incident_event)
 
-    assert_equal message, rendered[:details]
+    assert_equal message, rendered[:updateMessage]
+    assert_nil rendered[:details]
+  end
+
+  test "a cancellation's message is an update message too" do
+    incident = incidents(:active_critical_ws1)
+    message = "False alarm, the probe was misconfigured."
+
+    incident.record_change!(IncidentEvent::INCIDENT_CANCELED, by: workspace_memberships(:alice_workspace_one), message: message)
+
+    rendered = TimelineEventSerializer.one(IncidentUpdate.find_by!(message: message).incident_event)
+
+    assert_equal message, rendered[:updateMessage]
+    assert_nil rendered[:details]
+  end
+
+  test "a reopen reason stays plain details" do
+    incident = incidents(:active_critical_ws1)
+    reason = "Errors came back after the rollback"
+
+    incident.record_change!(IncidentEvent::INCIDENT_REOPENED, by: workspace_memberships(:alice_workspace_one), message: reason)
+
+    rendered = TimelineEventSerializer.one(IncidentUpdate.find_by!(message: reason).incident_event)
+
+    assert_nil rendered[:updateMessage]
+    assert_equal reason, rendered[:details]
   end
 
   test "file field is nil for non-file events" do

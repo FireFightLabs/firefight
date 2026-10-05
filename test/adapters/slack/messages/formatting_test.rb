@@ -47,4 +47,21 @@ class Slack::Messages::FormattingTest < ActiveSupport::TestCase
   test "returns empty string when input is nil" do
     assert_equal "", Formatting.markdown_to_mrkdwn(nil)
   end
+
+  test "quoted markdown quotes every line and draws list markers as bullets" do
+    input = "Findings so far:\n\n- Probing was **observed**\n  * Nested\n- See [FIR-105](https://linear.app/x/FIR-105)"
+    expected = "> Findings so far:\n>\n> • Probing was *observed*\n>   • Nested\n> • See <https://linear.app/x/FIR-105|FIR-105>"
+
+    assert_equal expected, Formatting.quoted_markdown(input)
+  end
+
+  test "quoted markdown leaves code blocks and bold text alone" do
+    input = "Ran:\n```\n- not a bullet\n```\n*Bold* stays"
+
+    assert_equal "> Ran:\n> ```\n> - not a bullet\n> ```\n> *Bold* stays", Formatting.quoted_markdown(input)
+  end
+
+  test "quoted markdown keeps a one line message as it was" do
+    assert_equal "> Rolling back the deploy", Formatting.quoted_markdown("Rolling back the deploy")
+  end
 end

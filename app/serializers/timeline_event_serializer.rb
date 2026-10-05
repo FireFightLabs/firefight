@@ -128,8 +128,18 @@ class TimelineEventSerializer < BaseSerializer
     current.changes_since(current.previous_update, field_definitions: definitions).map(&:to_h)
   end
 
+  # Written as markdown, so the page renders its lists and links. Details stays plain text.
+  type :string, optional: true
+  def update_message
+    return nil unless UPDATE_MESSAGE_EVENTS.include?(event.event_type)
+
+    event.eventable.try(:message).presence
+  end
+
   type :string, optional: true
   def details
+    return nil if update_message
+
     eventable = event.eventable
     return eventable.message if eventable.respond_to?(:message) && eventable.message.present?
 
@@ -162,6 +172,8 @@ class TimelineEventSerializer < BaseSerializer
   end
 
   private
+
+  UPDATE_MESSAGE_EVENTS = [ IncidentEvent::INCIDENT_UPDATED, IncidentEvent::INCIDENT_CANCELED ].freeze
 
   PERSON_EVENTS = [
     IncidentEvent::LEAD_ASSIGNED, IncidentEvent::ROLE_ASSIGNED,

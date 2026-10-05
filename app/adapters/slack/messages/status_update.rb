@@ -1,6 +1,8 @@
 module Slack
   module Messages
     module StatusUpdate
+      SECTION_TEXT_LIMIT = 3000
+
       def self.build(incident, message:, updated_by_platform_user_id:, scope:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
         field_lines = [
           Formatting.diff_text("Severity", previous_severity_name, incident.incident_severity.name),
@@ -23,11 +25,20 @@ module Slack
         end
 
         blocks << { type: "divider" }
-        blocks << { type: "section", text: { type: "mrkdwn", text: "> #{message}" } } if message.present?
+        body_sections(message).each { |text| blocks << { type: "section", text: { type: "mrkdwn", text: text } } } if message.present?
         blocks << { type: "section", text: { type: "mrkdwn", text: field_lines.join("  ·  ") } }
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id) } ] }
 
         blocks
+      end
+
+      # Quoting adds two characters a line, so a long update runs on into another section rather than failing the post.
+      def self.body_sections(message)
+        sections = Formatting.quoted_markdown(message).each_line.each_with_object([ +"" ]) do |line, built|
+          built << +"" if built.last.present? && built.last.length + line.length > SECTION_TEXT_LIMIT
+          built.last << line
+        end
+        sections.map { |section| section.chomp.truncate(SECTION_TEXT_LIMIT) }
       end
 
       def self.context_text(incident, updated_by_platform_user_id)

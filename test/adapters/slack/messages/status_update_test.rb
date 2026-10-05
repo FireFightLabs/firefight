@@ -29,6 +29,22 @@ class Slack::Messages::StatusUpdateTest < ActiveSupport::TestCase
     assert_match(/#{@incident.identifier} — Incident canceled/, blocks.first.dig(:text, :text))
   end
 
+  test "a multi line update keeps its lines and quotes each one" do
+    blocks = build(scope: :inline, message: "Findings so far:\n\n- Probing was observed\n- Requests returned 404")
+
+    assert_equal "> Findings so far:\n>\n> • Probing was observed\n> • Requests returned 404", blocks.third.dig(:text, :text)
+  end
+
+  test "an update too long for one section runs on into the next, keeping every line" do
+    lines = Array.new(120) { |index| "- Finding #{index} #{"x" * 20}" }
+    blocks = build(scope: :inline, message: lines.join("\n"))
+    body = blocks.select { |block| block[:type] == "section" && block.dig(:text, :text).start_with?(">") }
+
+    assert_operator body.size, :>, 1
+    assert body.all? { |block| block.dig(:text, :text).length <= Slack::Messages::StatusUpdate::SECTION_TEXT_LIMIT }
+    assert_equal lines.map { |line| line.sub("- ", "> • ") }, body.flat_map { |block| block.dig(:text, :text).split("\n") }
+  end
+
   private
 
   def build(scope:, message: nil)
