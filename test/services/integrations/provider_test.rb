@@ -17,11 +17,11 @@ module Integrations
     end
 
     test "a provider with no code of its own has no parts, and a part a provider cannot have is refused" do
-      linear = Provider.for("linear")
+      notion = Provider.for("notion")
 
-      assert_equal "linear", linear.key
-      assert Provider::PARTS.all? { |part| linear.public_send(part).nil? }
-      assert_empty linear.redacted_fields
+      assert_equal "notion", notion.key
+      assert Provider::PARTS.all? { |part| notion.public_send(part).nil? }
+      assert_empty notion.redacted_fields
       assert_nil Provider.for("../datadog").adapter
       assert_raises(ArgumentError) { Provider.new(key: "acme", poller: "Acme::Poller") }
     end

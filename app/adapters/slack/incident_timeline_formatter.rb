@@ -27,6 +27,11 @@ module Slack
       IncidentEvent::INVESTIGATION_STOPPED => { emoji: ":mag:", title: "Investigation stopped" }
     }.freeze
 
+    SECTION_TEXT_LIMIT = Slack::Messages::StatusUpdate::SECTION_TEXT_LIMIT
+    CHANGE_VALUE_LIMIT = 80
+    # Three or fewer changes read on one line, as the update message itself lays them out.
+    INLINE_CHANGES = 3
+
     def self.label_for(event)
       EVENT_STYLE.dig(event.event_type, :title) || event.description || event.event_type
     end
@@ -49,6 +54,7 @@ module Slack
 
       section_text = "#{emoji_for(event)} *#{label_for(event)}*"
       section_text += "\n#{details}" if details.present?
+      section_text = section_text.truncate(SECTION_TEXT_LIMIT, separator: "\n", omission: "\n…")
 
       unix_ts = event.created_at.to_i
       fallback = event.created_at.in_time_zone.strftime("%Y-%m-%d %H:%M")
@@ -77,6 +83,8 @@ module Slack
       details = event.metadata || {}
 
       case event.event_type
+      when *IncidentEvent::UPDATE_MESSAGE_EVENTS
+        update_details(event)
       when IncidentEvent::INCIDENT_ESCALATED
         target = details["escalated_to_platform_user_id"]
         reason = details["reason"]
@@ -111,5 +119,41 @@ module Slack
       end
     end
     private_class_method :details_for
+
+    # The message as the channel showed it, then what changed with its before and after.
+    def self.update_details(event)
+      message = event.update_message
+      changes = event.update_changes.map { |change| change_line(change) }
+      parts = []
+      parts << Slack::Messages::Formatting.quoted_markdown(message) if message
+      parts << changes.join(changes.size > INLINE_CHANGES ? "\n" : "  ·  ") if changes.any?
+      parts.join("\n")
+    end
+    private_class_method :update_details
+
+    def self.change_line(change)
+      before = change_value(change, change.before)
+      after = change_value(change, change.after)
+      if after
+        Slack::Messages::Formatting.diff_text(change.label, before, after)
+      else
+        "#{change.label}: ~#{before}~ → cleared"
+      end
+    end
+    private_class_method :change_line
+
+    def self.change_value(change, value)
+      return nil if value.blank?
+
+      if change.kind == IncidentUpdate::CHANGE_KIND_TIME
+        time = Time.iso8601(value)
+        return "<!date^#{time.to_i}^{date_short_pretty} at {time}|#{time.utc.strftime('%Y-%m-%d %H:%M UTC')}>"
+      end
+
+      Slack::Mrkdwn.escape(IncidentUpdate::MessageText.lead(value, limit: CHANGE_VALUE_LIMIT))
+    rescue ArgumentError
+      Slack::Mrkdwn.escape(value)
+    end
+    private_class_method :change_value
   end
 end

@@ -17,7 +17,10 @@ module AiPurpose
   ALL = [ POSTMORTEM, INCIDENT_RESPONSE, SUMMARY, MILESTONES, INVESTIGATION, CITATION_CHECK, LESSONS, CODE_FIX ].freeze
 
   # A purpose with nothing set of its own uses its parent's model, so adding one changes nothing until it is set.
-  PARENTS = { CITATION_CHECK => INVESTIGATION, LESSONS => CITATION_CHECK, CODE_FIX => INVESTIGATION }.freeze
+  # A postmortem with no model of its own is written on Halon's, like the rest of what Halon writes.
+  PARENTS = {
+    POSTMORTEM => INVESTIGATION, CITATION_CHECK => INVESTIGATION, LESSONS => CITATION_CHECK, CODE_FIX => INVESTIGATION
+  }.freeze
 
   ANY = "any"
   OVERRIDABLE = (ALL + [ ANY ]).freeze

@@ -115,7 +115,7 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 
 **Participation is the point.** An agent that can open and close an incident but cannot raise work, take it, pull a human in or say what it found is a reporting tool, not a responder. Each of these calls the same service the Slack button and the dashboard call, so an item raised over MCP is indistinguishable from one raised by a person, and the timeline names the agent rather than whoever created its token.
 
-`get_incident` returns `action_items` and `runbooks` with their ids, which is where an agent gets the ids these tools take. Without them the work would be visible and unnameable.
+`get_incident` returns `action_items` and `runbooks` with their ids, which is where an agent gets the ids these tools take. Without them the work would be visible and unnameable. An item that tracks an issue carries its `external_key` and `external_url`. Each timeline entry for an update or a cancellation carries `update`, the message the responder posted and the fields it changed with their before and after.
 
 `assign_action_item` and `claim_runbook_step` take the work themselves when `member` is omitted, which is the "I can take this" button. Naming someone else announces the handover, the way Slack does. `escalate_incident` and `invite_responders` differ on purpose: inviting lets people watch, escalating asks one named person to answer and chases them if they do not.
 

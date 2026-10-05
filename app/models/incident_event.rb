@@ -35,6 +35,8 @@ class IncidentEvent < ApplicationRecord
   INVESTIGATION_ANSWERED = "investigation.answered"
   INVESTIGATION_STOPPED = "investigation.stopped"
   INVESTIGATION_EVENTS = [ INVESTIGATION_STARTED, INVESTIGATION_ANSWERED, INVESTIGATION_STOPPED ].freeze
+  # The events whose snapshot carries what the responder posted, written as markdown.
+  UPDATE_MESSAGE_EVENTS = [ INCIDENT_UPDATED, INCIDENT_CANCELED ].freeze
 
   # The extractor picks one per note and the timeline colours the entry from it.
   MILESTONE_HYPOTHESIS = "hypothesis"
@@ -229,10 +231,52 @@ class IncidentEvent < ApplicationRecord
     end
   end
 
+  # What the responder posted with the update, as markdown.
+  def update_message
+    return nil unless UPDATE_MESSAGE_EVENTS.include?(event_type)
+
+    eventable.try(:message).presence
+  end
+
+  # What the update changed, before and after. The before needs the previous snapshot,
+  # which Incident#timeline_events or with_update_history links.
+  def update_changes
+    update = eventable
+    return [] unless UPDATE_MESSAGE_EVENTS.include?(event_type) && update.is_a?(IncidentUpdate) && update.changed_fields.any?
+
+    update.changes_since(update.previous_update, field_definitions: references&.field_definitions || {})
+  end
+
+  # Links each update to the one before it from the incident's whole history, so a page
+  # of events still knows what a change replaced. One query per call, never per row.
+  def self.with_update_history(events)
+    updates = events.select { |event| UPDATE_MESSAGE_EVENTS.include?(event.event_type) }
+      .map(&:eventable).grep(IncidentUpdate).select { |update| update.changed_fields.any? }
+    return events if updates.empty?
+
+    history = IncidentUpdate.where(incident_id: updates.map(&:incident_id).uniq).order(:created_at).to_a
+    previous = history.group_by(&:incident_id).values.flat_map { |rows| rows.each_cons(2).map { |earlier, later| [ later.id, earlier ] } }.to_h
+    updates.each { |update| update.previous_update = previous[update.id] }
+    ActiveRecord::Associations::Preloader.new(
+      records: updates + updates.filter_map(&:previous_update),
+      associations: [ :incident_status, :incident_severity, :incident_type, :declared_by, { lead: :user } ]
+    ).call
+
+    definitions = References.field_definitions_for(updates.first.workspace, events)
+    events.each do |event|
+      event.references ||= References.new(members: {}, runbooks: {}, incidents: {}, field_definitions: definitions)
+    end
+    events
+  end
+
   # A milestone says what it needs to inside its sentence, kind and said_by
   # as their own keys would ship data nothing reads.
   def to_context_hash
-    { type: event_type, at: created_at.iso8601, by: actor_name, description: description }
+    {
+      type: event_type, at: created_at.iso8601, by: actor_name, description: description,
+      message: update_message,
+      changes: update_changes.map { |change| { label: change.label, before: change.before, after: change.after } }.presence
+    }.compact
   end
 
   private

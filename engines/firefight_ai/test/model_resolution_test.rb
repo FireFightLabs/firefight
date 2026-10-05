@@ -30,11 +30,30 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
   end
 
   test "the purpose's fallback holds when nothing is configured" do
-    choice = FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace)
+    choice = FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
 
-    assert_equal "gpt-4o", choice.model
+    assert_equal "gpt-4o-mini", choice.model
     assert_nil choice.provider
     assert_equal "openai", choice.provider_name
+  end
+
+  test "a postmortem with no model of its own is written on Halon's" do
+    ENV["INVESTIGATION_AI_MODEL"] = "gpt-5.6-luna"
+    ENV["INVESTIGATION_AI_PROVIDER"] = "openai"
+
+    choice = FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace)
+
+    assert_equal "gpt-5.6-luna", choice.model
+    assert_equal "openai", choice.provider
+  end
+
+  test "a workspace's Halon model carries to its postmortems, and a postmortem model still wins" do
+    @workspace.ai_model_overrides.create!(purpose: AiPurpose::INVESTIGATION, model: "claude-opus-4")
+
+    assert_equal "claude-opus-4", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model
+
+    ENV["POSTMORTEM_AI_MODEL"] = "claude-sonnet-4"
+    assert_equal "claude-sonnet-4", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model
   end
 
   test "the deployment default overrides the fallback and carries its provider" do

@@ -23,6 +23,8 @@ class IncidentAction < ApplicationRecord
   # in_progress and having an assignee always agree.
   validate :status_matches_assignee
   validates :description, presence: true
+  # A link to the issue tracking the work elsewhere, which every surface renders as a link.
+  validates :external_url, format: { with: %r{\Ahttps?://[^\s<>|]+\z} }, length: { maximum: 2048 }, allow_nil: true
 
   scope :active, -> { where(deleted_at: nil) }
   # Interaction payloads carry ids from whoever clicked, so an unscoped lookup
@@ -33,6 +35,7 @@ class IncidentAction < ApplicationRecord
   scope :open, -> { where(status: STATUS_OPEN) }
   scope :completed, -> { where(status: STATUS_DONE) }
   scope :recent, -> { order(created_at: :desc) }
+  scope :tracking, ->(url) { active.where(external_url: url) }
 
   def claimable?
     open? && !assigned?
@@ -85,7 +88,7 @@ class IncidentAction < ApplicationRecord
   end
 
   def to_context_hash
-    { type: action_type, description:, status:, assignee: assignee&.actor_display_name }
+    { type: action_type, description:, status:, assignee: assignee&.actor_display_name, external_key:, external_url: }.compact
   end
 
   private

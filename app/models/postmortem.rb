@@ -18,6 +18,7 @@ class Postmortem < ApplicationRecord
 
   # Every heading is always rendered, an empty section gets the placeholder.
   TIMELINE_SECTION = "timeline".freeze
+  ACTION_ITEMS_SECTION = "action_items".freeze
 
   SECTION_KEYS = %w[
     summary introduction timeline deeper_dive impact resolution
@@ -39,6 +40,9 @@ class Postmortem < ApplicationRecord
   }.freeze
 
   EMPTY_SECTION_PLACEHOLDER = "Nothing in the incident record covers this yet. Add what you know.".freeze
+
+  # The input the model was given for the last generation, kept so a thin draft can be checked against what it was told.
+  encrypts :generation_prompt
 
   belongs_to :incident
   # Polymorphic because an agent can write one.
@@ -105,6 +109,7 @@ class Postmortem < ApplicationRecord
       generation_state: nil,
       generation_error: nil,
       model_id: draft.model,
+      generation_prompt: draft.prompt.presence && Chat::SecretFree.redacted(draft.prompt),
       content: { "html" => html }
     }
 
@@ -119,7 +124,11 @@ class Postmortem < ApplicationRecord
   end
 
   def self.section_html(incident, draft, key)
-    body = key == TIMELINE_SECTION ? Postmortem::TimelineSection.markdown(incident) : draft.sections[key]
+    body = case key
+    when TIMELINE_SECTION then Postmortem::TimelineSection.markdown(incident)
+    when ACTION_ITEMS_SECTION then [ Postmortem::FollowUpsSection.markdown(incident), draft.sections[key] ].compact_blank.join("\n")
+    else draft.sections[key]
+    end
     return "<p><em>#{EMPTY_SECTION_PLACEHOLDER}</em></p>" if body.blank?
 
     Commonmarker.to_html(body, options: { parse: { smart: true }, render: { unsafe: true } })

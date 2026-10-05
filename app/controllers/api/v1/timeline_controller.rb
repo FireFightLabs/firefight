@@ -5,7 +5,8 @@ class Api::V1::TimelineController < Api::V1::ApiController
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
 
     @incident = incident
-    @events, @pagination = paginate(@incident.incident_events.undismissed.chronological.includes(:actor))
+    events, @pagination = paginate(@incident.incident_events.undismissed.chronological.includes(:actor, :eventable))
+    @events = IncidentEvent.with_update_history(events.to_a)
   end
 
   def dismiss

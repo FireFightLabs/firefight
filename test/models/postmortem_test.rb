@@ -131,4 +131,54 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_equal "", placeholder.html_content.to_s
     assert_equal "#{incident.identifier} Postmortem: #{incident.name}", placeholder.title
   end
+
+  test "complete_generation! lists the incident's follow-ups under Action items with their links, then the model's own" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: workspaces(:slack_workspace_one), declared_by: member,
+      incident_status: incident_statuses(:resolved_ws1), incident_severity: incident_severities(:minor_ws1),
+      name: "Probing", is_private: false, resolved_at: Time.current, source: Incident::SOURCE_SLACK
+    )
+    incident.incident_actions.create!(
+      created_by: member, action_type: IncidentAction::ACTION_TYPE_FOLLOWUP, status: IncidentAction::STATUS_DONE,
+      description: "Investigate automated probing", external_key: "FIR-105", external_url: "https://linear.app/firefight/issue/FIR-105"
+    )
+    incident.incident_actions.create!(created_by: member, action_type: IncidentAction::ACTION_TYPE_FOLLOWUP, description: "Turn on ingress logs")
+    incident.incident_actions.create!(created_by: member, action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Block the IPs")
+    draft = FirefightAi::PostmortemGenerator::Draft.new(
+      title: "INC Postmortem: Probing", summary: nil, model: "gpt-5.6-luna",
+      sections: { "action_items" => "- Restrict the origin to Cloudflare" },
+      prompt: "## Incident Details\n- Token: ghp_#{'a' * 36}"
+    )
+
+    postmortem = Postmortem.complete_generation!(incident, draft, generated_by: member)
+
+    items = postmortem.html_content[/<h2>Action items<\/h2>(.*)\z/m, 1]
+    assert_includes items, %(Investigate automated probing (<a href="https://linear.app/firefight/issue/FIR-105">FIR-105</a>), done)
+    assert_includes items, "Turn on ingress logs, open"
+    assert_includes items, "Restrict the origin to Cloudflare"
+    assert_not_includes items, "Block the IPs"
+    assert_includes postmortem.generation_prompt, "[REDACTED:"
+    assert_not_includes postmortem.generation_prompt, "ghp_"
+    assert_not_includes Postmortem.connection.select_value("SELECT generation_prompt FROM postmortems WHERE id = '#{postmortem.id}'"), "Incident Details"
+  end
+
+  test "the timeline section shows an update as its first line and what it changed" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: workspaces(:slack_workspace_one), declared_by: member,
+      incident_status: incident_statuses(:investigating_ws1), incident_severity: incident_severities(:minor_ws1),
+      name: "Probing", is_private: false, source: Incident::SOURCE_SLACK
+    )
+    incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: member)
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member, message: "#{'Long lead sentence ' * 20}\n\n- A bullet nobody sees here") do
+      incident.update!(incident_status: incident_statuses(:monitoring_ws1))
+    end
+
+    markdown = Postmortem::TimelineSection.markdown(incident)
+
+    assert_match(/Alice Smith updated the incident\n  - Status: Investigating → Monitoring\n  - Long lead sentence .*…$/, markdown)
+    assert_operator markdown.lines.last.length, :<=, Postmortem::TimelineSection::MESSAGE_LEAD_LIMIT + 5
+    assert_not_includes markdown, "A bullet nobody sees here"
+  end
 end

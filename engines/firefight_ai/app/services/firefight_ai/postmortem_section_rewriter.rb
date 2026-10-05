@@ -64,9 +64,8 @@ module FirefightAi
 
       if context[:timeline_events].present?
         parts << "\n## Timeline Events"
-        context[:timeline_events].each do |event|
-          parts << "- [#{event[:at]}] #{event[:description]} (by #{event[:by] || 'system'})"
-        end
+        parts.concat(IncidentRecord.timeline(context[:timeline_events]))
+        parts.concat(IncidentRecord.status_updates(context[:timeline_events]))
       end
 
       if summary&.content.present?
@@ -76,10 +75,7 @@ module FirefightAi
 
       if context[:actions].present?
         parts << "\n## Actions & Follow-ups"
-        context[:actions].each do |action|
-          assignee = action[:assignee] ? " (assigned to #{action[:assignee]})" : ""
-          parts << "- [#{action[:type]}] #{action[:description]} — #{action[:status]}#{assignee}"
-        end
+        context[:actions].each { |action| parts << IncidentRecord.action_line(action) }
       end
 
       parts << "\n## Selected HTML"

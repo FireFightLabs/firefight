@@ -33,7 +33,7 @@ module FirefightAi
       optional :what_went_well, description: "Bullet list of what went well during the response, as the record shows it. #{OMIT}" do
         string
       end
-      optional :action_items, description: "Bullet list of action items that follow from causes the record names. #{OMIT}" do
+      optional :action_items, description: "Bullet list of further action items that follow from causes the record names. The follow-ups already recorded on the incident are listed by Firefight, so never repeat one here. #{OMIT}" do
         string
       end
     end

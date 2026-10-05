@@ -9,7 +9,9 @@ class IncidentActionSerializer < BaseSerializer
   attributes(
     description: { type: :string },
     action_type: { type: '"action" | "followup"' },
-    status: { type: '"open" | "in_progress" | "done"' }
+    status: { type: '"open" | "in_progress" | "done"' },
+    external_key: { type: :string, optional: true },
+    external_url: { type: :string, optional: true }
   )
 
   # Person or machine, shipped as the actor shape every surface renders.

@@ -19,17 +19,23 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # The same schema an outside MCP client is handed, so a connection wired per environment is reachable from a chat.
   # A call that waits for the person also asks for its intent, which the confirmation leads with.
+  # A tool that can open an issue in a chat or run about an incident also asks how the issue is kept on it.
   def parameters_schema
     schema = reading_schema || @tool.offered_schema
+    schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
-    invoke(arguments.transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG), tool_call_id: tool_call&.id)
+    given = arguments.transform_keys(&:to_s)
+    @issue_kind = given[Chat::Tools::TrackedIssues::KIND_ARG]
+    invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG), tool_call_id: tool_call&.id)
   end
 
   private
+
+  def tracks_issues? = @agent_run.incident.present? && Integrations::Issues.opens?(@tool)
 
   def invoke(given, tool_call_id:)
     environment_entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
@@ -60,6 +66,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @last_result = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     result = nil
+    environment_row = nil
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
       label: Chat::Tools.label(shown_as, arguments), **{ approval_id: approval_id }.compact
@@ -75,8 +82,11 @@ class Chat::Tools::Connection < RubyLLM::Tool
       FirefightAi::Evidence.pointed(text_of(result))
     end
     keep_charts(tool_call_id, result, said.step)
+    tracked = present.nil? && Chat::Tools::TrackedIssues.after(
+      @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
+    )
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, shown_as, said), reminder ].compact.join("\n\n")
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
   rescue AbilityGateway::PendingApproval => pending

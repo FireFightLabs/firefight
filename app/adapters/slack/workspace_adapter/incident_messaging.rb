@@ -630,7 +630,9 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     # Events can be written while the modal is open, so a stale offset is
     # clamped instead of rendering an empty page.
     offset = offset.to_i.clamp(0, [ total_events - 1, 0 ].max)
-    events = incident.incident_events.undismissed.includes(:eventable).recent.offset(offset).limit(TIMELINE_PAGE_SIZE).reverse
+    events = IncidentEvent.with_update_history(
+      incident.incident_events.undismissed.includes(:eventable).recent.offset(offset).limit(TIMELINE_PAGE_SIZE).reverse
+    )
     return nil if events.empty?
 
     lead_text = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"

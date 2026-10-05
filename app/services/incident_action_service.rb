@@ -3,7 +3,8 @@ class IncidentActionService
     @workspace = workspace
   end
 
-  def create_action(incident:, created_by:, action_type:, description:, assignee: nil, platform_data: {}, runbook_step: nil)
+  def create_action(incident:, created_by:, action_type:, description:, assignee: nil, platform_data: {}, runbook_step: nil,
+                    external_key: nil, external_url: nil)
     incident.refuse_action_item!(action_type)
 
     action = incident.incident_actions.create!(
@@ -13,7 +14,9 @@ class IncidentActionService
       assignee: assignee,
       status: assignee ? IncidentAction::STATUS_IN_PROGRESS : IncidentAction::STATUS_OPEN,
       runbook_step: runbook_step,
-      platform_data: platform_data
+      platform_data: platform_data,
+      external_key: external_key,
+      external_url: external_url
     )
 
     action.record_change!(IncidentEvent::ACTION_CREATED, by: created_by)

@@ -34,6 +34,24 @@ class Api::V1::TimelineControllerTest < ActionDispatch::IntegrationTest
     assert_nil note["actor"]
   end
 
+  test "an update carries its message and its changes, even when the update before it is on an earlier page" do
+    @incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: @member)
+    @incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: @member, message: "Rolled back the deploy.") do
+      @incident.update!(incident_severity: incident_severities(:major_ws1))
+    end
+    total = @incident.incident_events.undismissed.count
+
+    get api_v1_incident_timeline_index_url(@incident, page: total, per_page: 1), headers: api_headers, as: :json
+
+    assert_response :success
+    update = json_response["events"].sole
+    assert_equal IncidentEvent::INCIDENT_UPDATED, update["event_type"]
+    assert_equal "Rolled back the deploy.", update.dig("update", "message")
+    change = update.dig("update", "changes").sole
+    assert_equal [ "severity", "Severity", "Major" ], change.values_at("field", "label", "after")
+    assert change["before"].present?
+  end
+
   test "events that are not notes carry a null milestone" do
     get api_v1_incident_timeline_index_url(@incident), headers: api_headers, as: :json
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -593,6 +593,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_090000) do
     t.string "created_by_type"
     t.datetime "deleted_at"
     t.text "description", null: false
+    t.string "external_key"
+    t.string "external_url"
     t.uuid "incident_id", null: false
     t.string "message_ts"
     t.jsonb "platform_data", default: {}
@@ -602,6 +604,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_090000) do
     t.index ["assignee_id"], name: "index_incident_actions_on_assignee_id"
     t.index ["assignee_type", "assignee_id"], name: "index_incident_actions_on_assignee_type_and_assignee_id"
     t.index ["deleted_at"], name: "index_incident_actions_on_deleted_at"
+    t.index ["external_url"], name: "index_incident_actions_on_external_url", where: "((external_url IS NOT NULL) AND (deleted_at IS NULL))"
     t.index ["incident_id", "action_type"], name: "index_incident_actions_on_incident_id_and_action_type"
     t.index ["incident_id", "runbook_step_id"], name: "index_incident_actions_on_incident_and_runbook_step", unique: true, where: "((runbook_step_id IS NOT NULL) AND (deleted_at IS NULL))"
     t.index ["incident_id", "status"], name: "index_incident_actions_on_incident_id_and_status"
@@ -1422,6 +1425,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_090000) do
     t.uuid "generated_by_id", null: false
     t.string "generated_by_type", null: false
     t.string "generation_error"
+    t.text "generation_prompt"
     t.string "generation_state"
     t.uuid "incident_id", null: false
     t.string "message_ts"

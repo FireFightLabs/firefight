@@ -1,7 +1,7 @@
 module Integrations
   # The code behind one provider of config/integration_providers.yml. Each provider that has code of its own declares it
   # in one file, app/services/integrations/providers/<key>.rb, naming its parts, and nothing else lists it. A provider
-  # without such a file, such as Linear, is used through its own tools and has no parts.
+  # without such a file, such as Notion, is used through its own tools and has no parts.
   #
   # The parts, each optional, are named as class names so a definition loads nothing it does not use:
   #   pack             a NativePack subclass, for a provider with kind: native
@@ -11,11 +11,12 @@ module Integrations
   #   health_probe     a RemoteReader that checks a remote server reaches the account behind it (a pack checks its own)
   #   source_links     a builder that links a remote server's result to the page it came from
   #   read_guard       a ReadGuards module, telling a read from a change for a tool that can make both
+  #   issue_tracker    a RemoteReader saying which issue a tool call opened or closed (Integrations::Issues)
   # redacted_fields names answer fields that hold a credential, which never reach the model. status_words maps the
   # provider's own status words onto Firefight's (ResourceMap::Resource::STATUS_HEALTH), applied to everything its
   # connection puts on the map, so a resource never reads unknown for a word that means one Firefight has.
   class Provider
-    PARTS = %i[pack adapter map_reader baseline_reader health_probe source_links read_guard].freeze
+    PARTS = %i[pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/
 
     attr_reader :key, :redacted_fields, :status_words
