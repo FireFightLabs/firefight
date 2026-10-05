@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CARD_KINDS, AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import { refreshCharts, refreshOpenChat, refreshRuns } from "@/pages/agent/lib/chat-updates"
+import { roomStep } from "@/pages/agent/lib/group-turns"
 import type { AgentCard, AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
 
 // If the socket drops mid turn, the answer is fetched once instead of waited for.
@@ -19,6 +20,7 @@ interface StreamEvent {
   kind?: StepKind
   seconds?: number
   card?: AgentCard | null
+  at?: string
 }
 
 // The server says whether an answer is owed. The page never guesses it from the last message, which the empty reply
@@ -69,6 +71,10 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           }
           if (event.type === AGENT_STREAM_EVENTS.INVESTIGATION) {
             refreshRuns()
+            return
+          }
+          if (event.type === AGENT_STREAM_EVENTS.MADE_ROOM) {
+            setSteps((shown) => withRoomMade(shown, event))
             return
           }
           if (event.type === AGENT_STREAM_EVENTS.STEP) {
@@ -125,4 +131,14 @@ function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {
   }
 
   return shown.map((candidate) => (candidate.key === step.key ? { ...candidate, ...step } : candidate))
+}
+
+// Room is made once, so the line is only ever added, in the order it happened among the steps.
+function withRoomMade(shown: AgentStep[], event: StreamEvent): AgentStep[] {
+  const key = event.key ?? ""
+  if (shown.some((candidate) => candidate.key === key)) {
+    return shown
+  }
+
+  return [ ...shown, roomStep({ key, title: event.title ?? "", at: event.at ?? new Date().toISOString() }) ]
 }

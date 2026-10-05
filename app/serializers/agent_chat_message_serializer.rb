@@ -8,6 +8,10 @@ class AgentChatMessageSerializer < BaseSerializer
     message.content.to_s
   end
 
+  # Where the times Halon made room fall among the turns.
+  type :string
+  def created_at = message.created_at.utc.iso8601(3)
+
   # Only a person's message carries files.
   has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer
 

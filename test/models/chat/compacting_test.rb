@@ -113,6 +113,20 @@ class Chat::CompactingTest < ActiveSupport::TestCase
     assert_equal [ "What changed today?" ], chat.readable_messages.map(&:content)
   end
 
+  test "whoever shows the chat live is told of each room made, once it is saved, and of nothing when clearing was skipped" do
+    told = []
+    @chat.on_making_room { |compaction| told << [ compaction.stage, compaction.persisted? ] }
+    (Chat::Compacting::KEEP_RECENT + 1).times { |number| tool_turn(number + 1, lines: 2) }
+    @chat.clear_old_results!(tokens_before: 90_000)
+    assert_empty told
+
+    8.times { |number| tool_turn(number + 10) }
+    @chat.clear_old_results!(tokens_before: 90_000)
+    @chat.rebuild!(note: "Next I was going to read the pool config.", tokens_before: 150_000)
+
+    assert_equal [ [ Chat::Compaction::STAGE_CLEARED, true ], [ Chat::Compaction::STAGE_REBUILT, true ] ], told
+  end
+
   test "a rebuild with no note still starts again from the state, for when the model could not be asked" do
     tool_turn(1)
 

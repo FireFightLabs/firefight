@@ -1,5 +1,5 @@
 import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
-import { AGENT_STEP_STATUSES } from "@/lib/generated/constants"
+import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import { useSettledSteps } from "@/pages/agent/hooks/use-settled-steps"
 import type { AgentStep, StepStatus } from "@/pages/agent/types"
 
@@ -25,12 +25,13 @@ export function AgentSteps({ steps, thinking = false }: AgentStepsProps) {
   const working = rows.some((row) => row.status === "running")
   const needsLook = rows.some((row) => row.status === "failed" || row.status === "waiting")
   const seconds = settled.reduce((total, step) => total + step.seconds, 0)
+  const taken = settled.filter((step) => step.kind !== AGENT_STEP_KINDS.ROOM).length
 
   return (
     <ThinkingState
       rows={rows}
       active="Working"
-      done={summary(seconds, rows.length)}
+      done={summary(seconds, taken)}
       working={working}
       open={thinking || needsLook}
     />
@@ -44,6 +45,7 @@ function toRow(step: AgentStep): ThinkingRow {
     secondary: step.headline || undefined,
     status: isStepStatus(step.status) ? ROW_STATUSES[step.status] : "running",
     details: step.asked.map(([ label, meta ]) => ({ label, meta })),
+    quiet: step.kind === AGENT_STEP_KINDS.ROOM,
   }
 }
 

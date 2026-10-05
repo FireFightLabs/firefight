@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Conversation::RunnerTest < ActiveSupport::TestCase
+  include ActionCable::TestHelper
+
   # Stands in for the engine, so a turn's bookkeeping is tested without calling a model.
   class FakeResponder
     attr_reader :calls
@@ -249,6 +251,29 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
 
     assert_equal "The 14:02 deploy raised the pool size",
                  personal.reload.chat.messages.where(role: "assistant").sole.content
+  end
+
+  test "a dashboard chat is shown each time the turn made room, and a thread is not" do
+    make_room = ->(arguments) { arguments[:memory].rebuild!(note: nil, tokens_before: 150_000) }
+    personal = personal_chat
+    fake(reply: "ok", during: make_room)
+
+    ask(personal, "what changed today")
+
+    made = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }
+                                                                     .select { |event| event["type"] == Conversation::LiveDelivery::EVENT_MADE_ROOM }
+    assert_equal [ personal.chat.compactions.sole.step_key ], made.map { |event| event["key"] }
+
+    @conversation = @workspace.conversations.create!(
+      subject: @incident, kind: Conversation::KIND_CHANNEL, channel_id: @incident.channel_id, thread_id: "1700000000.000200",
+      started_by: workspace_memberships(:alice_workspace_one), max_turns: 40, max_spend_cents: 50
+    )
+    fake(reply: "ok", during: make_room)
+    Slack::Client.expects(:append_stream).never
+
+    ask(@conversation, "what changed today")
+
+    assert_equal 1, @conversation.chat.compactions.count
   end
 
   test "a dashboard answer is asked for without Slack markup, because the page shows it as written" do
