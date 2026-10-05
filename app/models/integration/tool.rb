@@ -110,7 +110,7 @@ class Integration::Tool < ApplicationRecord
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     result = yield
     failed = result.is_a?(Hash) && result["isError"]
-    said = failed ? Array(result["content"]).filter_map { |part| part["text"] }.join.lines.first.to_s.strip.truncate(200) : nil
+    said = failed ? Ability::Invocation.summary_of(Array(result["content"]).filter_map { |part| part["text"] }.join("\n")) : nil
     invocation.finalize!(outcome: failed ? Ability::Invocation::OUTCOME_ERROR : Ability::Invocation::OUTCOME_SUCCESS, error_summary: said,
                          duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
     result

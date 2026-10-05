@@ -179,7 +179,8 @@ class Investigation::FixRunner
     result = yield
     text = Array(result["content"]).filter_map { |part| part["text"] if part.is_a?(Hash) }.join("\n").strip
     if result["isError"] == true
-      authorization.finalize_error!(Integrations::Error.new(text))
+      authorization.answer_failed!(text)
+      authorization.finalize_answered!
       step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: text.presence || "#{step.tool_name} said it failed.", invocation_id: authorization.invocation_id)
     else
       authorization.finalize_success!

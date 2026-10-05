@@ -18,6 +18,18 @@ class McpConnectionToolsTest < ActiveSupport::TestCase
     Mcp::ConnectionToolFactory.invoke(@tool.id, { workspace: @workspace, principal: alice }, {})
   end
 
+  test "a provider that answers with its own error is an error to the outside agent and in the ledger" do
+    alice = workspace_memberships(:alice_workspace_one)
+    @integration.integration_environments.create!
+    Integrations::McpExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "Unknown query field\nat 1:4" } ], "isError" => true)
+
+    response = Mcp::ConnectionToolFactory.invoke(@tool.id, { workspace: @workspace, principal: alice }, {})
+
+    assert response.error?
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: @tool.action_key)
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, "Unknown query field" ], [ invocation.outcome, invocation.error_summary ]
+  end
+
   test "a tool the provider no longer offers is not published over MCP" do
     @tool.update!(removed_at: Time.current)
 

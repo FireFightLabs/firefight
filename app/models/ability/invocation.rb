@@ -23,6 +23,16 @@ module Ability
 
     scope :pending_outcome, -> { where(decision: DECISION_ALLOW, completed_at: nil) }
 
+    SUMMARY_LIMIT = 200
+    ANSWERED_ERROR = "The tool answered with an error.".freeze
+
+    # What a tool said when it answered with its own error, cut to the first line it said, with anything that looks
+    # like a credential replaced, since the ledger keeps no result bodies and never a secret.
+    def self.summary_of(text)
+      said = text.to_s.lines.map(&:strip).find(&:present?)
+      said ? Chat::SecretFree.redacted(said).truncate(SUMMARY_LIMIT) : ANSWERED_ERROR
+    end
+
     def finalize!(outcome:, error_summary: nil, duration_ms: nil)
       raise AlreadyFinalized, "invocation #{id} is already finalized" if completed_at.present?
 

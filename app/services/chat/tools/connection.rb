@@ -64,14 +64,16 @@ class Chat::Tools::Connection < RubyLLM::Tool
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
       label: Chat::Tools.label(shown_as, arguments), **{ approval_id: approval_id }.compact
-    ) do
+    ) do |authorization|
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
-      provider_failed!(tool_call_id) if present.nil? && result["isError"] == true
       result = present.call(result) if present
       @last_result = result
-      result["isError"] == true ? FirefightAi::Evidence.pointed(text_of(result)) : text_of(result)
+      next text_of(result) unless result["isError"] == true
+
+      provider_failed!(tool_call_id, authorization, text_of(result))
+      FirefightAi::Evidence.pointed(text_of(result))
     end
     keep_charts(tool_call_id, result, said.step)
     follow_up = present.nil? && Chat::Tools::IssueFollowUps.after(
@@ -103,11 +105,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
     text
   end
 
-  # A provider that answers its own failure, as a remote server does, still failed the call. Its words still reach the
-  # model, so only the mark is set here.
-  def provider_failed!(tool_call_id)
+  # A provider that answers its own failure, as a remote server does, still failed the call, and a capability's reading
+  # of the answer keeps an error an error. Its words still reach the model, so only the ledger is marked here, and the
+  # card too unless this is one of several answers to one call.
+  def provider_failed!(tool_call_id, authorization, said)
     @failed = true
-    Chat::Tools.mark_failed(@agent_run, tool_call_id)
+    authorization.answer_failed!(said)
+    Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)

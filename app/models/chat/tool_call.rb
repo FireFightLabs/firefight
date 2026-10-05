@@ -13,7 +13,7 @@ class Chat::ToolCall
 
     begin
       value = yield authorization
-      authorization.finalize_success!
+      authorization.finalize_answered!
       value
     rescue StandardError => error
       authorization.finalize_error!(error)

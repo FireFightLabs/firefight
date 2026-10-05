@@ -47,15 +47,18 @@ class Chat::Tools::Firefight < RubyLLM::Tool
 
   def attempt(action_key, arguments, tool_call_id:, approval_id: nil)
     # The block answers with the text, so a run's step keeps what the tool said rather than a response object.
-    # An error response is still text the model reads, and the call is marked so a reader sees it failed.
+    # An error response is still text the model reads, and the call is marked so a reader and the ledger see it failed.
     said = @agent_run.tool_call(
       action_key: action_key, params: arguments.transform_keys(&:to_s), tool_name: name,
       label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
-    ) do
+    ) do |authorization|
       response = Mcp::ToolDispatcher.run(
         tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments
       )
-      Chat::Tools.mark_failed(@agent_run, tool_call_id) if response.error?
+      if response.error?
+        Chat::Tools.mark_failed(@agent_run, tool_call_id)
+        authorization.answer_failed!(text_of(response))
+      end
       text_of(response)
     end
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: Chat::Skill::SOURCE_FIREFIGHT, handle: name.to_s, tool_call_id: tool_call_id)

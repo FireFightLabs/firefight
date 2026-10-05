@@ -366,6 +366,38 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert tool.failed?
     assert_includes result, said
     assert_includes result, "points at character #{expression.length} of the line before it, \")\""
+    invocation = @investigation.steps.find_by!(tool_name: "fake_echo_text").invocation
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, said.lines.first.strip ], [ invocation.outcome, invocation.error_summary ]
+  end
+
+  test "in a chat a provider's own error is ledgered as an error under the person who asked" do
+    member = workspace_memberships(:alice_workspace_one)
+    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: member), asker: member)
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Rate limited, retry in 30s" } ], "isError" => true)
+
+    Chat::Tools.catalog(turn).find { |entry| entry.name == "fake_echo_text" }.tool.call(text: "hi")
+
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: @tool.action_key, principal: member)
+    assert_equal [ AbilityGateway::SOURCE_CONVERSATION, Ability::Invocation::OUTCOME_ERROR, "Rate limited, retry in 30s" ],
+                 [ invocation.source, invocation.outcome, invocation.error_summary ]
+  end
+
+  test "one of Firefight's own tools answering with an error marks the card failed and is ledgered as an error" do
+    member = workspace_memberships(:alice_workspace_one)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: member)
+    turn = Conversation::Turn.new(conversation, asker: member)
+    chat = @workspace.chats.create!(owner: conversation, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::COMPLETE_ACTION_ITEM, arguments: {})
+    Mcp::ToolDispatcher.stubs(:run).returns(Mcp::ToolDispatcher.error_response("This action item is already done."))
+    complete = Chat::Tools.catalog(turn).find { |entry| entry.name == Mcp::Tools::COMPLETE_ACTION_ITEM }.tool
+    complete.stubs(:requires_approval?).returns(false)
+
+    answer = complete.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: Mcp::Tools::COMPLETE_ACTION_ITEM, arguments: {}), incident: @incident.identifier, action_item: "1")
+
+    assert_match "This action item is already done.", answer
+    assert_equal [ "call_1" ], chat.failed_tool_call_ids
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: "incidents.update", principal: member)
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, "This action item is already done." ], [ invocation.outcome, invocation.error_summary ]
   end
 
   test "a refusal is Firefight speaking, so it is not framed as something a tool said" do
