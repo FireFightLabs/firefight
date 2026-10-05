@@ -48,6 +48,9 @@ module Integrations
     # or the ledger.
     def credential(key) = @row.credentials_hash[key.to_s].presence
 
+    # The app installation the connection was made through, such as a GitHub App's, or nil.
+    def installation_id = @row.installation_id
+
     # What the provider's health check learned about this environment, as the probe wrote it.
     def learned = @row.learned
 

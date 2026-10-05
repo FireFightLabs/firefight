@@ -58,7 +58,7 @@ module Integrations
           "targets" => { "production" => { "id" => "dpl_2", "readyState" => "READY" } },
           "lastAliasRequest" => { "type" => "rollback", "toDeploymentId" => "dpl_2", "fromDeploymentId" => "dpl_3", "jobStatus" => "succeeded" }
         )
-        VercelApi.any_instance.stubs(:project_domains).returns([ { "name" => "shop.acme.dev", "verified" => true } ])
+        VercelApi.any_instance.stubs(:project_domains).returns(Integrations::Pages::Read.new(items: [ { "name" => "shop.acme.dev", "verified" => true } ], complete: true))
 
         text = call(:describe_resource, "resource" => "shop")
 
@@ -126,10 +126,10 @@ module Integrations
         Vercel.store_credentials!(@row, Vercel::API_TOKEN => "tok")
         @row.store_fields!(Vercel::TEAM => "team_1")
         VercelApi.any_instance.stubs(:team).with("team_1").returns("slug" => "acme")
-        VercelApi.any_instance.stubs(:project_domains).returns([
+        VercelApi.any_instance.stubs(:project_domains).returns(Integrations::Pages::Read.new(items: [
           { "name" => "shop.acme.dev", "verified" => true }, { "name" => "www.acme.dev", "verified" => true, "redirect" => "shop.acme.dev" },
           { "name" => "new.acme.dev", "verified" => false }
-        ])
+        ], complete: true))
 
         snapshot = @pack.map_of(@row)
 
@@ -151,6 +151,15 @@ module Integrations
         assert_nil snapshot.resources.find { |found| found.external_id == "prj_1" }.url
         assert_equal [ "The domains of shop could not be read: Vercel answered 403: forbidden." ], snapshot.gaps.map(&:text)
         assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds, "a domain list Vercel refused takes no domain off the map"
+      end
+
+      test "a domain list cut short is a gap, so no domain past it is taken as gone" do
+        VercelApi.any_instance.stubs(:project_domains).returns(Integrations::Pages::Read.new(items: [ { "name" => "shop.acme.dev", "verified" => true } ], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ "Only the first 1 domains of shop were read." ], snapshot.gaps.map(&:text)
+        assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
       end
 
       test "Vercel keeps no metrics the API reads, so it has no baselines, and the health check lists a project" do

@@ -16,11 +16,13 @@ module Integrations
 
     API_ROOT = "https://api.northflank.com/v1".freeze
     PAGE_SIZE = 100
+    MAX_PAGES = 10
 
     def initialize(token)
       @token = token
     end
 
+    # The lists answer a Pages::Read.
     def projects = list("/projects", "projects")
 
     def project(project_id) = get("/projects/#{segment(project_id)}")
@@ -83,8 +85,14 @@ module Integrations
 
     private
 
+    # Every page of a list, as a Pages::Read, following the cursor Northflank gives while it says there is a next page
+    # (@northflank/js-client, ApiCallResponse pagination). A list past MAX_PAGES is cut short and says so.
     def list(path, key)
-      get(path, "per_page" => PAGE_SIZE).dig("data", key) || []
+      Pages.read(max_pages: MAX_PAGES) do |cursor|
+        body = get(path, { "per_page" => PAGE_SIZE, "cursor" => cursor }.compact)
+        pagination = body["pagination"] || {}
+        [ body.dig("data", key) || [], (pagination["cursor"] if pagination["hasNextPage"]) ]
+      end
     end
 
     def get(path, query = {})

@@ -4,6 +4,9 @@ module Integrations
       # A repository's GitHub Actions, through the REST API's workflow runs, jobs and job logs (the actions paths of
       # github/rest-api-description), and what each deployment environment last received. A job that names an
       # environment writes a GitHub deployment, so deploys from Actions are read as deployments. The App needs Actions read.
+      # Rerunning a run, starting a workflow by hand and canceling a run are changes (actions/runs/{run_id}/rerun,
+      # rerun-failed-jobs and cancel, actions/workflows/{workflow_id}/dispatches), so they arrive switched off, go through
+      # the gateway as writes and need Actions read and write.
       module Actions
         RUN_LIMIT = 10
         MAX_RUNS = 50
@@ -15,6 +18,18 @@ module Integrations
         # The status filter GitHub takes for runs, a status or a conclusion.
         RUN_STATUSES = %w[completed action_required cancelled failure neutral skipped stale success timed_out in_progress queued requested waiting pending].freeze
         FAILED_CONCLUSIONS = %w[failure timed_out].freeze
+        COMPLETED = "completed".freeze
+        ACTIVE = "active".freeze
+        DISPATCH = "workflow_dispatch".freeze
+        # The permission every change here needs, as GitHub names it in an App's repository permissions.
+        WRITE_PERMISSION = "Actions: read and write".freeze
+        # A workflow is named by its id or its file's name, such as ci.yml, which GitHub takes in place of the id.
+        WORKFLOW_FILE = /\A[\w.\-]+\.ya?ml\z/
+        # The types a workflow_dispatch input can declare (workflow syntax, on.workflow_dispatch.inputs.<input_id>.type).
+        BOOLEAN_INPUT = "boolean".freeze
+        CHOICE_INPUT = "choice".freeze
+        NUMBER_INPUT = "number".freeze
+        FOLLOW = "workflow_jobs with its run_id, or ci_status, follows it".freeze
 
         def self.included(pack)
           pack.tool :workflow_runs,
@@ -57,6 +72,33 @@ module Integrations
                       "repo" => Code::REPO, "branch" => { "type" => "string", "description" => "The branch (optional, the default branch)" }
                     }, %w[repo]),
                     read_only: true
+
+          run_id = { "type" => "integer", "description" => "The run's id, as workflow_runs or ci_status shows it" }
+          pack.tool :rerun_workflow,
+                    description: "Run a finished GitHub Actions workflow run again, every job or only the jobs that failed and the jobs " \
+                                 "that depend on them, on the same commit. For a failure that is not the code, such as a flaky test",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO, "run_id" => run_id,
+                      "failed_only" => { "type" => "boolean", "description" => "Only the failed jobs and the jobs that depend on them (optional, every job)" }
+                    }, %w[repo run_id]),
+                    read_only: false
+
+          pack.tool :run_workflow,
+                    description: "Start a GitHub Actions workflow by hand on a branch or tag, with the inputs it declares. Only a workflow " \
+                                 "with a workflow_dispatch trigger can be started this way",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO,
+                      "workflow" => { "type" => "string", "description" => "The workflow's file name, such as deploy.yml, or its id" },
+                      "ref" => { "type" => "string", "description" => "The branch or tag to run it on (optional, the default branch)" },
+                      "inputs" => { "type" => "object", "additionalProperties" => { "type" => "string" },
+                                    "description" => "The workflow's inputs by name, each value as text, such as true or 3 (optional, the defaults it declares)" }
+                    }, %w[repo workflow]),
+                    read_only: false
+
+          pack.tool :cancel_workflow,
+                    description: "Cancel a GitHub Actions workflow run that is queued or running, such as a deploy that should not go out",
+                    params_schema: Code.object_schema({ "repo" => Code::REPO, "run_id" => run_id }, %w[repo run_id]),
+                    read_only: false
         end
 
         def workflow_runs(environment_row:, arguments:)
@@ -118,7 +160,134 @@ module Integrations
           Telemetry.result(sections.join("\n\n"), link: actions_link((failing.first || latest.first)&.dig("html_url")))
         end
 
+        def rerun_workflow(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = run_id_argument(arguments)
+          failed_only = ActiveModel::Type::Boolean.new.cast(arguments["failed_only"]) || false
+          token = GithubApp.installation_token(environment_row)
+          run = GithubApp.get("/repos/#{repo}/actions/runs/#{id}", token: token)
+          fail! "#{run_name(run, repo)} is still #{run['status']}, so it cannot run again until it finishes. cancel_workflow stops it." unless run["status"] == COMPLETED
+          if failed_only && run["conclusion"] == SUCCESS
+            fail! "#{run_name(run, repo)} passed, so it has no failed jobs to run again. Leave failed_only off to run every job again."
+          end
+
+          changing("run #{repo} run #{id} again") { GithubApp.act("/repos/#{repo}/actions/runs/#{id}/#{failed_only ? 'rerun-failed-jobs' : 'rerun'}", {}, token: token) }
+          what = failed_only ? "its failed jobs and the jobs that depend on them" : "every job"
+          Telemetry.result("#{run_name(run, repo)} runs again as attempt #{run['run_attempt'].to_i + 1}, #{what}, on #{run['head_branch']} at " \
+                           "#{run['head_sha'].to_s[0, 12]}. #{FOLLOW}.", link: actions_link(run["html_url"]))
+        end
+
+        def run_workflow(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          token = GithubApp.installation_token(environment_row)
+          workflow = GithubApp.get("/repos/#{repo}/actions/workflows/#{workflow_argument(arguments)}", token: token)
+          name = "#{workflow['name']} (#{workflow['path']})"
+          fail! "#{name} in #{repo} is #{workflow['state'].to_s.tr('_', ' ')}, so it cannot be started. A person enables it in GitHub." unless workflow["state"] == ACTIVE
+
+          default_branch = GithubApp.get("/repos/#{repo}", token: token)["default_branch"]
+          ref = ref_argument(arguments) || default_branch
+          # GitHub starts a workflow by hand only when its file on the default branch has the trigger, and runs the file at ref.
+          dispatch = dispatch_of(workflow_file(repo, workflow["path"], default_branch, token))
+          fail! "#{name} has no #{DISPATCH} trigger on #{default_branch}, so it cannot be started by hand. It runs on the events it names." unless dispatch
+
+          declared = ref == default_branch ? dispatch : dispatch_of(workflow_file(repo, workflow["path"], ref, token)) || dispatch
+          inputs = inputs_for(declared, arguments["inputs"], name)
+          started = changing("start #{name} in #{repo}") do
+            GithubApp.act("/repos/#{repo}/actions/workflows/#{workflow['id']}/dispatches", { ref: ref, inputs: inputs, return_run_details: true }.compact_blank, token: token)
+          end
+          given = inputs.any? ? " with #{inputs.map { |key, value| "#{key} #{value}" }.join(', ')}" : ""
+          run = started.is_a?(Hash) ? started["workflow_run_id"] : nil
+          return "Started #{name} on #{ref} in #{repo}#{given}. GitHub did not say which run it is, so workflow_runs with event #{DISPATCH} finds it." unless run
+
+          Telemetry.result("Started #{name} on #{ref} in #{repo}#{given}, as run #{run}. #{FOLLOW}.", link: actions_link(started["html_url"]))
+        end
+
+        def cancel_workflow(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = run_id_argument(arguments)
+          token = GithubApp.installation_token(environment_row)
+          run = GithubApp.get("/repos/#{repo}/actions/runs/#{id}", token: token)
+          fail! "#{run_name(run, repo)} already finished, #{outcome(run)}, so there is nothing to cancel." if run["status"] == COMPLETED
+
+          changing("cancel #{repo} run #{id}") { GithubApp.act("/repos/#{repo}/actions/runs/#{id}/cancel", token: token) }
+          Telemetry.result("Canceling #{run_name(run, repo)} on #{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}. A job or step whose if " \
+                           "condition holds, such as always(), keeps running, and GitHub stops the rest within 5 minutes. #{FOLLOW}.", link: actions_link(run["html_url"]))
+        end
+
         private
+
+        # A change GitHub refused for the permission it needs is said with the permission, so a person knows what to grant.
+        def changing(what)
+          yield
+        rescue GithubApp::NotPermitted => error
+          fail! Sentence.join("GitHub refused to #{what}", error, after: "Firefight's GitHub App needs the #{WRITE_PERMISSION} permission " \
+                                                                          "on this installation for that. An owner of the GitHub account grants it " \
+                                                                          "under Settings, GitHub Apps, by accepting the App's new permissions")
+        end
+
+        def run_name(run, repo) = "#{run['name']} run #{run['run_number']} (#{run['id']}) in #{repo}"
+
+        def run_id_argument(arguments)
+          id = Integer(arguments["run_id"].to_s, exception: false)
+          fail! "run_id must be a whole number" unless id&.positive?
+
+          id
+        end
+
+        def workflow_argument(arguments)
+          given = File.basename(arguments["workflow"].to_s.strip)
+          fail! "workflow must be the workflow's file name, such as deploy.yml, or its id" unless given.match?(/\A\d+\z/) || given.match?(WORKFLOW_FILE)
+
+          Http.segment(given)
+        end
+
+        def workflow_file(repo, path, ref, token)
+          YAML.safe_load(read_file_lines(repo, path, ref, token).join, aliases: true)
+        rescue Psych::Exception => error
+          fail! Sentence.join("#{path} on #{ref} could not be read as YAML", error)
+        end
+
+        # What the workflow's workflow_dispatch trigger declares, {} when it declares nothing, or nil without one. YAML reads
+        # a bare on as true, so the key is either.
+        def dispatch_of(document)
+          triggers = document.is_a?(Hash) ? (document.key?("on") ? document["on"] : document[true]) : nil
+          case triggers
+          when String then triggers == DISPATCH ? {} : nil
+          when Array then triggers.include?(DISPATCH) ? {} : nil
+          when Hash then triggers.key?(DISPATCH) ? (triggers[DISPATCH].is_a?(Hash) ? triggers[DISPATCH] : {}) : nil
+          end
+        end
+
+        # The inputs given, checked against what the workflow declares, each as text, which GitHub takes for every type.
+        def inputs_for(dispatch, given, name)
+          declared = dispatch["inputs"].is_a?(Hash) ? dispatch["inputs"] : {}
+          fail! "inputs must be an object of names and values" unless given.nil? || given.is_a?(Hash)
+
+          given = (given || {}).transform_keys(&:to_s).transform_values(&:to_s)
+          unknown = given.keys - declared.keys
+          if unknown.any?
+            fail! "#{name} declares no #{'input'.pluralize(unknown.size)} #{unknown.to_sentence}. " \
+                  "#{declared.any? ? "It declares #{declared.keys.to_sentence}." : 'It declares no inputs.'}"
+          end
+
+          missing = declared.select { |key, spec| spec.is_a?(Hash) && spec["required"] && spec["default"].nil? && !given.key?(key) }.keys
+          fail! "#{name} needs #{'input'.pluralize(missing.size)} #{missing.to_sentence}, which #{missing.one? ? 'has' : 'have'} no default." if missing.any?
+
+          given.each { |key, value| check_input!(key, value, declared[key]) }
+          given
+        end
+
+        def check_input!(key, value, spec)
+          return unless spec.is_a?(Hash)
+
+          case spec["type"]
+          when BOOLEAN_INPUT then fail!("#{key} must be true or false") unless %w[true false].include?(value)
+          when NUMBER_INPUT then fail!("#{key} must be a number") unless Float(value, exception: false)
+          when CHOICE_INPUT
+            options = Array(spec["options"]).map(&:to_s)
+            fail!("#{key} must be one of #{options.join(', ')}") unless options.include?(value)
+          end
+        end
 
         def runs_of(repo, token, query)
           Array(GithubApp.get("/repos/#{repo}/actions/runs?#{query.compact.to_query}", token: token)["workflow_runs"])

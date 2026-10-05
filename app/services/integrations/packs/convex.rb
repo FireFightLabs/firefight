@@ -243,9 +243,12 @@ module Integrations
 
       # How the deployment stands, from its latest pause or unpause in the audit log's last STATE_DAYS days, running when
       # there is none, as state_lines says. Any other state change carries metadata Convex does not publish, so it is not
-      # read as a status, and neither is an audit log that cannot be read.
+      # read as a status, and neither is an audit log that cannot be read or was cut short, since it is read oldest first
+      # and the latest change may be past where it stopped.
       def map_status(api)
-        events, _complete = audit_events(api, STATE_DAYS.days.ago)
+        events, complete = audit_events(api, STATE_DAYS.days.ago)
+        return nil unless complete
+
         latest = events.select { |event| STATE_CHANGES.include?(event["action"]) }.last
         return RUNNING if latest.nil?
 
@@ -272,15 +275,11 @@ module Integrations
       # Every audit log event since from, least recent first as Convex returns them, and whether all were read.
       def audit_events(api, from)
         from_ms = (from.to_f * 1000).to_i
-        events = []
-        cursor = nil
-        AUDIT_PAGES.times do
+        read = Pages.read(max_pages: AUDIT_PAGES) do |cursor|
           page = api.audit_log(from: from_ms, cursor: cursor)
-          events.concat(Array(page["items"]))
-          cursor = page.dig("pagination", "nextCursor")
-          return [ events, true ] unless page.dig("pagination", "hasMore") && cursor.present?
+          [ Array(page["items"]), (page.dig("pagination", "nextCursor") if page.dig("pagination", "hasMore")) ]
         end
-        [ events, false ]
+        [ read.items, read.complete ]
       end
 
       # One audit log event, with what Convex recorded about it as it wrote it, since its shape is not published.

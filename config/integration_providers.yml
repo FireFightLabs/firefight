@@ -49,7 +49,7 @@ providers:
     category: Code
     mark: GH
     color: "#24292f"
-    description: Correlate incidents with recent pull requests and commits from your repositories.
+    description: Correlate incidents with recent pull requests, commits and GitHub Actions runs from your repositories, and rerun, start or cancel a workflow when you allow it.
     server_url: ""
     kind: native
     site: https://github.com
@@ -61,7 +61,7 @@ providers:
     category: Code
     mark: GL
     color: "#fc6d26"
-    description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab.
+    description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab, and retry, run or cancel a pipeline when you allow it.
     # GitLab's own MCP server stays available from the connect dialog, and connections made through it keep running.
     server_url: https://gitlab.com/api/v4/mcp
     site: https://gitlab.com
@@ -70,7 +70,7 @@ providers:
     connect_fields:
       - key: url
         label: GitLab address
-        hint: Your own GitLab's address, such as https://gitlab.example.com. Leave it empty for GitLab.com.
+        hint: The address of your own GitLab, such as https://gitlab.example.com. Leave it empty for GitLab.com.
         placeholder: https://gitlab.com
         optional: true
         pattern: "https://[^\\s/?#@]+(/[^\\s?#]*)?"
@@ -82,7 +82,7 @@ providers:
     category: Code
     mark: BB
     color: "#0052cc"
-    description: Pull requests, deployments, pipelines and code of the repositories in a Bitbucket workspace.
+    description: Pull requests, deployments, pipelines and code of the repositories in a Bitbucket workspace, and rerun, run or stop a pipeline when you allow it.
     # Atlassian's MCP server reaches Bitbucket only for a workspace linked to an organization, and cannot fetch code.
     server_url: ""
     site: https://bitbucket.org
@@ -91,7 +91,7 @@ providers:
     connect_fields:
       - key: workspace
         label: Workspace
-        hint: The workspace's id, as it appears in its repositories' addresses, bitbucket.org/acme/...
+        hint: The workspace's id, as it appears after bitbucket.org/ in its repositories' addresses.
         placeholder: acme
     source_links: firefight
     map: firefight
@@ -388,7 +388,7 @@ providers:
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: team, label: Team, placeholder: team_... or my-team, optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
+      - { key: team, label: Team, placeholder: team_..., optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
     source_links: firefight
     map: firefight
   - key: render
@@ -453,7 +453,7 @@ providers:
         allowed: "letters, numbers and dashes, at most 50 characters, not starting or ending with a dash and not only numbers"
       - key: project
         label: Project
-        hint: "A project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
+        hint: "The project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
         placeholder: checkout
         path: true
         optional: true

@@ -208,5 +208,8 @@ class McpOauthFlowTest < ActionDispatch::IntegrationTest
 
     assert_response :bad_request
     assert_equal "invalid_client_metadata", JSON.parse(response.body)["error"]
+    description = JSON.parse(response.body)["error_description"]
+    assert description.end_with?(".")
+    assert_not_includes description, ";"
   end
 end

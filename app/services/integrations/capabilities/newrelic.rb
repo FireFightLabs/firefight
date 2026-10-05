@@ -24,7 +24,7 @@ module Integrations
       # The connect field holding the account each environment reads (the registry's connect_fields).
       ACCOUNT_SETTING = "account_id".freeze
       NO_ACCOUNT = "Firefight does not know which New Relic account to read. An admin can connect New Relic again in Integrations, " \
-                   "with the same name and environment, and give its account ID.".freeze
+                   "with the same name and environment, and give its account id.".freeze
 
       # The names the tool may give its arguments, in the order they are tried.
       QUERY = %w[query nrql_query nrql].freeze

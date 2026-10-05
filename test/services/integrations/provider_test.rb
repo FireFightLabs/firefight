@@ -44,6 +44,14 @@ module Integrations
       assert_equal [ "ready", "stopped", "odd", nil ], definition.in_firefight_words(snapshot).resources.map(&:status)
     end
 
+    test "Cloudflare's and Northflank's in-between states read a known health" do
+      health = ->(key, word) { ResourceMap::Resource.new(status: Provider.for(key).status_of(word)).health }
+
+      assert_equal %w[busy failing busy busy], %w[initializing moved inactive disabled].map { |word| health.("cloudflare", word) }
+      assert_equal [ ResourceMap::Resource::HEALTH_BUSY ] * 6 + [ ResourceMap::Resource::HEALTH_FAILING ],
+                   %w[preDeployment allocating scaling upgrading backup deleting errorAllocating].map { |word| health.("northflank", word) }
+    end
+
     test "the registry's promises are kept by the definitions" do
       IntegrationProvider.all.each do |entry|
         definition = Provider.for(entry.key)

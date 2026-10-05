@@ -36,7 +36,14 @@ module Integrations
 
     def project(id_or_name) = get("/v9/projects/#{segment(id_or_name)}")
 
-    def project_domains(project_id) = Array(get("/v9/projects/#{segment(project_id)}/domains", "limit" => PAGE_SIZE)["domains"])
+    # Every domain of a project, as a Pages::Read, newest first, each page read until the timestamp the one before gave as
+    # next (spec, getProjectDomains and Pagination).
+    def project_domains(project_id)
+      Pages.read(max_pages: MAX_PAGES) do |before|
+        answer = get("/v9/projects/#{segment(project_id)}/domains", "limit" => PAGE_SIZE, "until" => before)
+        [ Array(answer["domains"]), answer.dig("pagination", "next") ]
+      end
+    end
 
     def deployments(project_id, limit:, target: nil)
       Array(get("/v7/deployments", "projectId" => project_id, "limit" => limit, "target" => target)["deployments"])

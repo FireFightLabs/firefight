@@ -3,7 +3,8 @@ module Integrations
     # GitLab, on GitLab.com or a workspace's own instance, read with an access token through GitLab's REST API (doc/api in
     # gitlab-org/gitlab): merge requests, commits, deployments, pipelines and their jobs, files and blame. Reading code by
     # search, definition, history and language server happens in the run's sandbox (CodeHost::Code), and the pipelines
-    # tools live in Gitlab::Pipelines. Every tool only reads.
+    # tools live in Gitlab::Pipelines. Every tool only reads but the sandbox's test runner and the ones that retry, run or
+    # cancel a pipeline.
     class Gitlab < NativePack
       # The environment row's credentials, which only this pack reads.
       URL = "url".freeze
@@ -118,7 +119,8 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Access token", secret: true, placeholder: "glpat-...",
-                              hint: "A personal, group or project access token with the read_api and read_repository scopes. A group token reaches every project in its group.")
+                              hint: "A personal, group or project access token with the read_api and read_repository scopes. A group token reaches every project in its group. " \
+                                    "Retrying, running or canceling a pipeline needs the api scope in place of read_api.")
         ]
       end
 
@@ -522,7 +524,7 @@ module Integrations
         end
         distinct = ranges.map { |range| range.dig("commit", "id") }.uniq
         requests = distinct.first(BLAME_MERGE_REQUESTS).flat_map { |sha| merge_requests_of(gitlab, repo, sha).first(1) }.uniq { |request| request["iid"] }
-        merged = requests.any? ? "\nMerge requests: #{requests.map { |request| "!#{request['iid']} #{request['title']} #{request['web_url']}" }.join('; ')}." : ""
+        merged = requests.any? ? "\nMerge requests: #{requests.map { |request| "!#{request['iid']} #{Sentence.clean(request['title'])} #{request['web_url']}" }.to_sentence}." : ""
         "#{path}:#{from}-#{to} at #{ref || 'the default branch'}\n#{rendered.join("\n")}\n\n" \
           "Commits touching this range: #{distinct.map { |sha| sha.to_s[0, 12] }.join(', ')}.#{merged} Use commit_lookup or mr_lookup for the full change."
       end

@@ -146,7 +146,7 @@ module Integrations
 
       test "the organization goes on the map with each app's machines, the hostnames it serves and the clusters it uses" do
         FlyApi.any_instance.stubs(:machines).with("web").returns([ machine("m1", "started"), machine("m2", "started", region: "ams") ])
-        FlyApi.any_instance.stubs(:certificates).with("web").returns([ { "hostname" => "app.acme.dev" } ])
+        FlyApi.any_instance.stubs(:certificates).with("web").returns(Integrations::Pages::Read.new(items: [ { "hostname" => "app.acme.dev" } ], complete: true))
 
         snapshot = @pack.map_of(@row)
 
@@ -162,15 +162,16 @@ module Integrations
 
       test "what could not be read for an app is a gap, not a failed sweep" do
         FlyApi.any_instance.stubs(:machines).raises(FlyApi::Error, "Fly answered 403: forbidden")
-        FlyApi.any_instance.stubs(:certificates).returns([])
+        FlyApi.any_instance.stubs(:certificates).returns(Integrations::Pages::Read.new(items: [], complete: false))
         FlyApi.any_instance.stubs(:postgres_clusters).raises(FlyApi::Error, "Fly answered 404: not found")
 
         snapshot = @pack.map_of(@row)
 
         assert_equal [ [ "The machines of web could not be read: Fly answered 403: forbidden.", [] ],
+                       [ "Only the first 0 certificates of web were read.", [ ResourceMap::KIND_DOMAIN ] ],
                        [ "Managed Postgres clusters could not be read: Fly answered 404: not found.", [ ResourceMap::KIND_DATABASE ] ] ],
                      snapshot.gaps.map { |gap| [ gap.text, gap.kinds ] }
-        assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds, "a cluster list Fly refused takes no cluster off the map"
+        assert_equal [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_DATABASE ], snapshot.unread_kinds, "a list cut short or refused takes nothing off the map"
       end
 
       test "an app list cut short at its bound is a gap, and its apps and domains are not taken as gone" do

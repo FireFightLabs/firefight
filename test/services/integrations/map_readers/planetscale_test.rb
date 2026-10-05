@@ -49,6 +49,17 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE ], switched_off.resources.map(&:kind)
       end
 
+      test "an answer in a shape the reader does not know is a gap naming the list's kinds, never an empty list" do
+        snapshot = Planetscale.new { |tool, _arguments| tool == Planetscale::LIST_DATABASES ? result({ "databases" => [] }) : answer(tool) }.map
+
+        assert_empty snapshot.resources
+        assert_equal [ "PlanetScale answered the databases in acme in a shape Firefight does not read." ], snapshot.gap_texts
+        assert_includes snapshot.unread_kinds, ResourceMap::KIND_DATABASE
+
+        bare = Planetscale.new { |tool, _arguments| tool == Planetscale::LIST_DATABASES ? result(DATABASES["data"]) : answer(tool) }.map
+        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], bare.resources.map(&:kind)
+      end
+
       test "the sweep calls only the tools an admin switched on" do
         integration = workspaces(:slack_workspace_one).integrations.create!(
           kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", settings: { "server_url" => "https://mcp.example/mcp" }

@@ -32,6 +32,8 @@ module Integrations
         ResourceMap::KIND_SERVICE => [ KIND_SERVICES, %w[requests http4xxResponses http5xxResponses cpu memory] ],
         ResourceMap::KIND_DATABASE => [ KIND_ADDONS, %w[cpu memory diskUsage] ]
       }.freeze
+      # What a service list puts on the map: the services, the domains they serve and the repositories they build from.
+      MAP_SERVICE_KINDS = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_BUILD_SERVICE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ].freeze
       AVERAGED_UNIT = "pct".freeze
       COUNT_UNIT = "count".freeze
       PER_MINUTE = "per minute".freeze
@@ -223,7 +225,7 @@ module Integrations
         NorthflankApi.new(token).project(project)
         nil
       rescue NorthflankApi::Error => error
-        "Northflank refused this token or project. #{Sentence.of(error)}".strip
+        Sentence.all("Northflank refused this token or project.", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -281,8 +283,8 @@ module Integrations
         rescue NorthflankApi::Error => error
           raise unless error.message.start_with?("Northflank answered 403")
 
-          fail!("#{Sentence.of(error)} The API token's role cannot make this change. In Northflank, give the role permission " \
-                "to update services (Project, Services, General, Update), then run it again.")
+          fail!(Sentence.all(error, "The API token's role cannot make this change. In Northflank, give the role permission " \
+                                   "to update services (Project, Services, General, Update), then run it again."))
         end
         Telemetry.result("Northflank answered #{verb} #{path}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
       end
@@ -384,7 +386,7 @@ module Integrations
 
       def list_jobs(environment_row:, arguments:)
         project = project_of(environment_row)
-        rows = api(environment_row).jobs(project).map do |job|
+        rows = api(environment_row).jobs(project).items.map do |job|
           [ "#{job['name']} (#{job['id']})", "#{job['jobType']} job", ("suspended" if job["suspended"]) ].compact.join(", ")
         end
         link = project_link(environment_row, KIND_JOBS)
@@ -398,7 +400,7 @@ module Integrations
         wanted = arguments["job"].to_s.strip.downcase
         fail! "Say which job, by name or id. list_jobs shows them." if wanted.empty?
 
-        job = api(environment_row).jobs(project).find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
+        job = api(environment_row).jobs(project).items.find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
         fail! "No job called #{arguments['job']} in this project. list_jobs shows what there is." unless job
 
         runs = api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
@@ -431,21 +433,27 @@ module Integrations
       end
 
       # The project on the resource map: its services, build services, databases and jobs, the repositories they build
-      # from and the domains they serve, with the links Northflank declares between them. A list the token may not read
-      # is a gap in the map, not a failed sweep.
+      # from and the domains they serve, with the links Northflank declares between them. A list the token may not read,
+      # or one cut short at NorthflankApi::MAX_PAGES, is a gap in the map, not a failed sweep.
       def map_of(environment_row)
         project = project_of(environment_row)
         api = api(environment_row)
-        details = api.services(project).map { |listed| api.service(project, listed["id"]).presence || listed }
+        services = api.services(project)
+        details = services.items.map { |listed| api.service(project, listed["id"]).presence || listed }
         team = details.filter_map { |service| team_of(service["appId"]) }.first
         account = [ team, project ].compact.join("/")
         mapping = MapReading.new(account) { |kind, id| app_link(environment_row, team, kind, id)&.url }
 
         details.each { |service| mapping.service(service) }
-        api.addons(project).each { |addon| mapping.database(addon) }
+        addons = api.addons(project)
+        addons.items.each { |addon| mapping.database(addon) }
         gaps = []
+        gaps << cut_short("services", MAP_SERVICE_KINDS) if services.incomplete?
+        gaps << cut_short("databases", [ ResourceMap::KIND_DATABASE ]) if addons.incomplete?
         begin
-          api.jobs(project).each { |job| mapping.job(job) }
+          jobs = api.jobs(project)
+          jobs.items.each { |job| mapping.job(job) }
+          gaps << cut_short("jobs", [ ResourceMap::KIND_JOB ]) if jobs.incomplete?
         rescue NorthflankApi::Error => error
           gaps << ResourceMap::Gap.new(text: Sentence.join("Jobs could not be read", error), kinds: [ ResourceMap::KIND_JOB ])
         end
@@ -555,6 +563,12 @@ module Integrations
 
       private
 
+      # A list past NorthflankApi::MAX_PAGES, said in the map's gaps.
+      def cut_short(what, kinds)
+        most = NorthflankApi::MAX_PAGES * NorthflankApi::PAGE_SIZE
+        ResourceMap::Gap.new(text: "The project has more than #{most} #{what}, so only the first #{most} are on the map.", kinds: kinds)
+      end
+
       def api(environment_row)
         token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
         fail! "This environment has no Northflank token. Reconnect it on the Integrations page." if token.blank?
@@ -567,12 +581,12 @@ module Integrations
       def resources(environment_row)
         @resources ||= begin
           project = project_of(environment_row)
-          services = api(environment_row).services(project).map do |service|
+          services = api(environment_row).services(project).items.map do |service|
             status = service.dig("status", "deployment", "status") || service.dig("status", "build", "status") || "unknown"
             { kind: KIND_SERVICES, id: service["id"], name: service["name"], type: "#{service['serviceType']} service",
               status: status.to_s.downcase, app_id: service["appId"] }
           end
-          addons = api(environment_row).addons(project).map do |addon|
+          addons = api(environment_row).addons(project).items.map do |addon|
             { kind: KIND_ADDONS, id: addon["id"], name: addon["name"], type: "#{addon.dig('spec', 'type')} database",
               status: addon["status"].to_s.downcase, app_id: addon["appId"] }
           end
@@ -630,7 +644,7 @@ module Integrations
         return nil if ports.blank?
 
         rows = ports.map { |port| "#{port['name']} #{port['internalPort']} #{port['protocol']}, #{port['public'] ? 'public' : 'private'}" }
-        "Ports: #{rows.join('; ')}"
+        "Ports:\n#{rows.map { |row| "  #{row}" }.join("\n")}"
       end
 
       def database_lines(environment_row, resource)
@@ -647,7 +661,7 @@ module Integrations
           "Replicas: #{deployment['replicas']}, storage #{deployment['storageSize']} MB #{deployment['storageClass']}, plan #{deployment['planId']}. Storage and replicas can only grow.",
           "TLS #{networking['tlsEnabled'] ? 'on' : 'off'}, access from outside the project #{networking['externalAccessEnabled'] ? 'on' : 'off'}",
           ("Secret rotation: #{rotation['status']}, started #{rotation['startedAt']}#{", finished #{rotation['completedAt']}" if rotation['completedAt']}" if rotation),
-          ("Pending: #{pending.join('; ')}" if pending.any?),
+          ("Pending: #{pending.to_sentence}" if pending.any?),
           backup_lines(environment_row, project, resource)
         ]
       end
@@ -656,7 +670,7 @@ module Integrations
         backups = api(environment_row).backups(project, resource[:id], limit: BACKUPS_SHOWN)
         return "Backups: none" if backups.empty?
 
-        "Latest backups: #{backups.map { |backup| "#{backup['createdAt']} #{backup['status']}" }.join('; ')}"
+        "Latest backups: #{backups.map { |backup| "#{backup['createdAt']} #{backup['status']}" }.to_sentence}"
       rescue NorthflankApi::Error => error
         Sentence.join("Backups could not be read", error)
       end

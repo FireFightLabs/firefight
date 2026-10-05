@@ -34,6 +34,17 @@ module Integrations
 
     def get(path, query = {}) = json(api_uri(path, query))
 
+    # A change, such as running or stopping a pipeline. An answer with no body, as stopPipeline's 204, reads as {}.
+    def post(path, body = nil)
+      uri = api_uri(path, {})
+      request = authorized(Net::HTTP::Post.new(uri))
+      unless body.nil?
+        request["Content-Type"] = "application/json"
+        request.body = body.to_json
+      end
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: REFINE)
+    end
+
     # Every page of a list, following next, up to pages. Returns the items and whether more were left.
     def list(path, query = {}, pages: 1)
       first = api_uri(path, { "pagelen" => PAGE_SIZE }.merge(query))

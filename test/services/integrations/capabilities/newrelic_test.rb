@@ -95,7 +95,7 @@ class Integrations::Capabilities::NewrelicTest < ActiveSupport::TestCase
   test "New Relic is passed over without an account, a switched off tool, or a stream it does not keep, and says so when named" do
     @newrelic_row.store_fields!({})
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web").environment_row
-    assert_match "give its account ID", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "newrelic")
+    assert_match "give its account id", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "newrelic")
     @newrelic_row.store_fields!("account_id" => "1234567")
 
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build").environment_row

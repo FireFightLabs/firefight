@@ -207,7 +207,7 @@ module Integrations
         probe(KubernetesApi.new(server: server, token: token, ca: ca), namespaces)
         nil
       rescue KubernetesApi::Error => error
-        "The cluster refused this connection. #{Sentence.of(error)}"
+        Sentence.all("The cluster refused this connection.", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -409,11 +409,11 @@ module Integrations
             listing = api.list(self.class.collection(kind, namespace))
             if listing.incomplete?
               gaps << ResourceMap::Gap.new(text: "Only the first #{KubernetesApi::PAGE_SIZE * KubernetesApi::MAX_PAGES} #{kind.plural} in #{namespace} were read.",
-                                           kinds: [ kind.map_kind ])
+                                           kinds: kinds_listed_by(kind))
             end
             listing.items.reject { |item| kind.key == JOB && owned_by?(item, CRONJOB) }.each { |item| mapping.add(kind, item) }
           rescue KubernetesApi::Forbidden, KubernetesApi::NotFound => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("#{kind.plural.capitalize} in #{namespace} could not be read", error), kinds: [ kind.map_kind ])
+            gaps << ResourceMap::Gap.new(text: Sentence.join("#{kind.plural.capitalize} in #{namespace} could not be read", error), kinds: kinds_listed_by(kind))
           end
         end
         mapping.connect!
@@ -500,7 +500,8 @@ module Integrations
         end
       end
 
-      # How a workload stands, in a word the map shows.
+      # How a workload stands, in a word the map shows. A rollout that finished with too few pods ready is degraded, such
+      # as pods that crash after the rollout completed, never progressing, which would read as busy.
       def self.state_of(kind, item)
         spec = item["spec"].to_h
         status = item["status"].to_h
@@ -510,15 +511,18 @@ module Integrations
           return "scaled down" if desired.zero?
           return "failed" if Array(status["conditions"]).any? { |condition| condition["reason"] == "ProgressDeadlineExceeded" }
 
-          status["readyReplicas"].to_i >= desired && status["updatedReplicas"].to_i >= desired ? "running" : "progressing"
+          updated = status["updatedReplicas"].to_i >= desired
+          rolled_out(status["readyReplicas"].to_i >= desired, updated, finished: updated && rollout_complete?(status))
         when STATEFULSET
           desired = spec.fetch("replicas", 1)
           return "scaled down" if desired.zero?
 
-          status["readyReplicas"].to_i >= desired && status["currentRevision"] == status["updateRevision"] ? "running" : "progressing"
+          updated = status["currentRevision"] == status["updateRevision"]
+          rolled_out(status["readyReplicas"].to_i >= desired, updated, finished: updated)
         when DAEMONSET
           desired = status["desiredNumberScheduled"].to_i
-          status["numberReady"].to_i >= desired && status["updatedNumberScheduled"].to_i >= desired ? "running" : "progressing"
+          updated = status["updatedNumberScheduled"].to_i >= desired
+          rolled_out(status["numberReady"].to_i >= desired, updated, finished: updated)
         when CRONJOB then spec["suspend"] ? "suspended" : "scheduled"
         # A LoadBalancer service waits for its cloud to hand it an address, and every other service routes once it exists.
         when SERVICE.key then spec["type"] == "LoadBalancer" && Array(status.dig("loadBalancer", "ingress")).empty? ? "pending" : "active"
@@ -530,6 +534,16 @@ module Integrations
           "running"
         end
       end
+
+      def self.rolled_out(ready, updated, finished:)
+        return "running" if ready && updated
+
+        finished ? "degraded" : "progressing"
+      end
+
+      # Kubernetes marks a Deployment's rollout complete with its Progressing condition's NewReplicaSetAvailable reason,
+      # which stays when pods fail afterwards (kubernetes.io, Deployments, Complete Deployment).
+      def self.rollout_complete?(status) = Array(status["conditions"]).any? { |condition| condition["type"] == "Progressing" && condition["reason"] == "NewReplicaSetAvailable" }
 
       def self.condition?(status, type) = Array(status["conditions"]).any? { |condition| condition["type"] == type && condition["status"] == "True" }
 
@@ -549,6 +563,9 @@ module Integrations
       def self.images(kind, item) = Array(pod_template(kind, item).to_h.dig("spec", "containers")).filter_map { |container| container["image"] }
 
       private
+
+      # What a list of one kind puts on the map. Services and ingresses also put the hostnames they answer on there.
+      def kinds_listed_by(kind) = [ kind.map_kind, (ResourceMap::KIND_DOMAIN if [ SERVICE, INGRESS ].include?(kind)) ].compact
 
       def api(environment_row)
         settings = ConnectionSettings.of(environment_row)
@@ -630,7 +647,7 @@ module Integrations
         rescue KubernetesApi::NotFound
           nil
         rescue KubernetesApi::Forbidden => error
-          fail! "#{Sentence.of(error)} The service account's role cannot read #{kind.plural} in #{namespace}."
+          fail! Sentence.all(error, "The service account's role cannot read #{kind.plural} in #{namespace}.")
         end
         # A name alone can match a workload of each kind, and its id is kind/name.
         Named.find(found, name, id: ->(each) { "#{each[:kind].key}/#{each[:name]}" }, name: :name, provider: PROVIDER) ||
@@ -957,7 +974,7 @@ module Integrations
         api(environment_row).patch([ object_path(workload), subresource ].compact.join("/"), body, type)
       rescue KubernetesApi::Forbidden => error
         permission = [ workload[:kind].plural, subresource ].compact.join("/")
-        fail! "#{Sentence.of(error)} The service account's role cannot make this change. Give it patch on #{permission} in #{workload[:namespace]}, then run it again."
+        fail! Sentence.all(error, "The service account's role cannot make this change. Give it patch on #{permission} in #{workload[:namespace]}, then run it again.")
       end
     end
   end

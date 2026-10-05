@@ -2,7 +2,9 @@ module Integrations
   module Packs
     class Gitlab
       # A project's CI as GitLab keeps it (doc/api/pipelines.md, jobs.md and environments.md): its pipelines, their jobs,
-      # a job's log, and how the default branch and the environments stand now.
+      # a job's log, and how the default branch and the environments stand now. Retrying a pipeline's failed and canceled
+      # jobs, running a new pipeline and canceling one are changes (doc/api/pipelines.md, retry, create and cancel), so
+      # they arrive switched off and go through the gateway as writes. They need a token with the api scope.
       module Pipelines
         PIPELINE_LIMIT = 10
         MAX_PIPELINES = 50
@@ -13,6 +15,13 @@ module Integrations
         SUCCESS = "success".freeze
         AVAILABLE = "available".freeze
         PIPELINE_STATUSES = %w[created waiting_for_resource preparing pending running success failed canceling canceled skipped manual scheduled].freeze
+        # A pipeline in one of these has ended, so there is nothing left to cancel. GitLab answers 200 to a cancel whatever
+        # the pipeline's state (doc/api/pipelines.md, cancel), so this is checked first.
+        FINISHED_STATUSES = %w[success failed canceled skipped].freeze
+        # What every change here needs (doc/ci/pipelines, pipeline security on protected branches).
+        WRITE_NEEDS = "Running, retrying or canceling a pipeline needs a token with the api scope, from someone who may run " \
+                      "pipelines in the project, and on a protected branch someone allowed to merge or push to it".freeze
+        FOLLOW = "pipeline_jobs with its pipeline_id, or ci_status, follows it".freeze
 
         def self.included(pack)
           repo = pack::REPO_PARAM
@@ -54,6 +63,29 @@ module Integrations
                       "repo" => repo, "ref" => { "type" => "string", "description" => "The branch or tag (optional, the default branch)" }
                     }, %w[repo]),
                     read_only: true
+
+          pipeline_id = { "type" => "integer", "description" => "The pipeline's id, as pipelines or ci_status shows it" }
+          pack.tool :retry_pipeline,
+                    description: "Retry a pipeline's failed and canceled jobs, the retry GitLab offers, on the same commit. For a failure " \
+                                 "that is not the code, such as a flaky test or a runner that went away",
+                    params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline_id" => pipeline_id }, %w[repo pipeline_id]),
+                    read_only: false
+
+          pack.tool :run_pipeline,
+                    description: "Run a new pipeline on a branch or tag, with CI/CD variables or inputs if asked",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo,
+                      "ref" => { "type" => "string", "description" => "The branch or tag (optional, the default branch)" },
+                      "variables" => { "type" => "object", "additionalProperties" => { "type" => "string" },
+                                       "description" => "CI/CD variables by name, never a secret, since they are shown and kept (optional)" },
+                      "inputs" => { "type" => "object", "description" => "The pipeline's inputs by name, as its spec declares them (optional, their defaults)" }
+                    }, %w[repo]),
+                    read_only: false
+
+          pack.tool :cancel_pipeline,
+                    description: "Cancel a pipeline's jobs that have not finished, such as a deploy that should not go out",
+                    params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline_id" => pipeline_id }, %w[repo pipeline_id]),
+                    read_only: false
         end
 
         def pipelines(environment_row:, arguments:)
@@ -119,7 +151,61 @@ module Integrations
           Telemetry.result(sections.join("\n\n"), link: latest && link(latest["web_url"]))
         end
 
+        def retry_pipeline(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = positive_id(arguments, "pipeline_id")
+          gitlab = api(environment_row)
+          pipeline = gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{id}")
+          fail! "Pipeline #{id} in #{repo} passed, so it has no failed or canceled jobs to retry. run_pipeline runs a new one." if pipeline["status"] == SUCCESS
+
+          retried = changing("retry pipeline #{id} in #{repo}") { gitlab.post("#{GitlabApi.project(repo)}/pipelines/#{id}/retry") }
+          Telemetry.result("Retrying the failed and canceled jobs of pipeline #{id} in #{repo}, on #{pipeline['ref']} at #{pipeline['sha'].to_s[0, 12]}. " \
+                           "It is #{retried['status'] || 'starting'}. #{FOLLOW}.", link: link(retried["web_url"] || pipeline["web_url"]))
+        end
+
+        def run_pipeline(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          gitlab = api(environment_row)
+          ref = ref_argument(arguments) || gitlab.get(GitlabApi.project(repo))["default_branch"]
+          fail! "#{repo} has no default branch yet, so name a branch or tag with ref." if ref.blank?
+
+          variables = hash_argument(arguments, "variables").map { |key, value| { "key" => key.to_s, "value" => value.to_s } }
+          inputs = hash_argument(arguments, "inputs")
+          body = { "ref" => ref, "variables" => variables.presence, "inputs" => inputs.presence }.compact
+          started = changing("run a pipeline on #{ref} in #{repo}") { gitlab.post("#{GitlabApi.project(repo)}/pipeline", body) }
+          given = variables.any? ? " with #{variables.map { |variable| variable['key'] }.to_sentence}" : ""
+          Telemetry.result("Started pipeline #{started['id']} on #{ref} at #{started['sha'].to_s[0, 12]} in #{repo}#{given}. It is #{started['status']}. " \
+                           "#{FOLLOW}.", link: link(started["web_url"]))
+        end
+
+        def cancel_pipeline(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          id = positive_id(arguments, "pipeline_id")
+          gitlab = api(environment_row)
+          pipeline = gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{id}")
+          fail! "Pipeline #{id} in #{repo} already finished, #{pipeline['status']}, so there is nothing to cancel." if FINISHED_STATUSES.include?(pipeline["status"])
+
+          canceled = changing("cancel pipeline #{id} in #{repo}") { gitlab.post("#{GitlabApi.project(repo)}/pipelines/#{id}/cancel") }
+          Telemetry.result("Canceling pipeline #{id} in #{repo}, on #{pipeline['ref']} at #{pipeline['sha'].to_s[0, 12]}. It is " \
+                           "#{canceled['status'] || 'canceling'}. #{FOLLOW}.", link: link(canceled["web_url"] || pipeline["web_url"]))
+        end
+
         private
+
+        # A change GitLab refused is said with what it needs, so a person knows which token or role to give.
+        def changing(what)
+          yield
+        rescue GitlabApi::Refused => error
+          fail! Sentence.join("GitLab refused to #{what}", error, after: WRITE_NEEDS)
+        end
+
+        def hash_argument(arguments, key)
+          value = arguments[key]
+          return {} if value.blank?
+          fail! "#{key} must be an object of names and values" unless value.is_a?(Hash)
+
+          value
+        end
 
         def pipeline_line(pipeline)
           "#{pipeline['created_at']}  pipeline #{pipeline['id']}  #{pipeline['status']}  #{pipeline['ref']}  #{pipeline['sha'].to_s[0, 12]}  " \

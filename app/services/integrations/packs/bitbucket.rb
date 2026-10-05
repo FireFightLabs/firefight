@@ -4,7 +4,7 @@ module Integrations
     # api.bitbucket.org/swagger.json): pull requests, commits, deployments, pipelines and their steps, and files.
     # Bitbucket has no blame in its API, so blame runs git in the run's sandbox, where reading code by search, definition,
     # history and language server happens too (CodeHost::Code). The pipelines tools live in Bitbucket::Pipelines. Every
-    # tool only reads.
+    # tool only reads but the sandbox's test runner and the ones that run, rerun or stop a pipeline.
     class Bitbucket < NativePack
       # The environment row's credentials, which only this pack reads.
       WORKSPACE = "workspace".freeze
@@ -128,7 +128,8 @@ module Integrations
         [
           CredentialField.new(key: TOKEN, label: "Token", secret: true, placeholder: "ATATT...",
                               hint: "An API token, or a workspace access token, that can read repositories, pull requests and pipelines " \
-                                    "(read:repository:bitbucket, read:pullrequest:bitbucket and read:pipeline:bitbucket).")
+                                    "(read:repository:bitbucket, read:pullrequest:bitbucket and read:pipeline:bitbucket). Running, rerunning or stopping a " \
+                                    "pipeline also needs write:pipeline:bitbucket.")
         ]
       end
 

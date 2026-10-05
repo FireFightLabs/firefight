@@ -18,11 +18,11 @@ module Integrations
         @pack = Bitbucket.new(@integration, box_key: "investigation-1")
       end
 
-      test "the token is the one credential, trimmed, the workspace a connect field, and every tool only reads but the ones that run a repository's own commands" do
+      test "the token is the one credential, trimmed, the workspace a connect field, and every tool only reads but the ones that run a repository's own commands or change its pipelines" do
         settings = ConnectionSettings.of(@row.reload)
         assert_equal [ "acme", "bb-token" ], [ settings.field(Bitbucket::WORKSPACE), settings.credential(Bitbucket::TOKEN) ]
         assert_equal [ Bitbucket::TOKEN ], Bitbucket.credential_fields.map(&:key)
-        assert_equal [ "run_tests" ], Bitbucket.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[run_tests rerun_pipeline run_pipeline cancel_pipeline], Bitbucket.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "the connect form says what is wrong with a token or workspace before anything is saved" do
@@ -256,6 +256,87 @@ module Integrations
         assert_match "Failed steps:\n  Test  failed", text
         assert_match "failed, failed, successful. It last passed in pipeline 5", text
         assert_match "Environments, what each last deployed:\n  Production:", text
+      end
+
+      test "a finished pipeline runs again as a new pipeline on the same target and definition, with its plain variables" do
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED").merge(
+          "target" => { "type" => "pipeline_ref_target", "ref_type" => "branch", "ref_name" => "main", "commit" => { "type" => "commit", "hash" => HEAD, "links" => {} },
+                        "selector" => { "type" => "custom", "pattern" => "smoke" } },
+          "variables" => [ { "uuid" => "{v}", "key" => "REGION", "value" => "eu", "secured" => false } ]
+        ))
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", {
+          "target" => { "type" => "pipeline_ref_target", "ref_type" => "branch", "ref_name" => "main", "commit" => { "type" => "commit", "hash" => HEAD },
+                        "selector" => { "type" => "custom", "pattern" => "smoke" } },
+          "variables" => [ { "key" => "REGION", "value" => "eu" } ]
+        }).returns(pipeline(8, nil).merge("uuid" => "{new}"))
+
+        text = body(call(:rerun_pipeline, "repo" => "acme/web", "pipeline" => PIPELINE))
+
+        assert_match "Started pipeline 8 ({new}) in acme/web, running pipeline 7 again on main at #{HEAD[0, 12]}, every step from the start. " \
+                     "pipeline_steps with its uuid, or ci_status, follows it.", text
+        assert text.end_with?("https://bitbucket.org/acme/web/commits/#{HEAD}")
+      end
+
+      test "a pull request's pipeline runs again on the same pull request" do
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED").merge(
+          "target" => { "type" => "pipeline_pullrequest_target", "source" => "fix", "destination" => "main", "destination_commit" => { "hash" => BASE, "type" => "commit" },
+                        "commit" => { "type" => "commit", "hash" => HEAD }, "pullrequest" => { "id" => 3, "title" => "Fix" }, "selector" => { "type" => "pull-requests", "pattern" => "**" } }
+        ))
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", {
+          "target" => { "type" => "pipeline_pullrequest_target", "source" => "fix", "destination" => "main", "commit" => { "type" => "commit", "hash" => HEAD },
+                        "destination_commit" => { "hash" => BASE }, "pullrequest" => { "id" => "3" }, "selector" => { "type" => "pull-requests", "pattern" => "**" } }
+        }).returns(pipeline(8, nil))
+
+        assert_match "Started pipeline 8", body(call(:rerun_pipeline, "repo" => "acme/web", "pipeline" => PIPELINE))
+      end
+
+      test "a pipeline still going, or one given secured variables, is not run again" do
+        BitbucketApi.any_instance.expects(:post).never
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, nil).merge("state" => { "name" => "IN_PROGRESS", "stage" => { "name" => "RUNNING" } }))
+        assert_equal "Pipeline 7 in acme/web is still running, so it cannot run again until it finishes. cancel_pipeline stops it.",
+                     assert_raises(NativePack::Error) { call(:rerun_pipeline, "repo" => "acme/web", "pipeline" => PIPELINE) }.message
+
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED").merge("variables" => [ { "key" => "TOKEN", "value" => "", "secured" => true } ]))
+        assert_match "was given secured variables, which Bitbucket never hands back", assert_raises(NativePack::Error) { call(:rerun_pipeline, "repo" => "acme/web", "pipeline" => PIPELINE) }.message
+      end
+
+      test "a pipeline runs on the main branch unless a branch or tag is named, a custom one by name, with variables" do
+        get(REPO, { "mainbranch" => { "name" => "main" } })
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", {
+          "target" => { "type" => "pipeline_ref_target", "ref_type" => "branch", "ref_name" => "main", "selector" => { "type" => "custom", "pattern" => "deploy-staging" } },
+          "variables" => [ { "key" => "REGION", "value" => "eu" } ]
+        }).returns(pipeline(9, nil))
+
+        text = body(call(:run_pipeline, "repo" => "acme/web", "custom" => "deploy-staging", "variables" => { "REGION" => "eu" }))
+
+        assert_match "Started pipeline 9 (#{PIPELINE}) on main in acme/web, the custom pipeline deploy-staging with REGION.", text
+
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/", { "target" => { "type" => "pipeline_ref_target", "ref_type" => "tag", "ref_name" => "v1.2.0" } })
+                    .returns(pipeline(10, nil))
+        assert_match "on v1.2.0 in acme/web, the pipeline that matches it.", body(call(:run_pipeline, "repo" => "acme/web", "ref" => "v1.2.0", "ref_type" => "tag"))
+        BitbucketApi.any_instance.expects(:post).returns(pipeline(11, nil).merge("target" => { "ref_name" => "main" }))
+        assert_match "had not named the commit it builds yet, so there is no link.", body(call(:run_pipeline, "repo" => "acme/web"))
+        assert_equal "ref_type must be one of branch, tag", assert_raises(NativePack::Error) { call(:run_pipeline, "repo" => "acme/web", "ref_type" => "bookmark") }.message
+      end
+
+      test "a running pipeline is stopped, and a finished one is said to have nothing to stop" do
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, nil).merge("state" => { "name" => "IN_PROGRESS", "stage" => { "name" => "RUNNING" } }))
+        BitbucketApi.any_instance.expects(:post).with("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}/stopPipeline").returns({})
+
+        assert_match "Stopping pipeline 7 in acme/web, on main at #{HEAD[0, 12]}, and every step that has not finished.", body(call(:cancel_pipeline, "repo" => "acme/web", "pipeline" => PIPELINE))
+
+        get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "SUCCESSFUL"))
+        assert_equal "Pipeline 7 in acme/web already finished, successful, so there is nothing to stop.",
+                     assert_raises(NativePack::Error) { call(:cancel_pipeline, "repo" => "acme/web", "pipeline" => PIPELINE) }.message
+      end
+
+      test "Bitbucket refusing a change is said with the scope it needs" do
+        get(REPO, { "mainbranch" => { "name" => "main" } })
+        BitbucketApi.any_instance.stubs(:post).raises(BitbucketApi::Refused, "Bitbucket answered 403: Your credentials lack one or more required privilege scopes.")
+
+        assert_equal "Bitbucket refused to run a pipeline on main in acme/web: Bitbucket answered 403: Your credentials lack one or more required privilege scopes. " \
+                     "Running or stopping a pipeline needs a token that can write pipelines, the write:pipeline:bitbucket scope.",
+                     assert_raises(NativePack::Error) { call(:run_pipeline, "repo" => "acme/web") }.message
       end
 
       test "the map holds the workspace's repositories and the infrastructure defined in them" do

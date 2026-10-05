@@ -63,11 +63,11 @@ module Integrations
     end
 
     test "a GraphQL answer with errors is refused with GitHub's words, since it still arrives as a success" do
-      response = stub(code: "200", body: { data: nil, errors: [ { message: "Could not resolve to a Commit" } ] }.to_json)
+      response = stub(code: "200", body: { data: nil, errors: [ { message: "Could not resolve to a Commit." }, { message: "Path not found" } ] }.to_json)
       Net::HTTP.stubs(:start).returns(response)
 
       error = assert_raises(GithubApp::Error) { GithubApp.graphql("query { x }", {}, token: "t") }
-      assert_match(/Could not resolve to a Commit/, error.message)
+      assert_equal "GitHub: Could not resolve to a Commit, Path not found", error.message
     end
 
     test "API errors surface GitHub's message" do
@@ -111,6 +111,21 @@ module Integrations
       Addrinfo.stubs(:getaddrinfo).with("pipelines.actions.githubusercontent.com", nil, nil, :STREAM).returns([ stub(ip_address: "10.0.0.8") ])
       Http.stubs(:request).returns(redirect)
       assert_match "private network", assert_raises(GithubApp::Error) { GithubApp.download("/repos/acme/web/actions/jobs/9/logs", token: "ghs_token") }.message
+    end
+
+    test "a change marks a missing permission apart from any other refusal, and an answer with no body counts as done" do
+      Http.stubs(:request).returns(stub(code: "403", body: { message: "Resource not accessible by integration" }.to_json))
+      assert_raises(GithubApp::NotPermitted) { GithubApp.act("/repos/acme/web/actions/runs/41/cancel", token: "ghs_token") }
+
+      Http.stubs(:request).returns(stub(code: "409", body: { message: "Cannot cancel a workflow run that is completed." }.to_json))
+      error = assert_raises(GithubApp::Error) { GithubApp.act("/repos/acme/web/actions/runs/42/cancel", token: "ghs_token") }
+      assert_not_kind_of GithubApp::NotPermitted, error
+      assert_equal "GitHub answered 409: Cannot cancel a workflow run that is completed.", error.message
+
+      Http.expects(:request).with do |uri, request, **|
+        uri.to_s == "https://api.github.com/repos/acme/web/actions/runs/43/rerun" && request.body == "{}" && request["Authorization"] == "Bearer ghs_token"
+      end.returns(stub(code: "201", body: ""))
+      assert_equal({}, GithubApp.act("/repos/acme/web/actions/runs/43/rerun", {}, token: "ghs_token"))
     end
   end
 end

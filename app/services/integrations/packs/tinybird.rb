@@ -302,7 +302,7 @@ module Integrations
         return Telemetry.result("Nothing failed for #{about} in that range.", link: workspace_link(environment_row)) if rows.empty?
 
         lines = rows.map do |row|
-          "#{row['source']} #{row['name']}: #{row['times']} times, first #{row['first_seen']}, last #{row['last_seen']}. #{row['message'].to_s.squish}"
+          Sentence.all("#{row['source']} #{row['name']}: #{row['times']} times, first #{row['first_seen']}, last #{row['last_seen']}", row["message"].to_s.squish)
         end
         Telemetry.result("What failed for #{about}, by what and why, most frequent first.\n#{lines.join("\n")}", link: workspace_link(environment_row))
       end
@@ -488,7 +488,7 @@ module Integrations
         end
         operations = data_of(query(api, Queries.datasource_health)).select { |row| row["failed"].to_i.positive? }
         lines << (operations.empty? ? "No data source operation failed in the last #{Queries::HEALTH_MINUTES} minutes." : "Data sources whose operations failed in the last #{Queries::HEALTH_MINUTES} minutes:")
-        operations.each { |row| lines << "  #{row['name']}: #{row['failed']} failed, #{row['ok']} succeeded. Latest error: #{row['last_error'].to_s.squish}" }
+        operations.each { |row| lines << "  #{Sentence.all("#{row['name']}: #{row['failed']} failed, #{row['ok']} succeeded", latest_error(row))}" }
         deployments = data_of(query(api, Queries.deployments(3)))
         lines << (deployments.empty? ? "No deployment in the last 30 days." : "Latest deployments, newest first:")
         deployments.each { |row| lines << "  #{row['created_at']}, job #{row['job_id']}, #{row['status']}#{", #{row['message']}" if row['message'].present?}" }
@@ -507,8 +507,8 @@ module Integrations
         lines << if row.nil?
           "No operation on it in the last #{Queries::HEALTH_MINUTES} minutes."
         else
-          "In the last #{Queries::HEALTH_MINUTES} minutes, #{row['ok']} operations succeeded and #{row['failed']} failed." \
-            "#{" Latest error: #{row['last_error'].to_s.squish}" if row['failed'].to_i.positive?}"
+          Sentence.all("In the last #{Queries::HEALTH_MINUTES} minutes, #{row['ok']} operations succeeded and #{row['failed']} failed",
+                       (latest_error(row) if row["failed"].to_i.positive?))
         end
         Telemetry.result(lines.join("\n"), link: workspace_link(environment_row))
       end
@@ -532,6 +532,9 @@ module Integrations
         end
         Telemetry.result(lines.join("\n"), link: workspace_link(environment_row))
       end
+
+      # The latest error a data source's operations met, as a sentence, or nil when Tinybird kept no words for it.
+      def latest_error(row) = row["last_error"].to_s.squish.presence&.then { |said| "Latest error: #{said}" }
 
       def datasource_line(datasource)
         statistics = datasource["statistics"].to_h

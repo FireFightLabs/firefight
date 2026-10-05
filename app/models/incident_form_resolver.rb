@@ -11,8 +11,11 @@ class IncidentFormResolver
 
     def initialize(field_errors)
       @field_errors = field_errors
-      super(field_errors.join("; "))
+      super(sentences)
     end
+
+    # Each field's error as a sentence of its own, so the message never joins them with a semicolon.
+    def sentences = field_errors.map { |error| error.to_s.strip.match?(/[.!?]\z/) ? error.to_s.strip : "#{error.to_s.strip}." }.join(" ")
   end
 
   def initialize(workspace)

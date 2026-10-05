@@ -37,7 +37,7 @@ module Integrations
 
       test "keys, regions and AWS's refusal are said on the form before anything is saved, asking AWS in the first region chosen" do
         regions = { Aws::REGIONS => %w[eu-west-1 us-east-1] }
-        assert_equal "Paste an access key ID.", Aws.credential_refusal({ Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
+        assert_equal "Paste an access key id.", Aws.credential_refusal({ Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
         assert_equal "Choose at least one region.", Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: {})
 
         AwsApi.any_instance.stubs(:identity).raises(AwsApi::Denied, "AWS answered InvalidClientTokenId: The security token included in the request is invalid.")
@@ -59,7 +59,7 @@ module Integrations
 
         text = call(:list_resources)
 
-        assert_match "ECS services:\nweb (#{SERVICE_ARN}), eu-west-1, completed", text
+        assert_match "ECS services:\nweb (#{SERVICE_ARN}), eu-west-1, degraded", text
         assert_match "Lambda functions:\ncheckout (#{FUNCTION_ARN}), eu-west-1, active", text
         assert_match "EC2 instances:\nbastion (#{INSTANCE_ARN}), eu-west-1, running", text
         assert_match "RDS databases:\norders (#{DATABASE_ARN}), eu-west-1, available", text
@@ -98,7 +98,7 @@ module Integrations
         assert_match "Memory 512 MB, timeout 30s, arm64", text
         assert_match "Environment variables: API_TOKEN", text
         assert_no_match "sk_live_123", text
-        assert_match "Aliases: live points at version 12 with 10% to 13", text
+        assert_match "Aliases:\n  live points at version 12 with 10% to 13", text
         assert text.end_with?("https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/functions")
       end
 
@@ -317,13 +317,19 @@ module Integrations
         assert_match "is in ap-south-1, which this connection does not read", refusal(:describe_resource, "resource" => FUNCTION_ARN.sub("eu-west-1", "ap-south-1"))
       end
 
+      test "an ECS service whose rollout completed reads degraded while it runs fewer tasks than it wants, and completed once it runs them all" do
+        assert_equal "degraded", @pack.send(:service_entry, service, "eu-west-1").status
+        assert_equal "completed", @pack.send(:service_entry, service.merge(running_count: 2), "eu-west-1").status
+        assert_equal "in_progress", @pack.send(:service_entry, service(rollout: "IN_PROGRESS"), "eu-west-1").status
+      end
+
       test "the account goes on the map with each resource's kind, ARN, page and details, and a list AWS refused is not taken as gone" do
         inventory!
 
         snapshot = @pack.map_of(@row)
 
         found = snapshot.resources.index_by(&:external_id)
-        assert_equal [ ResourceMap::KIND_SERVICE, ACCOUNT, "web", "completed", "https://eu-west-1.console.aws.amazon.com/ecs/v2?region=eu-west-1" ],
+        assert_equal [ ResourceMap::KIND_SERVICE, ACCOUNT, "web", "degraded", "https://eu-west-1.console.aws.amazon.com/ecs/v2?region=eu-west-1" ],
                      found[SERVICE_ARN].then { |resource| [ resource.kind, resource.account, resource.name, resource.status, resource.url ] }
         assert_equal({ "region" => "eu-west-1", "type" => "FARGATE", "instances" => 2, "cluster" => "prod", "task_definition" => "web:42" }, found[SERVICE_ARN].details)
         assert_equal [ ResourceMap::KIND_FUNCTION, "active" ], found[FUNCTION_ARN].then { |resource| [ resource.kind, resource.status ] }

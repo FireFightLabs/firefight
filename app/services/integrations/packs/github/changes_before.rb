@@ -264,7 +264,7 @@ module Integrations
           shown = suspects.first(SUSPECT_LIMIT).each_with_index.map do |suspect, index|
             change = suspect.change
             "#{index + 1}. #{change.repository} #{change.kind} #{change.sha.to_s[0, 12]} at #{change.at.utc.iso8601} " \
-              "by #{change.author || 'unknown'}: #{change.title}\n   Why: #{suspect.reasons.join('; ')}.\n   #{change.url}"
+              "by #{change.author || 'unknown'}: #{change.title}\n   Why: #{suspect.reasons.to_sentence}.\n   #{change.url}"
           end
           more = suspects.size > SUSPECT_LIMIT ? "\n#{suspects.size - SUSPECT_LIMIT} more changes rank below these." : ""
           "Suspects, most likely first. The reasons are the ranking, so weigh them yourself:\n#{shown.join("\n")}#{more}\n" \
@@ -294,7 +294,7 @@ module Integrations
               pull = commit.dig("associatedPullRequests", "nodes", 0)
               "#{commit['oid'][0, 12]} #{commit['committedDate']} #{commit['messageHeadline']}#{" PR ##{pull['number']}" if pull}"
             end
-            "  #{found.repository} #{found.file}:#{found.line} at #{running ? running[0, 12] : 'the default branch'}: #{described.join('; ')}"
+            "  #{found.repository} #{found.file}:#{found.line} at #{running ? running[0, 12] : 'the default branch'}: #{described.to_sentence}"
           rescue GithubApp::Error => error
             "  #{found.repository} #{found.file}:#{found.line}: could not blame, #{error.message}"
           end
