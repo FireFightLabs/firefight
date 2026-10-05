@@ -71,9 +71,20 @@ providers:
     category: Observability
     mark: NR
     color: "#1ce783"
-    description: Query logs, metrics and traces during investigations.
-    server_url: ""
-    source_links: unchecked
+    description: Query logs, metrics and traces.
+    # New Relic's data centers (docs/accounts/accounts-billing/account-setup/choose-your-data-center), each with the MCP
+    # server its setup guide gives (docs/agentic-ai/mcp/setup) and the app address its platform introduction gives.
+    regions:
+      - { key: us, label: US (one.newrelic.com), server_url: "https://mcp.newrelic.com/mcp/", site: "https://one.newrelic.com" }
+      - { key: eu, label: EU (one.eu.newrelic.com), server_url: "https://mcp.eu.newrelic.com/mcp/", site: "https://one.eu.newrelic.com" }
+      - { key: jp, label: Japan (one.jp.newrelic.com), server_url: "https://mcp.jp.newrelic.com/mcp/", site: "https://one.jp.newrelic.com" }
+    connect_fields:
+      - key: account_id
+        label: Account ID
+        hint: The id of the New Relic account this environment reports to. New Relic lists it in the account picker, or under Administration, Access management, Accounts.
+        placeholder: "1234567"
+        numeric: true
+    source_links: firefight
     map: none
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: datadog

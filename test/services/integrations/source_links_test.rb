@@ -14,7 +14,7 @@ module Integrations
         end
       end
       unchecked = IntegrationProvider.all.select { |provider| provider.source_links == IntegrationProvider::SOURCE_LINKS_UNCHECKED }.map(&:key)
-      assert_equal %w[gitlab newrelic linear confluence neon supabase], unchecked,
+      assert_equal %w[gitlab linear confluence neon supabase], unchecked,
                    "A provider added since the rule was written has to check its links before it lands"
     end
 
