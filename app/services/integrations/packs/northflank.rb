@@ -10,8 +10,6 @@ module Integrations
 
       PROVIDER = "Northflank".freeze
       PROVIDER_KEY = "northflank".freeze
-      GITHUB = "github".freeze
-      APP_ROOT = "https://app.northflank.com".freeze
       OBSERVE = "observe".freeze
       OBSERVE_LOGS = "logs".freeze
       OBSERVE_METRICS = "metrics".freeze
@@ -206,31 +204,30 @@ module Integrations
            },
            read_only: true
 
+      # The project is not a secret, so it is a connect field in the registry, shown on the connection's card, and read
+      # with ConnectionSettings#field.
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. For Halon to apply fixes, its role can also update services."),
-          CredentialField.new(key: PROJECT, label: "Project", secret: false, placeholder: "my-project",
-                              hint: "The id of the Northflank project this environment runs in, as it appears in the project's URL.")
+                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. For Halon to apply fixes, its role can also update services.")
         ]
       end
 
       # Reads the project with the token, so a wrong token or project is said on the form before anything is saved.
-      def self.credential_refusal(values)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
-        project = values[PROJECT].to_s.strip
+        project = fields.to_h.stringify_keys[PROJECT].to_s.strip
         return "Paste an API token." if token.empty?
         return "Enter the project id." if project.empty?
 
         NorthflankApi.new(token).project(project)
         nil
       rescue NorthflankApi::Error => error
-        "Northflank refused this token or project. #{error.message}"
+        "Northflank refused this token or project. #{Sentence.of(error)}".strip
       end
 
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(API_TOKEN, values[API_TOKEN].to_s.strip)
-        environment_row.store_credential!(PROJECT, values[PROJECT].to_s.strip)
       end
 
       def list_resources(environment_row:, arguments:)
@@ -284,7 +281,7 @@ module Integrations
         rescue NorthflankApi::Error => error
           raise unless error.message.start_with?("Northflank answered 403")
 
-          fail!("#{error.message}. The API token's role cannot make this change. In Northflank, give the role permission " \
+          fail!("#{Sentence.of(error)} The API token's role cannot make this change. In Northflank, give the role permission " \
                 "to update services (Project, Services, General, Update), then run it again.")
         end
         Telemetry.result("Northflank answered #{verb} #{path}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
@@ -294,7 +291,7 @@ module Integrations
       # that holds secrets, so no secret reaches the model, the chat or the ledger.
       def answer_text(path, answer)
         shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer)
-        Chat::SecretFree::SECRET_PATTERNS.reduce(shown.to_json) { |text, (name, pattern)| text.gsub(pattern, "[REDACTED:#{name}]") }
+        Chat::SecretFree.redacted(shown.to_json)
                                          .truncate(API_RESULT_LIMIT)
       end
 
@@ -450,7 +447,7 @@ module Integrations
         begin
           api.jobs(project).each { |job| mapping.job(job) }
         rescue NorthflankApi::Error => error
-          gaps << "Jobs could not be read: #{error.message}"
+          gaps << ResourceMap::Gap.new(text: Sentence.join("Jobs could not be read", error), kinds: [ ResourceMap::KIND_JOB ])
         end
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps)
       end
@@ -534,15 +531,11 @@ module Integrations
           @links << ResourceMap::FoundLink.new(from: from, to: to, relation: relation)
         end
 
-        # The repository a service builds from, read off its vcsData. Only GitHub's addresses are read.
+        # The repository a service builds from, read off its vcsData, on whichever code host it is.
         def repository(from, source)
-          url = source.to_h["projectUrl"].to_s
-          path = URI.parse(url).path.to_s.delete_prefix("/").delete_suffix(".git") if url.start_with?("https://github.com/")
-          return if path.blank?
+          found = ResourceMap.repository_of(source.to_h["projectUrl"])
+          return unless found
 
-          owner = path.split("/").first
-          found = ResourceMap::Found.new(provider: GITHUB, account: owner, kind: ResourceMap::KIND_REPOSITORY, external_id: path,
-                                         name: path, url: "https://github.com/#{path}")
           @resources << found
           link(from, found.key, ResourceMap::RELATION_BUILT_FROM)
         end
@@ -563,13 +556,13 @@ module Integrations
       private
 
       def api(environment_row)
-        token = environment_row.credentials_hash[API_TOKEN]
+        token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
         fail! "This environment has no Northflank token. Reconnect it on the Integrations page." if token.blank?
 
         NorthflankApi.new(token)
       end
 
-      def project_of(environment_row) = environment_row.credentials_hash[PROJECT].presence || fail!("This environment has no Northflank project. Reconnect it.")
+      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Northflank project. Reconnect it.")
 
       def resources(environment_row)
         @resources ||= begin
@@ -665,7 +658,7 @@ module Integrations
 
         "Latest backups: #{backups.map { |backup| "#{backup['createdAt']} #{backup['status']}" }.join('; ')}"
       rescue NorthflankApi::Error => error
-        "Backups could not be read: #{error.message}"
+        Sentence.join("Backups could not be read", error)
       end
 
       def deployment_line(deployment)
@@ -707,8 +700,11 @@ module Integrations
       def app_link(environment_row, team, *rest, query: {})
         return nil if team.blank?
 
+        site = ConnectionSettings.of(environment_row).site
+        return nil if site.blank?
+
         segments = [ "t", team, "project", project_of(environment_row), *rest.compact ].map { |part| ERB::Util.url_encode(part) }
-        url = "#{APP_ROOT}/#{segments.join('/')}"
+        url = "#{site.chomp('/')}/#{segments.join('/')}"
         url = "#{url}?#{query.compact.to_query}" if query.compact.any?
         Telemetry::Link.new(provider: PROVIDER, url: url)
       end

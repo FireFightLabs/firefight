@@ -5,21 +5,21 @@ module Integrations
     class Error < Integrations::Error; end
 
     # One value a pack connected with credentials (connect_with: api_token) asks for on the connect form. A secret one is
-    # typed into a password field and never shown again.
-    CredentialField = Data.define(:key, :label, :hint, :placeholder, :secret)
-
-    # Providers listed here execute through the pack instead of an MCP server, their
-    # registry entry declares kind: native so connect skips the server URL.
-    REGISTRY = {
-      "github" => "Integrations::Packs::Github",
-      "postgresql" => "Integrations::Packs::Postgres",
-      "northflank" => "Integrations::Packs::Northflank"
-    }.freeze
+    # typed into a password field and never shown again. An optional one may be left empty, and the pack says what empty
+    # means. A multiline one is pasted into a text area, such as a service account's JSON key, and is still never shown
+    # again.
+    CredentialField = Data.define(:key, :label, :hint, :placeholder, :secret, :optional, :multiline) do
+      def initialize(optional: false, multiline: false, **) = super
+    end
 
     class << self
-      def for(provider_key)
-        REGISTRY[provider_key.to_s]&.constantize
-      end
+      # The pack a provider's definition names (Integrations::Provider), or nil. A provider whose registry entry declares
+      # kind: native has one, so connect skips the server URL.
+      def for(provider_key) = Provider.for(provider_key).pack
+
+      # What Halon can do through the provider, in its own words, for a pack whose work is not a capability, such as a
+      # coding agent. nil says it the usual way (Capabilities.halon_sentence).
+      def halon_sentence(_name) = nil
 
       # Providers that gate access behind installing an app return the URL to send
       # the customer to. nil means no install-first flow.
@@ -27,11 +27,11 @@ module Integrations
         nil
       end
 
-      def fetch!(integration, box_key: nil)
+      def fetch!(integration, box_key: nil, progress: nil)
         pack_class = self.for(integration.provider)
         raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class
 
-        pack_class.new(integration, box_key: box_key)
+        pack_class.new(integration, box_key: box_key, progress: progress)
       end
 
       def tool_definitions
@@ -53,9 +53,13 @@ module Integrations
 
       # A pack connected with credentials (connect_with: api_token) lists the fields it asks for, says why the values
       # cannot be used or nil, and stores them on an environment row. It owns their shape, so nothing else reads them.
+      # region is the provider's region the person chose (IntegrationProvider::Region), or nil for a provider with one,
+      # and fields what the form asked beside the credentials (the registry's connect_fields), so a pack can check that a
+      # project or workspace it names exists before anything is saved. A pack reads what it stored through
+      # ConnectionSettings#credential, and what the form asked through ConnectionSettings#field.
       def credential_fields = []
 
-      def credential_refusal(_values)
+      def credential_refusal(_values, region: nil, fields: {})
         raise NotImplementedError, "#{name} does not connect with credentials"
       end
 
@@ -75,12 +79,19 @@ module Integrations
       end
     end
 
-    # box_key names the run a call belongs to, so tools that read code share that run's sandbox.
+    # box_key names the run a call belongs to, so tools that read code share that run's sandbox. progress hears how a
+    # long running tool is going, through report.
     attr_reader :integration, :box_key
 
-    def initialize(integration, box_key: nil)
+    def initialize(integration, box_key: nil, progress: nil)
       @integration = integration
       @box_key = box_key
+      @progress = progress
+    end
+
+    # Tells whoever runs the tool how it is going, in a sentence. Nobody may be listening, as in a chat.
+    def report(text)
+      @progress&.call(text)
     end
 
     def tool_definitions

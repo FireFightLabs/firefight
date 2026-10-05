@@ -3,8 +3,8 @@ require "test_helper"
 class ResourceMap::BaselineTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    row = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank").integration_environments.create!
-    ResourceMap.record!(row, ResourceMap::Snapshot.new(resources: [
+    @row = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank").integration_environments.create!
+    ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [
       ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
     ]))
     @web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
@@ -34,7 +34,7 @@ class ResourceMap::BaselineTest < ActiveSupport::TestCase
     ghost = ResourceMap::Baseline::Found.new(key: [ "northflank", "acme/shop", ResourceMap::KIND_SERVICE, "gone" ], metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ @to, 1.0 ] ])
     empty = ResourceMap::Baseline::Found.new(key: @web.key, metric: "cpu", label: "CPU", unit: "vCPU", points: [])
 
-    assert_equal 0, ResourceMap::Baseline.record!(@workspace, [ @web ], [ ghost, empty ], window_from: @to - 7.days, window_to: @to)
+    assert_equal 0, ResourceMap::Baseline.record!(@row, [ @web ], [ ghost, empty ], window_from: @to - 7.days, window_to: @to)
     assert_empty @web.baselines
   end
 
@@ -42,7 +42,7 @@ class ResourceMap::BaselineTest < ActiveSupport::TestCase
 
   def record(values, metric: "requests")
     points = values.each_with_index.map { |value, index| [ @to - index.minutes, value ] }
-    ResourceMap::Baseline.record!(@workspace, [ @web ], [ ResourceMap::Baseline::Found.new(key: @web.key, metric: metric, label: metric.capitalize, unit: "requests/s", points: points) ],
+    ResourceMap::Baseline.record!(@row, [ @web ], [ ResourceMap::Baseline::Found.new(key: @web.key, metric: metric, label: metric.capitalize, unit: "requests/s", points: points) ],
                                   window_from: @to - 7.days, window_to: @to)
   end
 end

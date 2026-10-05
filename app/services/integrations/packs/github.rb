@@ -323,14 +323,16 @@ module Integrations
         infrastructure = Infrastructure.new(token)
         files = infrastructure.files(repositories)
         listed_all = repositories.size >= total
-        gaps = listed_all ? [] : [ "Only the first #{repositories.size} of #{total} repositories were listed." ]
+        listing = ResourceMap::Gap.new(text: "Only the first #{repositories.size} of #{total} repositories were listed.", kinds: [ ResourceMap::KIND_REPOSITORY ])
+        # A file left unread holds back a suggestion, never a resource.
+        unread_files = infrastructure.gaps.map { |text| ResourceMap::Gap.new(text: text, kinds: []) }
         found = repositories.map do |repository|
           ResourceMap::Found.new(provider: GithubApp::PROVIDER_KEY, account: repository["full_name"].split("/").first, kind: ResourceMap::KIND_REPOSITORY,
                                  external_id: repository["full_name"], name: repository["full_name"], url: repository["html_url"],
                                  details: { "branch" => repository["default_branch"] }.compact)
         end
-        ResourceMap::Snapshot.new(resources: found, gaps: gaps + infrastructure.gaps, code_files: files, code_read: infrastructure.read_in_full,
-                                  unread_kinds: listed_all ? [] : [ ResourceMap::KIND_REPOSITORY ])
+        ResourceMap::Snapshot.new(resources: found, gaps: [ (listing unless listed_all), *unread_files ].compact, code_files: files,
+                                  code_read: infrastructure.read_in_full)
       end
 
       def installation_repositories(token)
@@ -413,7 +415,7 @@ module Integrations
       def blame_ranges(repo, path, expression, token)
         GithubApp.blame(repo, path, expression, token: token)
       rescue GithubApp::Error => error
-        fail! "Could not blame '#{path}': #{error.message}"
+        fail! Sentence.join("Could not blame '#{path}'", error)
       end
 
       # Newest first, only those created by the time asked about, and only those whose own last status says they worked.

@@ -7,7 +7,8 @@ module Integrations
         @workspace = workspaces(:slack_workspace_one)
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank")
         @row = @integration.integration_environments.create!
-        Northflank.store_credentials!(@row, Northflank::API_TOKEN => " nf-token ", Northflank::PROJECT => "firefight")
+        Northflank.store_credentials!(@row, Northflank::API_TOKEN => " nf-token ")
+        @row.store_fields!(Northflank::PROJECT => "firefight")
         @pack = Northflank.new(@integration)
         NorthflankApi.any_instance.stubs(:services).returns([
           { "id" => "web", "name" => "web", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/web",
@@ -85,11 +86,12 @@ module Integrations
       test "a token or project Northflank refuses is said before anything is saved" do
         NorthflankApi.any_instance.stubs(:project).raises(NorthflankApi::Error, "Northflank answered 401: Unauthorized")
 
-        refusal = Northflank.credential_refusal(Northflank::API_TOKEN => "wrong", Northflank::PROJECT => "firefight")
+        refusal = Northflank.credential_refusal({ Northflank::API_TOKEN => "wrong" }, fields: { Northflank::PROJECT => "firefight" })
 
         assert_match "Northflank refused this token or project", refusal
         assert_match "401", refusal
-        assert_equal "Paste an API token.", Northflank.credential_refusal(Northflank::PROJECT => "firefight")
+        assert_equal "Paste an API token.", Northflank.credential_refusal({}, fields: { Northflank::PROJECT => "firefight" })
+        assert_equal "Enter the project id.", Northflank.credential_refusal({ Northflank::API_TOKEN => "nf" })
       end
 
       test "the project's services and databases are listed with their state" do
@@ -324,7 +326,8 @@ module Integrations
         assert_equal [ [ "web", ResourceMap::RELATION_RUNS_BUILDS_OF, "builder" ], [ "app.acme.dev", ResourceMap::RELATION_SERVED_BY, "web" ],
                        [ "builder", ResourceMap::RELATION_BUILT_FROM, "acme/app" ] ],
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
-        assert_equal [ "Jobs could not be read: Northflank answered 401: needs Jobs Read" ], snapshot.gaps
+        assert_equal [ "Jobs could not be read: Northflank answered 401: needs Jobs Read." ], snapshot.gap_texts
+        assert_equal [ ResourceMap::KIND_JOB ], snapshot.unread_kinds, "jobs it could not read are not taken as gone"
       end
 
       test "a sweep that cannot reach Northflank leaves the map as it was and says why" do

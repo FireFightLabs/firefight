@@ -12,6 +12,20 @@
 # map says whether what a provider holds is on the resource map: firefight (a pack's map_of or a reader in
 # McpExecutor::MAP_READERS puts it there), none (it holds no infrastructure, and map_note says why) or unchecked (it
 # may, and no reader exists yet). A new provider that holds infrastructure lands with its reader.
+# site is the address of the app of a provider that runs in one place, which links open, read through
+# Integrations::ConnectionSettings#site.
+# regions lists where a provider runs its service when it offers more than one place, such as a US and an EU site. Each
+# has a key, a label, its MCP server's server_url, the site its app is at, which links open, and authorization_endpoint
+# and token_endpoint only where its OAuth endpoints are not the ones its server names. A provider with regions lists no
+# server_url of its own, and the first region is the one a connection that names none reaches. The connect dialog offers
+# the choice when there is more than one, and the connection keeps it.
+# connect_fields are what the connect form asks for beside the credentials, each with a key, label, hint and placeholder,
+# and optionally numeric, optional, path, and pattern with allowed (the shape a value must have, and in words what that
+# allows, which the form says when a value does not fit). None is a secret. A path field is part of the server's
+# address, appended in the order listed, such as an organization and then a project, and belongs to the connection. A
+# path field without a pattern takes a slug's, so no value carries a slash, a query or a fragment into the address.
+# Every other field belongs to the environment it was connected for. The code behind a provider reads them through
+# Integrations::ConnectionSettings, never from the row.
 # Section headings on the gallery. A provider naming a category that is not
 # listed here still renders, it just shows no tagline, so adding a provider
 # in a new category stays a registry edit rather than a code change.
@@ -19,8 +33,12 @@
 categories:
   Cloud and hosting: Where your apps run, and what you can change there
   Observability: Logs, metrics, traces and errors for investigations
+  Alerting and on-call: Who is on call, and the alerts and incidents paging them
+  Product analytics: Who an incident reaches, what they saw, and the feature flags behind it
   Databases: Your data and how it is set up
   Code: Correlate incidents with what shipped
+  CI: Builds, tests and their logs, and rerunning them
+  Coding agents: Agents that write a fix's code change and open the pull request
   Issues: Tickets and follow-up work tied to incidents
   Knowledge: Runbooks and documentation as context
   Custom: Anything with an MCP server
@@ -34,6 +52,7 @@ providers:
     description: Correlate incidents with recent pull requests and commits from your repositories.
     server_url: ""
     kind: native
+    site: https://github.com
     source_links: firefight
     map: firefight
     code_fix_tool: fix_code
@@ -44,6 +63,7 @@ providers:
     color: "#fc6d26"
     description: Correlate incidents with merge requests and pipelines.
     server_url: https://gitlab.com/api/v4/mcp
+    site: https://gitlab.com
     source_links: unchecked
     map: unchecked
   - key: newrelic
@@ -61,8 +81,18 @@ providers:
     category: Observability
     mark: DD
     color: "#632ca6"
-    description: Query logs, metrics and monitors during investigations.
-    server_url: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp
+    description: Query logs, metrics and monitors.
+    # Datadog's sites (docs.datadoghq.com/getting_started/site) with the MCP server each one documents
+    # (DataDog/documentation, hugo/assets/scripts/config/regions.config.js, mcp_server_endpoint). US1-FED and US2-FED
+    # have no MCP server, so they are not offered.
+    regions:
+      - { key: us1, label: US1 (app.datadoghq.com), server_url: "https://mcp.datadoghq.com/v1/mcp", site: "https://app.datadoghq.com" }
+      - { key: us3, label: US3 (us3.datadoghq.com), server_url: "https://mcp.us3.datadoghq.com/v1/mcp", site: "https://us3.datadoghq.com" }
+      - { key: us5, label: US5 (us5.datadoghq.com), server_url: "https://mcp.us5.datadoghq.com/v1/mcp", site: "https://us5.datadoghq.com" }
+      - { key: eu1, label: EU1 (app.datadoghq.eu), server_url: "https://mcp.datadoghq.eu/v1/mcp", site: "https://app.datadoghq.eu" }
+      - { key: ap1, label: AP1 (ap1.datadoghq.com), server_url: "https://mcp.ap1.datadoghq.com/v1/mcp", site: "https://ap1.datadoghq.com" }
+      - { key: ap2, label: AP2 (ap2.datadoghq.com), server_url: "https://mcp.ap2.datadoghq.com/v1/mcp", site: "https://ap2.datadoghq.com" }
+      - { key: uk1, label: UK1 (uk1.datadoghq.com), server_url: "https://mcp.uk1.datadoghq.com/v1/mcp", site: "https://uk1.datadoghq.com" }
     source_links: firefight
     map: none
     map_note: "It watches what runs elsewhere and runs nothing of its own."
@@ -71,10 +101,16 @@ providers:
     category: Cloud and hosting
     mark: NF
     color: "#0aa4d8"
-    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when the API token's role allows it.
+    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
+    site: https://app.northflank.com
+    connect_fields:
+      - key: project
+        label: Project
+        hint: The id of the Northflank project this environment runs in, as it appears in the project's URL.
+        placeholder: my-project
     source_links: firefight
     map: firefight
   - key: grafana
@@ -105,7 +141,27 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
-    source_links: unchecked
+    # Sentry's server holds a connection to the organization, and optionally the project, its address names. The
+    # patterns are Sentry's own slug rules, ORG_SLUG_PATTERN and MIXED_SLUG_PATTERN in getsentry/sentry
+    # src/sentry/utils/slug.py, at most 50 characters as DEFAULT_SLUG_MAX_LENGTH says.
+    connect_fields:
+      - key: organization
+        label: Organization
+        hint: "The organization's slug, under Settings, General Settings in Sentry, or the name before .sentry.io in its address."
+        placeholder: acme
+        path: true
+        pattern: '(?![0-9]+\z)[A-Za-z0-9][A-Za-z0-9-]{0,49}(?<!-)'
+        allowed: "letters, numbers and dashes, at most 50 characters, not starting or ending with a dash and not only numbers"
+      - key: project
+        label: Project
+        hint: "A project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
+        placeholder: checkout
+        path: true
+        optional: true
+        pattern: '(?![0-9]+\z)[a-z0-9_-]{1,50}'
+        allowed: "lowercase letters, numbers, dashes and underscores, at most 50 characters, not only numbers"
+    source_links: server
+    source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
   - key: linear

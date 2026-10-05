@@ -37,8 +37,10 @@ class ResourceMap::Resource < ApplicationRecord
     places.lazy.filter_map { |kind, id| found.find { |each| each[0] == kind && each[1] == id }&.last }.first
   end
 
-  # How a provider's own status word reads at a glance. Providers name their states differently, so the words each one
-  # uses are gathered here and anything else is unknown rather than guessed.
+  # Firefight's own words for how a resource stands, and how each reads at a glance. A provider maps its own status
+  # words onto these in its definition (Integrations::Provider, status_words), so the map's words stay this small set
+  # whatever the provider, and a word that is in no list reads unknown rather than guessed. A resource switched off on
+  # purpose is stopped, which is busy, as paused is.
   HEALTH_OK = "ok".freeze
   HEALTH_BUSY = "busy".freeze
   HEALTH_FAILING = "failing".freeze
@@ -46,8 +48,8 @@ class ResourceMap::Resource < ApplicationRecord
   HEALTHS = [ HEALTH_OK, HEALTH_BUSY, HEALTH_FAILING, HEALTH_UNKNOWN ].freeze
   STATUS_HEALTH = {
     HEALTH_OK => %w[completed ready success running healthy active deployed sleeping],
-    HEALTH_BUSY => %w[in_progress pending deploying building starting staging queued resizing paused],
-    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy down degraded]
+    HEALTH_BUSY => %w[in_progress pending deploying building starting staging queued resizing paused stopped],
+    HEALTH_FAILING => %w[failed failure error errored crashed unhealthy down degraded unavailable]
   }.flat_map { |health, words| words.map { |word| [ word, health ] } }.to_h.freeze
 
   def health = STATUS_HEALTH.fetch(status.to_s.downcase, HEALTH_UNKNOWN)

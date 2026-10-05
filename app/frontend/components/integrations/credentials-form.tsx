@@ -6,17 +6,27 @@ import { integrationsPath } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ALL_ENVIRONMENTS,
   EnvironmentSelect,
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
+import { defaultRegion, RegionSelect } from "@/components/integrations/region-select";
+import {
+  ConnectFields,
+  connectFieldsComplete,
+  type ConnectValue,
+  type ConnectValues,
+} from "@/components/integrations/connect-fields";
 
 interface CredentialsFormProps {
   provider: IntegrationProvider;
   environments: EnvironmentOption[];
   returnTo?: string;
   onDismiss: () => void;
+  // For a provider that also runs an MCP server of its own, reached instead of the credentials.
+  onUseMcpServer?: () => void;
 }
 
 type FieldErrors = Partial<Record<"name" | "connection", string>>;
@@ -24,13 +34,23 @@ type FieldErrors = Partial<Record<"name" | "connection", string>>;
 // A provider connected with an API token and whatever else it asks for, one set per environment. The fields come from
 // the provider's pack. The same name adds an environment or replaces its values. The server checks them with the
 // provider before saving anything and says what is wrong on the form.
-export function CredentialsForm({ provider, environments, returnTo, onDismiss }: CredentialsFormProps) {
+export function CredentialsForm({ provider, environments, returnTo, onDismiss, onUseMcpServer }: CredentialsFormProps) {
   const [name, setName] = useState(provider.name);
   const [values, setValues] = useState<Record<string, string>>({});
   const [environmentId, setEnvironmentId] = useState(ALL_ENVIRONMENTS);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const complete = provider.credentialFields.every((field) => (values[field.key] ?? "").trim() !== "");
+  const [region, setRegion] = useState(defaultRegion(provider));
+  const [fields, setFields] = useState<ConnectValues>({});
+  // A pack has no server address, so every connect field it lists belongs to the environment.
+  const connectFields = provider.connectFields.filter((field) => !field.address);
+  const complete =
+    provider.credentialFields.every((field) => field.optional || (values[field.key] ?? "").trim() !== "") &&
+    connectFieldsComplete(connectFields, fields);
+
+  function setField(key: string, value: ConnectValue) {
+    setFields((current) => ({ ...current, [key]: value }));
+  }
 
   function setValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -49,6 +69,8 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
         provider: provider.key,
         name,
         credentials: values,
+        fields,
+        region,
         environment_id: toEnvironmentId(environmentId),
         return_to: returnTo,
       },
@@ -69,26 +91,54 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss }:
           <EnvironmentSelect value={environmentId} environments={environments} onChange={setEnvironmentId} />
         </div>
       )}
+      {provider.regions.length > 1 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="connect-region">Region</Label>
+          <RegionSelect id="connect-region" value={region} regions={provider.regions} onChange={setRegion} />
+        </div>
+      )}
       {provider.credentialFields.map((field) => (
         <div key={field.key} className="flex flex-col gap-1.5">
-          <Label htmlFor={`connect-${field.key}`}>{field.label}</Label>
-          <Input
-            id={`connect-${field.key}`}
-            type={field.secret ? "password" : "text"}
-            autoComplete="off"
-            spellCheck={false}
-            value={values[field.key] ?? ""}
-            onChange={(event) => setValue(field.key, event.target.value)}
-            placeholder={field.placeholder}
-          />
+          <Label htmlFor={`connect-${field.key}`}>
+            {field.label}
+            {field.optional && <span className="text-muted-foreground font-normal"> (optional)</span>}
+          </Label>
+          {field.multiline ? (
+            <Textarea
+              id={`connect-${field.key}`}
+              autoComplete="off"
+              spellCheck={false}
+              rows={5}
+              className="font-mono text-xs"
+              value={values[field.key] ?? ""}
+              onChange={(event) => setValue(field.key, event.target.value)}
+              placeholder={field.placeholder}
+            />
+          ) : (
+            <Input
+              id={`connect-${field.key}`}
+              type={field.secret ? "password" : "text"}
+              autoComplete="off"
+              spellCheck={false}
+              value={values[field.key] ?? ""}
+              onChange={(event) => setValue(field.key, event.target.value)}
+              placeholder={field.placeholder}
+            />
+          )}
           <p className="text-muted-foreground text-xs">
             {field.hint}
             {field.secret && " Stored encrypted, never shown again."}
           </p>
         </div>
       ))}
+      <ConnectFields fields={connectFields} values={fields} onChange={setField} />
       {errors.connection && <p className="text-destructive text-sm">{errors.connection}</p>}
       <div className="flex items-center justify-end gap-2 pt-2">
+        {onUseMcpServer && (
+          <button type="button" onClick={onUseMcpServer} className="text-muted-foreground hover:text-foreground mr-auto text-xs">
+            Use an MCP server instead
+          </button>
+        )}
         <Button type="button" variant="outline" onClick={onDismiss}>
           Cancel
         </Button>

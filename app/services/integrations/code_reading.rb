@@ -69,12 +69,32 @@ module Integrations
       def provider_for(key) = key == Sandboxes.provider_key ? Sandboxes.provider : nil
     end
 
-    def initialize(key:, workspace:, environment_row:)
+    # Where git fetches a repository from and who it signs in as. The code host's pack gives it, with token read only
+    # when a fetch needs one, so this class knows no code host. host names a code host other than the default one, so
+    # the same path on two hosts is two repositories in the box. options are git settings the fetch adds, such as the
+    # address a workspace's own host was checked at.
+    Remote = Data.define(:root, :user, :token, :host, :options) do
+      def initialize(host: nil, options: [], **) = super
+
+      def url(repository) = "#{root}/#{repository}.git"
+
+      # The repository as the box records it.
+      def key(repository) = host ? "#{host}:#{repository}" : repository.to_s
+
+      # The sandbox takes owner__name. A host's path can hold groups and dots, so its own name gets a digest to stay one.
+      def stored_name(repository)
+        return repository.to_s.sub("/", "__") unless host
+
+        "#{host}__#{repository.to_s.tr('/', '.')}-#{Digest::SHA256.hexdigest(repository.to_s)[0, 10]}"
+      end
+    end
+
+    def initialize(key:, workspace:, remote:)
       raise Error, "A code tool was called outside a run, so there is no box to read in." if key.blank?
 
       @key = key
       @workspace = workspace
-      @environment_row = environment_row
+      @remote = remote
     end
 
     def exec(repository, **options)
@@ -96,11 +116,11 @@ module Integrations
     def with_repository(repository, replaced: false, &)
       ensure_repository!(repository)
       box.used!
-      yield stored_name(repository)
+      yield @remote.stored_name(repository)
     rescue Sandboxes::Error => error
       if error.message.match?(MISSING_COMMIT) && refetchable?(repository)
         push!(repository)
-        return yield stored_name(repository)
+        return yield @remote.stored_name(repository)
       end
       raise if replaced || client.alive?
 
@@ -115,7 +135,7 @@ module Integrations
     end
 
     def refetchable?(repository)
-      pushed = box.reload.repositories.dig(repository, "pushed_at")
+      pushed = box.reload.repositories.dig(@remote.key(repository), "pushed_at")
       pushed.nil? || Time.zone.parse(pushed) < REFETCH_AFTER.ago
     end
 
@@ -148,9 +168,9 @@ module Integrations
     end
 
     def ensure_repository!(repository)
-      return if box.holds?(repository)
+      return if box.holds?(@remote.key(repository))
 
-      locked("#{@key}:#{repository}") { push!(repository) unless box.reload.holds?(repository) }
+      locked("#{@key}:#{@remote.key(repository)}") { push!(repository) unless box.reload.holds?(@remote.key(repository)) }
     end
 
     def push!(repository)
@@ -159,25 +179,28 @@ module Integrations
         bundle = File.join(dir, "repository.bundle")
         git!(dir, "clone", "--mirror", "--quiet", remote_url(repository), mirror, authenticated: true)
         git!(dir, "--git-dir", mirror, "bundle", "create", "--quiet", bundle, "--all")
-        client.push(stored_name(repository), File.binread(bundle))
+        client.push(@remote.stored_name(repository), File.binread(bundle))
       end
-      box.record_repository!(repository, head: pushed["head"], default_branch: pushed["default_branch"])
+      box.record_repository!(@remote.key(repository), head: pushed["head"], default_branch: pushed["default_branch"])
     end
 
-    def remote_url(repository) = "https://github.com/#{repository}.git"
-
-    def stored_name(repository) = repository.to_s.sub("/", "__")
+    def remote_url(repository) = @remote.url(repository)
 
     def git!(dir, *arguments, authenticated: false)
-      prefix = authenticated ? [ "-c", "http.extraHeader=Authorization: Basic #{credential}" ] : []
+      prefix = authenticated ? [ "-c", "http.extraHeader=Authorization: Basic #{credential}", *@remote.options.flat_map { |option| [ "-c", option ] } ] : []
       env = { "GIT_TERMINAL_PROMPT" => "0", "GIT_CONFIG_NOSYSTEM" => "1", "HOME" => dir }
       _output, errors, status = Open3.capture3(env, "git", *prefix, *arguments)
-      raise Error, "git #{arguments.first} failed: #{errors.gsub(credential, '[redacted]').strip.lines.last}" unless status.success?
+      raise Error, "git #{arguments.first} failed: #{redacted(errors).strip.lines.last}" unless status.success?
     end
 
     def credential
-      @credential ||= Base64.strict_encode64("x-access-token:#{GithubApp.installation_token(@environment_row)}")
+      @credential ||= Base64.strict_encode64("#{@remote.user}:#{token}")
     end
+
+    def token = @token ||= @remote.token.call
+
+    # git's own words with the credential and the token taken out, both as given and encoded.
+    def redacted(text) = @credential ? text.gsub(@credential, "[redacted]").gsub(token, "[redacted]") : text
 
     # Held for the length of one transaction, so a second worker waits and then finds what the first one made.
     def locked(name)

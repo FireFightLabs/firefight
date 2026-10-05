@@ -70,19 +70,23 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     post integrations_path, params: {
       provider: "northflank", name: "Northflank",
-      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret", Integrations::Packs::Northflank::PROJECT => "firefight" }
+      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, fields: { Integrations::Packs::Northflank::PROJECT => "firefight" }
     }
 
     integration = @workspace.integrations.find_by!(name: "Northflank")
     row = integration.integration_environments.sole
-    assert_equal "nf-s3cret", row.credentials_hash[Integrations::Packs::Northflank::API_TOKEN]
+    assert_equal({ Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, row.credentials_hash)
+    assert_equal "firefight", Integrations::ConnectionSettings.of(row).field(Integrations::Packs::Northflank::PROJECT)
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
     assert_equal Integrations::Packs::Northflank.tool_definitions.map(&:name).sort, integration.tools.pluck(:name).sort
 
     get integrations_path, headers: inertia_headers
     assert_not_includes response.body, "nf-s3cret"
     provider = inertia_props["providers"].find { |candidate| candidate["key"] == "northflank" }
-    assert_equal [ Integrations::Packs::Northflank::API_TOKEN, Integrations::Packs::Northflank::PROJECT ], provider["credentialFields"].map { |field| field["key"] }
+    assert_equal [ Integrations::Packs::Northflank::API_TOKEN ], provider["credentialFields"].map { |field| field["key"] }
+    assert_equal [ Integrations::Packs::Northflank::PROJECT ], provider["connectFields"].map { |field| field["key"] }
+    shown = inertia_props["integrations"].find { |each| each["provider"] == "northflank" }["environments"].sole["settings"]
+    assert_equal [ { "label" => "Project", "value" => "firefight" } ], shown
   end
 
   test "a Northflank token that is refused is said on the form and nothing is saved" do
@@ -90,7 +94,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     post integrations_path, params: {
       provider: "northflank", name: "Northflank",
-      credentials: { Integrations::Packs::Northflank::API_TOKEN => "wrong", Integrations::Packs::Northflank::PROJECT => "firefight" }
+      credentials: { Integrations::Packs::Northflank::API_TOKEN => "wrong" }, fields: { Integrations::Packs::Northflank::PROJECT => "firefight" }
     }, headers: inertia_headers
 
     assert_nil @workspace.integrations.find_by(name: "Northflank")
@@ -497,11 +501,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "oauth_start without a hosted server explains the token path" do
-    get oauth_start_integrations_url(provider: "newrelic")
+    get oauth_start_integrations_url(provider: Integration::PROVIDER_CUSTOM_MCP)
 
     assert_redirected_to integrations_path
     assert_match(/Connect with a token/, flash[:alert])
-    assert_not @workspace.integrations.exists?(provider: "newrelic")
+    assert_not @workspace.integrations.exists?(provider: Integration::PROVIDER_CUSTOM_MCP)
   end
 
   test "a configured provider app skips dynamic registration" do

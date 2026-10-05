@@ -4,7 +4,9 @@ module Integrations
   class GithubApp
     class Error < Integrations::Error; end
     # Out of API calls for now, so whatever reads in bulk stops rather than failing every call that follows.
-    class RateLimited < Error; end
+    class RateLimited < Error
+      include Integrations::RateLimited
+    end
 
     API_ROOT = "https://api.github.com".freeze
     PROVIDER_KEY = "github".freeze

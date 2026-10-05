@@ -87,8 +87,23 @@ component :slack_client, constants: %w[Slack::Client]
 component :solid_workflow_namespace, namespace: "SolidWorkflow"
 component :ability_gateway, constants: %w[AbilityGateway]
 component :ability_ledger, constants: %w[Ability::Invocation]
-component :integration_clients,
-          constants: %w[Integrations::McpClient Integrations::OauthClient Integrations::GithubApp Integrations::NorthflankApi Integrations::Http]
+# Every client under app/adapters/integrations, the shared ones and each provider's own, found by file so a provider's
+# client needs no line here.
+INTEGRATION_CLIENT_CONSTANTS = Dir.chdir(__dir__) { Dir.glob("app/adapters/integrations/*.rb") }.sort.map do |path|
+  "Integrations::#{File.basename(path, '.rb').split('_').map(&:capitalize).join}"
+end - %w[Integrations::Sandboxes Integrations::WebSearch]
+component :integration_clients, constants: INTEGRATION_CLIENT_CONSTANTS
+
+# A provider's own code: its pack, capabilities adapter, map reader, baseline reader, health probe, link builder, read
+# guard and definition. Found by file, so a new provider needs no line here. The shared contracts beside them
+# (Capabilities::Adapter and Capabilities::Answers) are not a provider's.
+SHARED_PROVIDER_CONTRACTS = %w[app/services/integrations/capabilities/adapter.rb app/services/integrations/capabilities/answers.rb].freeze
+PROVIDER_CODE_NAMESPACES = Dir.chdir(__dir__) do
+  Dir.glob("app/services/integrations/{packs,capabilities,map_readers,baseline_readers,health_probes,source_links,read_guards,providers}/*.rb")
+end.sort.-(SHARED_PROVIDER_CONTRACTS).map do |path|
+  path.delete_prefix("app/services/").delete_suffix(".rb").split("/").map { |part| part.split("_").map(&:capitalize).join }.join("::")
+end
+component :provider_code, namespace: PROVIDER_CODE_NAMESPACES
 component :sandbox_clients, namespace: "Integrations::Sandboxes"
 component :operator_namespace, namespace: "Operator"
 
@@ -163,10 +178,46 @@ operator_controllers.cannot_use :handlers, :dispatchers, :adapters, :slack_adapt
 end
 
 # Provider clients and credential shapes stay behind the integrations layer.
-integration_clients.can_only_be_used_by :integrations_layer, :sandbox_clients
+integration_clients.can_only_be_used_by :integrations_layer, :sandbox_clients, :provider_code
 
 # A box is started, reached and stopped only through Integrations::CodeReading, so a new provider changes one class.
-sandbox_clients.can_only_be_used_by :integrations_layer
+sandbox_clients.can_only_be_used_by :integrations_layer, :provider_code
+
+# Nothing outside the integrations layer names a provider's code. The rest of the app reaches a provider only through
+# the shared contracts (Integrations::Capabilities, Credentials, SourceLinks, ConnectionSettings, the executors), so a
+# provider's code can change without touching anything else.
+provider_code.can_only_be_used_by :integrations_layer
+
+# A provider's API client is used only by that provider's own files, the ones named for it (packs/northflank.rb,
+# packs/northflank/, capabilities/northflank.rb), so how one provider reaches its API is never another one's concern.
+# The shared clients (MCP, OAuth, HTTP and the public address check) are every provider's, and a client may build on
+# another, such as several coding agents' clients on one base.
+class ProviderClientsStayHome
+  SHARED = %w[Integrations::McpClient Integrations::OauthClient Integrations::Http Integrations::PublicAddress].freeze
+
+  def initialize(clients)
+    @owners = (clients - SHARED).to_h { |client| [ client, client.delete_prefix("Integrations::").sub(/(Api|App)\z/, "").gsub(/(?<!\A)([A-Z])/, '_\1').downcase ] }
+  end
+
+  def id = "integrations.provider_client"
+
+  def evaluate(graph)
+    graph.dependency_edges.filter_map do |edge|
+      target = graph.resolve_edge_constant(edge)
+      owner = @owners.find { |client, _owner| target == client || target.start_with?("#{client}::") }&.last
+      path = graph.files[edge.from_path]&.relative_path || edge.from_path.to_s
+      next if owner.nil? || own?(path, owner) || path.start_with?("app/adapters/integrations/")
+
+      ArchSpec::Diagnostic.new(rule: id, message: "#{target} is #{owner}'s API client, so only #{owner}'s own files may use it",
+                               location: edge.location, evidence: "#{graph.edge_source_name(edge)} #{edge.verb} #{edge.to}")
+    end
+  end
+
+  private
+
+  def own?(path, owner) = path.match?(%r{\Aapp/(services|adapters)/integrations/(.+/)?#{owner}(_api|_app)?(\.rb\z|/)})
+end
+rule ProviderClientsStayHome.new(INTEGRATION_CLIENT_CONSTANTS)
 
 feature_flags.can_only_use :models
 

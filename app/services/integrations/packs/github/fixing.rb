@@ -178,7 +178,7 @@ module Integrations
         def pull_request_body(summary, context)
           text = [ summary, context.presence, "Written by a coding agent in Firefight's sandbox. Review it like any other change before merging." ]
                  .compact.join("\n\n")
-          Chat::SecretFree::SECRET_PATTERNS.reduce(text) { |kept, (name, pattern)| kept.gsub(pattern, "[REDACTED:#{name}]") }
+          Chat::SecretFree.redacted(text)
         end
       end
     end

@@ -43,7 +43,7 @@ class ResourceMap::View
 
   def connections
     IntegrationEnvironment.joins(:integration).merge(Integration.active).where(integrations: { workspace_id: workspace.id })
-                          .includes(:integration).select { |row| row.map_swept_at || row.map_error }
+                          .includes(:integration).select { |row| row.map_swept_at || row.map_error || row.baseline_error }
   end
 
   # Who depends on a resource, directly or through others, read along each link from the one that depends to the one it

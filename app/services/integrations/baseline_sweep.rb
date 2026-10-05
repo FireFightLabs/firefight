@@ -1,7 +1,7 @@
 module Integrations
-  # Reads a week of metrics for what one connection reaches, once a day, into what normal looks like per resource. A
-  # connection whose provider reads no metrics has nothing to do. One that cannot be read keeps yesterday's baselines and
-  # says why on the connection, as a failed map sweep does.
+  # Reads a week of metrics for what one connection reaches, or for what an observability tool watches on the map, once
+  # a day, into what normal looks like per resource. A connection whose provider reads no metrics has nothing to do. One
+  # that cannot be read keeps yesterday's baselines and says why on the connection, as a failed map sweep does.
   class BaselineSweep
     # Queues a read for every connection, so one slow provider never holds up another workspace.
     def self.queue_all
@@ -9,19 +9,28 @@ module Integrations
     end
 
     def self.run!(environment_row, now: Time.current)
-      resources = ResourceMap::Resource.present.where(integration_environment: environment_row).to_a
-      return 0 if resources.empty?
-
+      held = ResourceMap::Resource.present.where(integration_environment: environment_row).to_a
+      watched = Capabilities.watched(environment_row, Capabilities::METRICS) - held
+      resources = held + watched
       window = (now - ResourceMap::Baseline::WINDOW)..now
-      found = environment_row.integration.executor.baselines_of(environment_row, resources, window)
-      return 0 unless found
-
-      recorded = ResourceMap::Baseline.record!(environment_row.integration.workspace, resources, found, window_from: window.begin, window_to: window.end)
+      found = environment_row.integration.executor.baselines_of(environment_row, resources, window) if resources.any?
+      # Nothing to read, such as no resources on the map or a reader whose tool was switched off, is no failure, so an
+      # earlier error is cleared too.
+      recorded = found ? ResourceMap::Baseline.record!(environment_row, resources, named(found, watched, environment_row.integration.name),
+                                                       window_from: window.begin, window_to: window.end) : 0
       environment_row.update!(baseline_error: nil)
       recorded
     rescue Integrations::Error => error
       environment_row.update!(baseline_error: error.message)
       0
     end
+
+    # A reading of a resource another connection runs says which connection read it, such as "CPU (Datadog)", since the
+    # one that runs it may read the same metric.
+    def self.named(found, watched, name)
+      keys = watched.map(&:key)
+      found.map { |reading| keys.include?(reading.key) ? reading.with(label: "#{reading.label} (#{name})") : reading }
+    end
+    private_class_method :named
   end
 end

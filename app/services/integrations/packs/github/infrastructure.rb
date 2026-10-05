@@ -89,7 +89,7 @@ module Integrations
         rescue GithubApp::RateLimited
           raise
         rescue GithubApp::Error => error
-          @gaps << "The files of #{name} could not be listed: #{error.message}"
+          @gaps << Sentence.join("The files of #{name} could not be listed", error)
           []
         end
 

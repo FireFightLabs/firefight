@@ -12,7 +12,7 @@ module Integrations
           found.(ResourceMap::KIND_DATABASE, "shop", "https://app.planetscale.com/acme/shop"),
           found.(ResourceMap::KIND_BRANCH, "shop/main", "https://app.planetscale.com/acme/shop/main")
         ]))
-        @links = Planetscale.new(Integration.new(workspace: @workspace))
+        @links = Planetscale.new(ConnectionSettings.of(row))
       end
 
       test "a result links to the branch it read, on the tab that shows it, at the address PlanetScale gave" do

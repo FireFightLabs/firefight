@@ -14,7 +14,7 @@ module Mcp
           resources: [ web, builder, repository ],
           links: [ ResourceMap::FoundLink.new(from: web.key, to: builder.key, relation: ResourceMap::RELATION_RUNS_BUILDS_OF),
                    ResourceMap::FoundLink.new(from: builder.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM) ],
-          gaps: [ "Jobs could not be read" ]
+          gaps: [ ResourceMap::Gap.new(text: "Jobs could not be read", kinds: []) ]
         ))
       end
 
@@ -61,7 +61,7 @@ module Mcp
       test "a fact sheet says what normal looks like for the resource's metrics" do
         web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
         now = Time.current
-        ResourceMap::Baseline.record!(@workspace, [ web ], [ ResourceMap::Baseline::Found.new(key: web.key, metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ now, 0.25 ] ]) ],
+        ResourceMap::Baseline.record!(@row, [ web ], [ ResourceMap::Baseline::Found.new(key: web.key, metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ now, 0.25 ] ]) ],
                                       window_from: now - 7.days, window_to: now)
 
         assert_equal [ "CPU: usually 0.25 vCPU, 95% of readings under 0.25 vCPU, peak 0.25 vCPU, over the 7 days to #{now.to_date.iso8601}" ],

@@ -22,10 +22,18 @@ module ResourceMap
   KIND_LOAD_BALANCER = "load_balancer".freeze
   KIND_ORIGIN_POOL = "origin_pool".freeze
   KIND_ACCESS_APP = "access_app".freeze
+  # What a cloud runs besides services: a virtual machine (an EC2 instance, a Droplet, a Compute Engine or Azure VM), a
+  # function run on demand (a Lambda, a Cloud Function), a cluster its workloads are part of (GKE, AKS, ECS), and the
+  # compute that serves a database branch, which starts, scales and suspends apart from the data it reads. A website a
+  # host builds and serves is a site.
+  KIND_VIRTUAL_MACHINE = "virtual_machine".freeze
+  KIND_FUNCTION = "function".freeze
+  KIND_CLUSTER = "cluster".freeze
+  KIND_COMPUTE = "compute".freeze
   KINDS = [
     KIND_SERVICE, KIND_BUILD_SERVICE, KIND_JOB, KIND_DATABASE, KIND_BRANCH, KIND_REPOSITORY, KIND_DOMAIN, KIND_ZONE, KIND_WORKER,
     KIND_SITE, KIND_BUCKET, KIND_KV_NAMESPACE, KIND_QUEUE, KIND_DATABASE_PROXY, KIND_TUNNEL, KIND_LOAD_BALANCER, KIND_ORIGIN_POOL,
-    KIND_ACCESS_APP
+    KIND_ACCESS_APP, KIND_VIRTUAL_MACHINE, KIND_FUNCTION, KIND_CLUSTER, KIND_COMPUTE
   ].freeze
 
   # Read as "from runs builds of to", "from is built from to", and so on. From always depends on to, so what fails with a
@@ -62,6 +70,29 @@ module ResourceMap
               url: "https://#{host}")
   end
 
+  # The repository at a code host's address, such as https://github.com/acme/web or a .git address of it, on the map
+  # as the code host's own reader puts it, whichever provider names it. The code host is the registry entry whose site
+  # has the address's host, so any host with a site works and nothing names one. nil for an address on no known host or
+  # with no owner and name.
+  def self.repository_of(url)
+    uri = URI.parse(url.to_s.strip)
+    host = uri.host&.downcase
+    entry = host && IntegrationProvider.all.find { |each| each.site.present? && URI.parse(each.site).host&.downcase == host }
+    path = uri.path.to_s.delete_prefix("/").delete_suffix("/").delete_suffix(".git")
+    return unless entry && path.count("/") >= 1
+
+    Found.new(provider: entry.key, account: path.split("/").first, kind: KIND_REPOSITORY, external_id: path, name: path,
+              url: "#{entry.site.chomp('/')}/#{path}")
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  # The same, by a code host's key and the repository's path, for a provider that names the host rather than an address.
+  def self.repository(provider_key, path)
+    site = IntegrationProvider.find(provider_key.to_s)&.site
+    site && path.present? ? repository_of("#{site.chomp('/')}/#{path}") : nil
+  end
+
   def self.provider_name(key) = IntegrationProvider.find(key)&.name || PROVIDER_NAMES.fetch(key, key.to_s.humanize)
 
   # The registry's mark and colour, so the map draws a provider the way the Integrations page does. nil for a provider
@@ -86,14 +117,29 @@ module ResourceMap
   CERTAINTY_POSSIBLE = "possible".freeze
   CERTAINTIES = [ CERTAINTY_LIKELY, CERTAINTY_POSSIBLE ].freeze
 
+  # Something a sweep could not read, as the words a person reads and the kinds of resource it would have put on the map.
+  # A gap always names its kinds, empty only for what holds no resource back (a setting, a file), so a sweep that could
+  # not read something never takes what it would have found as gone.
+  Gap = Data.define(:text, :kinds) do
+    def initialize(text:, kinds:) = super(text: text, kinds: Array(kinds))
+  end
+
   # What one sweep of one connection saw. A resource is named by its key, the same whichever connection reports it, so a
-  # repository two services build from is one resource. gaps are the parts the sweep could not read, in words.
-  # unread_kinds are the kinds the sweep could not read in full, so nothing of those kinds, and no link touching one, that
-  # it did not report is taken as gone.
+  # repository two services build from is one resource. gaps are what the sweep could not read (Gap), and the kinds
+  # they name are unread, so nothing of those kinds, and no link touching one, that it did not report is taken as gone.
   # code_files are the infrastructure files a code host's sweep read, for ResourceMap::CodeDefinitions, and code_read the
   # repositories it read in full, the only ones whose suggestions it may take away.
-  Snapshot = Data.define(:resources, :links, :gaps, :unread_kinds, :code_files, :code_read) do
-    def initialize(resources:, links: [], gaps: [], unread_kinds: [], code_files: [], code_read: []) = super
+  Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read) do
+    def initialize(resources:, links: [], gaps: [], code_files: [], code_read: [])
+      loose = gaps.reject { |gap| gap.is_a?(Gap) }
+      raise ArgumentError, "a gap names the kinds it could not read (ResourceMap::Gap), not only words: #{loose.first.inspect}" if loose.any?
+
+      super(resources:, links:, gaps: gaps.uniq, code_files:, code_read:)
+    end
+
+    def unread_kinds = gaps.flat_map(&:kinds).uniq
+
+    def gap_texts = gaps.map(&:text).uniq
   end
 
   Found = Data.define(:provider, :account, :kind, :external_id, :name, :status, :url, :details) do
@@ -128,7 +174,7 @@ module ResourceMap
         Link.find_or_initialize_by(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
                                    origin: ORIGIN_DECLARED, integration_environment: environment_row).update!(last_seen_at: at)
       end
-      environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gaps)
+      environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gap_texts)
     end
   end
 

@@ -7,9 +7,9 @@ module Integrations
     module Datadog
       extend Adapter
 
-      WATCHED = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_WORKER, ResourceMap::KIND_JOB ].freeze
+      WATCHED = Adapter::APP_KINDS
       SUPPORTS = {}.freeze
-      OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED, ERRORS => WATCHED }.freeze
+      OBSERVES = { LOGS => WATCHED, METRICS => WATCHED, TRACES => WATCHED, ERRORS => Adapter::ERROR_KINDS }.freeze
       TOOLS = { LOGS => "search_datadog_logs", METRICS => "get_datadog_metric", TRACES => "search_datadog_spans",
                 ERRORS => "search_datadog_error_tracking_issues" }.freeze
       # The container metrics Datadog documents under every service it tags (its Docker and containerd integrations).
@@ -31,13 +31,13 @@ module Integrations
 
       # A regular expression, or a stream other than what the app printed, is the platform's to answer, and so is any
       # metric but one Datadog keeps the same way everywhere, asked alone, since its tool reads one metric a call.
-      def self.accepts?(key, given)
+      def self.accepts?(key, given, settings: nil)
         return Array(given["metrics"]).size == 1 && METRIC_MAP.key?(Array(given["metrics"]).first.to_s) if key == METRICS
 
         given["regex"].blank? && given["stream"].in?([ nil, "", STREAM_APP ])
       end
 
-      def self.route(key, resource, given, tool:)
+      def self.route(key, resource, given, tool:, settings: nil)
         return metric(resource, given, tool) if key == METRICS
 
         raise Unroutable, "Datadog searches by text, not by a regular expression. Give text instead." if given["regex"].present?

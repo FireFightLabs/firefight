@@ -6,8 +6,12 @@ class SystemAgent < ApplicationRecord
   # Reads what a connection reaches onto the resource map. It only runs tools an admin switched on, with Firefight's own
   # fixed reads, so what it did is in the activity log under its name.
   SLUG_MAP_SWEEP = "map_sweep"
+  # Checks that a connection reaches the account behind its server. It only runs tools an admin switched on, with
+  # Firefight's own fixed reads, so what it did is in the activity log under its name.
+  SLUG_HEALTH_CHECK = "health_check"
   # Defined in code, so a fresh install and a test database get them without a migration.
-  BUILT_IN = { SLUG_INVESTIGATOR => "Firefight Investigator", SLUG_MAP_SWEEP => "Firefight map sweep" }.freeze
+  BUILT_IN = { SLUG_INVESTIGATOR => "Firefight Investigator", SLUG_MAP_SWEEP => "Firefight map sweep",
+               SLUG_HEALTH_CHECK => "Firefight health check" }.freeze
 
   validates :slug, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :name, presence: true
@@ -18,6 +22,10 @@ class SystemAgent < ApplicationRecord
 
   def self.map_sweep
     ensure!(SLUG_MAP_SWEEP)
+  end
+
+  def self.health_check
+    ensure!(SLUG_HEALTH_CHECK)
   end
 
   def self.ensure!(slug)

@@ -1,0 +1,76 @@
+# The tools getsentry/sentry-mcp defines, from packages/mcp-core/src/toolDefinitions.json at 9f1a7b2147d96246859f42d6f2cbf02ee3985c01.
+# direct ones are listed by the server, catalog ones are run through execute_sentry_tool. Each tool's parameters follow it.
+add_issue_note catalog organizationSlug regionUrl issueId issueUrl text
+add_team_to_project catalog organizationSlug regionUrl projectSlug teamSlug
+analyze_issue_with_seer direct organizationSlug regionUrl issueId issueUrl instruction
+create_alert_rule catalog organizationSlug regionUrl name status frequencyMinutes environment owner triggers actionFilters projectSlugs detectorIds
+create_dsn catalog organizationSlug regionUrl projectSlug name
+create_metric_monitor catalog organizationSlug regionUrl projectSlug name description owner query config conditionGroup workflowIds
+create_project catalog organizationSlug regionUrl teamSlug name slug platform repository
+create_team catalog organizationSlug regionUrl name
+create_uptime_monitor catalog organizationSlug regionUrl projectSlug name url intervalSeconds timeoutMs method headers body status owner environment traceSampling responseCaptureEnabled recoveryThreshold downtimeThreshold
+delete_alert_rule catalog organizationSlug regionUrl projectSlug ruleId
+delete_metric_monitor catalog organizationSlug regionUrl projectSlug monitorId
+delete_uptime_monitor catalog organizationSlug regionUrl projectSlug uptimeMonitorId
+execute_sentry_tool direct name arguments
+find_alert_rules catalog organizationSlug regionUrl kind projectSlug query cursor limit
+find_dashboards catalog organizationSlug regionUrl titleQuery sort cursor limit
+find_dsns catalog organizationSlug regionUrl projectSlug
+find_metric_monitors catalog organizationSlug regionUrl projectSlug query cursor limit
+find_monitors catalog organizationSlug regionUrl projectSlug environment owner query limit
+find_organizations direct query cursor
+find_projects direct organizationSlug regionUrl query cursor
+find_releases catalog organizationSlug regionUrl projectSlug query
+find_teams catalog organizationSlug regionUrl query cursor
+find_uptime_monitors catalog organizationSlug regionUrl projectSlug environment owner query limit
+get_agent_conversation_details catalog organizationSlug conversationId project start end regionUrl
+get_ai_conversation_details catalog organizationSlug conversationId project start end regionUrl
+get_alert_options catalog organizationSlug regionUrl section actionTypes conditionGroup projectSlug sourceTypes query cursor limit
+get_alert_rule catalog organizationSlug regionUrl kind projectSlug ruleIdOrName
+get_dashboard_details catalog organizationSlug regionUrl dashboardIdOrTitle
+get_doc catalog path
+get_event_attachment catalog organizationSlug projectSlug eventId attachmentId regionUrl
+get_event_stacktrace catalog organizationSlug regionUrl issueId eventId thread
+get_issue_activity catalog organizationSlug regionUrl issueId issueUrl includeComments limit
+get_issue_breadcrumbs catalog organizationSlug regionUrl issueId issueUrl eventId
+get_issue_details catalog organizationSlug regionUrl issueId eventId issueUrl
+get_issue_tag_values catalog organizationSlug regionUrl issueId issueUrl tagKey
+get_issue_user_reports catalog organizationSlug regionUrl issueId issueUrl cursor limit
+get_latest_base_snapshot catalog organizationSlug appId branch project regionUrl
+get_metric_monitor_details catalog organizationSlug regionUrl projectSlug monitorId
+get_monitor_details catalog organizationSlug regionUrl projectSlugOrId monitorSlug environment period start end checkInLimit includeStats rollupSeconds
+get_profile catalog profileUrl organizationSlug regionUrl projectSlugOrId transactionName period compareAgainstPeriod focusOnUserCode maxHotPaths
+get_profile_details catalog profileUrl organizationSlug regionUrl projectSlugOrId profileId profilerId start end focusOnUserCode
+get_release_details catalog organizationSlug regionUrl releaseVersion projectSlugOrId includeHealth includeDeploys includeCommits limit
+get_replay_details catalog replayUrl organizationSlug replayId regionUrl
+get_sentry_mcp_info catalog
+get_sentry_resource direct url resourceType resourceId organizationSlug
+get_snapshot catalog organizationSlug snapshotId showUnmodified regionUrl
+get_snapshot_image catalog organizationSlug snapshotId imageIdentifier imageResolution regionUrl
+get_span_details catalog organizationSlug regionUrl traceId spanId
+get_trace_details catalog organizationSlug regionUrl traceId spanId
+get_uptime_monitor_details catalog organizationSlug regionUrl projectSlug uptimeMonitorId period start end checkLimit
+link_issue catalog organizationSlug regionUrl issueId issueUrl externalIssueUrl integrationId appSlug fields
+onboarding_status_update catalog organizationSlug regionUrl runToken update
+remove_team_from_project catalog organizationSlug regionUrl projectSlug teamSlug
+search_agent_conversations catalog organizationSlug query project environment period start end cursor limit regionUrl
+search_ai_conversations catalog organizationSlug query project environment period start end cursor limit regionUrl
+search_docs catalog query maxResults guide
+search_errors direct organizationSlug query fields sort projectSlug period regionUrl limit includeExplanation
+search_events catalog organizationSlug dataset query fields sort projectSlug environment period regionUrl limit includeExplanation
+search_issue_events catalog organizationSlug issueId issueUrl query sort period projectSlug regionUrl limit includeExplanation
+search_issues direct organizationSlug query sort projectSlugOrId regionUrl limit period includeExplanation
+search_logs direct organizationSlug query fields sort projectSlug period regionUrl limit includeExplanation
+search_metrics direct organizationSlug query fields sort projectSlug period regionUrl limit includeExplanation
+search_profiles direct organizationSlug query fields sort projectSlug period regionUrl limit includeExplanation
+search_replays direct organizationSlug query sort projectSlug environment period regionUrl limit includeExplanation
+search_sentry_tools direct query limit
+search_traces direct organizationSlug query fields sort projectSlug period regionUrl limit includeExplanation
+unlink_issue catalog organizationSlug regionUrl issueId issueUrl externalIssueUrl integrationId appSlug
+update_alert_rule catalog organizationSlug regionUrl projectSlug ruleIdOrName name status frequencyMinutes environment owner triggers actionFilters addProjectSlugs removeProjectSlugs addDetectorIds removeDetectorIds
+update_dsn catalog organizationSlug regionUrl projectSlug keyId name isActive rateLimitWindow rateLimitCount disableRateLimit browserSdkVersion loaderHasReplay loaderHasPerformance loaderHasDebug loaderHasFeedback loaderHasLogsAndMetrics
+update_issue direct organizationSlug regionUrl issueId issueUrl status assignedTo ignoreMode ignoreDurationMinutes ignoreCount ignoreWindowMinutes ignoreUserCount ignoreUserWindowMinutes reason
+update_metric_monitor catalog organizationSlug regionUrl projectSlug monitorId name description status owner query config conditionGroup workflowIds
+update_project catalog organizationSlug regionUrl projectSlug name slug platform
+update_uptime_monitor catalog organizationSlug regionUrl projectSlug uptimeMonitorId name url intervalSeconds timeoutMs method headers body status owner environment traceSampling responseCaptureEnabled recoveryThreshold downtimeThreshold
+whoami catalog

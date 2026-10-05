@@ -28,14 +28,14 @@ module Integrations
     test "a provider says whether it is on the map, a reader backs every one that is, and one that is not says why" do
       IntegrationProvider.all.select { |provider| provider.map == IntegrationProvider::MAP_FIREFIGHT }.each do |provider|
         read = if provider.kind == Integration::KIND_MCP
-          McpExecutor::MAP_READERS.key?(provider.key)
+          Provider.for(provider.key).map_reader.present?
         else
           NativePack.for(provider.key).instance_method(:map_of).owner != NativePack
         end
         assert read, "#{provider.key} says it is on the map and nothing reads it"
       end
       read = IntegrationProvider.all.select do |provider|
-        McpExecutor::MAP_READERS.key?(provider.key) || NativePack.for(provider.key)&.instance_method(:map_of)&.owner.then { |owner| owner && owner != NativePack }
+        Provider.for(provider.key).map_reader.present? || NativePack.for(provider.key)&.instance_method(:map_of)&.owner.then { |owner| owner && owner != NativePack }
       end
       assert read.all? { |provider| provider.map == IntegrationProvider::MAP_FIREFIGHT }, "a provider with a reader has to say it is on the map"
       unchecked = IntegrationProvider.all.select { |provider| provider.map == IntegrationProvider::MAP_UNCHECKED }.map(&:key)
@@ -56,6 +56,16 @@ module Integrations
       assert_equal SystemAgent.map_sweep, logged.sole.principal
       assert_equal Ability::Invocation::OUTCOME_SUCCESS, logged.sole.outcome
       assert_not logged.sole.params.key?("code")
+    end
+
+    test "a sweep writes each status in Firefight's words, as the provider's definition maps them" do
+      row = connection("northflank", Integration::KIND_NATIVE)
+      Provider.stubs(:for).returns(Provider.new(key: "northflank", status_words: { "current" => "ready" }))
+      found = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web", status: "current")
+      NativeExecutor.stubs(:map_of).returns(ResourceMap::Snapshot.new(resources: [ found ]))
+
+      assert MapSweep.run!(row)
+      assert_equal [ "ready", ResourceMap::Resource::HEALTH_OK ], ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web").then { |web| [ web.status, web.health ] }
     end
 
     private

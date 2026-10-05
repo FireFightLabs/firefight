@@ -191,6 +191,7 @@ Rails.application.routes.draw do
         patch :set_all_tools
         patch :toggle
         patch :retarget_environment
+        patch :choose
       end
       collection do
         get :oauth_start

@@ -6,6 +6,7 @@ import { alertSourcePath } from "@/lib/routes"
 import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
 import { omitErrors } from "@/lib/form-errors"
+import { setupInstructionsFor } from "@/pages/settings/lib/alerts"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Button } from "@/components/ui/button"
@@ -90,10 +91,7 @@ export function EditSourceDialog({
     form.patch(alertSourcePath(source.id), { onSuccess: onClose })
   }
 
-  const setupInstructions =
-    source.provider === "northflank"
-      ? "In Northflank, create a webhook notification integration with this URL and paste the token into its integration token field (sent as X-Northflank-Notification-Integration-Token)."
-      : "Send alerts as POST requests with the token in an Authorization: Bearer header (or X-Firefight-Token)."
+  const setupInstructions = setupInstructionsFor(source.provider)
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>

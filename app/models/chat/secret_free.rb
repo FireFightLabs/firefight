@@ -10,6 +10,10 @@ module Chat::SecretFree
     validate :holds_no_secret
   end
 
+  # The text with anything that looks like a credential replaced by a marker naming what it was, such as
+  # [REDACTED:github_token]. Every provider's answer passes through it before the model, a chat or MCP reads it.
+  def self.redacted(text) = SECRET_PATTERNS.reduce(text.to_s) { |kept, (name, pattern)| kept.gsub(pattern, "[REDACTED:#{name}]") }
+
   private
 
   def holds_no_secret

@@ -14,12 +14,15 @@ class ResourceMap::Baseline < ApplicationRecord
 
   belongs_to :workspace
   belongs_to :resource, class_name: "ResourceMap::Resource"
+  # The connection that read it. A platform and an observability tool reading the same resource each keep their own.
+  belongs_to :integration_environment
 
   scope :fresh, -> { where(window_to: FRESH_FOR.ago..) }
 
-  # Replaces the swept resources' baselines with what was read now. A metric no longer read, on a resource that was
-  # read, goes. A resource the provider could not read keeps its baselines until they are no longer fresh.
-  def self.record!(workspace, resources, found, window_from:, window_to:)
+  # Replaces the baselines the connection's environment row read before for the swept resources with what it read now.
+  # A metric it no longer reads, on a resource it read, goes. A resource it could not read keeps its baselines until
+  # they are no longer fresh. Another connection's baselines for the same resource are never touched.
+  def self.record!(environment_row, resources, found, window_from:, window_to:)
     by_key = resources.index_by(&:key)
     now = Time.current
     rows = found.filter_map do |reading|
@@ -27,15 +30,15 @@ class ResourceMap::Baseline < ApplicationRecord
       values = reading.points.map(&:last).compact.sort
       next if resource.nil? || values.empty?
 
-      { workspace_id: workspace.id, resource_id: resource.id, metric: reading.metric, label: reading.label, unit: reading.unit,
-        typical: percentile(values, 0.5), high: percentile(values, HIGH_PERCENTILE), peak: values.last, points: values.size,
-        window_from: window_from, window_to: window_to, created_at: now, updated_at: now }
+      { workspace_id: resource.workspace_id, resource_id: resource.id, integration_environment_id: environment_row.id, metric: reading.metric,
+        label: reading.label, unit: reading.unit, typical: percentile(values, 0.5), high: percentile(values, HIGH_PERCENTILE),
+        peak: values.last, points: values.size, window_from: window_from, window_to: window_to, created_at: now, updated_at: now }
     end
     transaction do
       rows.group_by { |row| row[:resource_id] }.each do |resource_id, kept|
-        where(resource_id: resource_id).where.not(metric: kept.map { |row| row[:metric] }).delete_all
+        where(resource_id: resource_id, integration_environment_id: environment_row.id).where.not(metric: kept.map { |row| row[:metric] }).delete_all
       end
-      upsert_all(rows, unique_by: %i[resource_id metric]) if rows.any?
+      upsert_all(rows, unique_by: %i[resource_id integration_environment_id metric]) if rows.any?
     end
     rows.size
   end

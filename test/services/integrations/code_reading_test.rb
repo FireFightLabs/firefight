@@ -119,6 +119,18 @@ module Integrations
       assert_no_match Base64.strict_encode64("x-access-token:ghs_token"), error.message
     end
 
+    test "a repository on another code host is its own repository in the box, under a name the box can keep" do
+      remote = CodeReading::Remote.new(root: "https://gitlab.example.com", user: "oauth2", token: -> { "glpat_token" }, host: "gitlab.example.com",
+                                       options: [ "http.extraHeader=X-Firefight: 1" ])
+
+      CodeReading.new(key: "investigation-1", workspace: @workspace, remote: remote).exec("group/sub/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+
+      assert_equal "gitlab.example.com:group/sub/app", remote.key("group/sub/app")
+      assert_match(/\Agitlab.example.com__group.sub.app-[0-9a-f]{10}\z/, @pushed.sole.first)
+      assert CodeBox.live.find_by!(key: "investigation-1").holds?("gitlab.example.com:group/sub/app")
+      assert_equal "acme__app", CodeReading::Remote.new(root: "https://github.com", user: "x", token: -> { "t" }).stored_name("acme/app")
+    end
+
     test "closing a run's box stops it once, however many times it is asked" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
 
@@ -155,6 +167,9 @@ module Integrations
 
     private
 
-    def reading(key) = CodeReading.new(key: key, workspace: @workspace, environment_row: @row)
+    def reading(key)
+      remote = CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(@row) })
+      CodeReading.new(key: key, workspace: @workspace, remote: remote)
+    end
   end
 end

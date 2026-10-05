@@ -14,6 +14,16 @@ module Integrations
       false
     end
 
+    # A provider whose health check reads through its own tools learns from them, so switching one on or off checks the
+    # connection again, and what it learned is there without waiting for the next sweep.
+    def self.tools_changed(integration)
+      return unless integration.executor.checks_through_tools?(integration)
+
+      environments(integration).each { |row| HealthCheckJob.perform_later(row) }
+    rescue Integrations::Error
+      nil
+    end
+
     def self.environments(integration)
       integration.integration_environments.enabled
     end

@@ -67,7 +67,11 @@ export const RESOURCE_MAP_KINDS = [
   "tunnel",
   "load_balancer",
   "origin_pool",
-  "access_app"
+  "access_app",
+  "virtual_machine",
+  "function",
+  "cluster",
+  "compute"
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
@@ -631,6 +635,7 @@ export const LEDGER_SOURCES = [
   "investigation",
   "conversation",
   "map_sweep",
+  "health_check",
   "code_agent"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]

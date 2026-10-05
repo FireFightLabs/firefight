@@ -1,5 +1,3 @@
-require "ipaddr"
-require "socket"
 require "tempfile"
 
 module Integrations
@@ -10,7 +8,7 @@ module Integrations
       # network, not the customer's.
       class Connection
         # Comma separated host names, addresses or ranges, for Firefight's own database and for self-hosting.
-        ALLOWED_PRIVATE_HOSTS_ENV = "INTEGRATION_POSTGRESQL_PRIVATE_HOSTS".freeze
+        ALLOWED_PRIVATE_HOSTS_ENV = PublicAddress.allowed_env(Providers::Postgresql.key)
         CONNECT_TIMEOUT_SECONDS = 5
         STATEMENT_TIMEOUT_MS = 10_000
         LOCK_TIMEOUT_MS = 2_000
@@ -18,8 +16,6 @@ module Integrations
         APPLICATION_NAME = "Firefight Halon".freeze
         DEFAULT_PORT = 5432
         URL_FORMAT = %r{\Apostgres(ql)?://}i
-        # Reserved ranges IPAddr does not call private, such as the shared range clouds use inside their own networks.
-        RESERVED_RANGES = %w[0.0.0.0/8 100.64.0.0/10 192.0.0.0/24 198.18.0.0/15 224.0.0.0/4 240.0.0.0/4 ff00::/8].map { |range| IPAddr.new(range) }.freeze
 
         # Certificates are pasted as text. The driver reads them from files, so each call writes its own and removes them.
         ROOT_CERT = "root_cert".freeze
@@ -97,13 +93,11 @@ module Integrations
           named = (FILE_OPTIONS & conninfo.keys).reject { |option| option == "sslrootcert" && conninfo[option] == "system" }
           raise NativePack::Error, "Paste certificates in their own fields rather than naming files in the URL (#{named.join(', ')})." if named.any?
 
-          ip = resolve(host)
-          if private?(ip)
-            raise NativePack::Error, "#{host} is on a private network, which Firefight does not connect to." unless allowed?(host, ip)
-
-            @allowed_private = true
-          end
-          ip.to_s
+          checked = PublicAddress.check!(host, provider_key: Providers::Postgresql.key)
+          @allowed_private = true if checked.private
+          checked.ip.to_s
+        rescue PublicAddress::Refused => error
+          raise NativePack::Error, error.message
         end
 
         private
@@ -143,26 +137,6 @@ module Integrations
           end
         rescue PG::Error
           raise NativePack::Error, "The connection URL could not be read."
-        end
-
-        def resolve(host)
-          IPAddr.new(Addrinfo.getaddrinfo(host, nil, nil, :STREAM).first.ip_address)
-        rescue SocketError, IPAddr::InvalidAddressError
-          raise NativePack::Error, "#{host} could not be found."
-        end
-
-        def private?(ip)
-          ip.private? || ip.loopback? || ip.link_local? || ip.to_s == "::" ||
-            RESERVED_RANGES.any? { |range| range.family == ip.family && range.include?(ip) } ||
-            (ip.ipv4_mapped? && private?(ip.native))
-        end
-
-        def allowed?(host, ip)
-          ENV.fetch(ALLOWED_PRIVATE_HOSTS_ENV, "").split(",").map(&:strip).compact_blank.any? do |entry|
-            entry.casecmp?(host) || IPAddr.new(entry).include?(ip)
-          rescue IPAddr::InvalidAddressError
-            false
-          end
         end
 
         # A driver error runs to several lines of detail, and the first says what went wrong.

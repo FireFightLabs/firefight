@@ -4,6 +4,7 @@ import type { EnvironmentOption, Integration } from "@/types/serializers";
 import type { IntegrationProvider } from "@/types/serializers";
 import { INTEGRATION_KINDS } from "@/lib/constants";
 import {
+  chooseIntegrationPath,
   integrationPath,
   retargetEnvironmentIntegrationPath,
   setAllToolsIntegrationPath,
@@ -15,6 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   EnvironmentSelect,
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
@@ -22,6 +30,12 @@ import { ProviderMark } from "@/components/integrations/provider-mark";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
 type HealthStatus = Integration["environments"][number]["healthStatus"];
+type EnvironmentSettings = Integration["environments"][number]["settings"];
+
+// What the connection was set up with beside its credentials, such as its region and the account an environment reads.
+function settingsText(settings: EnvironmentSettings) {
+  return settings.map((setting) => `${setting.label} ${setting.value}`).join(", ");
+}
 
 const HEALTH_LABEL: Record<
   HealthStatus,
@@ -84,6 +98,15 @@ export function ConnectedCard({
     );
   }
 
+  // A value the connection learned to choose from, such as which of several datasources holds its logs.
+  function choose(rowId: string, key: string, value: string) {
+    router.patch(
+      chooseIntegrationPath(integration.id),
+      { environment_row_id: rowId, key, value },
+      { preserveScroll: true },
+    );
+  }
+
   function retarget(rowId: string, value: string) {
     router.patch(
       retargetEnvironmentIntegrationPath(integration.id),
@@ -117,25 +140,53 @@ export function ConnectedCard({
             {integration.environments.map((environment) => {
               const rowHealth = HEALTH_LABEL[environment.healthStatus];
               return (
-                <div
-                  key={environment.id}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5"
-                >
-                  <Badge variant={rowHealth.variant} className="shrink-0">
-                    {rowHealth.label}
-                  </Badge>
-                  {canManage && environments.length > 0 ? (
-                    <EnvironmentSelect
-                      compact
-                      value={environment.environmentId}
-                      environments={environments}
-                      onChange={(value) => retarget(environment.id, value)}
-                    />
-                  ) : (
-                    <Badge variant="outline" className="shrink-0">
-                      {environment.environmentName ?? "All environments"}
+                <div key={environment.id}>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <Badge variant={rowHealth.variant} className="shrink-0">
+                      {rowHealth.label}
                     </Badge>
-                  )}
+                    {environment.settings.length > 0 && (
+                      <p className="text-muted-foreground min-w-0 flex-1 truncate text-xs" title={settingsText(environment.settings)}>
+                        {settingsText(environment.settings)}
+                      </p>
+                    )}
+                    {canManage && environments.length > 0 ? (
+                      <EnvironmentSelect
+                        compact
+                        value={environment.environmentId}
+                        environments={environments}
+                        onChange={(value) => retarget(environment.id, value)}
+                      />
+                    ) : (
+                      <Badge variant="outline" className="shrink-0">
+                        {environment.environmentName ?? "All environments"}
+                      </Badge>
+                    )}
+                  </div>
+                  {environment.choices.map((choice) => (
+                    <div key={choice.key} className="flex items-center justify-between gap-3 px-3 pb-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{choice.label}</p>
+                        <p className="text-muted-foreground text-xs">{choice.hint}</p>
+                      </div>
+                      <Select
+                        value={choice.value ?? undefined}
+                        onValueChange={(value) => choose(environment.id, choice.key, value)}
+                        disabled={!canManage}
+                      >
+                        <SelectTrigger className="h-8 w-auto min-w-[9rem] shrink-0 text-sm" aria-label={choice.label}>
+                          <SelectValue placeholder="Choose one" />
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                          {choice.options.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
                 </div>
               );
             })}

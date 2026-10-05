@@ -26,6 +26,10 @@ export const KIND_LABELS: Record<ResourceMapKind, string> = {
   load_balancer: "Load balancer",
   origin_pool: "Origin pool",
   access_app: "Access application",
+  virtual_machine: "Virtual machine",
+  function: "Function",
+  cluster: "Cluster",
+  compute: "Compute",
 }
 
 // Read between the two names, as in "web runs builds of firefight".

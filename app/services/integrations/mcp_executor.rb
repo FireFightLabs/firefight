@@ -1,11 +1,13 @@
 module Integrations
   # The gateway has already said yes before call is reached. This only executes.
   class McpExecutor
-    # A remote server keeps its own state, so the run's box key means nothing to it.
-    def self.call(tool:, environment_row:, arguments:, box_key: nil)
+    # A remote server keeps its own state, so the run's box key means nothing to it, and it says nothing until it
+    # answers, so nobody hears progress from it.
+    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil)
       result = client_for(tool.integration, environment_row)
                .call_tool(name: tool.remote_name, arguments: arguments)
-      SourceLinks.attach(ToolResult.normalize(result), integration: tool.integration, tool_name: tool.name, arguments: arguments)
+      kept = Redactions.apply(ToolResult.normalize(result), fields: Provider.for(tool.integration.provider).redacted_fields)
+      SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
     end
 
     # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call.
@@ -14,7 +16,7 @@ module Integrations
 
       client_for(integration, environment_row).tools_list.map do |remote|
         ToolDefinition.new(
-          name: remote["name"].to_s.downcase.gsub(/[^a-z0-9_.]/, "_"),
+          name: local_name(remote["name"]),
           description: remote["description"],
           params_schema: remote["inputSchema"] || {},
           read_only: remote.dig("annotations", "readOnlyHint") == true,
@@ -23,41 +25,58 @@ module Integrations
       end
     end
 
+    # The name Firefight gives a server's tool, such as query_logs for a tool the server calls query-logs.
+    def self.local_name(remote_name) = remote_name.to_s.downcase.gsub(/[^a-z0-9_.]/, "_")
+
+    # A server that answers a ping may still not reach the account behind it, so a provider with a health probe is also
+    # asked through its own tools, only those an admin switched on, each call recorded under the health check. What the
+    # probe learned is kept on the row, for the provider's adapter and links to read.
     def self.check_health!(environment_row)
-      client_for(environment_row.integration, environment_row).ping
+      client = client_for(environment_row.integration, environment_row)
+      client.ping
+      learned = reader(environment_row, :health_probe, :checked!, client)&.check!
+      environment_row.store_learned!(learned) if learned
     end
 
-    # A remote server lists tools, not what it reaches, so a provider goes on the map through a reader written for it,
-    # which calls only the tools an admin switched on. Without a reader the connection puts nothing on the map.
-    MAP_READERS = { MapReaders::Planetscale::PROVIDER => MapReaders::Planetscale, MapReaders::Cloudflare::PROVIDER => MapReaders::Cloudflare }.freeze
+    # Whether the health check reads through the connection's tools, so switching one on or off checks it again.
+    def self.checks_through_tools?(integration) = Provider.for(integration.provider).health_probe.present?
+
+    # A remote server lists tools, not what it reaches, so a provider goes on the map through the reader its definition
+    # names, which calls only the tools an admin switched on. Without a reader the connection puts nothing on the map.
     # How often a reader is swept on the hourly schedule, when it says. Sync now reads it at once whatever this says.
     DEFAULT_MAP_EVERY = 1.hour
 
     def self.map_every(integration)
-      reader = MAP_READERS[integration.provider]
+      reader = Provider.for(integration.provider).map_reader
       reader&.const_defined?(:EVERY, false) ? reader::EVERY : DEFAULT_MAP_EVERY
     end
 
-    def self.map_of(environment_row)
-      integration = environment_row.integration
-      reader = MAP_READERS[integration.provider]
-      return unless reader
+    def self.map_of(environment_row) = reader(environment_row, :map_reader, :swept!)&.map
 
-      client = client_for(integration, environment_row)
-      tools = integration.tools.enabled.available.index_by(&:name)
-      reader.new do |name, arguments, reads = nil|
-        tool = tools[name]
-        tool&.swept!(arguments, reads) { client.call_tool(name: tool.remote_name, arguments: arguments) }
-      end.map
+    # What normal looks like, through the baseline reader the provider's definition names, with its own fixed reads and
+    # only the tools an admin switched on, each call recorded under the map sweep. Without one there are no baselines.
+    def self.baselines_of(environment_row, resources, window)
+      reader(environment_row, :baseline_reader, :swept!)&.baselines(resources, window)
     end
 
+    # The provider's reader of that part, made to call the connection's switched on tools recorded the way recording
+    # says, or nil when the provider has none.
+    def self.reader(environment_row, part, recording, client = nil)
+      integration = environment_row.integration
+      reader = Provider.for(integration.provider).public_send(part)
+      return unless reader
 
-    # No remote provider reads baselines yet, so its resources have none.
-    def self.baselines_of(_environment_row, _resources, _window) = nil
+      client ||= client_for(integration, environment_row)
+      tools = integration.tools.enabled.available.index_by(&:name)
+      reader.new(ConnectionSettings.of(environment_row), tools) do |name, arguments, reads = nil|
+        tool = tools[name]
+        tool&.public_send(recording, arguments, reads) { client.call_tool(name: tool.remote_name, arguments: arguments) }
+      end
+    end
 
     def self.client_for(integration, environment_row)
       McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row))
     end
-    private_class_method :client_for
+    private_class_method :client_for, :reader
   end
 end

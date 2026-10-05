@@ -7,9 +7,10 @@ module Integrations
     REFRESH_MARGIN = 60.seconds
 
     class << self
-      # Install-first providers such as GitHub never reach this client.
-      def begin_flow(server_url:, redirect_uri:, client_id: nil)
-        metadata = discover(server_url)
+      # Install-first providers such as GitHub never reach this client. endpoints holds the authorization_endpoint and
+      # token_endpoint a provider's region names, used over the ones its server's metadata gives.
+      def begin_flow(server_url:, redirect_uri:, client_id: nil, endpoints: {})
+        metadata = discover(server_url, endpoints)
         client_id ||= register(metadata, redirect_uri)
         state = SecureRandom.hex(16)
 
@@ -22,7 +23,7 @@ module Integrations
           state: state,
           code_challenge: challenge,
           code_challenge_method: "S256",
-          resource: server_url,
+          resource: resource_of(server_url),
           scope: metadata[:scope]
         }.compact.to_query
 
@@ -36,10 +37,10 @@ module Integrations
         token = token_request(token_endpoint,
                               grant_type: "authorization_code", code: code, redirect_uri: redirect_uri,
                               client_id: client_id, client_secret: client_secret,
-                              code_verifier: verifier, resource: resource)
+                              code_verifier: verifier, resource: resource_of(resource))
         token.merge(
           "token_endpoint" => token_endpoint, "client_id" => client_id,
-          "client_secret" => client_secret, "resource" => resource
+          "client_secret" => client_secret, "resource" => resource_of(resource)
         ).compact
       end
 
@@ -62,9 +63,22 @@ module Integrations
         expires_at.present? && expires_at <= REFRESH_MARGIN.from_now
       end
 
-      # RFC 9728 resource metadata names the authorization server, RFC 8414
-      # server metadata names the endpoints.
-      def discover(server_url)
+      # The server a token is for, without a query that only picks how the server answers, such as one asking it to
+      # list every tool on its own. RFC 9728 names the resource by its address alone.
+      def resource_of(server_url)
+        uri = URI.parse(server_url.to_s)
+        return server_url unless uri.is_a?(URI::HTTP) && (uri.query || uri.fragment)
+
+        uri.query = nil
+        uri.fragment = nil
+        uri.to_s
+      rescue URI::InvalidURIError
+        server_url
+      end
+
+      # RFC 9728 resource metadata names the authorization server, RFC 8414 server metadata names the endpoints.
+      # endpoints, from a provider's region, stand in for the ones the metadata gives, and are enough without it.
+      def discover(server_url, endpoints = {})
         server_uri = URI.parse(server_url.to_s)
         raise Error, "invalid MCP server URL" unless server_uri.is_a?(URI::HTTP)
 
@@ -74,8 +88,8 @@ module Integrations
         authorization_server = Array(resource_meta&.dig("authorization_servers")).first || origin
         scopes = Array(resource_meta&.dig("scopes_supported"))
 
-        auth_meta = authorization_server_metadata(authorization_server)
-        raise Error, "the server does not advertise OAuth support" unless auth_meta
+        auth_meta = authorization_server_metadata(authorization_server).to_h.merge(endpoints.to_h.transform_keys(&:to_s))
+        raise Error, "the server does not advertise OAuth support" if auth_meta.empty?
 
         {
           authorization_endpoint: auth_meta.fetch("authorization_endpoint") { raise Error, "no authorization endpoint advertised" },

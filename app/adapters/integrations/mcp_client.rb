@@ -6,6 +6,9 @@ module Integrations
 
     PROTOCOL_VERSION = "2025-06-18".freeze
     READ_TIMEOUT = 30
+    # A server may list its tools a page at a time. This bounds how many pages are read, so a server that repeats its
+    # cursor cannot hold a refresh forever.
+    MAX_TOOL_PAGES = 50
 
     def initialize(server_url:, headers: {})
       @server_url = server_url
@@ -22,7 +25,15 @@ module Integrations
 
     def tools_list
       ensure_initialized
-      request("tools/list").fetch("tools", [])
+      tools = []
+      cursor = nil
+      MAX_TOOL_PAGES.times do
+        page = request("tools/list", cursor ? { cursor: cursor } : {})
+        tools.concat(Array(page["tools"]))
+        cursor = page["nextCursor"].presence
+        return tools unless cursor
+      end
+      raise Error, "the server listed more than #{MAX_TOOL_PAGES} pages of tools"
     end
 
     def call_tool(name:, arguments:)

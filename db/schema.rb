@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1458,7 +1458,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_130000) do
     t.datetime "window_from", null: false
     t.datetime "window_to", null: false
     t.uuid "workspace_id", null: false
-    t.index ["resource_id", "metric"], name: "index_resource_map_baselines_on_resource_id_and_metric", unique: true
+    t.uuid "integration_environment_id"
+    t.index ["integration_environment_id"], name: "index_resource_map_baselines_on_integration_environment_id"
+    t.index ["resource_id", "integration_environment_id", "metric"], name: "index_resource_map_baselines_on_resource_reader_metric", unique: true
     t.index ["workspace_id"], name: "index_resource_map_baselines_on_workspace_id"
   end
 
@@ -1994,6 +1996,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_130000) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "resource_map_baselines", "integration_environments", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "workspaces"
   add_foreign_key "resource_map_changes", "resource_map_resources", column: "resource_id", on_delete: :cascade

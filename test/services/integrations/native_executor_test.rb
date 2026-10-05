@@ -28,6 +28,13 @@ module Integrations
       assert_equal false, result["isError"]
     end
 
+    test "a pack's answer has anything that looks like a credential taken out, as a remote server's does" do
+      tool = @integration.tools.find_by!(name: "echo_text")
+      result = NativeExecutor.call(tool: tool, environment_row: nil, arguments: { "text" => "DATABASE_URL=postgres://app:s3cret@db.internal/app" })
+
+      assert_equal "echo: DATABASE_URL=[REDACTED:credential_url]db.internal/app", result["content"].first["text"]
+    end
+
     test "hash results serialize as pretty JSON text" do
       tool = @integration.tools.create!(name: "data_result", read_only: true, enabled: true)
       result = NativeExecutor.call(tool: tool, environment_row: nil, arguments: {})
