@@ -81,6 +81,21 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     assert_includes use_skill.call("skill" => "planetscale_connections", "reference" => "../../firefight/x.md"), "There is no guide called"
   end
 
+  test "a provider's skill that names the map hands it over with the provider's own tools, to whoever may read the map" do
+    asker = workspace_memberships(:alice_workspace_one)
+    integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare")
+    %w[search docs].each do |name|
+      tool = integration.tools.create!(name: name, description: name, read_only: true, enabled: true, params_schema: { "type" => "object" })
+      Ability::Grant.create!(workspace: @workspace, principal: asker, action: tool.reload.ability_action)
+    end
+    turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: asker), asker: asker)
+
+    answer = Chat::Tools::UseSkill.new(turn, offer: ->(tools) { @offered << tools }).call("skill" => "cloudflare_dns")
+
+    assert answer.start_with?("Start from the zone on the resource map. `get_resource_map`")
+    assert_includes @offered.flatten.map(&:name), Mcp::Tools::GET_RESOURCE_MAP
+  end
+
   private
 
   def connect_northflank(tools)

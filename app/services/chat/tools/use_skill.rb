@@ -3,6 +3,8 @@
 # offered once the workspace has connected that provider.
 class Chat::Tools::UseSkill < RubyLLM::Tool
   CODE = /`([^`]+)`/
+  # Firefight's own map, which a provider's skill may name too, since finding one of the provider's resources starts there.
+  MAP = Mcp::Tools::GET_RESOURCE_MAP
   GUIDE_NOTE = "This is the provider's own guide, for background. Only the tools you hold can run, so a command or " \
                "tool it mentions that you do not have cannot be used here.".freeze
 
@@ -53,9 +55,10 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
   def skills = @skills ||= Chat::Skill.available_to(@agent_run.workspace)
 
-  # A provider's skill drives that provider's own tools, and the capabilities that answer for its resources.
+  # A provider's skill drives that provider's own tools, the capabilities that answer for its resources, and the map.
   def skill_tool?(skill, entry)
-    skill.tools.include?(entry.handle) && (entry.source == skill.source || entry.group == Chat::Tools::Groups::RESOURCES)
+    skill.tools.include?(entry.handle) &&
+      (entry.source == skill.source || entry.group == Chat::Tools::Groups::RESOURCES || entry.handle == MAP)
   end
 
   def listing

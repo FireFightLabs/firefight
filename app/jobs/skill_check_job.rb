@@ -6,7 +6,8 @@ class SkillCheckJob < ApplicationJob
 
   def perform
     skills = Chat::Skill.all.reject { |skill| skill.firefight? || Integrations::NativePack.for(skill.source) }
-    missing = skills.to_h { |skill| [ skill.name, skill.tools - offered(skill.source) ] }.reject { |_skill, tools| tools.empty? }
+    # The map is Firefight's own, so a provider cannot drop it.
+    missing = skills.to_h { |skill| [ skill.name, skill.tools - offered(skill.source) - [ Chat::Tools::UseSkill::MAP ] ] }.reject { |_skill, tools| tools.empty? }
 
     Chat::SkillProblem.record!(missing, provider_of: skills.to_h { |skill| [ skill.name, skill.source ] })
   end

@@ -21,6 +21,13 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     assert_match "INC-001", @opening
   end
 
+  test "a run is told to look before asking and to find a resource on the map before any provider tool" do
+    prompt = FirefightAi::Investigator.system_prompt
+
+    assert_includes prompt, FirefightAi::LookFirstRule::RULE
+    assert_includes prompt, FirefightAi::LookFirstRule::MAP_RULE
+  end
+
   test "a resumed run is not handed the facts a second time" do
     chat = chat_double(messages: [ RubyLLM::Message.new(role: :user, content: "Investigate this incident") ])
     chat.expects(:with_instructions)
