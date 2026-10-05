@@ -1,5 +1,5 @@
 module Integrations
   module Providers
-    Github = Provider.new(key: "github", pack: "Integrations::Packs::Github")
+    Github = Provider.new(key: "github", pack: "Integrations::Packs::Github", adapter: "Integrations::Capabilities::Github")
   end
 end

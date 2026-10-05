@@ -61,11 +61,52 @@ providers:
     category: Code
     mark: GL
     color: "#fc6d26"
-    description: Correlate incidents with merge requests and pipelines.
+    description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab.
+    # GitLab's own MCP server stays available from the connect dialog, and connections made through it keep running.
     server_url: https://gitlab.com/api/v4/mcp
     site: https://gitlab.com
-    source_links: unchecked
-    map: unchecked
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - key: url
+        label: GitLab address
+        hint: Your own GitLab's address, such as https://gitlab.example.com. Leave it empty for GitLab.com.
+        placeholder: https://gitlab.com
+        optional: true
+        pattern: "https://[^\\s/?#@]+(/[^\\s?#]*)?"
+        allowed: an https address, without a query or credentials
+    source_links: firefight
+    map: firefight
+  - key: bitbucket
+    name: Bitbucket
+    category: Code
+    mark: BB
+    color: "#0052cc"
+    description: Pull requests, deployments, pipelines and code of the repositories in a Bitbucket workspace.
+    # Atlassian's MCP server reaches Bitbucket only for a workspace linked to an organization, and cannot fetch code.
+    server_url: ""
+    site: https://bitbucket.org
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - key: workspace
+        label: Workspace
+        hint: The workspace's id, as it appears in its repositories' addresses, bitbucket.org/acme/...
+        placeholder: acme
+    source_links: firefight
+    map: firefight
+  - key: circleci
+    name: CircleCI
+    category: CI
+    mark: CI
+    color: "#343434"
+    description: Read pipelines, workflows and failing jobs with their logs and tests, and rerun a workflow when you allow it.
+    # CircleCI's cloud runs in one place, and its hosted server is the one address its docs give.
+    server_url: https://mcp.circleci.com/v1/mcp
+    site: https://app.circleci.com
+    source_links: firefight
+    map: none
+    map_note: "It builds and tests code that its host puts on the map and runs nothing of its own."
   - key: newrelic
     name: New Relic
     category: Observability

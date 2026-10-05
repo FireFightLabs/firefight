@@ -75,6 +75,23 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     end
   end
 
+  test "only a provider connected with credentials that has its own MCP server can connect through it, and only when asked" do
+    gitlab = IntegrationProvider.find("gitlab")
+
+    assert gitlab.mcp_alternative?
+    assert_equal [ Integration::KIND_MCP, Integration::KIND_NATIVE ], [ gitlab.connect_kind(Integration::KIND_MCP), gitlab.connect_kind(nil) ]
+    assert_not IntegrationProvider.find("northflank").mcp_alternative?, "Northflank has no server of its own"
+    assert_equal Integration::KIND_NATIVE, IntegrationProvider.find("github").connect_kind(Integration::KIND_MCP)
+    assert_equal Integration::KIND_MCP, IntegrationProvider.find("circleci").connect_kind(nil)
+  end
+
+  test "CI is a group of its own, after Code" do
+    names = IntegrationProvider.category_list.map(&:name)
+
+    assert_equal names.index("Code") + 1, names.index("CI")
+    assert_equal "ci", IntegrationProvider.category_slug(IntegrationProvider.find("circleci").category)
+  end
+
   private
 
   def connect!(key)

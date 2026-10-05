@@ -98,6 +98,20 @@ class ResourceMap::CodeDefinitionsTest < ActiveSupport::TestCase
     assert_not_includes walked, "billing-api"
   end
 
+  test "a project mirrored on another host is its own repository, so a file read there suggests that host's copy" do
+    gitlab = connection("gitlab")
+    ResourceMap.record!(gitlab, ResourceMap::Snapshot.new(resources: [ ResourceMap::Found.new(provider: "gitlab", account: "acme", kind: ResourceMap::KIND_REPOSITORY,
+                                                                                             external_id: "acme/infra", name: "acme/infra") ]))
+    read = File.new(repository: "acme/infra", path: "api.tf", tool: "Terraform", content: %(northflank_service "billing-api"), url: "https://gitlab.com/acme/infra/-/blob/main/api.tf",
+                    provider: "gitlab")
+
+    ResourceMap::CodeDefinitions.new(@workspace).record!(gitlab, [ read ], read_in_full: [ "acme/infra" ])
+
+    assert_equal [ [ "billing-api", "gitlab" ] ], managed.map { |link| [ link.from_resource.name, link.to_resource.provider ] }
+    record!([])
+    assert_equal 1, managed.size, "GitHub reading its own acme/infra in full takes nothing from GitLab's"
+  end
+
   private
 
   def connection(provider, slug: provider)
@@ -110,7 +124,8 @@ class ResourceMap::CodeDefinitionsTest < ActiveSupport::TestCase
 
   def found(provider, kind, name) = ResourceMap::Found.new(provider: provider, account: "acme", kind: kind, external_id: name, name: name)
 
-  def file(path, tool, content) = File.new(repository: "acme/infra", path: path, tool: tool, content: content, url: "https://github.com/acme/infra/blob/main/#{path}")
+  def file(path, tool, content) = File.new(repository: "acme/infra", path: path, tool: tool, content: content, url: "https://github.com/acme/infra/blob/main/#{path}",
+                                                 provider: "github")
 
   def managed = ResourceMap::Link.standing.where(workspace: @workspace, relation: ResourceMap::RELATION_MANAGED_BY).includes(:from_resource).order(:id).to_a
 end

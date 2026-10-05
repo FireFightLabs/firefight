@@ -1,9 +1,10 @@
 module Integrations
   module Packs
-    class Github
+    module CodeHost
       # Tools that read a repository in the run's sandbox, where every commit and the whole history are local. A
       # command reaches the box as an argument list, never a string, except in run_shell and run_tests, which only run
-      # as unprivileged users in a box that holds no credential.
+      # as unprivileged users in a box that holds no credential. A code host's pack includes it and says where its
+      # repositories are fetched from (code_remote) and which ones the connection sees (visible_repositories).
       module Code
         SEARCH_LINE_LIMIT = 300
         LOG_LIMIT = 30
@@ -24,18 +25,22 @@ module Integrations
                            "could be generated before calling it missing.".freeze
 
         REPO = { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" }.freeze
+        REPOS = { "type" => "array", "items" => { "type" => "string" }, "description" => "Repositories in owner/name form (optional, every repository this connection can see)" }.freeze
         REF = { "type" => "string", "description" => "Commit SHA, branch or tag, usually the running commit (optional, the default branch otherwise)" }.freeze
 
         def self.included(pack)
+          # A host names its repositories its own way, such as a GitLab project's path with its groups.
+          repo = pack.const_defined?(:REPO_PARAM, false) ? pack::REPO_PARAM : REPO
+          repos = pack.const_defined?(:REPOS_PARAM, false) ? pack::REPOS_PARAM : REPOS
           pack.tool :list_files,
                     description: "List the files in a repository at a commit, optionally under one directory",
-                    params_schema: object_schema({ "repo" => REPO, "ref" => REF, "path_prefix" => { "type" => "string", "description" => "Only paths under this directory (optional)" } }, %w[repo]),
+                    params_schema: object_schema({ "repo" => repo, "ref" => REF, "path_prefix" => { "type" => "string", "description" => "Only paths under this directory (optional)" } }, %w[repo]),
                     read_only: true
 
           pack.tool :code_search,
                     description: "Regex search across a repository at a commit, returning path:line references with the matching line",
                     params_schema: object_schema({
-                      "repo" => REPO, "ref" => REF,
+                      "repo" => repo, "ref" => REF,
                       "pattern" => { "type" => "string", "description" => "Extended regex to search for, e.g. def assign_clinician|AssignmentService" },
                       "path_prefix" => { "type" => "string", "description" => "Limit the search to paths under this prefix (optional)" }
                     }, %w[repo pattern]),
@@ -46,7 +51,7 @@ module Integrations
                                  "Says so when nothing defines it, which is how a call to something missing is found",
                     params_schema: object_schema({
                       "symbol" => { "type" => "string", "description" => "The exact name, e.g. require_admin! or AssignmentService" },
-                      "repos" => { "type" => "array", "items" => { "type" => "string" }, "description" => "Repositories in owner/name form (optional, every repository this connection can see)" },
+                      "repos" => repos,
                       "ref" => REF
                     }, %w[symbol]),
                     read_only: true
@@ -54,7 +59,7 @@ module Integrations
           pack.tool :find_usages,
                     description: "Every place a name appears as a whole word in a repository at a commit",
                     params_schema: object_schema({
-                      "repo" => REPO, "ref" => REF, "symbol" => { "type" => "string", "description" => "The exact name to look for" },
+                      "repo" => repo, "ref" => REF, "symbol" => { "type" => "string", "description" => "The exact name to look for" },
                       "path_prefix" => { "type" => "string", "description" => "Only paths under this prefix (optional)" }
                     }, %w[repo symbol]),
                     read_only: true
@@ -63,7 +68,7 @@ module Integrations
                     description: "A repository's history, newest first: commits touching a path, or the commits that added or removed some text (git log -S), " \
                                  "or whose changes match a regex (git log -G), optionally by author or time",
                     params_schema: object_schema({
-                      "repo" => REPO, "ref" => REF,
+                      "repo" => repo, "ref" => REF,
                       "path" => { "type" => "string", "description" => "Only commits touching this path (optional)" },
                       "added_or_removed" => { "type" => "string", "description" => "Commits that changed how often this exact text appears, e.g. def require_admin! (optional)" },
                       "changed_lines_matching" => { "type" => "string", "description" => "Commits with an added or removed line matching this regex (optional)" },
@@ -77,7 +82,7 @@ module Integrations
           pack.tool :show_commit,
                     description: "One commit in full: message, author, the files it changed and its diff, optionally only for one path",
                     params_schema: object_schema({
-                      "repo" => REPO, "sha" => { "type" => "string", "description" => "The commit SHA" },
+                      "repo" => repo, "sha" => { "type" => "string", "description" => "The commit SHA" },
                       "path" => { "type" => "string", "description" => "Only the change to this path (optional)" }
                     }, %w[repo sha]),
                     read_only: true
@@ -85,7 +90,7 @@ module Integrations
           pack.tool :diff_refs,
                     description: "The diff between two commits, branches or tags in a repository, optionally only for one path",
                     params_schema: object_schema({
-                      "repo" => REPO, "base" => { "type" => "string", "description" => "The earlier commit, branch or tag" },
+                      "repo" => repo, "base" => { "type" => "string", "description" => "The earlier commit, branch or tag" },
                       "head" => { "type" => "string", "description" => "The later commit, branch or tag" },
                       "path" => { "type" => "string", "description" => "Only this path (optional)" }
                     }, %w[repo base head]),
@@ -96,7 +101,7 @@ module Integrations
                                  "line and column, every reference to it, its type and docs, or the symbols matching a name. More exact " \
                                  "than a text search when a name is common",
                     params_schema: object_schema({
-                      "repo" => REPO, "ref" => REF,
+                      "repo" => repo, "ref" => REF,
                       "question" => { "type" => "string", "enum" => LSP_QUESTIONS.keys, "description" => "definition, references or hover need path, line and column. symbols needs query and language" },
                       "path" => { "type" => "string", "description" => "File the position is in" },
                       "line" => { "type" => "integer", "description" => "Line number, counting from 1" },
@@ -110,7 +115,7 @@ module Integrations
                     description: "Run a read-only shell command in a checkout of a repository at a commit, for what the other tools do not cover. " \
                                  "It runs as a user that cannot write the code",
                     params_schema: object_schema({
-                      "repo" => REPO, "ref" => REF, "command" => { "type" => "string", "description" => "The command, run with sh -c from the repository root" },
+                      "repo" => repo, "ref" => REF, "command" => { "type" => "string", "description" => "The command, run with sh -c from the repository root" },
                       "timeout" => { "type" => "integer", "description" => "Seconds (optional, #{SHELL_TIMEOUT}, at most #{MAX_SHELL_TIMEOUT})" }
                     }, %w[repo command]),
                     read_only: true
@@ -119,7 +124,7 @@ module Integrations
                     description: "Run a repository's own tests, or any command, in a writable copy at a commit. Its dependencies and tool " \
                                  "versions are installed first, once per copy. Postgres and Redis can be started for it",
                     params_schema: object_schema({
-                      "repo" => REPO, "ref" => REF,
+                      "repo" => repo, "ref" => REF,
                       "command" => { "type" => "string", "description" => "The command, e.g. bin/rails test test/controllers/billing_controller_test.rb" },
                       "services" => { "type" => "array", "items" => { "type" => "string", "enum" => SERVICES }, "description" => "Services to start first, which set DATABASE_URL and REDIS_URL (optional)" },
                       "timeout" => { "type" => "integer", "description" => "Seconds (optional, #{TESTS_TIMEOUT}, at most #{MAX_TESTS_TIMEOUT})" }
@@ -241,12 +246,7 @@ module Integrations
 
         private
 
-        def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, remote: remote(environment_row))
-
-        # GitHub's repositories, fetched with the installation's token as GitHub asks for one (x-access-token).
-        def remote(environment_row)
-          CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(environment_row) })
-        end
+        def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, remote: code_remote(environment_row))
 
         # Commands a repository chooses reach the network, so they wait for the workspace's AI SRE switch.
         def running_commands!
@@ -259,7 +259,7 @@ module Integrations
           named = Array(arguments["repos"]).map { |repo| repo_argument({ "repo" => repo.to_s }) }
           return named if named.any?
 
-          visible = Array(GithubApp.get("/installation/repositories?per_page=100", token: GithubApp.installation_token(environment_row))["repositories"]).map { |repository| repository["full_name"] }
+          visible = visible_repositories(environment_row)
           fail! "This connection can see no repositories." if visible.empty?
           if visible.size > DEFINITION_REPO_LIMIT
             fail! "This connection can see #{visible.size} repositories. Name the ones to look in with repos, at most #{DEFINITION_REPO_LIMIT}."
