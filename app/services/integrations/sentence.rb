@@ -19,6 +19,10 @@ module Integrations
     # A provider's reason as a sentence of its own, ended once, or nil when there is nothing to say.
     def self.of(reason) = clean(reason)&.then { |said| ended(said) }
 
+    # Sentences one after another, each ended once and the empty ones left out, so a provider that gave no reason leaves
+    # no stray space before Firefight's own words.
+    def self.all(*parts) = parts.filter_map { |part| of(part) }.join(" ")
+
     # The text ended with one period, unless it already ends in a question or exclamation mark.
     def self.ended(text) = text.match?(/[.!?]\z/) ? text : "#{text}."
   end

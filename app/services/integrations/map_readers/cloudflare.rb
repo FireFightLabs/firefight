@@ -93,11 +93,12 @@ module Integrations
           end
 
           listed.each { |account| read_account(account) }
+          # Products not on the map yet hold nothing the map already has.
+          missing = not_yet
+          gap(missing, kinds: []) if missing
         rescue Stop
           gap("Cloudflare asked Firefight to slow down, so the rest is read on the next sweep.", kinds: ResourceMap::KINDS)
         end
-        # Products not on the map yet hold nothing the map already has.
-        gap(not_yet, kinds: []) if not_yet
         ResourceMap::Snapshot.new(resources: resources, links: @links.uniq, gaps: gaps)
       end
 
@@ -293,8 +294,8 @@ module Integrations
 
       def dashboard(page) = "#{DASHBOARD}/#{@account['id']}/#{page}"
 
-      # Something that could not be read, said in the gaps. kinds are what it would have put on the map, so nothing of
-      # those kinds is taken as gone this sweep. A setting that could not be read holds nothing back.
+      # Something that could not be read, said in the gaps. kinds are what it would have put on the map, so the sweep
+      # takes nothing as gone. A setting that could not be read holds nothing back.
       def unread(what, reason, kinds)
         gap(Sentence.join("Cloudflare could not read the #{what}", reason.to_s.truncate(200)), kinds: kinds)
       end

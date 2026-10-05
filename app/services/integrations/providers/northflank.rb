@@ -1,10 +1,17 @@
 module Integrations
   module Providers
+    # status_words: an addon's states, as the API's addon list writes them (@northflank/js-client, ListAddonsResult),
+    # lowercased, for those that are not already Firefight's.
     Northflank = Provider.new(
       key: "northflank",
       pack: "Integrations::Packs::Northflank",
       adapter: "Integrations::Capabilities::Northflank",
-      read_guard: "Integrations::ReadGuards::Northflank"
+      read_guard: "Integrations::ReadGuards::Northflank",
+      status_words: {
+        "predeployment" => "pending", "triggerallocation" => "pending", "allocating" => "starting", "postdeployment" => "starting",
+        "scaling" => "resizing", "upgrading" => "deploying", "resetting" => "pending", "backup" => "in_progress",
+        "restore" => "pending", "errorallocating" => "failed", "deleting" => "stopped", "deleted" => "stopped"
+      }
     )
   end
 end

@@ -50,7 +50,7 @@ module Integrations
         key = values[API_KEY].to_s.strip
         organization = fields[ORGANIZATION].to_s
         limit = fields[MAX_ACUS].to_s
-        return "Paste a Devin API key." if key.empty?
+        return "Paste an API key." if key.empty?
         return "Enter the organization id." if organization.empty?
         return "Enter the ACU limit as a whole number above zero, or leave it empty." unless limit.empty? || limit.match?(WHOLE_NUMBER)
 

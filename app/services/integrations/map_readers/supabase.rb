@@ -27,7 +27,8 @@ module Integrations
           project({ "ref" => scoped })
           gap("This connection is scoped to project #{scoped}, and Supabase gives such a connection no project details, so it is named by its ref.", kinds: [])
         else
-          Array(listing(LIST_PROJECTS, "projects", {}, kinds: [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ])&.dig("projects")).each { |project| project(project) }
+          kinds = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ]
+          Array(objects(listing(LIST_PROJECTS, "projects", {}, kinds: kinds), "projects", kinds: kinds, key: "projects")).each { |project| project(project) }
         end
         ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps)
       end
@@ -46,8 +47,9 @@ module Integrations
 
         # A scoped connection's tools take no project, as the server fills it in.
         arguments = parameters(LIST_BRANCHES).empty? || parameters(LIST_BRANCHES).key?("project_id") ? { "project_id" => ref } : {}
-        branches = listing(LIST_BRANCHES, "branches of #{database.name}", arguments, kinds: [ ResourceMap::KIND_BRANCH ])
-        Array(branches.is_a?(Hash) ? branches["branches"] : nil).each do |branch|
+        what = "branches of #{database.name}"
+        branches = listing(LIST_BRANCHES, what, arguments, kinds: [ ResourceMap::KIND_BRANCH ])
+        Array(objects(branches, what, kinds: [ ResourceMap::KIND_BRANCH ], key: "branches")).each do |branch|
           branch_ref = branch["project_ref"].presence || ref
           found = ResourceMap::Found.new(
             provider: PROVIDER, account: account, kind: ResourceMap::KIND_BRANCH, external_id: branch_ref, name: "#{database.name}/#{branch['name']}",

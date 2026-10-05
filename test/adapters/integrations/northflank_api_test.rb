@@ -18,6 +18,24 @@ module Integrations
       assert_equal({ "cpu" => { "values" => [] } }, data)
     end
 
+    test "a list is read a page at a time from Northflank's cursor, and one past the page bound says it was cut short" do
+      Http.expects(:request).with { |uri, _| URI.decode_www_form(uri.query).to_h == { "per_page" => "100" } }
+          .returns(response(200, { data: { services: [ { id: "web" } ] }, pagination: { hasNextPage: true, cursor: "c2", count: 1 } }))
+      Http.expects(:request).with { |uri, _| URI.decode_www_form(uri.query).to_h == { "per_page" => "100", "cursor" => "c2" } }
+          .returns(response(200, { data: { services: [ { id: "api" } ] }, pagination: { hasNextPage: false, count: 1 } }))
+
+      listed = @api.services("firefight")
+
+      assert_equal %w[web api], listed.items.map { |service| service["id"] }
+      assert_not listed.incomplete?
+
+      Http.unstub(:request)
+      Http.stubs(:request).returns(response(200, { data: { jobs: [ { id: "nightly" } ] }, pagination: { hasNextPage: true, cursor: "next", count: 1 } }))
+      cut = @api.jobs("firefight")
+      assert cut.incomplete?
+      assert_equal NorthflankApi::MAX_PAGES, cut.items.size
+    end
+
     test "Northflank's refusal is raised with its own reason" do
       Http.stubs(:request).returns(response(403, { error: { message: "Missing permission: View Observability" } }))
 

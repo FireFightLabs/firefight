@@ -149,6 +149,25 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert ResourceMap::Link.exists?(from_resource: resource("app.acme.com"), to_resource: resource("web"))
   end
 
+  test "a partial read never removes a resource or a link, of any kind, and only a complete read does" do
+    ResourceMap.record!(@row, snapshot(web, repository, found(ResourceMap::KIND_JOB, "nightly"), links: [ link(web, repository, ResourceMap::RELATION_BUILT_FROM) ]))
+    partial = ResourceMap::Gap.new(text: "Domains could not be read.", kinds: [ ResourceMap::KIND_DOMAIN ])
+
+    ResourceMap.record!(@row, snapshot(gaps: [ partial ]))
+
+    assert_nil resource("web").removed_at
+    assert_nil resource("acme/app").removed_at
+    assert_nil resource("nightly").removed_at
+    assert ResourceMap::Link.exists?(from_resource: resource("web"), to_resource: resource("acme/app"))
+    assert_equal [ "Domains could not be read." ], @row.reload.map_gaps
+
+    ResourceMap.record!(@row, snapshot(web, gaps: [ ResourceMap::Gap.new(text: "The SSL mode could not be read.", kinds: []) ]))
+
+    assert_nil resource("web").removed_at
+    assert resource("nightly").removed_at, "a gap that holds back no resource does not stop a removal"
+    assert_not ResourceMap::Link.exists?(from_resource: resource("web"), to_resource: resource("acme/app"))
+  end
+
   test "a setting that moves is a change naming the setting, and one read for the first time is not" do
     first = ResourceMap::Found.new(provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_ZONE, external_id: "z1", name: "acme.com")
     ResourceMap.record!(@row, snapshot(first), at: 2.hours.ago)

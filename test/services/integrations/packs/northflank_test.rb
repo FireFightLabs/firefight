@@ -10,13 +10,13 @@ module Integrations
         Northflank.store_credentials!(@row, Northflank::API_TOKEN => " nf-token ")
         @row.store_fields!(Northflank::PROJECT => "firefight")
         @pack = Northflank.new(@integration)
-        NorthflankApi.any_instance.stubs(:services).returns([
+        NorthflankApi.any_instance.stubs(:services).returns(listed([
           { "id" => "web", "name" => "web", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/web",
             "status" => { "deployment" => { "status" => "COMPLETED" } } }
-        ])
-        NorthflankApi.any_instance.stubs(:addons).returns([
+        ]))
+        NorthflankApi.any_instance.stubs(:addons).returns(listed([
           { "id" => "db", "name" => "db", "spec" => { "type" => "postgresql" }, "status" => "running", "appId" => "/firefight-labs/firefight/db" }
-        ])
+        ]))
       end
 
       test "the token and project are stored trimmed, and every tool only reads except the one that changes the project" do
@@ -190,7 +190,7 @@ module Integrations
       test "every tool's answer links to where it is on Northflank" do
         NorthflankApi.any_instance.stubs(logs: [], metrics: {}, builds: [], deployments: [], containers: [], build_logs: [],
                                          service: { "deployment" => {}, "healthChecks" => [] },
-                                         jobs: [ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ], job_runs: [], request: {})
+                                         jobs: listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]), job_runs: [], request: {})
         arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart" }
         links = Northflank.tool_definitions.to_h { |definition| [ definition.name.to_s, call(definition.name, arguments).lines.last ] }
 
@@ -239,7 +239,7 @@ module Integrations
         assert_match "Instances: 2, plan nf-compute-100-2", text
         assert_match "Runs https://github.com/acme/app, branch main, deployed commit c4e4267d", text
         assert_match "readinessProbe: HTTP port 80 /up, every 60s, timeout 10s, fails after 3 misses", text
-        assert_match "Ports: p01 80 HTTP, public", text
+        assert_match "Ports:\n  p01 80 HTTP, public", text
       end
 
       test "a service without health checks says what that costs" do
@@ -289,7 +289,7 @@ module Integrations
       end
 
       test "a job's runs are found by its name, and an unknown job says what to do" do
-        NorthflankApi.any_instance.stubs(:jobs).returns([ { "id" => "nightly", "name" => "Nightly export", "jobType" => "cron" } ])
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([ { "id" => "nightly", "name" => "Nightly export", "jobType" => "cron" } ]))
         NorthflankApi.any_instance.stubs(:job_runs).with("firefight", "nightly", limit: 20).returns([
           { "startedAt" => "2026-09-28T02:00:00Z", "concludedAt" => "2026-09-28T02:30:00Z", "status" => "FAILED", "failed" => 3 }
         ])
@@ -299,7 +299,7 @@ module Integrations
       end
 
       test "the project goes on the map with what its services build from and serve, and a list the token may not read is a gap" do
-        NorthflankApi.any_instance.stubs(:services).returns([ { "id" => "web" }, { "id" => "builder" } ])
+        NorthflankApi.any_instance.stubs(:services).returns(listed([ { "id" => "web" }, { "id" => "builder" } ]))
         NorthflankApi.any_instance.stubs(:service).with("firefight", "web").returns(
           "id" => "web", "name" => "web", "serviceType" => "deployment", "appId" => "/firefight-labs/firefight/web",
           "status" => { "deployment" => { "status" => "COMPLETED" } },
@@ -330,6 +330,20 @@ module Integrations
         assert_equal [ ResourceMap::KIND_JOB ], snapshot.unread_kinds, "jobs it could not read are not taken as gone"
       end
 
+      test "a list cut short at the page bound is a gap naming what it holds, so nothing past it is taken as gone" do
+        NorthflankApi.any_instance.stubs(:services).returns(listed([], complete: false))
+        NorthflankApi.any_instance.stubs(:addons).returns(listed([], complete: false))
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ "The project has more than 1000 services, so only the first 1000 are on the map.",
+                       "The project has more than 1000 databases, so only the first 1000 are on the map.",
+                       "The project has more than 1000 jobs, so only the first 1000 are on the map." ], snapshot.gap_texts
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_BUILD_SERVICE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY,
+                       ResourceMap::KIND_DATABASE, ResourceMap::KIND_JOB ], snapshot.unread_kinds
+      end
+
       test "a sweep that cannot reach Northflank leaves the map as it was and says why" do
         ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [
           ResourceMap::Found.new(provider: "northflank", account: "firefight-labs/firefight", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
@@ -349,6 +363,8 @@ module Integrations
       end
 
       private
+
+      def listed(items, complete: true) = Pages::Read.new(items: items, complete: complete)
 
       test "a week of metrics per service and database, grouped to Northflank's step, containers added up and counts made per minute" do
         web = ResourceMap::Resource.new(provider: "northflank", account: "firefight-labs/firefight", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")

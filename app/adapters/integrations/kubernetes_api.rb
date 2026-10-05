@@ -119,11 +119,11 @@ module Integrations
     def reaching
       yield
     rescue Unauthorized => error
-      raise Error, "#{Sentence.of(error)} The cluster did not accept the token. It may have expired."
+      raise Error, Sentence.all(error, "The cluster did not accept the token. It may have expired.")
     rescue Error => error
       raise unless error.message.include?(OpenSSL::SSL::SSLError.name)
 
-      raise Error, "#{Sentence.of(error)} The server's certificate is not signed by the CA certificate given, or does not name #{host}."
+      raise Error, Sentence.all(error, "The server's certificate is not signed by the CA certificate given, or does not name #{host}.")
     end
   end
 end

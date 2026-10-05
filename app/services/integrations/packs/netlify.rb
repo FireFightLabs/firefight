@@ -169,7 +169,7 @@ module Integrations
           resources << repository
           links << ResourceMap::FoundLink.new(from: resource.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
         end
-        gaps = read.incomplete? ? [ ResourceMap::Gap.new(text: "Only the first #{found.size} sites were read.", kinds: [ ResourceMap::KIND_SITE ]) ] : []
+        gaps = read.incomplete? ? [ ResourceMap::Gap.new(text: "Only the first #{found.size} sites were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ]) ] : []
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
       end
 

@@ -34,7 +34,7 @@ module Integrations
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
         name = fields[COMPUTER].to_s
-        return "Paste a Factory API key." if key.empty?
+        return "Paste an API key." if key.empty?
         return "Enter the Droid Computer's name." if name.empty?
 
         computer_refusal(FactoryApi.new(key, region&.key).computer_named(name), name)

@@ -33,7 +33,7 @@ module Integrations
           { "id" => "4242", "name" => "worker-1", "status" => "RUNNING", "zone" => "https://www.googleapis.com/compute/v1/projects/acme-prod/zones/us-central1-a",
             "selfLink" => "https://www.googleapis.com/compute/v1/#{VM_ID}", "machineType" => ".../machineTypes/e2-medium" }
         ]))
-        GoogleCloudApi.any_instance.stubs(:clusters).returns([ { "name" => "apps", "location" => "europe-west1", "status" => "RUNNING", "currentMasterVersion" => "1.33" } ])
+        GoogleCloudApi.any_instance.stubs(:clusters).returns(reached([ { "name" => "apps", "location" => "europe-west1", "status" => "RUNNING", "currentMasterVersion" => "1.33" } ]))
       end
 
       test "only the key is a credential, stored trimmed with the token minted before dropped, and only the three changes are not read only" do
@@ -202,6 +202,29 @@ module Integrations
         assert_match "Compute Engine instances could not be read", snapshot.gap_texts.first
       end
 
+      test "a zone Google Cloud could not reach is a gap, so its machines and clusters are not taken as gone" do
+        GoogleCloudApi.any_instance.stubs(:compute_instances).returns(reached([], unreachable: [ "us-east1-b" ]))
+        GoogleCloudApi.any_instance.stubs(:clusters).returns(reached([], unreachable: [ "europe-west1-c" ]))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_VIRTUAL_MACHINE, ResourceMap::KIND_CLUSTER ], snapshot.unread_kinds
+        assert_includes snapshot.gap_texts, "Google Cloud could not reach us-east1-b, so the Compute Engine instances there were not read."
+        assert_includes snapshot.gap_texts, "Google Cloud could not reach europe-west1-c, so the GKE clusters there were not read."
+      end
+
+      test "a Cloud Run list that could not be read holds back the addresses its services serve, and a stopped Cloud SQL instance reads stopped" do
+        GoogleCloudApi.any_instance.stubs(:run_locations).raises(GoogleCloudApi::Forbidden, "Google Cloud answered 403: Cloud Run Admin API has not been used")
+        GoogleCloudApi.any_instance.stubs(:sql_instances).returns(pages([
+          { "name" => "orders", "connectionName" => SQL_ID, "region" => "us-central1", "state" => "RUNNABLE", "settings" => { "activationPolicy" => "NEVER" } }
+        ]))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
+        assert_equal "stopped", snapshot.resources.find { |resource| resource.external_id == SQL_ID }.status
+      end
+
       test "two resources of one name are refused rather than one chosen, and a list cut short is a gap with its kind unread" do
         other = SERVICE.merge("name" => "projects/acme-prod/locations/europe-west1/services/web")
         GoogleCloudApi.any_instance.stubs(:run_locations).returns(pages([ { "locationId" => "us-central1" }, { "locationId" => "europe-west1" } ]))
@@ -241,6 +264,8 @@ module Integrations
       private
 
       def pages(items, complete: true) = Integrations::Pages::Read.new(items: items, complete: complete)
+
+      def reached(items, unreachable: []) = GoogleCloudApi::Reached.new(items: items, complete: unreachable.empty?, unreachable: unreachable)
 
       def call(tool, arguments = {})
         GoogleCloud.new(@integration).call(tool.to_s, environment_row: @row, arguments: arguments)["content"].map { |part| part["text"] }.join("\n")

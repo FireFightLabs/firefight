@@ -335,7 +335,7 @@ module Integrations
         reading = MapReading.new(account)
         gaps = []
         services = api.services(account)
-        bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ], gaps)
+        bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ], gaps)
         services.items.each do |service|
           deploy = begin
             api.deploys(service["id"], limit: 1).first

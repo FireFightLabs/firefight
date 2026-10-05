@@ -19,7 +19,7 @@ module Integrations
         refused!(LIST_PROJECTS, result)
 
         body = Capabilities::Answers.data(result)
-        raise Refused, "Honeybadger answered its projects in a shape Firefight does not know." unless body.is_a?(Hash) && body["results"].is_a?(Array)
+        raise Refused, "Honeybadger answered its projects in a shape Firefight does not read." unless body.is_a?(Hash) && body["results"].is_a?(Array)
 
         projects = body["results"].filter_map { |project| { "id" => project["id"], "name" => project["name"] } if project.is_a?(Hash) && project["id"] }
         projects.first(MAX_PROJECTS).each { |project| project["sites"] = sites(project["id"]) }
@@ -28,7 +28,7 @@ module Integrations
 
       private
 
-      # A project's uptime sites. None when get_project is off, refuses, or answers in a shape Firefight does not know.
+      # A project's uptime sites. None when get_project is off, refuses, or answers in a shape Firefight does not read.
       def sites(id)
         result = call(GET_PROJECT, { "id" => id })
         body = result && !result["isError"] ? Capabilities::Answers.data(result) : nil

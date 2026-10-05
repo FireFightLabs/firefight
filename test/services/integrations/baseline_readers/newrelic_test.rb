@@ -54,7 +54,7 @@ module Integrations
         McpClient.any_instance.expects(:call_tool).never
         @row.store_fields!({})
         BaselineSweep.run!(@row, now: NOW)
-        assert_match "give its account ID", @row.reload.baseline_error
+        assert_match "give its account id", @row.reload.baseline_error
 
         @row.store_fields!("account_id" => "1234567")
         @nrql.update!(enabled: false)

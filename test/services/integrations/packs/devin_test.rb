@@ -4,7 +4,7 @@ module Integrations
   module Packs
     class DevinTest < ActiveSupport::TestCase
       ARGUMENTS = { "repo" => "acme/web", "title" => "Stop the checkout timeout", "brief" => "Checkout times out after the deploy.",
-                    "summary" => "Raise the timeout to what the gateway allows" }.freeze
+                    "summary" => "Raise the timeout to what the gateway allows." }.freeze
 
       setup do
         @workspace = workspaces(:slack_workspace_one)
@@ -35,7 +35,7 @@ module Integrations
         DevinApi.any_instance.expects(:create_session).with do |body|
           body["title"] == "Stop the checkout timeout" && body["max_acu_limit"] == 5 &&
             body["prompt"].start_with?("Fix this in the repository acme/web.") && body["prompt"].include?("Checkout times out after the deploy.") &&
-            body["prompt"].include?("Its description says what it does and why: Raise the timeout to what the gateway allows.")
+            body["prompt"].include?("Its description says what it does and why: Raise the timeout to what the gateway allows. Keep logs") && !body["prompt"].include?("..")
         end.returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
         DevinApi.any_instance.stubs(:session).returns(session("running", "working"))
                 .then.returns(session("running", "waiting_for_user", prs: [ "https://github.com/acme/web/pull/7" ], acus: 2.345))

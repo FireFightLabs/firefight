@@ -9,6 +9,10 @@ module Integrations
       rows.size
     end
 
+    # What a connection says when its sweep failed in a way no provider explained, such as an answer Firefight could not read.
+    UNEXPECTED = "Firefight could not read this connection onto the map because of an unexpected error, so the map keeps " \
+                 "what it had. It tries again at the next hourly sweep.".freeze
+
     # Whether the hourly schedule should sweep it now. The slack keeps a daily reader from slipping to the next day.
     SLACK = 10.minutes
 

@@ -69,11 +69,28 @@ module Integrations
         assert_equal Neon::ALL_KINDS.sort, snapshot.unread_kinds.sort
       end
 
+      test "an answer in a shape the reader does not know is a gap naming what that list holds, and a wrapped list is read like a bare one" do
+        snapshot = Neon.new do |tool, _arguments|
+          next result({ "branches" => BRANCHES }) if tool == Neon::LIST_BRANCHES
+          next result({ "unexpected" => true }) if tool == Neon::LIST_COMPUTES
+
+          answer(tool)
+        end.map
+
+        assert_equal 2, snapshot.resources.count { |found| found.kind == ResourceMap::KIND_BRANCH }
+        assert_includes snapshot.gap_texts, "Neon answered the computes of shop in a shape Firefight does not read."
+        assert_equal [ ResourceMap::KIND_COMPUTE ], snapshot.unread_kinds
+
+        projects = Neon.new { |tool, _arguments| tool == Neon::LIST_PROJECTS ? result({ "projects" => "none" }) : answer(tool) }.map
+        assert_empty projects.resources
+        assert_equal Neon::ALL_KINDS.sort, projects.unread_kinds.sort
+      end
+
       test "Neon's own words read as Firefight's" do
         words = Integrations::Provider.for(Neon::PROVIDER)
 
         { "idle" => ResourceMap::Resource::HEALTH_OK, "init" => ResourceMap::Resource::HEALTH_BUSY, "disabled" => ResourceMap::Resource::HEALTH_BUSY,
-          "archived" => ResourceMap::Resource::HEALTH_BUSY, "active" => ResourceMap::Resource::HEALTH_OK, Neon::LISTED => ResourceMap::Resource::HEALTH_OK }.each do |word, health|
+          "archived" => ResourceMap::Resource::HEALTH_OK, "active" => ResourceMap::Resource::HEALTH_OK, Neon::LISTED => ResourceMap::Resource::HEALTH_OK }.each do |word, health|
           assert_equal health, ResourceMap::Resource.new(status: words.status_of(word)).health, word
         end
       end

@@ -18,6 +18,8 @@ module Integrations
     SCHEME = /\A(?:FlyV1|Bearer)\s+/i
     APPS_PAGE = 1000
     APP_PAGES = 5
+    CERTIFICATES_PAGE = 500
+    CERTIFICATE_PAGES = 5
     STARTED = "started".freeze
     # Fly waits at most 60 seconds (spec, wait timeout), and a machine that boots slower than this is reported as not up.
     WAIT_SECONDS = 50
@@ -54,7 +56,13 @@ module Integrations
 
     def machines(app_name) = Array(machines_get("/apps/#{segment(app_name)}/machines"))
 
-    def certificates(app_name) = Array(machines_get("/apps/#{segment(app_name)}/certificates", "limit" => 500)["certificates"])
+    # Every certificate of an app, as a Pages::Read, a page at a time from next_cursor (spec, GET /v1/apps/{app_name}/certificates).
+    def certificates(app_name)
+      Pages.read(max_pages: CERTIFICATE_PAGES) do |cursor|
+        answer = machines_get("/apps/#{segment(app_name)}/certificates", "limit" => CERTIFICATES_PAGE, "cursor" => cursor)
+        [ Array(answer["certificates"]), answer["next_cursor"].presence ]
+      end
+    end
 
     def postgres_clusters(org_slug) = Array(machines_get("/postgres", "org_slug" => org_slug)["data"])
 
@@ -113,8 +121,8 @@ module Integrations
       request["Content-Type"] = "application/json"
       request.body = { query: query, variables: variables }.to_json
       answer = send_request(uri, request)
-      errors = Array(answer["errors"]).filter_map { |error| error["message"] }
-      raise Error, "Fly answered: #{errors.join('. ')}" if errors.any? && answer["data"].blank?
+      errors = Array(answer["errors"]).filter_map { |error| Sentence.clean(error["message"]) }
+      raise Error, "Fly answered: #{errors.join(', ')}." if errors.any? && answer["data"].blank?
 
       answer["data"] || {}
     end
