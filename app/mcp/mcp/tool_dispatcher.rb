@@ -22,8 +22,10 @@ module Mcp
         workspace: workspace,
         params: args.except(APPROVAL_ID_ARG),
         context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
-      ) do
-        run(tool: tool, workspace: workspace, principal: server_context[:principal], args: args)
+      ) do |authorization|
+        answered = run(tool: tool, workspace: workspace, principal: server_context[:principal], args: args)
+        authorization.answer_failed!(text_of(answered)) if answered.error?
+        answered
       end
       log_call(tool_name, server_context, started_at)
       response
@@ -54,6 +56,15 @@ module Mcp
       when ActiveRecord::RecordInvalid then error_response(error.record.errors.full_messages.to_sentence)
       else error_response(error.message)
       end
+    end
+
+    def self.text_of(response) = Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n")
+
+    # A connected tool that answers with its own error ran, and failed, so the ledger says so.
+    def self.ledger_failure(authorization, answer)
+      return unless answer["isError"] == true
+
+      authorization.answer_failed!(Array(answer["content"]).filter_map { |part| part["text"] }.join("\n"))
     end
 
     def self.error_response(message)

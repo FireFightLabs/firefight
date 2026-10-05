@@ -72,6 +72,49 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
     assert_match(/From northflank:\n.*Northflank is down/m, response.content.first[:text])
   end
 
+  test "a provider that answers with its own error fails the call and is ledgered as an error" do
+    Integrations::NativeExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "Service web-id is paused" } ], "isError" => true)
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    assert response.error?
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: "northflank.search_logs")
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, "Service web-id is paused" ], [ invocation.outcome, invocation.error_summary ]
+  end
+
+  test "Datadog answering with its own error falls back to the platform, which answers, so the call has not failed" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                          params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+    Integrations::McpExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "Invalid query" } ], "isError" => true)
+    Integrations::NativeExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    assert_not response.error?
+    assert_equal [ "datadog failed (Invalid query), so this is from northflank.", "northflank lines" ], response.content.map { |part| part[:text] || part["text"] }
+    outcomes = Ability::Invocation.where(workspace: @workspace).pluck(:action_key, :outcome).to_h
+    assert_equal({ "datadog.search_datadog_logs" => Ability::Invocation::OUTCOME_ERROR, "northflank.search_logs" => Ability::Invocation::OUTCOME_SUCCESS }, outcomes)
+  end
+
+  test "under connection all a provider's own error counts as failing, so the answer is an error only when every one failed" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                          params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+    Integrations::McpExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Invalid query" } ], "isError" => true)
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+    server_context = { workspace: @workspace, principal: @alice }
+
+    assert_not Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, server_context, { resource: "web", connection: "all" }).error?
+
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Service web-id is paused" } ], "isError" => true)
+    assert Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, server_context, { resource: "web", connection: "all" }).error?
+  end
+
   test "a resource nothing holds is said, not sent" do
     response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "checkout" })
 

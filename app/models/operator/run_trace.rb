@@ -94,13 +94,14 @@ module Operator
       run.steps.includes(:invocation).map do |step|
         invocation = step.invocation
         denied = denied?(step)
-        failed = step.status == Investigation::Step::STATUS_FAILED
+        # A tool that answered with its own error ran, so its step holds what it said, and the ledger row says it failed.
+        failed = step.status == Investigation::Step::STATUS_FAILED || invocation&.outcome == Ability::Invocation::OUTCOME_ERROR
         Trace.span(
           key: "tool-#{step.id}", kind: KIND_TOOL, title: step.tool_name || step.action_key.to_s,
           started_at: step.started_at || step.created_at, ended_at: step.completed_at,
           tone: failed || denied ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_OK,
           detail: [ decision_word(step), Trace.seconds(step.started_at, step.completed_at), Trace.size(step.raw_result),
-                    (step.error_summary unless denied?(step)) ].compact.join(" · "),
+                    (step.error_summary || invocation&.error_summary unless denied?(step)) ].compact.join(" · "),
           facts: [
             [ "Step", step.position ], [ "Action", step.action_key ], [ "Decision", decision_word(step, whole: true) ],
             [ "As", invocation&.principal_label ], [ "Scope", invocation&.scope.presence&.to_json ],

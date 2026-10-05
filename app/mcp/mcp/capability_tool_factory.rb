@@ -85,11 +85,13 @@ module Mcp
       result = AbilityGateway.authorize!(
         principal: server_context[:principal], action_key: tool.action_key, workspace: workspace, scope: call.scope,
         params: call.arguments, context: { source: AbilityGateway::SOURCE_MCP, approval_id: approval_id }
-      ) do
+      ) do |authorization|
         answer = tool.integration.executor.call(
           tool: tool, environment_row: call.environment_row, arguments: call.arguments, box_key: server_context[:principal].code_box_key
         )
-        call.present_result(answer)
+        presented = call.present_result(answer)
+        ToolDispatcher.ledger_failure(authorization, presented)
+        presented
       end
       ToolDispatcher.log_call(tool.action_key, server_context, started_at)
 

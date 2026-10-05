@@ -68,6 +68,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
 
     step = plan.steps.reload.sole
     assert_equal [ "rollback", "cloudflare.execute", "failed" ], [ step.tool_name, step.action_key, step.status ]
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, "Error: version not found" ], [ step.invocation.outcome, step.invocation.error_summary ]
   end
 
   test "marking a person's step done lets what waits on it run, and the fix settles once every step ended" do
@@ -138,6 +139,15 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
 
     assert_equal "New token [REDACTED:github_token] created", @plan.steps.first.reload.result
+  end
+
+  test "a tool that answers with its own error is ledgered as one, with its first line and never a credential it named" do
+    Integrations::McpExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Token ghp_#{'a' * 36} lacks zone edit\nmore detail" } ], "isError" => true)
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
+
+    invocation = @plan.steps.first.reload.invocation
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, "Token [REDACTED:github_token] lacks zone edit" ], [ invocation.outcome, invocation.error_summary ]
   end
 
   test "a step never stays running: an error before the call fails it, a lost worker is given up on, and a gone applier is said" do

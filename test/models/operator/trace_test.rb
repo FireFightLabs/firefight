@@ -32,6 +32,22 @@ class Operator::TraceTest < ActiveSupport::TestCase
     assert_match "active | 96", trace.body_for(span.key)
   end
 
+  test "a tool that answered with its own error reads as failed, with the ledger's summary of what it said" do
+    invocation = Ability::Invocation.create!(
+      workspace: @workspace, principal: SystemAgent.investigator, principal_label: "Firefight Investigator", action_key: "datadog.logs_query",
+      idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW, outcome: Ability::Invocation::OUTCOME_ERROR,
+      error_summary: "Invalid query", duration_ms: 80, source: AbilityGateway::SOURCE_INVESTIGATION
+    )
+    step = @run.steps.create!(position: 1, tool_name: "datadog_logs_query", action_key: "datadog.logs_query", status: Investigation::Step::STATUS_SUCCEEDED,
+                              invocation: invocation, started_at: @started, completed_at: @started + 1.second, raw_result: "Invalid query")
+
+    span = Operator::RunTrace.new(@run).spans.find { |candidate| candidate.key == "tool-#{step.id}" }
+
+    assert_equal Operator::IncidentProcess::TONE_BAD, span.tone
+    assert_match "Invalid query", span.detail
+    assert_includes span.facts, [ "Error", "Invalid query" ]
+  end
+
   test "a call with no ledger row says what it was, never that it was replayed when the run is not a replay" do
     read = @run.steps.create!(position: 1, tool_name: "get_incident", action_key: "incidents.read", status: Investigation::Step::STATUS_SUCCEEDED,
                               started_at: @started, completed_at: @started + 1.second)
