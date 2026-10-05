@@ -91,7 +91,142 @@ module Integrations
                        text_of(@pack.ci_status(environment_row: @row, arguments: { "repo" => "acme/web", "branch" => "main" }))
         end
 
+        test "rerunning, starting and canceling a run are changes, so they arrive switched off and go through the gateway as writes" do
+          changes = Github.tool_definitions.select { |definition| %w[rerun_workflow run_workflow cancel_workflow].include?(definition.name) }
+
+          assert_equal 3, changes.size
+          assert changes.none?(&:read_only)
+        end
+
+        test "a finished run runs again, only its failed jobs when asked, with its page and how to follow it" do
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", "failure").merge("run_attempt" => 1))
+          GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/rerun-failed-jobs", {}, token: "ghs_token").returns({})
+
+          result = @pack.rerun_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41, "failed_only" => true })
+
+          assert_includes text_of(result), "CI run 7 (41) in acme/web runs again as attempt 2, its failed jobs and the jobs that depend on them, on main at #{'a' * 12}. " \
+                                           "workflow_jobs with its run_id, or ci_status, follows it."
+          assert text_of(result).end_with?("https://github.com/acme/web/actions/runs/41")
+
+          GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/rerun", {}, token: "ghs_token").returns({})
+          assert_includes text_of(@pack.rerun_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41 })), "every job"
+        end
+
+        test "a run still going, or one that passed when only failed jobs are asked, is not run again" do
+          GithubApp.expects(:act).never
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", nil).merge("status" => "in_progress"))
+          assert_equal "CI run 7 (41) in acme/web is still in_progress, so it cannot run again until it finishes. cancel_workflow stops it.",
+                       assert_raises(NativePack::Error) { @pack.rerun_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41 }) }.message
+
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/42", token: "ghs_token").returns(workflow_run(42, "CI", "success"))
+          assert_match "passed, so it has no failed jobs to run again",
+                       assert_raises(NativePack::Error) { @pack.rerun_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 42, "failed_only" => true }) }.message
+        end
+
+        test "GitHub refusing for a missing permission is said with the permission to grant" do
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", "failure"))
+          GithubApp.stubs(:act).raises(GithubApp::NotPermitted, "GitHub answered 403: Resource not accessible by integration")
+
+          error = assert_raises(NativePack::Error) { @pack.rerun_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41 }) }
+
+          assert_equal "GitHub refused to run acme/web run 41 again: GitHub answered 403: Resource not accessible by integration. Firefight's GitHub App " \
+                       "needs the Actions: read and write permission on this installation for that. An owner of the GitHub account grants it under " \
+                       "Settings, GitHub Apps, by accepting the App's new permissions.", error.message
+        end
+
+        test "a workflow is started by hand on a ref with the inputs it declares, and the run it started is linked" do
+          stub_workflow(DISPATCHABLE)
+          GithubApp.expects(:act).with("/repos/acme/web/actions/workflows/7/dispatches",
+                                       { ref: "main", inputs: { "environment" => "staging", "dry_run" => "true" }, return_run_details: true }, token: "ghs_token")
+                   .returns("workflow_run_id" => 99, "html_url" => "https://github.com/acme/web/actions/runs/99")
+
+          result = @pack.run_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "workflow" => ".github/workflows/deploy.yml",
+                                                                          "inputs" => { "environment" => "staging", "dry_run" => true } })
+
+          assert_includes text_of(result), "Started Deploy (.github/workflows/deploy.yml) on main in acme/web with environment staging, dry_run true, as run 99. " \
+                                           "workflow_jobs with its run_id, or ci_status, follows it."
+          assert text_of(result).end_with?("https://github.com/acme/web/actions/runs/99")
+        end
+
+        test "a dispatch GitHub answers without the run's details says how to find it" do
+          stub_workflow(DISPATCHABLE)
+          GithubApp.stubs(:act).returns({})
+
+          assert_equal "Started Deploy (.github/workflows/deploy.yml) on main in acme/web with environment production. GitHub did not say which run it is, " \
+                       "so workflow_runs with event workflow_dispatch finds it.",
+                       @pack.run_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "workflow" => "deploy.yml", "inputs" => { "environment" => "production" } })
+        end
+
+        test "a workflow without a workflow_dispatch trigger, or inputs it does not declare, is refused before anything is started" do
+          GithubApp.expects(:act).never
+          stub_workflow("name: Deploy\non:\n  push:\n    branches: [main]\n")
+          assert_equal "Deploy (.github/workflows/deploy.yml) has no workflow_dispatch trigger on main, so it cannot be started by hand. It runs on the events it names.",
+                       assert_raises(NativePack::Error) { run_deploy }.message
+
+          stub_workflow(DISPATCHABLE)
+          assert_equal "Deploy (.github/workflows/deploy.yml) declares no input region. It declares environment and dry_run.",
+                       assert_raises(NativePack::Error) { run_deploy("environment" => "staging", "region" => "eu") }.message
+          assert_equal "Deploy (.github/workflows/deploy.yml) needs input environment, which has no default.", assert_raises(NativePack::Error) { run_deploy }.message
+          assert_equal "environment must be one of staging, production", assert_raises(NativePack::Error) { run_deploy("environment" => "dev") }.message
+          assert_equal "dry_run must be true or false", assert_raises(NativePack::Error) { run_deploy("environment" => "staging", "dry_run" => "maybe") }.message
+        end
+
+        test "a bare on read as true by YAML, and a list of events, both name the trigger" do
+          stub_workflow("name: Deploy\non: [push, workflow_dispatch]\n")
+          GithubApp.expects(:act).with("/repos/acme/web/actions/workflows/7/dispatches", { ref: "main", return_run_details: true }, token: "ghs_token").returns({})
+
+          assert_match "Started Deploy", run_deploy
+        end
+
+        test "a disabled workflow is not started" do
+          GithubApp.expects(:act).never
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/workflows/deploy.yml", token: "ghs_token")
+                   .returns("id" => 7, "name" => "Deploy", "path" => ".github/workflows/deploy.yml", "state" => "disabled_manually")
+
+          assert_equal "Deploy (.github/workflows/deploy.yml) in acme/web is disabled manually, so it cannot be started. A person enables it in GitHub.",
+                       assert_raises(NativePack::Error) { run_deploy }.message
+        end
+
+        test "a running run is canceled with its page, and a finished one is left as it is" do
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "Deploy", nil).merge("status" => "in_progress"))
+          GithubApp.expects(:act).with("/repos/acme/web/actions/runs/41/cancel", token: "ghs_token").returns({})
+
+          result = @pack.cancel_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41 })
+
+          assert_includes text_of(result), "Canceling Deploy run 7 (41) in acme/web on main at #{'a' * 12}."
+          assert text_of(result).end_with?("https://github.com/acme/web/actions/runs/41")
+
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/42", token: "ghs_token").returns(workflow_run(42, "Deploy", "success"))
+          assert_equal "Deploy run 7 (42) in acme/web already finished, success, so there is nothing to cancel.",
+                       assert_raises(NativePack::Error) { @pack.cancel_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 42 }) }.message
+        end
+
         private
+
+        DISPATCHABLE = <<~YAML.freeze
+          name: Deploy
+          on:
+            workflow_dispatch:
+              inputs:
+                environment:
+                  required: true
+                  type: choice
+                  options: [staging, production]
+                dry_run:
+                  type: boolean
+                  default: false
+        YAML
+
+        def stub_workflow(file)
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/workflows/deploy.yml", token: "ghs_token")
+                   .returns("id" => 7, "name" => "Deploy", "path" => ".github/workflows/deploy.yml", "state" => "active")
+          GithubApp.stubs(:get).with("/repos/acme/web", token: "ghs_token").returns("default_branch" => "main")
+          GithubApp.stubs(:get).with("/repos/acme/web/contents/.github/workflows/deploy.yml?ref=main", token: "ghs_token").returns("content" => Base64.encode64(file))
+        end
+
+        def run_deploy(inputs = nil)
+          @pack.run_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "workflow" => "deploy.yml", "inputs" => inputs }.compact)
+        end
 
         def text_of(result) = result.is_a?(Hash) ? result["content"].map { |part| part["text"] }.join("\n") : result
 

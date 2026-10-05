@@ -4,3 +4,4 @@ ci/job-logs.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/jobs/job
 environments/environments.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/environments/_index.md
 environments/deployments.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/environments/deployments.md
 environments/deployment-safety.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/environments/deployment_safety.md
+ci/pipelines.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/pipelines/_index.md

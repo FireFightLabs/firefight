@@ -53,6 +53,17 @@ module Integrations
       assert_raises(Integrations::RateLimited) { @api.get("/repositories/acme") }
     end
 
+    test "a change is posted as JSON with the token, and an answer with no body counts as done" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.to_s == "https://api.bitbucket.org/2.0/repositories/acme/web/pipelines/" && request.method == "POST" &&
+          request["Authorization"] == "Bearer bb-token" && JSON.parse(request.body) == { "target" => { "ref_name" => "main" } }
+      end.returns(response(201, { build_number: 8 }))
+      assert_equal 8, @api.post("/repositories/acme/web/pipelines/", "target" => { "ref_name" => "main" })["build_number"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path.end_with?("/stopPipeline") && request.body.nil? }.returns(stub(code: "204", body: ""))
+      assert_equal({}, @api.post("/repositories/acme/web/pipelines/%7Bp%7D/stopPipeline"))
+    end
+
     test "a path keeps its slashes and escapes the rest" do
       assert_equal "infra/my%20file%23.tf", BitbucketApi.path("infra/my file#.tf")
     end

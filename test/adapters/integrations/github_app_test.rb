@@ -112,5 +112,20 @@ module Integrations
       Http.stubs(:request).returns(redirect)
       assert_match "private network", assert_raises(GithubApp::Error) { GithubApp.download("/repos/acme/web/actions/jobs/9/logs", token: "ghs_token") }.message
     end
+
+    test "a change marks a missing permission apart from any other refusal, and an answer with no body counts as done" do
+      Http.stubs(:request).returns(stub(code: "403", body: { message: "Resource not accessible by integration" }.to_json))
+      assert_raises(GithubApp::NotPermitted) { GithubApp.act("/repos/acme/web/actions/runs/41/cancel", token: "ghs_token") }
+
+      Http.stubs(:request).returns(stub(code: "409", body: { message: "Cannot cancel a workflow run that is completed." }.to_json))
+      error = assert_raises(GithubApp::Error) { GithubApp.act("/repos/acme/web/actions/runs/42/cancel", token: "ghs_token") }
+      assert_not_kind_of GithubApp::NotPermitted, error
+      assert_equal "GitHub answered 409: Cannot cancel a workflow run that is completed.", error.message
+
+      Http.expects(:request).with do |uri, request, **|
+        uri.to_s == "https://api.github.com/repos/acme/web/actions/runs/43/rerun" && request.body == "{}" && request["Authorization"] == "Bearer ghs_token"
+      end.returns(stub(code: "201", body: ""))
+      assert_equal({}, GithubApp.act("/repos/acme/web/actions/runs/43/rerun", {}, token: "ghs_token"))
+    end
   end
 end

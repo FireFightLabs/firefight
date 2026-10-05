@@ -49,7 +49,7 @@ providers:
     category: Code
     mark: GH
     color: "#24292f"
-    description: Correlate incidents with recent pull requests and commits from your repositories.
+    description: Correlate incidents with recent pull requests, commits and GitHub Actions runs from your repositories, and rerun, start or cancel a workflow when you allow it.
     server_url: ""
     kind: native
     site: https://github.com
@@ -61,7 +61,7 @@ providers:
     category: Code
     mark: GL
     color: "#fc6d26"
-    description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab.
+    description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab, and retry, run or cancel a pipeline when you allow it.
     # GitLab's own MCP server stays available from the connect dialog, and connections made through it keep running.
     server_url: https://gitlab.com/api/v4/mcp
     site: https://gitlab.com
@@ -82,7 +82,7 @@ providers:
     category: Code
     mark: BB
     color: "#0052cc"
-    description: Pull requests, deployments, pipelines and code of the repositories in a Bitbucket workspace.
+    description: Pull requests, deployments, pipelines and code of the repositories in a Bitbucket workspace, and rerun, run or stop a pipeline when you allow it.
     # Atlassian's MCP server reaches Bitbucket only for a workspace linked to an organization, and cannot fetch code.
     server_url: ""
     site: https://bitbucket.org

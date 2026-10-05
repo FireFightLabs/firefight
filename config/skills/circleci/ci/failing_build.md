@@ -9,3 +9,4 @@ tools: [list_runs, get_run, list_workflows, list_jobs, get_job, get_job_logs, li
 4. When the failed step ran tests, call `list_job_tests` for the job. It returns the failing tests with their messages, and `all` adds the ones that passed or were skipped, which shows whether a test that failed here usually passes.
 5. Call `list_artifacts` when the logs point at a report the job saved, such as test results or coverage.
 6. Say the job, the step, the error in its own words and what it means: a failing test, a dependency that would not install, a missing secret or a setting in the config, or the machine running out of memory or time.
+7. Never rerun while investigating. When what failed is not the code, such as a flaky test, a timeout or a service that has since come back, propose a rerun of the failed jobs and say why. When it is the code, propose a fix instead. Load circleci_rerun once the person wants it, since a rerun asks them first.
