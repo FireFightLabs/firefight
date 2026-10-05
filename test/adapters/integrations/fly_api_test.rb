@@ -52,6 +52,18 @@ module Integrations
       assert_equal "Fly answered 401: unauthorized", assert_raises(FlyApi::Error) { FlyApi.new("t").app("web") }.message
     end
 
+    test "the app list is read a page at a time from next_cursor" do
+      Http.expects(:request).with { |uri, *| !URI.decode_www_form(uri.query).to_h.key?("cursor") }
+          .returns(stub(code: "200", body: { apps: [ { name: "web" } ], next_cursor: "n1" }.to_json))
+      Http.expects(:request).with { |uri, *| URI.decode_www_form(uri.query).to_h["cursor"] == "n1" }
+          .returns(stub(code: "200", body: { apps: [ { name: "api" } ] }.to_json))
+
+      read = FlyApi.new("t").app_list("acme")
+
+      assert_equal %w[web api], read.items.map { |app| app["name"] }
+      assert_not read.incomplete?
+    end
+
     private
 
     def response(code, body)

@@ -175,7 +175,7 @@ module Integrations
         environment_in(RailwayApi.new(token).project(project), environment)
         nil
       rescue RailwayApi::Error => error
-        "Railway refused this token or project. #{error.message}"
+        Sentence.join("Railway refused this token or project", error.message.delete_prefix("Railway refused this: "))
       rescue NativePack::Error => error
         error.message
       end
@@ -187,8 +187,8 @@ module Integrations
       # The project's environment named by its id or name, or a refusal that lists the ones there are.
       def self.environment_in(project, asked)
         environments = Array(project&.dig("environments", "edges")).filter_map { |edge| edge["node"] }
-        found = environments.find { |each| each["id"] == asked } || environments.find { |each| each["name"].to_s.casecmp?(asked) }
-        found || raise(NativePack::Error, "The project has no environment called #{asked}. It has #{environments.map { |each| each['name'] }.join(', ').presence || 'none'}.")
+        rows = environments.map { |each| { id: each["id"], name: each["name"], environment: each } }
+        Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER)&.dig(:environment) || raise(NativePack::Error, "The project has no environment called #{asked}. It has #{environments.map { |each| each['name'] }.join(', ').presence || 'none'}.")
       end
 
       def list_resources(environment_row:, arguments:)
@@ -318,8 +318,8 @@ module Integrations
         listed = instances(environment_row)
         return ResourceMap::Snapshot.new(resources: found, links: links) unless listed.incomplete?
 
-        ResourceMap::Snapshot.new(resources: found, links: links, gaps: [ "Only the first #{listed.items.size} services were read." ],
-                                  unread_kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN ])
+        gap = ResourceMap::Gap.new(text: "Only the first #{listed.items.size} services were read.", kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN ])
+        ResourceMap::Snapshot.new(resources: found, links: links, gaps: [ gap ])
       end
 
       # What normal looks like for its services and databases: a week of CPU and memory, one reading an hour. A resource
@@ -384,12 +384,15 @@ module Integrations
       # The environment's service instances, as a Pages::Read that says whether they were read to the end.
       def instances(environment_row) = @instances ||= api(environment_row).service_instances(project_of(environment_row), environment(environment_row)["id"])
 
+      # A count per step as a count per minute, so a live reading can be compared with a baseline.
+      def per_minute(points, step_seconds) = points.map { |at, value| [ at, value * 60.0 / step_seconds ] }
+
       def engine_of(image) = ENGINES.find { |_, words| words.any? { |word| image.to_s.downcase.include?(word) } }&.first
 
       def find_resource(environment_row, asked)
         fail! "Say which service, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Hosting.named(resources(environment_row), asked) || fail!("Nothing called #{asked} in this environment. list_resources shows what there is.")
+        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER) || fail!("Nothing called #{asked} in this environment. list_resources shows what there is.")
       end
 
       # The service page, as the CLI prints it (railwayapp/cli, src/commands/up.rs). Railway documents no address for a
@@ -491,18 +494,16 @@ module Integrations
           matching = groups.select { |group| digit.nil? || group["statusCode"].to_s.start_with?(digit) }
           summed = matching.flat_map { |group| points(group["samples"]) }.group_by(&:first).map { |at, pairs| [ at, pairs.sum(&:last) ] }.sort_by(&:first)
           Telemetry::Chart.new(title: "#{title} of #{resource[:name]}", unit: PER_MINUTE,
-                               series: [ Telemetry::Series.new(label: resource[:name], points: Hosting.per_minute(summed, sample)) ],
+                               series: [ Telemetry::Series.new(label: resource[:name], points: per_minute(summed, sample)) ],
                                from: started, to: ended, link: page.url)
         end
       end
 
-      # ts is an Int the schema gives no unit for. It is read as Unix seconds, and as milliseconds when it is too large to be.
+      # ts is an Int the schema gives no unit for, read by its size as seconds or a finer unit.
       def points(values)
         Array(values).filter_map do |point|
-          ts = point["ts"]
-          next if ts.nil? || point["value"].nil?
-
-          [ Time.zone.at(ts > 1e11 ? ts / 1000.0 : ts).utc, point["value"].to_f ]
+          at = Capabilities::Answers.time_of(point["ts"])
+          [ at, point["value"].to_f ] if at && !point["value"].nil?
         end.sort_by(&:first)
       end
 

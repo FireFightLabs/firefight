@@ -203,7 +203,7 @@ module Integrations
         RenderApi.new(key).owner(workspace)
         nil
       rescue RenderApi::Error => error
-        "Render refused this key or workspace. #{error.message}"
+        Sentence.join("Render refused this key or workspace", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -334,16 +334,15 @@ module Integrations
         account = workspace_of(environment_row)
         reading = MapReading.new(account)
         gaps = []
-        unread = []
         services = api.services(account)
-        bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ], gaps, unread)
+        bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ], gaps)
         services.items.each do |service|
           deploy = begin
             api.deploys(service["id"], limit: 1).first
           rescue Integrations::RateLimited
             raise
           rescue RenderApi::Error => error
-            gaps << "The latest deploy of #{service['name']} could not be read: #{error.message}"
+            gaps << ResourceMap::Gap.new(text: Sentence.join("The latest deploy of #{service['name']} could not be read", error), kinds: [])
             nil
           end
           found = reading.service(service, deploy)
@@ -351,27 +350,24 @@ module Integrations
 
           begin
             domains = api.custom_domains(service["id"])
-            bounded(domains, "custom domains of #{service['name']}", [ ResourceMap::KIND_DOMAIN ], gaps, unread)
+            bounded(domains, "custom domains of #{service['name']}", [ ResourceMap::KIND_DOMAIN ], gaps)
             domains.items.each { |domain| reading.domain(found, domain["name"]) }
           rescue Integrations::RateLimited
             raise
           rescue RenderApi::Error => error
-            gaps << "The custom domains of #{service['name']} could not be read: #{error.message}"
+            gaps << ResourceMap::Gap.new(text: Sentence.join("The custom domains of #{service['name']} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
           end
         end
         [ [ POSTGRES, api.postgres_databases(account), "Postgres databases" ], [ KEY_VALUE, api.key_values(account), "Key Value instances" ] ].each do |type, stores, what|
-          bounded(stores, what, [ ResourceMap::KIND_DATABASE ], gaps, unread)
+          bounded(stores, what, [ ResourceMap::KIND_DATABASE ], gaps)
           stores.items.each { |store| reading.datastore(type, store) }
         end
-        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, unread_kinds: unread.uniq)
+        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps)
       end
 
       # A list read only up to its bound is a gap, and what it holds is not taken as gone.
-      def bounded(read, what, kinds, gaps, unread)
-        return unless read.incomplete?
-
-        gaps << "Only the first #{read.items.size} #{what} were read."
-        unread.concat(kinds)
+      def bounded(read, what, kinds, gaps)
+        gaps << ResourceMap::Gap.new(text: "Only the first #{read.items.size} #{what} were read.", kinds: kinds) if read.incomplete?
       end
       private :bounded
 
@@ -497,7 +493,7 @@ module Integrations
       def find_resource(environment_row, asked)
         fail! "Say which service or datastore, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Hosting.named(resources(environment_row), asked) || fail!("Nothing called #{asked} in this workspace. list_resources shows what there is.")
+        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER) || fail!("Nothing called #{asked} in this workspace. list_resources shows what there is.")
       end
 
       # The page Render gives each resource (dashboardUrl), the only address its API returns.
@@ -599,7 +595,7 @@ module Integrations
       rescue Integrations::RateLimited
         raise
       rescue RenderApi::Error => error
-        "Events could not be read: #{error.message}"
+        Sentence.join("Events could not be read", error)
       end
 
       def postgres_lines(environment_row, resource)

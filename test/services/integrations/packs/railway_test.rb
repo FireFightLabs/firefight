@@ -37,7 +37,7 @@ module Integrations
         assert_equal "The project has no environment called staging. It has production.",
                      Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "staging" })
         RailwayApi.any_instance.stubs(:project).raises(RailwayApi::Error, "Railway refused this: Not Authorized")
-        assert_equal "Railway refused this token or project. Railway refused this: Not Authorized",
+        assert_equal "Railway refused this token or project: Not Authorized.",
                      Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "production" })
       end
 

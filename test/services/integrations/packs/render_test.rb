@@ -38,7 +38,7 @@ module Integrations
         RenderApi.any_instance.stubs(:owner).raises(RenderApi::Error, "Render answered 401: Authorization information is missing or invalid.")
 
         assert_equal "Paste an API key.", Render.credential_refusal({}, fields: { Render::WORKSPACE => "tea-1" })
-        assert_match "Render refused this key or workspace. Render answered 401", Render.credential_refusal({ Render::API_KEY => "x" }, fields: { Render::WORKSPACE => "tea-1" })
+        assert_match "Render refused this key or workspace: Render answered 401", Render.credential_refusal({ Render::API_KEY => "x" }, fields: { Render::WORKSPACE => "tea-1" })
         assert_match "can hold only tea- followed by lowercase letters and numbers", IntegrationProvider.find(Render::PROVIDER_KEY).connect_fields.sole.refusal("my-team")
       end
 
@@ -157,13 +157,13 @@ module Integrations
         assert_equal "Key Value instance", found["red-1"].details["type"]
         assert_equal [ [ "srv-web", ResourceMap::RELATION_BUILT_FROM, "acme/app" ], [ "web.onrender.com", ResourceMap::RELATION_SERVED_BY, "srv-web" ] ],
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
-        assert_equal [ "The custom domains of web could not be read: Render answered 403: no" ], snapshot.gaps
+        assert_equal [ [ "The custom domains of web could not be read: Render answered 403: no.", [ ResourceMap::KIND_DOMAIN ] ] ], snapshot.gaps.map { |gap| [ gap.text, gap.kinds ] }
       end
 
       test "a name two resources share is refused, with the ids to name one by" do
         RenderApi.any_instance.stubs(:key_values).returns(Integrations::Pages::Read.new(items: [ { "id" => "red-2", "name" => "db", "status" => "available" } ], complete: true))
 
-        assert_match "More than one is called db: dpg-1, red-2. Name it by its id.", assert_raises(NativePack::Error) { call(:describe_resource, "resource" => "db") }.message
+        assert_match "More than one Render resource is called db: dpg-1, red-2. Name it by its id.", assert_raises(NativePack::Error) { call(:describe_resource, "resource" => "db") }.message
       end
 
       test "a list read only up to its bound is a gap, and what it holds is not taken as gone" do
@@ -172,7 +172,7 @@ module Integrations
 
         snapshot = @pack.map_of(@row)
 
-        assert_equal [ "Only the first 1 Postgres databases were read." ], snapshot.gaps
+        assert_equal [ "Only the first 1 Postgres databases were read." ], snapshot.gaps.map(&:text)
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
       end
 

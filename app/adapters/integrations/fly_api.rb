@@ -17,6 +17,7 @@ module Integrations
     MACAROON = /(?:\A|,)\s*(?:fm1r|fm1a|fm2)_/
     SCHEME = /\A(?:FlyV1|Bearer)\s+/i
     APPS_PAGE = 1000
+    APP_PAGES = 5
     STARTED = "started".freeze
     # Fly waits at most 60 seconds (spec, wait timeout), and a machine that boots slower than this is reported as not up.
     WAIT_SECONDS = 50
@@ -40,6 +41,14 @@ module Integrations
     end
 
     def apps(org_slug, limit: APPS_PAGE) = Array(machines_get("/apps", "org_slug" => org_slug, "limit" => limit)["apps"])
+
+    # Every app in the organization, as a Pages::Read, a page at a time from next_cursor (spec, GET /v1/apps).
+    def app_list(org_slug)
+      Pages.read(max_pages: APP_PAGES) do |cursor|
+        answer = machines_get("/apps", "org_slug" => org_slug, "limit" => APPS_PAGE, "cursor" => cursor)
+        [ Array(answer["apps"]), answer["next_cursor"].presence ]
+      end
+    end
 
     def app(app_name) = machines_get("/apps/#{segment(app_name)}")
 

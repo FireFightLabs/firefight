@@ -123,7 +123,7 @@ module Integrations
         VercelApi.new(token, fields[TEAM]).check!
         nil
       rescue VercelApi::Error => error
-        "Vercel refused this token or team. #{error.message}"
+        Sentence.join("Vercel refused this token or team", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -190,7 +190,7 @@ module Integrations
         begin
           api(environment_row).rollback(project["id"], deployment["id"], description: arguments["reason"].to_s.strip.first(250))
         rescue VercelApi::PlanLimited => error
-          fail! "#{error.message}. On Vercel's Hobby plan a rollback can only go to the previous production deployment, so pick " \
+          fail! "#{Sentence.of(error)} On Vercel's Hobby plan a rollback can only go to the previous production deployment, so pick " \
                 "that one from list_deployments, or roll back further on a Pro plan."
         end
         Telemetry.result("Vercel is pointing the production domains of #{project['name']} at #{deployment['id']}. New deployments no " \
@@ -247,13 +247,12 @@ module Integrations
           rescue Integrations::RateLimited
             raise
           rescue VercelApi::Error => error
-            gaps << "The domains of #{project['name']} could not be read: #{error.message}"
+            gaps << ResourceMap::Gap.new(text: Sentence.join("The domains of #{project['name']} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
           end
         end
         listed = project_list(environment_row)
         if listed.incomplete?
-          gaps << "Only the first #{listed.items.size} projects were read."
-          return ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, unread_kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN ])
+          gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} projects were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN ])
         end
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
       end
@@ -283,7 +282,7 @@ module Integrations
         fail! "Say which project, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
         rows = projects(environment_row).map { |project| { id: project["id"], name: project["name"], project: project } }
-        Hosting.named(rows, asked)&.dig(:project) || fail!("No project called #{asked} in this team. list_resources shows what there is.")
+        Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER)&.dig(:project) || fail!("No project called #{asked} in this team. list_resources shows what there is.")
       end
 
       # The deployment asked for, or the production one, checked to be the project's own.

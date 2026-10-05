@@ -10,7 +10,8 @@ module Integrations
         Fly.store_credentials!(@row, Fly::API_TOKEN => " FlyV1 fm2_x ")
         @row.store_fields!(Fly::ORGANIZATION => "acme")
         @pack = Fly.new(@integration)
-        FlyApi.any_instance.stubs(:apps).with("acme").returns([ { "name" => "web", "status" => "deployed", "machine_count" => 2 } ])
+        FlyApi.any_instance.stubs(:app_list).with("acme")
+              .returns(Integrations::Pages::Read.new(items: [ { "name" => "web", "status" => "deployed", "machine_count" => 2 } ], complete: true))
         FlyApi.any_instance.stubs(:postgres_clusters).with("acme").returns([
           { "id" => "pg1", "name" => "main-db", "status" => "ready", "plan" => "basic", "region" => "iad", "attached_apps" => [ { "name" => "web" } ] }
         ])
@@ -25,7 +26,7 @@ module Integrations
         FlyApi.any_instance.stubs(:apps).raises(FlyApi::Error, "Fly answered 401: unauthorized")
 
         assert_equal "Enter the organization's slug.", Fly.credential_refusal({ Fly::API_TOKEN => "x" })
-        assert_match "Fly.io refused this token or organization. Fly answered 401", Fly.credential_refusal({ Fly::API_TOKEN => "x" }, fields: { Fly::ORGANIZATION => "acme" })
+        assert_match "Fly.io refused this token or organization: Fly answered 401", Fly.credential_refusal({ Fly::API_TOKEN => "x" }, fields: { Fly::ORGANIZATION => "acme" })
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
@@ -166,8 +167,19 @@ module Integrations
 
         snapshot = @pack.map_of(@row)
 
-        assert_equal [ "The machines of web could not be read: Fly answered 403: forbidden", "Managed Postgres clusters could not be read: Fly answered 404: not found" ],
-                     snapshot.gaps
+        assert_equal [ [ "The machines of web could not be read: Fly answered 403: forbidden.", [] ],
+                       [ "Managed Postgres clusters could not be read: Fly answered 404: not found.", [ ResourceMap::KIND_DATABASE ] ] ],
+                     snapshot.gaps.map { |gap| [ gap.text, gap.kinds ] }
+        assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds, "a cluster list Fly refused takes no cluster off the map"
+      end
+
+      test "an app list cut short at its bound is a gap, and its apps and domains are not taken as gone" do
+        FlyApi.any_instance.stubs(:app_list).returns(Integrations::Pages::Read.new(items: [], complete: false))
+        FlyApi.any_instance.stubs(:postgres_clusters).returns([])
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
       end
 
       test "a week of cpu, memory and requests for the whole app, and being asked to slow down stops the read" do

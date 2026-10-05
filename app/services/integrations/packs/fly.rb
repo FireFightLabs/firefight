@@ -171,7 +171,7 @@ module Integrations
         FlyApi.new(token).apps(organization, limit: 1)
         nil
       rescue FlyApi::Error => error
-        "Fly.io refused this token or organization. #{error.message}"
+        Sentence.join("Fly.io refused this token or organization", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -281,7 +281,12 @@ module Integrations
         resources = []
         links = []
         gaps = []
-        apps = api.apps(organization)
+        listed = api.app_list(organization)
+        apps = listed.items
+        if listed.incomplete?
+          gaps << ResourceMap::Gap.new(text: "Only the first #{apps.size} apps were read.",
+                                       kinds: [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ])
+        end
         apps.each do |app|
           name = app["name"]
           machines = begin
@@ -289,7 +294,7 @@ module Integrations
           rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error
-            gaps << "The machines of #{name} could not be read: #{error.message}"
+            gaps << ResourceMap::Gap.new(text: Sentence.join("The machines of #{name} could not be read", error), kinds: [])
             nil
           end
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_SERVICE, external_id: name, name: name,
@@ -304,7 +309,7 @@ module Integrations
           rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error
-            gaps << "The certificates of #{name} could not be read: #{error.message}"
+            gaps << ResourceMap::Gap.new(text: Sentence.join("The certificates of #{name} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
           end
         end
         begin
@@ -324,7 +329,7 @@ module Integrations
         rescue Integrations::RateLimited
           raise
         rescue FlyApi::Error => error
-          gaps << "Managed Postgres clusters could not be read: #{error.message}"
+          gaps << ResourceMap::Gap.new(text: Sentence.join("Managed Postgres clusters could not be read", error), kinds: [ ResourceMap::KIND_DATABASE ])
         end
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
       end
@@ -373,7 +378,7 @@ module Integrations
         @resources ||= begin
           api = api(environment_row)
           organization = organization_of(environment_row)
-          apps = api.apps(organization).map do |app|
+          apps = api.app_list(organization).items.map do |app|
             { id: app["name"], name: app["name"], type: APP, status: app["status"], machines: app["machine_count"] }
           end
           clusters = begin
@@ -392,7 +397,7 @@ module Integrations
       def find_resource(environment_row, asked)
         fail! "Say which app or cluster, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Hosting.named(resources(environment_row), asked) || fail!("Nothing called #{asked} in this organization. list_resources shows what there is.")
+        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER) || fail!("Nothing called #{asked} in this organization. list_resources shows what there is.")
       end
 
       def find_app(environment_row, asked)
@@ -512,7 +517,7 @@ module Integrations
 
         Regexp.new(source, timeout: REGEX_TIMEOUT)
       rescue RegexpError => error
-        fail! "The regular expression does not read: #{error.message}. Fix it, or search by text instead."
+        fail! Sentence.join("The regular expression does not read", error, after: "Fix it, or search by text instead")
       end
 
       def kept?(text, contains, exclude, pattern)
@@ -593,7 +598,7 @@ module Integrations
           rescue Integrations::RateLimited
             raise
           rescue FlyApi::Error => error
-            said << "#{where}: not changed, #{error.message.delete_prefix('Fly answered ')}"
+            said << "#{where}: not changed, #{Sentence.clean(error.message.delete_prefix('Fly answered '))}"
           end
           rest = machines.drop(index + 1)
           said << "Stopped there, so #{rest.size} more machines were left as they were. Check #{where} in Fly.io before going on." if rest.any?

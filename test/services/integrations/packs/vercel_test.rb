@@ -28,7 +28,7 @@ module Integrations
         VercelApi.any_instance.stubs(:check!).raises(VercelApi::Error, "Vercel answered 403: Not authorized")
 
         assert_equal "Paste an access token.", Vercel.credential_refusal({}, fields: { Vercel::TEAM => "acme" })
-        assert_equal "Vercel refused this token or team. Vercel answered 403: Not authorized", Vercel.credential_refusal({ Vercel::API_TOKEN => "x" })
+        assert_equal "Vercel refused this token or team: Vercel answered 403: Not authorized.", Vercel.credential_refusal({ Vercel::API_TOKEN => "x" })
         assert IntegrationProvider.find(Vercel::PROVIDER_KEY).connect_fields.sole.optional, "the team may be left empty for a personal account"
       end
 
@@ -149,7 +149,8 @@ module Integrations
         snapshot = @pack.map_of(@row)
 
         assert_nil snapshot.resources.find { |found| found.external_id == "prj_1" }.url
-        assert_equal [ "The domains of shop could not be read: Vercel answered 403: forbidden" ], snapshot.gaps
+        assert_equal [ "The domains of shop could not be read: Vercel answered 403: forbidden." ], snapshot.gaps.map(&:text)
+        assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds, "a domain list Vercel refused takes no domain off the map"
       end
 
       test "Vercel keeps no metrics the API reads, so it has no baselines, and the health check lists a project" do
