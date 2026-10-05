@@ -154,6 +154,17 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
+  # Seen in a real chat, a path block on Cloudflare was written without this skill, since it named only addresses.
+  test "the Cloudflare block skill covers paths, checking a rule expression and reading where Cloudflare stopped parsing it" do
+    skill = Chat::Skill.find("cloudflare_block")
+
+    assert_match "path", skill.used_when
+    assert_match "every ( has its )", skill.steps
+    assert_match "20127", skill.steps
+    assert_includes skill.references, "rules/operators.md"
+    assert_includes Chat::Skill.reference("cloudflare", "rules/operators.md"), "Grouping symbols"
+  end
+
   test "a guide is never read as a skill, and nothing outside a source's guides can be read" do
     assert Chat::Skill.all.none? { |skill| skill.domain == Chat::Skill::REFERENCES }
     assert_includes Chat::Skill.reference("planetscale", "postgres/ps-connections.md"), "PgBouncer"

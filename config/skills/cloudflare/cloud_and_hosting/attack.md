@@ -8,7 +8,7 @@ references: [security/under-ddos-attack.md, security/under-attack-mode.md, secur
 2. Find who, with the firewallEventsAdaptive dataset: the top client IPs, ASNs, countries, paths and user agents, and what Cloudflare already did about them. Security events are sampled for large volumes, so narrow the time window when the numbers look incomplete.
 3. Stop it with the narrowest tool that works, and say what each one costs before the person confirms:
    - A rate limiting rule for a path being hammered, such as a login or an API. It goes into the zone's http_ratelimit phase entry point ruleset, with a ratelimit object naming what to count by (for example ip.src), the period, the number of requests allowed and how long to block. Rate limiting rules must come last in that ruleset.
-   - A custom rule that challenges or blocks the traffic the events point at. Use the cloudflare_block skill for addresses, networks and countries.
+   - A custom rule that challenges or blocks the traffic the events point at. Use the cloudflare_block skill for addresses, networks, countries and paths, and for writing the rule's expression.
    - Under Attack mode, as a last resort. Cloudflare says to use it only under a DDoS attack, since every visitor gets a challenge page and it can break API traffic and third party analytics. Through the API it is the zone's security level. A configuration rule can turn it on for only part of the site, such as the login page.
 4. Find every endpoint with `search` before `execute`. The person confirms each call.
 5. Afterwards, say what was changed, and offer to undo each change once traffic is back to normal, such as setting the security level back.

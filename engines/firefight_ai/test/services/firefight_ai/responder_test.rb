@@ -52,6 +52,27 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_match "\"me\"", instructions
   end
 
+  # Seen in a real chat, a rule update rejected for one parenthesis too many was left undone once the person
+  # added a request, and asked why, the agent said the provider had named no token.
+  test "the agent is told to fix and resend a change rejected for what it sent, and to say why in plain words" do
+    chat = mock("chat")
+    chat.stubs(:to_llm).returns(stub(messages: []))
+    chat.stubs(:with_tools)
+    chat.stubs(:with_caching)
+    instructions = nil
+    chat.expects(:with_instructions).with { |text| instructions = text }
+
+    FirefightAi::Responder.new(@workspace, inferable: nil).run(
+      chat: chat, tools: [], context: "You are acting for Ada.",
+      budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 50, max_turns: 10)
+    )
+
+    assert_includes instructions, FirefightAi::Responder::FAILED_CHANGE_RULE
+    assert_match "Read its error and where it points", FirefightAi::Responder::FAILED_CHANGE_RULE
+    assert_match "does not cancel the change unless they say so", FirefightAi::Responder::FAILED_CHANGE_RULE
+    assert_match "asks the person again wherever the first one asked", FirefightAi::Responder::FAILED_CHANGE_RULE
+  end
+
   # A chat grows with every question, and each turn resends all of it.
   test "a turn asks the provider to cache what it has already read" do
     chat = mock("chat")

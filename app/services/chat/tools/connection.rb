@@ -67,9 +67,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
+      provider_failed!(tool_call_id) if present.nil? && result["isError"] == true
       result = present.call(result) if present
       @last_result = result
-      text_of(result)
+      result["isError"] == true ? FirefightAi::Evidence.pointed(text_of(result)) : text_of(result)
     end
     keep_charts(tool_call_id, result, said.step)
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
@@ -96,6 +97,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @failed = true
     Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
     text
+  end
+
+  # A provider that answers its own failure, as a remote server does, still failed the call. Its words still reach the
+  # model, so only the mark is set here.
+  def provider_failed!(tool_call_id)
+    @failed = true
+    Chat::Tools.mark_failed(@agent_run, tool_call_id)
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)
