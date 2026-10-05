@@ -49,11 +49,13 @@ module Mcp
         principal: server_context[:principal], action_key: tool.action_key,
         workspace: workspace, scope: scope, params: arguments,
         context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
-      ) do
+      ) do |authorization|
         environment_row = tool.integration.resolve_environment(environment_entry&.id)
-        tool.integration.executor.call(
+        answer = tool.integration.executor.call(
           tool: tool, environment_row: environment_row, arguments: arguments, box_key: server_context[:principal].code_box_key
         )
+        ToolDispatcher.ledger_failure(authorization, answer)
+        answer
       end
       ToolDispatcher.log_call(tool.action_key, server_context, started_at)
 

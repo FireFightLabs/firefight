@@ -172,6 +172,58 @@ class Chat::Tools::CapabilityTest < ActiveSupport::TestCase
     assert_equal names.uniq, names
   end
 
+  test "a provider that answers a capability with its own error fails the card, and the ledger says why" do
+    grant!(@tools.values)
+    chat = card_for("call_1", "search_logs")
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Service web-id is paused" } ], "isError" => true)
+    search = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "search_logs" }.tool
+
+    answer = search.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {}), "resource" => "web")
+
+    assert_match "Service web-id is paused", answer
+    assert_equal [ "call_1" ], chat.failed_tool_call_ids
+    invocation = @investigation.steps.find_by!(tool_name: "search_logs").invocation
+    assert_equal [ Ability::Invocation::OUTCOME_ERROR, "Service web-id is paused" ], [ invocation.outcome, invocation.error_summary ]
+  end
+
+  test "Datadog answering with its own error is asked of the platform, and a platform that answers leaves the card completed" do
+    logs = connect_datadog!
+    grant!([ *@tools.values, logs ])
+    chat = card_for("call_1", "search_logs")
+    Integrations::McpExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Invalid query" } ], "isError" => true)
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+    search = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "search_logs" }.tool
+
+    answer = search.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {}), "resource" => "web")
+
+    assert_match(/datadog failed \(.*Invalid query.*\), so this is from northflank\./m, answer)
+    assert_match "northflank lines", answer
+    assert_empty chat.failed_tool_call_ids
+    outcomes = @investigation.steps.includes(:invocation).to_h { |step| [ step.action_key, step.invocation.outcome ] }
+    assert_equal({ "datadog.search_datadog_logs" => Ability::Invocation::OUTCOME_ERROR, "northflank.search_logs" => Ability::Invocation::OUTCOME_SUCCESS }, outcomes)
+
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Service web-id is paused" } ], "isError" => true)
+    search.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {}), "resource" => "web")
+    assert_equal [ "call_1" ], chat.failed_tool_call_ids
+  end
+
+  test "under connection all a provider's own error counts as not answering, so the card fails only when none answered" do
+    logs = connect_datadog!
+    grant!([ *@tools.values, logs ])
+    chat = card_for("call_1", "search_logs")
+    Integrations::McpExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Invalid query" } ], "isError" => true)
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "northflank lines" } ])
+    search = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "search_logs" }.tool
+    call = RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {})
+
+    search.call(tool_call: call, "resource" => "web", "connection" => "all")
+    assert_empty chat.failed_tool_call_ids
+
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "Service web-id is paused" } ], "isError" => true)
+    search.call(tool_call: call, "resource" => "web", "connection" => "all")
+    assert_equal [ "call_1" ], chat.failed_tool_call_ids
+  end
+
   test "a replayed run asks the provider the same thing, so the record answers the capability call" do
     grant!(@tools.values)
     Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => "3 log lines for web" } ])
@@ -186,6 +238,21 @@ class Chat::Tools::CapabilityTest < ActiveSupport::TestCase
   end
 
   private
+
+  def connect_datadog!
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                          params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+  end
+
+  # The run's chat with the call the model made, so the card's mark has a row to land on.
+  def card_for(tool_call_id, name)
+    chat = @workspace.chats.create!(owner: @investigation, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: tool_call_id, name: name, arguments: {})
+    chat
+  end
 
   def grant!(tools)
     principal = @investigation.acting_principal

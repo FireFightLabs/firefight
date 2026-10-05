@@ -58,6 +58,21 @@ class AbilityGateway
       finalize(Ability::Invocation::OUTCOME_ERROR, error.class.name)
     end
 
+    # A call that ran but whose answer says it failed, such as a provider's own error or one of Firefight's tools
+    # refusing, is ledgered as an error with the first line of what it said.
+    def answer_failed!(text)
+      @answer_failure = Ability::Invocation.summary_of(text)
+    end
+
+    def answer_failed? = !@answer_failure.nil?
+
+    # Once the call has answered, a success unless its answer said it failed.
+    def finalize_answered!
+      return finalize_success! unless answer_failed?
+
+      finalize(Ability::Invocation::OUTCOME_ERROR, @answer_failure)
+    end
+
     private
 
     def finalize(outcome, error_summary)
@@ -68,8 +83,8 @@ class AbilityGateway
     end
   end
 
-  # Without a block, returns an Authorization the caller must finalize. On
-  # PendingApproval, the retry passes context[:approval_id] once approved.
+  # Without a block, returns an Authorization the caller must finalize. With one, the block is handed it, so an answer
+  # that says it failed can be ledgered as one. On PendingApproval, the retry passes context[:approval_id] once approved.
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
 
@@ -113,8 +128,8 @@ class AbilityGateway
     return authorization unless block_given?
 
     begin
-      result = yield
-      authorization.finalize_success!
+      result = yield authorization
+      authorization.finalize_answered!
       result
     rescue => error
       authorization.finalize_error!(error)

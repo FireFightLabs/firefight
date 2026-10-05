@@ -26,7 +26,7 @@ class Investigation::ToolCall
         context: investigation.ledger_context
       ) do |authorization|
         step.update!(invocation_id: authorization.invocation_id)
-        yield
+        yield authorization
       end
     rescue StandardError => error
       # A refusal is part of the run's record, so the step says so rather than staying open.
