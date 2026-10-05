@@ -43,6 +43,28 @@ module FirefightAi
       Unframed.new(tool: opening[:tool], step: opening[:step]&.to_i, body: body)
     end
 
+    CARET = /\A(?<indent>[ \t]*)\^/
+    POINTED_CONTEXT = 60
+
+    # A parser points at a fault with a ^ under the line it read, and on a long line a model cannot count the spaces
+    # to it. So each such caret gains a line naming the character it points at and what comes before it. The
+    # error is kept as it was.
+    def self.pointed(text)
+      lines = text.to_s.lines
+      return text.to_s if lines.none? { |line| line.match?(CARET) }
+
+      lines.each_with_index.map do |line, index|
+        caret = line.match(CARET)
+        read = index.positive? ? lines[index - 1].chomp : ""
+        column = caret && caret[:indent].length
+        next line unless column && column.positive? && column < read.length
+
+        before = read[[ column - POINTED_CONTEXT, 0 ].max...column]
+        "#{line.chomp}\n[The ^ above points at character #{column + 1} of the line before it, #{read[column].inspect}, " \
+          "right after: #{column > POINTED_CONTEXT ? '...' : ''}#{before}]\n"
+      end.join
+    end
+
     # The name a preview says its full text was saved under, so it is never saved a second time.
     def self.saved_handle(body) = body.to_s.match(SAVED_AS)&.[](:handle)
 

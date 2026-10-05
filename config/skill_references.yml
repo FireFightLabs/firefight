@@ -85,6 +85,10 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+    rules/expressions.md: ruleset-engine/rules-language/expressions
+    rules/operators.md: ruleset-engine/rules-language/operators
+    rules/values.md: ruleset-engine/rules-language/values
+    rules/edit-expressions.md: ruleset-engine/rules-language/expressions/edit-expressions
 
 # Kubernetes' documentation is CC BY 4.0. Each page is copied as the markdown the site is built from, in the
 # kubernetes/website repository, rather than cloning a repository that holds every translation and image.

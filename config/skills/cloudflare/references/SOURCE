@@ -36,3 +36,7 @@ dns/create-dns-records.md https://developers.cloudflare.com/dns/manage-dns-recor
 origin/protect-your-origin-server.md https://developers.cloudflare.com/fundamentals/security/protect-your-origin-server/index.md
 origin/traffic-flow.md https://developers.cloudflare.com/fundamentals/concepts/traffic-flow-cloudflare/index.md
 analytics/graphql-querying-basics.md https://developers.cloudflare.com/analytics/graphql-api/getting-started/querying-basics/index.md
+rules/expressions.md https://developers.cloudflare.com/ruleset-engine/rules-language/expressions/index.md
+rules/operators.md https://developers.cloudflare.com/ruleset-engine/rules-language/operators/index.md
+rules/values.md https://developers.cloudflare.com/ruleset-engine/rules-language/values/index.md
+rules/edit-expressions.md https://developers.cloudflare.com/ruleset-engine/rules-language/expressions/edit-expressions/index.md
