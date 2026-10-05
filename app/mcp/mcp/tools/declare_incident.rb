@@ -38,7 +38,7 @@ module Mcp
         respond(SearchIncidents.summary(incident).merge(declared: true))
       rescue IncidentFormResolver::ValidationError => e
         Mcp::ToolDispatcher.error_response(
-          "#{e.field_errors.join('; ')}. Call get_form with form: \"declare\" for what this workspace asks."
+          "#{e.sentences} Call get_form with form: \"declare\" for what this workspace asks."
         )
       end
     end

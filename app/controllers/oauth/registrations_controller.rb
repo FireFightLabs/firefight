@@ -26,7 +26,7 @@ class Oauth::RegistrationsController < ActionController::API
     else
       render json: {
         error: "invalid_client_metadata",
-        error_description: application.errors.full_messages.join("; ")
+        error_description: application.errors.full_messages.map { |message| message.end_with?(".") ? message : "#{message}." }.join(" ")
       }, status: :bad_request
     end
   end
