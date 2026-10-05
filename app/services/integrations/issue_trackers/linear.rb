@@ -7,6 +7,7 @@ module Integrations
     class Linear < RemoteReader
       SAVE_ISSUE = "save_issue".freeze
       CLOSED_TYPES = %w[completed canceled].freeze
+      OPENS = [ SAVE_ISSUE ].freeze
 
       def report(tool_name:, arguments:, result:)
         return unless tool_name == SAVE_ISSUE

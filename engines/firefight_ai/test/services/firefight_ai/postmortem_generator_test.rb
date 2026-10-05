@@ -110,6 +110,18 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_match "  - Cloudflare rejected the first ruleset change with error 20127.", timeline
   end
 
+  test "actions and follow-ups that track an issue reach the model with their key and link" do
+    [ IncidentAction::ACTION_TYPE_ACTION, IncidentAction::ACTION_TYPE_FOLLOWUP ].each_with_index do |kind, index|
+      @incident.incident_actions.create!(created_by: @member, action_type: kind, description: "Item #{index}",
+                                         external_key: "FIR-#{index}", external_url: "https://linear.app/firefight/issue/FIR-#{index}")
+    end
+
+    prompt = @generator.send(:user_prompt, @incident.to_full_context(workspace: @workspace), nil)
+
+    assert_includes prompt, "- [action] Item 0 [FIR-0, https://linear.app/firefight/issue/FIR-0]"
+    assert_includes prompt, "- [followup] Item 1 [FIR-1, https://linear.app/firefight/issue/FIR-1]"
+  end
+
   test "client errors leave the engine as its own error family" do
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
     RubyLLM.stubs(:chat).raises(RubyLLM::ContextLengthExceededError.new("too long"))

@@ -51,7 +51,7 @@ POST   /api/v1/incidents/:id/shoutout                    # member_id, message
 POST   /api/v1/incidents/:id/runbook_steps/claim         # runbook_id, step_id, member_id
 ```
 
-An action item carries `external_key` and `external_url` when it tracks an issue in an issue tracker, which Halon records for itself (see Issues opened by Halon in [integrations.md](integrations.md)). Both are null otherwise.
+An action item carries `external_key` and `external_url` when it tracks an issue in an issue tracker, which Halon records for itself as an action or a follow-up (see Issues opened by Halon in [integrations.md](integrations.md)). Both are null otherwise.
 
 `PATCH action_items/:id` is one call for three verbs because from the caller's side each is the same sentence: this item now looks like this. Sending `assignee_id: null` takes the item for the key itself (a pick-up, no announcement), naming someone else hands it over (announced), and `status: "done"` finishes it. Which event is recorded is `IncidentActionService`'s decision, not the body's.
 

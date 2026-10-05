@@ -1,7 +1,8 @@
 module Integrations
-  # An issue a provider's tool opened or closed, so the platform keeps an incident's follow-ups in step with an issue
+  # An issue a provider's tool opened or closed, so the platform keeps the incident work it tracks in step with an issue
   # tracker without knowing which tracker it is. A provider says so through its definition's issue_tracker, a
-  # RemoteReader answering report(tool_name:, arguments:, result:) with a Report, or nil when the call did neither.
+  # RemoteReader answering report(tool_name:, arguments:, result:) with a Report, or nil when the call did neither, whose
+  # OPENS names the tools that can open one.
   module Issues
     OPENED = :opened
     CLOSED = :closed
@@ -11,6 +12,12 @@ module Integrations
     Report = Data.define(:change, :key, :title, :url) do
       def opened? = change == OPENED
       def closed? = change == CLOSED
+    end
+
+    # Whether the tool can open an issue, so whoever offers it can ask how the new issue is to be kept.
+    def self.opens?(tool)
+      tracker = Provider.for(tool.integration.provider).issue_tracker
+      tracker.present? && tracker::OPENS.include?(tool.name)
     end
 
     # What a tool call that succeeded did to an issue, or nil. A tracker whose answer leaves out what it needs reads

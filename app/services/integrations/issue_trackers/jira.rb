@@ -13,6 +13,7 @@ module Integrations
       RESOURCES = "getaccessibleatlassianresources".freeze
       DONE = "done".freeze
       READ_FIELDS = %w[summary status].freeze
+      OPENS = [ CREATE_ISSUE ].freeze
 
       def report(tool_name:, arguments:, result:)
         case tool_name
