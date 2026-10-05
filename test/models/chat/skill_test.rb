@@ -93,6 +93,55 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
+  # These providers' servers are hosted by the provider, so their skills, and the tools Firefight calls itself, are held
+  # to the tools each one documents, as Firefight names them (lower case, with every other character an underscore).
+  DOCUMENTED_TOOLS = {
+    # docs.honeycomb.io/integrations/mcp/tools
+    "honeycomb" => %w[get_workspace_context get_environment get_dataset get_dataset_columns run_query get_query_results find_queries find_columns run_bubbleup
+                      get_trace list_spans get_span_details get_service_map get_anomaly_service_profiles list_boards get_triggers get_slos list_recipients],
+    # axiomhq/docs, console/intelligence/mcp-server/tools.mdx
+    "axiom" => %w[querydataset getsavedqueries listdatasets getdatasetfields listmetrics listmetrictags getmetrictagvalues searchmetrics querymetrics
+                  listdashboards getdashboard exportdashboard checkmonitors getmonitor getmonitorhistory listnotifiers],
+    # BetterStackHQ/claude-plugin, skills/investigate-incident/SKILL.md, and betterstack.com/docs/getting-started/integrations/mcp
+    "betterstack" => %w[incident incident_timeline incident_comments incidents chart_alerts monitor monitors monitor_response_times monitor_availability on_calls
+                        on_call escalation_policy sources source source_fields applications errors error releases query_help metrics_schema metrics_query_help
+                        errors_query_help query query_windows],
+    # pydantic/logfire, docs/how-to-guides/mcp-server.md
+    "logfire" => %w[query_run query_schema_reference query_find_exceptions_in_file project_list token_info project_logfire_link project_logfire_ui_link issue_list
+                    alert_list alert_get alert_status alert_history dashboard_list dashboard_get],
+    # openstatusHQ/openstatus, packages/services/src/agent-tools
+    "openstatus" => %w[list_monitors get_monitor get_monitor_status get_monitor_summary list_response_logs get_response_log list_status_pages list_page_components
+                       list_status_reports create_status_report add_status_report_update update_status_report resolve_status_report list_maintenances],
+    # honeybadger-io/honeybadger-mcp-server, internal/hbmcp
+    "honeybadger" => %w[list_projects get_project get_project_occurrence_counts get_project_report list_faults get_fault get_fault_counts list_fault_notices
+                        list_fault_affected_users query_insights list_check_ins get_check_in list_alarms get_alarm get_alarm_history],
+    # SigNoz/signoz-mcp-server, internal/handler/tools
+    "signoz" => %w[signoz_list_services signoz_get_service_top_operations signoz_search_logs signoz_aggregate_logs signoz_search_traces signoz_aggregate_traces
+                   signoz_get_trace_details signoz_list_alerts signoz_get_alert signoz_get_alert_history signoz_get_field_keys signoz_get_field_values
+                   signoz_query_metrics signoz_list_metrics]
+  }.freeze
+
+  test "every tool these providers' skills or Firefight's own reads name is one the provider documents" do
+    probes = Integrations::HealthProbes
+    probe_tools = {
+      "honeycomb" => [ probes::Honeycomb::WORKSPACE ], "axiom" => [ probes::Axiom::LIST_DATASETS ], "betterstack" => [ probes::Betterstack::MONITORS ],
+      "logfire" => [ probes::Logfire::UI_LINK ], "openstatus" => [ probes::Openstatus::LIST_MONITORS ],
+      "honeybadger" => [ probes::Honeybadger::LIST_PROJECTS, probes::Honeybadger::GET_PROJECT ], "signoz" => [ probes::Signoz::LIST_SERVICES ]
+    }
+    DOCUMENTED_TOOLS.each do |provider, documented|
+      adapter = Integrations::Capabilities.adapter_for(provider)
+      capabilities = adapter.capabilities.map { |key| Integrations::Capabilities.spec(key).tool_name }
+      called = adapter::TOOLS.values + probe_tools.fetch(provider)
+      called.each { |tool| assert_includes documented, tool, "#{provider} calls #{tool}" }
+      skills = Chat::Skill.all.select { |skill| skill.source == provider }
+      assert skills.size >= 2, "#{provider} has a triage skill and one per kind of incident"
+      skills.each do |skill|
+        skill.tools.each { |tool| assert_includes documented + capabilities, tool, "#{skill.name} names #{tool}" }
+        skill.steps.scan(/`([^`]+)`/).flatten.each { |name| assert_includes skill.tools, name, "#{skill.name} calls #{name} without listing it" }
+      end
+    end
+  end
+
   test "every guide a skill lists is one its source keeps, and a source's guides carry their license and origin" do
     Chat::Skill.all.each do |skill|
       skill.references.each do |path|
