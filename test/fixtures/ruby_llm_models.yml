@@ -29,6 +29,16 @@ gpt_4o:
   name: GPT-4o
   provider: openai
   capabilities: ["function_calling", "streaming"]
+  modalities: {"input": ["text", "image", "pdf"], "output": ["text"]}
+
+# Reads text only, for what Halon does with a file its model cannot take.
+gpt_35_turbo:
+  model_id: gpt-3.5-turbo
+  context_window: 16000
+  name: GPT-3.5 Turbo
+  provider: openai
+  capabilities: ["function_calling"]
+  modalities: {"input": ["text"], "output": ["text"]}
 
 gpt_4o_mini:
   model_id: gpt-4o-mini

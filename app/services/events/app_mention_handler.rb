@@ -8,7 +8,8 @@ module Events
 
       incident = workspace.incidents.active.in_channel(channel_id).first
       user_text = strip_mention(event["text"])
-      return if user_text.blank?
+      # Files alone are a question only for the agent, which reads them.
+      return if user_text.blank? && (event["files"].blank? || !agent?(workspace))
       return unless defined?(FirefightAi)
       # Outside an incident's channel the agent only takes an investigation, which answers in that channel.
       return unless incident || (agent?(workspace) && investigate?(user_text))
@@ -77,7 +78,8 @@ module Events
         thread_id: thread_id, platform_user_id: event["user"]
       )
       asker = Conversation::Opener.member(workspace, event["user"])
-      Conversation::Asking.ask(conversation, user_text, asker: asker)
+      files = Conversation::SharedFiles.receive(workspace: workspace, files: event["files"], sender: asker)
+      Conversation::Asking.ask(conversation, user_text, asker: asker, files: files)
     end
     private_class_method :answer_as_agent
 

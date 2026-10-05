@@ -5,11 +5,13 @@ class Chat::QueuedMessage < ApplicationRecord
 
   belongs_to :chat
   belongs_to :sender, class_name: "WorkspaceMembership", optional: true
+  has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", foreign_key: :queued_message_id,
+                                            dependent: :nullify, inverse_of: :queued_message
 
   # The person's own words, like every message.
   encrypts :content
 
-  validates :content, presence: true
+  validates :content, presence: true, unless: -> { attached_files.any? }
 
   scope :waiting, -> { where(taken_at: nil).order(:created_at, :id) }
 

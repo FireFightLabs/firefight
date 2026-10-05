@@ -76,6 +76,61 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     mention("Investigate again")
   end
 
+  test "files shared with a mention are downloaded through Slack and go with the question" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    graph = file_fixture("halon_graph.png").binread
+    Slack::Client.expects(:download_file).with { |arguments| arguments[:url].end_with?("graph.png") }.returns({ body: graph, content_type: "image/png" })
+    Slack::Client.expects(:download_file).with { |arguments| arguments[:url].end_with?("app.log") }.returns({ body: "boom at 10:02", content_type: "text/plain" })
+
+    mention("what broke?", files: [ slack_file("F1", "graph.png", size: graph.bytesize), slack_file("F2", "app.log", size: 13) ])
+
+    message = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER)
+    assert_equal %w[graph.png app.log], message.attached_files.map(&:filename)
+    assert_equal workspace_memberships(:alice_workspace_one), message.attached_files.first.uploaded_by
+    handed = message.to_llm
+    assert_equal 1, handed.attachments.size
+    assert_match "boom at 10:02", handed.content
+  end
+
+  test "a file shared with only a mention and no words is still a question" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    Slack::Client.stubs(:download_file).returns({ body: "boom", content_type: "text/plain" })
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("", files: [ slack_file("F1", "app.log", size: 4) ]) }
+  end
+
+  test "a file Halon does not read, one too large and one Slack would not hand over are kept with why, so Halon says so" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    Slack::Client.stubs(:download_file).with { |arguments| arguments[:url].end_with?("dump.zip") }.returns({ body: "PK\u0003\u0004\u0000\u0000".b, content_type: "application/zip" })
+    Slack::Client.stubs(:download_file).with { |arguments| arguments[:url].end_with?("locked.log") }
+      .raises(AdapterError, "Slack file download returned HTML, bot may be missing files:read scope")
+
+    mention("look", files: [
+      slack_file("F1", "dump.zip", size: 6),
+      slack_file("F2", "huge.log", size: Chat::Attachment::LARGEST + 1),
+      slack_file("F3", "locked.log", size: 10)
+    ])
+
+    files = @workspace.conversations.sole.chat.attached_files.to_a
+    assert files.all?(&:unread?)
+    handed = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER).to_llm.content
+    assert_match "[dump.zip was not read. dump.zip is not a file Halon reads. #{Chat::Attachment::ACCEPTED} Tell the person plainly.]", handed
+    assert_match "huge.log is 10 MB, and Halon reads a file up to 10 MB.", handed
+    assert_match Slack::WorkspaceAdapter::FileOperations::NO_PERMISSION, handed
+  end
+
+  test "files past the limit for one message are named and not read" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    Slack::Client.stubs(:download_file).returns({ body: "ok", content_type: "text/plain" })
+    files = (1..(Chat::Attachment::MAX_PER_MESSAGE + 1)).map { |number| slack_file("F#{number}", "#{number}.log", size: 2) }
+
+    mention("look", files: files)
+
+    attached = @workspace.conversations.sole.chat.attached_files.to_a
+    assert_equal Chat::Attachment::MAX_PER_MESSAGE, attached.count { |file| !file.unread? }
+    assert_equal Chat::Attachment::TOO_MANY, attached.last.refusal
+  end
+
   test "without the flag the old reply stands" do
     FeatureFlags.stubs(:enabled?).returns(false)
 
@@ -141,15 +196,19 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
 
   private
 
-  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id, parent: nil)
+  def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id, parent: nil, files: nil)
     Events::AppMentionHandler.execute(@workspace, {
       "team_id" => @workspace.platform_id,
       "event" => {
         "type" => Identifiers::EVENT_APP_MENTION, "channel" => channel,
         "user" => by.platform_user_id,
-        "ts" => thread_ts, "thread_ts" => parent, "text" => "<@U123> #{text}"
+        "ts" => thread_ts, "thread_ts" => parent, "text" => "<@U123> #{text}", "files" => files
       }.compact
     })
+  end
+
+  def slack_file(id, name, size:, url: "https://files.slack.com/files-pri/T1-#{id}/download/#{name}")
+    { "id" => id, "name" => name, "mimetype" => "application/octet-stream", "size" => size, "url_private_download" => url }
   end
 
   def running_investigation(status: Investigation::STATUS_RUNNING)

@@ -90,11 +90,14 @@ class Conversation < ApplicationRecord
 
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.
-  def ask!(question, asker: nil)
-    return chat_record.queue_message!(question, sender: asker) if asker.is_a?(WorkspaceMembership) && answer_owed?
+  # Files go with the question, and a question may be files alone.
+  def ask!(question, asker: nil, files: [])
+    return chat_record.queue_message!(question, sender: asker, files: files) if asker.is_a?(WorkspaceMembership) && answer_owed?
 
-    chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
-    update!(title: question.truncate(TITLE_LIMIT)) if title.blank?
+    message = chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
+    chat_record.attach_files!(message, files)
+    named = question.presence || files.map(&:filename).to_sentence
+    update!(title: named.truncate(TITLE_LIMIT)) if title.blank?
     expect_reply!
   end
 

@@ -8,7 +8,7 @@ class Chat::Tools::ReadResult < RubyLLM::Tool
   # Several results read together are not one tool's words.
   ALL_RESULTS = "saved_results".freeze
 
-  description "Read more of a tool result that was saved because it was too large to show whole. " \
+  description "Read more of a tool result, or a file the person attached, that was saved because it was too large to show whole. " \
               "Give from_line and to_line to read a range, or search to find lines containing some text. " \
               "Leave result out to search every saved result at once, for example for a request id or a timestamp."
   parameter :result, description: "The saved result's name, such as result_1. Leave out to search all of them", required: false
@@ -16,7 +16,7 @@ class Chat::Tools::ReadResult < RubyLLM::Tool
   parameter :from_line, type: :integer, description: "First line to read", required: false
   parameter :to_line, type: :integer, description: "Last line to read", required: false
 
-  def self.tool_name = "read_result"
+  def self.tool_name = Chat::SavedResult::READ_WITH
 
   def initialize(agent_run)
     super()

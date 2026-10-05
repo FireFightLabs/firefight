@@ -311,6 +311,9 @@ Rails.application.routes.draw do
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search
     get "/agent/incidents", to: "agent_chats#incidents", as: :agent_chats_incidents
+    post "/agent/attachments", to: "agent_chat_attachments#create", as: :agent_chat_attachments
+    get "/agent/attachments/:id", to: "agent_chat_attachments#show", as: :agent_chat_attachment
+    delete "/agent/attachments/:id", to: "agent_chat_attachments#destroy"
     get "/agent/:id", to: "agent_chats#show", as: :agent_chat
     patch "/agent/:id", to: "agent_chats#update"
     delete "/agent/:id", to: "agent_chats#destroy"
