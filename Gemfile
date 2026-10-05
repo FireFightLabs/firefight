@@ -45,6 +45,9 @@ gem "image_processing", "~> 2.1"
 gem "ruby-vips", "~> 2.0"
 gem "aws-sdk-s3", require: false
 
+# Reads the text of a PDF someone hands Halon, when its model cannot take the document itself
+gem "pdf-reader", "~> 2.14", require: false
+
 # The AWS integration reads and changes what a workspace runs on AWS, required only when a call is made
 gem "aws-sdk-cloudwatch", require: false
 gem "aws-sdk-cloudwatchlogs", require: false

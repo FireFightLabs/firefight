@@ -368,6 +368,11 @@ module Slack
       { ok: true }
     end
 
+    # A file an event only names, with file_access check_file_info, is described in full here.
+    def self.file_info(workspace:, file_id:)
+      api_get(workspace: workspace, endpoint: "files.info", params: { file: file_id })[:file]
+    end
+
     # Keeps the Bearer token off a hostile host behind a forged permalink.
     ALLOWED_DOWNLOAD_HOST_SUFFIX = ".slack.com"
 

@@ -20,7 +20,9 @@ import { agentChatsPath } from "@/lib/routes"
 const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control py-1.5 pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 transition-colors duration-100 hover:bg-hover hover:text-ink md:hidden"
 
 export default function AgentPage() {
-  const { conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages } = usePage<AgentPageProps>().props
+  const {
+    conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
+  } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
   const [ fill, setFill ] = useState<ComposerFill | null>(null)
@@ -110,6 +112,7 @@ export default function AgentPage() {
               incidents={incidents}
               busy={stream.busy}
               fill={fill}
+              attachmentRules={attachmentRules}
             />
           </div>
           <div className="min-h-0 overflow-hidden">

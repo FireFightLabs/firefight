@@ -5,6 +5,8 @@ class Chat::SavedResult < ApplicationRecord
 
   # A ceiling on storage, not on what the agent may read. Past it the rest is dropped and the record says so.
   MAX_KEPT = 5_000_000
+  # The tool that reads one, named here so a preview the chat builds points at it.
+  READ_WITH = "read_result".freeze
 
   Match = Data.define(:line, :lines)
 

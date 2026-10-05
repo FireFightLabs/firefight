@@ -500,6 +500,17 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A file shared with a message, fetched from the platform. body is nil when it was too large to fetch or could not be,
+  # and failure is then a sentence saying why, for whoever reads it to pass on.
+  SharedFile = Data.define(:name, :byte_size, :body, :too_large, :failure)
+
+  # The files shared with a message, as the platform's own event described them, which callers pass on unread. A file
+  # over max_bytes is not downloaded.
+  # @return [Array<PlatformAdapter::SharedFile>]
+  def fetch_shared_files(files:, max_bytes:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { user_id:, display_name:, real_name:, avatar_url:, email:, timezone: }
   def get_user_info(user_id:)
     raise NotImplemented.new(__method__, self.class)

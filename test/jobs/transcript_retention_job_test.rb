@@ -36,6 +36,23 @@ class TranscriptRetentionJobTest < ActiveSupport::TestCase
     assert_not IncidentTranscriptMessage.exists?(message.id)
   end
 
+  test "files shared with Halon in the incident's channel go with the transcript, and its other chats keep theirs" do
+    in_channel = Conversation::Opener.call(workspace: @workspace, incident: @incident, channel_id: @incident.channel_id,
+                                           thread_id: "1700000000.000100", platform_user_id: @member.platform_user_id)
+    shared = Chat::Attachment.take!(workspace: @workspace, uploaded_by: @member, filename: "app.log", bytes: "boom")
+    in_channel.ask!("what broke?", files: [ shared ])
+    personal = Conversation.start_personal!(workspace: @workspace, member: @member)
+    kept = Chat::Attachment.take!(workspace: @workspace, uploaded_by: @member, filename: "mine.log", bytes: "ok")
+    personal.ask!("look", files: [ kept ])
+    close!(resolved_at: 90.days.ago)
+
+    TranscriptRetentionJob.perform_now
+
+    assert_not Chat::Attachment.exists?(shared.id)
+    assert Chat::Attachment.exists?(kept.id)
+    assert in_channel.chat.messages.exists?, "the conversation itself stays"
+  end
+
   test "the milestones survive the purge, with their quotes" do
     message = transcript_message
     note = @incident.incident_events.create!(

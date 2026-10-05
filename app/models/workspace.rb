@@ -23,6 +23,8 @@ class Workspace < ApplicationRecord
   has_many :alert_groups, dependent: :destroy
   has_many :investigations, dependent: :destroy
   has_many :chats, dependent: :destroy
+  # Uploads nobody sent yet belong to no chat, so the workspace lets go of them itself.
+  has_many :chat_attachments, class_name: "Chat::Attachment", dependent: :destroy
   has_many :conversations, dependent: :destroy
   has_many :incidents, dependent: :destroy
   has_many :alert_sources, dependent: :destroy

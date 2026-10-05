@@ -17,12 +17,15 @@ class AgentChatsController < InertiaController
   PROP_CHARTS = "charts"
   # What the person sent while the agent worked, which joins the answer at its next step.
   PROP_WAITING_MESSAGES = "waitingMessages"
+  # What the composer takes, and whether the open chat's model reads images.
+  PROP_ATTACHMENT_RULES = "attachmentRules"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
-    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES
+    "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
+    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -40,19 +43,20 @@ class AgentChatsController < InertiaController
   def index
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
-      PROP_CHARTS => [], PROP_WAITING_MESSAGES => []
+      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil)
     )
   end
 
   def show
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => AgentChatSerializer.one(conversation),
-      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(ruby_llm_tool_calls: :result) || []),
+      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, ruby_llm_tool_calls: :result) || []),
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
       PROP_OPEN_INVESTIGATION => open_investigation,
       PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
-      PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting || [])
+      PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
+      PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat)
     )
   end
 
@@ -65,17 +69,23 @@ class AgentChatsController < InertiaController
   end
 
   def create
-    return redirect_to(agent_chats_path, alert: NOTHING_ASKED) if question.blank?
+    files = files_sent
+    return redirect_to(agent_chats_path, alert: NOTHING_ASKED) if question.blank? && files.empty?
 
-    chat = Conversation::Asking.start_personal(workspace: current_workspace, member: current_membership, question: question)
+    chat = Conversation::Asking.start_personal(workspace: current_workspace, member: current_membership, question: question, files: files)
     redirect_to agent_chat_path(chat)
+  rescue Chat::Attachment::Refused => refused
+    redirect_to agent_chats_path, alert: refused.message
   end
 
   def ask
-    return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank?
+    files = files_sent
+    return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank? && files.empty?
 
-    Conversation::Asking.ask(conversation, question, asker: current_membership)
+    Conversation::Asking.ask(conversation, question, asker: current_membership, files: files)
     redirect_to agent_chat_path(conversation)
+  rescue Chat::Attachment::Refused => refused
+    redirect_to agent_chat_path(conversation), alert: refused.message
   end
 
   # The page shows the answer ending with Stopped once the worker stops.
@@ -128,6 +138,13 @@ class AgentChatsController < InertiaController
   end
 
   def question = params[:question].to_s.strip
+
+  def files_sent = Chat::Attachment.to_send!(workspace: current_workspace, member: current_membership, ids: params[:attachment_ids])
+
+  # An open chat keeps the model it was started on. A new one gets the workspace's.
+  def attachment_rules(chat)
+    AgentChatAttachmentRulesSerializer.one(Chat::Attachment.rules_for(current_workspace, model_id: chat&.model_id))
+  end
 
   def came_from?(path)
     URI.parse(request.referer.to_s).path == path

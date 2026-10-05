@@ -4,6 +4,7 @@ module Slack
     include Slack::WorkspaceAdapter::UserOperations
     include Slack::WorkspaceAdapter::IncidentModals
     include Slack::WorkspaceAdapter::IncidentMessaging
+    include Slack::WorkspaceAdapter::FileOperations
 
     CHANNEL_DESCRIPTION = "FireFight announcements channel. Every time someone declares an incident, we'll announce it here, and make sure the post is always up to date."
 

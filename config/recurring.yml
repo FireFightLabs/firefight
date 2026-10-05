@@ -92,6 +92,10 @@ staging:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
     schedule: at 4am every day
+  chat_attachment_sweep:
+    class: ChatAttachmentSweepJob # lets go of files uploaded for a message to Halon and never sent
+    queue: background
+    schedule: at 4:30am every day
   cleanup_webhook_deliveries:
     class: Webhooks::CleanupJob
     queue: webhooks
@@ -162,6 +166,10 @@ production:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
     schedule: at 4am every day
+  chat_attachment_sweep:
+    class: ChatAttachmentSweepJob # lets go of files uploaded for a message to Halon and never sent
+    queue: background
+    schedule: at 4:30am every day
   cleanup_webhook_deliveries:
     class: Webhooks::CleanupJob
     queue: webhooks

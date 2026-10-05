@@ -123,6 +123,10 @@ module TypescriptConstants
       Export.new("CHAT_MESSAGE_ROLES", {
         "USER" => Chat::Message::ROLE_USER, "ASSISTANT" => Chat::Message::ROLE_ASSISTANT
       }, nil),
+      Export.new("CHAT_ATTACHMENT_KINDS", {
+        "IMAGE" => Chat::Attachment::KIND_IMAGE, "PDF" => Chat::Attachment::KIND_PDF,
+        "TEXT" => Chat::Attachment::KIND_TEXT, "UNREAD" => Chat::Attachment::KIND_UNREAD
+      }, nil),
       Export.new("PRINCIPAL_KINDS", {
         "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT,
         "API_KEY" => Ability::Principal::KIND_API_KEY, "SYSTEM_AGENT" => Ability::Principal::KIND_SYSTEM_AGENT

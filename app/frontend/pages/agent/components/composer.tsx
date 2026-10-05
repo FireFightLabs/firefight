@@ -1,10 +1,11 @@
 import { useState } from "react"
 
-import PromptBar from "@/components/agent-ui/prompt-bar"
+import PromptBar, { type PromptAttachment } from "@/components/agent-ui/prompt-bar"
 import { agentChatsIncidentsPath } from "@/lib/routes"
+import { UPLOAD_STATES, type ComposerAttachment, useAttachmentUploads } from "@/pages/agent/hooks/use-attachment-uploads"
 import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
 import { ask, stopChat } from "@/pages/agent/lib/chat-updates"
-import type { AgentChatIncident } from "@/types/serializers"
+import type { AgentChatAttachmentRules, AgentChatIncident } from "@/types/serializers"
 
 function incidentSearchPath(query: string) {
   return agentChatsIncidentsPath({ q: query })
@@ -22,21 +23,31 @@ interface ComposerProps {
   // Turns send into Stop while nothing is typed. A message sent while the agent works joins its answer at the next step.
   busy: boolean
   fill: ComposerFill | null
+  attachmentRules: AgentChatAttachmentRules
 }
 
-export function Composer({ conversationId, incidents, busy, fill }: ComposerProps) {
+function promptAttachment(item: ComposerAttachment): PromptAttachment {
+  return {
+    key: item.key, name: item.name, size: item.size, previewUrl: item.previewUrl, progress: item.progress,
+    uploading: item.state === UPLOAD_STATES.UPLOADING, error: item.error, note: item.note,
+  }
+}
+
+export function Composer({ conversationId, incidents, busy, fill, attachmentRules }: ComposerProps) {
   const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
+  const uploads = useAttachmentUploads(attachmentRules)
   // Set when Stop is pressed and cleared by the next question, so the hint says so until the answer ends.
   const [ stopRequested, setStopRequested ] = useState(false)
   const stopping = busy && stopRequested
 
   function send(question: string) {
-    if (question.trim().length === 0) {
+    if (question.trim().length === 0 && uploads.uploaded.length === 0) {
       return
     }
 
     setStopRequested(false)
-    ask(conversationId, question)
+    ask(conversationId, question, uploads.uploaded, uploads.previewsById)
+    uploads.clear()
   }
 
   function stop() {
@@ -83,6 +94,10 @@ export function Composer({ conversationId, incidents, busy, fill }: ComposerProp
         onSend={send}
         onSourceSearch={search}
         sourceHint="Type to search incidents"
+        attachments={{
+          items: uploads.items.map(promptAttachment), accept: attachmentRules.accept, notice: uploads.notice,
+          sendable: uploads.sendable, onAdd: uploads.add, onRemove: uploads.remove,
+        }}
       />
     </div>
   )

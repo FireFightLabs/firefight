@@ -1,6 +1,7 @@
 import { AgentCard } from "@/pages/agent/components/agent-card"
 import { AgentSteps } from "@/pages/agent/components/agent-steps"
 import { AnswerText } from "@/pages/agent/components/answer-text"
+import { MessageAttachments } from "@/pages/agent/components/message-attachments"
 import { type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 
 interface MessageProps {
@@ -11,9 +12,14 @@ interface MessageProps {
 export function Message({ turn, live = false }: MessageProps) {
   if (turn.kind === TURN_KINDS.PERSON) {
     return (
-      <p className="max-w-[85%] self-end whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink [overflow-wrap:anywhere] sm:max-w-[75%]">
-        {turn.body}
-      </p>
+      <div className="flex flex-col items-end gap-1.5">
+        {turn.attachments.length > 0 && <MessageAttachments attachments={turn.attachments} />}
+        {turn.body.length > 0 && (
+          <p className="max-w-[85%] self-end whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink [overflow-wrap:anywhere] sm:max-w-[75%]">
+            {turn.body}
+          </p>
+        )}
+      </div>
     )
   }
 

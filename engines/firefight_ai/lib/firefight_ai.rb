@@ -113,6 +113,14 @@ module FirefightAi
     nil
   end
 
+  # What the registry says a model takes besides text, such as image or pdf. A model it does not know takes only text,
+  # since nothing is assumed in its place.
+  def input_modalities(model_id)
+    RubyLLM.models.find(model_id.to_s).modalities.input
+  rescue RubyLLM::ModelNotFoundError
+    []
+  end
+
   # A model the registry does not know needs its provider named. RubyLLM then trusts the id.
   def chat(choice)
     return RubyLLM.chat(model: choice.model) if choice.provider.blank?

@@ -10,7 +10,7 @@ export function groupedTurns(messages: AgentChatMessage[]): ChatTurn[] {
 
   messages.forEach((message) => {
     if (message.role === CHAT_MESSAGE_ROLES.USER) {
-      turns.push({ kind: TURN_KINDS.PERSON, id: message.id, body: message.body })
+      turns.push({ kind: TURN_KINDS.PERSON, id: message.id, body: message.body, attachments: message.attachments })
       return
     }
 

@@ -1,17 +1,17 @@
 # Both entry points ask through here, so saving the question and queueing the reply live in one place.
 class Conversation::Asking
   # The chat is created with its first question, so there is never an empty one.
-  def self.start_personal(workspace:, member:, question:)
+  def self.start_personal(workspace:, member:, question:, files: [])
     conversation = Conversation.transaction do
-      Conversation.start_personal!(workspace: workspace, member: member).tap { |started| started.ask!(question) }
+      Conversation.start_personal!(workspace: workspace, member: member).tap { |started| started.ask!(question, files: files) }
     end
     reply(conversation, member)
   end
 
   # The asker is who the turn acts as, which in a Slack thread can be someone other than whoever started it.
   # A question sent while a turn runs joins that turn. The job queued behind it answers only what is left.
-  def self.ask(conversation, question, asker:)
-    conversation.ask!(question, asker: asker)
+  def self.ask(conversation, question, asker:, files: [])
+    conversation.ask!(question, asker: asker, files: files)
     reply(conversation, asker)
   end
 
