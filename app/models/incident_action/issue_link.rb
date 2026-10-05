@@ -69,14 +69,21 @@ module IncidentAction::IssueLink
     issue_sync_note
   end
 
-  # Asks the gateway whether principal may make one call to the tracker for this item, and ledgers it. The caller makes
+  # Asks the gateway whether Firefight's issue sync may make one call to the tracker for this item, and ledgers it with
+  # the person whose change it was. Sync holds only the grants it was given, never that person's reach. The caller makes
   # the call and finalizes what this returns.
-  def authorize_issue_call!(tool, principal:, arguments:, approval_id: nil)
+  def authorize_issue_call!(tool, by:, arguments:, approval_id: nil)
     AbilityGateway.authorize!(
-      principal: principal, action_key: tool.action_key, workspace: workspace, scope: {}, params: arguments,
+      principal: SystemAgent.issue_sync, action_key: tool.action_key, workspace: workspace, scope: {}, params: arguments,
       context: { source: AbilityGateway::SOURCE_ISSUE_SYNC, approval_id: approval_id, incident_id: incident_id,
-                 triggered_by_label: "The #{action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? 'follow-up' : 'action'} on #{incident.identifier}" }.compact
+                 triggered_by_label: issue_change_label(by) }.compact
     )
+  end
+
+  # Whose change a call to the tracker carries, as the activity log shows it.
+  def issue_change_label(by)
+    item = "the #{action_type == IncidentAction::ACTION_TYPE_FOLLOWUP ? 'follow-up' : 'action'} on #{incident.identifier}"
+    by ? "#{by.actor_display_name}, on #{item}" : item.upcase_first
   end
 
   # Records in the activity log a change the tracker made here, under Firefight's issue sync, since no person in

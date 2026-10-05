@@ -43,7 +43,7 @@ module Mcp
         changes = args.slice(*SETTINGS)
         return Mcp::ToolDispatcher.error_response("Give at least one setting to change: #{SETTINGS.join(', ')}.") if changes.empty?
 
-        workspace.update_settings!(changes)
+        IssueSyncService.new(workspace).update_settings!(changes, by: principal)
         respond(workspace.settings.merge(changed: changes.keys.map(&:to_s)))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::ToolDispatcher.error_response(e.record.errors.full_messages.to_sentence)

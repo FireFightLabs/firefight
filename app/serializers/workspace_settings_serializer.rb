@@ -72,6 +72,19 @@ class WorkspaceSettingsSerializer < BaseSerializer
     workspace.issue_creation_blocked_reason
   end
 
+  # Whether Firefight registers the chosen connection's webhook itself, which a connection made with its own app does,
+  # so the setting asks for no steps and no secret.
+  type :boolean
+  def issue_webhook_automatic
+    connection = workspace.issue_sync_connection
+    connection.present? && Integrations::Issues.registers_webhooks?(connection)
+  end
+
+  type :boolean
+  def issue_webhook_registered
+    workspace.issue_webhook_registered?
+  end
+
   type :string, optional: true
   def issue_webhook_blocked_reason
     workspace.issue_webhook_blocked_reason

@@ -85,7 +85,9 @@ export function IssueTrackingCard({
         <CardDescription className="mt-1">
           Keep an incident&apos;s actions and follow-ups in step with issues in a tracker you connected. A change to an
           item&apos;s title, status or assignee reaches its issue, and a change made to the issue comes back. Closing either
-          one closes the other, and reopening either one reopens the other.
+          one closes the other, and reopening either one reopens the other. Choosing a tracker switches on the tools this
+          uses and grants exactly those to Firefight issue sync, which makes every change in the tracker, so it works
+          whoever made the item. Your approval rules still apply.
         </CardDescription>
       </CardHeader>
 
@@ -144,8 +146,8 @@ export function IssueTrackingCard({
           {errors.issue_creation && <p className="mt-2 text-sm text-destructive">{errors.issue_creation}</p>}
           <p className="mt-2 text-sm text-muted-foreground">
             Never by default. Unless it is never, any item without an issue offers Create issue on the incident page and
-            on its message in Slack. Firefight opens each issue as the person who made the item, through your permissions
-            and approval rules, with the item&apos;s title, the incident&apos;s identifier and a link back to the incident.
+            on its message in Slack. Each issue carries the item&apos;s title, the incident&apos;s identifier and a link back
+            to the incident, and the activity log names whoever made the item.
           </p>
         </div>
 
@@ -174,7 +176,18 @@ export function IssueTrackingCard({
             <Label htmlFor="issue-webhook-secret" className="text-foreground">
               Changes made in the tracker
             </Label>
-            {savedTracker && webhookUrl ? (
+            {savedTracker && settings.issueWebhookAutomatic ? (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {settings.issueWebhookRegistered
+                    ? "Firefight registered the tracker's webhook itself, so changes made there reach it. Choosing another tracker or removing the connection takes the webhook away again."
+                    : "Firefight registers the tracker's webhook itself when you save."}
+                </p>
+                {settings.issueWebhookBlockedReason && (
+                  <p className="mt-2 text-sm text-destructive">{settings.issueWebhookBlockedReason}</p>
+                )}
+              </>
+            ) : savedTracker && webhookUrl ? (
               <>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Changes reach Firefight through the tracker&apos;s webhook, sent to this workspace&apos;s own address.

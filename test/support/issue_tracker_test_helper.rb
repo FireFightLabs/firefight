@@ -16,9 +16,13 @@ module IssueTrackerTestHelper
     integration
   end
 
-  # Turns sync on for the workspace with the tracker, issues opened as creation says.
-  def sync_with!(workspace, integration, creation: Workspace::IssueSync::ISSUE_CREATION_ASKED, target: { "team" => "ENG" }, secret: "whsec")
-    workspace.update!(issue_tracker: integration.slug, issue_creation: creation, issue_tracker_target: target, issue_webhook_secret: secret)
+  # Turns sync on for the workspace with the tracker the way the setting does, granting Firefight issue sync its tools,
+  # issues opened as creation says.
+  def sync_with!(workspace, integration, creation: Workspace::IssueSync::ISSUE_CREATION_ASKED, target: { "team" => "ENG" }, secret: "whsec",
+                 by: workspace_memberships(:alice_workspace_one))
+    IssueSyncService.new(workspace).update_settings!(
+      { issue_tracker: integration.slug, issue_creation: creation, issue_tracker_target: target, issue_webhook_secret: secret }, by: by
+    )
   end
 
   def json_answer(data) = { "content" => [ { "type" => "text", "text" => data.to_json } ] }

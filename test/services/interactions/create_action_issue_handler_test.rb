@@ -22,14 +22,15 @@ class Interactions::CreateActionIssueHandlerTest < ActiveSupport::TestCase
                     channel_id: @incident.channel_id, action_id: Identifiers::CREATE_ACTION_ISSUE, action_value: item.id, trigger_id: "1.trigger")
   end
 
-  test "Create issue opens the item's issue as whoever clicked" do
+  test "Create issue opens the item's issue as Firefight issue sync, naming whoever clicked" do
     sync_with!(@workspace, @linear)
     tracker_answers("save_issue" => json_answer({ "id" => "ENG-1", "title" => "Rotate the password", "url" => "https://linear.app/a/issue/ENG-1/x" }))
 
     perform_enqueued_jobs { assert_nil Interactions::CreateActionIssueHandler.execute(click(@item)) }
 
     assert_equal "ENG-1", @item.reload.external_key
-    assert Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: @alice.id)
+    log = Ability::Invocation.find_by!(action_key: "linear.save_issue")
+    assert_equal [ SystemAgent.issue_sync.id, "Alice Smith, on the follow-up on #{@incident.identifier}" ], [ log.principal_id, log.triggered_by_label ]
   end
 
   test "why the issue cannot be opened is said to whoever clicked" do

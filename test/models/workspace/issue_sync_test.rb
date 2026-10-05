@@ -46,7 +46,9 @@ class Workspace::IssueSyncTest < ActiveSupport::TestCase
     assert_nil @workspace.issue_creation_blocked_reason
 
     @linear.tools.find_by!(name: "save_issue").update!(enabled: false)
-    assert_match "save_issue tool is switched off", @workspace.issue_creation_blocked_reason
+    assert_equal "Linear's save_issue is switched off, so items are not kept in step. Choose the tracker again to switch it back on.",
+                 @workspace.issue_creation_blocked_reason
+    @linear.tools.find_by!(name: "save_issue").update!(enabled: true)
 
     @linear.update!(disabled_at: Time.current)
     assert_match "is switched off, so no issues are opened", @workspace.issue_creation_blocked_reason
@@ -63,5 +65,27 @@ class Workspace::IssueSyncTest < ActiveSupport::TestCase
     assert_equal "whsec", @workspace.reload.issue_webhook_secret
     assert_not @workspace.settings.key?(:issue_webhook_secret)
     assert @workspace.settings[:issue_webhook_secret_set]
+  end
+
+  test "choosing a tracker switches on and grants Firefight issue sync exactly the tools it uses, and a revoked grant is the reason" do
+    @linear.tools.update_all(enabled: false)
+    @linear.tools.create!(name: "delete_issue", description: "delete", read_only: false, enabled: false, params_schema: {})
+    agent = SystemAgent.issue_sync
+
+    sync_with!(@workspace, @linear)
+
+    granted = @workspace.ability_grants.where(principal: agent).includes(:action).map { |grant| grant.action.key }
+    assert_equal %w[linear.get_issue linear.list_issue_statuses linear.list_users linear.save_issue], granted.sort
+    assert @linear.tools.find_by!(name: "save_issue").enabled?
+    assert_not @linear.tools.find_by!(name: "delete_issue").enabled?
+    assert_nil @workspace.issue_creation_blocked_reason
+
+    @workspace.ability_grants.where(principal: agent).joins(:action).where(ability_actions: { key: "linear.save_issue" }).destroy_all
+    assert_equal "Firefight issue sync no longer holds linear.save_issue, so items are not kept in step. Choose the tracker again to grant it back.",
+                 @workspace.reload.issue_creation_blocked_reason
+
+    IssueSyncService.new(@workspace).update_settings!({ issue_tracker: nil, issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER },
+                                                      by: workspace_memberships(:alice_workspace_one))
+    assert_not @workspace.ability_grants.exists?(principal: agent)
   end
 end

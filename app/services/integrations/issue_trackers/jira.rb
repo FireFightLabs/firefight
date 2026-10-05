@@ -21,6 +21,7 @@ module Integrations
       include Issues::Calls
 
       NAME = "Jira".freeze
+      PROVIDER_KEY = "jira".freeze
       CREATE_ISSUE = SourceLinks::Jira::CREATE_ISSUE
       CREATE_TOOL = CREATE_ISSUE
       EDIT_ISSUE = "editjiraissue".freeze
@@ -28,6 +29,7 @@ module Integrations
       LIST_TRANSITIONS = "listjiraissuetransitions".freeze
       LOOKUP_ACCOUNT = "lookupjiraaccountid".freeze
       GET_ISSUE = "getjiraissue".freeze
+      SYNC_TOOLS = [ CREATE_ISSUE, EDIT_ISSUE, TRANSITION_ISSUE, LIST_TRANSITIONS, LOOKUP_ACCOUNT, GET_ISSUE ].freeze
       RESOURCES = "getaccessibleatlassianresources".freeze
       DONE = "done".freeze
       READ_FIELDS = %w[summary status].freeze
@@ -80,13 +82,15 @@ module Integrations
                             notes: notes)
       end
 
-      def update(key:, target:, title: nil, state: nil, assignee_email: nil)
+      def update(key:, target:, title: nil, state: nil, assignee_email: nil, unassign: false)
         site, = place!(target)
         notes = []
         fields = {}
         fields["summary"] = title if title
         account = assignee_email && account_of(site, assignee_email, notes)
         fields["assignee"] = { "accountId" => account } if account
+        # Jira's REST API unassigns an issue whose assignee is set to null.
+        fields["assignee"] = nil if unassign
         if fields.any?
           result = call(EDIT_ISSUE, issue_arguments(site, key).merge("fields" => fields), "change #{key}")
           return Issues::Outcome.new(notes: notes, gone: true) if missing?(result)
@@ -122,9 +126,28 @@ module Integrations
         ]
       end
 
-      def self.verify(raw_body:, headers:, secret:)
+      # A webhook an admin made carries the secret's signature. One Firefight registered through its own app carries a
+      # bearer token Atlassian signs with the app's client secret ("Webhooks for OAuth 2.0 apps are secured by bearer
+      # authentication", developer.atlassian.com/cloud/jira/platform/webhooks), and names the webhooks it matched in
+      # matchedWebhookIds, which must hold the one Firefight registered for this workspace.
+      def self.verify(raw_body:, headers:, secret:, webhook_id: nil)
         given = headers[SIGNATURE_HEADER].to_s
-        given.start_with?(SIGNATURE_METHOD) && Issues::Calls.signed?(secret, raw_body, given.delete_prefix(SIGNATURE_METHOD))
+        return secret.present? && Issues::Calls.signed?(secret, raw_body, given.delete_prefix(SIGNATURE_METHOD)) if given.start_with?(SIGNATURE_METHOD)
+
+        webhook_id.present? && app_signed?(headers["Authorization"].to_s.delete_prefix("Bearer ")) &&
+          Array(JSON.parse(raw_body.to_s)["matchedWebhookIds"]).map(&:to_s).include?(webhook_id.to_s)
+      rescue JSON::ParserError
+        false
+      end
+
+      def self.app_signed?(token)
+        secret = IntegrationProvider.app_client(PROVIDER_KEY)[:client_secret]
+        return false if token.blank? || secret.blank?
+
+        JWT.decode(token, secret, true, algorithm: "HS256")
+        true
+      rescue JWT::DecodeError
+        false
       end
 
       def self.event(payload)

@@ -58,7 +58,7 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     assert_not item.issue_request_offered?
   end
 
-  test "only when asked opens none on its own, and opens one as whoever asks, with the title, identifier and link back" do
+  test "only when asked opens none on its own, and opens one when asked, as Firefight issue sync naming who asked" do
     sync_with!(@workspace, @linear, creation: Workspace::IssueSync::ISSUE_CREATION_ASKED)
     item = create_item
     assert_empty saves
@@ -73,21 +73,28 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     assert_equal "Rotate the database password", saves.first["title"]
     assert_match @incident.identifier, saves.first["description"]
     assert_match "https://ff.example.com/app/incidents/#{@incident.id}", saves.first["description"]
-    assert Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: @alice.id, source: AbilityGateway::SOURCE_ISSUE_SYNC,
-                                       incident_id: @incident.id)
+    log = Ability::Invocation.find_by!(action_key: "linear.save_issue", source: AbilityGateway::SOURCE_ISSUE_SYNC, incident_id: @incident.id)
+    assert_equal [ SystemAgent.issue_sync.id, "Alice Smith, on the follow-up on #{@incident.identifier}" ], [ log.principal_id, log.triggered_by_label ]
     assert_equal "This item already has an issue.", @service.request(item, by: @alice)
   end
 
-  test "someone who may not use the tracker's tool gets no issue, and the item says why" do
+  test "a member with no reach into the tracker still gets the item's issue, since sync makes it as its own agent" do
+    sync_with!(@workspace, @linear, creation: Workspace::IssueSync::ISSUE_CREATION_ALL)
+
+    item = create_item(by: @bob).reload
+
+    assert_equal [ IncidentAction::ISSUE_LINKED, "ENG-12" ], [ item.issue_sync_state, item.external_key ]
+    assert_not Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: @bob.id)
+    assert_match "Bob", Ability::Invocation.find_by!(action_key: "linear.save_issue", principal_id: SystemAgent.issue_sync.id).triggered_by_label
+  end
+
+  test "a grant taken back from Firefight issue sync leaves the item saved and says how to put it back" do
     sync_with!(@workspace, @linear, creation: Workspace::IssueSync::ISSUE_CREATION_ASKED)
     item = create_item
+    @workspace.ability_grants.where(principal: SystemAgent.issue_sync).joins(:action).where(ability_actions: { key: "linear.save_issue" }).destroy_all
 
-    perform_enqueued_jobs { @service.request(item, by: @bob) }
-
-    item.reload
-    assert_equal IncidentAction::ISSUE_FAILED, item.issue_sync_state
-    assert_match "may not use linear.save_issue", item.issue_sync_note
-    assert Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: @bob.id, decision: Ability::Invocation::DECISION_DENY)
+    assert_match "Firefight issue sync no longer holds linear.save_issue", @service.request(item, by: @alice)
+    assert_nil item.reload.issue_sync_state
   end
 
   test "always for follow-ups opens one for a follow-up and not for an action" do
@@ -166,30 +173,47 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
 
     item = create_item.reload
     assert_equal IncidentAction::ISSUE_FAILED, item.issue_sync_state
-    assert_match "save_issue tool is switched off", item.issue_sync_note
+    assert_match "Linear's save_issue is switched off", item.issue_sync_note
 
     @linear.update!(deleted_at: Time.current)
     assert_match "was removed", @workspace.reload.issue_creation_blocked_reason
     assert_match "was removed", @service.request(item.reload, by: @alice)
   end
 
-  test "picking up, handing over and finishing a linked item move its issue, as whoever did it" do
+  test "picking up, handing over and finishing a linked item move its issue, made as Firefight issue sync" do
     sync_with!(@workspace, @linear)
     item = linked_item
 
     perform_enqueued_jobs { @items.pick_up_action(action: item, picked_up_by: @alice) }
     assert_equal({ "id" => "ENG-12", "assignee" => "u-alice", "state" => "s-doing" }, saves.last)
-    assert Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: @alice.id)
 
-    perform_enqueued_jobs { @items.complete_action(action: item.reload, completed_by: @alice) }
+    perform_enqueued_jobs { @items.complete_action(action: item.reload, completed_by: @bob) }
     assert_equal({ "id" => "ENG-12", "state" => "s-done" }, saves.last)
+    labels = Ability::Invocation.where(action_key: "linear.save_issue", principal_id: SystemAgent.issue_sync.id).pluck(:triggered_by_label)
+    assert_includes labels, "Bob Jones, on the follow-up on #{@incident.identifier}"
+    assert_not Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: [ @alice.id, @bob.id ])
+  end
 
-    %w[save_issue list_users list_issue_statuses].each do |tool|
-      Ability::Grant.create!(workspace: @workspace, principal: @bob, action: Ability::Action.lookup("linear.#{tool}", @workspace))
+  test "renaming, reopening and unassigning an item reach its issue, and none of them is sent back again" do
+    sync_with!(@workspace, @linear)
+    item = linked_item(assignee: @alice, status: IncidentAction::STATUS_DONE)
+
+    perform_enqueued_jobs { assert_nil @items.rename_action(action: item, description: "Rotate every password", renamed_by: @bob) }
+    assert_equal({ "id" => "ENG-12", "title" => "Rotate every password" }, saves.last)
+
+    perform_enqueued_jobs { assert_nil @items.reopen_action(action: item.reload, reopened_by: @bob) }
+    assert_equal IncidentAction::STATUS_IN_PROGRESS, item.reload.status
+    assert_equal({ "id" => "ENG-12", "state" => "s-doing" }, saves.last)
+
+    perform_enqueued_jobs { assert_nil @items.unassign_action(action: item.reload, unassigned_by: @bob) }
+    assert_equal [ IncidentAction::STATUS_OPEN, nil ], [ item.reload.status, item.assignee ]
+    assert_equal({ "id" => "ENG-12", "assignee" => nil, "state" => "s-todo" }, saves.last)
+
+    assert_equal [ IncidentEvent::ACTION_RENAMED, IncidentEvent::ACTION_REOPENED, IncidentEvent::ACTION_UNASSIGNED ],
+                 @incident.incident_events.where(actor: @bob).order(:created_at).pluck(:event_type)
+    assert_no_difference -> { saves.size } do
+      perform_enqueued_jobs { @service.apply(event(at: 1.second.from_now, state: Integrations::Issues::STATE_OPEN, changed: [ Integrations::Issues::FIELD_STATE ])) }
     end
-    perform_enqueued_jobs { @items.reassign_action(action: linked_item, assignee: @alice, reassigned_by: @bob) }
-    assert_equal({ "id" => "ENG-12", "assignee" => "u-alice", "state" => "s-doing" }, saves.last)
-    assert Ability::Invocation.exists?(action_key: "linear.save_issue", principal_id: @bob.id, decision: Ability::Invocation::DECISION_ALLOW)
   end
 
   test "a person the tracker has no account for leaves its assignee alone, and the item says so" do

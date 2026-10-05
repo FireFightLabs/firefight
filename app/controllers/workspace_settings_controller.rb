@@ -12,7 +12,7 @@ class WorkspaceSettingsController < InertiaController
 
   # A blank retention casts to null, which means keep everything.
   def update
-    current_workspace.update_settings!(params.permit(*Workspace::Settings::PERMITTED))
+    IssueSyncService.new(current_workspace).update_settings!(params.permit(*Workspace::Settings::PERMITTED), by: current_membership)
 
     redirect_to settings_workspace_path, notice: "Workspace settings were updated."
   rescue ActiveRecord::RecordInvalid => e

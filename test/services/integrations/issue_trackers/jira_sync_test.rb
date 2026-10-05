@@ -112,6 +112,17 @@ module Integrations
         assert_equal Integrations::Issues::STATE_STARTED, Jira.state_of("indeterminate")
         assert_equal Integrations::Issues::STATE_DONE, Jira.state_of("done")
       end
+
+      test "a webhook Firefight registered is proved by Atlassian's token signed with the app's secret and naming that webhook" do
+        body = { "webhookEvent" => "jira:issue_updated", "matchedWebhookIds" => [ 1000 ] }.to_json
+        IntegrationProvider.stubs(:app_client).with("jira").returns(client_id: "app", client_secret: "app-secret")
+        signed = { "Authorization" => "Bearer #{JWT.encode({ 'iss' => 'atlassian' }, 'app-secret', 'HS256')}" }
+
+        assert Jira.verify(raw_body: body, headers: signed, secret: nil, webhook_id: "1000")
+        assert_not Jira.verify(raw_body: body, headers: signed, secret: nil, webhook_id: "2000")
+        assert_not Jira.verify(raw_body: body, headers: { "Authorization" => "Bearer #{JWT.encode({}, 'other', 'HS256')}" }, secret: nil, webhook_id: "1000")
+        assert_not Jira.verify(raw_body: body, headers: {}, secret: nil, webhook_id: "1000")
+      end
     end
   end
 end

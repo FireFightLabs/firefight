@@ -31,24 +31,39 @@ module Integrations
           token_endpoint: metadata[:token_endpoint] }
       end
 
+      # A provider's own OAuth application, whose endpoints are known rather than discovered, for a native connection.
+      # A code challenge goes along only where the provider takes one.
+      def begin_app_flow(authorization_endpoint:, token_endpoint:, client_id:, scope:, redirect_uri:, params: {}, pkce: false)
+        state = SecureRandom.hex(16)
+        verifier = SecureRandom.urlsafe_base64(48) if pkce
+        challenge = verifier && Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
+        query = { response_type: "code", client_id: client_id, redirect_uri: redirect_uri, state: state, scope: scope,
+                  code_challenge: challenge, code_challenge_method: ("S256" if challenge) }.merge(params.to_h.symbolize_keys).compact
+        { authorize_url: "#{authorization_endpoint}?#{query.to_query}", state: state, verifier: verifier, client_id: client_id,
+          token_endpoint: token_endpoint }
+      end
+
       # The credential shape is private to this class. Callers persist it
       # verbatim and never index into it.
-      def exchange(token_endpoint:, code:, verifier:, client_id:, redirect_uri:, resource:, client_secret: nil)
+      # json sends the token request as JSON, for a provider whose token endpoint documents only that.
+      def exchange(token_endpoint:, code:, verifier:, client_id:, redirect_uri:, resource:, client_secret: nil, json: false)
         token = token_request(token_endpoint,
-                              grant_type: "authorization_code", code: code, redirect_uri: redirect_uri,
-                              client_id: client_id, client_secret: client_secret,
-                              code_verifier: verifier, resource: resource_of(resource))
+                              { grant_type: "authorization_code", code: code, redirect_uri: redirect_uri,
+                                client_id: client_id, client_secret: client_secret,
+                                code_verifier: verifier, resource: resource && resource_of(resource) },
+                              json: json)
         token.merge(
           "token_endpoint" => token_endpoint, "client_id" => client_id,
-          "client_secret" => client_secret, "resource" => resource_of(resource)
+          "client_secret" => client_secret, "resource" => resource && resource_of(resource), "token_format" => ("json" if json)
         ).compact
       end
 
       def refresh(credentials)
         rotated = token_request(credentials["token_endpoint"],
-                                grant_type: "refresh_token", refresh_token: credentials["refresh_token"],
-                                client_id: credentials["client_id"], client_secret: credentials["client_secret"],
-                                resource: credentials["resource"])
+                                { grant_type: "refresh_token", refresh_token: credentials["refresh_token"],
+                                  client_id: credentials["client_id"], client_secret: credentials["client_secret"],
+                                  resource: credentials["resource"] },
+                                json: credentials["token_format"] == "json")
         credentials.merge(rotated) { |_key, previous, current| current.presence || previous }
       end
 
@@ -132,11 +147,16 @@ module Integrations
         response.fetch("client_id") { raise Error, "client registration returned no client_id" }
       end
 
-      def token_request(token_endpoint, params)
+      def token_request(token_endpoint, params, json: false)
         uri = URI.parse(token_endpoint.to_s)
         request = Net::HTTP::Post.new(uri)
         request["Accept"] = "application/json"
-        request.set_form_data(params.compact)
+        if json
+          request["Content-Type"] = "application/json"
+          request.body = params.compact.to_json
+        else
+          request.set_form_data(params.compact)
+        end
         response = Http.request(uri, request, error_class: Error)
         body = JSON.parse(response.body.to_s)
         raise Error, body["error_description"] || body["error"] || "token request failed (HTTP #{response.code})" unless response.code.to_i.between?(200, 299)

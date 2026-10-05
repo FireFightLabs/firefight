@@ -26,6 +26,7 @@ module Integrations
       LIST_STATUSES = "list_issue_statuses".freeze
       LIST_USERS = "list_users".freeze
       CREATE_TOOL = SAVE_ISSUE
+      SYNC_TOOLS = [ SAVE_ISSUE, GET_ISSUE, LIST_STATUSES, LIST_USERS ].freeze
       CLOSED_TYPES = %w[completed canceled].freeze
       OPENS = [ SAVE_ISSUE ].freeze
 
@@ -77,11 +78,12 @@ module Integrations
         Issues::Outcome.new(issue: issue, notes: notes)
       end
 
-      def update(key:, target:, title: nil, state: nil, assignee_email: nil)
+      def update(key:, target:, title: nil, state: nil, assignee_email: nil, unassign: false)
         notes = []
         arguments = { "id" => key }
         arguments["title"] = title if title
         assign(arguments, assignee_email, notes) if assignee_email
+        arguments[parameter("assignee", "assigneeId")] = nil if unassign
         if state
           found = state_id(target, state)
           found ? arguments[parameter("state", "stateId")] = found : notes << "#{key}'s team has no #{state_words(state)} state, so its status was left alone."
@@ -110,7 +112,7 @@ module Integrations
         ]
       end
 
-      def self.verify(raw_body:, headers:, secret:)
+      def self.verify(raw_body:, headers:, secret:, webhook_id: nil)
         return false unless Issues::Calls.signed?(secret, raw_body, headers[SIGNATURE_HEADER])
 
         sent = JSON.parse(raw_body.to_s)["webhookTimestamp"]

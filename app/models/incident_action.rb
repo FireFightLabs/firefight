@@ -52,6 +52,33 @@ class IncidentAction < ApplicationRecord
     "That item is already done."
   end
 
+  # A title is what the item says needs doing, so it cannot be emptied.
+  def rename_blocked_reason(description)
+    return "Give the item a title." if description.to_s.strip.empty?
+
+    "That is already its title." if description.to_s.strip == self.description
+  end
+
+  def reopen_blocked_reason
+    return "That item is not done." unless done?
+
+    incident.action_reopen_blocked_reason(action_type)
+  end
+
+  def unassign_blocked_reason
+    return "That item is done. Reopen it first." if done?
+
+    "Nobody holds that item." unless assigned?
+  end
+
+  # Moves the item's status on only from where it was, so two people or a person and its issue never both land. False
+  # when it had moved.
+  def move_status!(from:, to:, **columns)
+    won = self.class.where(id: id, status: Array(from)).update_all(status: to, updated_at: Time.current, **columns)
+    reload
+    won == 1
+  end
+
   def open?
     status == STATUS_OPEN
   end

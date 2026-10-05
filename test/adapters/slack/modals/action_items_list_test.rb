@@ -19,14 +19,14 @@ class Slack::Modals::ActionItemsListTest < ActiveSupport::TestCase
     controls = controls_for(action)
 
     assert_equal "actions", controls[:type]
-    assert_equal [ Identifiers::PICK_UP_ACTION, Identifiers::REASSIGN_ACTION ],
+    assert_equal [ Identifiers::PICK_UP_ACTION, Identifiers::REASSIGN_ACTION, Identifiers::RENAME_ACTION ],
                  controls[:elements].map { |element| element[:action_id] }
   end
 
   test "an assigned item offers completion and a handover" do
     action = create_action("Restart the worker", assignee: @member)
 
-    assert_equal [ Identifiers::MARK_ACTION_DONE, Identifiers::REASSIGN_ACTION ],
+    assert_equal [ Identifiers::MARK_ACTION_DONE, Identifiers::REASSIGN_ACTION, Identifiers::RENAME_ACTION, Identifiers::UNASSIGN_ACTION ],
                  controls_for(action)[:elements].map { |element| element[:action_id] }
   end
 

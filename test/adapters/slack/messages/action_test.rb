@@ -49,4 +49,17 @@ class Slack::Messages::ActionTest < ActiveSupport::TestCase
     action.update!(status: IncidentAction::STATUS_DONE)
     assert_equal Slack::Messages::Action.completed(action), Slack::Messages::Action.current(action)
   end
+
+  test "an open item offers Rename, one someone holds offers Unassign, and a done one offers Reopen and Rename" do
+    action = @incident.incident_actions.create!(created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Roll back")
+    ids = ->(blocks) { blocks.find { |block| block[:type] == "actions" }[:elements].pluck(:action_id) }
+
+    assert_equal [ Identifiers::PICK_UP_ACTION, Identifiers::REASSIGN_ACTION, Identifiers::RENAME_ACTION ], ids.call(Slack::Messages::Action.created(action))
+
+    action.update!(assignee: @member, status: IncidentAction::STATUS_IN_PROGRESS)
+    assert_includes ids.call(Slack::Messages::Action.picked_up(action)), Identifiers::UNASSIGN_ACTION
+
+    action.update!(status: IncidentAction::STATUS_DONE)
+    assert_equal [ Identifiers::REOPEN_ACTION, Identifiers::RENAME_ACTION ], ids.call(Slack::Messages::Action.completed(action))
+  end
 end

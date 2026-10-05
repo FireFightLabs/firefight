@@ -660,6 +660,17 @@ providers:
     color: "#5E6AD2"
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
+    # Firefight's own Linear OAuth application, which keeps incident items in step with issues and registers the webhook
+    # that sends changes back (linear.app/developers/oauth-2-0-authentication). admin is the scope Linear asks of an app
+    # that creates webhooks (linear.app/developers/webhooks).
+    app:
+      label: Connect for issue sync
+      authorization_endpoint: https://linear.app/oauth/authorize
+      token_endpoint: https://api.linear.app/oauth/token
+      scopes: [read, write, admin]
+      scope_separator: ","
+      params: { prompt: consent }
+      pkce: true
     source_links: unchecked
     map: none
     map_note: "It holds issues, not infrastructure."
@@ -672,6 +683,16 @@ providers:
     # tools=all lists every tool on its own rather than behind Atlassian's discover and execute, so each is switched on
     # and granted by itself.
     server_url: https://mcp.atlassian.com/v2/mcp?tools=all
+    # Firefight's own Atlassian OAuth 2.0 (3LO) app, which keeps incident items in step with issues and registers a
+    # dynamic webhook that sends changes back (developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps, and
+    # /webhooks for the webhook). offline_access gives the refresh token Atlassian documents.
+    app:
+      label: Connect for issue sync
+      authorization_endpoint: https://auth.atlassian.com/authorize
+      token_endpoint: https://auth.atlassian.com/oauth/token
+      scopes: [read:jira-work, write:jira-work, read:jira-user, manage:jira-webhook, offline_access]
+      params: { audience: api.atlassian.com, prompt: consent }
+      token_format: json
     # Atlassian files these under its read_jira and search_jira permission groups, which only read.
     read_only_tools: [atlassianuserinfo, getaccessibleatlassianresources, getjiraissue, searchjiraissuesusingjql, listjiraprojects, listjiraprojectissuetypesmetadata, getjiraissuetypemetawithfields, listjiraissuetransitions, listjiraissuelinktypes, listjiraissueremoteissuelinks, listjiraissueworklogs, lookupjiraaccountid, listjiraissueassignableusers, listjiraissuecomments, listjiraissuechangelogs, getjiracurrentuser, getjirauser, listjirastatuses, listjiraprojectcomponents, getjiraprojectversions, getjiraprojectversionrelatedwork, listjiraboards, getjiraboardconfig, getjiraboardissuedata, getjiraboardsprintdata, listjiraboardsprints, listjirafilters, listjiradashboards, getjiraentityproperty]
     source_links: firefight

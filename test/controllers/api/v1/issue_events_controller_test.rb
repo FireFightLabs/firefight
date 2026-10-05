@@ -69,4 +69,23 @@ class Api::V1::IssueEventsControllerTest < ActionDispatch::IntegrationTest
     post api_v1_issue_events_path(@workspace.issue_webhook_token), params: linear_body, headers: linear_headers
     assert_response :unauthorized
   end
+
+  test "a Jira webhook Firefight registered is proved by Atlassian's token, with no secret pasted" do
+    jira = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "jira", name: "Jira issue sync", slug: "jira_issue_sync", settings: {})
+    jira.integration_environments.create!
+    @workspace.update_columns(issue_tracker: jira.slug, issue_webhook_id: "1000", issue_webhook_secret: nil)
+    IntegrationProvider.stubs(:app_client).returns(client_id: "app", client_secret: "app-secret")
+    body = { "webhookEvent" => "jira:issue_updated", "timestamp" => (Time.current.to_f * 1000).to_i, "matchedWebhookIds" => [ 1000 ],
+             "issue" => { "key" => "OPS-1", "fields" => { "summary" => "New" } }, "changelog" => { "items" => [ { "field" => "summary" } ] } }.to_json
+
+    assert_enqueued_jobs 1, only: IssueChangeJob do
+      post api_v1_issue_events_path(@workspace.issue_webhook_token), params: body,
+           headers: { "Authorization" => "Bearer #{JWT.encode({}, 'app-secret', 'HS256')}", "Content-Type" => "application/json" }
+    end
+    assert_response :ok
+
+    post api_v1_issue_events_path(@workspace.issue_webhook_token), params: body,
+         headers: { "Authorization" => "Bearer #{JWT.encode({}, 'guess', 'HS256')}", "Content-Type" => "application/json" }
+    assert_response :unauthorized
+  end
 end

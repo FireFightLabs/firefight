@@ -14,7 +14,8 @@ class Api::V1::IssueEventsController < ActionController::API
     raw_body = request.raw_post
     return head :content_too_large if raw_body.bytesize > MAX_BYTES
 
-    unless Integrations::Issues.verify(integration.provider, raw_body: raw_body, headers: request.headers, secret: workspace.issue_webhook_secret)
+    unless Integrations::Issues.verify(integration.provider, raw_body: raw_body, headers: request.headers, secret: workspace.issue_webhook_secret,
+                                                            webhook_id: workspace.issue_webhook_id)
       Rails.logger.warn({ event: "issue_events.signature_refused", workspace_id: workspace.id, provider: integration.provider }.to_json)
       return head :unauthorized
     end

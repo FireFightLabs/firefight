@@ -12,6 +12,24 @@ module Integrations
       )
     end
 
+    # Firefight's own app with the provider (IntegrationProvider::App), for a native connection.
+    def self.begin_app(provider, redirect_uri:)
+      app = provider.app
+      OauthClient.begin_app_flow(
+        authorization_endpoint: app.authorization_endpoint, token_endpoint: app.token_endpoint,
+        client_id: IntegrationProvider.app_client(provider.key)[:client_id], scope: app.scope, redirect_uri: redirect_uri,
+        params: app.params, pkce: app.pkce
+      )
+    end
+
+    def self.exchange_app(provider, pending, code:, redirect_uri:)
+      OauthClient.exchange(
+        token_endpoint: pending["token_endpoint"], code: code, verifier: pending["verifier"], client_id: pending["client_id"],
+        client_secret: IntegrationProvider.app_client(provider.key)[:client_secret], redirect_uri: redirect_uri, resource: nil,
+        json: provider.app.json_token?
+      )
+    end
+
     def self.exchange(provider, pending, code:, redirect_uri:)
       OauthClient.exchange(
         token_endpoint: pending["token_endpoint"], code: code,

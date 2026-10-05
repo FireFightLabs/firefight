@@ -48,6 +48,7 @@ module Chat::Tools::Groups
       covers: "action items, finding and reading runbooks, attaching one to an incident, claiming its steps",
       tools: [
         Mcp::Tools::CREATE_ACTION_ITEM, Mcp::Tools::ASSIGN_ACTION_ITEM, Mcp::Tools::COMPLETE_ACTION_ITEM,
+        Mcp::Tools::RENAME_ACTION_ITEM, Mcp::Tools::REOPEN_ACTION_ITEM, Mcp::Tools::UNASSIGN_ACTION_ITEM,
         Mcp::Tools::CREATE_ACTION_ITEM_ISSUE, Mcp::Tools::SEARCH_RUNBOOKS, Mcp::Tools::GET_RUNBOOK, Mcp::Tools::ATTACH_RUNBOOK,
         Mcp::Tools::CLAIM_RUNBOOK_STEP, Mcp::Tools::UPSERT_RUNBOOK
       ]

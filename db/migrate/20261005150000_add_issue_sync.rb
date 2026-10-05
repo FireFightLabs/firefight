@@ -6,6 +6,9 @@ class AddIssueSync < ActiveRecord::Migration[8.1]
       t.jsonb :issue_tracker_target, null: false, default: {}
       t.string :issue_webhook_token
       t.text :issue_webhook_secret
+      t.string :issue_webhook_id
+      t.datetime :issue_webhook_expires_at
+      t.text :issue_webhook_error
     end
     add_index :workspaces, :issue_webhook_token, unique: true
 

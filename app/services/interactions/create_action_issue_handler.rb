@@ -11,7 +11,10 @@ module Interactions
       member = workspace.workspace_memberships.find_by!(platform_user_id: interaction.user_id)
 
       refusal = IssueSyncService.new(workspace).request(action, by: member)
-      workspace.adapter.post_ephemeral(channel_id: interaction.channel_id, user_id: interaction.user_id, text: refusal) if refusal
+      if refusal && interaction.channel_id
+        workspace.adapter.post_ephemeral(channel_id: interaction.channel_id, user_id: interaction.user_id, text: refusal)
+      end
+      OpenModalRefresh.call(interaction, workspace)
       nil
     rescue ActiveRecord::RecordNotFound
       nil

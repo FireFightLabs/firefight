@@ -1,6 +1,8 @@
 # Keeps an incident's items and their issues in the workspace's tracker in step (Workspace::IssueSync). A change made in
-# Firefight goes to the issue through the gateway as whoever made it, in a job, since the tracker is another system. A
-# change the tracker sends back is applied to the item as Firefight's issue sync and never sent back, so nothing echoes.
+# Firefight goes to the issue in a job, since the tracker is another system, through the gateway as Firefight's issue
+# sync, which holds exactly the tracker tools it needs and never a person's reach. The ledger names the person whose
+# change it was. A change the tracker sends back is applied to the item as the same agent and never sent back, so
+# nothing echoes.
 # Each field keeps the time of its last change from either side (IncidentAction::IssueLink), so an older change never
 # lands over a newer one, whichever order they arrive in.
 class IssueSyncService
@@ -36,11 +38,53 @@ class IssueSyncService
 
     now = Time.current
     claimed = fields.select { |field| action.claim_issue_field!(field, now) }
-    IssueSyncJob.perform_later(operation: PUSH, action: action, principal: by, fields: claimed) if claimed.any?
+    IssueSyncJob.perform_later(operation: PUSH, action: action, by: by, fields: claimed) if claimed.any?
   end
 
-  def perform(operation, action, principal, fields: [], approval_id: nil)
-    operation == OPEN_ISSUE ? open_now(action, principal, approval_id) : push_now(action, principal, fields, approval_id)
+  # by is whoever's change it was, which the ledger names. The call is made as Firefight's issue sync.
+  def perform(operation, action, by, fields: [], approval_id: nil)
+    operation == OPEN_ISSUE ? open_now(action, by, approval_id) : push_now(action, by, fields, approval_id)
+  end
+
+  # Changes the settings under Settings, Workspace, from the page or over MCP. Choosing a tracker grants Firefight's
+  # issue sync the tools it needs and, for a connection made with Firefight's own app, registers the tracker's webhook.
+  # Choosing another, or none, takes both back. by is whoever changed them, which the ledger names. Answers what went
+  # wrong reaching the tracker, or nil, and the settings are saved either way.
+  def update_settings!(changes, by:)
+    before = @workspace.issue_tracker_connection
+    hook = @workspace.issue_webhook_id
+    @workspace.update_settings!(changes)
+    after = @workspace.issue_tracker_connection
+    moved = before&.id != after&.id
+
+    if before && moved
+      @workspace.revoke_issue_sync!(before)
+      remove_webhook(before, hook, by)
+    end
+    return unless after&.operational?
+
+    @workspace.grant_issue_sync!(after)
+    register_webhook(after, by) if !@workspace.issue_webhook_registered? || target_changed?(changes)
+  end
+
+  # A connection being removed takes its webhook and the grants with it, while its credentials still reach the tracker.
+  def connection_removed(integration, by:)
+    return unless @workspace.issue_tracker_connection&.id == integration.id
+
+    @workspace.revoke_issue_sync!(integration)
+    remove_webhook(integration, @workspace.issue_webhook_id, by)
+    @workspace.issue_webhook_registered!(nil)
+  end
+
+  # A webhook the tracker lets expire is extended before it does, as the tracker documents.
+  def refresh_webhook
+    integration = @workspace.issue_sync_connection
+    return unless integration && @workspace.issue_webhook_registered? && Issues.registers_webhooks?(integration)
+
+    expires_at = Issues.refresh_webhook(integration, @workspace.issue_webhook_id)
+    @workspace.update!(issue_webhook_expires_at: expires_at) if expires_at
+  rescue Integrations::Error => error
+    @workspace.issue_webhook_failed!(error.message)
   end
 
   # A delivery from the tracker's webhook that its signature proved, applied in a job.
@@ -65,7 +109,7 @@ class IssueSyncService
     return unless action
 
     if approval.approved?
-      IssueSyncJob.perform_later(operation: payload["operation"], action: action, principal: approval.principal,
+      IssueSyncJob.perform_later(operation: payload["operation"], action: action, by: GlobalID::Locator.locate(payload["by"]),
                                  fields: Array(payload["fields"]), approval_id: approval.id)
     elsif payload["operation"] == OPEN_ISSUE
       declined = "#{approver(approval)} declined opening its issue."
@@ -92,16 +136,16 @@ class IssueSyncService
     return unless asked
 
     refresh(action)
-    IssueSyncJob.perform_later(operation: OPEN_ISSUE, action: action, principal: by)
+    IssueSyncJob.perform_later(operation: OPEN_ISSUE, action: action, by: by)
   end
 
-  def open_now(action, principal, approval_id)
+  def open_now(action, by, approval_id)
     waiting = [ IncidentAction::ISSUE_CREATING, IncidentAction::ISSUE_AWAITING_APPROVAL ]
     return unless waiting.include?(action.issue_sync_state) && action.external_url.blank?
 
     integration = action.issue_integration
     target = @workspace.issue_tracker_target
-    outcome = session(action, integration, principal, approval_id).create(
+    outcome = session(action, integration, by, approval_id).create(
       title: action.description, description: issue_description(action), target: target, assignee_email: email_of(action.assignee)
     )
     issue = outcome.issue
@@ -113,26 +157,26 @@ class IssueSyncService
     return unless linked
 
     refresh(action)
-    catch_up(action, principal, outcome)
+    catch_up(action, by, outcome)
   rescue AbilityGateway::PendingApproval => pending
-    park(action, pending.approval, OPEN_ISSUE, [], from: waiting, to: IncidentAction::ISSUE_AWAITING_APPROVAL,
+    park(action, pending.approval, OPEN_ISSUE, [], by, from: waiting, to: IncidentAction::ISSUE_AWAITING_APPROVAL,
          note: "Opening its issue in #{integration.name} is waiting for approval.")
   rescue AbilityGateway::Denied => denied
-    fail_open(action, waiting, "#{principal.actor_display_name} may not use #{denied.action_key}, so its issue was not opened.")
+    fail_open(action, waiting, denied_words(denied, "its issue was not opened"))
   rescue Integrations::Error => error
     fail_open(action, waiting, error.message)
   end
 
   # What changed while the issue was being opened, such as the item picked up or finished, goes to it at once.
-  def catch_up(action, principal, outcome)
+  def catch_up(action, by, outcome)
     state = state_of(action)
     fields = []
     fields << Issues::FIELD_STATE if state != outcome.issue.state && state != Issues::STATE_OPEN
     fields << Issues::FIELD_TITLE if outcome.issue.title.present? && outcome.issue.title != action.description
-    changed(action, fields, by: principal) if fields.any?
+    changed(action, fields, by: by) if fields.any?
   end
 
-  def push_now(action, principal, fields, approval_id)
+  def push_now(action, by, fields, approval_id)
     return unless action.issue_syncs?
 
     asked = {}
@@ -141,21 +185,24 @@ class IssueSyncService
     notes = []
     if fields.include?(Issues::FIELD_ASSIGNEE)
       email = email_of(action.assignee)
-      email ? asked[:assignee_email] = email : notes << unassignable(action)
+      if email then asked[:assignee_email] = email
+      elsif action.assignee.nil? then asked[:unassign] = true
+      else notes << unassignable(action)
+      end
     end
     return action.issue_note!(notes.compact.join(" ").presence) if asked.empty?
 
-    outcome = session(action, action.issue_integration, principal, approval_id).update(key: action.external_key, target: @workspace.issue_tracker_target, **asked)
-    return gone(action, Issues::GONE_DELETED, by: principal) if outcome.gone
+    outcome = session(action, action.issue_integration, by, approval_id).update(key: action.external_key, target: @workspace.issue_tracker_target, **asked)
+    return gone(action, Issues::GONE_DELETED, by: by) if outcome.gone
 
     # Taken once the tracker has it, so the tracker's own report of this change is older and is never applied back.
     now = Time.current
     fields.each { |field| action.claim_issue_field!(field, now) }
     action.issue_note!([ *notes, *outcome.notes ].compact.join(" ").presence)
   rescue AbilityGateway::PendingApproval => pending
-    park(action, pending.approval, PUSH, fields, note: "Updating #{action.external_key} in #{action.issue_integration.name} is waiting for approval.")
+    park(action, pending.approval, PUSH, fields, by, note: "Updating #{action.external_key} in #{action.issue_integration.name} is waiting for approval.")
   rescue AbilityGateway::Denied => denied
-    action.issue_note!("#{principal.actor_display_name} may not use #{denied.action_key}, so #{action.external_key} was not updated.")
+    action.issue_note!(denied_words(denied, "#{action.external_key} was not updated"))
   rescue Integrations::Error => error
     action.issue_note!(error.message)
   end
@@ -226,11 +273,11 @@ class IssueSyncService
     refresh(action)
   end
 
-  def session(action, integration, principal, approval_id)
+  def session(action, integration, by, approval_id)
     raise Issues::Failed, "The connection that holds this item's issue was removed or switched off." unless integration&.operational?
 
     Issues.session(integration) do |tool, arguments, &run|
-      authorization = action.authorize_issue_call!(tool, principal: principal, arguments: arguments, approval_id: approval_id)
+      authorization = action.authorize_issue_call!(tool, by: by, arguments: arguments, approval_id: approval_id)
       begin
         result = run.call
         authorization.answer_failed!(Integrations::Sentence.of(text_of(result))) if result.is_a?(Hash) && result["isError"]
@@ -243,8 +290,9 @@ class IssueSyncService
     end
   end
 
-  def park(action, approval, operation, fields, note:, from: nil, to: nil)
-    approval.update!(resume_payload: { kind: ApprovalResumption::KIND_ISSUE_SYNC, action_id: action.id, operation: operation, fields: fields })
+  def park(action, approval, operation, fields, by, note:, from: nil, to: nil)
+    approval.update!(resume_payload: { kind: ApprovalResumption::KIND_ISSUE_SYNC, action_id: action.id, operation: operation, fields: fields,
+                                       by: by&.to_global_id&.to_s })
     if from
       action.move_issue!(from: from, to: to, issue_approval_id: approval.id, issue_sync_note: note)
       refresh(action)
@@ -287,6 +335,44 @@ class IssueSyncService
   def incident_url(incident)
     host = ENV["APP_HOST"].presence
     host && Rails.application.routes.url_helpers.incident_url(incident, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+  end
+
+  # The agent lost a grant it needs, which the setting says how to fix.
+  def denied_words(denied, consequence)
+    "Firefight issue sync may not use #{denied.action_key}, so #{consequence}. #{@workspace.issue_sync_tools_blocked_reason}".strip
+  end
+
+  def target_changed?(changes) = changes.to_h.stringify_keys.key?("issue_tracker_target")
+
+  def webhook_url
+    host = ENV["APP_HOST"].presence
+    host && Rails.application.routes.url_helpers.api_v1_issue_events_url(@workspace.issue_webhook_token, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+  end
+
+  # A connection made with Firefight's own app registers the tracker's webhook itself, replacing one it had. Any other
+  # connection is set up by hand, from the steps the setting shows.
+  def register_webhook(integration, by)
+    return unless Issues.registers_webhooks?(integration)
+    return @workspace.issue_webhook_failed!("Firefight's own address is not set, so the tracker has nowhere to send changes.") unless webhook_url
+
+    @workspace.authorize_issue_webhook!(integration, by: by, change: "register") do
+      remove_webhook(integration, @workspace.issue_webhook_id, nil) if @workspace.issue_webhook_registered?
+      @workspace.issue_webhook_registered!(Issues.register_webhook(integration, url: webhook_url, target: @workspace.issue_tracker_target))
+    end
+  rescue Integrations::Error => error
+    @workspace.issue_webhook_failed!(error.message)
+  rescue AbilityGateway::Denied, AbilityGateway::PendingApproval => error
+    @workspace.issue_webhook_failed!(error.message)
+  end
+
+  # by is nil when the removal is part of a registration already authorized.
+  def remove_webhook(integration, id, by)
+    return if id.blank? || !Issues.registers_webhooks?(integration)
+
+    remove = proc { Issues.remove_webhook(integration, id) }
+    by ? @workspace.authorize_issue_webhook!(integration, by: by, change: "remove", &remove) : remove.call
+  rescue Integrations::Error, AbilityGateway::Denied, AbilityGateway::PendingApproval => error
+    Rails.logger.warn({ event: "issue_sync.webhook_remove_failed", workspace_id: @workspace.id, error: error.message.truncate(200) }.to_json)
   end
 
   def approver(approval) = approval.approver&.actor_display_name || "A workspace admin"

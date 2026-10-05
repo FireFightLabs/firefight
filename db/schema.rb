@@ -1861,6 +1861,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
     t.jsonb "issue_tracker_target", default: {}, null: false
     t.string "issue_webhook_token"
     t.text "issue_webhook_secret"
+    t.string "issue_webhook_id"
+    t.datetime "issue_webhook_expires_at"
+    t.text "issue_webhook_error"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true

@@ -113,6 +113,10 @@ The shared button only ever subscribes.
 - **An action item tracked in an issue tracker carries the issue's link**
   after its description (`Action.described`). The description came from the
   tracker, so it is escaped.
+- **An item carries Rename, and Unassign while someone holds it**, and its
+  done message carries Reopen and Rename (`Action.done_controls`). Rename
+  opens `Modals::RenameAction`, pushed over the item list when it came from
+  there.
 - **An item without an issue offers Create issue** while the workspace opens
   issues (`Action.issue_button`, `Identifiers::CREATE_ACTION_ISSUE`), and
   "Try the issue again" once one failed. Why it is missing, or that it is being

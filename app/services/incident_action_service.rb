@@ -100,6 +100,45 @@ class IncidentActionService
     IssueSyncService.new(@workspace).changed(action, [ ISSUE_STATE ], by: completed_by) if tracked
   end
 
+  # Answers why the item cannot be renamed, or nil once it is.
+  def rename_action(action:, description:, renamed_by:)
+    reason = action.rename_blocked_reason(description)
+    return reason if reason
+
+    action.record_change!(IncidentEvent::ACTION_RENAMED, by: renamed_by) do
+      action.update!(description: description.to_s.strip)
+    end
+    edited(action, [ ISSUE_TITLE ], renamed_by)
+    nil
+  end
+
+  # A done item goes back to whoever held it, or to open when nobody did. Answers why it cannot, or nil once it has.
+  def reopen_action(action:, reopened_by:)
+    reason = action.reopen_blocked_reason
+    return reason if reason
+
+    to = action.assigned? ? IncidentAction::STATUS_IN_PROGRESS : IncidentAction::STATUS_OPEN
+    moved = guarded(action, IncidentEvent::ACTION_REOPENED, reopened_by) { action.move_status!(from: IncidentAction::STATUS_DONE, to: to) }
+    return "Someone changed that item first." unless moved
+
+    edited(action, [ ISSUE_STATE ], reopened_by)
+    nil
+  end
+
+  # Nobody holds it any more and it is open again. Answers why it cannot be, or nil once it is.
+  def unassign_action(action:, unassigned_by:)
+    reason = action.unassign_blocked_reason
+    return reason if reason
+
+    moved = guarded(action, IncidentEvent::ACTION_UNASSIGNED, unassigned_by) do
+      action.move_status!(from: IncidentAction::STATUS_IN_PROGRESS, to: IncidentAction::STATUS_OPEN, assignee_id: nil, assignee_type: nil)
+    end
+    return "Someone changed that item first." unless moved
+
+    edited(action, [ ISSUE_ASSIGNEE, ISSUE_STATE ], unassigned_by)
+    nil
+  end
+
   # A change the item's issue made in its tracker, applied only when nothing newer changed the field from either side
   # and, with from_status, only while the item is still in that status, in one guarded statement so two deliveries
   # never both land. Answers whether it was applied. It is never sent back to the tracker.
@@ -118,8 +157,31 @@ class IncidentActionService
 
   ISSUE_STATE = Integrations::Issues::FIELD_STATE
   ISSUE_ASSIGNEE = Integrations::Issues::FIELD_ASSIGNEE
+  ISSUE_TITLE = Integrations::Issues::FIELD_TITLE
 
   private
+
+  # Records the change only when the guarded move inside it won, so a move that lost leaves no event behind.
+  def guarded(action, event_type, by)
+    IncidentAction.transaction do
+      action.record_change!(event_type, by: by) { raise IncidentAction::Superseded unless yield }
+    end
+    true
+  rescue IncidentAction::Superseded
+    action.reload
+    false
+  end
+
+  # The channel's message for the item shows it as it now stands, and its issue takes the change.
+  def edited(action, fields, by)
+    IssueSyncService.new(@workspace).changed(action, fields, by: by)
+    if action.message_ts
+      @workspace.adapter.refresh_action_message(channel_id: action.incident.channel_id, message_id: action.message_ts, action: action)
+    end
+    refresh_runbook_message(action)
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "incident_action.edit_message_failed", action_id: action.id, error: error.message }.to_json)
+  end
 
   # The channel sees a change from the tracker as it would one made here. The item's message is redrawn, and a
   # completion or a handover is announced.

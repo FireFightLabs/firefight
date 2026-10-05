@@ -5,8 +5,8 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
       description "Open an issue for an action item in the workspace's issue tracker, the same as a person pressing " \
                   "\"Create issue\" on the item, or try again after its issue failed. The issue carries the item's title, " \
-                  "the incident's identifier and a link back to the incident, and is opened as you, through your " \
-                  "permissions and approval rules. It arrives in a moment: read it from get_incident, where an item " \
+                  "the incident's identifier and a link back to the incident. Firefight's issue sync opens it, under the " \
+                  "workspace's approval rules, and the activity log names you. It arrives in a moment: read it from get_incident, where an item " \
                   "shows its issue's key and link, or why it is missing. Refused when the item already has one or the " \
                   "workspace opens none. Get the item's id from get_incident. Docs: #{Docs::INCIDENTS}"
       annotations(**WRITE)

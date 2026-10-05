@@ -218,6 +218,24 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Opens the form that renames an action or a follow-up, on top of the one open when push is true.
+  # @return [Hash] { success: true }
+  def open_rename_action_modal(trigger_id:, action:, push: false)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The new title a rename form was submitted with.
+  # @return [String, nil]
+  def renamed_action_title(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps a rename form open with why it was refused.
+  # @return [Hash]
+  def rename_action_error(message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Redraws an item's message as it now stands, after a change that did not come from its own controls, such as one
   # from its issue in a tracker.
   # @return [Hash] { success: true }
