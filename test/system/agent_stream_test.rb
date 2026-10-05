@@ -42,6 +42,51 @@ class AgentStreamTest < ApplicationSystemTestCase
     assert_text "INC-118 was the same connection pool exhaustion."
   end
 
+  test "a turn says where Halon shortened its working notes, as it happens and once the answer is saved" do
+    workspace = workspaces(:slack_workspace_one)
+    member = workspace_memberships(:alice_workspace_one)
+    FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
+    Entitlements.stubs(:allows?).returns(true)
+    sign_in(users(:alice), workspace)
+    ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
+
+    conversation = Conversation.start_personal!(workspace: workspace, member: member)
+    conversation.ask!("Has checkout failed like this before?")
+    chat = conversation.chat_record
+
+    visit agent_chat_path(conversation)
+    assert_text "Has checkout failed"
+
+    delivery = Conversation::LiveDelivery.new(conversation)
+    open_stream(delivery)
+    similar = Chat::Tools.step("search_similar", { "query" => "checkout failing" })
+    delivery.step(key: "call_1", step: similar, status: :running)
+    delivery.step(key: "call_1", step: similar, status: :done)
+    compaction = chat.compactions.create!(stage: Chat::Compaction::STAGE_REBUILT, tokens_before: 150_000, note: "The pool config looks guilty")
+    delivery.made_room(compaction)
+    delivery.step(key: "call_2", step: Chat::Tools.step("search_incidents", { "query" => "checkout" }), status: :running)
+
+    assert_text(/Search similar.*#{Chat::Compaction::SHOWN_AS}.*Search incidents/m)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-made-room-live.png"))
+
+    asked = chat.add_message(RubyLLM::Message.new(
+      role: :assistant, content: "",
+      tool_calls: { "call_3" => RubyLLM::ToolCall.new(id: "call_3", name: "search_incidents", arguments: { "query" => "checkout" }) }
+    ))
+    chat.add_message(role: :tool, content: "INC-118", tool_call_id: "call_3")
+    chat.add_message(role: :assistant, content: "INC-118 was the same connection pool exhaustion.")
+    compaction.update!(created_at: asked.created_at - 1.second)
+    conversation.reply_delivered!
+    delivery.answered!("ignored")
+
+    assert_text "INC-118 was the same connection pool exhaustion."
+    find("button", text: /Worked for/).click
+    assert_text(/#{Chat::Compaction::SHOWN_AS}.*Search incidents/m)
+    assert_text(/1 step/)
+    assert_no_text "The pool config looks guilty"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-made-room-saved.png"))
+  end
+
   private
 
   # An accepted subscription can miss what is sent before its stream is live, so the turn is announced until the page shows it.

@@ -404,7 +404,8 @@ export const AGENT_STREAM_EVENTS = {
   "ANSWERED": "answered",
   "FAILED": "failed",
   "WAITING": "waiting",
-  "INVESTIGATION": "investigation"
+  "INVESTIGATION": "investigation",
+  "MADE_ROOM": "made_room"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -417,7 +418,8 @@ export const AGENT_STEP_STATUSES = {
 
 export const AGENT_STEP_KINDS = {
   "READ": "read",
-  "ACT": "act"
+  "ACT": "act",
+  "ROOM": "room"
 } as const
 
 export const AGENT_CARD_KINDS = {
@@ -448,7 +450,8 @@ export const AGENT_CHAT_PROPS = {
   "OPEN_INVESTIGATION": "openInvestigation",
   "CHARTS": "charts",
   "WAITING_MESSAGES": "waitingMessages",
-  "ATTACHMENT_RULES": "attachmentRules"
+  "ATTACHMENT_RULES": "attachmentRules",
+  "COMPACTIONS": "compactions"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconArrowsMinimize,
   IconBulb,
   IconCircleCheck,
   IconCircleX,
@@ -160,6 +161,16 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
         </Row>
       )
     }
+    case "room":
+      return (
+        <Row
+          marker={<IconMarker icon={IconArrowsMinimize} />}
+          tone="neutral"
+          title={<span className="text-fg-muted">{entry.compaction.title}</span>}
+          at={entry.compaction.at}
+          connected={connected}
+        />
+      )
     case "end":
       return <EndRow investigation={investigation} />
   }

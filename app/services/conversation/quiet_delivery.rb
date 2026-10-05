@@ -11,6 +11,8 @@ class Conversation::QuietDelivery
 
   def step(**) = nil
 
+  def made_room(_compaction) = nil
+
   def chunk(_text) = nil
 
   def answered!(_reply) = nil

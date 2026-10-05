@@ -12,7 +12,7 @@ type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean 
 const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
-  AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES,
+  AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
@@ -53,7 +53,10 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
     return { waitingMessages: [ ...props.waitingMessages, waiting ] }
   }
 
-  const asked = { id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], attachments }
+  const asked = {
+    id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], attachments,
+    createdAt: new Date().toISOString(),
+  }
   const title = question || attachments.map((attachment) => attachment.name).join(", ")
   const conversation = props.conversation ?? {
     id: "", title, preview: question, archived: false, pinned: false, pinnedAt: null,

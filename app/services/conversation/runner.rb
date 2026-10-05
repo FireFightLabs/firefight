@@ -27,6 +27,7 @@ class Conversation::Runner
     return stopped!(chat) if chat.stop_requested?
 
     delivery.thinking!
+    chat.on_making_room { |compaction| delivery.made_room(compaction) }
 
     outcome = responder.run(
       chat: chat,

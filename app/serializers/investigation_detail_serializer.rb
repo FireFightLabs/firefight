@@ -90,6 +90,11 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.notes
   end
 
+  # Each time the run made room in its model's window, placed in the story before the next step.
+  has_many :compactions, serializer: ChatCompactionSerializer do
+    investigation.chat&.compactions || []
+  end
+
   has_many :steps, serializer: InvestigationStepSerializer do
     investigation.steps.where.not(position: nil).includes(:invocation)
   end

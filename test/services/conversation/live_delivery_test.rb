@@ -28,6 +28,19 @@ class Conversation::LiveDeliveryTest < ActiveSupport::TestCase
     end
   end
 
+  test "making room lands where it happened, after the text before it, with its time and never the agent's note" do
+    chat = @workspace.chats.create!(owner: @conversation, model: "claude-sonnet-4-5", provider: :anthropic)
+    compaction = chat.compactions.create!(stage: Chat::Compaction::STAGE_REBUILT, tokens_before: 150_000, note: "The pool config looks guilty")
+    @delivery.chunk("Let me check.")
+
+    @delivery.made_room(compaction)
+
+    sent = broadcasts(stream).map { |message| JSON.parse(message) }
+    assert_equal [ Conversation::LiveDelivery::EVENT_CHUNK, Conversation::LiveDelivery::EVENT_MADE_ROOM ], sent.map { |event| event["type"] }
+    assert_equal({ "type" => Conversation::LiveDelivery::EVENT_MADE_ROOM, "key" => compaction.step_key, "title" => Chat::Compaction::SHOWN_AS,
+                   "at" => compaction.created_at.utc.iso8601(3) }, sent.last)
+  end
+
   test "a tool lands after the text written before it" do
     @delivery.chunk("Let me check.")
 

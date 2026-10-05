@@ -6,20 +6,21 @@ import { Message } from "@/pages/agent/components/message"
 import { MessageAttachments } from "@/pages/agent/components/message-attachments"
 import { groupedTurns, liveTurn, settledMessages } from "@/pages/agent/lib/group-turns"
 import type { AgentStream } from "@/pages/agent/types"
-import type { AgentChatAttachment, AgentChatConfirmation, AgentChatMessage, AgentChatWaitingMessage } from "@/types/serializers"
+import type { AgentChatAttachment, AgentChatConfirmation, AgentChatMessage, AgentChatWaitingMessage, ChatCompaction } from "@/types/serializers"
 
 interface ThreadProps {
   conversationId: string | null
   confirmations: AgentChatConfirmation[]
   messages: AgentChatMessage[]
+  compactions: ChatCompaction[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
-export function Thread({ conversationId, confirmations, messages, waiting, stream }: ThreadProps) {
+export function Thread({ conversationId, confirmations, messages, compactions, waiting, stream }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
-  const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed)), [ messages, stream.owed ])
-  const live = liveTurn(stream, messages)
+  const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
+  const live = liveTurn(stream, messages, compactions)
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
