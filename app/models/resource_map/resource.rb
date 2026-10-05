@@ -56,6 +56,15 @@ class ResourceMap::Resource < ApplicationRecord
 
   def status_label = status&.tr("_", " ")&.capitalize
 
+  # The hostnames it answers on. A hostname answers on its own name, anything else on every present hostname a link
+  # that is a fact says it serves.
+  def served_hostnames
+    return [ name.downcase ] if kind == ResourceMap::KIND_DOMAIN
+
+    ResourceMap::Link.facts.where(to_resource: self, relation: ResourceMap::RELATION_SERVED_BY).includes(:from_resource).map(&:from_resource)
+                     .select { |from| from.kind == ResourceMap::KIND_DOMAIN && from.removed_at.nil? }.map { |from| from.name.downcase }.uniq
+  end
+
   NEIGHBORHOOD_DEPTH = 2
   NEIGHBORHOOD_LIMIT = 100
 
