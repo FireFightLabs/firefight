@@ -598,13 +598,12 @@ module Integrations
         direct = entry_from_arn(wanted, environment_row)
         return direct if direct
 
-        found = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row)).entries.select do |entry|
-          [ entry.arn, entry.name, entry.details["instance_id"] ].compact.include?(wanted)
-        end
-        fail!("Nothing called #{wanted} in #{regions(environment_row).join(', ')}. list_resources shows what there is.") if found.empty?
-        return found.first if found.one?
-
-        fail!("More than one resource is called #{wanted}: #{found.map { |entry| "#{KIND_NAMES.fetch(entry.kind)} #{entry.arn}" }.join(', ')}. Name it by its ARN.")
+        # An ARN in a form entry_from_arn does not read, such as an ECS service's without its cluster, is still an id.
+        listed = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row)).entries
+        found = listed.find { |entry| entry.arn == wanted } ||
+                Named.find(listed, wanted, id: ->(entry) { entry.details["instance_id"] || entry.arn }, name: :name, provider: PROVIDER,
+                                           describe: ->(entry) { "#{KIND_NAMES.fetch(entry.kind)} #{entry.arn}" })
+        found || fail!("Nothing called #{wanted} in #{regions(environment_row).join(', ')}. list_resources shows what there is.")
       end
 
       # An ARN in the forms ECS, Lambda, EC2 and RDS document, for a region this connection reads. An ECS service ARN

@@ -303,14 +303,16 @@ module Integrations
                      "containers app stopped exit code 137 OutOfMemoryError: Container killed due to memory usage", text
       end
 
-      test "a resource is found by name, a name two resources share asks for the ARN, and one outside the connection's regions is refused" do
+      test "a resource is found by name, a name two resources share lists their ARNs, and one outside the connection's regions is refused" do
         inventory!
         answer(:list_tasks, task_arns: [])
         assert_match "web has no running tasks", call(:list_tasks, "resource" => "web")
+        assert_equal SERVICE_ARN, @pack.send(:find_resource, @row, "WEB").arn
+        assert_equal INSTANCE_ARN, @pack.send(:find_resource, @row, "i-0abc").arn
 
         AwsApi.any_instance.stubs(:all).with { |_service, region, operation, *| operation == :list_functions && region == "eu-west-1" }
                     .returns([ [ function, function.merge(function_name: "web", function_arn: FUNCTION_ARN.sub("checkout", "web")) ], false ])
-        assert_match "More than one resource is called web", refusal(:describe_resource, "resource" => "web")
+        assert_match "More than one AWS resource is called web: ECS service #{SERVICE_ARN}, Lambda function #{FUNCTION_ARN.sub("checkout", "web")}. Name it by its id.", refusal(:describe_resource, "resource" => "web")
         assert_match "Nothing called nope in eu-west-1, us-east-1", refusal(:describe_resource, "resource" => "nope")
         assert_match "is in ap-south-1, which this connection does not read", refusal(:describe_resource, "resource" => FUNCTION_ARN.sub("eu-west-1", "ap-south-1"))
       end
