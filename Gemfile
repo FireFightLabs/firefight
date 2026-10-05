@@ -45,6 +45,14 @@ gem "image_processing", "~> 2.1"
 gem "ruby-vips", "~> 2.0"
 gem "aws-sdk-s3", require: false
 
+# The AWS integration reads and changes what a workspace runs on AWS, required only when a call is made
+gem "aws-sdk-cloudwatch", require: false
+gem "aws-sdk-cloudwatchlogs", require: false
+gem "aws-sdk-ec2", require: false
+gem "aws-sdk-ecs", require: false
+gem "aws-sdk-lambda", require: false
+gem "aws-sdk-rds", require: false
+
 # Authentication with OmniAuth
 gem "omniauth", "~> 2.1"
 gem "omniauth-oauth2"
