@@ -18,7 +18,7 @@ import {
   MarkdownSerializerState,
   defaultMarkdownParser,
   defaultMarkdownSerializer,
-} from "@tiptap/pm/markdown"
+} from "prosemirror-markdown"
 import type { Node as ProseMirrorNode, Schema } from "@tiptap/pm/model"
 
 import { Toggle } from "@/components/ui/toggle"
