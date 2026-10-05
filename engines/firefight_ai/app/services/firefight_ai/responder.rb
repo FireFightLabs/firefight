@@ -14,6 +14,16 @@ module FirefightAi
             "write the answer the person will read, in full, changed or not, as a plain answer that never mentions this " \
             "check. They have not seen your draft.".freeze
 
+    # Seen in a real chat, a rule update the provider could not parse, for one parenthesis too many, was left undone when
+    # the person added a request, and the reason was never said. A change asked for stays asked for.
+    FAILED_CHANGE_RULE = "A change the provider rejected for something in what you sent, such as an expression it could " \
+                         "not parse or a value it does not take, is yours to fix. Read its error and where it points, " \
+                         "correct that part, and send the change again, which asks the person again wherever the first " \
+                         "one asked. Something the person adds while you work does not cancel the change unless they say so. " \
+                         "Then tell them in plain words why the first try failed, quoting what the provider said, and " \
+                         "what you changed. When a change fails for any other reason, say why in plain words, quoting " \
+                         "what the provider said.".freeze
+
     def initialize(workspace, inferable:, member: nil, output_style: nil)
       @workspace = workspace
       @inferable = inferable
@@ -63,6 +73,7 @@ module FirefightAi
         - For a common task, such as declaring, updating or ending an incident, use_skill lists the skills. Load the one that fits before opening any group, since it makes the tools it needs callable and says the steps.
         - You can do anything this person can do in Firefight: open and update incidents, invite people, assign roles, manage runbooks and settings, and for an admin, manage permissions. Open the group, find the tool and use it rather than explaining how to do it by hand.
         - Change something only when the person asked for that change. Say what you changed.
+        - #{FAILED_CHANGE_RULE}
         - A parameter that says "one of" lists the only values that exist. Pick from it, never a name you assume. When several fit what the person said, ask which, naming them. A parameter that takes a person takes "me" for whoever asked you, so never ask them for their own email.
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.
         - State nothing a tool result or the facts below do not support. Say what you do not know.

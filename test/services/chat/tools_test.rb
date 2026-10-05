@@ -347,6 +347,27 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal [ "call_1" ], @investigation.chat.failed_tool_call_ids
   end
 
+  # Seen in a real chat, Cloudflare's server answered a rejected rule update as an error result, and the card said
+  # Completed. Its words reach the model whole, with where its parser stopped named in characters.
+  test "a provider that answers with its own error is remembered as failed, and its words reach the model whole" do
+    grant!(@tool)
+    chat = open_chat_for_run
+    expression = "(http.host eq \"a.example.com\" and (http.request.uri.path contains \"/.env\")))"
+    said = "Error: Cloudflare API error: 20127: could not parse filter expression: Filter parsing error (1:#{expression.length}):\n" \
+           "#{expression}\n#{' ' * (expression.length - 1)}^ unrecognised input"
+    Integrations::NativeExecutor.stubs(:call).returns("content" => [ { "type" => "text", "text" => said } ], "isError" => true)
+    tool = Chat::Tools.catalog(@investigation.reload).find { |entry| entry.name == "fake_echo_text" }.tool
+    call = RubyLLM::ToolCall.new(id: "call_1", name: "fake_echo_text", arguments: { "text" => "hi" })
+    chat.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { "call_1" => call }))
+
+    result = tool.call(tool_call: call, text: "hi")
+
+    assert_equal [ "call_1" ], @investigation.chat.failed_tool_call_ids
+    assert tool.failed?
+    assert_includes result, said
+    assert_includes result, "points at character #{expression.length} of the line before it, \")\""
+  end
+
   test "a refusal is Firefight speaking, so it is not framed as something a tool said" do
     tool = Chat::Tools::Connection.new(@investigation, @tool)
 
