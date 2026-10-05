@@ -55,6 +55,21 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/incident-timeline-investigation.png"))
   end
 
+  test "the story says where the run shortened its working notes, between the steps it came between" do
+    @investigation.chat_record.compactions.create!(stage: Chat::Compaction::STAGE_CLEARED, tokens_before: 90_000, tokens_freed: 20_000,
+                                                   note: "The pool config looks guilty", created_at: 90.seconds.ago)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      line = find("li", text: Chat::Compaction::SHOWN_AS)
+      assert_text(/Read app\/controllers\/billing_controller\.rb.*#{Chat::Compaction::SHOWN_AS}.*Find where require_admin! is defined/m)
+      assert_no_text "The pool config looks guilty"
+      execute_script("arguments[0].scrollIntoView({ block: 'center' })", line)
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-made-room.png"))
+  end
+
   test "the run's own link, the one Slack carries, opens it over its incident" do
     visit investigation_path(@investigation)
 

@@ -5,7 +5,9 @@ module Mcp
     class GetResourceMap < Base
       tool_name GET_RESOURCE_MAP
       authorize_as Ability::Action::RESOURCE_INTEGRATIONS
-      description "What runs where, read off the workspace's connections: services, build services, databases and " \
+      description "The first place to find which provider and account hold a named domain, zone, service or database. " \
+                  "It only reads, so look here before asking a person or using a provider's own tools. " \
+                  "What runs where, read off the workspace's connections: services, build services, databases and " \
                   "branches, jobs, repositories and domains, and at the edge zones, Workers, Pages sites, buckets, KV " \
                   "namespaces, queues, database proxies, tunnels, load balancers and their pools, and Access applications, " \
                   "by provider and account, with how they depend on each other and which repository each is managed in " \

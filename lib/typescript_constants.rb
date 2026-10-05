@@ -79,7 +79,7 @@ module TypescriptConstants
         "THINKING" => Conversation::LiveDelivery::EVENT_THINKING, "STEP" => Conversation::LiveDelivery::EVENT_STEP,
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
-        "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION
+        "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
@@ -87,7 +87,7 @@ module TypescriptConstants
         "FAILED" => Conversation::LiveDelivery::STATUS_FAILED
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
-        "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT
+        "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND
       }, nil),
       Export.new("AGENT_CARD_KINDS", {
         "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,

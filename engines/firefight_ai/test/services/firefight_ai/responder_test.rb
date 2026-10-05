@@ -91,6 +91,31 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_match "asks the person again wherever the first one asked", FirefightAi::Responder::FAILED_CHANGE_RULE
   end
 
+  # Seen in a real chat, a pasted guide said to ask which DNS provider held a domain, and the agent asked, though the
+  # domain was a zone on the map. Told where it was, it found the zone with a tool that asks the person to confirm.
+  test "the agent is told to look before asking, even when a message says to ask first, and to find a resource on the map" do
+    chat = mock("chat")
+    chat.stubs(:to_llm).returns(stub(messages: []))
+    chat.stubs(:with_tools)
+    chat.stubs(:with_caching)
+    instructions = nil
+    chat.expects(:with_instructions).with { |text| instructions = text }
+
+    FirefightAi::Responder.new(@workspace, inferable: nil).run(
+      chat: chat, tools: [], context: "You are acting for Ada.",
+      budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 50, max_turns: 10)
+    )
+
+    assert_includes instructions, FirefightAi::LookFirstRule::RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::MAP_RULE
+    rule = FirefightAi::LookFirstRule::RULE
+    assert_match "check the resource map, the connected integrations, the catalog, what the workspace remembers, its instructions and past incidents", rule
+    assert_match "ask only to confirm it or to choose between what you found", rule
+    assert_match "says to ask them first", rule
+    assert_match "a decision only the person can make", rule
+    assert_match "never one that changes things or asks the person to confirm each call", FirefightAi::LookFirstRule::MAP_RULE
+  end
+
   # A chat grows with every question, and each turn resends all of it.
   test "a turn asks the provider to cache what it has already read" do
     chat = mock("chat")

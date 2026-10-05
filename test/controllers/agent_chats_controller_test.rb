@@ -28,6 +28,18 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "What changed today?", inertia_props.dig("conversation", "title")
   end
 
+  test "an open chat arrives with each time it made room, with when, and never the agent's note to itself" do
+    conversation = start_chat
+    conversation.ask!("What changed today?")
+    compaction = conversation.chat.compactions.create!(stage: Chat::Compaction::STAGE_REBUILT, tokens_before: 150_000, note: "The pool config looks guilty")
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    assert_equal [ { "key" => compaction.step_key, "title" => Chat::Compaction::SHOWN_AS, "at" => compaction.created_at.utc.iso8601(3) } ],
+                 inertia_props[AgentChatsController::PROP_COMPACTIONS]
+    assert_no_match "pool config", response.body
+  end
+
   # Seen in a real chat. The page guessed from the last message's role, and the empty reply saved before the
   # model answers made it hide the agent's work until the answer landed.
   test "the page is told an answer is owed until the turn delivers it" do

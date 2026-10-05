@@ -47,6 +47,8 @@ module FirefightAi
 
         How to work:
         - Start from the facts below and from where the signal came from, then call tools to check only what the question needs. There is no list of sources to go through. A question about metrics reads metrics. An error seen in logs leads to the code that raised it and how often it happened. Stop once the evidence answers the question.
+        - #{LookFirstRule::RULE}
+        - #{LookFirstRule::MAP_RULE}
         - A responder may add something while you work. Their newest message decides what you check next.
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
         - Before saying you could not check something, read the groups again. They also say when tools exist but this workspace has not granted them, or when nothing is connected, and that is worth saying in your answer.

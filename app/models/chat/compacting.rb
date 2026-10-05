@@ -17,16 +17,22 @@ module Chat::Compacting
     has_many :compactions, -> { order(:created_at) }, class_name: "Chat::Compaction", dependent: :destroy, inverse_of: :chat
   end
 
+  # Whoever is showing the chat live is told each time it makes room, once the room is made.
+  def on_making_room(&block)
+    @on_making_room = block
+  end
+
   # Tokens freed, by estimate. Zero when clearing was not worth doing.
   def clear_old_results!(tokens_before:)
     clearable = clearable_results(keep: KEEP_RECENT)
     freed = tokens_in(clearable)
     return 0 if clearable.empty? || freed < context_window! * MIN_FREED_SHARE
 
-    transaction do
+    made = transaction do
       clearable.each { |message| shorten!(message) }
       compactions.create!(stage: Chat::Compaction::STAGE_CLEARED, tokens_before: tokens_before, tokens_freed: freed, messages_affected: clearable.size)
     end
+    @on_making_room&.call(made)
     freed
   end
 
@@ -34,7 +40,7 @@ module Chat::Compacting
   # to each other is kept, since that is the conversation itself.
   def rebuild!(note:, tokens_before:)
     recent = sent_messages.where(role: Chat::Message::ROLE_TOOL).last(RECENT_IN_FULL).map(&:content)
-    transaction do
+    made = transaction do
       # Saved before they are put away, so every result stays readable by name.
       clearable_results(keep: 0).each { |message| shorten!(message) }
       put_away = working_messages + written_note(note)
@@ -43,6 +49,7 @@ module Chat::Compacting
       compactions.create!(stage: Chat::Compaction::STAGE_REBUILT, tokens_before: tokens_before, messages_affected: put_away.size, note: note)
     end
     sent_messages.reset
+    @on_making_room&.call(made)
   end
 
   private

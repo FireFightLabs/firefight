@@ -212,7 +212,7 @@ class Chat < ApplicationRecord
   private
 
   def files_by_message
-    @files_by_message ||= attached_files.where.not(chat_message_id: nil).includes(:blob, :saved_result).group_by(&:chat_message_id)
+    @files_by_message ||= attached_files.where.not(chat_message_id: nil).includes(:saved_result, sealed_attachment: :blob).group_by(&:chat_message_id)
   end
 
   def forget_files!

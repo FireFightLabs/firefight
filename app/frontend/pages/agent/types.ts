@@ -2,7 +2,7 @@ import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatIncident, AgentChatMessage,
-  AgentChatWaitingMessage, ChatChart, EnvironmentOption,
+  AgentChatWaitingMessage, ChatChart, ChatCompaction, EnvironmentOption,
   IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -21,6 +21,7 @@ export interface AgentPageProps extends SharedProps {
   charts: ChatChart[]
   waitingMessages: AgentChatWaitingMessage[]
   attachmentRules: AgentChatAttachmentRules
+  compactions: ChatCompaction[]
 }
 
 export type AgentStep = AgentChatMessage["tools"][number]

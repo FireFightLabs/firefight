@@ -21,6 +21,8 @@ export type ThinkingRow = {
   status?: ThinkingRowStatus;
   /** what the step was given, shown under the row once it is opened */
   details?: Detail[];
+  /** something that happened along the way rather than a step taken, drawn as a muted line with a dot for its mark */
+  quiet?: boolean;
 };
 
 /* the mark each status draws, so a step reads without its colour */
@@ -157,9 +159,15 @@ export default function ThinkingState({
               const entrance = firstRows.has(row.id) ? undefined : "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both";
               const line = (
                 <>
-                  <RowMark status={status} />
-                  <span className="sr-only">{STATUS_WORDS[status]}</span>
-                  <span className="shrink-0 text-[12.5px] font-medium text-ink">{row.primary}</span>
+                  {row.quiet ? (
+                    <span aria-hidden className="flex size-3.5 shrink-0 items-center justify-center"><span className="size-1 rounded-full bg-ink-3" /></span>
+                  ) : (
+                    <>
+                      <RowMark status={status} />
+                      <span className="sr-only">{STATUS_WORDS[status]}</span>
+                    </>
+                  )}
+                  <span className={row.quiet ? "shrink-0 text-[12.5px] text-ink-3" : "shrink-0 text-[12.5px] font-medium text-ink"}>{row.primary}</span>
                   {row.secondary && <span className="min-w-0 truncate text-[12px] text-ink-3" title={row.secondary}>{row.secondary}</span>}
                   {expandable && (
                     <svg
