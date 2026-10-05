@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconDotsVertical, IconKey, IconRobot, IconUser, type Icon } from "@tabler/icons-react"
+import { IconDotsVertical, IconExternalLink, IconKey, IconRobot, IconUser, type Icon } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
@@ -16,6 +16,7 @@ import type { IncidentAction } from "@/pages/incidents/types"
 import type { InlineChoice } from "@/pages/incidents/components/index/inline-select"
 import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { actionAnchorId } from "@/pages/incidents/lib/action-anchor"
+import { newTabAttributes } from "@/lib/links"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
 import {
   assignIncidentActionPath,
@@ -133,6 +134,19 @@ export function ActionItem({
         )}
         <span className="text-fg-disabled">·</span>
         <span className={statusColor}>{actionStatusLabels[action.status]}</span>
+        {action.externalUrl && (
+          <>
+            <span className="text-fg-disabled">·</span>
+            <a
+              href={action.externalUrl}
+              {...newTabAttributes(action.externalUrl)}
+              className="inline-flex min-w-0 items-center gap-1 hover:text-fg-primary hover:underline"
+            >
+              <span className="truncate">{action.externalKey ?? "Open issue"}</span>
+              <IconExternalLink className="size-3 shrink-0" />
+            </a>
+          </>
+        )}
       </div>
     </div>
   )

@@ -106,6 +106,13 @@ The shared button only ever subscribes.
   a blank one with a bare `>`. The prefixes add length, so
   `StatusUpdate.body_sections` carries a long update on into further sections
   at line boundaries rather than letting it pass the 3000 character limit.
+  The timeline modal (`IncidentTimelineFormatter`) quotes an update's message
+  the same way under its title, follows it with what the update changed
+  through `Formatting.diff_text` (values escaped, times as Slack dates), and
+  cuts the entry at a line boundary before the section limit.
+- **An action item tracked in an issue tracker carries the issue's link**
+  after its description (`Action.described`). The description came from the
+  tracker, so it is escaped.
 - **Fields are state**, joined with `  ·  ` on one line when there are three or
   fewer, one per line when the message is a milestone worth reading slowly.
   Use `Formatting.diff_text` so a change shows its before and after rather than

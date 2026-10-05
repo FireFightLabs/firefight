@@ -99,6 +99,22 @@ class Commands::ShowTimelineTest < ActiveSupport::TestCase
     assert_includes response[:text], "incident channel"
   end
 
+  test "an update shows what was posted, quoted line by line, and what it changed, with untrusted values escaped" do
+    member = workspace_memberships(:alice_workspace_one)
+    @incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: member)
+    @incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member, message: "Rolled back the deploy.\n\n- Errors are back to baseline") do
+      @incident.update!(incident_severity: incident_severities(:major_ws1), summary: "<!channel> look")
+    end
+
+    view = @workspace.adapter.build_timeline_view(@incident)
+
+    entry = view[:blocks].map { |block| block.dig(:text, :text).to_s }.find { |text| text.include?("Rolled back the deploy.") }
+    assert_includes entry, "> Rolled back the deploy.\n>\n> • Errors are back to baseline"
+    assert_match(/Severity: ~\w+~ → \*Major\*/, entry)
+    assert_includes entry, "&lt;!channel&gt; look"
+    assert_not_includes entry, "<!channel>"
+  end
+
   private
 
   def fill_timeline_to(count)

@@ -4,13 +4,14 @@ module FirefightAi
       @workspace = workspace
     end
 
-    # Markdown per section, keyed as in Schemas::Postmortem.
-    Draft = Struct.new(:title, :summary, :sections, :model, keyword_init: true)
+    # Markdown per section, keyed as in Schemas::Postmortem. prompt is the input the model was given, for an audit.
+    Draft = Struct.new(:title, :summary, :sections, :model, :prompt, keyword_init: true)
 
     def generate(incident)
       prompt_data = incident.to_full_context(workspace: @workspace)
       summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
-      ai_result = call_ai(incident, prompt_data, summary)
+      prompt = user_prompt(prompt_data, summary, channel_messages: incident.incident_transcript_messages.kept.exists?)
+      ai_result = call_ai(incident, prompt)
 
       sections = Schemas::Postmortem::SECTION_KEYS.to_h do |key|
         [ key, ai_result[key] || ai_result[key.to_sym] ]
@@ -19,13 +20,14 @@ module FirefightAi
         title: ai_result["title"] || ai_result[:title],
         summary: ai_result["summary"] || ai_result[:summary],
         sections: sections.compact,
-        model: ai_model.model
+        model: ai_model.model,
+        prompt: prompt
       )
     end
 
     private
 
-    def call_ai(incident, prompt_data, summary)
+    def call_ai(incident, prompt)
       response, _ = FirefightAi.translating_errors do
         Inference.track(
           workspace: @workspace,
@@ -40,7 +42,7 @@ module FirefightAi
           chat = FirefightAi.chat(ai_model)
           chat.with_instructions(system_prompt)
           chat.with_schema(Schemas::Postmortem)
-          chat.ask(user_prompt(prompt_data, summary))
+          chat.ask(prompt)
         end
       end
       # Structured output arrives as JSON text, parsed is the hash.
@@ -61,16 +63,28 @@ module FirefightAi
         - Actionable. Contributing factors and action items should lead to concrete improvements
         - Clear. Write for a technical audience but keep language accessible
 
-        Write only what the incident record below supports. The record is the incident details, the timeline events, the narrative summary of the channel, the actions and the shoutouts. Never infer a cause, an impact, a fix, what went well, or an action item from the title, the severity, or the duration alone. When the record has nothing for a section, return null for that section. A short incident with little in its record gets a short document, and that is the right answer.
+        Write only what the incident record below supports. The record is the incident details, the timeline events, the status updates responders posted, the narrative summary of the channel, the actions and the shoutouts. Never infer a cause, an impact, a fix, what went well, or an action item from the title, the severity, or the duration alone. When the record has nothing for a section, return null for that section. A short incident with little in its record gets a short document, and that is the right answer.
 
         Use markdown formatting for structure (bold, bullet points, numbered lists).
         For the summary section, use this structure: **Problem**: ... **Impact**: ... **Causes**: ... **Steps to resolve**: ...
+        The follow-ups already recorded on the incident are listed under Action items by Firefight itself, so never repeat one in action_items.
       PROMPT
     end
 
     MAX_TIMELINE_EVENTS = 200
 
-    def user_prompt(data, summary)
+    # Only what is known about the channel, so the model never reads an empty transcript as a silent incident.
+    def channel_note(channel_messages)
+      if channel_messages
+        "The messages people wrote in the incident channel could not be summarized, so there is no narrative summary. " \
+          "Do not read its absence as nothing having been said."
+      else
+        "Firefight holds no messages that people wrote in the incident channel, so there is no narrative summary of the " \
+          "conversation. Firefight's own posts, such as status updates, are not part of that record."
+      end
+    end
+
+    def user_prompt(data, summary, channel_messages: false)
       parts = []
       parts << "Generate a postmortem document for the following incident:\n"
       parts << "## Incident Details"
@@ -95,9 +109,8 @@ module FirefightAi
         events, elided = capped(data[:timeline_events], MAX_TIMELINE_EVENTS)
         suffix = elided.positive? ? " (#{elided} earlier events elided for length)" : ""
         parts << "\n## Timeline Events#{suffix}"
-        events.each do |event|
-          parts << "- [#{event[:at]}] #{event[:description]} (by #{event[:by] || 'system'})"
-        end
+        parts.concat(IncidentRecord.timeline(events))
+        parts.concat(IncidentRecord.status_updates(data[:timeline_events]))
       end
 
       if summary&.content.present?
@@ -105,15 +118,12 @@ module FirefightAi
         parts << summary.content
       else
         parts << "\n## Channel Conversation"
-        parts << "No messages were posted in the incident channel, so there is no account of the response beyond the timeline above."
+        parts << channel_note(channel_messages)
       end
 
       if data[:actions].present?
         parts << "\n## Actions & Follow-ups"
-        data[:actions].each do |action|
-          assignee = action[:assignee] ? " (assigned to #{action[:assignee]})" : ""
-          parts << "- [#{action[:type]}] #{action[:description]} — #{action[:status]}#{assignee}"
-        end
+        data[:actions].each { |action| parts << IncidentRecord.action_line(action) }
       end
 
       if data[:shoutouts].present?

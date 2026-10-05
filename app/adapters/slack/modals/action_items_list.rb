@@ -100,7 +100,7 @@ module Slack
         end
 
         [
-          { type: "section", text: { type: "mrkdwn", text: "#{STATUS_ICON[action.status]}  *#{action.description}*" } },
+          { type: "section", text: { type: "mrkdwn", text: "#{STATUS_ICON[action.status]}  *#{Slack::Messages::Action.described(action)}*" } },
           { type: "context", elements: context_parts },
           Slack::Messages::Action.controls(action)
         ]

@@ -131,9 +131,7 @@ class TimelineEventSerializer < BaseSerializer
   # Written as markdown, so the page renders its lists and links. Details stays plain text.
   type :string, optional: true
   def update_message
-    return nil unless UPDATE_MESSAGE_EVENTS.include?(event.event_type)
-
-    event.eventable.try(:message).presence
+    event.update_message
   end
 
   type :string, optional: true
@@ -172,8 +170,6 @@ class TimelineEventSerializer < BaseSerializer
   end
 
   private
-
-  UPDATE_MESSAGE_EVENTS = [ IncidentEvent::INCIDENT_UPDATED, IncidentEvent::INCIDENT_CANCELED ].freeze
 
   PERSON_EVENTS = [
     IncidentEvent::LEAD_ASSIGNED, IncidentEvent::ROLE_ASSIGNED,

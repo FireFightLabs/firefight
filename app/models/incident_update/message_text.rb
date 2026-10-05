@@ -19,4 +19,14 @@ module IncidentUpdate::MessageText
       line.sub(LINE_BULLET, "\\1- ").gsub(INLINE_BULLET, "\\1\n- ")
     end.join("\n")
   end
+
+  LEAD_MARKER = /\A(?:[-*+]|\d+[.)]|\#{1,6}|>)[ \t]+/
+
+  # The update's first line, for a surface with room for one line, cut at a word when it runs past limit.
+  def self.lead(text, limit:)
+    line = normalize(text.to_s).split("\n").map(&:strip).find { |candidate| candidate.present? && !candidate.match?(FENCE) }
+    return nil if line.nil?
+
+    line.sub(LEAD_MARKER, "").truncate(limit, separator: " ", omission: "…").presence
+  end
 end

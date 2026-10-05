@@ -19,7 +19,9 @@ module Incident::Serialization
   def to_full_context(workspace: self.workspace)
     {
       **to_context_hash,
-      timeline_events: incident_events.undismissed.chronological.includes(:actor).map(&:to_context_hash),
+      timeline_events: IncidentEvent.with_update_history(
+        incident_events.undismissed.chronological.includes(:actor, :eventable).to_a
+      ).map(&:to_context_hash),
       actions: incident_actions.active.map(&:to_context_hash),
       shoutouts: shoutouts.map(&:to_context_hash),
       runbooks: runbooks_context

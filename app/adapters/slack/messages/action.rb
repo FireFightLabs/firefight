@@ -13,7 +13,7 @@ module Slack
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *New #{label}*" } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
+          { type: "section", text: { type: "mrkdwn", text: "> #{described(action)}" } },
           {
             type: "context",
             elements: [
@@ -32,7 +32,7 @@ module Slack
         [
           { type: "section", text: { type: "mrkdwn", text: "#{emoji}  *New #{label}*" } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
+          { type: "section", text: { type: "mrkdwn", text: "> #{described(action)}" } },
           {
             type: "context",
             elements: [ { type: "mrkdwn", text: ":large_blue_circle: Picked up by #{Mrkdwn.mention(action.assignee)}" } ]
@@ -113,9 +113,16 @@ module Slack
         [
           { type: "section", text: { type: "mrkdwn", text: title } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: "> #{action.description}" } },
+          { type: "section", text: { type: "mrkdwn", text: "> #{described(action)}" } },
           { type: "context", elements: [ { type: "mrkdwn", text: footer } ] }
         ]
+      end
+
+      # An item tracked in an issue tracker carries the issue's link. Its title came from the tracker, so it is escaped.
+      def self.described(action)
+        return action.description if action.external_url.blank?
+
+        "#{Mrkdwn.escape(action.description)}  ·  <#{action.external_url}|#{Mrkdwn.escape(action.external_key.presence || 'Open issue')}>"
       end
 
       def self.label_for(action)
@@ -127,7 +134,7 @@ module Slack
         completer = Mrkdwn.mention(action.assignee)
 
         [
-          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  ~#{action.description}~" } },
+          { type: "section", text: { type: "mrkdwn", text: "#{emoji}  ~#{described(action)}~" } },
           { type: "context", elements: [ { type: "mrkdwn", text: ":white_check_mark: Completed by #{completer}" } ] }
         ]
       end

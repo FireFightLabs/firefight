@@ -12,6 +12,7 @@ engines/firefight_ai/
     postmortem_section_rewriter.rb                   # Rewrite a single postmortem section on request
     incident_summary_service.rb                      # Layered incident summaries (catchup, live summary)
     incident_responder.rb                            # @mention responses in incident channels
+    incident_record.rb                               # The incident timeline, posted updates and actions as prompt text, shared by every incident prompt
     milestone_extractor.rb                           # Transcript → the milestones of the investigation, as data
     schemas/postmortem.rb                            # Structured-output schema for postmortem generation
     schemas/milestones.rb                            # Structured-output schema for milestone extraction
@@ -39,9 +40,9 @@ Every call has a purpose (`AiPurpose::POSTMORTEM`, `INCIDENT_RESPONSE`, `SUMMARY
 1. The workspace's `AiModelOverride` for that purpose
 2. The workspace's `AiModelOverride` for `AiPurpose::ANY`
 3. The purpose's env var (`POSTMORTEM_AI_MODEL`, `INCIDENT_AI_MODEL`, `SUMMARY_AI_MODEL`, `MILESTONES_AI_MODEL`, `INVESTIGATION_AI_MODEL`, `CITATION_CHECK_AI_MODEL`)
-4. For a purpose with a parent (`AiPurpose::PARENTS`), everything above for the parent: `CITATION_CHECK` uses the investigation's model until it is given its own
+4. For a purpose with a parent (`AiPurpose::PARENTS`), everything above for the parent: `CITATION_CHECK` uses the investigation's model until it is given its own, and so does `POSTMORTEM`, so a postmortem with no model of its own is written on the same model as Halon's answers rather than a built-in one
 5. `FIREFIGHT_AI_MODEL`
-6. The purpose's built-in fallback (postmortems default to a stronger model than chat responses)
+6. The purpose's built-in fallback (a purpose with a parent has none of its own, it ends at its parent's)
 
 The answer is a `FirefightAi::ModelChoice` (`model`, `provider`). A provider only travels with a model RubyLLM's registry cannot place on its own, such as a Bedrock or Ollama deployment: set `POSTMORTEM_AI_PROVIDER`, `FIREFIGHT_AI_PROVIDER`, or the override row's `provider`. `FirefightAi.chat(choice)` opens the chat and passes `assume_model_exists` for an unregistered model. `Inference.provider_for(model, provider:)` records the explicit provider or asks the registry, never guesses from the model name.
 
@@ -390,3 +391,13 @@ The rules:
 ## Postmortem sections are honest
 
 The model is asked for the sections in `FirefightAi::Schemas::Postmortem`, and every one of them is nullable. Nullable rather than optional because strict structured output (OpenAI refuses a schema whose `required` list does not name every property) wants every key present, so null is how the model says the record has nothing for a section. The prompt says to write only what the incident record supports and to return null rather than infer a cause, an impact or a fix from the title and the duration. A blank incident used to come back as nine confident sections of fiction. Now `Postmortem.complete_generation!` renders every heading in `Postmortem::SECTION_KEYS` regardless, puts `Postmortem::EMPTY_SECTION_PLACEHOLDER` under any the model returned as null, and builds the Timeline section itself from `Postmortem::TimelineSection` (the undismissed incident events, capped like the generator's own timeline input) so that one section is factual on every document. The placeholder is the app's copy, never the model's, so it cannot drift between runs.
+
+**Action items starts with the follow-ups already on the incident.** `Postmortem::FollowUpsSection` lists every active follow-up as recorded, with its issue's link and its status, and the model's own `action_items` follows it. The schema and the prompt tell the model the recorded follow-ups are listed already, so its section holds only further items that follow from causes the record names.
+
+## What the postmortem model reads
+
+`Incident#to_full_context` is the record every incident prompt reads (postmortem generation, section rewrites, `/ff catchup` and mentions). Its timeline events come through `IncidentEvent.with_update_history`, so an update (`IncidentEvent::UPDATE_MESSAGE_EVENTS`, updated and canceled) carries `message`, what the responder posted, and `changes`, each changed field's label with its before and after, from the snapshot before it in the incident's whole history. `FirefightAi::IncidentRecord` renders them the same way for every prompt. Each update gets a timeline line naming its changes and pointing at its message, and a `## Status Updates` section after the timeline quotes every message in full, in order.
+
+The channel section says only what is known. With a narrative summary it is the summary. Without one, the prompt says either that Firefight holds no message a person wrote in the channel (its own posts, status updates among them, are never in the transcript) or that the messages could not be summarized, never that nothing was posted. An incident run entirely through posted updates, with nobody typing in the channel, used to reach the model as a row of "updated the incident" lines and the line "No messages were posted in the incident channel".
+
+**The rendered prompt is kept with the draft.** `PostmortemGenerator::Draft#prompt` is the user prompt as sent, and `Postmortem.complete_generation!` stores it as `generation_prompt`, passed through `Chat::SecretFree.redacted` and encrypted, so a thin document can be checked against what the model was told. The system prompt is on the ledger already, as the `PromptVersion` its row names. Only the latest generation is kept. Nothing in the product shows it yet, so it is read from the Rails console.

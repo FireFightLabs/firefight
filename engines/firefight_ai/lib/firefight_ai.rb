@@ -41,7 +41,6 @@ module FirefightAi
 
   def fallback_model(purpose)
     {
-      AiPurpose::POSTMORTEM => "gpt-4o",
       AiPurpose::INCIDENT_RESPONSE => "gpt-4o-mini",
       AiPurpose::SUMMARY => "gpt-4o-mini",
       AiPurpose::MILESTONES => "gpt-4o-mini",

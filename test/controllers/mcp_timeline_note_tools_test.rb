@@ -54,6 +54,21 @@ class McpTimelineNoteToolsTest < ActionDispatch::IntegrationTest
     assert_equal "noted Alice identified the migration lock as the root cause", entry["description"]
   end
 
+  test "get_incident carries what an update said and what it changed, before and after" do
+    @incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: @membership)
+    @incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: @membership, message: "Rolled back the deploy.\n\n- Errors are back to baseline") do
+      @incident.update!(incident_severity: incident_severities(:major_ws1))
+    end
+
+    content, = call_tool(Mcp::Tools::GET_INCIDENT, { incident: @incident.identifier })
+    entry = content["timeline"].reverse.find { |row| row["event"] == IncidentEvent::INCIDENT_UPDATED }
+
+    assert_equal "Rolled back the deploy.\n\n- Errors are back to baseline", entry.dig("update", "message")
+    assert_equal [ { "field" => "severity", "label" => "Severity", "before" => @incident.incident_updates.ordered.first.incident_severity.name, "after" => "Major" } ],
+                 entry.dig("update", "changes")
+    assert_nil content["timeline"].find { |row| row["event"] == IncidentEvent::MILESTONE_NOTED }["update"]
+  end
+
   test "an event that is not an AI note is refused with the reason" do
     pin = @incident.incident_events.create!(event_type: IncidentEvent::MESSAGE_PINNED, metadata: {})
 

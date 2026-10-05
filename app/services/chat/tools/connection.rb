@@ -60,6 +60,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @last_result = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     result = nil
+    environment_row = nil
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
       label: Chat::Tools.label(shown_as, arguments), **{ approval_id: approval_id }.compact
@@ -73,8 +74,11 @@ class Chat::Tools::Connection < RubyLLM::Tool
       result["isError"] == true ? FirefightAi::Evidence.pointed(text_of(result)) : text_of(result)
     end
     keep_charts(tool_call_id, result, said.step)
+    follow_up = present.nil? && Chat::Tools::IssueFollowUps.after(
+      @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result
+    )
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, shown_as, said), reminder ].compact.join("\n\n")
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), follow_up.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
   rescue AbilityGateway::PendingApproval => pending

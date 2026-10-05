@@ -295,4 +295,25 @@ class IncidentEventTest < ActiveSupport::TestCase
     end
     assert_not ActiveStorage::Attachment.exists?(record_type: "IncidentEvent", record_id: event.id)
   end
+
+  test "an update's context carries its message and its changes, and other events carry neither" do
+    member = workspace_memberships(:alice_workspace_one)
+    incident = Incident.create!(
+      workspace: workspaces(:slack_workspace_one), declared_by: member,
+      incident_status: incident_statuses(:investigating_ws1), incident_severity: incident_severities(:minor_ws1),
+      name: "Context", is_private: false, source: Incident::SOURCE_SLACK
+    )
+    incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: member)
+    incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: member, message: "Rolled back.") do
+      incident.update!(incident_severity: incident_severities(:major_ws1))
+    end
+
+    created, updated = IncidentEvent.with_update_history(incident.incident_events.chronological.includes(:eventable).to_a).map(&:to_context_hash)
+
+    assert_equal "Rolled back.", updated[:message]
+    assert_equal [ { label: "Severity", before: "Minor", after: "Major" } ], updated[:changes]
+    assert_not created.key?(:message)
+    assert_not created.key?(:changes)
+    assert_equal [ "Rolled back." ], incident.to_full_context[:timeline_events].filter_map { |event| event[:message] }
+  end
 end

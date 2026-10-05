@@ -22,11 +22,12 @@ module Mcp
         incident = find_by_reference(scope, reference)
         raise ActiveRecord::RecordNotFound unless incident
 
-        events = incident.incident_events.undismissed.order(created_at: :desc).limit(TIMELINE_LIMIT + 1).to_a
+        events = incident.incident_events.undismissed.includes(:eventable).order(created_at: :desc).limit(TIMELINE_LIMIT + 1).to_a
+        shown = IncidentEvent.with_update_history(events.first(TIMELINE_LIMIT).reverse)
         respond(
           **SearchIncidents.summary(incident),
           channel_id: incident.channel_id,
-          timeline: events.first(TIMELINE_LIMIT).reverse.map { |event| timeline_entry(event) },
+          timeline: shown.map { |event| timeline_entry(event) },
           timeline_truncated: events.size > TIMELINE_LIMIT,
           postmortem: postmortem(incident),
           alerts: incident.alerts.map { |alert| SearchAlerts.summary(alert) },
@@ -58,7 +59,9 @@ module Mcp
             kind: action.action_type,
             description: action.description,
             status: action.status,
-            assignee: action.assignee&.actor_display_name
+            assignee: action.assignee&.actor_display_name,
+            external_key: action.external_key,
+            external_url: action.external_url
           }.compact
         end
       end
@@ -95,9 +98,19 @@ module Mcp
           event: event.event_type,
           kind: event.metadata.to_h["kind"],
           description: event.description,
+          update: update_entry(event),
           at: event.created_at.utc.iso8601,
           metadata: event.metadata.presence
         }.compact
+      end
+
+      # What a responder posted with an update and what it changed, so an agent reads the update and not only that one happened.
+      def self.update_entry(event)
+        message = event.update_message
+        changes = event.update_changes.map { |change| change.to_h.slice(:field, :label, :before, :after) }
+        return nil if message.nil? && changes.empty?
+
+        { message: message, changes: changes }
       end
 
       def self.postmortem(incident)

@@ -20,17 +20,15 @@ module Integrations
 
       def link(tool_name:, arguments:, text: "")
         asked = arguments.to_h.stringify_keys
-        site = site_of(asked[CLOUD_ID])
+        site = self.class.site_of(asked[CLOUD_ID])
         key = tool_name == CREATE_ISSUE ? text.to_s[CREATED_KEY, 1] : asked[ISSUE].to_s.strip
         return unless site && key.to_s.match?(ISSUE_KEY)
 
         Telemetry::Link.new(provider: NAME, url: "https://#{site}/browse/#{key}")
       end
 
-      private
-
       # The site's host, from its address or a bare host name. An id has no dot, so it never reads as one.
-      def site_of(cloud_id)
+      def self.site_of(cloud_id)
         value = cloud_id.to_s.strip
         host = value.include?("://") ? URI.parse(value).host.to_s : value.chomp("/")
         host.downcase if host.match?(HOST)

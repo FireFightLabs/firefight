@@ -35,4 +35,13 @@ class IncidentUpdate::MessageTextTest < ActiveSupport::TestCase
     assert_nil IncidentUpdate::MessageText.normalize(nil)
     assert_equal "", IncidentUpdate::MessageText.normalize("")
   end
+
+  test "the lead is the first line with its list or heading marker dropped, cut at a word when it runs long" do
+    assert_equal "Findings so far.", IncidentUpdate::MessageText.lead("\nFindings so far.\n\n- Bursts at 01:30", limit: 200)
+    assert_equal "Bursts at 01:30", IncidentUpdate::MessageText.lead("• Bursts at 01:30\n• All 404", limit: 200)
+    assert_equal "Rolled back", IncidentUpdate::MessageText.lead("## Rolled back", limit: 200)
+    assert_equal "Traffic came through…", IncidentUpdate::MessageText.lead("Traffic came through Cloudflare", limit: 22)
+    assert_nil IncidentUpdate::MessageText.lead(" \n ", limit: 200)
+    assert_nil IncidentUpdate::MessageText.lead(nil, limit: 200)
+  end
 end

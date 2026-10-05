@@ -64,12 +64,50 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     assert_nil draft.summary
   end
 
-  test "the prompt says outright when the channel had no messages" do
-    stub_ruby_llm_response
-    prompt = @generator.send(:user_prompt, @incident.to_full_context(workspace: @workspace), nil)
+  test "the prompt says only what is known about the channel, and never that nothing was posted" do
+    prompt = @generator.send(:user_prompt, @incident.to_full_context(workspace: @workspace), nil, channel_messages: false)
 
-    assert_match "No messages were posted in the incident channel", prompt
+    assert_match "Firefight holds no messages that people wrote in the incident channel", prompt
+    assert_no_match(/No messages were posted/, prompt)
     assert_match "Never infer a cause", @generator.send(:system_prompt)
+
+    unsummarized = @generator.send(:user_prompt, @incident.to_full_context(workspace: @workspace), nil, channel_messages: true)
+    assert_match "could not be summarized", unsummarized
+    assert_match "Do not read its absence as nothing having been said", unsummarized
+  end
+
+  # An incident run from a chat posts its findings as updates and nobody types in the channel. The model used to be
+  # handed "updated the incident" five times and told nothing was posted, and wrote a thin document.
+  test "an incident run through posted updates hands the model every update, and its timeline names what each said" do
+    stub_ruby_llm_response
+    updates = [
+      "Opened FIR-105 to track the probing: https://linear.app/firefight/issue/FIR-105",
+      "Findings so far.\n\n- Probe bursts at 01:30 and 05:28 UTC\n- Every request returned 404\n- Ingress logs are off",
+      "Cloudflare rejected the first ruleset change with error 20127.",
+      "Traffic came through Cloudflare, but the origin port is public. Recommend restricting it to Cloudflare.",
+      "Ruleset v79 now blocks the probed paths and source IPs."
+    ]
+    @incident.record_change!(IncidentEvent::INCIDENT_CREATED, by: @member)
+    @incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: @member, message: updates.first) do
+      @incident.update!(incident_severity: incident_severities(:major_ws1))
+    end
+    updates.drop(1).each { |message| @incident.record_change!(IncidentEvent::INCIDENT_UPDATED, by: @member, message: message) }
+
+    draft = @generator.generate(@incident)
+
+    prompt = draft.prompt
+    assert_no_match(/No messages were posted/, prompt)
+    assert_match "## Status Updates", prompt
+    assert_match "> - Every request returned 404", prompt
+    assert_match "> Ruleset v79 now blocks the probed paths and source IPs.", prompt
+    assert_match "updated the incident (by Alice Smith). Changed Severity from Minor to Major. Posted the status update", prompt
+    assert_equal 5, prompt.scan("Posted the status update quoted under Status Updates").size
+
+    timeline = Postmortem::TimelineSection.markdown(@incident)
+    assert_match "  - Severity: Minor → Major", timeline
+    assert_match "  - Findings so far.", timeline
+    assert_no_match(/Every request returned 404/, timeline)
+    assert_match "  - Cloudflare rejected the first ruleset change with error 20127.", timeline
   end
 
   test "client errors leave the engine as its own error family" do
