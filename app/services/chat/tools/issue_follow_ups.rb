@@ -13,7 +13,7 @@ module Chat::Tools::IssueFollowUps
     end
     return nil unless report
 
-    report.opened? ? record(agent_run, report) : complete(agent_run, report)
+    report.opened? ? record(agent_run, report, tool.integration) : complete(agent_run, report)
   rescue AdapterError => error
     "Firefight could not finish keeping #{report.key || 'the issue'} on the incident's follow-ups: #{error.message}"
   end
@@ -27,7 +27,7 @@ module Chat::Tools::IssueFollowUps
     nil
   end
 
-  def self.record(agent_run, report)
+  def self.record(agent_run, report, integration)
     incident = agent_run.incident
     return nil if incident.nil? || incident.incident_actions.tracking(report.url).exists?
 
@@ -36,7 +36,7 @@ module Chat::Tools::IssueFollowUps
     agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: Mcp::Tools::CREATE_ACTION_ITEM, label: "Recording #{named} as a follow-up") do
       IncidentActionService.new(agent_run.workspace).create_action(
         incident: incident, created_by: agent_run.acting_principal, action_type: IncidentAction::ACTION_TYPE_FOLLOWUP,
-        description: report.title || named, external_key: report.key, external_url: report.url
+        description: report.title || named, external_key: report.key, external_url: report.url, issue_integration: integration
       )
     end
     "Firefight recorded #{named} on #{incident.identifier} as a follow-up with its link, so do not add it again."
@@ -50,7 +50,7 @@ module Chat::Tools::IssueFollowUps
     completed = open.filter_map do |action|
       params = { "incident" => action.incident.identifier, "action_item" => action.id }
       agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: Mcp::Tools::COMPLETE_ACTION_ITEM, label: "Completing the follow-up for #{report.key || 'the issue'}") do
-        IncidentActionService.new(agent_run.workspace).complete_action(action: action, completed_by: agent_run.acting_principal)
+        IncidentActionService.new(agent_run.workspace).complete_action(action: action, completed_by: agent_run.acting_principal, tracked: false)
       end
       action.incident.identifier
     rescue *REFUSED

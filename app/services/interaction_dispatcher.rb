@@ -43,6 +43,7 @@ class InteractionDispatcher
     Identifiers::SEND_INCIDENT_UPDATE => Interactions::SendIncidentUpdateButtonHandler,
     Identifiers::PICK_UP_ACTION => Interactions::PickUpActionHandler,
     Identifiers::MARK_ACTION_DONE => Interactions::MarkActionDoneHandler,
+    Identifiers::CREATE_ACTION_ISSUE => Interactions::CreateActionIssueHandler,
     Identifiers::REASSIGN_ACTION => Interactions::ReassignActionHandler,
     Identifiers::CLAIM_RUNBOOK_STEP => Interactions::ClaimRunbookStepHandler,
     Identifiers::VIEW_RUNBOOK => Interactions::ViewRunbookHandler,

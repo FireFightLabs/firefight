@@ -162,4 +162,23 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
 
     assert_not @workspace.reload.transcript_access_enabled
   end
+
+  test "an admin chooses the issue tracker, when items get issues, where they go and the webhook secret, and is told it saved" do
+    linear = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear", slug: "linear", settings: {})
+
+    patch settings_workspace_path, params: { issue_tracker: "linear", issue_creation: Workspace::IssueSync::ISSUE_CREATION_FOLLOW_UPS,
+                                             issue_tracker_target: { team: "ENG" }, issue_webhook_secret: "whsec" }
+
+    assert_redirected_to settings_workspace_path
+    assert_equal "Workspace settings were updated.", flash[:notice]
+    @workspace.reload
+    assert_equal [ linear.slug, Workspace::IssueSync::ISSUE_CREATION_FOLLOW_UPS, { "team" => "ENG" }, "whsec" ],
+                 [ @workspace.issue_tracker, @workspace.issue_creation, @workspace.issue_tracker_target, @workspace.issue_webhook_secret ]
+
+    get settings_workspace_path, headers: inertia_headers
+    props = inertia_props
+    assert_equal api_v1_issue_events_url(@workspace.issue_webhook_token), props["issueWebhookUrl"]
+    assert props.dig("settings", "issueWebhookSecretSet")
+    assert_not response.body.include?("whsec")
+  end
 end

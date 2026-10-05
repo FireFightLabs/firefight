@@ -9,9 +9,12 @@ class SystemAgent < ApplicationRecord
   # Checks that a connection reaches the account behind its server. It only runs tools an admin switched on, with
   # Firefight's own fixed reads, so what it did is in the activity log under its name.
   SLUG_HEALTH_CHECK = "health_check"
+  # Applies what changed in an issue tracker to the items its issues are linked to. It holds no grants and calls no tool,
+  # so each change it makes is in the activity log under its name.
+  SLUG_ISSUE_SYNC = "issue_sync"
   # Defined in code, so a fresh install and a test database get them without a migration.
   BUILT_IN = { SLUG_INVESTIGATOR => "Firefight Investigator", SLUG_MAP_SWEEP => "Firefight map sweep",
-               SLUG_HEALTH_CHECK => "Firefight health check" }.freeze
+               SLUG_HEALTH_CHECK => "Firefight health check", SLUG_ISSUE_SYNC => "Firefight issue sync" }.freeze
 
   validates :slug, presence: true, uniqueness: true, format: { with: /\A[a-z0-9_]+\z/ }
   validates :name, presence: true
@@ -26,6 +29,10 @@ class SystemAgent < ApplicationRecord
 
   def self.health_check
     ensure!(SLUG_HEALTH_CHECK)
+  end
+
+  def self.issue_sync
+    ensure!(SLUG_ISSUE_SYNC)
   end
 
   def self.ensure!(slug)

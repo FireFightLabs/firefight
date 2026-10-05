@@ -41,6 +41,7 @@ module Mcp
     CREATE_ACTION_ITEM = "create_action_item".freeze
     ASSIGN_ACTION_ITEM = "assign_action_item".freeze
     COMPLETE_ACTION_ITEM = "complete_action_item".freeze
+    CREATE_ACTION_ITEM_ISSUE = "create_action_item_issue".freeze
     CLAIM_RUNBOOK_STEP = "claim_runbook_step".freeze
     LINK_INCIDENT = "link_incident".freeze
     GIVE_SHOUTOUT = "give_shoutout".freeze
@@ -99,7 +100,7 @@ module Mcp
         GetForm, UpsertCustomField, UpsertFormField,
         ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,
         UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
-        CreateActionItem, AssignActionItem, CompleteActionItem, ClaimRunbookStep,
+        CreateActionItem, AssignActionItem, CompleteActionItem, CreateActionItemIssue, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
         GetWorkspaceConfig, UpdateWorkspaceSettings, ListIntegrations, GetResourceMap, SuggestResourceLink,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,

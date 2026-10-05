@@ -6,6 +6,8 @@ class ApprovalResumption
   KIND_WEB = "web"
   # A step of a run's fix, which carries on from where it was held, either way the approver decides.
   KIND_FIX_STEP = "fix_step"
+  # A call to an issue tracker for an item's issue, run again as whoever asked once approved (IssueSyncService).
+  KIND_ISSUE_SYNC = "issue_sync"
 
   def self.park!(approval, subject, kind)
     approval.update!(resume_payload: {
@@ -30,6 +32,7 @@ class ApprovalResumption
     payload = approval.resume_payload
     return if payload.blank? || approval.consumed_at.present?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
+    return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return resume_web!(approval, payload) if payload["kind"] == KIND_WEB
 
     subject = rebuild(approval, payload)
@@ -61,6 +64,7 @@ class ApprovalResumption
     payload = approval.resume_payload
     return if payload.blank?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
+    return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
 
     notify(approval, payload, "#{approver_name(approval)} declined your request. Nothing has changed.")
   end

@@ -218,6 +218,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Redraws an item's message as it now stands, after a change that did not come from its own controls, such as one
+  # from its issue in a tracker.
+  # @return [Hash] { success: true }
+  def refresh_action_message(channel_id:, message_id:, action:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { message_id: ... }
   def post_action_handed_over(channel_id:, action:, reassigned_by:)
     raise NotImplemented.new(__method__, self.class)

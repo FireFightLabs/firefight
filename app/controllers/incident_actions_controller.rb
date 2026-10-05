@@ -1,5 +1,5 @@
 class IncidentActionsController < InertiaController
-  authorizes Ability::Action::RESOURCE_INCIDENTS, update: %i[create pick_up assign complete]
+  authorizes Ability::Action::RESOURCE_INCIDENTS, update: %i[create pick_up assign complete create_issue]
 
   ASSIGNEE_UNAVAILABLE = "Couldn't load that user's profile from Slack. Please try again in a moment.".freeze
 
@@ -42,6 +42,19 @@ class IncidentActionsController < InertiaController
 
   def complete
     act(:completable?, :complete_action, completed_by: current_member)
+  end
+
+  # Opens the item's issue in the workspace's tracker, or tries again after it failed. The issue arrives in a job, and
+  # the item itself says it is being opened until its link is there, which is the confirmation. A notice would be
+  # toasted again by every reload the page makes while it waits, since Inertia keeps a page's flash across reloads.
+  def create_issue
+    incident = current_workspace.incidents.find(params[:incident_id])
+    action = incident.incident_actions.active.find(params[:id])
+
+    refusal = IssueSyncService.new(current_workspace).request(action, by: current_member)
+    return redirect_to(incident_path(incident), alert: refusal) if refusal
+
+    redirect_to incident_path(incident)
   end
 
   private

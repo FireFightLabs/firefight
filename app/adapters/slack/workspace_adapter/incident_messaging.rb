@@ -302,6 +302,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
   end
 
+  def refresh_action_message(channel_id:, message_id:, action:)
+    blocks = Slack::Messages::Action.current(action)
+    type_label = Slack::Messages::Action.label_for(action)
+    update_message(channel_id: channel_id, message_id: message_id, text: "#{type_label.capitalize} updated", blocks: blocks)
+  end
+
   def post_runbook_message(channel_id:, incident_runbook:)
     blocks = Slack::Messages::Runbook.attached(incident_runbook)
     post_message(channel_id: channel_id, text: "Runbook attached: #{incident_runbook.runbook.name}", blocks: blocks)

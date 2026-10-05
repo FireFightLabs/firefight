@@ -638,7 +638,8 @@ export const LEDGER_SOURCES = [
   "conversation",
   "map_sweep",
   "health_check",
-  "code_agent"
+  "code_agent",
+  "issue_sync"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 

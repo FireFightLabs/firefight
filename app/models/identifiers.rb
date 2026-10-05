@@ -108,6 +108,7 @@ module Identifiers
   RERUN_INVESTIGATION_QUESTION = "rerun_investigation_question"
   PICK_UP_ACTION = "pick_up_action"
   MARK_ACTION_DONE = "mark_action_done"
+  CREATE_ACTION_ISSUE = "create_action_issue"
   ADD_NEW_ACTION = "add_new_action"
   ADD_NEW_FOLLOWUP = "add_new_followup"
   CREATE_ACTION_FROM_REACTION = "create_action_from_reaction"

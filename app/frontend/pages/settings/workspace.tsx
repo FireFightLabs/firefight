@@ -11,11 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { ARCHIVE_CHANNEL_DELAY_CHOICES } from "@/lib/generated/constants"
 import { integrationsPath, settingsWorkspacePath } from "@/lib/routes"
+import {
+  IssueTrackingCard,
+  trackerChoice,
+  trackerSlug,
+  type IssueTrackingState,
+} from "@/pages/settings/components/workspace/issue-tracking-card"
 import type { WorkspaceSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface WorkspacePageProps extends SharedProps {
   settings: WorkspaceSettings
+  issueWebhookUrl: string | null
 }
 
 function retentionText(days?: number): string {
@@ -34,7 +41,7 @@ function agentSlug(choice: string): string {
 }
 
 export default function Workspace() {
-  const { settings } = usePage<WorkspacePageProps>().props
+  const { settings, issueWebhookUrl } = usePage<WorkspacePageProps>().props
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
@@ -42,6 +49,12 @@ export default function Workspace() {
   const [regression, setRegression] = useState(settings.halonRegressionEnabled)
   const [codeFixAgent, setCodeFixAgent] = useState(agentChoice(settings.codeFixAgent))
   const connectedAgents = settings.codeFixAgents.length > 1
+  const [issueTracking, setIssueTracking] = useState<IssueTrackingState>({
+    tracker: trackerChoice(settings.issueTracker),
+    creation: settings.issueCreation,
+    target: settings.issueTrackerTarget,
+    secret: "",
+  })
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
 
@@ -53,8 +66,10 @@ export default function Workspace() {
     setSaving(false)
   }
 
+  // The secret is never sent back, so the field empties once it is saved.
   function succeed() {
     setErrors({})
+    setIssueTracking((current) => ({ ...current, secret: "" }))
   }
 
   function fail(formErrors: Errors) {
@@ -72,6 +87,10 @@ export default function Workspace() {
         web_search_enabled: webSearch,
         halon_regression_enabled: regression,
         code_fix_agent: agentSlug(codeFixAgent),
+        issue_tracker: trackerSlug(issueTracking.tracker),
+        issue_creation: issueTracking.creation,
+        issue_tracker_target: issueTracking.target,
+        issue_webhook_secret: issueTracking.secret,
       },
       { preserveScroll: true, onSuccess: succeed, onError: fail, onFinish: finish },
     )
@@ -260,6 +279,14 @@ export default function Workspace() {
             </div>
           </CardContent>
         </Card>
+
+        <IssueTrackingCard
+          settings={settings}
+          webhookUrl={issueWebhookUrl}
+          state={issueTracking}
+          errors={errors}
+          onChange={setIssueTracking}
+        />
 
         <div>
           <Button onClick={save} disabled={saving}>

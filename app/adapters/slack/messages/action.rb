@@ -22,8 +22,24 @@ module Slack
           }
         ]
 
+        blocks.concat(issue_status(action))
         blocks << controls(action)
         blocks
+      end
+
+      # The item as it stands, whichever of its layouts that is.
+      def self.current(action)
+        return completed(action) if action.done?
+
+        action.assigned? ? picked_up(action) : created(action)
+      end
+
+      # Why its issue is missing or not kept in step, under the item.
+      def self.issue_status(action)
+        text = action.issue_status_text
+        return [] if text.blank?
+
+        [ { type: "context", elements: [ { type: "mrkdwn", text: ":ticket: #{Mrkdwn.escape(text)}" } ] } ]
       end
 
       def self.picked_up(action)
@@ -37,6 +53,7 @@ module Slack
             type: "context",
             elements: [ { type: "mrkdwn", text: ":large_blue_circle: Picked up by #{Mrkdwn.mention(action.assignee)}" } ]
           },
+          *issue_status(action),
           controls(action)
         ]
       end
@@ -65,9 +82,17 @@ module Slack
               action_id: button[:action_id],
               value: action.id
             },
-            picker
+            picker,
+            *issue_button(action)
           ]
         }
+      end
+
+      def self.issue_button(action)
+        return [] unless action.issue_request_offered?
+
+        text = action.issue_missing? ? ":arrows_counterclockwise: Try the issue again" : ":ticket: Create issue"
+        [ { type: "button", text: { type: "plain_text", text: text, emoji: true }, action_id: Identifiers::CREATE_ACTION_ISSUE, value: action.id } ]
       end
 
       # Editing a message notifies nobody, so a handover posts. This one

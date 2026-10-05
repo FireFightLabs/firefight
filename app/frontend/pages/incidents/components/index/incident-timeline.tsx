@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link } from "@inertiajs/react"
 import {
   IconAlertTriangle,
+  IconArrowBackUp,
   IconBellCheck,
   IconBellRinging,
   IconBook,
@@ -68,6 +69,9 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "action.picked_up": IconHandGrab,
   "action.completed": IconCircleCheck,
   "action.reassigned": IconUserCheck,
+  "action.renamed": IconPencil,
+  "action.reopened": IconArrowBackUp,
+  "action.unassigned": IconUserX,
   "postmortem.generated": IconFileText,
   "postmortem.edited": IconFileText,
   "relationship.created": IconLink,

@@ -3,8 +3,11 @@ class IncidentActionUpdate < ApplicationRecord
   PICKED_UP = "picked_up"
   COMPLETED = "completed"
   REASSIGNED = "reassigned"
+  RENAMED = "renamed"
+  REOPENED = "reopened"
+  UNASSIGNED = "unassigned"
 
-  UPDATE_TYPES = [ CREATED, PICKED_UP, COMPLETED, REASSIGNED ].freeze
+  UPDATE_TYPES = [ CREATED, PICKED_UP, COMPLETED, REASSIGNED, RENAMED, REOPENED, UNASSIGNED ].freeze
 
   include Recordable
   records IncidentAction, recorder: :actor

@@ -14,8 +14,10 @@ class AbilityGateway
   SOURCE_HEALTH_CHECK = "health_check"
   # A coding agent in the sandbox, writing a fix's code change.
   SOURCE_CODE_AGENT = "code_agent"
+  # Keeping an item and its issue in a tracker in step, either way.
+  SOURCE_ISSUE_SYNC = "issue_sync"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
-              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT ].freeze
+              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 

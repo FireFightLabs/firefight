@@ -1,5 +1,6 @@
 class IncidentAction < ApplicationRecord
   include IncidentAction::Snapshots
+  include IncidentAction::IssueLink
 
   ACTION_TYPE_ACTION = "action"
   ACTION_TYPE_FOLLOWUP = "followup"

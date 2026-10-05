@@ -251,4 +251,22 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
       description: "Drain replica 2"
     )
   end
+
+  test "Create issue opens the item's issue in a job and says so, and a reason it cannot is the alert" do
+    linear = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear", slug: "linear", settings: {})
+    linear.integration_environments.create!
+    linear.tools.create!(name: "save_issue", description: "save", read_only: false, enabled: true, params_schema: {})
+    @workspace.update!(issue_tracker: linear.slug, issue_creation: Workspace::IssueSync::ISSUE_CREATION_ASKED, issue_tracker_target: { "team" => "ENG" })
+    action = @incident.incident_actions.create!(created_by: @member, action_type: IncidentAction::ACTION_TYPE_FOLLOWUP, description: "Rotate")
+
+    assert_enqueued_with(job: IssueSyncJob) do
+      post incident_item_issue_path(incident_id: @incident.id, id: action.id)
+    end
+    assert_redirected_to incident_path(@incident)
+    assert_nil flash[:notice]
+    assert_equal IncidentAction::ISSUE_CREATING, action.reload.issue_sync_state
+
+    post incident_item_issue_path(incident_id: @incident.id, id: action.id)
+    assert_equal "Firefight is opening its issue now.", flash[:alert]
+  end
 end

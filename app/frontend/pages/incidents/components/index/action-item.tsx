@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { IconDotsVertical, IconExternalLink, IconKey, IconRobot, IconUser, type Icon } from "@tabler/icons-react"
+import { IconDotsVertical, IconExternalLink, IconKey, IconRobot, IconTicket, IconUser, type Icon } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
@@ -18,9 +18,11 @@ import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { actionAnchorId } from "@/pages/incidents/lib/action-anchor"
 import { newTabAttributes } from "@/lib/links"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
+import { Blocked } from "@/pages/settings/components/blocked-tooltip"
 import {
   assignIncidentActionPath,
   completeIncidentActionPath,
+  incidentItemIssuePath,
   pickUpIncidentActionPath,
 } from "@/lib/routes"
 
@@ -96,6 +98,30 @@ function ActionMenu({
   )
 }
 
+// Opens the item's issue in the workspace's tracker, or tries again after it failed. The issue arrives in a job, so
+// the page shows that it is being opened until it is there.
+function IssueRequest({ action, incidentId }: { action: IncidentAction; incidentId: string }) {
+  const blockedReason = action.issueRequestBlockedReason ?? undefined
+
+  function createIssue() {
+    router.post(incidentItemIssuePath(incidentId, action.id), {}, afterMutation("actions"))
+  }
+
+  return (
+    <Blocked reason={blockedReason} side="top">
+      <button
+        type="button"
+        onClick={createIssue}
+        disabled={Boolean(blockedReason)}
+        className="inline-flex items-center gap-1 hover:text-fg-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:no-underline"
+      >
+        <IconTicket className="size-3 shrink-0" />
+        {action.issueMissing ? "Try the issue again" : "Create issue"}
+      </button>
+    </Blocked>
+  )
+}
+
 export function ActionItem({
   action,
   incidentId,
@@ -147,7 +173,14 @@ export function ActionItem({
             </a>
           </>
         )}
+        {canEdit && action.issueRequestOffered && (
+          <>
+            <span className="text-fg-disabled">·</span>
+            <IssueRequest action={action} incidentId={incidentId} />
+          </>
+        )}
       </div>
+      {action.issueStatus && <p className="mt-1 pl-[27px] text-xs text-fg-muted">{action.issueStatus}</p>}
     </div>
   )
 }

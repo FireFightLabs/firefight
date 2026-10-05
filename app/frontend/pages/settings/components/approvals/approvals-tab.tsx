@@ -31,6 +31,7 @@ const SOURCE_LABELS: Partial<Record<LedgerSource, string>> = {
   investigation: "Investigation",
   map_sweep: "Map sweep",
   health_check: "Health check",
+  issue_sync: "Issue sync",
   code_agent: "Coding agent",
 }
 

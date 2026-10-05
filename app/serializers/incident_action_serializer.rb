@@ -14,6 +14,35 @@ class IncidentActionSerializer < BaseSerializer
     external_url: { type: :string, optional: true }
   )
 
+  # What a person reads about its issue while it is missing or not kept in step, or null.
+  type :string, optional: true
+  def issue_status
+    action.issue_status_text
+  end
+
+  # Whether Firefight is opening its issue now, so the page looks again until it is there.
+  type :boolean
+  def issue_opening
+    action.issue_sync_state == IncidentAction::ISSUE_CREATING
+  end
+
+  # Whether its issue was asked for and is missing, so the control offers to try again.
+  type :boolean
+  def issue_missing
+    action.issue_missing?
+  end
+
+  # Whether the item offers Create issue, and why it cannot be used now, or null when it can.
+  type :boolean
+  def issue_request_offered
+    action.issue_request_offered?
+  end
+
+  type :string, optional: true
+  def issue_request_blocked_reason
+    action.issue_request_offered? ? action.issue_request_blocked_reason : nil
+  end
+
   # Person or machine, shipped as the actor shape every surface renders.
   has_one :assignee, serializer: ActorCompactSerializer, optional: true do
     action.assignee

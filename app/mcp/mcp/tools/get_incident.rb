@@ -61,7 +61,8 @@ module Mcp
             status: action.status,
             assignee: action.assignee&.actor_display_name,
             external_key: action.external_key,
-            external_url: action.external_url
+            external_url: action.external_url,
+            issue_status: action.issue_status_text
           }.compact
         end
       end
