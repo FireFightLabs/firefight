@@ -577,7 +577,8 @@ module Integrations
         name = Array(instance[:tags]).find { |tag| tag[:key] == "Name" }&.dig(:value).presence || instance[:instance_id]
         arn = "arn:#{PARTITION}:ec2:#{region}:#{owner}:instance/#{instance[:instance_id]}"
         Entry.new(kind: INSTANCE, arn: arn, name: name, region: region, status: instance.dig(:state, :name),
-                  details: { "region" => region, "type" => instance[:instance_type], "instance_id" => instance[:instance_id] }.compact)
+                  details: { "region" => region, "type" => instance[:instance_type], "instance_id" => instance[:instance_id],
+                             ResourceMap::TAGS => tags_of(instance[:tags]) }.compact)
       end
 
       def rds_databases(environment_row, region)
@@ -589,8 +590,12 @@ module Integrations
         Entry.new(kind: DATABASE, arn: database[:db_instance_arn], name: database[:db_instance_identifier], region: region,
                   status: database[:db_instance_status],
                   details: { "region" => region, "engine" => [ database[:engine], database[:engine_version] ].compact.join(" ").presence,
-                             "type" => database[:db_instance_class], "cluster" => database[:db_cluster_identifier] }.compact)
+                             "type" => database[:db_instance_class], "cluster" => database[:db_cluster_identifier],
+                             ResourceMap::TAGS => tags_of(database[:tag_list]) }.compact)
       end
+
+      # The tags EC2 and RDS return with each resource, as key and value. ECS and Lambda list theirs only on request.
+      def tags_of(tags) = Array(tags).to_h { |tag| [ tag[:key].to_s, tag[:value].to_s ] }.presence
 
       # The resource a tool was asked about, from its ARN when that says enough, and otherwise by name from what the
       # connection lists.

@@ -340,6 +340,13 @@ module Integrations
         assert_equal [ ResourceMap::KIND_FUNCTION ], snapshot.gaps.sole.kinds
       end
 
+      test "an instance's and a database's tags are kept in their details for finding them by, and none leaves the key out" do
+        assert_equal({ "Name" => "bastion" }, @pack.send(:instance_entry, instance, ACCOUNT, "eu-west-1").details[ResourceMap::TAGS])
+        tagged = database(tag_list: [ { key: "team", value: "payments" }, { key: "env", value: "prod" } ])
+        assert_equal({ "team" => "payments", "env" => "prod" }, @pack.send(:database_entry, tagged, "eu-west-1").details[ResourceMap::TAGS])
+        assert_not @pack.send(:database_entry, database, "eu-west-1").details.key?(ResourceMap::TAGS)
+      end
+
       test "being asked to slow down stops the map's read, with every kind left unread" do
         AwsApi.any_instance.stubs(:all).raises(AwsApi::RateLimited, "AWS answered ThrottlingException: Rate exceeded")
 

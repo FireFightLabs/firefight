@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -1550,9 +1550,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
     t.uuid "workspace_id", null: false
     t.index ["added_by_id"], name: "index_resource_map_links_on_added_by_id"
     t.index ["confirmed_by_id"], name: "index_resource_map_links_on_confirmed_by_id"
+    t.index ["from_resource_id", "relation"], name: "index_resource_map_links_standing_out", where: "(dismissed_at IS NULL)"
     t.index ["from_resource_id", "to_resource_id", "relation"], name: "index_resource_map_links_identity", unique: true
     t.index ["from_resource_id"], name: "index_resource_map_links_on_from_resource_id"
     t.index ["integration_environment_id"], name: "index_resource_map_links_on_integration_environment_id"
+    t.index ["to_resource_id", "relation"], name: "index_resource_map_links_standing_in", where: "(dismissed_at IS NULL)"
     t.index ["to_resource_id"], name: "index_resource_map_links_on_to_resource_id"
     t.index ["workspace_id"], name: "index_resource_map_links_on_workspace_id"
   end
@@ -1574,8 +1576,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_200000) do
     t.datetime "updated_at", null: false
     t.string "url"
     t.uuid "workspace_id", null: false
+    t.index "workspace_id, lower((name)::text) COLLATE \"C\", id", name: "index_resource_map_resources_present_name", where: "(removed_at IS NULL)"
+    t.index "workspace_id, lower((status)::text)", name: "index_resource_map_resources_present_status", where: "(removed_at IS NULL)"
+    t.index ["details"], name: "index_resource_map_resources_details", opclass: :jsonb_path_ops, using: :gin
     t.index ["integration_environment_id"], name: "index_resource_map_resources_on_integration_environment_id"
+    t.index ["workspace_id", "kind"], name: "index_resource_map_resources_present_kind", where: "(removed_at IS NULL)"
     t.index ["workspace_id", "provider", "account", "kind", "external_id"], name: "index_resource_map_resources_identity", unique: true
+    t.index ["workspace_id", "provider", "account"], name: "index_resource_map_resources_present_account", where: "(removed_at IS NULL)"
   end
 
   create_table "ruby_llm_models", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

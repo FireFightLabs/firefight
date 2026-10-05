@@ -460,13 +460,15 @@ module Integrations
         [ found, complete ]
       end
 
+      # Each kind's labels are where Google's API puts them: labels on a Cloud Run service and a Compute Engine instance,
+      # settings.userLabels on a Cloud SQL instance and resourceLabels on a GKE cluster.
       def run_item(service)
         target = Target.parse(service["name"])
         container = Array(service.dig("template", "containers")).first.to_h
         hosts = Array(service["urls"]).push(service["uri"]).compact.filter_map { |url| host_of(url) }.uniq
         { type: TYPE_RUN, id: service["name"], name: target&.name || service["name"], location: target&.location, status: run_status(service), hosts: hosts,
           details: { TYPE => TYPE_RUN, "region" => target&.location, "image" => container["image"],
-                     "latest_revision" => short(service["latestReadyRevision"]) }.compact }
+                     "latest_revision" => short(service["latestReadyRevision"]), ResourceMap::TAGS => service["labels"].presence }.compact }
       end
 
       def host_of(url)
@@ -482,21 +484,24 @@ module Integrations
         { type: TYPE_SQL, id: instance["connectionName"].presence || "#{project}:#{instance['region']}:#{instance['name']}", name: instance["name"],
           location: instance["region"], status: status, hosts: [],
           details: { TYPE => TYPE_SQL, "engine" => instance["databaseVersion"], "tier" => instance.dig("settings", "tier"),
-                     "availability" => instance.dig("settings", "availabilityType"), "region" => instance["region"] }.compact }
+                     "availability" => instance.dig("settings", "availabilityType"), "region" => instance["region"],
+                     ResourceMap::TAGS => instance.dig("settings", "userLabels").presence }.compact }
       end
 
       def machine_item(instance)
         path = URI.parse(instance["selfLink"].to_s).path.to_s[%r{projects/.+\z}]
         zone = instance["zone"].to_s.split("/").last
         { type: TYPE_MACHINE, id: path, name: instance["name"], location: zone, status: instance["status"].to_s.downcase, hosts: [],
-          details: { TYPE => TYPE_MACHINE, "zone" => zone, "machine_type" => instance["machineType"].to_s.split("/").last }.compact }
+          details: { TYPE => TYPE_MACHINE, "zone" => zone, "machine_type" => instance["machineType"].to_s.split("/").last,
+                     ResourceMap::TAGS => instance["labels"].presence }.compact }
       end
 
       def cluster_item(project, cluster)
         { type: TYPE_CLUSTER, id: "projects/#{project}/locations/#{cluster['location']}/clusters/#{cluster['name']}", name: cluster["name"],
           location: cluster["location"], status: cluster["status"].to_s.downcase, hosts: [],
           details: { TYPE => TYPE_CLUSTER, "location" => cluster["location"], "version" => cluster["currentMasterVersion"],
-                     "node_pools" => Array(cluster["nodePools"]).size, "autopilot" => cluster.dig("autopilot", "enabled") }.compact }
+                     "node_pools" => Array(cluster["nodePools"]).size, "autopilot" => cluster.dig("autopilot", "enabled"),
+                     ResourceMap::TAGS => cluster["resourceLabels"].presence }.compact }
       end
 
       def run_status(service)
