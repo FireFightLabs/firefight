@@ -4,7 +4,11 @@ module Integrations
       # A repository's CI as Bitbucket Pipelines keeps it (the pipelines, steps, log, deployments and environments paths of
       # Bitbucket's OpenAPI description): its pipelines, their steps, a step's log, and how a branch and the environments
       # stand now. Bitbucket gives a pipeline no web address, so its page is the repository's pipelines/results/<build
-      # number>, the address Bitbucket's own app serves.
+      # number>, the address Bitbucket's own app serves. Running a pipeline, running one again and stopping one are changes
+      # (POST pipelines and pipelines/{pipeline_uuid}/stopPipeline), so they arrive switched off and go through the gateway
+      # as writes. They need the write:pipeline:bitbucket scope. Bitbucket's API has no rerun, so running one again
+      # starts a new pipeline on the same target, the way its description documents for a commit on a branch or tag, a
+      # commit, or a pull request.
       module Pipelines
         PIPELINE_LIMIT = 10
         MAX_PIPELINES = 50
@@ -19,6 +23,14 @@ module Integrations
         # The values Bitbucket's pipelines list filters status by.
         PIPELINE_STATUSES = %w[PARSING PENDING PAUSED HALTED BUILDING ERROR PASSED FAILED STOPPED UNKNOWN].freeze
         UUID_FORMAT = /\A\{?\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\}?\z/
+        COMPLETED = "COMPLETED".freeze
+        REF_TARGET = "pipeline_ref_target".freeze
+        CUSTOM = "custom".freeze
+        REF_TYPES = %w[branch tag].freeze
+        # The parts of a pipeline's target Bitbucket's pipelines description takes back to start the same pipeline again.
+        TARGET_KEYS = %w[type ref_type ref_name source destination].freeze
+        WRITE_NEEDS = "Running or stopping a pipeline needs a token that can write pipelines, the write:pipeline:bitbucket scope".freeze
+        FOLLOW = "pipeline_steps with its uuid, or ci_status, follows it".freeze
 
         def self.included(pack)
           repo = pack::REPO_PARAM
@@ -57,6 +69,30 @@ module Integrations
                       "repo" => repo, "branch" => { "type" => "string", "description" => "The branch (optional, the main branch)" }
                     }, %w[repo]),
                     read_only: true
+
+          pack.tool :rerun_pipeline,
+                    description: "Run a finished pipeline again as a new pipeline, on the same commit, branch or tag and pipeline definition, " \
+                                 "every step from the start. For a failure that is not the code, such as a flaky test",
+                    params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline" => pipeline }, %w[repo pipeline]),
+                    read_only: false
+
+          pack.tool :run_pipeline,
+                    description: "Run a pipeline on the newest commit of a branch or tag, the definition that matches it or a custom " \
+                                 "pipeline by name, with variables if asked",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo,
+                      "ref" => { "type" => "string", "description" => "The branch or tag (optional, the main branch)" },
+                      "ref_type" => { "type" => "string", "enum" => REF_TYPES, "description" => "Whether ref is a branch or a tag (optional, branch)" },
+                      "custom" => { "type" => "string", "description" => "A custom pipeline's name, as bitbucket-pipelines.yml defines it under custom (optional)" },
+                      "variables" => { "type" => "object", "additionalProperties" => { "type" => "string" },
+                                       "description" => "Variables by name, never a secret, since they are shown and kept (optional)" }
+                    }, %w[repo]),
+                    read_only: false
+
+          pack.tool :cancel_pipeline,
+                    description: "Stop a pipeline and every step that has not finished, such as a deploy that should not go out",
+                    params_schema: CodeHost::Code.object_schema({ "repo" => repo, "pipeline" => pipeline }, %w[repo pipeline]),
+                    read_only: false
         end
 
         def pipelines(environment_row:, arguments:)
@@ -117,7 +153,92 @@ module Integrations
           Telemetry.result(sections.join("\n\n"), link: latest && pipeline_link(repo, latest))
         end
 
+        def rerun_pipeline(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          bitbucket = api(environment_row)
+          pipeline = bitbucket.get("#{BitbucketApi.repository(repo)}/pipelines/#{uuid_argument(arguments, 'pipeline')}")
+          name = "Pipeline #{pipeline['build_number']} in #{repo}"
+          fail! "#{name} is still #{outcome(pipeline)}, so it cannot run again until it finishes. cancel_pipeline stops it." unless finished?(pipeline)
+
+          variables = Array(pipeline["variables"])
+          if variables.any? { |variable| variable["secured"] }
+            fail! "#{name} was given secured variables, which Bitbucket never hands back, so it cannot be run again the same way. A person runs it again in Bitbucket."
+          end
+
+          body = { "target" => same_target(pipeline["target"]), "variables" => variables.map { |variable| variable.slice("key", "value") }.presence }.compact
+          started = changing("run pipeline #{pipeline['build_number']} in #{repo} again") { bitbucket.post("#{BitbucketApi.repository(repo)}/pipelines/", body) }
+          Telemetry.result("Started pipeline #{started['build_number']} (#{started['uuid']}) in #{repo}, running pipeline #{pipeline['build_number']} again " \
+                           "on #{pipeline.dig('target', 'ref_name') || 'its commit'} at #{pipeline.dig('target', 'commit', 'hash').to_s[0, 12]}, every " \
+                           "step from the start. #{FOLLOW}.", link: pipeline_link(repo, started) || pipeline_link(repo, pipeline))
+        end
+
+        def run_pipeline(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          bitbucket = api(environment_row)
+          ref_type = arguments["ref_type"].presence || REF_TYPES.first
+          fail! "ref_type must be one of #{REF_TYPES.join(', ')}" unless REF_TYPES.include?(ref_type)
+
+          ref = ref_argument(arguments) || bitbucket.get(BitbucketApi.repository(repo)).dig("mainbranch", "name")
+          fail! "#{repo} has no main branch yet, so name a branch or tag with ref." if ref.blank?
+
+          custom = arguments["custom"].to_s.strip.presence
+          variables = variables_argument(arguments)
+          target = { "type" => REF_TARGET, "ref_type" => ref_type, "ref_name" => ref, "selector" => custom && { "type" => CUSTOM, "pattern" => custom } }.compact
+          started = changing("run a pipeline on #{ref} in #{repo}") do
+            bitbucket.post("#{BitbucketApi.repository(repo)}/pipelines/", { "target" => target, "variables" => variables.presence }.compact)
+          end
+          what = custom ? "the custom pipeline #{custom}" : "the pipeline that matches it"
+          given = variables.any? ? " with #{variables.map { |variable| variable['key'] }.to_sentence}" : ""
+          text = "Started pipeline #{started['build_number']} (#{started['uuid']}) on #{ref} in #{repo}, #{what}#{given}. #{FOLLOW}."
+          link = pipeline_link(repo, started)
+          return "#{text} Bitbucket gives a pipeline no page of its own and had not named the commit it builds yet, so there is no link." unless link
+
+          Telemetry.result(text, link: link)
+        end
+
+        def cancel_pipeline(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          bitbucket = api(environment_row)
+          pipeline = bitbucket.get("#{BitbucketApi.repository(repo)}/pipelines/#{uuid_argument(arguments, 'pipeline')}")
+          name = "Pipeline #{pipeline['build_number']} in #{repo}"
+          fail! "#{name} already finished, #{outcome(pipeline)}, so there is nothing to stop." if finished?(pipeline)
+
+          changing("stop pipeline #{pipeline['build_number']} in #{repo}") { bitbucket.post("#{BitbucketApi.repository(repo)}/pipelines/#{Http.segment(pipeline['uuid'])}/stopPipeline") }
+          Telemetry.result("Stopping pipeline #{pipeline['build_number']} in #{repo}, on #{pipeline.dig('target', 'ref_name') || 'its commit'} at #{pipeline.dig('target', 'commit', 'hash').to_s[0, 12]}, " \
+                           "and every step that has not finished. #{FOLLOW}.", link: pipeline_link(repo, pipeline))
+        end
+
         private
+
+        # A change Bitbucket refused is said with the scope it needs, so a person knows which token to give.
+        def changing(what)
+          yield
+        rescue BitbucketApi::Refused => error
+          fail! Sentence.join("Bitbucket refused to #{what}", error, after: WRITE_NEEDS)
+        end
+
+        def finished?(pipeline) = pipeline.dig("state", "name") == COMPLETED
+
+        # The target a pipeline built, as Bitbucket takes it back: the commit, the branch or tag, the pull request and
+        # the definition that was chosen.
+        def same_target(target)
+          target = target.to_h
+          {
+            **target.slice(*TARGET_KEYS),
+            "commit" => target.dig("commit", "hash") && { "type" => "commit", "hash" => target.dig("commit", "hash") },
+            "destination_commit" => target.dig("destination_commit", "hash") && { "hash" => target.dig("destination_commit", "hash") },
+            "pullrequest" => target.dig("pullrequest", "id") && { "id" => target.dig("pullrequest", "id").to_s },
+            "selector" => target["selector"]&.slice("type", "pattern")
+          }.compact
+        end
+
+        def variables_argument(arguments)
+          value = arguments["variables"]
+          return [] if value.blank?
+          fail! "variables must be an object of names and values" unless value.is_a?(Hash)
+
+          value.map { |key, given| { "key" => key.to_s, "value" => given.to_s } }
+        end
 
         def pipelines_of(bitbucket, repo, query)
           Array(bitbucket.get("#{BitbucketApi.repository(repo)}/pipelines", { "sort" => NEWEST_FIRST }.merge(query))["values"])

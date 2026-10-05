@@ -10,4 +10,5 @@ references: [ci/debugging.md, ci/job-troubleshooting.md, ci/job-logs.md]
 4. Call `job_log` with the project for the newest failed job's log, read from its end, where a job says why it stopped. Pass `job_id` for a job `pipeline_jobs` listed, `text` or `regex` to find an error, and `exclude` to drop noise. `search_logs` asks the same of a project on the map.
 5. Some failures name their own cause in the log: Failed to pull image is an image the job's token may not reach, often another project's registry that does not allow this one. Not allowed to download code is the same for a repository.
 6. When a job has no log, GitLab no longer keeps it or the job never started, so say so and read an earlier failure from `pipelines` with `status` failed.
-7. Say which job fails, the line in its log that says why, the commit it ran on, and when the branch last passed, with the job's link.
+7. Never retry while investigating. When what failed is not the code, such as a flaky test, a stuck job or a runner that went away, propose retrying the failed jobs and say why. When it is the code, propose a fix instead. Load gitlab_rerun once the person wants it, since a retry asks them first.
+8. Say which job fails, the line in its log that says why, the commit it ran on, and when the branch last passed, with the job's link.

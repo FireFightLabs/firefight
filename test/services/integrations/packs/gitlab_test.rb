@@ -13,10 +13,11 @@ module Integrations
         @pack = Gitlab.new(@integration, box_key: "investigation-1")
       end
 
-      test "the token is the one credential, the address an optional connect field that must be https, and every tool only reads" do
+      test "the token is the one credential, the address an optional connect field that must be https, and only the test runner and pipeline changes write" do
         assert_equal "glpat-token", ConnectionSettings.of(@row.reload).credential(Gitlab::TOKEN)
         assert_equal [ Gitlab::TOKEN ], Gitlab.credential_fields.map(&:key)
-        assert_equal [ "run_tests" ], Gitlab.tool_definitions.reject(&:read_only).map(&:name), "only the sandbox's test runner writes, as GitHub's does"
+        assert_equal %w[run_tests retry_pipeline run_pipeline cancel_pipeline], Gitlab.tool_definitions.reject(&:read_only).map(&:name),
+                     "only the sandbox's test runner and the pipeline changes write, so they arrive switched off"
         address = IntegrationProvider.find(Gitlab::PROVIDER_KEY).connect_fields.sole
         assert_equal [ Gitlab::URL, true ], [ address.key, address.optional ]
         assert_nil address.refusal("https://gitlab.example.com/gitlab")
@@ -221,6 +222,55 @@ module Integrations
         assert_includes text, "The last 3 pipelines, newest first: failed, failed, success. It last passed in pipeline 31 at t1."
         assert_includes text, "  production https://acme.com: success #{'a' * 12} (main) at t0 by ana\n  staging: nothing deployed yet"
         assert text.end_with?("https://gitlab.com/acme/platform/web/-/pipelines/33")
+      end
+
+      test "a pipeline's failed and canceled jobs are retried with its page, and one that passed is left as it is" do
+        stub_get("#{PROJECT}/pipelines/33", { "id" => 33, "status" => "failed", "ref" => "main", "sha" => "b" * 40, "web_url" => "https://gitlab.com/acme/platform/web/-/pipelines/33" })
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/pipelines/33/retry").returns("id" => 33, "status" => "pending", "web_url" => "https://gitlab.com/acme/platform/web/-/pipelines/33")
+
+        text = call(:retry_pipeline, "repo" => "acme/platform/web", "pipeline_id" => 33)
+
+        assert_equal "Retrying the failed and canceled jobs of pipeline 33 in acme/platform/web, on main at #{'b' * 12}. It is pending. " \
+                     "pipeline_jobs with its pipeline_id, or ci_status, follows it.\nOpen this in GitLab, and give the person this link with what you found: https://gitlab.com/acme/platform/web/-/pipelines/33", text
+
+        stub_get("#{PROJECT}/pipelines/31", { "id" => 31, "status" => "success" })
+        assert_equal "Pipeline 31 in acme/platform/web passed, so it has no failed or canceled jobs to retry. run_pipeline runs a new one.",
+                     assert_raises(NativePack::Error) { call(:retry_pipeline, "repo" => "acme/platform/web", "pipeline_id" => 31) }.message
+      end
+
+      test "a pipeline runs on the default branch unless a ref is named, with variables and inputs as GitLab takes them" do
+        stub_get(PROJECT, { "default_branch" => "main" })
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/pipeline", { "ref" => "main", "variables" => [ { "key" => "DEPLOY_TARGET", "value" => "eu" } ], "inputs" => { "smoke" => true } })
+                 .returns("id" => 61, "status" => "created", "sha" => "c" * 40, "web_url" => "https://gitlab.com/acme/platform/web/-/pipelines/61")
+
+        text = call(:run_pipeline, "repo" => "acme/platform/web", "variables" => { "DEPLOY_TARGET" => "eu" }, "inputs" => { "smoke" => true })
+
+        assert_equal "Started pipeline 61 on main at #{'c' * 12} in acme/platform/web with DEPLOY_TARGET. It is created. " \
+                     "pipeline_jobs with its pipeline_id, or ci_status, follows it.\nOpen this in GitLab, and give the person this link with what you found: https://gitlab.com/acme/platform/web/-/pipelines/61", text
+
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/pipeline", { "ref" => "v1.2.0" }).returns("id" => 62, "status" => "created", "web_url" => "u62")
+        assert_match "Started pipeline 62 on v1.2.0", call(:run_pipeline, "repo" => "acme/platform/web", "ref" => "v1.2.0")
+        assert_equal "variables must be an object of names and values", assert_raises(NativePack::Error) { call(:run_pipeline, "repo" => "acme/platform/web", "variables" => "A=1") }.message
+      end
+
+      test "a running pipeline is canceled, and a finished one is said to have nothing to cancel, since GitLab answers 200 either way" do
+        stub_get("#{PROJECT}/pipelines/34", { "id" => 34, "status" => "running", "ref" => "main", "sha" => "d" * 40, "web_url" => "https://gitlab.com/acme/platform/web/-/pipelines/34" })
+        GitlabApi.any_instance.expects(:post).with("#{PROJECT}/pipelines/34/cancel").returns("id" => 34, "status" => "canceling")
+
+        assert_match "Canceling pipeline 34 in acme/platform/web, on main at #{'d' * 12}. It is canceling.", call(:cancel_pipeline, "repo" => "acme/platform/web", "pipeline_id" => 34)
+
+        stub_get("#{PROJECT}/pipelines/33", { "id" => 33, "status" => "failed" })
+        assert_equal "Pipeline 33 in acme/platform/web already finished, failed, so there is nothing to cancel.",
+                     assert_raises(NativePack::Error) { call(:cancel_pipeline, "repo" => "acme/platform/web", "pipeline_id" => 33) }.message
+      end
+
+      test "GitLab refusing a change is said with what it needs" do
+        stub_get("#{PROJECT}/pipelines/33", { "id" => 33, "status" => "failed" })
+        GitlabApi.any_instance.stubs(:post).raises(GitlabApi::Refused, "GitLab answered 403: insufficient_scope")
+
+        assert_equal "GitLab refused to retry pipeline 33 in acme/platform/web: GitLab answered 403: insufficient_scope. Running, retrying or canceling a pipeline " \
+                     "needs a token with the api scope, from someone who may run pipelines in the project, and on a protected branch someone allowed to merge or push to it.",
+                     assert_raises(NativePack::Error) { call(:retry_pipeline, "repo" => "acme/platform/web", "pipeline_id" => 33) }.message
       end
 
       test "the map holds every project the token sees, and the infrastructure files in them, read through the tree and files API" do

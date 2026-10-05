@@ -50,6 +50,16 @@ module Integrations
 
     def get(path, query = {}) = call(api_uri(path, query))
 
+    # A change, such as running or retrying a pipeline, with its attributes as a JSON body, which the API takes as it
+    # takes them in the query (doc/api/rest, request payload).
+    def post(path, body = {})
+      uri = api_uri(path, {})
+      request = Net::HTTP::Post.new(uri)
+      request["Content-Type"] = "application/json"
+      request.body = body.to_json
+      call(uri, request: request)
+    end
+
     # Every page of a list, up to pages of PAGE_SIZE, following GitLab's x-next-page header. Returns the items and
     # whether more were left.
     def list(path, query = {}, pages: 1)

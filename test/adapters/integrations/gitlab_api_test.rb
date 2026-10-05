@@ -65,6 +65,15 @@ module Integrations
       assert more
     end
 
+    test "a change is posted with its attributes as JSON and the token" do
+      sent = nil
+      Http.stubs(:request).with { |uri, request, **| sent = [ uri.to_s, request ] }.returns(response(201, { "id" => 61 }))
+
+      assert_equal 61, GitlabApi.new(nil, "glpat-token").post("/projects/acme%2Fweb/pipeline", "ref" => "main")["id"]
+      assert_equal "https://gitlab.com/api/v4/projects/acme%2Fweb/pipeline", sent.first
+      assert_equal [ "POST", "glpat-token", "application/json", { "ref" => "main" } ], [ sent.last.method, sent.last["PRIVATE-TOKEN"], sent.last["Content-Type"], JSON.parse(sent.last.body) ]
+    end
+
     test "a job's log is read as text, and only its end is kept" do
       Http.stubs(:request).returns(response(200, "line one\nfailed here\n"))
 

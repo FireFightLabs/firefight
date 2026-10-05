@@ -3,7 +3,8 @@ module Integrations
     # GitLab, on GitLab.com or a workspace's own instance, read with an access token through GitLab's REST API (doc/api in
     # gitlab-org/gitlab): merge requests, commits, deployments, pipelines and their jobs, files and blame. Reading code by
     # search, definition, history and language server happens in the run's sandbox (CodeHost::Code), and the pipelines
-    # tools live in Gitlab::Pipelines. Every tool only reads.
+    # tools live in Gitlab::Pipelines. Every tool only reads but the sandbox's test runner and the ones that retry, run or
+    # cancel a pipeline.
     class Gitlab < NativePack
       # The environment row's credentials, which only this pack reads.
       URL = "url".freeze
@@ -118,7 +119,8 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Access token", secret: true, placeholder: "glpat-...",
-                              hint: "A personal, group or project access token with the read_api and read_repository scopes. A group token reaches every project in its group.")
+                              hint: "A personal, group or project access token with the read_api and read_repository scopes. A group token reaches every project in its group. " \
+                                    "Retrying, running or canceling a pipeline needs the api scope in place of read_api.")
         ]
       end
 
