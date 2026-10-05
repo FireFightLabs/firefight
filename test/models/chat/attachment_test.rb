@@ -47,12 +47,20 @@ class Chat::AttachmentTest < ActiveSupport::TestCase
   test "the file's bytes and name are stored encrypted" do
     file = take("payments-secret.txt", "password=correct-horse")
 
-    stored = file.blob.download
+    stored = file.sealed.download
     assert_no_match(/correct-horse/, stored)
     assert_equal "password=correct-horse", file.reload.bytes
     raw_name = Chat::Attachment.connection.select_value("SELECT filename FROM chat_attachments WHERE id = '#{file.id}'")
     assert_no_match(/payments-secret/, raw_name)
-    assert_no_match(/payments-secret/, file.blob.filename.to_s)
+    assert_no_match(/payments-secret/, file.sealed.filename.to_s)
+  end
+
+  test "each file keeps its own stored bytes" do
+    first = take("first.txt", "one")
+    second = take("second.txt", "two")
+
+    assert_equal first.id, first.sealed_attachment.record_id
+    assert_equal [ "one", "two" ], [ Chat::Attachment.find(first.id).bytes, Chat::Attachment.find(second.id).bytes ]
   end
 
   test "an image goes to a model that reads images as an image" do

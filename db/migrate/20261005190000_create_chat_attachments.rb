@@ -6,7 +6,6 @@ class CreateChatAttachments < ActiveRecord::Migration[8.1]
       t.references :chat_message, type: :uuid, foreign_key: { on_delete: :cascade }, index: true
       t.references :queued_message, type: :uuid, foreign_key: { to_table: :chat_queued_messages, on_delete: :nullify }, index: true
       t.references :uploaded_by, type: :uuid, foreign_key: { to_table: :workspace_memberships, on_delete: :nullify }, index: true
-      t.references :blob, foreign_key: { to_table: :active_storage_blobs }, index: true
       t.references :saved_result, type: :uuid, foreign_key: { to_table: :chat_saved_results, on_delete: :nullify }, index: false
       t.text :filename, null: false
       t.string :content_type, null: false

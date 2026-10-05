@@ -55,8 +55,10 @@ class Chat::Attachment < ApplicationRecord
   belongs_to :message, class_name: "Chat::Message", foreign_key: :chat_message_id, optional: true, inverse_of: :attached_files
   belongs_to :queued_message, class_name: "Chat::QueuedMessage", optional: true, inverse_of: :attached_files
   belongs_to :uploaded_by, class_name: "WorkspaceMembership", optional: true
-  belongs_to :blob, class_name: "ActiveStorage::Blob", optional: true
   belongs_to :saved_result, class_name: "Chat::SavedResult", optional: true
+
+  # The file's bytes, encrypted. Purged from the object store when the record goes.
+  has_one_attached :sealed
 
   # The name is the person's own words, like the message it goes with.
   encrypts :filename
@@ -70,8 +72,6 @@ class Chat::Attachment < ApplicationRecord
   scope :in_order, -> { order(:position, :created_at, :id) }
   scope :unsent, -> { where(chat_id: nil) }
   scope :abandoned, -> { unsent.where(created_at: ...UNSENT_FOR.ago) }
-
-  after_destroy_commit :let_go_of_bytes
 
   def self.rules_for(workspace, model_id: nil)
     model_id ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace).model
@@ -103,14 +103,10 @@ class Chat::Attachment < ApplicationRecord
     raise Refused, too_large(name, bytes.bytesize, limit, kind) if bytes.bytesize > limit
 
     read = Chat::Attachment::Intake.read(kind, bytes, name)
-    stored = store(bytes)
     create!(
       workspace: workspace, uploaded_by: uploaded_by, filename: name, content_type: content_type, byte_size: bytes.bytesize,
-      kind: kind, blob: stored, text: read.text, redactions: read.redactions, page_count: read.page_count
+      kind: kind, sealed: sealed(bytes), text: read.text, redactions: read.redactions, page_count: read.page_count
     )
-  rescue ActiveRecord::RecordInvalid
-    stored&.purge
-    raise
   end
 
   NOT_FOUND = "A file you attached is no longer there. Attach it again.".freeze
@@ -164,18 +160,17 @@ class Chat::Attachment < ApplicationRecord
     File.basename(filename.to_s).gsub(/[[:cntrl:]]/, "").strip.truncate(200).presence || "file"
   end
 
-  # Encrypted before it leaves for the object store, with the same keys as every encrypted column.
-  def self.store(bytes)
-    ActiveStorage::Blob.create_and_upload!(
-      io: StringIO.new(ActiveRecord::Encryption.encryptor.encrypt(bytes)), filename: "chat-attachment",
-      content_type: "application/octet-stream", identify: false
-    )
+  # Encrypted before it leaves for the object store, with the same keys as every encrypted column. The blob is named
+  # for nothing, since its filename and type are stored in plain text.
+  def self.sealed(bytes)
+    { io: StringIO.new(ActiveRecord::Encryption.encryptor.encrypt(bytes)), filename: "chat-attachment",
+      content_type: "application/octet-stream", identify: false }
   end
 
   def bytes
-    return "".b unless blob
+    return "".b unless sealed.attached?
 
-    @bytes ||= ActiveRecord::Encryption.encryptor.decrypt(blob.download).b
+    @bytes ||= ActiveRecord::Encryption.encryptor.decrypt(sealed.download).b
   end
 
   def image? = kind == KIND_IMAGE
@@ -200,11 +195,5 @@ class Chat::Attachment < ApplicationRecord
     keep = text.present? && text.length > chat.result_limit
     saved = chat.saved_results.keep!(tool_name: "file #{filename}", text: text) if keep
     update!(chat: chat, message: message, queued_message: nil, saved_result: saved || saved_result, position: position)
-  end
-
-  private
-
-  def let_go_of_bytes
-    blob&.purge_later
   end
 end
