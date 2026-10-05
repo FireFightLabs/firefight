@@ -1,4 +1,4 @@
-import type { InvestigationDetail, InvestigationHypothesis, InvestigationNote, InvestigationStep } from "@/types/serializers"
+import type { ChatCompaction, InvestigationDetail, InvestigationHypothesis, InvestigationNote, InvestigationStep } from "@/types/serializers"
 
 export type StoryEntry =
   | { kind: "asked"; key: string }
@@ -6,6 +6,7 @@ export type StoryEntry =
   | { kind: "theory"; key: string; hypothesis: InvestigationHypothesis }
   | { kind: "settled"; key: string; hypothesis: InvestigationHypothesis }
   | { kind: "note"; key: string; note: InvestigationNote }
+  | { kind: "room"; key: string; compaction: ChatCompaction }
   | { kind: "end"; key: string }
 
 function beforeStep(hypothesis: InvestigationHypothesis, step: InvestigationStep): boolean {
@@ -15,6 +16,11 @@ function beforeStep(hypothesis: InvestigationHypothesis, step: InvestigationStep
 // A note is placed where the run read it, and one still waiting for the next step comes last.
 function readBefore(note: InvestigationNote, step: InvestigationStep): boolean {
   return note.takenAt != null && step.startedAt != null && note.takenAt <= step.startedAt
+}
+
+// Room is made just before the model chooses its next step, so it sits ahead of every step that started after it.
+function madeBefore(compaction: ChatCompaction, step: InvestigationStep): boolean {
+  return step.startedAt != null && Date.parse(compaction.at) <= Date.parse(step.startedAt)
 }
 
 // The run in the order it happened. A theory appears where it was first written down, and again as settled right
@@ -53,7 +59,19 @@ export function buildStory(investigation: InvestigationDetail): StoryEntry[] {
     }
   }
 
+  const unplacedRoom = [...investigation.compactions].sort((first, second) => Date.parse(first.at) - Date.parse(second.at))
+
+  function placeRoomBefore(step: InvestigationStep | null) {
+    while (unplacedRoom.length > 0 && (step == null || madeBefore(unplacedRoom[0], step))) {
+      const compaction = unplacedRoom.shift()
+      if (compaction) {
+        story.push({ kind: "room", key: compaction.key, compaction })
+      }
+    }
+  }
+
   steps.forEach((step) => {
+    placeRoomBefore(step)
     placeNotesBefore(step)
     placeTheoriesBefore(step)
     story.push({ kind: "step", key: `step-${step.position}`, step })
@@ -61,6 +79,7 @@ export function buildStory(investigation: InvestigationDetail): StoryEntry[] {
   })
   placeTheoriesBefore(null)
   placeNotesBefore(null)
+  placeRoomBefore(null)
 
   // A theory settled with no step behind it is still settled, at the end.
   investigation.hypotheses.filter((hypothesis) => hypothesis.settled && hypothesis.settledAfterStep == null).forEach(settle)

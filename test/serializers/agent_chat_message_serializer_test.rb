@@ -31,6 +31,12 @@ class AgentChatMessageSerializerTest < ActiveSupport::TestCase
     assert_equal [ Conversation::LiveDelivery::STATUS_RUNNING ] * 2, statuses(paused)
   end
 
+  test "a message says when it was written, to the millisecond, so the times Halon made room fall in the right place" do
+    shown = JSON.parse(AgentChatMessageSerializer.one(@asking.reload).to_json)
+
+    assert_equal @asking.created_at.utc.iso8601(3), shown["createdAt"]
+  end
+
   private
 
   def statuses(message) = JSON.parse(AgentChatMessageSerializer.one(message.reload).to_json)["tools"].map { |tool| tool["status"] }

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react"
-import { AGENT_STEP_STATUSES } from "@/lib/generated/constants"
+import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import type { AgentStep } from "@/pages/agent/types"
 
 // A tool usually answers within a few dozen milliseconds, so a step's running and done events land in
 // the same frame and the spinner never paints. Each step is shown running for at least this long, and
 // steps that finish together settle one after another, so a person sees the work happen in order.
 // Only work that happens while the person watches is paced. A step already finished when the list
-// first renders, an opened chat or a turn that just saved, shows finished at once.
+// first renders, an opened chat or a turn that just saved, shows finished at once, and so does a line saying Halon
+// made room, which was never work a person waits on.
 const SHOW_RUNNING_FOR_MS = 450
 const SETTLE_APART_MS = 220
 
@@ -26,7 +27,7 @@ export function useSettledSteps(steps: AgentStep[]): AgentStep[] {
     for (const step of steps) {
       const seen = shown.current.get(step.key)
       const entry = seen ?? { since: clock, settleAt: null }
-      if (!seen && !mounted.current && step.status !== AGENT_STEP_STATUSES.RUNNING) {
+      if (!seen && (!mounted.current || step.kind === AGENT_STEP_KINDS.ROOM) && step.status !== AGENT_STEP_STATUSES.RUNNING) {
         entry.settleAt = 0
       }
       if (step.status !== AGENT_STEP_STATUSES.RUNNING && entry.settleAt === null) {

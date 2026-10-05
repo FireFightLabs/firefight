@@ -46,6 +46,18 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Ability::Invocation::DECISION_ALLOW, shown.dig("steps", 0, "receipt", "decision")
   end
 
+  test "the story is handed each time the run made room, and never the note it wrote itself" do
+    investigation = investigation_run
+    chat = investigation.chat_record
+    compaction = chat.compactions.create!(stage: Chat::Compaction::STAGE_CLEARED, tokens_before: 90_000, tokens_freed: 20_000, note: "The pool config looks guilty")
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+
+    shown = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]["compactions"]
+    assert_equal [ [ compaction.step_key, Chat::Compaction::SHOWN_AS ] ], shown.map { |each| [ each["key"], each["title"] ] }
+    assert_no_match "pool config", response.body
+  end
+
   test "a technical cause is never shown, only the plain sentence the thread was told" do
     investigation = investigation_run(status: Investigation::STATUS_FAILED, error_summary: "Faraday::TimeoutError")
 

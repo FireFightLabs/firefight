@@ -7,6 +7,8 @@ class Conversation::LiveDelivery
   EVENT_WAITING = "waiting"
   # A run this chat started moved, so its card looks again.
   EVENT_INVESTIGATION = "investigation"
+  # The chat made room in the model's window, shown as a quiet line where it happened.
+  EVENT_MADE_ROOM = "made_room"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -42,6 +44,12 @@ class Conversation::LiveDelivery
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
       status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE)
     )
+  end
+
+  # Text written so far lands before the line, so it sits where the room was made.
+  def made_room(compaction)
+    @text.flush!
+    broadcast(type: EVENT_MADE_ROOM, key: compaction.step_key, title: Chat::Compaction::SHOWN_AS, at: compaction.created_at.utc.iso8601(3))
   end
 
   def chunk(text)

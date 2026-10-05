@@ -19,13 +19,15 @@ class AgentChatsController < InertiaController
   PROP_WAITING_MESSAGES = "waitingMessages"
   # What the composer takes, and whether the open chat's model reads images.
   PROP_ATTACHMENT_RULES = "attachmentRules"
+  # Each time the open chat made room in the model's window, placed among the steps by when it happened.
+  PROP_COMPACTIONS = "compactions"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
-    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES
+    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -43,7 +45,7 @@ class AgentChatsController < InertiaController
   def index
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
-      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil)
+      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => []
     )
   end
 
@@ -56,7 +58,8 @@ class AgentChatsController < InertiaController
       PROP_OPEN_INVESTIGATION => open_investigation,
       PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
       PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
-      PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat)
+      PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat),
+      PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || [])
     )
   end
 

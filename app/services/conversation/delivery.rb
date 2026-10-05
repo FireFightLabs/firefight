@@ -37,6 +37,9 @@ class Conversation::Delivery
     )
   end
 
+  # Making room is the dashboard's to show, so a thread says nothing about it.
+  def made_room(_compaction) = nil
+
   def chunk(text)
     @text.add(text)
   end
