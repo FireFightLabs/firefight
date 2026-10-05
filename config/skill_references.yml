@@ -8,6 +8,17 @@ planetscale:
     skills/mysql/references: mysql
     skills/vitess/references: vitess
 
+# New Relic's agent skills are Apache 2.0. Its documentation is CC BY-NC-SA, which a product cannot copy, so what the
+# New Relic skills take from it is in our own words.
+newrelic:
+  repository: https://github.com/newrelic/nr-skills-hub
+  license: LICENSE
+  notice: NOTICE
+  paths:
+    skills/nl2-nrql: nrql
+    skills/apm-error-investigation: errors
+    skills/discover-trace: traces
+
 # Cloudflare's documentation is CC BY 4.0. Each page is copied as the markdown Cloudflare serves at its index.md.
 cloudflare:
   site: https://developers.cloudflare.com
