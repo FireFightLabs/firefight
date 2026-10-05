@@ -78,7 +78,7 @@ module Mcp
         ResourceMap::Found.new(provider: provider, account: account, kind: kind, external_id: id, name: id, status: status, url: "https://example.test/#{id}")
       end
 
-      def call(**args) = GetResourceMap.perform(workspace: @workspace, args: args).structured_content
+      def call(principal: map_reader, **args) = GetResourceMap.perform_with_principal(workspace: @workspace, principal: principal, args: args).structured_content
     end
   end
 end

@@ -142,9 +142,23 @@ class AbilityGateway
   def self.permitted?(principal, action, action_key, workspace, scope)
     return false unless action
     return true if Ability::Action.open?(action_key)
+    return true if principal.implicitly_allowed?(action)
 
-    principal.implicitly_allowed?(action) ||
-      Ability::Resolver.resolve(principal, workspace).covers?(action_key, scope)
+    resolved = Ability::Resolver.resolve(principal, workspace)
+    return !resolved.reach(action_key).nil? if Ability::Action.filtered?(action_key) && scope.blank?
+
+    resolved.covers?(action_key, scope)
+  end
+
+  # Where a principal may read something filtered by environment (Ability::Action::FILTERED_KEYS), as a scope: {} for
+  # every environment, { "environment" => catalog entry ids } for those alone, or nil for none. A reader filters its rows
+  # by it, after the call itself was authorized.
+  def self.reach(principal:, action_key:, workspace:)
+    action = principal && Ability::Action.lookup(action_key, workspace)
+    return nil unless action
+    return {} if principal.implicitly_allowed?(action)
+
+    Ability::Resolver.resolve(principal, workspace).reach(action_key)
   end
 
   # The caller claims the returned approval together with the allow ledger row.

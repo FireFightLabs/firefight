@@ -1,4 +1,9 @@
-import { ABILITY_ACTIONS, ABILITY_GRANTABLE_RESOURCES, ABILITY_RESOURCE_LABELS } from "@/lib/generated/constants"
+import {
+  ABILITY_ACTIONS,
+  ABILITY_GRANTABLE_RESOURCES,
+  ABILITY_RESOURCE_ACTIONS,
+  ABILITY_RESOURCE_LABELS,
+} from "@/lib/generated/constants"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -9,7 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-const apiResources = ABILITY_GRANTABLE_RESOURCES.map((key) => ({ key, label: ABILITY_RESOURCE_LABELS[key] }))
+const apiResources = ABILITY_GRANTABLE_RESOURCES.map((key) => ({
+  key,
+  label: ABILITY_RESOURCE_LABELS[key],
+  offered: new Set<string>(ABILITY_RESOURCE_ACTIONS[key]),
+}))
 const apiActions = ABILITY_ACTIONS
 
 export function PermissionsMatrix({
@@ -38,10 +47,14 @@ export function PermissionsMatrix({
               <TableCell className="font-medium">{resource.label}</TableCell>
               {apiActions.map((action) => (
                 <TableCell key={action} className="text-center">
-                  <Switch
-                    checked={perms[resource.key]?.has(action) ?? false}
-                    onCheckedChange={() => onToggle(resource.key, action)}
-                  />
+                  {resource.offered.has(action) ? (
+                    <Switch
+                      checked={perms[resource.key]?.has(action) ?? false}
+                      onCheckedChange={() => onToggle(resource.key, action)}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground" aria-label={`${resource.label} has no ${action}`}>-</span>
+                  )}
                 </TableCell>
               ))}
             </TableRow>

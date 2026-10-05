@@ -97,7 +97,8 @@ class MemoryController < InertiaController
     entries = current_workspace.catalog_entries.active.includes(:catalog_type).order(:name).map do |entry|
       { value: Chat::Memory.subject_key(entry), label: "#{entry.name} · #{entry.catalog_type.name}" }
     end
-    resources = ResourceMap::Resource.present.where(workspace: current_workspace).order(:name).map do |resource|
+    # Only what the person reads on the map, so the picker never names a resource outside their environments.
+    resources = ResourceMap::Resource.visible_to(current_membership, current_workspace).present.order(:name).map do |resource|
       { value: Chat::Memory.subject_key(resource), label: "#{resource.name} · #{ResourceMap.provider_name(resource.provider)}" }
     end
     entries + resources

@@ -78,7 +78,7 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
     @logs.update!(enabled: true)
 
     northflank_only = Integration::Tool.in_workspace(@workspace).reject { |tool| tool.integration.provider == "datadog" }
-    assert_equal @northflank_row, Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web" }, northflank_only).environment_row
+    assert_equal @northflank_row, Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web" }, northflank_only, principal: map_reader).environment_row
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build").environment_row
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web", "regex" => "time.?out").environment_row
   end
@@ -101,14 +101,14 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
   test "naming a connection asks it instead, and all asks every one, each in its own call" do
     assert_equal @northflank_row, resolve(Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "northflank").environment_row
 
-    calls = Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "all")
+    calls = Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web", "connection" => "all" }, principal: map_reader)
     assert_equal %w[northflank.search_logs datadog.search_datadog_logs].sort, calls.map { |call| call.tool.action_key }.sort
 
-    build = Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "all", "stream" => "build")
+    build = Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web", "connection" => "all", "stream" => "build" }, principal: map_reader)
     refused = build.grep(Integrations::Capabilities::Refused).sole
     assert_equal [ @datadog_row, true ], [ refused.environment_row, refused.reason.include?("stream must be app") ]
     assert_equal "northflank.search_logs", build.grep(Integrations::Capabilities::Call).sole.tool.action_key
-    assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::ROLLBACK, "resource" => "web", "to" => "x") }
+    assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::ROLLBACK, { "resource" => "web", "to" => "x" }, principal: map_reader) }
   end
 
   test "the connection choice offers all for reading only, and points Halon at the team's instructions" do
@@ -161,7 +161,7 @@ class Integrations::Capabilities::DatadogTest < ActiveSupport::TestCase
 
   private
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message
 end

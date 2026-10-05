@@ -51,7 +51,7 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
                                   name: name, details: { "type" => type }, integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
   end
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message
 end

@@ -40,7 +40,8 @@ class Investigation::RemediationPlan < ApplicationRecord
 
   # Checks a proposal before anything is written, so a step naming a tool this workspace cannot run, or a code change
   # with no repository, is sent back with why. Cheap, so a run can call it before paying for anything else.
-  def self.check!(workspace, fix)
+  # principal is who proposed it, so a step finds its resource among what they may read on the map.
+  def self.check!(workspace, fix, principal:)
     raise Refused, "The fix must be an object with a summary and steps." unless fix.is_a?(Hash)
 
     asked = fix.stringify_keys
@@ -50,7 +51,7 @@ class Investigation::RemediationPlan < ApplicationRecord
     steps = asked["steps"].each_with_index.map do |step, index|
       raise Refused, "Step #{index + 1} must be an object." unless step.is_a?(Hash)
 
-      Investigation::RemediationStep.checked(workspace, step.stringify_keys, position: index + 1)
+      Investigation::RemediationStep.checked(workspace, step.stringify_keys, position: index + 1, principal: principal)
     end
     order!(steps)
     Checked.new(summary: asked["summary"].to_s.strip, verify: asked["verify"].presence, steps: steps)
@@ -174,7 +175,7 @@ class Investigation::RemediationPlan < ApplicationRecord
 
   # The undo, checked like any fix, on the same finding.
   def propose_undo!(fix)
-    checked = self.class.check!(finding.investigation.workspace, fix)
+    checked = self.class.check!(finding.investigation.workspace, fix, principal: finding.investigation.acting_principal)
     transaction do
       plan = self.class.create!(finding: finding, undoes: self, summary: checked.summary, verify: checked.verify)
       checked.steps.each { |step| step.update!(plan: plan) }
@@ -190,7 +191,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   end
 
   def self.propose!(finding, fix)
-    checked = check!(finding.investigation.workspace, fix)
+    checked = check!(finding.investigation.workspace, fix, principal: finding.investigation.acting_principal)
     transaction do
       plan = create!(finding: finding, summary: checked.summary, verify: checked.verify)
       checked.steps.each { |step| step.update!(plan: plan) }

@@ -34,7 +34,7 @@ class Integrations::Capabilities::VercelTest < ActiveSupport::TestCase
 
   private
 
-  def resolve(key, given = {}) = Integrations::Capabilities.resolve(@workspace, key, given.merge("resource" => "shop"))
+  def resolve(key, given = {}) = Integrations::Capabilities.resolve(@workspace, key, given.merge("resource" => "shop"), principal: map_reader)
 
   def unroutable(key, given = {})
     assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message

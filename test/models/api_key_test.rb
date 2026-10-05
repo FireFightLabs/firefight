@@ -44,6 +44,14 @@ class ApiKeyTest < ActiveSupport::TestCase
     end
   end
 
+  test "the matrix grants a service key the map's read and refuses what the map does not offer" do
+    key = api_keys(:read_only_key)
+
+    key.replace_permissions!(Ability::Action::RESOURCE_MAP => [ Ability::Action::ACTION_READ ])
+    assert key.has_permission?(Ability::Action::RESOURCE_MAP, Ability::Action::ACTION_READ)
+    assert_raises(ArgumentError) { key.replace_permissions!(Ability::Action::RESOURCE_MAP => [ Ability::Action::ACTION_UPDATE ]) }
+  end
+
   test "member personal tokens read everything, participate in incidents and their own chats, and configure nothing" do
     membership = workspace_memberships(:bob_workspace_one)
     key, _ = ApiKey.create_with_token!(

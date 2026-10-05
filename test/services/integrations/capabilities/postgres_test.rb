@@ -14,14 +14,14 @@ class Integrations::Capabilities::PostgresTest < ActiveSupport::TestCase
   end
 
   test "a database reached by its URL answers its status through the pack, on the connection that reaches it" do
-    call = Capabilities.resolve(@workspace, Capabilities::STATUS, "resource" => "orders")
+    call = Capabilities.resolve(@workspace, Capabilities::STATUS, { "resource" => "orders" }, principal: map_reader)
 
     assert_equal [ @row, "database_status", {} ], [ call.environment_row, call.tool.name, call.arguments ]
   end
 
   test "it answers nothing it has no source for" do
     %w[logs metrics deploys restart].each do |key|
-      error = assert_raises(Capabilities::Unroutable) { Capabilities.resolve(@workspace, key, "resource" => "orders") }
+      error = assert_raises(Capabilities::Unroutable) { Capabilities.resolve(@workspace, key, { "resource" => "orders" }, principal: map_reader) }
       assert_match "no connection offers", error.message
     end
   end

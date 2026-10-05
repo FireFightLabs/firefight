@@ -47,7 +47,7 @@ class Investigation::RemediationStep < ApplicationRecord
 
   # A step the agent proposed, checked against what the workspace can run, and not saved yet. An action names a tool
   # the way the agent sees it, and only a tool that is switched on and changes something is a fix.
-  def self.checked(workspace, asked, position:)
+  def self.checked(workspace, asked, position:, principal:)
     kind = asked["kind"].to_s
     raise Investigation::RemediationPlan::Refused, "Step #{position} is a #{kind.inspect}, which is not one of #{KINDS.join(', ')}." unless KINDS.include?(kind)
 
@@ -59,7 +59,7 @@ class Investigation::RemediationStep < ApplicationRecord
       step.repository = asked["repository"].to_s.strip.presence || refuse(position, "names no repository. Give the repository the change goes in")
     when KIND_ACTION
       refuse(position, "has its arguments as something other than an object") unless asked["arguments"].nil? || asked["arguments"].is_a?(Hash)
-      tool, arguments = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position)
+      tool, arguments = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position, principal)
       step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments)
     when KIND_MANUAL
       step.missing = asked["missing"].presence
@@ -204,12 +204,12 @@ class Investigation::RemediationStep < ApplicationRecord
 
   # The provider tool a step runs and its own arguments. A capability, such as rollback, is resolved now to the
   # connection that holds the resource, so the step shows and runs exactly the provider call it will make.
-  def self.action_of(workspace, name, arguments, position)
+  def self.action_of(workspace, name, arguments, position, principal)
     spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name }
     return [ runnable_tool(workspace, name, position), arguments ] unless spec
     refuse(position, "names #{name}, which only reads. A fix has to change something") unless spec.writes
 
-    call = Integrations::Capabilities.resolve(workspace, spec.key, arguments.transform_keys(&:to_s))
+    call = Integrations::Capabilities.resolve(workspace, spec.key, arguments.transform_keys(&:to_s), principal: principal)
     environment = call.environment_entry&.slug
     [ runnable_tool(workspace, call.tool.model_facing_name, position),
       environment ? call.arguments.merge(Integration::Tool::ENVIRONMENT_ARG => environment) : call.arguments ]

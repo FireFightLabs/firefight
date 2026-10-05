@@ -17,7 +17,7 @@ export function useGroupedActions(
       if (exclude?.has(action.id)) {
         return
       }
-      if (!action.key.toLowerCase().includes(term)) {
+      if (!action.key.toLowerCase().includes(term) && !(action.title ?? "").toLowerCase().includes(term)) {
         return
       }
       byGroup.set(action.group, [...(byGroup.get(action.group) ?? []), action])

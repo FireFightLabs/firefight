@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RequiresApprovalBadge } from "@/pages/settings/components/permissions/requires-approval-badge"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
@@ -178,7 +179,7 @@ export function GrantDialog({
                             targetId === action.id ? "bg-accent" : "hover:bg-muted/50"
                           }`}
                         >
-                          <code className="min-w-0 flex-1 truncate text-xs">{action.key}</code>
+                          <ActionLabel actionKey={action.key} title={action.title} description={action.description} />
                           <RequiresApprovalBadge action={action} rules={approvalRules} />
                           <Badge
                             variant={RISK_VARIANT[action.riskLevel] ?? "secondary"}

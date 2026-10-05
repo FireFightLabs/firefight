@@ -96,7 +96,7 @@ class Integrations::Capabilities::SupabaseTest < ActiveSupport::TestCase
 
   private
 
-  def resolve(key, given) = Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Capabilities::Unroutable) { resolve(key, given) }.message
 

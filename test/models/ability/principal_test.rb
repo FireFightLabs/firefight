@@ -25,7 +25,7 @@ module Ability
 
       listed = Ability::Principal.all(@workspace).find { |principal| principal == @agent }
 
-      assert_equal [ "alerts.read" ], listed.ability_grants.map { |grant| grant.action.key },
+      assert_equal [ "alerts.read", Ability::Action::MAP_READ ], listed.ability_grants.map { |grant| grant.action.key }.sort,
                    "a global agent must not show another workspace's grants"
     end
 

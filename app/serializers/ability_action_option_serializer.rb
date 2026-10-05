@@ -18,6 +18,17 @@ class AbilityActionOptionSerializer < BaseSerializer
     Ability::Action.approval_exempt?(action.key)
   end
 
+  # Words for an action whose key does not say enough, nil for the rest.
+  type :string, optional: true
+  def title
+    Ability::Action.described(action.key)&.fetch(:title)
+  end
+
+  type :string, optional: true
+  def description
+    Ability::Action.described(action.key)&.fetch(:description)
+  end
+
   # Tool actions group under the connection that minted them. System actions
   # under Firefight itself.
   type :string

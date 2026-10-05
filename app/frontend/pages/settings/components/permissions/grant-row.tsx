@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { formatDate } from "@/lib/formatters"
 
@@ -62,7 +63,7 @@ export function GrantRow({
           </>
         ) : (
           <>
-            <code className="min-w-0 truncate text-xs">{grant.label}</code>
+            <ActionLabel actionKey={grant.label} title={grant.title} description={grant.description} />
             <Badge variant={RISK_VARIANT[grant.riskLevel ?? ""] ?? "secondary"} className="shrink-0">
               {grant.riskLevel}
             </Badge>

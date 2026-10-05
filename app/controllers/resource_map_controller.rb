@@ -1,17 +1,19 @@
 # The resource map page: what runs where, read off the connections, and the links people add or confirm on it.
 class ResourceMapController < InertiaController
-  authorizes Ability::Action::RESOURCE_INTEGRATIONS, read: %i[index], update: %i[sync]
+  authorizes Ability::Action::RESOURCE_MAP, read: %i[index]
+  authorizes Ability::Action::RESOURCE_INTEGRATIONS, update: %i[sync]
   authorizes Ability::Action::RESOURCE_CATALOG,
     update: %i[create_link destroy_link confirm_link dismiss_link link_entry unlink_entry]
 
   def index
-    view = ResourceMap::View.new(current_workspace)
+    view = ResourceMap::View.new(current_workspace, current_membership)
 
     render inertia: "map/index", props: {
       resources: ResourceMapResourceSerializer.many(view.rows),
       links: ResourceMapLinkSerializer.many(view.links),
       connections: ResourceMapConnectionSerializer.many(view.connections),
       changes: ResourceMapChangeSerializer.many(view.changes),
+      readsIn: view.environments && current_workspace.environment_entries.where(id: view.environments).pluck(:name),
       catalogEntries: ResourceMapEntrySerializer.many(current_workspace.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).order(:name))
     }
   end

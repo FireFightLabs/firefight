@@ -72,6 +72,7 @@ module TypescriptConstants
       Export.new("ABILITY_GRANTABLE_RESOURCES", Ability::Action::GRANTABLE_RESOURCES, "AbilityGrantableResource"),
       Export.new("ABILITY_RESOURCE_LABELS", Ability::Action::RESOURCE_LABELS, nil),
       Export.new("ABILITY_ACTIONS", Ability::Action::ACTIONS, "AbilityAction"),
+      Export.new("ABILITY_RESOURCE_ACTIONS", Ability::Action::GRANTABLE_RESOURCES.index_with { |resource| Ability::Action.actions_for(resource) }, nil),
       Export.new("WEBHOOK_EVENTS", Webhook::SUBSCRIBABLE_EVENTS, "WebhookEvent"),
       Export.new("ABILITY_RISK_LEVELS", Ability::Action::RISK_LEVELS, "AbilityRiskLevel"),
       Export.new("AGENT_STREAM_EVENTS", {

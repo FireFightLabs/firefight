@@ -13,7 +13,7 @@ class ResourceMap::ViewTest < ActiveSupport::TestCase
   end
 
   test "what depends on a resource counts everything that reaches it, directly or through others" do
-    rows = ResourceMap::View.new(@workspace).rows.index_by { |row| row.resource.external_id }
+    rows = ResourceMap::View.new(@workspace, map_reader).rows.index_by { |row| row.resource.external_id }
 
     assert_equal [ "web", "builder" ].sort, names(rows["repository"].dependent_ids).sort
     assert_equal [ "web" ], names(rows["builder"].dependent_ids)
@@ -27,7 +27,7 @@ class ResourceMap::ViewTest < ActiveSupport::TestCase
     incident = incidents(:active_critical_ws1)
     IncidentFieldValue.create!(incident: incident, incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
 
-    row = ResourceMap::View.new(@workspace).rows.find { |each| each.resource == web }
+    row = ResourceMap::View.new(@workspace, map_reader).rows.find { |each| each.resource == web }
 
     assert_equal [ entry ], row.entries
     assert_equal [ incident ], row.open_incidents
@@ -38,7 +38,7 @@ class ResourceMap::ViewTest < ActiveSupport::TestCase
     link = ResourceMap::Link.suggest!(from: resource("repository"), to: resource("web"), relation: ResourceMap::RELATION_USES, note: "guess")
     link.dismiss!
 
-    assert_not_includes ResourceMap::View.new(@workspace).links, link
+    assert_not_includes ResourceMap::View.new(@workspace, map_reader).links, link
     assert_match "dismissed", ResourceMap::Link.suggest!(from: resource("repository"), to: resource("web"), relation: ResourceMap::RELATION_USES, note: "again")
   end
 

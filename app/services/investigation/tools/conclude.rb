@@ -101,7 +101,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
   def check_fix!(asked)
     raise Investigation::RemediationPlan::Refused, "Naming a cause needs a fix. Say how to fix it, step by step." if asked[:hypothesis].present? && asked[:fix].blank?
 
-    Investigation::RemediationPlan.check!(@investigation.workspace, asked[:fix]) if asked[:fix].present?
+    Investigation::RemediationPlan.check!(@investigation.workspace, asked[:fix], principal: @investigation.acting_principal) if asked[:fix].present?
   end
 
   # A cause with nothing left behind it is sent back with why, so the agent can cite what shows it or name no cause.

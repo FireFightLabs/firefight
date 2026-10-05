@@ -15,6 +15,8 @@ export interface MapPageProps extends SharedProps {
   connections: ResourceMapConnection[]
   changes: ResourceMapChange[]
   catalogEntries: ResourceMapEntry[]
+  // The environments this person reads the map in, by name, or null when they read every one.
+  readsIn: string[] | null
 }
 
 export const MAP_VIEWS = { MAP: "map", FOCUS: "focus", TABLE: "table" } as const

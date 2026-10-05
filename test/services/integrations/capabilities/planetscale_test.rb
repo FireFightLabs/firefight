@@ -69,7 +69,7 @@ class Integrations::Capabilities::PlanetscaleTest < ActiveSupport::TestCase
                                                         links: [ ResourceMap::FoundLink.new(from: branch.key, to: database.key, relation: ResourceMap::RELATION_BRANCH_OF) ]))
   end
 
-  def resolve(key, given) = Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Capabilities::Unroutable) { resolve(key, given) }.message
 

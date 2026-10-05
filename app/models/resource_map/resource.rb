@@ -77,23 +77,65 @@ class ResourceMap::Resource < ApplicationRecord
       .order(Arel.sql("removed_at IS NOT NULL"), :provider, :account, :kind)
   end
 
-  # Every link within depth hops of this resource, in either direction, each with the hop it was found at. A repository
-  # a resource is managed in ends the walk there, or one service would pull in everything else defined beside it.
-  def neighborhood(depth: NEIGHBORHOOD_DEPTH)
-    hops = { id => 0 }
-    frontier = [ id ]
-    found = {}
-    depth.times do |hop|
-      links = ResourceMap::Link.standing.where(from_resource_id: frontier).or(ResourceMap::Link.standing.where(to_resource_id: frontier))
-                               .includes(:from_resource, :to_resource, integration_environment: :integration).limit(NEIGHBORHOOD_LIMIT)
-      frontier = links.flat_map do |link|
-        found[link.id] ||= [ link, hop + 1 ]
-        next [] if link.relation == ResourceMap::RELATION_MANAGED_BY
+  # The resources principal may read on workspace's map. A resource is in the environments of the connection rows that
+  # report it, so one that only a connection wired to no environment reports needs every environment.
+  def self.visible_to(principal, workspace)
+    environments = environments_visible_to(principal, workspace)
+    in_workspace = where(workspace: workspace)
+    return in_workspace if environments.nil?
+    return none if environments.empty?
 
-        [ link.from_resource_id, link.to_resource_id ].reject { |each| hops.key?(each) }.each { |each| hops[each] = hop + 1 }
-      end.uniq
-      break if frontier.empty? || found.size >= NEIGHBORHOOD_LIMIT
+    in_workspace.where(<<~SQL.squish, environments: environments)
+      EXISTS (SELECT 1 FROM integration_environments reporting WHERE reporting.catalog_entry_id IN (:environments)
+              AND (reporting.id = resource_map_resources.integration_environment_id
+                   OR resource_map_resources.sightings ? CAST(reporting.id AS text)))
+    SQL
+  end
+
+  # The environments principal reads the map in, as catalog entry ids: nil for every one, empty for none.
+  def self.environments_visible_to(principal, workspace)
+    reach = AbilityGateway.reach(principal: principal, action_key: Ability::Action::MAP_READ, workspace: workspace)
+    return [] if reach.nil?
+
+    reach[Ability::Scope::DIMENSION_ENVIRONMENT]
+  end
+
+  # Every link within depth hops of this resource, in either direction, each with the hop it was found at. A repository
+  # a resource is managed in ends the walk there, or one service would pull in everything else defined beside it. With
+  # within, only links between two resources inside it are walked.
+  def neighborhood(depth: NEIGHBORHOOD_DEPTH, within: nil) = walk(depth, within).first
+
+  # How many links the same walk left out because their other end is outside within, so a fact sheet can say the map
+  # goes on without saying where.
+  def links_out_of_reach(within, depth: NEIGHBORHOOD_DEPTH) = walk(depth, within).last
+
+  private
+
+  def walk(depth, within)
+    @walks ||= {}
+    @walks[[ depth, within&.to_sql ]] ||= begin
+      hops = { id => 0 }
+      frontier = [ id ]
+      found = {}
+      hidden = Set.new
+      depth.times do |hop|
+        links = ResourceMap::Link.standing.where(from_resource_id: frontier).or(ResourceMap::Link.standing.where(to_resource_id: frontier))
+                                 .includes(:from_resource, :to_resource, integration_environment: :integration).limit(NEIGHBORHOOD_LIMIT).to_a
+        if within
+          ends = links.flat_map { |link| [ link.from_resource_id, link.to_resource_id ] }.uniq
+          seen = within.where(id: ends).pluck(:id).to_set
+          hidden.merge(links.reject { |link| seen.include?(link.from_resource_id) && seen.include?(link.to_resource_id) }.map(&:id))
+          links = links.select { |link| seen.include?(link.from_resource_id) && seen.include?(link.to_resource_id) }
+        end
+        frontier = links.flat_map do |link|
+          found[link.id] ||= [ link, hop + 1 ]
+          next [] if link.relation == ResourceMap::RELATION_MANAGED_BY
+
+          [ link.from_resource_id, link.to_resource_id ].reject { |each| hops.key?(each) }.each { |each| hops[each] = hop + 1 }
+        end.uniq
+        break if frontier.empty? || found.size >= NEIGHBORHOOD_LIMIT
+      end
+      [ found.values.first(NEIGHBORHOOD_LIMIT), hidden.size ]
     end
-    found.values.first(NEIGHBORHOOD_LIMIT)
   end
 end

@@ -43,13 +43,13 @@ class Investigation::RemediationPlanTest < ActiveSupport::TestCase
 
     checked = Investigation::RemediationPlan.check!(@workspace, { "summary" => "Roll api back", "steps" => [
       { "kind" => "action", "description" => "Put api back on the last good version", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "ver-8" } }
-    ] })
+    ] }, principal: map_reader)
 
     step = checked.steps.sole
     assert_equal [ "rollback", "cloudflare.execute" ], [ step.tool_name, step.action_key ]
     assert_includes step.arguments["code"], '"path":"/accounts/acc1/workers/scripts/api/deployments"'
     error = assert_raises(Investigation::RemediationPlan::Refused) do
-      Investigation::RemediationPlan.check!(@workspace, { "summary" => "Look", "steps" => [ { "kind" => "action", "description" => "Read logs", "tool" => "search_logs", "arguments" => { "resource" => "api" } } ] })
+      Investigation::RemediationPlan.check!(@workspace, { "summary" => "Look", "steps" => [ { "kind" => "action", "description" => "Read logs", "tool" => "search_logs", "arguments" => { "resource" => "api" } } ] }, principal: map_reader)
     end
     assert_match "only reads", error.message
   end

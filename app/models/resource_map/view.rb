@@ -8,10 +8,13 @@ class ResourceMap::View
   Row = Data.define(:resource, :entries, :open_incidents, :recent_incident_count, :last_change, :dependent_ids, :suggested_dependent_ids,
                     :memories, :instructions, :past_incidents, :baselines)
 
-  attr_reader :workspace
+  attr_reader :workspace, :principal
 
-  def initialize(workspace)
+  # The map as principal may read it, so a resource outside its environments, and every link and change of one, is not
+  # in the view at all.
+  def initialize(workspace, principal)
     @workspace = workspace
+    @principal = principal
   end
 
   def rows
@@ -38,12 +41,21 @@ class ResourceMap::View
   end
 
   def changes
-    ResourceMap::Change.where(workspace: workspace).since(CHANGE_WINDOW.ago).newest_first.includes(:resource).limit(50)
+    ResourceMap::Change.where(workspace: workspace, resource_id: visible.select(:id)).since(CHANGE_WINDOW.ago).newest_first.includes(:resource).limit(50)
   end
 
+  # Only connection rows wired to an environment the principal reads, since what a sweep could not read names resources.
   def connections
-    IntegrationEnvironment.joins(:integration).merge(Integration.active).where(integrations: { workspace_id: workspace.id })
-                          .includes(:integration).select { |row| row.map_swept_at || row.map_error || row.baseline_error }
+    rows = IntegrationEnvironment.joins(:integration).merge(Integration.active).where(integrations: { workspace_id: workspace.id })
+    rows = rows.where(catalog_entry_id: environments) unless environments.nil?
+    rows.includes(:integration).select { |row| row.map_swept_at || row.map_error || row.baseline_error }
+  end
+
+  # The environments the principal reads the map in, nil for every one.
+  def environments
+    return @environments if defined?(@environments)
+
+    @environments = ResourceMap::Resource.environments_visible_to(principal, workspace)
   end
 
   # Who depends on a resource, directly or through others, read along each link from the one that depends to the one it
@@ -73,11 +85,12 @@ class ResourceMap::View
   end
 
   def resources
-    @resources ||= ResourceMap::Resource.present.where(workspace: workspace)
-                                        .includes(integration_environment: %i[integration environment]).order(:provider, :account, :name).to_a
+    @resources ||= visible.present.includes(integration_environment: %i[integration environment]).order(:provider, :account, :name).to_a
   end
 
   def resource_ids = @resource_ids ||= resources.map(&:id)
+
+  def visible = @visible ||= ResourceMap::Resource.visible_to(principal, workspace)
 
   def entries_by_resource
     @entries_by_resource ||= ResourceMap::EntryLink.where(resource_id: resource_ids)

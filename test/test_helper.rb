@@ -30,5 +30,7 @@ module ActiveSupport
     include SessionTestHelper
     include InviteGateTestHelper
     include LlmResponseHelper
+    include MapReaderHelper
+    include TwoEnvironmentMapHelper
   end
 end

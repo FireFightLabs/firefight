@@ -8,6 +8,7 @@ class Workspace < ApplicationRecord
   include Workspace::InvestigationLimits
   include Workspace::CodeFixes
   include Workspace::IssueSync
+  include Workspace::AgentDefaults
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -206,6 +207,7 @@ class Workspace < ApplicationRecord
       if workspace.previously_new_record?
         workspace.setup_incident_configuration!
         workspace.setup_catalogue!
+        workspace.grant_agent_defaults!
       end
 
       first_install = workspace.previously_new_record? || workspace.incidents_channel_id.blank?

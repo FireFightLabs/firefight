@@ -160,7 +160,7 @@ class Integrations::Capabilities::NewrelicTest < ActiveSupport::TestCase
     { "content" => [ { "type" => "text", "text" => text }, *lines.map { |line| { "type" => "text", "text" => line } } ] }
   end
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message
 end

@@ -43,6 +43,10 @@ class WorkspaceMembership < ApplicationRecord
     Ability::Action::RESOURCE_MEMORY => [ Ability::Action::ACTION_CREATE, Ability::Action::ACTION_UPDATE ].freeze
   }.freeze
 
+  # Held in every environment without a grant, until an admin grants one to the member, alone or in a set. From then the
+  # grants decide where, so a grant narrows the default rather than adding to it, and one that expires narrows to nothing.
+  NARROWABLE_KEYS = [ Ability::Action::MAP_READ ].freeze
+
   # Admins hold every catalogued ability including integration tools, since enabling one on a
   # connection is already the deliberate step. For members anything reaching another system stays an explicit grant.
   def implicitly_allowed?(action)
@@ -57,6 +61,9 @@ class WorkspaceMembership < ApplicationRecord
   def implicitly_permits?(resource, crud_action)
     return true if admin_access?
     return false if Ability::Action::ADMIN_ONLY_RESOURCES.include?(resource.to_s)
+
+    key = Ability::Action.system_key(resource, crud_action)
+    return !Ability::Resolver.resolve(self, workspace_id).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)

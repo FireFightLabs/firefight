@@ -92,7 +92,7 @@ class ResourceMap::CodeDefinitionsTest < ActiveSupport::TestCase
     record!([ file("dns.tf", "Terraform", %(name = "app.acme.com")), file("api.tf", "Terraform", %(northflank_service "billing-api")) ])
     managed.each { |link| link.confirm!(by: nil) }
 
-    row = ResourceMap::View.new(@workspace).rows.find { |each| each.resource.name == "acme/infra" }
+    row = ResourceMap::View.new(@workspace, map_reader).rows.find { |each| each.resource.name == "acme/infra" }
     assert_empty row.dependent_ids
     walked = ResourceMap::Resource.find_by!(workspace: @workspace, name: "app.acme.com").neighborhood.map { |link, _| link.from_resource.name }
     assert_not_includes walked, "billing-api"

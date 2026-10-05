@@ -46,7 +46,7 @@ function fromUrl(): { view: MapView; resourceId: string | null } {
 }
 
 export default function ResourceMapPage() {
-  const { resources, links, connections, changes, catalogEntries } = usePage<MapPageProps>().props
+  const { resources, links, connections, changes, catalogEntries, readsIn } = usePage<MapPageProps>().props
   const canCurate = useCan("catalog")
   const canSync = useCan("integrations")
   const [ place, setPlace ] = useState(fromUrl)
@@ -95,7 +95,7 @@ export default function ResourceMapPage() {
     return (
       <AuthenticatedLayout title="Map">
         <Head title="Map" />
-        <EmptyMap syncing={connections.length > 0} canSync={canSync} onSync={sync} />
+        <EmptyMap syncing={connections.length > 0} canSync={canSync} readsIn={readsIn} onSync={sync} />
       </AuthenticatedLayout>
     )
   }
@@ -106,6 +106,7 @@ export default function ResourceMapPage() {
       <div className="flex flex-col">
         <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-3 lg:px-6">
           <SyncedLine resources={resources} connections={connections} />
+          {readsIn && <ReachNote readsIn={readsIn} />}
           <div className="grow" />
           {canSync && (
             <Button type="button" variant="outline" size="sm" onClick={sync}>
@@ -323,30 +324,80 @@ function FocusView({ focused, resources, links, depth, direction, onDepth, onDir
   )
 }
 
-function EmptyMap({ syncing, canSync, onSync }: { syncing: boolean; canSync: boolean; onSync: () => void }) {
+// Said once someone reads the map in some environments only, so a resource they do not see reads as outside their reach.
+function ReachNote({ readsIn }: { readsIn: string[] }) {
+  return (
+    <span className="text-sm text-muted-foreground">
+      Showing what runs in {listed(readsIn)}. An admin decides which environments you see.
+    </span>
+  )
+}
+
+interface EmptyMapProps {
+  syncing: boolean
+  canSync: boolean
+  readsIn: string[] | null
+  onSync: () => void
+}
+
+function EmptyMap({ syncing, canSync, readsIn, onSync }: EmptyMapProps) {
+  if (readsIn) {
+    return (
+      <EmptyState
+        title="Nothing you can see is on the map yet"
+        text={`Nothing on the map runs in ${listed(readsIn)} yet. An admin decides which environments you see.`}
+      />
+    )
+  }
+
+  const title = syncing ? "The map is filling in" : "Nothing is on the map yet"
+  if (syncing) {
+    return (
+      <EmptyState title={title} text="Firefight is reading what your connections reach. It takes a minute, and the map fills in as each one finishes.">
+        {canSync && (
+          <Button type="button" variant="outline" size="sm" onClick={onSync}>
+            <IconRefresh className="size-4" />
+            Sync now
+          </Button>
+        )}
+      </EmptyState>
+    )
+  }
+
+  if (!canSync) {
+    return <EmptyState title={title} text="The map shows what runs where, read off your connections. Once an admin connects a provider, Firefight reads what runs there." />
+  }
+
+  return (
+    <EmptyState
+      title={title}
+      text="The map shows what runs where, read off your connections. Connect Northflank or PlanetScale and Firefight reads what runs there, and how it depends on each other."
+    >
+      <Button asChild size="sm">
+        <Link href={integrationsPath()}>Connect a provider</Link>
+      </Button>
+    </EmptyState>
+  )
+}
+
+function EmptyState({ title, text, children }: { title: string; text: string; children?: React.ReactNode }) {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-24 text-center">
       <span className="flex size-12 items-center justify-center rounded-xl bg-muted">
         <IconTopologyStar3 className="size-6 text-muted-foreground" />
       </span>
-      <h1 className="text-lg font-semibold">{syncing ? "The map is filling in" : "Nothing is on the map yet"}</h1>
-      <p className="text-sm text-muted-foreground">
-        {syncing
-          ? "Firefight is reading what your connections reach. It takes a minute, and the map fills in as each one finishes."
-          : "The map shows what runs where, read off your connections. Connect Northflank or PlanetScale and Firefight reads what runs there, and how it depends on each other."}
-      </p>
-      {syncing && canSync ? (
-        <Button type="button" variant="outline" size="sm" onClick={onSync}>
-          <IconRefresh className="size-4" />
-          Sync now
-        </Button>
-      ) : (
-        <Button asChild size="sm">
-          <Link href={integrationsPath()}>Connect a provider</Link>
-        </Button>
-      )}
+      <h1 className="text-lg font-semibold">{title}</h1>
+      <p className="text-sm text-muted-foreground">{text}</p>
+      {children}
     </div>
   )
+}
+
+function listed(names: string[]): string {
+  if (names.length <= 1) {
+    return names[0] ?? ""
+  }
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
 }
 
 function unique(values: (string | undefined)[]): string[] {

@@ -16,7 +16,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   test "an agent cannot reach the credential tools even when granted everything grantable" do
     _, token = create_agent(
       workspace: @workspace, created_by: @membership, name: "Ambitious", slug: "ambitious",
-      permissions: Ability::Action::GRANTABLE_RESOURCES.index_with { %w[read create update delete] }
+      permissions: Ability::Action::GRANTABLE_RESOURCES.index_with { |resource| Ability::Action.actions_for(resource) }
     )
 
     [ Mcp::Tools::UPSERT_AGENT, Mcp::Tools::LIST_AGENTS,

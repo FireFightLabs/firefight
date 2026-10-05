@@ -3,7 +3,7 @@ _fixture:
 
 <% risk_by_action = { "read" => "read", "create" => "write", "update" => "write", "delete" => "destructive" } %>
 <% Ability::Action::RESOURCES.each do |resource| %>
-<% Ability::Action::ACTIONS.each do |action| %>
+<% Ability::Action.actions_for(resource).each do |action| %>
 <%= resource %>_<%= action %>:
   kind: system
   key: <%= resource %>.<%= action %>
