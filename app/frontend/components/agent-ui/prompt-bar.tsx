@@ -40,7 +40,22 @@ const MODELS = [
   { key: "freezer-burn", name: "Freezer Burn 0.4", tag: "Stale" },
 ];
 
-const FILES = ["flavor-chart.png", "summer-menu.pdf", "pos-export.csv"];
+/* The row the + menu leads with when the caller takes files. */
+const ATTACH_ROW: Source = { key: "attach-files", name: "Attach files", desc: "Images, PDFs and text files", glyph: "clip", attach: true };
+
+/* A file in the composer, as the caller tracks its upload. */
+export type PromptAttachment = {
+  key: string;
+  name: string;
+  size: string;
+  previewUrl: string | null;
+  /* 0 to 1 while it uploads */
+  progress: number;
+  uploading: boolean;
+  error: string | null;
+  note: string | null;
+};
+
 const DICTATION = "Compare pistachio weekends to last summer";
 
 /* the last @word or /word being typed, if any */
@@ -67,6 +82,7 @@ export default function PromptBar({
   sourceHint = "Type to search sources & files",
   initialDraft = "",
   autoFocus = false,
+  attachments,
 }: {
   /** hero sizing: a multi-line input with controls on their own row */
   tall?: boolean;
@@ -89,13 +105,26 @@ export default function PromptBar({
   initialDraft?: string;
   /** put the caret in the input on mount, at the end of the draft */
   autoFocus?: boolean;
+  /** files the caller uploads as they are added, through the + menu, drag and drop or paste. Off when not given */
+  attachments?: {
+    items: PromptAttachment[];
+    accept: string;
+    /** a line under the chips, such as how many files may go */
+    notice: string | null;
+    /** nothing is uploading or failed, so the message can go */
+    sendable: boolean;
+    onAdd: (files: File[]) => void;
+    onRemove: (key: string) => void;
+  };
 }) {
   const [draft, setDraft] = useState(initialDraft);
   const [dismissed, setDismissed] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [model, setModel] = useState(MODELS[1]);
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attached = attachments?.items ?? [];
   const [connected, setConnected] = useState(false);
   const [active, setActive] = useState(0);
   const [listening, setListening] = useState(false);
@@ -121,9 +150,10 @@ export default function PromptBar({
   const menu: "at" | "slash" | null = plusOpen ? "at" : (offered ? token?.kind ?? null : null);
   const query = plusOpen ? "" : token?.query ?? "";
 
+  const offeredSources = plusOpen && attachments ? [ATTACH_ROW, ...sources] : sources;
   const rows: { key: string; name: string; desc: string }[] =
     menu === "at"
-      ? onSourceSearch ? sources : sources.filter((s) => s.name.toLowerCase().includes(query))
+      ? onSourceSearch ? offeredSources : offeredSources.filter((s) => s.attach || s.name.toLowerCase().includes(query))
       : menu === "slash"
         ? commands.filter((c) => c.name.slice(1).startsWith(query))
         : [];
@@ -236,11 +266,12 @@ export default function PromptBar({
   };
 
   const pick = (row: { key: string; name: string }) => {
-    const source = sources.find((s) => s.key === row.key);
-    if (source?.attach) {
-      setAttachments((current) => [...current, FILES[current.length % FILES.length]]);
-      if (token) setDraft(draft.slice(0, token.start));
-    } else if (menu === "at") {
+    if (row.key === ATTACH_ROW.key) {
+      fileInputRef.current?.click();
+      setPlusOpen(false);
+      return;
+    }
+    if (menu === "at") {
       setDraft(`${token ? draft.slice(0, token.start) : draft}@${row.name} `);
     } else {
       setDraft(`${token ? draft.slice(0, token.start) : draft}${row.name} `);
@@ -250,14 +281,45 @@ export default function PromptBar({
     inputRef.current?.focus();
   };
 
-  const canSend = draft.trim().length > 0 || attachments.length > 0;
-  const stops = onStop !== undefined && !canSend;
+  const hasContent = draft.trim().length > 0 || attached.length > 0;
+  const canSend = hasContent && (attachments?.sendable ?? true);
+  const stops = onStop !== undefined && !hasContent;
   const send = () => {
     if (!canSend) return;
     onSend?.(draft.trim());
     setDraft("");
-    setAttachments([]);
     closeMenus();
+  };
+
+  const takeFiles = (files: FileList | null) => {
+    const list = Array.from(files ?? []);
+    if (list.length > 0) attachments?.onAdd(list);
+  };
+
+  /* only a drag that carries files lights the composer up */
+  const carriesFiles = (event: React.DragEvent) => Boolean(attachments) && event.dataTransfer.types.includes("Files");
+  const dragOver = (event: React.DragEvent) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDragging(true);
+  };
+  const dragLeave = (event: React.DragEvent) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setDragging(false);
+  };
+  const drop = (event: React.DragEvent) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDragging(false);
+    takeFiles(event.dataTransfer.files);
+    inputRef.current?.focus();
+  };
+
+  /* a pasted screenshot is attached, and pasted text still lands in the input */
+  const paste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!attachments || event.clipboardData.files.length === 0) return;
+    takeFiles(event.clipboardData.files);
+    if (!event.clipboardData.types.includes("text/plain")) event.preventDefault();
   };
 
   return (
@@ -287,7 +349,7 @@ export default function PromptBar({
             }}
           />
           {rows.map((row, i) => {
-            const source = menu === "at" ? sources.find((s) => s.key === row.key) : undefined;
+            const source = menu === "at" ? offeredSources.find((s) => s.key === row.key) : undefined;
             return (
               <button
                 key={row.key}
@@ -387,7 +449,11 @@ export default function PromptBar({
 
       {/* ── composer ───────────────────────────────────── */}
       <div
-        className={`relative isolate flex flex-col overflow-hidden border border-line-strong bg-surface-input transition-[border-color,border-radius] duration-150 focus-within:border-border-control ${
+        onDragEnter={dragOver}
+        onDragOver={dragOver}
+        onDragLeave={dragLeave}
+        onDrop={drop}
+        className={`relative isolate flex flex-col overflow-hidden border bg-surface-input transition-[border-color,border-radius] duration-150 focus-within:border-border-control ${dragging ? "border-accent" : "border-line-strong"} ${
           tall ? "gap-2.5 p-3.5" : "gap-1.5 p-1.5"
         } ${
           tall ? "rounded-[22px]" : "rounded-[14px]"
@@ -401,27 +467,75 @@ export default function PromptBar({
           {draft}
         </span>
 
-        {attachments.length > 0 && (
-          <div className={`flex flex-wrap gap-1.5 pt-0.5 px-0.5`}>
-            {attachments.map((file, i) => (
+        {attachments && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={attachments.accept}
+            aria-label="Attach files"
+            className="hidden"
+            onChange={(event) => {
+              takeFiles(event.target.files);
+              event.target.value = "";
+              inputRef.current?.focus();
+            }}
+          />
+        )}
+
+        {dragging && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-surface-input/90 text-[13px] font-medium text-ink">
+            Drop files to attach
+          </div>
+        )}
+
+        {attached.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-0.5 px-0.5" aria-label="Attached files">
+            {attached.map((file) => (
               <span
-                key={`${file}-${i}`}
-                className={`flex h-6.5 items-center gap-1.5 bg-field py-1 pr-1 pl-1.5 text-[11.5px] text-ink-2 shadow-hairline rounded-chip`}
+                key={file.key}
+                title={file.error ?? file.note ?? undefined}
+                className={`relative flex h-7 items-center gap-1.5 overflow-hidden bg-field py-1 pr-1 pl-1 text-[11.5px] text-ink-2 rounded-chip ${file.error ? "shadow-[0_0_0_1px_var(--red)]" : "shadow-hairline"}`}
                 style={{ animation: "pop-in 200ms cubic-bezier(0.23,1,0.32,1) both" }}
               >
-                <Icon size={12}><g><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></g></Icon>
-                <span className="max-w-36 truncate">{file}</span>
+                {file.previewUrl ? (
+                  <img src={file.previewUrl} alt="" className="size-5 shrink-0 rounded-[4px] object-cover" />
+                ) : (
+                  <span className="flex size-5 shrink-0 items-center justify-center text-ink-3">
+                    <Icon size={12}><g><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></g></Icon>
+                  </span>
+                )}
+                <span className="max-w-36 truncate text-ink">{file.name}</span>
+                <span className="shrink-0 text-ink-3">
+                  {file.uploading ? `${Math.round(file.progress * 100)}%` : file.size}
+                </span>
                 <button
                   type="button"
-                  aria-label={`Remove ${file}`}
-                  onClick={() => setAttachments((current) => current.filter((_, j) => j !== i))}
-                  className={`-my-1 flex size-6 items-center justify-center text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink rounded-[5px]`}
+                  aria-label={`Remove ${file.name}`}
+                  onClick={() => attachments?.onRemove(file.key)}
+                  className="-my-1 flex size-6 items-center justify-center text-ink-3 transition-colors duration-100 hover:bg-line/70 hover:text-ink rounded-[5px]"
                 >
                   <Icon size={10} strokeWidth={2.5}><path d="M18 6L6 18M6 6l12 12" /></Icon>
                 </button>
+                {file.uploading && (
+                  <span
+                    aria-hidden
+                    className="absolute bottom-0 left-0 h-[2px] bg-accent transition-[width] duration-150"
+                    style={{ width: `${Math.round(file.progress * 100)}%` }}
+                  />
+                )}
               </span>
             ))}
           </div>
+        )}
+
+        {(attachments?.notice || attached.some((file) => file.error || file.note)) && (
+          <ul className="flex flex-col gap-0.5 px-1 text-[12px] leading-[16px]" aria-live="polite">
+            {attached.map((file) => (file.error || file.note) && (
+              <li key={file.key} className={file.error ? "text-red" : "text-ink-3"}>{file.error ?? file.note}</li>
+            ))}
+            {attachments?.notice && <li className="text-red">{attachments.notice}</li>}
+          </ul>
         )}
 
         <div
@@ -455,6 +569,7 @@ export default function PromptBar({
               setDismissed(false);
               setPlusOpen(false);
             }}
+            onPaste={paste}
             onKeyDown={(event) => {
               if (menu && rows.length > 0) {
                 if (event.key === "ArrowDown" || event.key === "ArrowUp") {

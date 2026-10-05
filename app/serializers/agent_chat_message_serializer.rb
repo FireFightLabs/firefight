@@ -8,6 +8,9 @@ class AgentChatMessageSerializer < BaseSerializer
     message.content.to_s
   end
 
+  # Only a person's message carries files.
+  has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer
+
   # Same shape as the live step event, so a step reads the same either way.
   type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; card: { kind: string; category: string | null } | null }[]"
   def tools

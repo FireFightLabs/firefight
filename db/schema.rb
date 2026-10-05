@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -128,8 +128,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
     t.string "name", null: false
-    t.bigint "record_id", null: false
     t.string "record_type", null: false
+    t.uuid "record_id", null: false
     t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
     t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
   end
@@ -146,7 +146,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
-  create_table "active_storage_variant_records", force: :cascade do |t|
+  create_table "active_storage_variant_records", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
@@ -327,6 +327,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
     t.index ["workspace_id", "slug"], name: "index_catalog_types_on_workspace_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id", "system_key"], name: "index_catalog_types_on_workspace_id_and_system_key", unique: true, where: "(system_key IS NOT NULL)"
     t.index ["workspace_id"], name: "index_catalog_types_on_workspace_id"
+  end
+
+  create_table "chat_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "chat_id"
+    t.uuid "chat_message_id"
+    t.uuid "queued_message_id"
+    t.uuid "uploaded_by_id"
+    t.bigint "blob_id"
+    t.uuid "saved_result_id"
+    t.text "filename", null: false
+    t.string "content_type", null: false
+    t.bigint "byte_size", null: false
+    t.string "kind", null: false
+    t.text "text"
+    t.integer "redactions", default: 0, null: false
+    t.integer "page_count"
+    t.integer "position"
+    t.text "refusal"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blob_id"], name: "index_chat_attachments_on_blob_id"
+    t.index ["chat_id"], name: "index_chat_attachments_on_chat_id"
+    t.index ["chat_message_id"], name: "index_chat_attachments_on_chat_message_id"
+    t.index ["created_at"], name: "index_chat_attachments_unsent", where: "(chat_id IS NULL)"
+    t.index ["queued_message_id"], name: "index_chat_attachments_on_queued_message_id"
+    t.index ["uploaded_by_id"], name: "index_chat_attachments_on_uploaded_by_id"
+    t.index ["workspace_id"], name: "index_chat_attachments_on_workspace_id"
   end
 
   create_table "chat_charts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1903,6 +1931,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
   add_foreign_key "catalog_entry_relationships", "catalog_entries", column: "target_entry_id"
   add_foreign_key "catalog_entry_relationships", "workspaces"
   add_foreign_key "catalog_types", "workspaces"
+  add_foreign_key "chat_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "chat_attachments", "chat_messages", on_delete: :cascade
+  add_foreign_key "chat_attachments", "chat_queued_messages", column: "queued_message_id", on_delete: :nullify
+  add_foreign_key "chat_attachments", "chat_saved_results", column: "saved_result_id", on_delete: :nullify
+  add_foreign_key "chat_attachments", "chats", on_delete: :cascade
+  add_foreign_key "chat_attachments", "workspace_memberships", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "chat_attachments", "workspaces"
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
   add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify

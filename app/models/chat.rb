@@ -14,6 +14,8 @@ class Chat < ApplicationRecord
   has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
   has_many :charts, -> { in_order }, class_name: "Chat::Chart", dependent: :delete_all, inverse_of: :chat
   has_many :queued_messages, class_name: "Chat::QueuedMessage", dependent: :delete_all, inverse_of: :chat
+  # Destroyed one by one, since each lets go of its bytes in the object store.
+  has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 
   # The registry holds no context window for the model this chat runs on. Nothing is assumed in
   # its place, so an operator adds the model to the registry with its window.
@@ -40,8 +42,9 @@ class Chat < ApplicationRecord
     messages.where(role: Chat::Message::READABLE_ROLES, nudge: false).order(:created_at)
   end
 
-  def queue_message!(content, sender:)
-    queued_messages.create!(content: content, sender: sender)
+  def queue_message!(content, sender:, files: [])
+    files.each_with_index { |file, index| file.update!(chat: self, position: index) }
+    queued_messages.create!(content: content, sender: sender, attached_files: files)
   end
 
   # Adds what was sent while the agent worked, in the order it was sent, and returns what it added. from limits it to one
@@ -49,9 +52,39 @@ class Chat < ApplicationRecord
   def take_queued!(from: nil)
     waiting = queued_messages.waiting
     waiting = waiting.where(sender: from) if from
-    waiting.to_a.select(&:take!).each do |queued|
-      add_message(role: Chat::Message::ROLE_USER, content: block_given? ? yield(queued) : queued.content)
+    taken = waiting.to_a.select(&:take!)
+    taken.each do |queued|
+      message = add_message(role: Chat::Message::ROLE_USER, content: block_given? ? yield(queued) : queued.content)
+      attach_files!(message, queued.attached_files.to_a)
     end
+    taken
+  end
+
+  # The library added the message to the chat in memory without its files, so the chat is read again once they joined.
+  def attach_files!(message, files)
+    return if files.empty?
+
+    files.each_with_index { |file, index| file.join!(message, position: index) }
+    reload
+  end
+
+  # Loaded once for the whole chat, since every message asks while the history is built.
+  def files_sent_with(message)
+    files_by_message.fetch(message.id, [])
+  end
+
+  def shown_whole?(file)
+    @shown_whole ||= Chat::Attachment.shown_whole(files_by_message.values.flatten, self)
+    @shown_whole.include?(file.id)
+  end
+
+  def reads_images? = FirefightAi.input_modalities(model_id).include?(Chat::Attachment::KIND_IMAGE)
+
+  def reads_pdfs? = FirefightAi.input_modalities(model_id).include?(Chat::Attachment::KIND_PDF)
+
+  def reload(...)
+    forget_files!
+    super
   end
 
   # RubyLLM saves a stop on the chat's row and checks it while a model call runs, so a stop pressed in the web process
@@ -177,6 +210,15 @@ class Chat < ApplicationRecord
   end
 
   private
+
+  def files_by_message
+    @files_by_message ||= attached_files.where.not(chat_message_id: nil).includes(:blob, :saved_result).group_by(&:chat_message_id)
+  end
+
+  def forget_files!
+    @files_by_message = nil
+    @shown_whole = nil
+  end
 
   def owner_in_same_workspace
     return if owner.nil? || owner.workspace_id == workspace_id

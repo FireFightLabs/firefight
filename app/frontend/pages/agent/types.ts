@@ -1,7 +1,8 @@
 import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
-  AgentChat, AgentChatConfirmation, AgentChatIncident, AgentChatMessage, AgentChatWaitingMessage, ChatChart, EnvironmentOption,
+  AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatIncident, AgentChatMessage,
+  AgentChatWaitingMessage, ChatChart, EnvironmentOption,
   IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -19,6 +20,7 @@ export interface AgentPageProps extends SharedProps {
   openInvestigation: InvestigationDetail | null
   charts: ChatChart[]
   waitingMessages: AgentChatWaitingMessage[]
+  attachmentRules: AgentChatAttachmentRules
 }
 
 export type AgentStep = AgentChatMessage["tools"][number]
@@ -41,7 +43,7 @@ export interface TurnBody {
 }
 
 export type ChatTurn =
-  | { kind: typeof TURN_KINDS.PERSON; id: string; body: string }
+  | { kind: typeof TURN_KINDS.PERSON; id: string; body: string; attachments: AgentChatAttachment[] }
   | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[] }
 
 export interface AgentStream {

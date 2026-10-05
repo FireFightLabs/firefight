@@ -447,7 +447,8 @@ export const AGENT_CHAT_PROPS = {
   "INVESTIGATIONS": "investigations",
   "OPEN_INVESTIGATION": "openInvestigation",
   "CHARTS": "charts",
-  "WAITING_MESSAGES": "waitingMessages"
+  "WAITING_MESSAGES": "waitingMessages",
+  "ATTACHMENT_RULES": "attachmentRules"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const
@@ -646,6 +647,13 @@ export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 export const CHAT_MESSAGE_ROLES = {
   "USER": "user",
   "ASSISTANT": "assistant"
+} as const
+
+export const CHAT_ATTACHMENT_KINDS = {
+  "IMAGE": "image",
+  "PDF": "pdf",
+  "TEXT": "text",
+  "UNREAD": "unread"
 } as const
 
 export const PRINCIPAL_KINDS = {

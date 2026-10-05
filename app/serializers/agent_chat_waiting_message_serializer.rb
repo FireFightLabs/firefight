@@ -8,4 +8,6 @@ class AgentChatWaitingMessageSerializer < BaseSerializer
   def body
     message.content
   end
+
+  has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer
 end

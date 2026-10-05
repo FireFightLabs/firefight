@@ -3,7 +3,7 @@ import { router } from "@inertiajs/react"
 import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
 import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatStopPath, agentChatsPath, investigationStopPath } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
-import type { AgentChat } from "@/types/serializers"
+import type { AgentChat, AgentChatAttachment } from "@/types/serializers"
 
 // The list loads by the page, so visits never ask for it again and rows change here instead.
 
@@ -12,7 +12,7 @@ type ChatChange = { title: string } | { pinned: boolean } | { archived: boolean 
 const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
-  AGENT_CHAT_PROPS.WAITING_MESSAGES,
+  AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
@@ -34,22 +34,29 @@ export function startNewChat() {
 // The question and the working state show the moment it is sent, so the chat never sits still while the request is out.
 // Sent while the agent works, it shows as waiting instead. The server's answer replaces both, and a refusal puts the page
 // back.
-export function ask(conversationId: string | null, question: string) {
+// Files show on the message at once, an image from the copy the browser already holds, until the server's answer
+// replaces it.
+export function ask(conversationId: string | null, question: string, attachments: AgentChatAttachment[] = [], previews: Record<string, string> = {}) {
   const path = conversationId ? agentChatAskPath(conversationId) : agentChatsPath()
+  const shown = attachments.map((attachment) => ({ ...attachment, url: previews[attachment.id] ?? attachment.url }))
   router
-    .optimistic<AgentPageProps>((props) => askedNow(props, question))
-    .post(path, { question }, { ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat })
+    .optimistic<AgentPageProps>((props) => askedNow(props, question, shown))
+    .post(path, { question, attachment_ids: attachments.map((attachment) => attachment.id) }, {
+      ...IN_PLACE, only: OPEN_CHAT, onSuccess: placeOpenChat,
+    })
 }
 
 // A new chat has no id until the server makes it, and an empty one opens no live connection.
-function askedNow(props: AgentPageProps, question: string): Partial<AgentPageProps> {
+function askedNow(props: AgentPageProps, question: string, attachments: AgentChatAttachment[]): Partial<AgentPageProps> {
   if (props.conversation?.busy) {
-    return { waitingMessages: [ ...props.waitingMessages, { id: `waiting-${props.waitingMessages.length}`, body: question } ] }
+    const waiting = { id: `waiting-${props.waitingMessages.length}`, body: question, attachments }
+    return { waitingMessages: [ ...props.waitingMessages, waiting ] }
   }
 
-  const asked = { id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [] }
+  const asked = { id: `asking-${props.messages.length}`, body: question, role: CHAT_MESSAGE_ROLES.USER, tools: [], attachments }
+  const title = question || attachments.map((attachment) => attachment.name).join(", ")
   const conversation = props.conversation ?? {
-    id: "", title: question, preview: question, archived: false, pinned: false, pinnedAt: null,
+    id: "", title, preview: question, archived: false, pinned: false, pinnedAt: null,
     lastActiveAt: new Date().toISOString(), busy: true,
   }
 

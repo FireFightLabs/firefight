@@ -3,9 +3,10 @@ import { useEffect, useMemo, useRef } from "react"
 import LoadingState from "@/components/agent-ui/loading-state"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { Message } from "@/pages/agent/components/message"
+import { MessageAttachments } from "@/pages/agent/components/message-attachments"
 import { groupedTurns, liveTurn, settledMessages } from "@/pages/agent/lib/group-turns"
 import type { AgentStream } from "@/pages/agent/types"
-import type { AgentChatConfirmation, AgentChatMessage, AgentChatWaitingMessage } from "@/types/serializers"
+import type { AgentChatAttachment, AgentChatConfirmation, AgentChatMessage, AgentChatWaitingMessage } from "@/types/serializers"
 
 interface ThreadProps {
   conversationId: string | null
@@ -33,7 +34,7 @@ export function Thread({ conversationId, confirmations, messages, waiting, strea
         {live && <Message turn={live} live />}
         {stream.busy && stream.text.length === 0 && <LoadingState label="Working" />}
         {waiting.map((message) => (
-          <WaitingMessage key={message.id} body={message.body} />
+          <WaitingMessage key={message.id} body={message.body} attachments={message.attachments} />
         ))}
         {conversationId && confirmations.length > 0 && !stream.busy && (
           <ConfirmCard conversationId={conversationId} confirmations={confirmations} />
@@ -45,12 +46,15 @@ export function Thread({ conversationId, confirmations, messages, waiting, strea
 }
 
 // Sent while the agent works. It joins the answer at the agent's next step, and until then it says so.
-function WaitingMessage({ body }: { body: string }) {
+function WaitingMessage({ body, attachments }: { body: string; attachments: AgentChatAttachment[] }) {
   return (
     <div className="flex flex-col items-end gap-1">
-      <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink opacity-70 [overflow-wrap:anywhere] sm:max-w-[75%]">
-        {body}
-      </p>
+      {attachments.length > 0 && <MessageAttachments attachments={attachments} />}
+      {body.length > 0 && (
+        <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink opacity-70 [overflow-wrap:anywhere] sm:max-w-[75%]">
+          {body}
+        </p>
+      )}
       <span className="text-[12px] text-ink-3">Halon reads this at its next step</span>
     </div>
   )
