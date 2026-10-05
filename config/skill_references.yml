@@ -175,3 +175,70 @@ aws:
     skills/specialized-skills/serverless-skills/debugging-lambda-timeouts/references: lambda-timeouts
     skills/specialized-skills/operations-skills/troubleshooting-application-failures/references: application-failures
     skills/specialized-skills/database-skills/rds-oss/references: rds
+
+# Google Cloud's documentation is CC BY 4.0. Each page is copied as the markdown Google serves at the page's address
+# followed by .md.txt.
+google_cloud:
+  site: https://docs.cloud.google.com
+  page_url: "%<site>s/%<page>s.md.txt"
+  license: |
+    These guides are pages of Google Cloud's documentation (https://docs.cloud.google.com), copied unchanged from the
+    markdown Google publishes for each page. Except as otherwise noted on a page, they are licensed under the Creative
+    Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/, and their code samples
+    under the Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Google LLC.
+  pages:
+    run/troubleshooting.md: run/docs/troubleshooting
+    run/rollouts-rollbacks-traffic-migration.md: run/docs/rollouts-rollbacks-traffic-migration
+    run/managing-revisions.md: run/docs/managing/revisions
+    run/min-instances.md: run/docs/configuring/min-instances
+    run/max-instances.md: run/docs/configuring/max-instances
+    run/container-contract.md: run/docs/container-contract
+    run/health-checks.md: run/docs/configuring/healthchecks
+    run/logging.md: run/docs/logging
+    run/monitoring.md: run/docs/monitoring
+    sql/postgres-diagnose-issues.md: sql/docs/postgres/diagnose-issues
+    sql/mysql-diagnose-issues.md: sql/docs/mysql/diagnose-issues
+    sql/postgres-manage-connections.md: sql/docs/postgres/manage-connections
+    sql/postgres-system-insights.md: sql/docs/postgres/use-system-insights
+    sql/postgres-start-stop-restart.md: sql/docs/postgres/start-stop-restart-instance
+    sql/mysql-start-stop-restart.md: sql/docs/mysql/start-stop-restart-instance
+    compute/vm-startup.md: compute/docs/troubleshooting/vm-startup
+    compute/serial-console.md: compute/docs/troubleshooting/troubleshooting-using-serial-console
+    compute/reset-instance.md: compute/docs/instances/reset-instance
+    gke/troubleshooting.md: kubernetes-engine/docs/troubleshooting
+    gke/crashloopbackoff.md: kubernetes-engine/docs/troubleshooting/crashloopbackoff-events
+    logging/logging-query-language.md: logging/docs/view/logging-query-language
+    errors/viewing-errors.md: error-reporting/docs/viewing-errors
+
+# Microsoft's Azure documentation is CC BY 4.0. Each page is copied as the markdown source Microsoft publishes on GitHub
+# (MicrosoftDocs/azure-docs, azure-monitor-docs and sql-docs). PostgreSQL flexible server's documentation has no public
+# source, so its skill is in our own words.
+azure:
+  site: https://raw.githubusercontent.com/MicrosoftDocs
+  page_url: "%<site>s/%<page>s"
+  license: |
+    These guides are pages of Microsoft's Azure documentation (https://learn.microsoft.com/azure), copied unchanged from
+    the markdown sources Microsoft publishes in its MicrosoftDocs repositories on GitHub (azure-docs, azure-monitor-docs
+    and sql-docs). They are licensed under the Creative Commons Attribution 4.0 International license,
+    https://creativecommons.org/licenses/by/4.0/, and their code samples under the MIT license. Copyright Microsoft
+    Corporation.
+  pages:
+    app-service/deploy-staging-slots.md: azure-docs/main/articles/app-service/deploy-staging-slots.md
+    app-service/monitor-instances-health-check.md: azure-docs/main/articles/app-service/monitor-instances-health-check.md
+    app-service/troubleshoot-diagnostic-logs.md: azure-docs/main/articles/app-service/troubleshoot-diagnostic-logs.md
+    app-service/overview-diagnostics.md: azure-docs/main/articles/app-service/overview-diagnostics.md
+    app-service/manage-scale-up.md: azure-docs/main/articles/app-service/manage-scale-up.md
+    functions/functions-monitoring.md: azure-docs/main/articles/azure-functions/functions-monitoring.md
+    functions/functions-scale.md: azure-docs/main/articles/azure-functions/functions-scale.md
+    container-apps/revisions.md: azure-docs/main/articles/container-apps/revisions.md
+    container-apps/revisions-manage.md: azure-docs/main/articles/container-apps/revisions-manage.md
+    container-apps/traffic-splitting.md: azure-docs/main/articles/container-apps/traffic-splitting.md
+    container-apps/scale-app.md: azure-docs/main/articles/container-apps/scale-app.md
+    container-apps/log-options.md: azure-docs/main/articles/container-apps/log-options.md
+    container-apps/troubleshoot-container-start-failures.md: azure-docs/main/articles/container-apps/troubleshoot-container-start-failures.md
+    container-apps/troubleshoot-health-probe-failures.md: azure-docs/main/articles/container-apps/troubleshoot-health-probe-failures.md
+    sql/high-cpu-diagnose-troubleshoot.md: sql-docs/live/azure-sql/database/high-cpu-diagnose-troubleshoot.md
+    sql/understand-resolve-blocking.md: sql-docs/live/azure-sql/database/understand-resolve-blocking.md
+    sql/troubleshoot-common-connectivity-issues.md: sql-docs/live/azure-sql/database/troubleshoot-common-connectivity-issues.md
+    sql/troubleshoot-common-errors-issues.md: sql-docs/live/azure-sql/database/troubleshoot-common-errors-issues.md
+    monitor/diagnostic-settings.md: azure-monitor-docs/main/articles/azure-monitor/data-collection/diagnostic-settings.md
