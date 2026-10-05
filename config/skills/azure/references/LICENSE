@@ -1,0 +1,5 @@
+These guides are pages of Microsoft's Azure documentation (https://learn.microsoft.com/azure), copied unchanged from
+the markdown sources Microsoft publishes in its MicrosoftDocs repositories on GitHub (azure-docs, azure-monitor-docs
+and sql-docs). They are licensed under the Creative Commons Attribution 4.0 International license,
+https://creativecommons.org/licenses/by/4.0/, and their code samples under the MIT license. Copyright Microsoft
+Corporation.
