@@ -26,7 +26,7 @@ class AgentChatAttachmentsController < InertiaController
 
   def show
     file = current_workspace.chat_attachments.find(params[:id])
-    raise ActiveRecord::RecordNotFound unless file.readable_by?(current_membership) && file.blob
+    raise ActiveRecord::RecordNotFound unless file.readable_by?(current_membership) && file.sealed.attached?
 
     inline = SHOWN_INLINE.include?(file.content_type)
     response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
