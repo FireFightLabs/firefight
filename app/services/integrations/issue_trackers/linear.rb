@@ -27,6 +27,7 @@ module Integrations
       LIST_USERS = "list_users".freeze
       CREATE_TOOL = SAVE_ISSUE
       CLOSED_TYPES = %w[completed canceled].freeze
+      OPENS = [ SAVE_ISSUE ].freeze
 
       TEAM = "team".freeze
       TARGET_FIELDS = [

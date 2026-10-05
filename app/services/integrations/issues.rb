@@ -18,6 +18,7 @@ module Integrations
   #   setup_steps                                sentences saying how to send the tracker's webhook to Firefight's address
   #   verify(raw_body:, headers:, secret:)       whether a webhook delivery is the tracker's own, as it documents
   #   event(payload)                             an Event for a change to an issue, or nil for anything else
+  #   OPENS                                      the tools that can open an issue, which a chat asks how to keep
   module Issues
     OPENED = :opened
     CLOSED = :closed
@@ -74,6 +75,12 @@ module Integrations
 
     # A field the settings page asks for where new issues go, such as a Linear team or a Jira project.
     TargetField = Data.define(:key, :label, :placeholder, :hint, :required)
+
+    # Whether the tool can open an issue, so whoever offers it can ask how the new issue is to be kept.
+    def self.opens?(tool)
+      tracker = Provider.for(tool.integration.provider).issue_tracker
+      tracker.present? && tracker::OPENS.include?(tool.name)
+    end
 
     # What a tool call that succeeded did to an issue, or nil. A tracker whose answer leaves out what it needs reads
     # through the same connection. The block is handed the switched on tool and its arguments, authorizes the read as

@@ -1,6 +1,6 @@
 require "test_helper"
 
-class Chat::Tools::IssueFollowUpsTest < ActiveSupport::TestCase
+class Chat::Tools::TrackedIssuesTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   URL = "https://linear.app/firefight/issue/FIR-105/investigate-automated-probing-against-web-service".freeze
@@ -18,6 +18,8 @@ class Chat::Tools::IssueFollowUpsTest < ActiveSupport::TestCase
     linear.integration_environments.create!
     @save_issue = linear.tools.create!(name: "save_issue", description: "Create or update an issue", read_only: false, enabled: true,
                                        params_schema: { "type" => "object", "properties" => { "id" => {}, "title" => {}, "team" => {}, "state" => {} } })
+    @get_issue = linear.tools.create!(name: "get_issue", description: "Read an issue", read_only: true, enabled: true,
+                                      params_schema: { "type" => "object", "properties" => { "id" => {} } })
     stub_post_message
     stub_update_message
     stub_get_permalink
@@ -38,18 +40,47 @@ class Chat::Tools::IssueFollowUpsTest < ActiveSupport::TestCase
     Chat::Tools::Connection.new(turn, @save_issue).call(**arguments)
   end
 
-  test "an issue opened in a chat about an incident becomes its follow-up with the title and link, and the agent is told" do
+  test "a tool that opens issues asks how to keep the issue only in a chat about an incident, and never sends the answer on" do
+    about = Chat::Tools::Connection.new(chat_about(@incident), @save_issue)
+    kind = about.parameters_schema.dig("properties", Chat::Tools::TrackedIssues::KIND_ARG)
+
+    assert_equal IncidentAction::ACTION_TYPES, kind["enum"]
+    assert_nil Chat::Tools::Connection.new(chat_about(nil), @save_issue).parameters_schema.dig("properties", Chat::Tools::TrackedIssues::KIND_ARG)
+    assert_nil Chat::Tools::Connection.new(chat_about(@incident), @get_issue).parameters_schema.dig("properties", Chat::Tools::TrackedIssues::KIND_ARG)
+
+    linear_answers("backlog")
+    Integrations::McpExecutor.expects(:call).with { |arguments:, **| !arguments.key?(Chat::Tools::TrackedIssues::KIND_ARG) }
+      .returns("content" => [ { "type" => "text", "text" => { "id" => "FIR-105", "title" => "t", "url" => URL, "statusType" => "backlog" }.to_json } ])
+    about.call(team: "FireFight", title: "t", keep_on_incident_as: "followup")
+  end
+
+  test "an issue opened during a live incident is an action unless Halon says it is a follow-up, with the title and link" do
     linear_answers("backlog")
 
     answer = save_issue(chat_about(@incident), team: "FireFight", title: "Investigate automated probing against web service")
 
-    follow_up = @incident.incident_actions.find_by!(external_url: URL)
-    assert_equal [ IncidentAction::ACTION_TYPE_FOLLOWUP, "Investigate automated probing against web service", "FIR-105", IncidentAction::STATUS_OPEN ],
-                 [ follow_up.action_type, follow_up.description, follow_up.external_key, follow_up.status ]
-    assert_equal @member, follow_up.created_by
-    assert_match "Firefight recorded FIR-105 on #{@incident.identifier} as a follow-up", answer
+    item = @incident.incident_actions.find_by!(external_url: URL)
+    assert_equal [ IncidentAction::ACTION_TYPE_ACTION, "Investigate automated probing against web service", "FIR-105", IncidentAction::STATUS_OPEN ],
+                 [ item.action_type, item.description, item.external_key, item.status ]
+    assert_equal @member, item.created_by
+    assert_match "Firefight recorded FIR-105 on #{@incident.identifier} as an action", answer
     assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_CREATED)
     assert Ability::Invocation.exists?(action_key: "incidents.update", principal_id: @member.id, incident_id: @incident.id)
+
+    item.destroy!
+    save_issue(chat_about(@incident), team: "FireFight", title: "Harden the origin", keep_on_incident_as: "followup")
+    assert_equal IncidentAction::ACTION_TYPE_FOLLOWUP, @incident.incident_actions.find_by!(external_url: URL).action_type
+  end
+
+  test "once the incident is over the issue is a follow-up, and asking for an action says why it is not one" do
+    linear_answers("backlog")
+    @incident.update!(incident_status: incident_statuses(:resolved_ws1), resolved_at: Time.current)
+
+    answer = save_issue(chat_about(@incident), team: "FireFight", title: "Investigate", keep_on_incident_as: "action")
+
+    assert_equal IncidentAction::ACTION_TYPE_FOLLOWUP, @incident.incident_actions.find_by!(external_url: URL).action_type
+    assert_match "as a follow-up with its link", answer
+    assert_match "rather than an action, since #{@incident.identifier} is over", answer
   end
 
   test "the same issue is recorded once, and a chat with no incident records nothing" do
@@ -63,17 +94,16 @@ class Chat::Tools::IssueFollowUpsTest < ActiveSupport::TestCase
     end
   end
 
-  test "closing the issue from any chat completes its open follow-up" do
-    follow_up = IncidentActionService.new(@workspace).create_action(
-      incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_FOLLOWUP,
-      description: "Investigate automated probing against web service", external_key: "FIR-105", external_url: URL
-    )
+  test "closing the issue from any chat completes the action or follow-up that tracks it" do
+    service = IncidentActionService.new(@workspace)
+    action = service.create_action(incident: @incident, created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION,
+                                   description: "Investigate", external_key: "FIR-105", external_url: URL)
     linear_answers("completed")
 
     answer = save_issue(chat_about(nil), id: "FIR-105", state: "Done")
 
-    assert follow_up.reload.done?
-    assert_match "Firefight marked the follow-up for FIR-105 done on #{@incident.identifier}", answer
+    assert action.reload.done?
+    assert_match "Firefight marked the action on #{@incident.identifier} for FIR-105 done", answer
   end
 
   test "a chat that may not update the incident says so and records nothing" do
@@ -84,7 +114,7 @@ class Chat::Tools::IssueFollowUpsTest < ActiveSupport::TestCase
     answer = save_issue(chat_about(@incident), team: "FireFight", title: "Investigate")
 
     assert_not @incident.incident_actions.exists?
-    assert_match "was not recorded on #{@incident.identifier} as a follow-up", answer
+    assert_match "was not recorded on #{@incident.identifier}", answer
   end
 
   test "an issue opened in a chat is kept in step with its follow-up, and closing it there is not sent back" do
