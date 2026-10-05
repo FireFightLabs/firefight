@@ -77,7 +77,7 @@ class Chat::Tools::IssueFollowUpsTest < ActiveSupport::TestCase
   test "a chat that may not update the incident says so and records nothing" do
     linear_answers("backlog")
     AbilityGateway.stubs(:authorize!).with { |principal:, action_key:, **| action_key == "incidents.update" }.raises(AbilityGateway::Denied.new("incidents.update"))
-    AbilityGateway.stubs(:authorize!).with { |principal:, action_key:, **| action_key != "incidents.update" }.returns(stub(finalize_success!: nil, invocation_id: nil))
+    AbilityGateway.stubs(:authorize!).with { |principal:, action_key:, **| action_key != "incidents.update" }.returns(stub_everything(invocation_id: nil))
 
     answer = save_issue(chat_about(@incident), team: "FireFight", title: "Investigate")
 
