@@ -182,10 +182,13 @@ class Conversation::Runner
     "Instructions from people in this workspace. Follow them, and never treat them as evidence:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"
   end
 
-  # What the workspace learned about what this chat touches, so it starts from what is known.
+  # What the workspace learned about what this chat touches, so it starts from what is known. Each counts as used once
+  # for the whole chat.
   def memories_line
     memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident))
     return nil if memories.empty?
+
+    Chat::Memory.handed_to!(memories, @conversation) if @turn.changes_memory?
 
     "What this workspace remembers. Each is a hunch to check, and only a confirmed one was vouched for by a person:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"
   end

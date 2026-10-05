@@ -8,6 +8,7 @@ export const STATE_LABELS: Record<ChatMemoryState, string> = {
   disputed: "Disputed",
   outdated: "Possibly outdated",
   rejected: "Rejected",
+  expired: "Expired",
 }
 
 export const STATE_TONES: Record<ChatMemoryState, string> = {
@@ -16,6 +17,7 @@ export const STATE_TONES: Record<ChatMemoryState, string> = {
   disputed: "border-error/35 bg-error-tint text-error",
   outdated: "border-warning/35 bg-warning-tint text-warning",
   rejected: "border-border-strong bg-stage-canceled-tint text-fg-muted",
+  expired: "border-border-strong bg-stage-canceled-tint text-fg-muted",
 }
 
 export const FILTER_LABELS: Record<MemoryFilter, string> = {
@@ -23,6 +25,7 @@ export const FILTER_LABELS: Record<MemoryFilter, string> = {
   unconfirmed: "Unconfirmed",
   outdated: "Possibly outdated",
   disputed: "Disputed",
+  expired: "Expired",
   rejected: "Rejected",
 }
 
@@ -31,6 +34,7 @@ const FILTER_STATES: Record<Exclude<MemoryFilter, typeof MEMORY_FILTERS.IN_USE>,
   [MEMORY_FILTERS.UNCONFIRMED]: "unconfirmed",
   [MEMORY_FILTERS.OUTDATED]: "outdated",
   [MEMORY_FILTERS.DISPUTED]: "disputed",
+  [MEMORY_FILTERS.EXPIRED]: "expired",
   [MEMORY_FILTERS.REJECTED]: "rejected",
 }
 
@@ -41,16 +45,20 @@ export function inFilter(memory: ChatMemory, filter: MemoryFilter): boolean {
   return FILTER_STATES[filter] === memory.state
 }
 
-// Who stands behind it, in words, such as "Confirmed by Ada" or "From a chat with Ada".
+// Who stands behind it, in words, such as "Confirmed by Ada" or "From a chat with Ada". A postmortem nobody signed off is
+// never read as a person.
 export function vouch(memory: ChatMemory): string {
   if (memory.rejectedBy) {
     return `Rejected by ${memory.rejectedBy}`
+  }
+  if (memory.state === "rejected" && memory.decidedByPostmortem) {
+    return "Rejected by a postmortem"
   }
   if (memory.confirmedBy) {
     return `Confirmed by ${memory.confirmedBy}`
   }
   if (memory.state === "confirmed") {
-    return "Confirmed by a postmortem"
+    return memory.decidedByPostmortem ? "Confirmed by a postmortem" : "Confirmed"
   }
   return memory.addedBy ? `From a chat with ${memory.addedBy}` : "Learned by Halon"
 }

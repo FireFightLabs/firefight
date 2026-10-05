@@ -1,8 +1,11 @@
 # What an ended incident taught about the setup, written down for the next incident to start from. At resolve it saves
 # the lessons unconfirmed and asks the channel to confirm them. When a postmortem is completed it reads it against what
-# was saved, confirming what it agrees with and correcting what it contradicts, and posts nothing.
+# was saved, confirming what it agrees with and correcting what it contradicts, and asks the channel about anything new.
+# A postmortem never overrules a person. One that contradicts what a person confirmed marks it disputed for a person.
 class IncidentLearningService
   TRANSCRIPT_MESSAGES = 300
+  # How much of what the workspace already holds the extractor reads, the most recently changed first.
+  REMEMBERED_LIMIT = 60
 
   def initialize(workspace)
     @workspace = workspace
@@ -15,10 +18,11 @@ class IncidentLearningService
 
     known = incident_memories(incident)
     result = extractor.extract(incident, sources: sources(incident, postmortem), subjects: subjects(incident).keys,
-                                         known: known.map { |memory| FirefightAi::LessonExtractor::Known.new(id: memory.id, text: memory.text) })
+                                         known: known.map { |memory| FirefightAi::LessonExtractor::Known.new(id: memory.id, text: memory.text) },
+                                         remembered: remembered(incident, known))
     apply_verdicts(result.verdicts, known, postmortem) if postmortem
     saved = save(incident, result.lessons)
-    announce(incident, saved) if saved.any? && postmortem.nil?
+    posts.post!(incident, saved, kind: postmortem ? Chat::MemoryPost::KIND_POSTMORTEM : Chat::MemoryPost::KIND_INCIDENT)
     saved
   end
 
@@ -31,40 +35,22 @@ class IncidentLearningService
     postmortem = incident.postmortem if incident.postmortem&.completed?
     known = incident_memories(incident, rejected: true)
     result = extractor.extract(incident, sources: sources(incident, postmortem), subjects: subjects(incident).keys, only_mistakes: true,
-                                         known: known.map { |memory| FirefightAi::LessonExtractor::Known.new(id: memory.id, text: memory.text) })
+                                         known: known.map { |memory| FirefightAi::LessonExtractor::Known.new(id: memory.id, text: memory.text) },
+                                         remembered: remembered(incident, known))
     saved = save(incident, result.lessons)
-    announce(incident, saved) if saved.any?
+    posts.post!(incident, saved, kind: Chat::MemoryPost::KIND_INCIDENT)
     saved
   end
 
-  # Someone in the channel confirming or rejecting one of the incident's lessons, then the message redrawn to show it.
-  # Returns false when the lesson is not the incident's.
-  def decide!(incident_id:, memory_id:, member:, confirmed:, channel_id:, message_id:)
-    incident = @workspace.incidents.find_by(id: incident_id)
-    memory = Chat::Memory.where(workspace: @workspace, source: incident).find_by(id: memory_id) if incident
-    return false unless memory
-
-    if confirmed
-      memory.confirm!(by: member)
-    else
-      memory.reject!(by: member, reason: "Marked not right in #{incident.identifier}")
-    end
-    redraw(incident, channel_id: channel_id, message_id: message_id)
-    true
-  end
-
   private
-
-  def redraw(incident, channel_id:, message_id:)
-    @workspace.adapter.update_learned_memories(channel_id: channel_id, message_id: message_id, incident_id: incident.id,
-                                               incident_identifier: incident.identifier, memories: shown(incident_memories(incident, rejected: true)))
-  end
 
   def learns?
     defined?(FirefightAi) && FeatureFlags.enabled?(@workspace, FeatureFlags::AI_SRE) && Entitlements.allows?(@workspace, Entitlements::AI)
   end
 
   def extractor = @extractor ||= FirefightAi::LessonExtractor.new(@workspace)
+
+  def posts = @posts ||= MemoryPostService.new(@workspace)
 
   def sources(incident, postmortem)
     source = FirefightAi::LessonExtractor::Source
@@ -118,6 +104,18 @@ class IncidentLearningService
     rejected ? scope.to_a : scope.in_use.to_a
   end
 
+  # What the workspace already holds about what the incident touches, and about the whole workspace, rejected ones too,
+  # so the extractor never learns any of it again in other words. The incident's own lessons are read as known instead.
+  def remembered(incident, known)
+    subjects = Chat::Memory.subjects_for(incident)
+    about = subjects.group_by { |subject| subject.class.name }.map { |type, found| Chat::Memory.where(subject_type: type, subject_id: found.map(&:id)) }
+    scope = Chat::Memory.where(workspace: @workspace).where.not(id: known.map(&:id))
+    held = about.inject(scope.where(subject_id: nil)) { |union, part| union.or(scope.merge(part)) }
+    held.order(updated_at: :desc).limit(REMEMBERED_LIMIT).map do |memory|
+      FirefightAi::LessonExtractor::Remembered.new(text: memory.text, rejected: memory.state == Chat::Memory::STATE_REJECTED)
+    end
+  end
+
   # Only new lessons are shown. One already known, or rejected before, is not learned again.
   def save(incident, lessons)
     lessons.filter_map do |lesson|
@@ -129,37 +127,22 @@ class IncidentLearningService
     end
   end
 
-  # A postmortem is a person's considered account, so it confirms what it agrees with and corrects what it contradicts.
+  # A completed postmortem confirms what Halon learned and it agrees with, credited to whoever completed it when that was
+  # a person. What it contradicts is rejected and replaced when only Halon or a postmortem stood behind it, and marked
+  # disputed with the correction when a person confirmed it, for a person to decide.
   def apply_verdicts(verdicts, known, postmortem)
-    author = postmortem.generated_by if postmortem.generated_by.is_a?(WorkspaceMembership)
+    completer = postmortem.completed_by
+    person = completer if completer.is_a?(WorkspaceMembership)
     memories = known.index_by(&:id)
     verdicts.each do |verdict|
       memory = memories[verdict.memory_id]
       if verdict.verdict == FirefightAi::Schemas::Lessons::AGREES
-        memory.confirm!(by: author, reason: "The postmortem agrees")
+        memory.confirm_from_postmortem!(postmortem, by: person)
+      elsif memory.confirmed_by_id
+        memory.dispute!([ "The #{postmortem.incident.identifier} postmortem says otherwise", ("and gives this instead. #{verdict.correction}" if verdict.correction) ].compact.join(" "))
       else
-        memory.reject!(by: author, reason: "The postmortem says otherwise", correction: verdict.correction)
+        memory.reject!(by: person, reason: "The #{postmortem.incident.identifier} postmortem says otherwise", correction: verdict.correction, postmortem: postmortem)
       end
     end
   end
-
-  # A channel archived since the incident ended cannot be posted in, so the lessons wait on the Memory page instead.
-  def announce(incident, saved)
-    return if incident.channel_id.blank?
-
-    @workspace.adapter.post_learned_memories(channel_id: incident.channel_id, incident_id: incident.id,
-                                             incident_identifier: incident.identifier, memories: shown(saved))
-  rescue AdapterError::IsArchived, AdapterError::NotFound, AdapterError::NotInChannel => error
-    Rails.logger.info({ event: "incident_learning.not_posted", incident_id: incident.id, error: error.class.name }.to_json)
-  end
-
-  def shown(memories)
-    memories.map do |memory|
-      LearnedMemory.new(id: memory.id, text: memory.text, about: memory.about, state: memory.state,
-                        decided_by: (memory.rejected_by || memory.confirmed_by)&.display_name)
-    end
-  end
-
-  # What a platform message shows of a lesson, so the adapter never reads a memory record.
-  LearnedMemory = Data.define(:id, :text, :about, :state, :decided_by)
 end
