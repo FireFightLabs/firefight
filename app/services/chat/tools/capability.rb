@@ -2,11 +2,13 @@
 # the resource and runs that provider's own tool through Connection, so the call is authorized, approved, ledgered and
 # replayed as the provider's action. A refusal comes back as a result the agent works around, never an exception.
 class Chat::Tools::Capability < RubyLLM::Tool
-  def initialize(agent_run, spec, tools)
+  # tools are every one that could answer, callable the ones this agent may run, which is where a call is routed.
+  def initialize(agent_run, spec, tools, callable: tools)
     super()
     @agent_run = agent_run
     @spec = spec
     @tools = tools
+    @callable = callable
   end
 
   def name = @spec.tool_name
@@ -28,15 +30,44 @@ class Chat::Tools::Capability < RubyLLM::Tool
     return refused(tool_call, "#{name} changes things, so it is not used while investigating. It belongs in the fix.") if @spec.writes && @agent_run.reads_only?
 
     given = arguments.transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG)
-    found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given)
+    return everywhere(given, tool_call) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
-    Chat::Tools::Connection.new(@agent_run, found.tool)
-                           .run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present)
+    found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given, @callable)
+    return ask(found, tool_call) unless found.fallback
+
+    asked = connection(found)
+    text = ask(found, tool_call, alone: false, asked: asked)
+    return text if asked.waiting? || (!asked.failed? && Integrations::Capabilities.definitive?(asked.last_result))
+
+    "#{Integrations::Capabilities.fell_back(found, failure: (text if asked.failed?))}\n#{ask(found.fallback, tool_call)}"
   rescue Integrations::Capabilities::Unroutable => error
     refused(tool_call, error.message)
   end
 
   private
+
+  def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
+
+  def ask(found, tool_call, alone: true, asked: connection(found))
+    asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present, alone: alone)
+  end
+
+  # Every connection that can answer, one after another, each answer headed with where it came from. Each call is its
+  # own step in the ledger, as the provider's own action. The card reads failed only when none of them answered.
+  def everywhere(given, tool_call)
+    answered = false
+    answers = Integrations::Capabilities.resolve_all(@agent_run.workspace, @spec.key, given, @callable).map do |found|
+      next Integrations::Capabilities.headed(found.environment_row, found.reason) if found.is_a?(Integrations::Capabilities::Refused)
+
+      asked = connection(found)
+      text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name,
+                                        present: found.present, alone: false)
+      answered ||= !asked.failed?
+      Integrations::Capabilities.headed(found.environment_row, text)
+    end
+    Chat::Tools.mark_failed(@agent_run, tool_call&.id) unless answered
+    answers.join("\n\n")
+  end
 
   def refused(tool_call, text)
     Chat::Tools.mark_failed(@agent_run, tool_call&.id)

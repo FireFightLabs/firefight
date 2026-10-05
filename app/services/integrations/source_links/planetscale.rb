@@ -21,8 +21,8 @@ module Integrations
         LIST_QUERY_TAGS => INSIGHTS, LIST_QUERY_TAG_SUMMARIES => INSIGHTS, GET_QUERY_TAG => INSIGHTS, EXECUTE_READ_QUERY => CONSOLE
       }.freeze
 
-      def initialize(workspace)
-        @workspace = workspace
+      def initialize(integration)
+        @workspace = integration.workspace
       end
 
       def link(tool_name:, arguments:, text: "")

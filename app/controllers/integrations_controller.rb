@@ -1,5 +1,7 @@
 class IntegrationsController < InertiaController
-  class NameTaken < StandardError; end
+  class NameTaken < StandardError
+    def initialize(message = "Another connection already uses that name. Pick a different one.") = super
+  end
 
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
@@ -28,6 +30,8 @@ class IntegrationsController < InertiaController
 
     # A database connected from a URL can also be reached through an MCP server the team runs.
     kind = provider.nil? || provider.connection_url? ? Integration::KIND_MCP : provider.kind
+    reserved = Integration.name_blocked_reason(params.require(:name))
+    return redirect_back(fallback_location: integrations_path, alert: reserved) if reserved
 
     integration = current_workspace.integrations.create!(
       kind: kind,
@@ -129,8 +133,8 @@ class IntegrationsController < InertiaController
     connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
   rescue Integrations::OauthFlow::Error => e
     redirect_to integrations_path, alert: "Could not connect: #{e.message}"
-  rescue NameTaken
-    redirect_to integrations_path, alert: "Another connection already uses that name. Pick a different one."
+  rescue NameTaken => e
+    redirect_to integrations_path, alert: e.message
   end
 
   def destroy
@@ -154,8 +158,8 @@ class IntegrationsController < InertiaController
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)
-  rescue NameTaken
-    redirect_back fallback_location: integrations_path, inertia: { errors: { name: "Another connection already uses that name. Pick a different one." } }
+  rescue NameTaken => e
+    redirect_back fallback_location: integrations_path, inertia: { errors: { name: e.message } }
   end
 
   # Like a URL, the same name connects another environment or replaces its credentials. The pack checks the values with
@@ -171,8 +175,8 @@ class IntegrationsController < InertiaController
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, return_to_param)
-  rescue NameTaken
-    redirect_back fallback_location: integrations_path, inertia: { errors: { name: "Another connection already uses that name. Pick a different one." } }
+  rescue NameTaken => e
+    redirect_back fallback_location: integrations_path, inertia: { errors: { name: e.message } }
   end
 
   # The callback brings back an installation id, not tokens. Server-to-server tokens are minted from it at call time.
@@ -225,7 +229,11 @@ class IntegrationsController < InertiaController
   # Keyed on the slug so one provider can back several accounts with their own credentials.
   # Reconnecting under the default name revives the existing row.
   def connect!(provider, name, environment_id)
-    integration = current_workspace.integrations.find_or_initialize_by(slug: Integration.slug_for(name))
+    slug = Integration.slug_for(name)
+    reserved = Integration.name_blocked_reason(name)
+    raise NameTaken, reserved if reserved
+
+    integration = current_workspace.integrations.find_or_initialize_by(slug: slug)
     raise NameTaken if integration.persisted? && integration.provider != provider.key
 
     integration.assign_attributes(

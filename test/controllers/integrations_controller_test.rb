@@ -127,6 +127,14 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_match "private network", session[:inertia_errors].to_h.with_indifferent_access[:connection].to_s
   end
 
+  test "a connection cannot be called All, and the person is told why" do
+    assert_no_difference -> { @workspace.integrations.count } do
+      post integrations_url, params: { provider: "custom_mcp", name: "All", server_url: "https://x/mcp" }
+    end
+
+    assert_equal "All is kept for asking every connection at once. Pick a different name.", flash[:alert]
+  end
+
   test "an unreachable server still connects, marked failing" do
     Integrations::McpClient.any_instance.stubs(:tools_list).raises(Integrations::McpClient::Error, "down")
 

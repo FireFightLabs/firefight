@@ -6,7 +6,7 @@ module Integrations
       ACCOUNT = "0123456789abcdef0123456789abcdef".freeze
 
       setup do
-        @links = Cloudflare.new(workspaces(:slack_workspace_one))
+        @links = Cloudflare.new(Integration.new(workspace: workspaces(:slack_workspace_one)))
       end
 
       test "a fully known page opens directly, from the one path the code requested and the zone the answer names" do

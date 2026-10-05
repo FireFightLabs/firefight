@@ -5,8 +5,27 @@ module Integrations
     module Adapter
       def supports?(key, kind) = self::SUPPORTS.fetch(key, []).include?(kind)
 
+      # An observability tool watches resources others run, by capability and kind. A platform watches nothing.
+      def observes?(key, kind) = observed.fetch(key, []).include?(kind)
+
+      def observed = const_defined?(:OBSERVES, false) ? self::OBSERVES : {}
+
       # The capabilities this provider answers for some kind of resource, in the order they are listed.
-      def capabilities = SPECS.keys.select { |key| self::SUPPORTS.key?(key) }
+      def capabilities = SPECS.keys.select { |key| self::SUPPORTS.key?(key) || observed.key?(key) }
+
+      def tool_for(key) = self::TOOLS[key]
+
+      # Whether it can take what was asked. A platform takes everything its route does. An observability tool that
+      # cannot is passed over for the platform, unless it was named.
+      def accepts?(_key, _given) = true
+
+      # Why it would not take what was asked, in the words its route raises.
+      def route_refusal(key, resource, given)
+        route(key, resource, given, tool: nil)
+        nil
+      rescue Unroutable => error
+        error.message
+      end
 
       def runs?(key, tool_name) = self::TOOLS[key] == tool_name
 

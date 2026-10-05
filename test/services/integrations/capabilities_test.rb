@@ -20,7 +20,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
                  assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "checkout") }.message
 
     resource!(@northflank_row, "northflank", ResourceMap::KIND_JOB, "nightly-id", "nightly")
-    assert_match "no connection that holds it offers deploys",
+    assert_match "no connection offers deploys",
                  assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::DEPLOYS, "resource" => "nightly") }.message
 
     @northflank.tools.find_by!(name: "list_deployments").update!(enabled: false)
@@ -95,7 +95,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
 
   test "a resource reaches only enabled connections of its own workspace" do
     @northflank.update!(disabled_at: Time.current)
-    assert_match "no connection that holds it",
+    assert_match "no connection offers",
                  assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web") }.message
 
     other = workspaces(:slack_workspace_two).integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Theirs", slug: "theirs")
@@ -112,7 +112,10 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
   test "a provider's details say what Halon can do through it, in the capabilities' order, and one with no adapter is used through its tools" do
     assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, and roll a resource back " \
                  "for anything Cloudflare runs, through the tools you switch on. It also uses Cloudflare's other tools that you switch on.", Integrations::Capabilities.halon_sentence("cloudflare", "Cloudflare")
-    assert_equal "Halon uses Datadog's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("datadog", "Datadog")
+    assert_equal "Halon can read its logs, read its metrics, read its errors, and read its traces for the services on the map that Datadog watches, by their " \
+                 "name in Datadog, through the tools you switch on. It also uses Datadog's other tools that you switch on.",
+                 Integrations::Capabilities.halon_sentence("datadog", "Datadog")
+    assert_equal "Halon uses Grafana's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("grafana", "Grafana")
     assert_equal Integrations::Capabilities::SPECS.keys.sort, Integrations::Capabilities::PHRASES.keys.sort, "every capability can be said"
     assert_equal %w[logs metrics deploys status rollback], Integrations::Capabilities::Cloudflare.capabilities
     details = IntegrationProviderSerializer.one(IntegrationProvider.find("cloudflare"))

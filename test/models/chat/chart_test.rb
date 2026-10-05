@@ -17,6 +17,13 @@ class Chat::ChartTest < ActiveSupport::TestCase
     assert_equal 2, kept.series.size
   end
 
+  test "charts from several answers to one call keep their order after the ones already kept" do
+    Chat::Chart.record!(@chat, "call_1", [ chart_hash("cpu from northflank") ])
+    Chat::Chart.record!(@chat, "call_1", [ chart_hash("cpu from datadog") ])
+
+    assert_equal [ [ 0, "cpu from northflank" ], [ 1, "cpu from datadog" ] ], @chat.charts.in_order.pluck(:position, :title)
+  end
+
   test "a chart draws as a PNG with its title, unit and every series" do
     Chat::Chart.record!(@chat, "call_1", [ chart_hash("5xx responses of checkout") ])
     image = Chat::Chart::Image.new(@chat.charts.sole)
