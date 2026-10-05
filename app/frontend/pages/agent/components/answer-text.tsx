@@ -3,6 +3,8 @@ import { type ComponentProps, useEffect, useRef, useState } from "react"
 import Markdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { newTabAttributes } from "@/lib/links"
+
 interface AnswerTextProps {
   text: string
 }
@@ -35,6 +37,7 @@ const TABLE = [
 
 // A wide table or a long line of code scrolls in its own frame, so the thread never grows sideways on a phone.
 const COMPONENTS: Components = {
+  a: AnswerLink,
   pre: CodeBlock,
   table: Table,
 }
@@ -48,7 +51,11 @@ export function AnswerText({ text }: AnswerTextProps) {
   )
 }
 
-type Rendered<Tag extends "pre" | "table"> = ComponentProps<Tag> & { node?: unknown }
+type Rendered<Tag extends "a" | "pre" | "table"> = ComponentProps<Tag> & { node?: unknown }
+
+function AnswerLink({ node: _node, ...props }: Rendered<"a">) {
+  return <a {...props} {...newTabAttributes(props.href)} />
+}
 
 function Table({ node: _node, ...props }: Rendered<"table">) {
   return (
