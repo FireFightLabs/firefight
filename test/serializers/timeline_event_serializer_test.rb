@@ -267,11 +267,7 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
   test "downloadUrl is present once artifact is attached" do
     event = incident_events(:inc1_created)
     event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { file_name: "doc.pdf" })
-    event.artifact.attach(
-      io: StringIO.new("pdf bytes"),
-      filename: "doc.pdf",
-      content_type: "application/pdf"
-    )
+    archive(event, "pdf bytes", "doc.pdf", "application/pdf")
 
     rendered = TimelineEventSerializer.one(event)
 
@@ -295,11 +291,7 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
   test "the attached blob supplies name, type and size when metadata predates them" do
     event = incident_events(:inc1_created)
     event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { details: "shared a file" })
-    event.artifact.attach(
-      io: StringIO.new("png bytes here"),
-      filename: "chart.png",
-      content_type: "image/png"
-    )
+    archive(event, "png bytes here", "chart.png", "image/png")
 
     rendered = TimelineEventSerializer.one(event)
 
@@ -314,11 +306,7 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
       event_type: IncidentEvent::MESSAGE_FILE_SHARED,
       metadata: { file_name: "stale.txt", mime_type: "text/plain", byte_size: 1 }
     )
-    event.artifact.attach(
-      io: StringIO.new("png bytes here"),
-      filename: "chart.png",
-      content_type: "image/png"
-    )
+    archive(event, "png bytes here", "chart.png", "image/png")
 
     rendered = TimelineEventSerializer.one(event)
 
@@ -349,7 +337,38 @@ class TimelineEventSerializerTest < ActiveSupport::TestCase
     assert_nil TimelineEventSerializer.one(event)[:file]
   end
 
+  test "a file whose blob this event never recorded archiving is not served" do
+    event = incident_events(:inc1_created)
+    event.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { file_name: "doc.pdf" })
+    event.artifact.attach(io: StringIO.new("pdf bytes"), filename: "doc.pdf", content_type: "application/pdf")
+
+    file = TimelineEventSerializer.one(event)[:file]
+
+    assert_equal "doc.pdf", file[:name]
+    assert_nil file[:downloadUrl]
+  end
+
+  test "an attachment holding another workspace's archived file is refused" do
+    theirs = incident_events(:ws2_inc1_created)
+    theirs.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { file_name: "secret.txt" })
+    archive(theirs, "their bytes", "secret.txt", "text/plain")
+    ours = incident_events(:inc1_created)
+    ours.update!(event_type: IncidentEvent::MESSAGE_FILE_SHARED, metadata: { file_name: "ours.txt" })
+    ActiveStorage::Attachment.create!(name: "artifact", record: ours, blob: theirs.artifact.blob)
+
+    file = TimelineEventSerializer.one(IncidentEvent.find(ours.id))[:file]
+
+    assert_equal "ours.txt", file[:name]
+    assert_nil file[:downloadUrl]
+    assert_nil file[:byteSize]
+  end
+
   private
+
+  def archive(event, body, filename, content_type)
+    event.artifact.attach(io: StringIO.new(body), filename: filename, content_type: content_type)
+    event.update!(metadata: event.metadata.merge("blob_id" => event.artifact.blob.id, "object_key" => event.artifact.blob.key))
+  end
 
   def timeline_event(incident, event_type)
     incident.timeline_events.find { |event| event.event_type == event_type }

@@ -151,13 +151,14 @@ class TimelineEventSerializer < BaseSerializer
     return nil unless event.event_type == IncidentEvent::MESSAGE_FILE_SHARED
 
     meta = event.metadata.to_h.with_indifferent_access
-    blob = event.artifact.attached? ? event.artifact.blob : nil
+    archived = event.archived_file
+    blob = archived&.blob
 
     # The blob describes what downloadUrl returns, so it wins. Older events carry only
     # a details key and would render with no name or size.
     name = blob&.filename.to_s.presence || meta[:file_name].presence
     permalink = meta[:permalink].presence
-    download = artifact_path(event)
+    download = archived && url_helpers.rails_blob_path(archived, only_path: true)
     return nil if name.blank? && download.blank? && permalink.blank?
 
     {
@@ -228,11 +229,5 @@ class TimelineEventSerializer < BaseSerializer
 
   def url_helpers
     Rails.application.routes.url_helpers
-  end
-
-  def artifact_path(event)
-    return nil unless event.artifact.attached?
-
-    Rails.application.routes.url_helpers.rails_blob_path(event.artifact, only_path: true)
   end
 end
