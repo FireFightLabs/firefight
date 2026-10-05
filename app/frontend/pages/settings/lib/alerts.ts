@@ -51,6 +51,8 @@ export const TARGET_CHANNEL = ALERT_NOTIFY_TARGETS.CHANNEL
 export const PROVIDER_LABELS: Record<AlertProvider, string> = {
   generic: "Generic webhook",
   northflank: "Northflank",
+  pagerduty: "PagerDuty",
+  opsgenie: "Opsgenie",
 }
 
 function isAlertProvider(value: string): value is AlertProvider {
@@ -66,6 +68,10 @@ const SETUP_INSTRUCTIONS: Record<AlertProvider, string> = {
   generic: "Send alerts as POST requests with the token in an Authorization: Bearer header (or X-Firefight-Token).",
   northflank:
     "In Northflank, create a webhook notification integration with this URL and paste the token into its integration token field (sent as X-Northflank-Notification-Integration-Token).",
+  pagerduty:
+    "In PagerDuty, add a generic webhook (v3) subscription with this URL and the events incident.triggered, incident.reopened and incident.resolved. Add a custom header named X-Firefight-Token holding the token. Firefight accepts and ignores other events.",
+  opsgenie:
+    "In Opsgenie, add a Webhook integration with this URL, send the alert description with it, and post to the URL when an alert is created and when it is closed. Add a custom header named X-Firefight-Token holding the token. Firefight accepts and ignores other actions.",
 }
 
 export function setupInstructionsFor(value: string): string {

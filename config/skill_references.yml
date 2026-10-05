@@ -332,3 +332,20 @@ upstash:
     skills/upstash-qstash-js/fundamentals: qstash
     skills/upstash-workflow-js: workflow
     skills/upstash-redis-js/performance: redis
+
+# Atlassian's agent skills for its MCP server are Apache 2.0. The guides behind its triage and status report skills
+# cover searching Jira with JQL and writing a bug report.
+jira:
+  repository: https://github.com/atlassian/atlassian-mcp-server
+  license: LICENSE
+  paths:
+    skills/triage-issue/references: triage
+    skills/generate-status-report/references: jql
+
+# PagerDuty's incident response documentation is Apache 2.0. Its on-call pages say what being on call asks of a
+# responder and how alerts should page people.
+pagerduty:
+  repository: https://github.com/PagerDuty/incident-response-docs
+  license: LICENSE
+  paths:
+    docs/oncall: oncall

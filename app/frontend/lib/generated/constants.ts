@@ -281,7 +281,9 @@ export const ALERT_NOTIFY_TARGETS = {
 
 export const ALERT_PROVIDERS = [
   "generic",
-  "northflank"
+  "northflank",
+  "pagerduty",
+  "opsgenie"
 ] as const
 export type AlertProvider = (typeof ALERT_PROVIDERS)[number]
 
