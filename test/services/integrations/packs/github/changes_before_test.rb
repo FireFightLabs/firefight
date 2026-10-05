@@ -26,7 +26,7 @@ class Integrations::Packs::Github::ChangesBeforeTest < ActiveSupport::TestCase
 
     assert_includes text, "app/app/models/pool.rb:42 from the stack trace is app/models/pool.rb in acme/checkout"
     assert_match(%r{1\. acme/checkout deploy newsha .*Lower the pool size}, text)
-    assert_includes text, "which the stack trace runs through; changes configuration"
+    assert_includes text, "which the stack trace runs through, changes configuration"
     assert_includes text, "acme/checkout: newsha, from a deploy record (production"
   end
 

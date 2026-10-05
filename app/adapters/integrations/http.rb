@@ -20,12 +20,13 @@ module Integrations
     end
     REASON = ->(body) { REASON_FIELDS.lazy.filter_map { |field| Http.words(body[field]) }.first }
 
-    # A reason as words, from a string, an object with a message, detail, title or description, or a list of them.
+    # A reason as words, from a string, an object with a message, detail, title or description, or a list of them, each
+    # without its closing period and joined with commas.
     def self.words(value)
       case value
       when String then value.strip.presence
       when Hash then %w[message detail title description error].lazy.filter_map { |key| words(value[key]) }.first
-      when Array then value.filter_map { |each| words(each) }.uniq.join("; ").presence
+      when Array then value.filter_map { |each| Sentence.clean(words(each)) }.uniq.join(", ").presence
       end
     end
 

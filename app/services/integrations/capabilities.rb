@@ -398,7 +398,7 @@ module Integrations
       named = resources.map { |resource| "#{resource.kind} #{resource.name} (id #{resource.external_id}, #{resource.provider})" }
       rows = labels(candidates)
       choice = rows.size > 1 ? ", or choose connection from: #{rows.join(', ')}" : ""
-      raise Unroutable, "More than one resource is called #{reference}: #{named.join('; ')}. Name it by its id#{choice}."
+      raise Unroutable, "More than one resource is called #{reference}: #{named.to_sentence}. Name it by its id#{choice}."
     end
 
     def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq

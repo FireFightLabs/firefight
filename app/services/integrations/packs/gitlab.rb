@@ -522,7 +522,7 @@ module Integrations
         end
         distinct = ranges.map { |range| range.dig("commit", "id") }.uniq
         requests = distinct.first(BLAME_MERGE_REQUESTS).flat_map { |sha| merge_requests_of(gitlab, repo, sha).first(1) }.uniq { |request| request["iid"] }
-        merged = requests.any? ? "\nMerge requests: #{requests.map { |request| "!#{request['iid']} #{request['title']} #{request['web_url']}" }.join('; ')}." : ""
+        merged = requests.any? ? "\nMerge requests: #{requests.map { |request| "!#{request['iid']} #{Sentence.clean(request['title'])} #{request['web_url']}" }.to_sentence}." : ""
         "#{path}:#{from}-#{to} at #{ref || 'the default branch'}\n#{rendered.join("\n")}\n\n" \
           "Commits touching this range: #{distinct.map { |sha| sha.to_s[0, 12] }.join(', ')}.#{merged} Use commit_lookup or mr_lookup for the full change."
       end

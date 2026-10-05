@@ -29,6 +29,8 @@ module Integrations
         TYPE_WEB => ResourceMap::KIND_SERVICE, TYPE_FUNCTION => ResourceMap::KIND_SERVICE, TYPE_CONTAINER => ResourceMap::KIND_SERVICE,
         TYPE_SQL => ResourceMap::KIND_DATABASE, TYPE_POSTGRES => ResourceMap::KIND_DATABASE
       }.freeze
+      # The kinds that serve hostnames, which go on the map with them.
+      SERVES_HOSTS = [ TYPE_WEB, TYPE_FUNCTION, TYPE_CONTAINER ].freeze
 
       WEB_VERSION = "2025-03-01".freeze
       APP_VERSION = "2025-01-01".freeze
@@ -396,15 +398,18 @@ module Integrations
             items.concat(found)
             next if complete
 
-            gaps << ResourceMap::Gap.new(text: "Only the first #{found.size} #{what} were read.", kinds: types.map { |type| KINDS.fetch(type) }.uniq)
+            gaps << ResourceMap::Gap.new(text: "Only the first #{found.size} #{what} were read.", kinds: listed_kinds(types))
           rescue Integrations::RateLimited
             raise
           rescue AzureApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("#{what} could not be read", error), kinds: types.map { |type| KINDS.fetch(type) }.uniq)
+            gaps << ResourceMap::Gap.new(text: Sentence.join("#{what} could not be read", error), kinds: listed_kinds(types))
           end
           Listing.new(items: items, gaps: gaps)
         end
       end
+
+      # What a list puts on the map. Apps also put the hostnames they serve there.
+      def listed_kinds(types) = [ *types.map { |type| KINDS.fetch(type) }, (ResourceMap::KIND_DOMAIN if types.intersect?(SERVES_HOSTS)) ].compact.uniq
 
       def item(resource, type, status, hosts: [], details: {})
         target = Target.parse(resource["id"])

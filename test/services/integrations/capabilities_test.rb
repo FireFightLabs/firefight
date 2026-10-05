@@ -79,6 +79,8 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
 
     error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "web") }
     assert_match "More than one resource is called web", error.message
+    assert_match(/northflank\) and (service|database) web \(id /, error.message)
+    assert_no_match(/;/, error.message)
     assert_equal "web-db-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "web-db-id").arguments["resource"]
   end
 

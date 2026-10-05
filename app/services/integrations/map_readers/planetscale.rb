@@ -57,7 +57,8 @@ module Integrations
           arguments = { "queryParameters" => { "page" => page || 1, "per_page" => PER_PAGE } }
           arguments["pathParameters"] = path if path.any?
           body = listing(tool, what, arguments, kinds: kinds)
-          body ? [ Array(body["data"]), (body["next_page"].presence && (page || 1) + 1) ] : [ [], nil ]
+          rows = objects(body, what, kinds: kinds, key: "data")
+          rows ? [ rows, (body["next_page"].presence && (page || 1) + 1 if body.is_a?(Hash)) ] : [ [], nil ]
         end
         gap("Only the first #{MAX_PAGES * PER_PAGE} #{what} were read.", kinds: kinds) if read.incomplete?
         read.items

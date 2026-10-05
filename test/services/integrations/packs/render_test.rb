@@ -176,6 +176,14 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
       end
 
+      test "a service list cut short holds back the domains and repositories services put on the map too" do
+        RenderApi.any_instance.stubs(:services).returns(Integrations::Pages::Read.new(items: [], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ], snapshot.unread_kinds
+      end
+
       test "a week of cpu and memory per resource, instances added up, and being asked to slow down stops the read" do
         web = ResourceMap::Resource.new(provider: "render", account: "tea-1", kind: ResourceMap::KIND_SERVICE, external_id: "srv-web", name: "web",
                                         details: { "type" => "web service" })

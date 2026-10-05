@@ -61,17 +61,19 @@ module Integrations
 
       private
 
+      # Every datasource, a page at a time. A list past MAX_PAGES keeps its first pages and says in the log that it was
+      # cut short.
       def listed
-        rows = []
-        MAX_PAGES.times do |page|
-          result = call(LIST_DATASOURCES, { "limit" => PER_PAGE, "offset" => page * PER_PAGE })
+        read = Pages.read(max_pages: MAX_PAGES) do |offset|
+          offset ||= 0
+          result = call(LIST_DATASOURCES, { "limit" => PER_PAGE, "offset" => offset })
           return nil if result.nil?
 
           body = parsed(result)
-          rows.concat(Array(body["datasources"]))
-          return rows unless body["hasMore"] == true
+          [ Array(body["datasources"]), (offset + PER_PAGE if body["hasMore"] == true) ]
         end
-        rows
+        Rails.logger.warn({ event: "health_probe.cut_short", probe: self.class.name, kept: read.items.size }.to_json) if read.incomplete?
+        read.items
       end
 
       def parsed(result)

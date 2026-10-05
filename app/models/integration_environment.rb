@@ -10,6 +10,8 @@ class IntegrationEnvironment < ApplicationRecord
   # check learned about it. Neither is a secret. Provider code reads both through Integrations::ConnectionSettings.
   FIELDS_KEY = "fields".freeze
   LEARNED_KEY = "learned".freeze
+  # The app installation a connection was made through, such as a GitHub App's.
+  INSTALLATION_KEY = "installation_id".freeze
 
   belongs_to :integration
   belongs_to :environment, class_name: "CatalogEntry", foreign_key: :catalog_entry_id,
@@ -55,8 +57,10 @@ class IntegrationEnvironment < ApplicationRecord
   # The install-first path, such as a GitHub App. Only an installation id
   # comes back, tokens are minted from it at call time.
   def store_installation!(installation_id)
-    update!(base_config: base_config.merge("installation_id" => installation_id.to_s))
+    update!(base_config: base_config.merge(INSTALLATION_KEY => installation_id.to_s))
   end
+
+  def installation_id = base_config.to_h[INSTALLATION_KEY].presence
 
   def fields = base_config.to_h.fetch(FIELDS_KEY, {})
 

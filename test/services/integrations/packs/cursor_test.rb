@@ -93,7 +93,7 @@ module Integrations
       test "the key is checked against Cursor before it is saved, and by the health check" do
         CursorApi.any_instance.stubs(:me).returns("apiKeyName" => "Firefight")
         assert_nil Cursor.credential_refusal({ Cursor::API_KEY => "crsr_key" })
-        assert_equal "Paste a Cursor API key.", Cursor.credential_refusal({ Cursor::API_KEY => " " })
+        assert_equal "Paste an API key.", Cursor.credential_refusal({ Cursor::API_KEY => " " })
 
         CursorApi.any_instance.stubs(:me).raises(CursorApi::Unauthorized.new("Cursor answered 401: Invalid API key"))
         assert_equal "Cursor refused this key: Cursor answered 401: Invalid API key.", Cursor.credential_refusal({ Cursor::API_KEY => "crsr_key" })

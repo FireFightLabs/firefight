@@ -148,14 +148,14 @@ module Integrations
           { "commit" => { "id" => "e" * 40, "message" => "Shrink pool\n", "committed_date" => "2026-09-30T08:00:00Z", "author_name" => "Ana" }, "lines" => [ "a", "b" ] },
           { "commit" => { "id" => "f" * 40, "message" => "Add pool", "committed_date" => "2026-01-01T08:00:00Z", "author_name" => "Uros" }, "lines" => [ "c", "d" ] }
         ])
-        stub_get("#{PROJECT}/repository/commits/#{'e' * 40}/merge_requests", [ { "iid" => 7, "title" => "Shrink pool", "web_url" => "u7" } ])
-        stub_get("#{PROJECT}/repository/commits/#{'f' * 40}/merge_requests", [])
+        stub_get("#{PROJECT}/repository/commits/#{'e' * 40}/merge_requests", [ { "iid" => 7, "title" => "Shrink pool.", "web_url" => "u7" } ])
+        stub_get("#{PROJECT}/repository/commits/#{'f' * 40}/merge_requests", [ { "iid" => 8, "title" => "Add pool", "web_url" => "u8" } ])
 
         text = call(:blame, "repo" => "acme/platform/web", "path" => "app/models/pool.rb", "start_line" => 10, "end_line" => 13)
 
         assert_includes text, "L10-11       #{'e' * 12} 2026-09-30T08:00:00Z Shrink pool (Ana)"
         assert_includes text, "L12-13       #{'f' * 12}"
-        assert_includes text, "Merge requests: !7 Shrink pool u7."
+        assert_includes text, "Merge requests: !7 Shrink pool u7 and !8 Add pool u8."
       end
 
       test "pipelines are listed newest first with their page" do

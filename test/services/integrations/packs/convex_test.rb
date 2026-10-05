@@ -119,6 +119,8 @@ module Integrations
         assert_equal "running", found.status
         ConvexApi.any_instance.stubs(:audit_log).returns("items" => [ event("pause_deployment", 2.hours.ago) ], "pagination" => { "hasMore" => false })
         assert_equal "paused", @pack.map_of(@row).resources.sole.status
+        ConvexApi.any_instance.stubs(:audit_log).returns("items" => [ event("unpause_deployment", 6.days.ago) ], "pagination" => { "hasMore" => true, "nextCursor" => "more" })
+        assert_nil @pack.map_of(@row).resources.sole.status, "an audit log cut short may hide a later pause, so its state is not known"
         assert_nil @pack.check_health!(@row).then { nil }
         ConvexApi.any_instance.stubs(:deployment_info).raises(ConvexApi::Error, "Convex answered 401: bad key")
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }

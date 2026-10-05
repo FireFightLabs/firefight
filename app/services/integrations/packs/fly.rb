@@ -301,10 +301,14 @@ module Integrations
                                          status: app["status"].presence, url: page(environment_row, name), details: app_details(machines))
           resources << found
           begin
-            api.certificates(name).each do |certificate|
+            certificates = api.certificates(name)
+            certificates.items.each do |certificate|
               host = ResourceMap.domain(certificate["hostname"])
               resources << host
               links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
+            end
+            if certificates.incomplete?
+              gaps << ResourceMap::Gap.new(text: "Only the first #{certificates.items.size} certificates of #{name} were read.", kinds: [ ResourceMap::KIND_DOMAIN ])
             end
           rescue Integrations::RateLimited
             raise
@@ -455,8 +459,8 @@ module Integrations
           "  #{[ ("#{guest['cpus']} #{guest['cpu_kind']} CPUs" if guest['cpus']), ("#{guest['memory_mb']} MB memory" if guest['memory_mb']),
                  ("image #{image_of(machine)}" if image_of(machine)), ("restart policy #{restart['policy']}#{", up to #{restart['max_retries']} tries" if restart['max_retries']}" if restart['policy']),
                  ("listens on #{ports.join(', ')}" if ports.any?) ].compact.join(', ')}",
-          ("  Checks: #{checks.join('; ')}" if checks.any?),
-          ("  Latest events: #{events.join('; ')}" if events.any?)
+          ("  Checks: #{checks.to_sentence}" if checks.any?),
+          ("  Latest events: #{events.to_sentence}" if events.any?)
         ].compact.join("\n")
       end
 

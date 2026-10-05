@@ -118,15 +118,15 @@ module ResourceMap
   CERTAINTIES = [ CERTAINTY_LIKELY, CERTAINTY_POSSIBLE ].freeze
 
   # Something a sweep could not read, as the words a person reads and the kinds of resource it would have put on the map.
-  # A gap always names its kinds, empty only for what holds no resource back (a setting, a file), so a sweep that could
-  # not read something never takes what it would have found as gone.
+  # A gap always names its kinds, empty only for what holds no resource back (a setting, a file). A sweep with a gap that
+  # names any kind takes nothing away, so what it could not read is never taken as gone.
   Gap = Data.define(:text, :kinds) do
     def initialize(text:, kinds:) = super(text: text, kinds: Array(kinds))
   end
 
   # What one sweep of one connection saw. A resource is named by its key, the same whichever connection reports it, so a
   # repository two services build from is one resource. gaps are what the sweep could not read (Gap), and the kinds
-  # they name are unread, so nothing of those kinds, and no link touching one, that it did not report is taken as gone.
+  # they name are unread. Only a complete read, one with no unread kind, takes away what it did not report.
   # code_files are the infrastructure files a code host's sweep read, for ResourceMap::CodeDefinitions, and code_read the
   # repositories it read in full, the only ones whose suggestions it may take away.
   Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read) do
@@ -139,6 +139,8 @@ module ResourceMap
 
     def unread_kinds = gaps.flat_map(&:kinds).uniq
 
+    def complete? = unread_kinds.empty?
+
     def gap_texts = gaps.map(&:text).uniq
   end
 
@@ -150,8 +152,10 @@ module ResourceMap
 
   FoundLink = Data.define(:from, :to, :relation)
 
-  # Writes a sweep. Everything the connection reported is upserted and seen now, what it reported before and no longer
-  # does is marked removed, and its declared and matched links are replaced. A person's links and Halon's suggestions stay.
+  # Writes a sweep. Everything the connection reported is upserted and seen now. After a complete read, what it reported
+  # before and no longer does is marked removed and its declared and matched links are replaced. A read with a gap that
+  # held back any kind removes nothing, since a list it missed may hold what it no longer sees. A person's links and
+  # Halon's suggestions stay.
   def self.record!(environment_row, snapshot, at: Time.current)
     workspace_id = environment_row.integration.workspace_id
 
@@ -159,12 +163,10 @@ module ResourceMap
       # One sweep of a connection at a time, so the hourly run and a Sync now cannot interleave their writes.
       environment_row.lock!
       ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at) ] }
-      forget(workspace_id, environment_row, ids.values, at, snapshot.unread_kinds)
-
-      # A link touching a kind the sweep could not read in full is kept until a sweep can.
-      unread = Resource.where(workspace_id: workspace_id, kind: snapshot.unread_kinds).select(:id)
-      Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS)
-          .where.not(from_resource_id: unread).where.not(to_resource_id: unread).delete_all
+      if snapshot.complete?
+        forget(workspace_id, environment_row, ids.values, at)
+        Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
+      end
       # A link may end at something another connection reported, such as the hostname a DNS record points at.
       elsewhere = present_ids(workspace_id, snapshot.links.flat_map { |found| [ found.from, found.to ] }.uniq - ids.keys)
       snapshot.links.each do |found|
@@ -233,9 +235,9 @@ module ResourceMap
 
   # What this connection used to report and no longer does. A resource another connection still reports stays, with
   # what that connection said, and one nobody reports any more is marked removed.
-  def self.forget(workspace_id, environment_row, seen_ids, at, unread_kinds)
+  def self.forget(workspace_id, environment_row, seen_ids, at)
     row = environment_row.id.to_s
-    unseen = Resource.present.where(workspace_id: workspace_id).where.not(id: seen_ids).where.not(kind: unread_kinds)
+    unseen = Resource.present.where(workspace_id: workspace_id).where.not(id: seen_ids)
                      .where("resource_map_resources.integration_environment_id = :id OR resource_map_resources.sightings ? :key", id: environment_row.id, key: row)
     unseen.each do |resource|
       others = resource.sightings.except(row)

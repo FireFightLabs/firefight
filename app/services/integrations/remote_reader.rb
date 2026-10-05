@@ -51,6 +51,17 @@ module Integrations
       Capabilities::Answers.data(result) || gap("#{provider_name} answered the #{what} with something that is not JSON.", kinds: kinds)
     end
 
+    # The objects in a listing's answer, a bare list or one under key. Any other shape is a gap naming kinds, never an
+    # empty list, so what the reader could not read is not taken as gone. Answers the objects, or nil.
+    def objects(data, what, kinds:, key:)
+      return nil if data.nil?
+
+      list = data.is_a?(Hash) ? data[key] : data
+      return list if list.is_a?(Array) && list.all?(Hash)
+
+      gap("#{provider_name} answered the #{what} in a shape Firefight does not read.", kinds: kinds)
+    end
+
     # Raises Refused with the provider's own words when a tool's answer is an error, for a health probe.
     def refused!(tool, result)
       return result unless result&.dig("isError")

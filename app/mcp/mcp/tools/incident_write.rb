@@ -30,7 +30,7 @@ module Mcp
         )
       rescue IncidentFormResolver::ValidationError => e
         Mcp::ToolDispatcher.error_response(
-          "#{e.field_errors.join('; ')}. Call get_form with form: \"#{form_slug}\" for what this workspace asks."
+          "#{e.sentences} Call get_form with form: \"#{form_slug}\" for what this workspace asks."
         )
       rescue Incident::NotActive => e
         Mcp::ToolDispatcher.error_response(e.message)

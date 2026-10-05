@@ -261,6 +261,33 @@ module Integrations
         assert_equal "pending", Kubernetes.state_of(Kubernetes::SERVICE.key, { "spec" => { "type" => "LoadBalancer" }, "status" => {} })
       end
 
+      test "a workload whose rollout finished but whose pods are no longer ready reads degraded, and one still rolling out progressing" do
+        complete = [ { "type" => "Progressing", "status" => "True", "reason" => "NewReplicaSetAvailable" } ]
+        rolling = [ { "type" => "Progressing", "status" => "True", "reason" => "ReplicaSetUpdated" } ]
+        deployment = ->(ready, conditions) { { "spec" => { "replicas" => 3 }, "status" => { "readyReplicas" => ready, "updatedReplicas" => 3, "conditions" => conditions } } }
+
+        assert_equal "running", Kubernetes.state_of(Kubernetes::DEPLOYMENT, deployment.(3, complete))
+        assert_equal "degraded", Kubernetes.state_of(Kubernetes::DEPLOYMENT, deployment.(1, complete))
+        assert_equal "progressing", Kubernetes.state_of(Kubernetes::DEPLOYMENT, deployment.(1, rolling))
+        assert_equal "degraded", Kubernetes.state_of(Kubernetes::STATEFULSET, { "spec" => { "replicas" => 2 }, "status" => { "readyReplicas" => 1, "currentRevision" => "a", "updateRevision" => "a" } })
+        assert_equal "progressing", Kubernetes.state_of(Kubernetes::STATEFULSET, { "spec" => { "replicas" => 2 }, "status" => { "readyReplicas" => 1, "currentRevision" => "a", "updateRevision" => "b" } })
+        assert_equal "degraded", Kubernetes.state_of(Kubernetes::DAEMONSET, { "status" => { "desiredNumberScheduled" => 3, "numberReady" => 2, "updatedNumberScheduled" => 3 } })
+        assert_equal ResourceMap::Resource::HEALTH_FAILING, ResourceMap::Resource.new(status: Provider.for("kubernetes").status_of("degraded")).health
+      end
+
+      test "a service or ingress list that could not be read holds back the hostnames they put on the map too" do
+        KubernetesApi.any_instance.stubs(:list).returns(Pages::Read.new(items: [], complete: true))
+        KubernetesApi.any_instance.stubs(:list).with { |asked, *| asked == "/api/v1/namespaces/production/services" }.raises(KubernetesApi::Forbidden, "The API server answered 403: forbidden")
+        KubernetesApi.any_instance.stubs(:list).with { |asked, *| asked == "/apis/networking.k8s.io/v1/namespaces/production/ingresses" }
+                     .returns(Pages::Read.new(items: [], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_LOAD_BALANCER, ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
+        assert_equal 2, snapshot.gaps.size
+        assert(snapshot.gaps.all? { |gap| gap.kinds == [ ResourceMap::KIND_LOAD_BALANCER, ResourceMap::KIND_DOMAIN ] })
+      end
+
       test "the namespace's resources are listed with their state, leaving out a cronjob's own jobs, and a list it may not read is said" do
         stub_list(DEPLOYMENTS, [ deployment ])
         stub_list("/apis/batch/v1/namespaces/production/jobs", [

@@ -22,6 +22,17 @@ module Integrations
       assert_equal VercelApi::PAGE_SIZE + 1, VercelApi.new("tok").projects.items.size
     end
 
+    test "a project's domains are read page by page, each until the timestamp the page before gave" do
+      Http.expects(:request).with { |uri, *| !uri.query.include?("until") }.returns(response(200, { domains: [ { name: "a.acme.dev" } ], pagination: { count: 1, next: 1_540_095_775_951 } }))
+      Http.expects(:request).with { |uri, *| URI.decode_www_form(uri.query).include?([ "until", "1540095775951" ]) }
+          .returns(response(200, { domains: [ { name: "b.acme.dev" } ], pagination: { count: 1, next: nil } }))
+
+      read = VercelApi.new("tok").project_domains("prj_1")
+
+      assert_equal %w[a.acme.dev b.acme.dev], read.items.map { |domain| domain["name"] }
+      assert_not read.incomplete?
+    end
+
     test "a rollback the plan refuses is its own error, in Vercel's words, and a promotion says whether it was queued" do
       Http.stubs(:request).returns(response(402, { error: { code: "payment_required", message: "Upgrade to Pro" } }))
       error = assert_raises(VercelApi::PlanLimited) { VercelApi.new("tok").rollback("prj_1", "dpl_1", description: "bad deploy") }

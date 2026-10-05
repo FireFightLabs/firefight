@@ -45,6 +45,10 @@ module Integrations
       error = assert_raises(ModalApi::Error) { @api.workspace }
       assert_equal "Modal answered unauthenticated: token [hidden] / [hidden] is not valid. Check the token id and secret, or create a new token in Modal's settings.", error.message
 
+      GRPC::ClientStub.any_instance.stubs(:request_response).raises(GRPC::Unauthenticated.new("Token is invalid."))
+      assert_equal "Modal answered unauthenticated: Token is invalid. Check the token id and secret, or create a new token in Modal's settings.",
+                   assert_raises(ModalApi::Error) { @api.workspace }.message
+
       GRPC::ClientStub.any_instance.stubs(:request_response).raises(GRPC::ResourceExhausted.new("slow down"))
       assert_raises(ModalApi::RateLimited) { @api.workspace }
       GRPC::ClientStub.any_instance.stubs(:request_response).raises(GRPC::NotFound.new("no such environment"))

@@ -144,7 +144,7 @@ module Integrations
         project = find_project(environment_row, arguments["resource"])
         detail = api(environment_row).project(project["id"])
         production = detail.dig("targets", PRODUCTION)
-        domains = api(environment_row).project_domains(project["id"])
+        domains = api(environment_row).project_domains(project["id"]).items
         latest = Array(detail["latestDeployments"]).first(LATEST_SHOWN)
         lines = [
           "#{detail['name']}, #{detail['framework'] || 'no framework set'}#{', paused' if detail['paused']}",
@@ -190,8 +190,8 @@ module Integrations
         begin
           api(environment_row).rollback(project["id"], deployment["id"], description: arguments["reason"].to_s.strip.first(250))
         rescue VercelApi::PlanLimited => error
-          fail! "#{Sentence.of(error)} On Vercel's Hobby plan a rollback can only go to the previous production deployment, so pick " \
-                "that one from list_deployments, or roll back further on a Pro plan."
+          fail! Sentence.all(error, "On Vercel's Hobby plan a rollback can only go to the previous production deployment, so pick " \
+                                   "that one from list_deployments, or roll back further on a Pro plan.")
         end
         Telemetry.result("Vercel is pointing the production domains of #{project['name']} at #{deployment['id']}. New deployments no " \
                          "longer go live on their own until one is promoted, so promote the fixed deployment with " \
@@ -239,10 +239,14 @@ module Integrations
             links << ResourceMap::FoundLink.new(from: found.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
           end
           begin
-            api.project_domains(project["id"]).select { |domain| domain["verified"] && domain["redirect"].blank? }.each do |domain|
+            domains = api.project_domains(project["id"])
+            domains.items.select { |domain| domain["verified"] && domain["redirect"].blank? }.each do |domain|
               host = ResourceMap.domain(domain["name"])
               resources << host
               links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
+            end
+            if domains.incomplete?
+              gaps << ResourceMap::Gap.new(text: "Only the first #{domains.items.size} domains of #{project['name']} were read.", kinds: [ ResourceMap::KIND_DOMAIN ])
             end
           rescue Integrations::RateLimited
             raise
@@ -252,7 +256,7 @@ module Integrations
         end
         listed = project_list(environment_row)
         if listed.incomplete?
-          gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} projects were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN ])
+          gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} projects were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
         end
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
       end

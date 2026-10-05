@@ -97,6 +97,13 @@ module Integrations
         assert_equal ResourceMap::KINDS, limited.unread_kinds
       end
 
+      test "being asked to slow down while listing the products not on the map yet stops the read with a gap, never a failed sweep" do
+        limited = read(search_error: "Cloudflare API error: 971: Please wait and consider throttling your request speed")
+
+        assert_includes limited.gap_texts, "Cloudflare asked Firefight to slow down, so the rest is read on the next sweep."
+        assert_equal ResourceMap::KINDS, limited.unread_kinds
+      end
+
       test "an answer the server cut short keeps what it holds, and those kinds are not taken as gone" do
         cut = { "items" => [ { "name" => "uploads" }, "--- TRUNCATED --- 40 more items" ], "--- TRUNCATED ---" => "info" }.to_json
         snapshot = read(raw: { %r{r2/buckets} => cut })
@@ -124,9 +131,10 @@ module Integrations
 
       private
 
-      def read(products: [], errors: {}, raw: {})
+      def read(products: [], errors: {}, raw: {}, search_error: nil)
         Cloudflare.new do |tool, arguments|
           code = arguments.to_h["code"].to_s
+          next { "isError" => true, "content" => [ { "type" => "text", "text" => search_error } ] } if tool == Cloudflare::SEARCH && search_error
           next text_result(products) if tool == Cloudflare::SEARCH
 
           given = raw.find { |pattern, _| code.match?(pattern) }
