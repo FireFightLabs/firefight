@@ -160,3 +160,18 @@ digitalocean:
     skills/postgres/reference: postgres
     skills/managed-db-services/reference: databases
     skills/networking/reference: networking
+
+# AWS's agent guides are Apache 2.0, from the skills in AWS's Agent Toolkit repository. Each folder is one guide's
+# references: ECS and containers, EC2, Lambda and serverless, CloudWatch, Lambda timeouts, failing applications and RDS.
+aws:
+  repository: https://github.com/aws/agent-toolkit-for-aws
+  license: LICENSE
+  notice: NOTICE
+  paths:
+    skills/core-skills/aws-containers/references: containers
+    skills/core-skills/aws-compute/references: compute
+    skills/core-skills/aws-serverless/references: serverless
+    skills/core-skills/aws-observability/references/cloudwatch: cloudwatch
+    skills/specialized-skills/serverless-skills/debugging-lambda-timeouts/references: lambda-timeouts
+    skills/specialized-skills/operations-skills/troubleshooting-application-failures/references: application-failures
+    skills/specialized-skills/database-skills/rds-oss/references: rds
