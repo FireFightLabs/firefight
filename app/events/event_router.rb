@@ -12,6 +12,10 @@ class EventRouter
     # Nothing emits this since bulk-apply became step-by-step claiming.
     # Listed so the coverage assertion stays exact.
     IncidentEvent::RUNBOOK_APPLIED,
+    # Changes an item takes from its issue in a tracker. Outbound webhooks offer none of them yet.
+    IncidentEvent::ACTION_RENAMED,
+    IncidentEvent::ACTION_REOPENED,
+    IncidentEvent::ACTION_UNASSIGNED,
     *IncidentEvent::INVESTIGATION_EVENTS
   ].freeze
 

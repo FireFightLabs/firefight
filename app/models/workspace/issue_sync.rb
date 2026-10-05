@@ -86,7 +86,7 @@ module Workspace::IssueSync
   # send its webhook to Firefight, as the tracker documents it.
   TrackerChoice = Data.define(:value, :label, :fields, :steps)
 
-  # What the settings page offers: no tracker, then every connection to a tracker that keeps items in step.
+  # What the settings page offers, no tracker first and then every connection to a tracker that keeps items in step.
   def issue_tracker_choices
     trackers = integrations.where(deleted_at: nil, provider: issue_tracker_providers).order(:name)
     none = TrackerChoice.new(value: nil, label: "None", fields: [], steps: [])

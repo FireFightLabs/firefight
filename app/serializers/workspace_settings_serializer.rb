@@ -1,6 +1,8 @@
 class WorkspaceSettingsSerializer < BaseSerializer
   object_as :workspace
 
+  ISSUE_CREATION_UNION = Workspace::IssueSync::ISSUE_CREATIONS.map(&:inspect).join(" | ")
+
   attributes(transcript_access_enabled: { type: :boolean }, web_search_enabled: { type: :boolean }, halon_regression_enabled: { type: :boolean })
 
   type :number, optional: true
@@ -43,12 +45,12 @@ class WorkspaceSettingsSerializer < BaseSerializer
     workspace.issue_tracker_choices.map { |choice| choice.to_h.merge(fields: choice.fields.map(&:to_h)) }
   end
 
-  type '"never" | "asked" | "follow_ups" | "all"'
+  type ISSUE_CREATION_UNION
   def issue_creation
     workspace.issue_creation
   end
 
-  type '{ value: "never" | "asked" | "follow_ups" | "all"; label: string }[]'
+  type "{ value: #{ISSUE_CREATION_UNION}; label: string }[]"
   def issue_creations
     Workspace::IssueSync::ISSUE_CREATION_CHOICES.map(&:to_h)
   end

@@ -121,8 +121,8 @@ class IncidentActionService
 
   private
 
-  # The channel sees a change from the tracker as it would one made here: the item's message redrawn, and a completion
-  # or a handover announced.
+  # The channel sees a change from the tracker as it would one made here. The item's message is redrawn, and a
+  # completion or a handover is announced.
   def issue_change_made(action, event_type, by)
     adapter = @workspace.adapter
     adapter.refresh_action_message(channel_id: action.incident.channel_id, message_id: action.message_ts, action: action) if action.message_ts

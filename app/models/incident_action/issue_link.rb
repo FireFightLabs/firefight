@@ -36,7 +36,8 @@ module IncidentAction::IssueLink
 
   def issue_linked? = external_url.present? && issue_sync_state != ISSUE_GONE
 
-  # Whether changes to this item reach its issue and back: it is linked to the workspace's tracker while that is on.
+  # Whether changes to this item reach its issue and back. They do while it is linked to the workspace's tracker and that
+  # connection is on.
   def issue_syncs?
     issue_linked? && issue_integration_id.present? && issue_integration_id == workspace.issue_sync_connection&.id
   end
