@@ -87,6 +87,37 @@ class AgentStreamTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-made-room-saved.png"))
   end
 
+  test "events that reach the page out of order still show in the order they were sent" do
+    workspace = workspaces(:slack_workspace_one)
+    member = workspace_memberships(:alice_workspace_one)
+    FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
+    Entitlements.stubs(:allows?).returns(true)
+    sign_in(users(:alice), workspace)
+    ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
+    conversation = Conversation.start_personal!(workspace: workspace, member: member)
+    conversation.ask!("Has checkout failed like this before?")
+
+    visit agent_chat_path(conversation)
+    assert_text "Has checkout failed"
+    open_stream(Conversation::LiveDelivery.new(conversation))
+
+    # Action Cable's thread pool can deliver a turn's broadcasts in any order, so they are sent here scrambled.
+    sent = 10.seconds.from_now.to_i * 1_000_000
+    event = ->(seq, payload) { ConversationChannel.broadcast_to(conversation, payload.merge(seq: sent + seq)) }
+    step = ->(key, tool, status) { { type: Conversation::LiveDelivery::EVENT_STEP, key: key, title: Chat::Tools.step(tool, { "query" => "checkout" }).title, status: status } }
+    event.call(6, { type: Conversation::LiveDelivery::EVENT_CHUNK, text: "the same pool." })
+    event.call(4, step.call("call_2", "search_incidents", Conversation::LiveDelivery::STATUS_RUNNING))
+    event.call(2, step.call("call_1", "search_similar", Conversation::LiveDelivery::STATUS_DONE))
+    event.call(3, { type: Conversation::LiveDelivery::EVENT_MADE_ROOM, key: "room-1", title: Chat::Compaction::SHOWN_AS, at: Time.current.utc.iso8601(3) })
+    event.call(5, { type: Conversation::LiveDelivery::EVENT_CHUNK, text: "INC-118 was " })
+    event.call(1, step.call("call_1", "search_similar", Conversation::LiveDelivery::STATUS_RUNNING))
+    event.call(0, { type: Conversation::LiveDelivery::EVENT_THINKING })
+
+    assert_text(/Search similar.*#{Chat::Compaction::SHOWN_AS}.*Search incidents/m)
+    assert_text "INC-118 was the same pool."
+    assert_selector :xpath, "//*[normalize-space(text())='Running']", count: 1
+  end
+
   private
 
   # An accepted subscription can miss what is sent before its stream is live, so the turn is announced until the page shows it.
