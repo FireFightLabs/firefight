@@ -1,0 +1,430 @@
+# Credential Management Patterns
+
+Single source of truth for secure credential handling across all skills.
+
+## Philosophy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CREDENTIAL HIERARCHY (Most to Least Preferred)           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. GITHUB SECRETS (Recommended)                                            │
+│     • Stored encrypted in GitHub                                            │
+│     • Per-environment isolation (staging, production)                       │
+│     • AI assistant never sees values                                        │
+│     • Best for: Most secrets                                                │
+│                                                                             │
+│  2. BINDABLE VARIABLES (DO Managed Services)                                │
+│     • Auto-populated by App Platform                                        │
+│     • No manual credential handling                                         │
+│     • Best for: Database URLs, managed service connections                  │
+│                                                                             │
+│  3. EPHEMERAL FILES (Generate → Use → Delete)                               │
+│     • Generated at runtime, never stored                                    │
+│     • Used once, then cleared from memory                                   │
+│     • Best for: One-time setup scripts                                      │
+│                                                                             │
+│  4. EXTERNAL SERVICES (User Manages)                                        │
+│     • User provides from external vault/service                             │
+│     • Best for: Third-party API keys user already manages                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Pattern 1: GitHub Secrets (Recommended)
+
+### Environment Architecture
+
+```
+GitHub Repository
+├── Environments
+│   ├── staging
+│   │   ├── Secrets: DIGITALOCEAN_ACCESS_TOKEN, DATABASE_URL
+│   │   └── Variables: DO_PROJECT_ID, APP_NAME
+│   └── production
+│       ├── Secrets: DIGITALOCEAN_ACCESS_TOKEN, DATABASE_URL
+│       └── Variables: DO_PROJECT_ID, APP_NAME
+└── Workflows
+    └── deploy.yml (selects environment)
+```
+
+### Setup Commands
+
+```bash
+# Create GitHub environments
+gh api --method PUT repos/:owner/:repo/environments/staging
+gh api --method PUT repos/:owner/:repo/environments/production
+
+# Set secrets (user is prompted for value - AI never sees it)
+gh secret set DIGITALOCEAN_ACCESS_TOKEN --env staging
+gh secret set DATABASE_URL --env staging
+
+gh secret set DIGITALOCEAN_ACCESS_TOKEN --env production
+gh secret set DATABASE_URL --env production
+
+# Set non-sensitive variables
+gh variable set DO_PROJECT_ID --env staging --body "project-id-here"
+gh variable set APP_NAME --env staging --body "myapp-staging"
+```
+
+### AI Assistant Pattern
+
+The AI assistant should generate commands but NEVER handle credential values:
+
+```bash
+# CORRECT: Prompt user for value
+echo "Run this command to set your database URL:"
+echo "gh secret set DATABASE_URL --env staging"
+echo "# You'll be prompted to enter the value securely"
+
+# INCORRECT: Never include actual values
+# gh secret set DATABASE_URL --env staging --body "postgresql://..."
+```
+
+### Workflow Usage
+
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}  # Selects secrets from this environment
+
+    steps:
+      - uses: digitalocean/app_action/deploy@v2
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+```
+
+### Listing and Managing
+
+```bash
+# List secrets (names only, never values)
+gh secret list --env staging
+
+# List variables
+gh variable list --env staging
+
+# Delete a secret
+gh secret delete OLD_SECRET --env staging
+
+# Update a secret (same as set)
+gh secret set DATABASE_URL --env staging
+```
+
+## Pattern 2: Bindable Variables (DO Managed)
+
+For DigitalOcean managed services, use bindable variables to avoid handling credentials entirely.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DigitalOcean Internal Systems                │
+│  ┌─────────────────┐         ┌─────────────────────────────┐   │
+│  │ Managed Database │         │   Credential Store          │   │
+│  │    Cluster       │         │   (users created via DO)    │   │
+│  │                  │         │                             │   │
+│  │  - doadmin       │◄───────►│  doadmin: <auto-generated>  │   │
+│  │  - myappuser     │         │  myappuser: <auto-generated>│   │
+│  └─────────────────┘         └──────────────▲──────────────┘   │
+│                                              │                  │
+│  ┌─────────────────┐                         │                  │
+│  │   App Platform   │─────────────────────────┘                  │
+│  │                  │  Queries credentials by                   │
+│  │  app spec:       │  cluster_name + db_user                   │
+│  │  - cluster_name  │                                           │
+│  │  - db_user       │──────► Populates ${db.DATABASE_URL}       │
+│  └─────────────────┘                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Setup
+
+```bash
+# Create database user via doctl (DO stores password internally)
+doctl databases user create $CLUSTER_ID myappuser
+
+# Reference in app spec - password is auto-populated
+```
+
+```yaml
+databases:
+  - name: db
+    engine: PG
+    production: true
+    cluster_name: my-cluster
+    db_user: myappuser
+
+services:
+  - name: api
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}  # Auto-populated by App Platform!
+```
+
+### Benefits
+
+- No credential handling required
+- No GitHub Secrets needed for database connections
+- Automatic credential rotation support
+- Reduced attack surface
+
+### Supported Services
+
+| Service | Bindable Variable Pattern |
+|---------|---------------------------|
+| PostgreSQL | `${db.DATABASE_URL}` |
+| MySQL | `${db.DATABASE_URL}` |
+| Valkey | `${cache.DATABASE_URL}` |
+| MongoDB | `${db.DATABASE_URL}` |
+| OpenSearch | `${search.DATABASE_URL}` |
+| Kafka | `${kafka.BROKERS}` |
+
+## Pattern 3: Ephemeral/Zero-Knowledge Setup
+
+For scenarios requiring credential generation (like multi-tenant schema isolation):
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     ZERO-KNOWLEDGE WORKFLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  PASSWORD=$(openssl rand -base64 32)                                     │
+│       │                                                                  │
+│       ├──► psql: CREATE USER myapp_user WITH PASSWORD '$PASSWORD'        │
+│       │                                                                  │
+│       └──► gh secret set DATABASE_URL --repo owner/repo --body "..."     │
+│                                                                          │
+│  Password NEVER printed. Flows directly: generate → SQL → GitHub Secret  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+```bash
+#!/bin/bash
+# secure_setup.sh - Password never displayed
+
+set -euo pipefail
+
+# Generate secure password (never printed)
+PASSWORD=$(openssl rand -base64 32)
+
+# Create user in database
+psql "$ADMIN_URL" -c "CREATE USER myapp_user WITH PASSWORD '$PASSWORD';"
+
+# Build connection string
+DB_URL="postgresql://myapp_user:${PASSWORD}@${DB_HOST}:25060/defaultdb?sslmode=require"
+
+# Store directly in GitHub Secrets
+gh secret set DATABASE_URL --repo "$REPO" --env "$ENV" --body "$DB_URL"
+
+# Clear from memory
+unset PASSWORD DB_URL
+
+echo "Setup complete. Credentials stored in GitHub Secrets."
+```
+
+### User Consent Pattern
+
+Always ask before executing credential operations:
+
+```
+Agent: "I can set up the database user and store credentials directly in
+        GitHub Secrets. The password will be generated securely and will
+        never be displayed — it goes straight from generation to your
+        secrets.
+
+        Repository: owner/repo
+        Environment: production
+        Secret name: DATABASE_URL
+
+        Want me to proceed? You can review the script first if you'd like."
+
+User: "Yes, do it" / "Show me the script first"
+```
+
+## Pattern 4: External Services
+
+For third-party APIs or services the user already manages:
+
+```bash
+# AI provides the command template
+echo "Add your Stripe API key:"
+echo "gh secret set STRIPE_API_KEY --env production"
+
+# User runs it and provides their own key
+```
+
+## Secret Types Reference
+
+### Common Secrets by Category
+
+| Category | Secret Name | Source | Pattern |
+|----------|-------------|--------|---------|
+| **Infrastructure** | `DIGITALOCEAN_ACCESS_TOKEN` | DO Console | GitHub Secrets |
+| **Databases** | `DATABASE_URL` | DO Managed | Bindable or GitHub Secrets |
+| **Caching** | `VALKEY_URL` | DO Managed | Bindable |
+| **Storage** | `SPACES_ACCESS_KEY_ID` | DO Console | GitHub Secrets |
+| **Storage** | `SPACES_SECRET_ACCESS_KEY` | DO Console | GitHub Secrets |
+| **AI Services** | `MODEL_ACCESS_KEY` | DO Console → Serverless Inference | GitHub Secrets |
+| **External APIs** | `STRIPE_API_KEY` | Stripe Dashboard | GitHub Secrets |
+| **Auth** | `JWT_SECRET` | Generated | GitHub Secrets |
+| **App** | `SECRET_KEY` | Generated | GitHub Secrets |
+
+### Generating Application Secrets
+
+```bash
+# Generate secure random secrets
+openssl rand -base64 32        # 32-char base64
+openssl rand -hex 32           # 64-char hex
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Set as GitHub Secret
+gh secret set JWT_SECRET --env production
+# (paste generated value when prompted)
+```
+
+## Environment Variable Scopes
+
+| Scope | Available | Use Case |
+|-------|-----------|----------|
+| `RUN_TIME` | Only at runtime | Secrets, DB URLs, API keys |
+| `BUILD_TIME` | Only during build | Public API URLs, feature flags |
+| `RUN_AND_BUILD_TIME` | Both | NPM tokens, shared config |
+
+### Example
+
+```yaml
+envs:
+  # Runtime secrets (never in build logs)
+  - key: DATABASE_URL
+    scope: RUN_TIME
+    value: ${db.DATABASE_URL}
+
+  - key: API_SECRET
+    scope: RUN_TIME
+    type: SECRET
+    value: ${API_SECRET}
+
+  # Build-time public config
+  - key: NEXT_PUBLIC_API_URL
+    scope: BUILD_TIME
+    value: https://api.example.com
+```
+
+## Security Best Practices
+
+### DO
+
+- Use GitHub Environments for isolation
+- Use bindable variables when available
+- Generate strong passwords (32+ chars)
+- Use `type: SECRET` for sensitive env vars in app spec
+- Rotate credentials periodically
+
+### DON'T
+
+- Commit secrets to git
+- Log credential values
+- Pass credentials as command-line arguments in logs
+- Use weak or predictable passwords
+- Share credentials across environments
+
+## Debugging Without Exposing Secrets
+
+### Verify GitHub Secrets Exist
+
+```bash
+# Shows secret names, never values
+gh secret list --env staging
+```
+
+### Verify Bindable Variables Populated
+
+Deploy a debug worker to check values are populated (not their contents):
+
+```yaml
+workers:
+  - name: debug
+    image:
+      registry_type: GHCR
+      registry: ghcr.io
+      repository: bikramkgupta/do-app-debug-container-python
+      tag: latest
+    instance_size_slug: apps-s-1vcpu-2gb
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+```
+
+Then connect and verify length/format.
+
+**For AI Assistants** — Use the SDK:
+```python
+from do_app_sandbox import Sandbox
+
+debug = Sandbox.get_from_id(app_id="your-app-id", component="debug")
+result = debug.exec('echo "DATABASE_URL length: ${#DATABASE_URL}"')
+print(result.stdout)
+result = debug.exec('echo "DATABASE_URL starts with: ${DATABASE_URL:0:15}..."')
+print(result.stdout)
+```
+
+**For Humans**:
+```bash
+doctl apps console $APP_ID debug
+echo "DATABASE_URL length: ${#DATABASE_URL}"
+echo "DATABASE_URL starts with: ${DATABASE_URL:0:15}..."
+```
+
+### Test Database Connectivity
+
+**For AI Assistants**:
+```python
+result = debug.exec('psql "$DATABASE_URL" -c "SELECT 1;"')
+print("Connection successful" if result.exit_code == 0 else result.stderr)
+```
+
+**For Humans**:
+```bash
+psql "$DATABASE_URL" -c "SELECT 1;" && echo "Connection successful"
+```
+
+## Migration from Other Patterns
+
+### From .env Files to GitHub Secrets
+
+```bash
+# Read .env and create secrets (one-time migration)
+while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" =~ ^# ]] && continue
+    echo "Setting $key..."
+    gh secret set "$key" --env production --body "$value"
+done < .env.production
+
+# Then delete the .env file from repo
+rm .env.production
+git add -A && git commit -m "Migrate secrets to GitHub"
+```
+
+### From Hardcoded to Bindable
+
+1. Create user via doctl (not SQL)
+2. Update app spec to use bindable variables
+3. Remove hardcoded credentials from GitHub Secrets
+4. Redeploy
+
+## Related Documentation
+
+- [GitHub Environments](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
+- [GitHub Secrets](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)
+- [DO App Platform Secrets](https://docs.digitalocean.com/products/app-platform/how-to/use-environment-variables/)
+- [Bindable Variables](./bindable-variables.md)
