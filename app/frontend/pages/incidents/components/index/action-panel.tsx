@@ -1,3 +1,6 @@
+import { useEffect } from "react"
+import { router } from "@inertiajs/react"
+
 import type { IncidentAction } from "@/pages/incidents/types"
 import type { InlineChoice } from "@/pages/incidents/components/index/inline-select"
 import { ActionItem } from "@/pages/incidents/components/index/action-item"
@@ -24,6 +27,16 @@ export function ActionPanel({
   const canAdd = !blockedReason
   const doneCount = items.filter((item) => item.status === "done").length
   const isEmpty = items.length === 0
+  const issueOpening = items.some((item) => item.issueOpening)
+
+  // An issue is opened in a job, so the items are read again until it is there.
+  useEffect(() => {
+    if (!issueOpening) {
+      return
+    }
+    const interval = setInterval(reloadItems, 3000)
+    return () => clearInterval(interval)
+  }, [issueOpening])
 
   if (isEmpty) {
     return (
@@ -60,4 +73,8 @@ export function ActionPanel({
       </div>
     </section>
   )
+}
+
+function reloadItems() {
+  router.reload({ only: ["actions"] })
 }

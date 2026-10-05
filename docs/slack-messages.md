@@ -113,6 +113,16 @@ The shared button only ever subscribes.
 - **An action item tracked in an issue tracker carries the issue's link**
   after its description (`Action.described`). The description came from the
   tracker, so it is escaped.
+- **An item carries Rename, and Unassign while someone holds it**, and its
+  done message carries Reopen and Rename (`Action.done_controls`). Rename
+  opens `Modals::RenameAction`, pushed over the item list when it came from
+  there.
+- **An item without an issue offers Create issue** while the workspace opens
+  issues (`Action.issue_button`, `Identifiers::CREATE_ACTION_ISSUE`), and
+  "Try the issue again" once one failed. Why it is missing, or that it is being
+  opened, is a context line under the item (`Action.issue_status`). A change
+  that reaches the item from its issue redraws its message as it stands
+  (`refresh_action_message`, `Action.current`).
 - **Fields are state**, joined with `  ·  ` on one line when there are three or
   fewer, one per line when the message is a milestone worth reading slowly.
   Use `Formatting.diff_text` so a change shows its before and after rather than

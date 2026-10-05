@@ -61,4 +61,9 @@ class IntegrationProviderSerializer < BaseSerializer
   # Whether the connect form offers the provider's own MCP server beside its credentials.
   type :boolean
   def mcp_alternative = provider.mcp_alternative?
+
+  # Firefight's own app with the provider, which connects it to keep incident items in step with issues, or null when
+  # the provider has none or this install did not register it.
+  type "{ label: string } | null"
+  def app = provider.app_connect? ? { label: provider.app.label } : nil
 end

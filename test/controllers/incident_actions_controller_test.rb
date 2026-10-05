@@ -251,4 +251,46 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
       description: "Drain replica 2"
     )
   end
+
+  test "Create issue opens the item's issue in a job and says so, and a reason it cannot is the alert" do
+    linear = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear", slug: "linear", settings: {})
+    linear.integration_environments.create!
+    %w[save_issue get_issue list_issue_statuses list_users].each do |tool|
+      linear.tools.create!(name: tool, description: tool, read_only: tool != "save_issue", enabled: true, params_schema: {})
+    end
+    IssueSyncService.new(@workspace).update_settings!(
+      { issue_tracker: linear.slug, issue_creation: Workspace::IssueSync::ISSUE_CREATION_ASKED, issue_tracker_target: { "team" => "ENG" } }, by: @member
+    )
+    action = @incident.incident_actions.create!(created_by: @member, action_type: IncidentAction::ACTION_TYPE_FOLLOWUP, description: "Rotate")
+
+    assert_enqueued_with(job: IssueSyncJob) do
+      post incident_item_issue_path(incident_id: @incident.id, id: action.id)
+    end
+    assert_redirected_to incident_path(@incident)
+    assert_nil flash[:notice]
+    assert_equal IncidentAction::ISSUE_CREATING, action.reload.issue_sync_state
+
+    post incident_item_issue_path(incident_id: @incident.id, id: action.id)
+    assert_equal "Firefight is opening its issue now.", flash[:alert]
+  end
+
+  test "rename, reopen and unassign say what they did, and a refusal is the alert" do
+    stub_update_message
+    action = @incident.incident_actions.create!(created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Restart",
+                                                assignee: @member, status: IncidentAction::STATUS_IN_PROGRESS)
+
+    patch rename_incident_item_path(incident_id: @incident.id, id: action.id), params: { description: "Restart every worker" }
+    assert_equal [ "The item was renamed.", "Restart every worker" ], [ flash[:notice], action.reload.description ]
+
+    patch unassign_incident_item_path(incident_id: @incident.id, id: action.id)
+    assert_equal [ "Nobody holds the item now.", nil ], [ flash[:notice], action.reload.assignee ]
+
+    patch reopen_incident_item_path(incident_id: @incident.id, id: action.id)
+    assert_redirected_to incident_path(@incident)
+    assert_equal "That item is not done.", flash[:alert]
+
+    action.update!(status: IncidentAction::STATUS_DONE)
+    patch reopen_incident_item_path(incident_id: @incident.id, id: action.id)
+    assert_equal [ "The item was reopened.", IncidentAction::STATUS_OPEN ], [ flash[:notice], action.reload.status ]
+  end
 end

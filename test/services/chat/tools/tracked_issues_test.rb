@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Chat::Tools::TrackedIssuesTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   URL = "https://linear.app/firefight/issue/FIR-105/investigate-automated-probing-against-web-service".freeze
 
   setup do
@@ -113,5 +115,20 @@ class Chat::Tools::TrackedIssuesTest < ActiveSupport::TestCase
 
     assert_not @incident.incident_actions.exists?
     assert_match "was not recorded on #{@incident.identifier}", answer
+  end
+
+  test "an issue opened in a chat is kept in step with its follow-up, and closing it there is not sent back" do
+    linear_answers("backlog")
+    save_issue(chat_about(@incident), team: "FireFight", title: "Investigate")
+    follow_up = @incident.incident_actions.find_by!(external_url: URL)
+    assert_equal [ @save_issue.integration, IncidentAction::ISSUE_LINKED ], [ follow_up.issue_integration, follow_up.issue_sync_state ]
+
+    @workspace.update!(issue_tracker: "linear", issue_tracker_target: { "team" => "FireFight" })
+    assert follow_up.issue_syncs?
+    linear_answers("completed")
+    assert_no_enqueued_jobs(only: IssueSyncJob) do
+      save_issue(chat_about(nil), id: "FIR-105", state: "Done")
+    end
+    assert follow_up.reload.done?
   end
 end

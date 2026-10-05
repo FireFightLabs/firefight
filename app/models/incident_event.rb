@@ -11,6 +11,10 @@ class IncidentEvent < ApplicationRecord
   ACTION_PICKED_UP = "action.picked_up"
   ACTION_COMPLETED = "action.completed"
   ACTION_REASSIGNED = "action.reassigned"
+  # Changes that reach an item only from its issue in a tracker.
+  ACTION_RENAMED = "action.renamed"
+  ACTION_REOPENED = "action.reopened"
+  ACTION_UNASSIGNED = "action.unassigned"
   INCIDENT_ESCALATED = "incident.escalated"
   INCIDENT_RESOLVED = "incident.resolved"
   INCIDENT_REOPENED = "incident.reopened"
@@ -56,7 +60,7 @@ class IncidentEvent < ApplicationRecord
   EVENT_TYPES = [
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
     ROLE_ASSIGNED, ROLE_UNASSIGNED,
-    ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED, ACTION_REASSIGNED,
+    ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED, ACTION_REASSIGNED, ACTION_RENAMED, ACTION_REOPENED, ACTION_UNASSIGNED,
     INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, INCIDENT_CANCELED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
@@ -77,6 +81,9 @@ class IncidentEvent < ApplicationRecord
     ACTION_PICKED_UP => "picked up an action item",
     ACTION_COMPLETED => "completed an action item",
     ACTION_REASSIGNED => "reassigned an action item",
+    ACTION_RENAMED => "renamed an action item",
+    ACTION_REOPENED => "reopened an action item",
+    ACTION_UNASSIGNED => "unassigned an action item",
     INCIDENT_ACCEPTED => "accepted the incident from triage",
     INCIDENT_ESCALATED => "escalated the incident to",
     INCIDENT_RESOLVED => "resolved the incident",
@@ -117,6 +124,9 @@ class IncidentEvent < ApplicationRecord
     ACTION_PICKED_UP     => IncidentActionUpdate::PICKED_UP,
     ACTION_COMPLETED     => IncidentActionUpdate::COMPLETED,
     ACTION_REASSIGNED    => IncidentActionUpdate::REASSIGNED,
+    ACTION_RENAMED       => IncidentActionUpdate::RENAMED,
+    ACTION_REOPENED      => IncidentActionUpdate::REOPENED,
+    ACTION_UNASSIGNED    => IncidentActionUpdate::UNASSIGNED,
     POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
     POSTMORTEM_EDITED    => PostmortemUpdate::EDITED
   }.freeze

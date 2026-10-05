@@ -45,6 +45,10 @@ development:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
     schedule: at 2am every day
+  issue_webhook_refresh:
+    class: IssueWebhookRefreshJob # extends issue tracker webhooks Firefight registered, which Jira lets lapse after 30 days
+    queue: background
+    schedule: at 3am every day
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
@@ -111,6 +115,10 @@ staging:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
     schedule: at 2am every day
+  issue_webhook_refresh:
+    class: IssueWebhookRefreshJob # extends issue tracker webhooks Firefight registered, which Jira lets lapse after 30 days
+    queue: background
+    schedule: at 3am every day
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour
@@ -177,6 +185,10 @@ production:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
     schedule: at 2am every day
+  issue_webhook_refresh:
+    class: IssueWebhookRefreshJob # extends issue tracker webhooks Firefight registered, which Jira lets lapse after 30 days
+    queue: background
+    schedule: at 3am every day
   refresh_platform_credentials:
     class: RefreshPlatformCredentialsJob
     schedule: every hour

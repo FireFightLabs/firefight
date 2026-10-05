@@ -38,8 +38,12 @@ class OperatorProcessesTest < ApplicationSystemTestCase
 
     find("a[href=\"#{operator_incident_path(@incident)}\"]").click
     assert_text "invite_responders"
-    click_button "Show the error", match: :first
-    assert_text "not_in_channel"
+    # The fixtures' failed webhook delivery sits on the same timeline at the time the fixtures loaded, which falls
+    # among these steps when the suite has run for a few minutes, so the step's own row is opened.
+    within(find("li", text: "invite_responders")) do
+      click_button "Show the error"
+      assert_text "not_in_channel"
+    end
     page.save_screenshot(Rails.root.join("tmp/screenshots/operator-incident.png"))
 
     visit operator_workflow_path(@workflow)

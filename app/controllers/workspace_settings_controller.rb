@@ -5,13 +5,14 @@ class WorkspaceSettingsController < InertiaController
 
   def show
     render inertia: "settings/workspace", props: {
-      settings: WorkspaceSettingsSerializer.one(current_workspace)
+      settings: WorkspaceSettingsSerializer.one(current_workspace),
+      issueWebhookUrl: current_workspace.issue_webhook_token && api_v1_issue_events_url(current_workspace.issue_webhook_token)
     }
   end
 
   # A blank retention casts to null, which means keep everything.
   def update
-    current_workspace.update_settings!(params.permit(*Workspace::Settings::KEYS))
+    IssueSyncService.new(current_workspace).update_settings!(params.permit(*Workspace::Settings::PERMITTED), by: current_membership)
 
     redirect_to settings_workspace_path, notice: "Workspace settings were updated."
   rescue ActiveRecord::RecordInvalid => e

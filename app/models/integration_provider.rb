@@ -41,6 +41,18 @@ class IntegrationProvider
     end
   end
 
+  # Firefight's own OAuth application with a provider, registered once by whoever runs Firefight, which connects a
+  # provider natively to keep incident items in step with it (Integrations::Issues) beside the provider's own MCP server.
+  # scopes are joined with scope_separator, params go on the authorization URL as the provider documents them, pkce says
+  # whether the provider takes a code challenge, and token_format whether its token endpoint takes form or JSON. Its
+  # client id and secret are INTEGRATION_<KEY>_APP_CLIENT_ID and INTEGRATION_<KEY>_APP_CLIENT_SECRET.
+  App = Data.define(:label, :authorization_endpoint, :token_endpoint, :scopes, :scope_separator, :params, :pkce, :token_format) do
+    def initialize(scopes: [], scope_separator: " ", params: {}, pkce: false, token_format: "form", **) = super
+
+    def scope = scopes.join(scope_separator)
+    def json_token? = token_format == "json"
+  end
+
   # What the connect form asks beside the credentials, such as the account an environment reads. None is a secret.
   #
   # A field marked path names a part of the server's address, appended to it in the order the fields are listed, and a
@@ -116,9 +128,13 @@ class IntegrationProvider
   # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
-                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent) do
+                      :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
+                      :app) do
     def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], site: nil, code_agent: false, **) = super
+                   connect_fields: [], site: nil, code_agent: false, app: nil, **) = super
+
+    # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
+    def app_connect? = kind == Integration::KIND_MCP && app.present? && IntegrationProvider.app_client(key).present?
 
     # A native provider connected with credentials that also has an MCP server of its own, which a person may connect
     # through instead.
@@ -126,7 +142,12 @@ class IntegrationProvider
 
     # How a connection is made. It goes through the provider's MCP server when that was asked for and it has one, and its own
     # way otherwise.
-    def connect_kind(asked) = asked.to_s == Integration::KIND_MCP && mcp_alternative? ? Integration::KIND_MCP : kind
+    def connect_kind(asked)
+      return Integration::KIND_MCP if asked.to_s == Integration::KIND_MCP && mcp_alternative?
+      return Integration::KIND_NATIVE if asked.to_s == Integration::KIND_NATIVE && app_connect?
+
+      kind
+    end
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
 
@@ -213,7 +234,8 @@ class IntegrationProvider
         regions: regions, connect_fields: connect_fields_of(raw), site: raw["site"].presence,
         # A coding agent writes a change for any repository in its own environment and opens the pull request itself.
         # It writes a fix's code changes only once an admin chooses it under Settings, Workspace.
-        code_agent: raw["code_agent"] == true
+        code_agent: raw["code_agent"] == true,
+        app: raw["app"] && App.new(**raw["app"].symbolize_keys)
       )
     end.freeze
   end
@@ -345,6 +367,16 @@ class IntegrationProvider
 
   # Providers without dynamic registration, such as GitHub, read one Firefight-wide app from
   # INTEGRATION_<KEY>_CLIENT_ID and _CLIENT_SECRET. Tokens are still per workspace.
+  # Firefight's own app with the provider (App), as INTEGRATION_<KEY>_APP_CLIENT_ID and _APP_CLIENT_SECRET name it, or
+  # empty when this install registered none.
+  def self.app_client(key)
+    prefix = "INTEGRATION_#{key.to_s.upcase}_APP"
+    client_id = ENV["#{prefix}_CLIENT_ID"].presence
+    return {} if client_id.blank?
+
+    { client_id: client_id, client_secret: ENV["#{prefix}_CLIENT_SECRET"].presence }
+  end
+
   def self.oauth_client(key)
     prefix = "INTEGRATION_#{key.to_s.upcase}"
     client_id = ENV["#{prefix}_CLIENT_ID"].presence ||

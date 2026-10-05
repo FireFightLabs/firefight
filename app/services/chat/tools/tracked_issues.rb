@@ -30,7 +30,7 @@ module Chat::Tools::TrackedIssues
     end
     return nil unless report
 
-    report.opened? ? record(agent_run, report, kind) : complete(agent_run, report)
+    report.opened? ? record(agent_run, report, kind, tool.integration) : complete(agent_run, report)
   rescue AdapterError => error
     "Firefight could not finish keeping #{report.key || 'the issue'} on the incident: #{error.message}"
   end
@@ -52,7 +52,7 @@ module Chat::Tools::TrackedIssues
     IncidentAction::ACTION_TYPES.include?(asked) ? asked : IncidentAction::ACTION_TYPE_ACTION
   end
 
-  def self.record(agent_run, report, asked)
+  def self.record(agent_run, report, asked, integration)
     incident = agent_run.incident
     return nil if incident.nil? || incident.incident_actions.tracking(report.url).exists?
 
@@ -62,7 +62,7 @@ module Chat::Tools::TrackedIssues
     agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: Mcp::Tools::CREATE_ACTION_ITEM, label: "Recording #{named} as #{KIND_WORDS[kind]}") do
       IncidentActionService.new(agent_run.workspace).create_action(
         incident: incident, created_by: agent_run.acting_principal, action_type: kind,
-        description: report.title || named, external_key: report.key, external_url: report.url
+        description: report.title || named, external_key: report.key, external_url: report.url, issue_integration: integration
       )
     end
     said = "Firefight recorded #{named} on #{incident.identifier} as #{KIND_WORDS[kind]} with its link, so do not add it again."
@@ -80,7 +80,7 @@ module Chat::Tools::TrackedIssues
     completed = open.filter_map do |action|
       params = { "incident" => action.incident.identifier, "action_item" => action.id }
       agent_run.tool_call(action_key: UPDATE_ACTION_KEY, params: params, tool_name: Mcp::Tools::COMPLETE_ACTION_ITEM, label: "Completing the item for #{named}") do
-        IncidentActionService.new(agent_run.workspace).complete_action(action: action, completed_by: agent_run.acting_principal)
+        IncidentActionService.new(agent_run.workspace).complete_action(action: action, completed_by: agent_run.acting_principal, tracked: false)
       end
       "#{KIND_WORDS[action.action_type].split.last} on #{action.incident.identifier}"
     rescue *REFUSED

@@ -13,7 +13,10 @@ module Mcp
           kind: action.action_type,
           description: action.description,
           status: action.status,
-          assignee: action.assignee&.actor_display_name
+          assignee: action.assignee&.actor_display_name,
+          external_key: action.external_key,
+          external_url: action.external_url,
+          issue_status: action.issue_status_text
         }.compact
       end
     end

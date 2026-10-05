@@ -3,10 +3,14 @@ module Workspace::Settings
   extend ActiveSupport::Concern
 
   KEYS = %i[transcript_access_enabled transcript_retention_days archive_channel_delay web_search_enabled halon_regression_enabled
-            code_fix_agent].freeze
+            code_fix_agent issue_tracker issue_creation issue_tracker_target issue_webhook_secret].freeze
+  # Taken, never shown again, so what is read back says only whether one is saved.
+  WRITE_ONLY = %i[issue_webhook_secret].freeze
+  # What a form may send, a hash where the setting holds one.
+  PERMITTED = [ *(KEYS - %i[issue_tracker_target]), { issue_tracker_target: {} } ].freeze
 
   def settings
-    KEYS.index_with { |key| public_send(key) }
+    (KEYS - WRITE_ONLY).index_with { |key| public_send(key) }.merge(issue_webhook_secret_set: issue_webhook_secret_set?)
   end
 
   # Firefight pays for web lookups, so a workspace has a day's worth, counted from the ledger that holds every one.
@@ -19,7 +23,9 @@ module Workspace::Settings
     "This workspace has used its #{WEB_LOOKUPS_PER_DAY} web lookups for the day." if used >= WEB_LOOKUPS_PER_DAY
   end
 
+  # A write-only setting left empty keeps what is saved, since the page never has it to send back.
   def update_settings!(changes)
-    update!(changes.to_h.symbolize_keys.slice(*KEYS))
+    given = changes.to_h.symbolize_keys.slice(*KEYS)
+    update!(given.reject { |key, value| WRITE_ONLY.include?(key) && value.blank? })
   end
 end

@@ -24,9 +24,23 @@ class Api::V1::ActionItemsController < Api::V1::ApiController
     render :show, status: :created
   end
 
-  # One call covers taking, handing over and finishing. The service decides which event is recorded.
+  # One call covers renaming, taking, handing over, finishing, reopening and letting go. The service decides which
+  # event is recorded. status open reopens a done item and lets go of one in progress, since open is nobody holding it.
   def update
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
+
+    if params.key?(:description)
+      refusal = service.rename_action(action: @action_item, description: params[:description], renamed_by: Current.principal)
+      return render json: error_response("validation_error", refusal), status: :unprocessable_entity if refusal
+    end
+
+    if params[:status] == IncidentAction::STATUS_OPEN
+      item = @action_item.reload
+      refusal = if item.done? then service.reopen_action(action: item, reopened_by: Current.principal)
+      elsif item.assigned? then service.unassign_action(action: item, unassigned_by: Current.principal)
+      end
+      return render json: error_response("validation_error", refusal), status: :unprocessable_entity if refusal
+    end
 
     assign_item if params.key?(:assignee_id)
 

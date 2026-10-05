@@ -17,6 +17,8 @@ Rails.application.routes.draw do
 
       # Authenticated by the source's own secret through its provider adapter.
       post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
+      # Authenticated by the workspace's issue tracker webhook secret, as the tracker signs it.
+      post "issue_events/:token", to: "issue_events#create", as: :issue_events
 
       resources :incidents, only: [ :index, :show, :create, :update ] do
         resources :timeline, only: [ :index ], controller: "timeline" do
@@ -270,6 +272,10 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/actions/:id/pick_up", to: "incident_actions#pick_up", as: :pick_up_incident_action
     patch "/incidents/:incident_id/actions/:id/assign", to: "incident_actions#assign", as: :assign_incident_action
     patch "/incidents/:incident_id/actions/:id/complete", to: "incident_actions#complete", as: :complete_incident_action
+    post "/incidents/:incident_id/actions/:id/issue", to: "incident_actions#create_issue", as: :incident_item_issue
+    patch "/incidents/:incident_id/actions/:id/rename", to: "incident_actions#rename", as: :rename_incident_item
+    patch "/incidents/:incident_id/actions/:id/reopen", to: "incident_actions#reopen", as: :reopen_incident_item
+    patch "/incidents/:incident_id/actions/:id/unassign", to: "incident_actions#unassign", as: :unassign_incident_item
     post "/incidents/:incident_id/runbooks/:incident_runbook_id/steps/:step_id/claim", to: "incident_runbooks#claim_step", as: :claim_runbook_step
     post "/incidents/:incident_id/runbooks", to: "incident_runbooks#create", as: :incident_runbooks
     post "/incidents/:incident_id/subscription", to: "incident_subscriptions#create", as: :incident_subscription

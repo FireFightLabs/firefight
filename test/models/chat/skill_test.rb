@@ -52,11 +52,12 @@ class Chat::SkillTest < ActiveSupport::TestCase
   end
 
   # A native pack's tools are in this repository, so its skills are held to them here. A connected server's are
-  # checked each day by SkillCheckJob.
+  # checked each day by SkillCheckJob, which is also how a provider reached through its server keeps its skills when
+  # Firefight's own app with it has a pack.
   test "every tool and parameter a native provider's skill names is one its pack declares" do
     Chat::Skill.all.reject(&:firefight?).each do |skill|
       pack = Integrations::NativePack.for(skill.source)
-      next unless pack
+      next unless pack && IntegrationProvider.find(skill.source)&.kind == Integration::KIND_NATIVE
 
       # A skill can name the capabilities that answer for the provider's resources, with their parameters.
       adapter = Integrations::Capabilities.adapter_for(skill.source)

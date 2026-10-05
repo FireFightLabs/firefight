@@ -95,6 +95,15 @@ module Slack::WorkspaceAdapter::IncidentModals
     push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
   end
 
+  def open_rename_action_modal(trigger_id:, action:, push: false)
+    view = Slack::Modals::RenameAction.build(action)
+    push ? push_modal(trigger_id: trigger_id, view: view) : open_modal(trigger_id: trigger_id, view: view)
+  end
+
+  def renamed_action_title(values:) = Slack::Modals::RenameAction.title(values)
+
+  def rename_action_error(message) = { response_action: "errors", errors: { Slack::Modals::RenameAction::BLOCK => message } }
+
   # The build returns nil when there is nothing in the workspace to link to.
   def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil, default_type: IncidentRelationship::RELATED)
     view = Slack::Modals::Link.build(incident, private_metadata: private_metadata, default_type: default_type)

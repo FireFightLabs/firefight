@@ -1,5 +1,6 @@
+import { useState } from "react"
 import { router } from "@inertiajs/react"
-import { IconDotsVertical, IconExternalLink, IconKey, IconRobot, IconUser, type Icon } from "@tabler/icons-react"
+import { IconDotsVertical, IconExternalLink, IconKey, IconRobot, IconTicket, IconUser, type Icon } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
@@ -18,10 +19,15 @@ import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { actionAnchorId } from "@/pages/incidents/lib/action-anchor"
 import { newTabAttributes } from "@/lib/links"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
+import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { RenameItemDialog } from "@/pages/incidents/components/index/rename-item-dialog"
 import {
   assignIncidentActionPath,
   completeIncidentActionPath,
+  incidentItemIssuePath,
   pickUpIncidentActionPath,
+  reopenIncidentItemPath,
+  unassignIncidentItemPath,
 } from "@/lib/routes"
 
 // A machine holding an item wears its own mark, since who has the work is what
@@ -52,11 +58,15 @@ function ActionMenu({
   action,
   incidentId,
   candidates,
+  onRename,
 }: {
   action: IncidentAction
   incidentId: string
   candidates: InlineChoice[]
+  onRename: () => void
 }) {
+  const isDone = action.status === "done"
+
   function pickUp() {
     router.patch(pickUpIncidentActionPath(incidentId, action.id), {}, afterMutation("actions", "timelineEvents"))
   }
@@ -67,6 +77,14 @@ function ActionMenu({
 
   function assign(memberId: string) {
     router.patch(assignIncidentActionPath(incidentId, action.id), { member_id: memberId }, afterMutation("actions", "timelineEvents"))
+  }
+
+  function reopen() {
+    router.patch(reopenIncidentItemPath(incidentId, action.id), {}, afterMutation("actions", "timelineEvents"))
+  }
+
+  function unassign() {
+    router.patch(unassignIncidentItemPath(incidentId, action.id), {}, afterMutation("actions", "timelineEvents"))
   }
 
   return (
@@ -81,18 +99,51 @@ function ActionMenu({
           <span className="sr-only">Item actions</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
-        {!action.assignee && <DropdownMenuItem onSelect={pickUp}>Pick up</DropdownMenuItem>}
-        <DropdownMenuItem onSelect={complete}>Mark done</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Assign to</DropdownMenuLabel>
-        {candidates.map((candidate) => (
-          <DropdownMenuItem key={candidate.value} onSelect={() => assign(candidate.value)}>
-            {candidate.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
+      {isDone ? (
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem onSelect={reopen}>Reopen</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
+        </DropdownMenuContent>
+      ) : (
+        <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
+          {!action.assignee && <DropdownMenuItem onSelect={pickUp}>Pick up</DropdownMenuItem>}
+          <DropdownMenuItem onSelect={complete}>Mark done</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
+          {action.assignee && <DropdownMenuItem onSelect={unassign}>Unassign</DropdownMenuItem>}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Assign to</DropdownMenuLabel>
+          {candidates.map((candidate) => (
+            <DropdownMenuItem key={candidate.value} onSelect={() => assign(candidate.value)}>
+              {candidate.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      )}
     </DropdownMenu>
+  )
+}
+
+// Opens the item's issue in the workspace's tracker, or tries again after it failed. The issue arrives in a job, so
+// the page shows that it is being opened until it is there.
+function IssueRequest({ action, incidentId }: { action: IncidentAction; incidentId: string }) {
+  const blockedReason = action.issueRequestBlockedReason ?? undefined
+
+  function createIssue() {
+    router.post(incidentItemIssuePath(incidentId, action.id), {}, afterMutation("actions"))
+  }
+
+  return (
+    <Blocked reason={blockedReason} side="top">
+      <button
+        type="button"
+        onClick={createIssue}
+        disabled={Boolean(blockedReason)}
+        className="inline-flex items-center gap-1 hover:text-fg-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:no-underline"
+      >
+        <IconTicket className="size-3 shrink-0" />
+        {action.issueMissing ? "Try the issue again" : "Create issue"}
+      </button>
+    </Blocked>
   )
 }
 
@@ -110,6 +161,11 @@ export function ActionItem({
   const StatusIcon = actionStatusIcons[action.status]
   const statusColor = actionStatusStyles[action.status]
   const isDone = action.status === "done"
+  const [renaming, setRenaming] = useState(false)
+
+  function startRenaming() {
+    setRenaming(true)
+  }
 
   return (
     <div id={actionAnchorId(action.id)} className="group py-3 border-b border-border last:border-b-0 transition-shadow">
@@ -120,9 +176,9 @@ export function ActionItem({
         <p className={`flex-1 text-[13px] leading-[1.5] ${isDone ? "line-through text-fg-muted" : "text-fg-primary"}`}>
           {action.description}
         </p>
-        {canEdit && !isDone && (
+        {canEdit && (
           <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-            <ActionMenu action={action} incidentId={incidentId} candidates={candidates} />
+            <ActionMenu action={action} incidentId={incidentId} candidates={candidates} onRename={startRenaming} />
           </span>
         )}
       </div>
@@ -147,7 +203,17 @@ export function ActionItem({
             </a>
           </>
         )}
+        {canEdit && action.issueRequestOffered && (
+          <>
+            <span className="text-fg-disabled">·</span>
+            <IssueRequest action={action} incidentId={incidentId} />
+          </>
+        )}
       </div>
+      {action.issueStatus && <p className="mt-1 pl-[27px] text-xs text-fg-muted">{action.issueStatus}</p>}
+      {canEdit && renaming && (
+        <RenameItemDialog action={action} incidentId={incidentId} open={renaming} onOpenChange={setRenaming} />
+      )}
     </div>
   )
 }

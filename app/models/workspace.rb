@@ -7,6 +7,7 @@ class Workspace < ApplicationRecord
   include Workspace::Settings
   include Workspace::InvestigationLimits
   include Workspace::CodeFixes
+  include Workspace::IssueSync
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 

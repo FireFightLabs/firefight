@@ -156,7 +156,7 @@ class IncidentActionUpdateTest < ActiveSupport::TestCase
   end
 
   test "UPDATE_TYPES contains all types" do
-    expected = %w[created picked_up completed reassigned]
+    expected = %w[created picked_up completed reassigned renamed reopened unassigned]
     assert_equal expected.sort, IncidentActionUpdate::UPDATE_TYPES.sort
   end
 

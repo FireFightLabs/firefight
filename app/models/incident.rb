@@ -191,6 +191,13 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("actions can no longer be added to it. Add a follow-up instead")
   end
 
+  # An action is work during the incident, so one that is done stays done once the incident is over.
+  def action_reopen_blocked_reason(action_type)
+    return nil if action_type == IncidentAction::ACTION_TYPE_FOLLOWUP
+
+    terminal_blocked_reason("its actions can no longer be reopened. Reopen the incident first")
+  end
+
   def refuse_action_item!(action_type)
     blocked_reason = action_item_blocked_reason(action_type)
     raise NotActive, blocked_reason if blocked_reason

@@ -119,6 +119,7 @@ class IntegrationsController < InertiaController
     return redirect_to integrations_path, alert: "Unknown integration." if provider.nil?
 
     kind = provider.connect_kind(params[:kind])
+    return app_start(provider) if kind == Integration::KIND_NATIVE && provider.app_connect?
     return native_install_start(provider) if kind == Integration::KIND_NATIVE
     if provider.server_url.blank?
       return redirect_to integrations_path, alert: "One-click connect needs a hosted server for this integration. Connect with a token instead."
@@ -154,6 +155,7 @@ class IntegrationsController < InertiaController
       return redirect_to integrations_path, alert: "The connection attempt expired. Try again."
     end
     kind = provider.connect_kind(pending["kind"])
+    return app_callback(provider, pending) if kind == Integration::KIND_NATIVE && pending["app"]
     return native_install_callback(provider, pending) if kind == Integration::KIND_NATIVE
 
     credentials = Integrations::OauthFlow.exchange(
@@ -172,7 +174,10 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, alert: e.message
   end
 
+  # Removing the workspace's issue tracker takes back the webhook Firefight registered with it while its credentials
+  # still reach the tracker.
   def destroy
+    IssueSyncService.new(current_workspace).connection_removed(@integration, by: current_membership)
     @integration.update!(deleted_at: Time.current)
     redirect_to integrations_path
   end
@@ -213,6 +218,27 @@ class IntegrationsController < InertiaController
     connected(environment_row.integration.name, return_to_param)
   rescue NameTaken => e
     redirect_back fallback_location: integrations_path, inertia: { errors: { name: e.message } }
+  end
+
+  # Firefight's own app with a provider reached through its MCP server, which connects it natively. Like any OAuth,
+  # nothing is kept until the person comes back authorized.
+  def app_start(provider)
+    flow = Integrations::OauthFlow.begin_app(provider, redirect_uri: oauth_callback_integrations_url)
+    session[:integration_oauth] = {
+      "provider" => provider.key, "name" => params[:name].presence || "#{provider.name} issue sync", "environment_id" => environment_id_param,
+      "state" => flow[:state], "verifier" => flow[:verifier], "client_id" => flow[:client_id], "token_endpoint" => flow[:token_endpoint],
+      "kind" => Integration::KIND_NATIVE, "app" => true, "return_to" => return_to_param
+    }
+    redirect_to flow[:authorize_url], allow_other_host: true
+  end
+
+  def app_callback(provider, pending)
+    credentials = Integrations::OauthFlow.exchange_app(provider, pending, code: params[:code].to_s, redirect_uri: oauth_callback_integrations_url)
+    environment_row = connect!(provider, pending["name"], pending["environment_id"], kind: Integration::KIND_NATIVE)
+    environment_row.store_oauth!(credentials)
+    Integrations::ConnectionRefresh.run!(environment_row.integration)
+
+    connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
   end
 
   # The callback brings back an installation id, not tokens. Server-to-server tokens are minted from it at call time.

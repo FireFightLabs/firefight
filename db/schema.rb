@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -601,6 +601,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_120000) do
     t.uuid "runbook_step_id"
     t.string "status", default: "open", null: false
     t.datetime "updated_at", null: false
+    t.uuid "issue_integration_id"
+    t.string "issue_sync_state"
+    t.text "issue_sync_note"
+    t.uuid "issue_approval_id"
+    t.datetime "issue_status_synced_at"
+    t.datetime "issue_assignee_synced_at"
+    t.datetime "issue_title_synced_at"
     t.index ["assignee_id"], name: "index_incident_actions_on_assignee_id"
     t.index ["assignee_type", "assignee_id"], name: "index_incident_actions_on_assignee_type_and_assignee_id"
     t.index ["deleted_at"], name: "index_incident_actions_on_deleted_at"
@@ -608,6 +615,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_120000) do
     t.index ["incident_id", "action_type"], name: "index_incident_actions_on_incident_id_and_action_type"
     t.index ["incident_id", "runbook_step_id"], name: "index_incident_actions_on_incident_and_runbook_step", unique: true, where: "((runbook_step_id IS NOT NULL) AND (deleted_at IS NULL))"
     t.index ["incident_id", "status"], name: "index_incident_actions_on_incident_id_and_status"
+    t.index ["issue_integration_id", "external_key"], name: "index_incident_actions_on_issue_key", where: "((external_key IS NOT NULL) AND (deleted_at IS NULL))"
+    t.index ["issue_integration_id"], name: "index_incident_actions_on_issue_integration_id"
   end
 
   create_table "incident_conditions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1847,7 +1856,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_120000) do
     t.datetime "updated_at", null: false
     t.boolean "web_search_enabled", default: true, null: false
     t.string "code_fix_agent"
+    t.string "issue_tracker"
+    t.string "issue_creation", default: "never", null: false
+    t.jsonb "issue_tracker_target", default: {}, null: false
+    t.string "issue_webhook_token"
+    t.text "issue_webhook_secret"
+    t.string "issue_webhook_id"
+    t.datetime "issue_webhook_expires_at"
+    t.text "issue_webhook_error"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
+    t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
     t.index ["platform"], name: "index_workspaces_on_platform"
   end
@@ -1908,6 +1926,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_120000) do
   add_foreign_key "incident_action_updates", "incident_actions"
   add_foreign_key "incident_action_updates", "incidents"
   add_foreign_key "incident_actions", "incidents"
+  add_foreign_key "incident_actions", "integrations", column: "issue_integration_id", on_delete: :nullify
   add_foreign_key "incident_actions", "runbook_steps"
   add_foreign_key "incident_conditions", "incident_field_definitions"
   add_foreign_key "incident_conditions", "workspaces"

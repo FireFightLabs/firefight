@@ -119,4 +119,24 @@ class Api::V1::ActionItemsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  test "a description renames the item, and status open reopens a done one and lets go of one in progress" do
+    action = incident_actions(:inc1_action_in_progress)
+
+    patch api_v1_incident_action_item_url(@incident, action), params: { description: "Restart every worker" }, headers: api_headers, as: :json
+    assert_response :success
+    assert_equal "Restart every worker", action.reload.description
+
+    patch api_v1_incident_action_item_url(@incident, action), params: { status: IncidentAction::STATUS_OPEN }, headers: api_headers, as: :json
+    assert_equal [ IncidentAction::STATUS_OPEN, nil ], [ action.reload.status, action.assignee ]
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_UNASSIGNED)
+
+    action.update!(status: IncidentAction::STATUS_DONE)
+    patch api_v1_incident_action_item_url(@incident, action), params: { status: IncidentAction::STATUS_OPEN }, headers: api_headers, as: :json
+    assert_equal IncidentAction::STATUS_OPEN, action.reload.status
+    assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_REOPENED)
+
+    patch api_v1_incident_action_item_url(@incident, action), params: { description: "" }, headers: api_headers, as: :json
+    assert_response :unprocessable_entity
+  end
 end
