@@ -438,3 +438,36 @@ signoz:
     plugins/signoz/skills/signoz-generating-queries: queries
     plugins/signoz/skills/signoz-investigating-alerts: alerts
     plugins/signoz/skills/signoz-investigating-alerts/references: alerts
+
+# GitLab's documentation is CC BY-SA 4.0. Each page is copied as the markdown source in gitlab-org/gitlab's doc folder.
+gitlab:
+  site: https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of GitLab's documentation (https://docs.gitlab.com), copied unchanged from the markdown in the
+    doc folder of https://gitlab.com/gitlab-org/gitlab. They are licensed under the Creative Commons Attribution-ShareAlike
+    4.0 International license, https://creativecommons.org/licenses/by-sa/4.0/. Copyright GitLab B.V.
+  pages:
+    ci/debugging.md: ci/debugging
+    ci/job-troubleshooting.md: ci/jobs/job_troubleshooting
+    ci/job-logs.md: ci/jobs/job_logs
+    environments/environments.md: ci/environments/_index
+    environments/deployments.md: ci/environments/deployments
+    environments/deployment-safety.md: ci/environments/deployment_safety
+
+# GitHub's documentation is CC BY 4.0. Each page is copied as the markdown source in github/docs, Liquid tags included.
+github:
+  site: https://raw.githubusercontent.com/github/docs/main/content
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of GitHub's documentation (https://docs.github.com), copied unchanged from the markdown in
+    https://github.com/github/docs, whose {% %} tags fill in product names and versions. They are licensed under the
+    Creative Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright GitHub, Inc.
+  pages:
+    actions/troubleshoot-workflows.md: actions/how-tos/troubleshoot-workflows
+    actions/use-workflow-run-logs.md: actions/how-tos/monitor-workflows/use-workflow-run-logs
+    actions/enable-debug-logging.md: actions/how-tos/monitor-workflows/enable-debug-logging
+    actions/re-run-workflows-and-jobs.md: actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs
+    deployments/deployment-environments.md: actions/concepts/workflows-and-actions/deployment-environments
+    deployments/deployments-and-environments.md: actions/reference/workflows-and-actions/deployments-and-environments
+    deployments/view-deployment-history.md: actions/how-tos/deploy/configure-and-manage-deployments/view-deployment-history

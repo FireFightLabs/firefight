@@ -3,19 +3,18 @@ module Integrations
     # Pull requests, deploys, file reads and blame come from GitHub's API. Reading code by search, definition, history
     # and language server happens in the run's sandbox, see Github::Code.
     class Github < NativePack
+      Code = CodeHost::Code
+      include CodeHost
       include Code
       include Fixing
       include Libraries
+      include Actions
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
-      PATH_FORMAT = /\A[^\/\0][^\0]*\z/
-      # Refused in the executor, not the prompt. Prompts can be talked around.
-      SENSITIVE_PATHS = /\.env|credential|secret|\.pem\z|\.key\z|id_rsa|id_ed25519|\.p12\z|\.pfx\z/i
       FILE_LIMIT = 30
-      LINE_LIMIT = 200
-      CONTEXT_LINES = 10
       # Each deployment needs a second call for its state.
       DEPLOYMENT_LIMIT = 3
+      MAX_DEPLOYMENTS = 20
       MERGED_LIMIT = 10
       # Closed pull requests include unmerged ones, so fetch more than we keep.
       CLOSED_CANDIDATES = 50
@@ -27,7 +26,6 @@ module Integrations
       PULL_LOOKUP_LIMIT = 25
       CODEOWNERS_PATHS = [ ".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS" ].freeze
       PRODUCTION = /\Aprod/i
-      REF_FORMAT = %r{\A[\w.\-/]+\z}
 
       tool :pr_lookup,
            description: "Fetch a pull request: title, state, author, merge status, and changed files",
@@ -59,7 +57,8 @@ module Integrations
              "type" => "object",
              "properties" => {
                "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
-               "deployment_environment" => { "type" => "string", "description" => "Limit to one deployment environment, e.g. production (optional)" }
+               "deployment_environment" => { "type" => "string", "description" => "Limit to one deployment environment, e.g. production (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many (optional, #{DEPLOYMENT_LIMIT}, at most #{MAX_DEPLOYMENTS})" }
              },
              "required" => [ "repo" ]
            },
@@ -351,11 +350,21 @@ module Integrations
         GithubApp.installation_token(environment_row)
       end
 
+      # The repositories a definition is looked for in when none is named.
+      def visible_repositories(environment_row)
+        Array(GithubApp.get("/installation/repositories?per_page=100", token: GithubApp.installation_token(environment_row))["repositories"]).map { |repository| repository["full_name"] }
+      end
+
+      # GitHub's repositories, fetched with the installation's token as GitHub asks for one (x-access-token).
+      def code_remote(environment_row)
+        CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(environment_row) })
+      end
+
       private
 
       # ConnectionToolFactory strips "environment" from arguments before a pack sees it.
       def deployment_query(arguments)
-        query = { "per_page" => DEPLOYMENT_LIMIT }
+        query = { "per_page" => whole_number_argument(arguments, "limit", DEPLOYMENT_LIMIT, MAX_DEPLOYMENTS) }
         target = arguments["deployment_environment"].to_s
         query["environment"] = target if target.present?
         query.to_query
@@ -376,16 +385,6 @@ module Integrations
         Array(statuses).first&.fetch("state", nil).presence || "no status"
       rescue GithubApp::Error
         "state unavailable"
-      end
-
-      # Time.zone.parse accepts "last tuesday" and would filter on a window the caller never gave.
-      def since_argument(arguments)
-        raw = arguments["since"].to_s
-        return nil if raw.blank?
-
-        Time.iso8601(raw)
-      rescue ArgumentError
-        fail! "since must be an ISO 8601 time, for example 2026-09-12T09:00:00Z"
       end
 
       def merged_since?(pull, since)
@@ -494,24 +493,6 @@ module Integrations
         ].compact.join("\n\n")
       end
 
-      def grouped_files(files)
-        groups = files.group_by { |file| CodeChange.kind_for(file["filename"]) }
-        sections = CodeChange::KINDS.filter_map do |kind|
-          next unless groups[kind]
-
-          listed = groups[kind].map { |file| "  #{file['filename']} (#{file['status']}, +#{file['additions']} -#{file['deletions']})" }
-          "#{CodeChange::KIND_LABELS.fetch(kind)}:\n#{listed.join("\n")}"
-        end
-        "Changed files, most likely to matter first:\n#{sections.join("\n")}"
-      end
-
-      def dependency_text(files)
-        bumps = files.flat_map { |file| CodeChange::DependencyBumps.from(file["filename"], file["patch"]) }
-        return nil if bumps.empty?
-
-        "Dependency changes:\n#{bumps.map { |bump| "  #{bump}" }.join("\n")}"
-      end
-
       # Newest commits first, one pull request each, so a long range still names who to ask about the latest changes.
       def pull_requests_text(repo, commits, token)
         looked_up = commits.last(PULL_LOOKUP_LIMIT).reverse
@@ -556,17 +537,6 @@ module Integrations
         nil
       end
 
-      def owners_text(files, owners)
-        return "No CODEOWNERS file, so no owners are named." unless owners
-
-        by_owner = files.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |file, grouped|
-          owners.for(file["filename"]).each { |owner| grouped[owner] << file["filename"] }
-        end
-        return "CODEOWNERS names no owner for these files." if by_owner.empty?
-
-        "Owners of the changed files, from CODEOWNERS:\n#{by_owner.map { |owner, paths| "  #{owner}: #{paths.join(', ')}" }.join("\n")}"
-      end
-
       # Most likely to matter first, the same order as the grouping.
       def diffs_text(repo, head, files)
         ordered = files.sort_by { |file| CodeChange::KINDS.index(CodeChange.kind_for(file["filename"])) }
@@ -583,15 +553,6 @@ module Integrations
         "https://github.com/#{repo}/blob/#{ref || 'HEAD'}/#{path}#{anchor}"
       end
 
-      def ref_argument(arguments, key = "ref", required: false)
-        ref = arguments[key].to_s.strip
-        fail! "#{key} is required" if ref.blank? && required
-        return nil if ref.blank?
-        fail! "#{key} must be a commit SHA, branch or tag" unless ref.match?(REF_FORMAT) && !ref.include?("..")
-
-        ref
-      end
-
       # What the agent or the first step passed, in the shape the clue reader gives, each marked as given.
       def given_clues(arguments)
         listed = ->(key) { Array(arguments[key]).map { |value| { "value" => value.to_s.strip, "source" => "what was given" } }.reject { |clue| clue["value"].empty? } }
@@ -604,23 +565,6 @@ module Integrations
           "repositories" => listed.call("repositories").filter_map { |clue| clue.merge("value" => CodeChange.repository_name(clue["value"])) if CodeChange.repository_name(clue["value"]) },
           "names" => listed.call("names"), "paths" => frames, "error_texts" => listed.call("error_texts"), "commits" => listed.call("commits")
         }
-      end
-
-      def time_argument(arguments, key)
-        Time.iso8601(arguments[key].to_s)
-      rescue ArgumentError
-        fail! "#{key} must be an ISO 8601 time, for example 2026-09-12T09:00:00Z"
-      end
-
-      def slice_range(arguments, total)
-        from = Integer(arguments["start_line"].to_s, exception: false)
-        to = Integer(arguments["end_line"].to_s, exception: false) || from
-        return [ 1, [ total, LINE_LIMIT ].min ] unless from
-
-        from = (from - CONTEXT_LINES).clamp(1, total)
-        to = (to + CONTEXT_LINES).clamp(from, total)
-        to = [ to, from + LINE_LIMIT - 1 ].min
-        [ from, to ]
       end
 
       def format_blame(repo, path, ref, ranges, from, to)
@@ -637,14 +581,6 @@ module Integrations
         "#{path}:#{from}-#{to} at #{ref || 'the default branch'} #{permalink(repo, path, ref, from, to)}\n" \
           "#{rendered.join("\n")}\n\nCommits touching this range: #{distinct.join(', ')}. " \
           "Use commit_lookup or pr_lookup for the full change."
-      end
-
-      def path_argument(arguments)
-        path = arguments["path"].to_s
-        fail! "path must be a relative path inside the repository" unless path.match?(PATH_FORMAT) && !path.include?("..")
-        fail! "that path is not readable" if path.match?(SENSITIVE_PATHS)
-
-        path
       end
 
       def repo_argument(arguments)

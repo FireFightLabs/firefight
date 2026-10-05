@@ -94,5 +94,23 @@ module Integrations
 
       assert_equal "https://github.com/acme/api/pull/7", opened["html_url"]
     end
+
+    test "a job's log is fetched from the signed address GitHub redirects to, without the token, and only on a public host" do
+      redirect = Net::HTTPFound.new("1.1", "302", "Found")
+      redirect["location"] = "https://pipelines.actions.githubusercontent.com/logs/9?sig=1"
+      log = Net::HTTPOK.new("1.1", "200", "OK")
+      log.instance_variable_set(:@body, "step one\nfailed here\n")
+      log.instance_variable_set(:@read, true)
+      Addrinfo.stubs(:getaddrinfo).with("pipelines.actions.githubusercontent.com", nil, nil, :STREAM).returns([ stub(ip_address: "140.82.112.21") ])
+      sent = []
+      Http.stubs(:request).with { |uri, request, **options| sent << [ uri.host, request["Authorization"], options[:ipaddr] ] }.returns(redirect).then.returns(log)
+
+      assert_equal "step one\nfailed here\n", GithubApp.download("/repos/acme/web/actions/jobs/9/logs", token: "ghs_token")
+      assert_equal [ [ "api.github.com", "Bearer ghs_token", nil ], [ "pipelines.actions.githubusercontent.com", nil, "140.82.112.21" ] ], sent
+
+      Addrinfo.stubs(:getaddrinfo).with("pipelines.actions.githubusercontent.com", nil, nil, :STREAM).returns([ stub(ip_address: "10.0.0.8") ])
+      Http.stubs(:request).returns(redirect)
+      assert_match "private network", assert_raises(GithubApp::Error) { GithubApp.download("/repos/acme/web/actions/jobs/9/logs", token: "ghs_token") }.message
+    end
   end
 end

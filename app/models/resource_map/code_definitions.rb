@@ -43,19 +43,22 @@ class ResourceMap::CodeDefinitions
       wanted = found.reject { |candidate| taken.include?(pair(candidate)) }
       wanted.each { |candidate| keep(environment_row, open[pair(candidate)], candidate) }
       stale = (open.keys - wanted.map { |candidate| pair(candidate) }).map { |key| open[key] }
-      ResourceMap::Link.where(id: stale.select { |link| read_in_full.include?(link.to_resource.external_id) }.map(&:id)).delete_all
+      provider = environment_row.integration.provider
+      gone = stale.select { |link| link.to_resource.provider == provider && read_in_full.include?(link.to_resource.external_id) }
+      ResourceMap::Link.where(id: gone.map(&:id)).delete_all
     end
     found
   end
 
   def candidates(files)
-    repositories = ResourceMap::Resource.present.where(workspace: @workspace, kind: ResourceMap::KIND_REPOSITORY).index_by(&:external_id)
+    # By host and path, since a project mirrored on two hosts is two repositories.
+    repositories = ResourceMap::Resource.present.where(workspace: @workspace, kind: ResourceMap::KIND_REPOSITORY).index_by { |resource| [ resource.provider, resource.external_id ] }
     by_name = ResourceMap::Resource.present.where(workspace: @workspace).where.not(kind: SKIPPED_KINDS).to_a
                                    .select { |resource| resource.name.length >= MIN_NAME && STOP_WORDS.exclude?(resource.name.downcase) }
                                    .group_by { |resource| resource.name.downcase }
     found = Hash.new { |hash, key| hash[key] = [] }
     files.each do |file|
-      repository = repositories[file.repository]
+      repository = repositories[[ file.provider, file.repository ]]
       next unless repository
 
       lines = file.content.downcase.lines

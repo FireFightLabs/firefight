@@ -54,7 +54,7 @@ module Integrations
           gaps = Github.new(@integration).map_of(@row).gap_texts
 
           assert_includes gaps, "acme/infra is too large to list in full, so some of its infrastructure files may be missing."
-          assert_includes gaps, "2 infrastructure files in acme/infra could not be read: GitHub: Not Found"
+          assert_includes gaps, "2 infrastructure files in acme/infra could not be read: GitHub: Not Found."
         end
 
         test "a rate limit stops the search, and what was not searched keeps its suggestions" do
