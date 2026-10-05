@@ -336,6 +336,62 @@ providers:
       - { key: subscription_id, label: Subscription ID, hint: "The Azure subscription this environment runs in. Halon reads every region in it.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
     source_links: firefight
     map: firefight
+  - key: vercel
+    name: Vercel
+    category: Cloud and hosting
+    mark: VC
+    color: "#000000"
+    description: Projects, deployments and their build and runtime logs, and instant rollback or promotion of a deployment when you allow it.
+    server_url: ""
+    site: https://vercel.com
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - { key: team, label: Team, placeholder: team_... or my-team, optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
+    source_links: firefight
+    map: firefight
+  - key: render
+    name: Render
+    category: Cloud and hosting
+    mark: RE
+    color: "#000000"
+    description: Logs, metrics, deploys and events of the services and datastores in a Render workspace, and restarts, rollbacks and scaling when you allow it.
+    server_url: ""
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - { key: workspace, label: Workspace, placeholder: tea-..., pattern: "tea-[a-z0-9]+", allowed: "tea- followed by lowercase letters and numbers", hint: "The id of the Render workspace this environment runs in, shown on the workspace's Settings page." }
+    source_links: firefight
+    map: firefight
+  - key: railway
+    name: Railway
+    category: Cloud and hosting
+    mark: RW
+    color: "#0b0d0e"
+    description: Logs, metrics and deployments of the services in a Railway project, and restarts, rollbacks and scaling when you allow it.
+    server_url: ""
+    site: https://railway.com
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - { key: project, label: Project, placeholder: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, hint: "The id of the Railway project, shown in its Settings and in its URL after /project/." }
+      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads, by its name or id." }
+    source_links: firefight
+    map: firefight
+  - key: fly
+    name: Fly.io
+    category: Cloud and hosting
+    mark: FL
+    color: "#24175b"
+    description: Logs, metrics, releases and machines of the apps in a Fly.io organization, and restarts and rollbacks when you allow it.
+    server_url: ""
+    site: https://fly.io
+    kind: native
+    connect_with: api_token
+    connect_fields:
+      - { key: organization, label: Organization, placeholder: my-org, hint: "The slug of the Fly.io organization this environment runs in, as fly orgs list shows it." }
+    source_links: firefight
+    map: firefight
   - key: sentry
     name: Sentry
     category: Observability
