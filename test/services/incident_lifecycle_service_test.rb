@@ -106,6 +106,15 @@ class IncidentLifecycleServiceTest < ActiveSupport::TestCase
     assert_equal "Status update", update.message
   end
 
+  test "an update's bullet characters are stored and posted as a markdown list" do
+    @service.change_status(@incident, { summary: "Changed" }, changed_by: @member, message: "Findings: • Probing seen. • No access")
+
+    update = IncidentUpdate.find_by!(incident: @incident, update_type: IncidentUpdate::UPDATED)
+    workflow = SolidWorkflow::Workflow.find_by!(subject: @incident, name: IncidentUpdateWorkflow.workflow_name)
+    assert_equal "Findings:\n- Probing seen.\n- No access", update.message
+    assert_equal update.message, workflow.context["message"]
+  end
+
   test "close records change with INCIDENT_RESOLVED event" do
     resolved_status = @workspace.incident_statuses.closed.first
 

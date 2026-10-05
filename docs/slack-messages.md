@@ -99,6 +99,13 @@ The shared button only ever subscribes.
 
 - **Body is what a human wrote.** Quote it with `>` so it is visibly theirs and
   not the bot's. Never merge it into the title with a `\n`.
+- **A body that can run to several lines is quoted line by line.** mrkdwn's
+  `>` covers one line, so `"> #{message}"` quotes the first line and leaves the
+  rest bare. An update's message is markdown, so `Formatting.quoted_markdown`
+  converts it (links, bold, `- ` items drawn as `•`) and prefixes every line,
+  a blank one with a bare `>`. The prefixes add length, so
+  `StatusUpdate.body_sections` carries a long update on into further sections
+  at line boundaries rather than letting it pass the 3000 character limit.
 - **Fields are state**, joined with `  ·  ` on one line when there are three or
   fewer, one per line when the message is a milestone worth reading slowly.
   Use `Formatting.diff_text` so a change shows its before and after rather than

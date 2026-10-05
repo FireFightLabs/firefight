@@ -1,6 +1,9 @@
 module Slack
   module Messages
     module Formatting
+      LIST_MARKER = /\A([ \t]*)[-*+][ \t]+/
+      CODE_FENCE = /\A[ \t]*```/
+
       def self.format_duration(minutes)
         return "N/A" if minutes.nil?
 
@@ -94,6 +97,16 @@ module Slack
         out.gsub!(/\*\*(.+?)\*\*/m, "*\\1*")
         out.gsub!(/__(.+?)__/m, "*\\1*")
         out
+      end
+
+      # mrkdwn quotes one line per > and draws no list from a markdown marker.
+      def self.quoted_markdown(text)
+        in_code = false
+        markdown_to_mrkdwn(text.to_s.gsub(/\r\n?/, "\n")).split("\n", -1).map do |line|
+          in_code = !in_code if line.match?(CODE_FENCE)
+          line = line.sub(LIST_MARKER, "\\1• ") unless in_code
+          line.strip.empty? ? ">" : "> #{line}"
+        end.join("\n")
       end
     end
   end

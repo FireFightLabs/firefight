@@ -116,6 +116,7 @@ class IncidentLifecycleService
   end
 
   def update(incident, attrs, changed_by:, message: nil)
+    message = IncidentUpdate::MessageText.normalize(message)
     previous_status_name = incident.incident_status.name
     previous_severity_name = incident.incident_severity.name
     previous_type_name = incident.incident_type&.name
@@ -157,6 +158,7 @@ class IncidentLifecycleService
   # A canceled incident was never an incident, so no resolved_at, no postmortem
   # and no close workflow. The channel still archives since a false positive's channel is noise.
   def cancel(incident, attrs, changed_by:, message: nil)
+    message = IncidentUpdate::MessageText.normalize(message)
     previous_status_name = incident.incident_status.name
 
     lead = attrs.delete(:lead)

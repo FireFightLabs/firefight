@@ -43,6 +43,7 @@ import {
 } from "@/pages/incidents/components/index/timeline-note"
 import { TimelineChangeList } from "@/pages/incidents/components/index/timeline-change-list"
 import { TimelineFileAttachment } from "@/pages/incidents/components/index/timeline-file-attachment"
+import { TimelineUpdateMessage } from "@/pages/incidents/components/index/timeline-update-message"
 import { revealAction } from "@/pages/incidents/lib/action-anchor"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
 
@@ -297,10 +298,11 @@ function EventCard({ event }: { event: TimelineEvent }) {
   const hasAction = Boolean(event.action)
   const hasPin = Boolean(event.pin && (event.pin.text || event.pin.permalink))
   const hasNote = Boolean(event.milestone)
+  const hasMessage = Boolean(event.updateMessage)
   const hasDetails = Boolean(event.details)
   const hasFile = Boolean(event.file)
 
-  if (!hasChanges && !hasAction && !hasPin && !hasNote && !hasDetails && !hasFile) {
+  if (!hasChanges && !hasAction && !hasPin && !hasNote && !hasMessage && !hasDetails && !hasFile) {
     return null
   }
 
@@ -312,13 +314,16 @@ function EventCard({ event }: { event: TimelineEvent }) {
       {event.milestone && (
         <NoteQuote milestone={event.milestone} withDivider={hasChanges || hasAction || hasPin} />
       )}
+      {event.updateMessage && (
+        <TimelineUpdateMessage text={event.updateMessage} withDivider={hasChanges || hasAction || hasPin || hasNote} />
+      )}
       {event.details && (
-        <p className={`text-sm leading-relaxed text-muted-foreground ${hasChanges || hasAction || hasPin || hasNote ? "mt-2 border-t border-border pt-2" : ""}`}>
+        <p className={`text-sm leading-relaxed text-muted-foreground ${hasChanges || hasAction || hasPin || hasNote || hasMessage ? "mt-2 border-t border-border pt-2" : ""}`}>
           {event.details}
         </p>
       )}
       {event.file && (
-        <TimelineFileAttachment file={event.file} withDivider={hasChanges || hasAction || hasPin || hasNote || hasDetails} />
+        <TimelineFileAttachment file={event.file} withDivider={hasChanges || hasAction || hasPin || hasNote || hasMessage || hasDetails} />
       )}
     </div>
   )
