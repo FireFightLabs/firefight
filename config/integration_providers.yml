@@ -752,6 +752,31 @@ providers:
     site: https://console.clickhouse.cloud
     source_links: firefight
     map: firefight
+  - key: tinybird
+    name: Tinybird
+    category: Databases
+    mark: TB
+    color: "#25283d"
+    description: Read-only queries, data sources, API endpoints, their requests, errors and metrics, and deployments of your Tinybird workspace.
+    kind: native
+    connect_with: api_token
+    # A workspace lives in one of Tinybird's regions, each with its own API host (tinybird.co/docs/api-reference, Regions
+    # and endpoints), which the pack reaches by the region's key. Each site is the region's address in Tinybird Cloud, as
+    # Tinybird's CLI maps an API host to it (CLOUD_HOSTS in the tinybird package's tb/config.py). Toronto is not in that
+    # map and Tinybird documents no address for it, so it has no site and its results carry no link.
+    regions:
+      - { key: gcp-europe-west3, label: "Frankfurt, GCP (api.tinybird.co)", site: "https://cloud.tinybird.co/gcp/europe-west3" }
+      - { key: gcp-europe-west2, label: "London, GCP (api.europe-west2.gcp.tinybird.co)", site: "https://cloud.tinybird.co/gcp/europe-west2" }
+      - { key: gcp-us-east4, label: "Virginia, GCP (api.us-east.tinybird.co)", site: "https://cloud.tinybird.co/gcp/us-east4" }
+      - { key: gcp-northamerica-northeast2, label: "Toronto, GCP (api.northamerica-northeast2.gcp.tinybird.co)" }
+      - { key: aws-eu-central-1, label: "Frankfurt, AWS (api.eu-central-1.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/eu-central-1" }
+      - { key: aws-eu-west-1, label: "Ireland, AWS (api.eu-west-1.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/eu-west-1" }
+      - { key: aws-us-east-1, label: "Virginia, AWS (api.us-east.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/us-east-1" }
+      - { key: aws-us-west-2, label: "Oregon, AWS (api.us-west-2.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/us-west-2" }
+      - { key: aws-ap-east-1, label: "Hong Kong, AWS (api.ap-east-1.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/ap-east-1" }
+      - { key: aws-ap-southeast-2, label: "Sydney, AWS (api.ap-southeast-2.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/ap-southeast-2" }
+    source_links: firefight
+    map: firefight
   - key: turso
     name: Turso
     category: Databases
