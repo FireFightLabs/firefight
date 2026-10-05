@@ -422,6 +422,39 @@ providers:
     source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
+  - key: pagerduty
+    name: PagerDuty
+    category: Alerting and on-call
+    mark: PD
+    color: "#06ac38"
+    description: See who is on call and what is paging them, and acknowledge, escalate or add responders when you allow it.
+    # PagerDuty runs a US and an EU service region, each with its own hosted MCP server (support.pagerduty.com,
+    # pagerduty-mcp-server and service-regions). Both servers name their own OAuth endpoints.
+    regions:
+      - { key: us, label: US (app.pagerduty.com), server_url: "https://mcp.pagerduty.com/mcp", site: "https://app.pagerduty.com" }
+      - { key: eu, label: EU (app.eu.pagerduty.com), server_url: "https://mcp.eu.pagerduty.com/mcp", site: "https://app.eu.pagerduty.com" }
+    # Its tools are browse_ (reads) and manage_ (changes), as PagerDuty's documentation of the hosted server names them.
+    read_only_tools: [browse_incidents, browse_services, browse_schedules, browse_teams, browse_event_orchestrations, browse_alert_grouping, browse_status_pages, browse_escalation_policies, browse_users, browse_change_events, browse_activity]
+    source_links: firefight
+    map: none
+    map_note: "It pages people about what runs elsewhere and runs nothing of its own."
+  - key: opsgenie
+    name: Opsgenie
+    category: Alerting and on-call
+    mark: OG
+    color: "#172b4d"
+    description: See who is on call and which alerts are open, and acknowledge, escalate or add a note when you allow it.
+    kind: native
+    connect_with: api_token
+    # An Opsgenie account lives on the US or the EU instance, each with its own app and API (Atlassian support,
+    # European service region). The pack reads the API of the region chosen.
+    regions:
+      - { key: us, label: US (app.opsgenie.com), site: "https://app.opsgenie.com" }
+      - { key: eu, label: EU (app.eu.opsgenie.com), site: "https://app.eu.opsgenie.com" }
+    source_links: none
+    source_links_note: "Opsgenie's API gives no page address for an alert, an incident or a schedule, and its documentation names none, so Firefight builds no link."
+    map: none
+    map_note: "It pages people about what runs elsewhere and runs nothing of its own."
   - key: linear
     name: Linear
     category: Issues
@@ -430,6 +463,20 @@ providers:
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
     source_links: unchecked
+    map: none
+    map_note: "It holds issues, not infrastructure."
+  - key: jira
+    name: Jira
+    category: Issues
+    mark: JR
+    color: "#0052cc"
+    description: Find issues tied to what broke, and open follow-up issues from an incident.
+    # tools=all lists every tool on its own rather than behind Atlassian's discover and execute, so each is switched on
+    # and granted by itself.
+    server_url: https://mcp.atlassian.com/v2/mcp?tools=all
+    # Atlassian files these under its read_jira and search_jira permission groups, which only read.
+    read_only_tools: [atlassianuserinfo, getaccessibleatlassianresources, getjiraissue, searchjiraissuesusingjql, listjiraprojects, listjiraprojectissuetypesmetadata, getjiraissuetypemetawithfields, listjiraissuetransitions, listjiraissuelinktypes, listjiraissueremoteissuelinks, listjiraissueworklogs, lookupjiraaccountid, listjiraissueassignableusers, listjiraissuecomments, listjiraissuechangelogs, getjiracurrentuser, getjirauser, listjirastatuses, listjiraprojectcomponents, getjiraprojectversions, getjiraprojectversionrelatedwork, listjiraboards, getjiraboardconfig, getjiraboardissuedata, getjiraboardsprintdata, listjiraboardsprints, listjirafilters, listjiradashboards, getjiraentityproperty]
+    source_links: firefight
     map: none
     map_note: "It holds issues, not infrastructure."
   - key: notion
