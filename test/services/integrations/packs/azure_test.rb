@@ -244,6 +244,15 @@ module Integrations
         assert_match "Azure SQL databases could not be read", snapshot.gap_texts.first
       end
 
+      test "an app list that could not be read holds back the hostnames apps serve, and a server still provisioning reads pending" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
+        assert_equal "pending", Integrations::Providers::Azure.status_of("Provisioning")
+      end
+
       test "a list cut short is a gap with its kind unread, and Azure's states read as the map's words" do
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns(pages([
           { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "properties" => { "state" => "Updating" } }

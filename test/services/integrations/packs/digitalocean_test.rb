@@ -197,6 +197,14 @@ module Integrations
         assert_equal "The managed databases could not be read: DigitalOcean answered 403: forbidden.", snapshot.gaps.sole.text
       end
 
+      test "an app list the token may not read holds back the domains and repositories apps put on the map too" do
+        DigitaloceanApi.any_instance.stubs(:apps).raises(DigitaloceanApi::Error, "DigitalOcean answered 403: forbidden")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ], snapshot.unread_kinds
+      end
+
       test "baselines average an app's instances, and a database other than MySQL has none" do
         app = resource(ResourceMap::KIND_SERVICE, APP_ID, "shop")
         pg = resource(ResourceMap::KIND_DATABASE, "db-2", "pg", "engine" => "pg")

@@ -23,8 +23,18 @@ module Integrations
       end.returns(response(200, { data: { app: { releases: { nodes: [ { version: 3 } ] } } } }))
       assert_equal [ { "version" => 3 } ], FlyApi.new("t").releases("web", limit: 5)
 
-      Http.stubs(:request).returns(response(200, { errors: [ { message: "Could not find App" } ] }))
-      assert_equal "Fly answered: Could not find App", assert_raises(FlyApi::Error) { FlyApi.new("t").releases("web", limit: 5) }.message
+      Http.stubs(:request).returns(response(200, { errors: [ { message: "Could not find App." }, { message: "Try again" } ] }))
+      assert_equal "Fly answered: Could not find App, Try again.", assert_raises(FlyApi::Error) { FlyApi.new("t").releases("web", limit: 5) }.message
+    end
+
+    test "an app's certificates are read a page at a time from Fly's cursor" do
+      Http.expects(:request).with { |uri, _| uri.query == "limit=500" }.returns(response(200, { certificates: [ { hostname: "a.acme.dev" } ], next_cursor: "c2" }))
+      Http.expects(:request).with { |uri, _| uri.query == "limit=500&cursor=c2" }.returns(response(200, { certificates: [ { hostname: "b.acme.dev" } ] }))
+
+      read = FlyApi.new("t").certificates("web")
+
+      assert_equal %w[a.acme.dev b.acme.dev], read.items.map { |certificate| certificate["hostname"] }
+      assert_not read.incomplete?
     end
 
     test "a metrics query goes to the organization's Prometheus, and its error is raised" do

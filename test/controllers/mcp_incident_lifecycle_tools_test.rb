@@ -125,8 +125,8 @@ class McpIncidentLifecycleToolsTest < ActionDispatch::IntegrationTest
     _, is_error, text = call_tool(Mcp::Tools::DECLARE_INCIDENT, { answers: { name: "No severity" } })
 
     assert is_error
-    assert_match(/required/i, text)
-    assert_match(/get_form/, text)
+    assert_match(/required\. Call get_form/i, text)
+    assert_not_includes text, ";"
     assert_nil @workspace.incidents.find_by(name: "No severity")
   end
 

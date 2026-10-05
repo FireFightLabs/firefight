@@ -23,6 +23,9 @@ module Integrations
       KIND_NAMES = { KIND_APP => "App Platform app", KIND_DROPLET => "Droplet", KIND_DATABASE => "managed database" }.freeze
       MAP_KINDS = { KIND_APP => ResourceMap::KIND_SERVICE, KIND_DROPLET => ResourceMap::KIND_VIRTUAL_MACHINE,
                     KIND_DATABASE => ResourceMap::KIND_DATABASE }.freeze
+      # What each list puts on the map. An app also puts the domains it serves and the repositories it builds from there.
+      LISTED_KINDS = { KIND_APP => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ],
+                       KIND_DROPLET => [ ResourceMap::KIND_VIRTUAL_MACHINE ], KIND_DATABASE => [ ResourceMap::KIND_DATABASE ] }.freeze
 
       # The log types of apps_get_logs, as the API names them.
       LOG_TYPES = %w[RUN BUILD DEPLOY RUN_RESTARTED].freeze
@@ -323,12 +326,12 @@ module Integrations
           listed = read.call
           listed.items.each { |row| map_row(environment_row, kind, row, account, resources, links) }
           if listed.incomplete?
-            gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} #{KIND_NAMES.fetch(kind)}s were read.", kinds: [ MAP_KINDS.fetch(kind) ])
+            gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} #{KIND_NAMES.fetch(kind)}s were read.", kinds: LISTED_KINDS.fetch(kind))
           end
         rescue Integrations::RateLimited
           raise
         rescue DigitaloceanApi::Error => error
-          gaps << ResourceMap::Gap.new(text: Sentence.join("The #{KIND_NAMES.fetch(kind)}s could not be read", error), kinds: [ MAP_KINDS.fetch(kind) ])
+          gaps << ResourceMap::Gap.new(text: Sentence.join("The #{KIND_NAMES.fetch(kind)}s could not be read", error), kinds: LISTED_KINDS.fetch(kind))
         end
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
       end

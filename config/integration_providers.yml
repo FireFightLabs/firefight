@@ -70,7 +70,7 @@ providers:
     connect_fields:
       - key: url
         label: GitLab address
-        hint: Your own GitLab's address, such as https://gitlab.example.com. Leave it empty for GitLab.com.
+        hint: The address of your own GitLab, such as https://gitlab.example.com. Leave it empty for GitLab.com.
         placeholder: https://gitlab.com
         optional: true
         pattern: "https://[^\\s/?#@]+(/[^\\s?#]*)?"
@@ -91,7 +91,7 @@ providers:
     connect_fields:
       - key: workspace
         label: Workspace
-        hint: The workspace's id, as it appears in its repositories' addresses, bitbucket.org/acme/...
+        hint: The workspace's id, as it appears after bitbucket.org/ in its repositories' addresses.
         placeholder: acme
     source_links: firefight
     map: firefight
@@ -388,7 +388,7 @@ providers:
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: team, label: Team, placeholder: team_... or my-team, optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
+      - { key: team, label: Team, placeholder: team_..., optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
     source_links: firefight
     map: firefight
   - key: render
@@ -453,7 +453,7 @@ providers:
         allowed: "letters, numbers and dashes, at most 50 characters, not starting or ending with a dash and not only numbers"
       - key: project
         label: Project
-        hint: "A project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
+        hint: "The project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
         placeholder: checkout
         path: true
         optional: true

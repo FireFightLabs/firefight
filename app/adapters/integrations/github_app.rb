@@ -56,7 +56,7 @@ module Integrations
       end
 
       def installation_token(environment_row)
-        cached = environment_row.credentials_hash[TOKEN_CACHE_KEY]
+        cached = ConnectionSettings.of(environment_row).credential(TOKEN_CACHE_KEY).to_h
         if cached.present?
           expires_at = Time.zone.parse(cached["expires_at"].to_s)
           return cached["token"] if expires_at && expires_at > TOKEN_REFRESH_MARGIN.from_now
@@ -138,7 +138,7 @@ module Integrations
         apply_api_headers(request)
         request.body = { query: query, variables: variables }.to_json
         body = parse_response(Http.request(uri, request, error_class: Error))
-        raise Error, "GitHub: #{body['errors'].map { |error| error['message'] }.join('; ')}" if body["errors"].present?
+        raise Error, "GitHub: #{body['errors'].filter_map { |error| Sentence.clean(error['message']) }.join(', ')}" if body["errors"].present?
 
         body.fetch("data")
       end
@@ -161,7 +161,7 @@ module Integrations
       private
 
       def mint_token(environment_row)
-        installation_id = environment_row.base_config["installation_id"].to_s
+        installation_id = ConnectionSettings.of(environment_row).installation_id.to_s
         if installation_id.blank?
           raise Error, "No GitHub App installation is linked to this connection. Reconnect GitHub to link one."
         end
@@ -173,7 +173,7 @@ module Integrations
         body = parse_response(Http.request(uri, request, error_class: Error))
 
         token = body.fetch("token") { raise Error, "GitHub returned no installation token" }
-        environment_row.store_credential!(TOKEN_CACHE_KEY, "token" => token, "expires_at" => body["expires_at"])
+        ConnectionSettings.of(environment_row).store_credential!(TOKEN_CACHE_KEY, "token" => token, "expires_at" => body["expires_at"])
         token
       end
 

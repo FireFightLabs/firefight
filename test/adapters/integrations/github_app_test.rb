@@ -63,11 +63,11 @@ module Integrations
     end
 
     test "a GraphQL answer with errors is refused with GitHub's words, since it still arrives as a success" do
-      response = stub(code: "200", body: { data: nil, errors: [ { message: "Could not resolve to a Commit" } ] }.to_json)
+      response = stub(code: "200", body: { data: nil, errors: [ { message: "Could not resolve to a Commit." }, { message: "Path not found" } ] }.to_json)
       Net::HTTP.stubs(:start).returns(response)
 
       error = assert_raises(GithubApp::Error) { GithubApp.graphql("query { x }", {}, token: "t") }
-      assert_match(/Could not resolve to a Commit/, error.message)
+      assert_equal "GitHub: Could not resolve to a Commit, Path not found", error.message
     end
 
     test "API errors surface GitHub's message" do

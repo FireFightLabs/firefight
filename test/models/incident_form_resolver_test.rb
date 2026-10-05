@@ -132,6 +132,13 @@ class IncidentFormResolverTest < ActiveSupport::TestCase
     end
   end
 
+  test "a validation error says each field's error as its own sentence, never joined with a semicolon" do
+    error = IncidentFormResolver::ValidationError.new([ "Severity is required", "Name must be a string." ])
+
+    assert_equal "Severity is required. Name must be a string.", error.message
+    assert_equal error.message, error.sentences
+  end
+
   test "validate_submission! returns result on success" do
     result = @resolver.validate_submission!(IncidentForm::SLUG_DECLARE, {
       "severity" => "critical"

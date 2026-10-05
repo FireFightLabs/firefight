@@ -117,10 +117,10 @@ module Integrations
 
     def timestamp(time) = Google::Protobuf::Timestamp.new(seconds: time.to_i, nanos: time.nsec)
 
-    # Modal's own words, never the credentials, whatever came back.
+    # Modal's own words as a clause without its closing period, never the credentials, whatever came back.
     def said(error)
       details = [ @token_id, @token_secret ].reject(&:empty?).reduce(error.details.to_s) { |text, secret| text.gsub(secret, "[hidden]") }
-      "Modal answered #{error.class.name.demodulize.underscore.humanize.downcase}: #{details.presence || 'no reason given'}"
+      "Modal answered #{error.class.name.demodulize.underscore.humanize.downcase}: #{Sentence.clean(details) || 'no reason given'}"
     end
   end
 end

@@ -17,6 +17,15 @@ module Integrations
         assert_equal [ 1, 2 ], learned["monitors"].map { |monitor| monitor["id"] }
       end
 
+      test "OpenStatus monitors past the page bound keep the first pages and say in the log that the list was cut short" do
+        endless = ->(page) { { "items" => [ { "id" => page, "name" => "Monitor #{page}", "url" => "https://#{page}.acme.com" } ], "pagination" => { "totalPages" => 99 } } }
+        Rails.logger.expects(:warn).with { |line| line.include?("health_probe.cut_short") }
+
+        learned = Openstatus.new(settings_for("openstatus")) { |_name, arguments, _reads| answer(endless.(arguments["page"])) }.check!
+
+        assert_equal (1..Openstatus::MAX_PAGES).to_a, learned["monitors"].map { |monitor| monitor["id"] }
+      end
+
       test "a refusal is raised with the provider's words, and a tool that is off teaches nothing" do
         settings = settings_for("openstatus")
         error = assert_raises(RemoteReader::Refused) do

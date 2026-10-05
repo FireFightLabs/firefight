@@ -44,6 +44,21 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE ], refused.resources.map(&:kind)
       end
 
+      test "a bare list is read like a wrapped one, and an answer in any other shape is a gap naming what the list holds" do
+        text = ->(body) { { "content" => [ { "type" => "text", "text" => body.to_json } ] } }
+        bare = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? text.(PROJECTS["projects"]) : text.(BRANCHES["branches"]) }.map
+        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_BRANCH ], bare.resources.map(&:kind)
+        assert_empty bare.gaps
+
+        odd = Supabase.new { |tool, _arguments| tool == Supabase::LIST_PROJECTS ? text.({ "data" => [] }) : answer(tool) }.map
+        assert_empty odd.resources
+        assert_equal [ "Supabase answered the projects in a shape Firefight does not read." ], odd.gap_texts
+        assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], odd.unread_kinds
+
+        branches = Supabase.new { |tool, _arguments| tool == Supabase::LIST_BRANCHES ? text.({ "message" => "ok" }) : answer(tool) }.map
+        assert_equal [ ResourceMap::KIND_BRANCH ], branches.unread_kinds
+      end
+
       test "a connection scoped to one project puts that project on the map by its ref, with its branches" do
         asked = []
         snapshot = Supabase.new(settings("project_ref" => "abcdefghijklmnopqrst")) do |tool, arguments|

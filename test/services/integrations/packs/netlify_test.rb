@@ -116,7 +116,7 @@ module Integrations
         snapshot = @pack.map_of(@row)
 
         assert_equal [ "Only the first 1 sites were read." ], snapshot.gaps.map(&:text)
-        assert_equal [ ResourceMap::KIND_SITE ], snapshot.unread_kinds
+        assert_equal [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ], snapshot.unread_kinds, "a site's domains and repository go with it"
       end
 
       test "the health check reads the token's user and records Netlify's refusal" do

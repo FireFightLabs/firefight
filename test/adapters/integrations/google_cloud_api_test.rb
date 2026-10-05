@@ -77,6 +77,20 @@ module Integrations
       assert_equal [ "vm-1" ], GoogleCloudApi.new(KEY).compute_instances("acme-prod").items.map { |instance| instance["name"] }
     end
 
+    test "a zone Compute Engine or GKE could not reach is named, and the list is not complete" do
+      GoogleCloudApi.any_instance.stubs(:access_token).returns("ya29.token")
+      Http.stubs(:request).returns(response(200, { items: { "zones/us-central1-a" => { instances: [ { name: "vm-1" } ] },
+                                                            "zones/us-east1-b" => { warning: { code: "UNREACHABLE" } } },
+                                                   unreachables: [ "zones/asia-east1-a" ] }))
+      instances = GoogleCloudApi.new(KEY).compute_instances("acme-prod")
+      assert instances.incomplete?
+      assert_equal %w[asia-east1-a us-east1-b], instances.unreachable
+
+      Http.stubs(:request).returns(response(200, { clusters: [ { name: "apps" } ], missingZones: [ "europe-west1-c" ] }))
+      clusters = GoogleCloudApi.new(KEY).clusters("acme-prod")
+      assert_equal [ [ "apps" ], false, [ "europe-west1-c" ] ], [ clusters.items.map { |cluster| cluster["name"] }, clusters.complete, clusters.unreachable ]
+    end
+
     private
 
     def response(code, body) = stub(code: code.to_s, body: body.to_json)

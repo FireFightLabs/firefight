@@ -318,7 +318,7 @@ module Integrations
         listed = instances(environment_row)
         return ResourceMap::Snapshot.new(resources: found, links: links) unless listed.incomplete?
 
-        gap = ResourceMap::Gap.new(text: "Only the first #{listed.items.size} services were read.", kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN ])
+        gap = ResourceMap::Gap.new(text: "Only the first #{listed.items.size} services were read.", kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
         ResourceMap::Snapshot.new(resources: found, links: links, gaps: [ gap ])
       end
 

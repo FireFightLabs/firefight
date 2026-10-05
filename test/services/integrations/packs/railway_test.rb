@@ -143,6 +143,15 @@ module Integrations
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
       end
 
+      test "a service list cut short holds back every kind it puts on the map, its domains and repositories with it" do
+        RailwayApi.any_instance.stubs(:service_instances).returns(Integrations::Pages::Read.new(items: [], complete: false))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_includes snapshot.unread_kinds, ResourceMap::KIND_DOMAIN
+        assert_includes snapshot.unread_kinds, ResourceMap::KIND_REPOSITORY
+      end
+
       test "a week of cpu and memory per service, and being asked to slow down stops the read" do
         web = ResourceMap::Resource.new(provider: "railway", account: "prj-1/env-prod", kind: ResourceMap::KIND_SERVICE, external_id: "svc-web", name: "web")
         repository = ResourceMap::Resource.new(provider: "github", account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/shop", name: "acme/shop")

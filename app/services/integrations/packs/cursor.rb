@@ -25,7 +25,7 @@ module Integrations
 
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
-        return "Paste a Cursor API key." if key.empty?
+        return "Paste an API key." if key.empty?
 
         CursorApi.new(key).me
         nil

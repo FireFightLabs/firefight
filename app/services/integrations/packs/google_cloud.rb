@@ -27,6 +27,7 @@ module Integrations
         TYPE_CLUSTER => ResourceMap::KIND_CLUSTER
       }.freeze
       TYPES_BY_KIND = KINDS.invert.freeze
+      SQL_STOPPED = "NEVER".freeze
 
       # The console pages Google's documentation links to, each opened on the connected project.
       PAGES = { TYPE_RUN => "run/services", TYPE_SQL => "sql", TYPE_MACHINE => "compute/instances", TYPE_CLUSTER => "kubernetes/list" }.freeze
@@ -420,24 +421,32 @@ module Integrations
             TYPE_RUN => -> { run_items(api, project) },
             TYPE_SQL => -> { whole(api.sql_instances(project)) { |instance| sql_item(project, instance) } },
             TYPE_MACHINE => -> { whole(api.compute_instances(project)) { |instance| machine_item(instance) } },
-            TYPE_CLUSTER => -> { [ api.clusters(project).map { |cluster| cluster_item(project, cluster) }, true ] }
+            TYPE_CLUSTER => -> { whole(api.clusters(project)) { |cluster| cluster_item(project, cluster) } }
           }.each do |type, read|
-            found, complete = read.call
+            found, complete, unreachable = read.call
             items.concat(found)
             next if complete
 
-            gaps << ResourceMap::Gap.new(text: "Only the first #{found.size} #{type.pluralize} were read.", kinds: [ KINDS.fetch(type) ])
+            text = if unreachable.present?
+              "Google Cloud could not reach #{unreachable.to_sentence}, so the #{type.pluralize} there were not read."
+            else
+              "Only the first #{found.size} #{type.pluralize} were read."
+            end
+            gaps << ResourceMap::Gap.new(text: text, kinds: listed_kinds(type))
           rescue Integrations::RateLimited
             raise
           rescue GoogleCloudApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("#{type.pluralize} could not be read", error), kinds: [ KINDS.fetch(type) ])
+            gaps << ResourceMap::Gap.new(text: Sentence.join("#{type.pluralize} could not be read", error), kinds: listed_kinds(type))
           end
           Listing.new(items: items, gaps: gaps)
         end
       end
 
-      # A list's resources as items, and whether the list was read in full.
-      def whole(read, &) = [ read.items.map(&), read.complete ]
+      # A list's resources as items, whether the list was read in full, and the zones Google Cloud could not reach.
+      def whole(read, &) = [ read.items.map(&), read.complete, read.try(:unreachable).to_a ]
+
+      # What a list puts on the map. A Cloud Run service also puts the run.app addresses it serves there.
+      def listed_kinds(type) = [ KINDS.fetch(type), (ResourceMap::KIND_DOMAIN if type == TYPE_RUN) ].compact
 
       # Every region's services. A region list or a service list cut short leaves the services incomplete.
       def run_items(api, project)
@@ -466,9 +475,12 @@ module Integrations
         nil
       end
 
+      # A stopped instance still reports RUNNABLE, and only its activation policy NEVER says it is stopped (Cloud SQL,
+      # Start, stop, and restart instances).
       def sql_item(project, instance)
+        status = instance.dig("settings", "activationPolicy") == SQL_STOPPED ? "stopped" : instance["state"].to_s.downcase
         { type: TYPE_SQL, id: instance["connectionName"].presence || "#{project}:#{instance['region']}:#{instance['name']}", name: instance["name"],
-          location: instance["region"], status: instance["state"].to_s.downcase, hosts: [],
+          location: instance["region"], status: status, hosts: [],
           details: { TYPE => TYPE_SQL, "engine" => instance["databaseVersion"], "tier" => instance.dig("settings", "tier"),
                      "availability" => instance.dig("settings", "availabilityType"), "region" => instance["region"] }.compact }
       end

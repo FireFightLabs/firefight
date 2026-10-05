@@ -15,6 +15,14 @@ module Integrations
     SERVICE_ACCOUNT = "service_account".freeze
     FORBIDDEN = 403
     PAGE_LIMIT = 10
+    # A zone Compute Engine could not reach, as aggregatedList marks its scope (InstancesScopedList warning code).
+    UNREACHABLE = "UNREACHABLE".freeze
+
+    # A list read across zones, with the zones Google Cloud could not reach, whose resources it holds none of. A list with
+    # one is not complete.
+    Reached = Data.define(:items, :complete, :unreachable) do
+      def incomplete? = !complete
+    end
 
     RESOURCE_MANAGER = "https://cloudresourcemanager.googleapis.com/v1".freeze
     RUN = "https://run.googleapis.com/v2".freeze
@@ -72,21 +80,30 @@ module Integrations
 
     def restart_sql_instance(project_id, name) = post("#{SQL_ADMIN}/projects/#{segment(project_id)}/instances/#{segment(name)}/restart")
 
-    # Every zone's instances. aggregatedList answers a map of scopes to their instances.
+    # Every zone's instances, as a Reached. aggregatedList answers a map of scopes to their instances, marks a zone it
+    # could not reach with an UNREACHABLE warning, and names any it left out in unreachables (InstanceAggregatedList).
     def compute_instances(project_id)
       url = "#{COMPUTE}/projects/#{segment(project_id)}/aggregated/instances"
-      Pages.read(max_pages: PAGE_LIMIT) do |token|
+      unreachable = []
+      read = Pages.read(max_pages: PAGE_LIMIT) do |token|
         page = get(url, "pageToken" => token)
-        [ page["items"].to_h.values.flat_map { |scope| Array(scope["instances"]) }, page["nextPageToken"] ]
+        scopes = page["items"].to_h
+        unreachable.concat(Array(page["unreachables"]), scopes.select { |_, scope| scope.to_h.dig("warning", "code") == UNREACHABLE }.keys)
+        [ scopes.values.flat_map { |scope| Array(scope["instances"]) }, page["nextPageToken"] ]
       end
+      reached(read.items, read.complete, unreachable)
     end
 
     def compute_instance(project_id, zone, name) = get(instance_path(project_id, zone, name))
 
     def reset_compute_instance(project_id, zone, name) = post("#{instance_path(project_id, zone, name)}/reset")
 
-    # Every cluster in every location, which the GKE API reads through the location "-".
-    def clusters(project_id) = Array(get("#{CONTAINER}/projects/#{segment(project_id)}/locations/-/clusters")["clusters"])
+    # Every cluster in every location, which the GKE API reads through the location "-", as a Reached. missingZones are
+    # zones whose clusters the list may be missing (ListClustersResponse).
+    def clusters(project_id)
+      body = get("#{CONTAINER}/projects/#{segment(project_id)}/locations/-/clusters")
+      reached(Array(body["clusters"]), true, Array(body["missingZones"]))
+    end
 
     def cluster(project_id, location, name) = get("#{CONTAINER}/projects/#{segment(project_id)}/locations/#{segment(location)}/clusters/#{segment(name)}")
 
@@ -136,6 +153,11 @@ module Integrations
     def segment(value) = Http.segment(value)
 
     private
+
+    def reached(items, complete, unreachable)
+      zones = unreachable.map { |zone| zone.to_s.delete_prefix("zones/") }.uniq
+      Reached.new(items: items, complete: complete && zones.empty?, unreachable: zones)
+    end
 
     def run_path(project_id, location, name) = "#{RUN}/projects/#{segment(project_id)}/locations/#{segment(location)}/services/#{segment(name)}"
 

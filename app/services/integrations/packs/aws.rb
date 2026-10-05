@@ -261,7 +261,7 @@ module Integrations
         key = values[ACCESS_KEY_ID].to_s.strip
         secret = values[SECRET_ACCESS_KEY].to_s.strip
         regions = Array(fields[REGIONS])
-        return "Paste an access key ID." if key.empty?
+        return "Paste an access key id." if key.empty?
         return "Paste the secret access key." if secret.empty?
         return "Choose at least one region." if regions.empty?
 
@@ -537,9 +537,12 @@ module Integrations
         [ entries, more ]
       end
 
+      # A rollout stays COMPLETED after its tasks start failing, so a service running fewer tasks than it wants once its
+      # rollout completed is degraded (ECS Service, runningCount and desiredCount).
       def service_entry(service, region)
         primary = Array(service[:deployments]).find { |deployment| deployment[:status] == "PRIMARY" } || {}
         status = (primary[:rollout_state] || service[:status]).to_s.downcase.presence
+        status = "degraded" if status == "completed" && service[:running_count].to_i < service[:desired_count].to_i
         cluster = service[:cluster_arn].to_s.split("/").last
         Entry.new(kind: SERVICE, arn: service[:service_arn], name: service[:service_name], region: region, cluster: cluster, status: status,
                   details: { "region" => region, "type" => service[:launch_type] || "capacity provider", "instances" => service[:desired_count],
@@ -671,7 +674,7 @@ module Integrations
         [ task[:task_arn].to_s.split("/").last, task[:last_status].to_s.downcase, ("health #{task[:health_status].to_s.downcase}" if task[:health_status].present?),
           "task definition #{family_revision(task[:task_definition_arn])}", "started #{time(task[:started_at] || task[:created_at])}",
           ("stopped #{time(task[:stopped_at])}" if task[:stopped_at]), ("#{task[:stop_code]}: #{task[:stopped_reason]}" if task[:stopped_reason].present?),
-          ("containers #{containers.join('; ')}" if containers.any?) ].compact.join(", ")
+          ("containers #{containers.to_sentence}" if containers.any?) ].compact.join(", ")
       end
 
       def deployment_lines(service)
@@ -742,7 +745,7 @@ module Integrations
           weights = each.dig(:routing_config, :additional_version_weights).to_h.map { |version, weight| "#{(weight * 100).round}% to #{version}" }
           "#{each[:name]} points at version #{each[:function_version]}#{" with #{weights.join(' and ')}" if weights.any?}"
         end
-        "Aliases: #{rows.join('; ')}"
+        "Aliases:\n#{rows.map { |row| "  #{row}" }.join("\n")}"
       end
 
       def instance_lines(environment_row, entry)
@@ -756,7 +759,7 @@ module Integrations
           "State: #{instance.dig(:state, :name)}#{", #{instance.dig(:state_reason, :message)}" if instance.dig(:state_reason, :message).present?}, launched #{time(instance[:launch_time])}",
           "Status checks: system #{status.dig(:system_status, :status) || 'not reported'}, instance #{status.dig(:instance_status, :status) || 'not reported'}" \
           "#{", attached EBS #{status.dig(:attached_ebs_status, :status)}" if status.dig(:attached_ebs_status, :status)}",
-          ("Scheduled events: #{events.join('; ')}" if events.any?),
+          ("Scheduled events: #{events.to_sentence}" if events.any?),
           "Image #{instance[:image_id]}#{", platform #{instance[:platform_details]}" if instance[:platform_details]}"
         ]
       end
@@ -1019,8 +1022,8 @@ module Integrations
       def changing(entry)
         yield
       rescue AwsApi::Denied => error
-        fail!("#{Sentence.of(error)} The access key's policy does not allow this change to #{entry.name}. Allow the action AWS " \
-              "names in the policy of the access key's IAM user, then run it again.")
+        fail!(Sentence.all(error, "The access key's policy does not allow this change to #{entry.name}. Allow the action AWS " \
+                                 "names in the policy of the access key's IAM user, then run it again."))
       end
 
       def family_revision(arn) = arn.to_s.split("/").last.presence
