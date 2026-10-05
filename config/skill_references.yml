@@ -305,3 +305,30 @@ postgresql:
   license: LICENSE
   paths:
     skills/postgres/references: postgres
+
+# ClickHouse's agent skills are Apache 2.0. Only its best practices rules are copied, since they cover querying safely.
+clickhouse:
+  repository: https://github.com/ClickHouse/agent-skills
+  license: LICENSE
+  paths:
+    skills/clickhouse-best-practices/rules: best-practices
+
+# Turso's documentation is MIT and written in MDX, so each page is kept as markdown.
+turso:
+  repository: https://github.com/tursodatabase/turso-docs
+  license: LICENSE
+  extensions: [mdx]
+  paths:
+    help: help
+    cloud: cloud
+    features: features
+
+# Upstash's agent skills are MIT. Its documentation carries no license, so what it says is in our own words instead.
+upstash:
+  repository: https://github.com/upstash/skills
+  license: LICENSE
+  paths:
+    skills/upstash-qstash-js/advanced: qstash
+    skills/upstash-qstash-js/fundamentals: qstash
+    skills/upstash-workflow-js: workflow
+    skills/upstash-redis-js/performance: redis
