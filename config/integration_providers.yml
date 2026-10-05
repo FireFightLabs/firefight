@@ -458,10 +458,11 @@ providers:
     category: Databases
     mark: NE
     color: "#00e599"
-    description: Read-only queries and branch history for a Neon Postgres database.
+    description: Read-only queries, branch history and compute status for a Neon Postgres database, and restarting a compute when you allow it.
     server_url: https://mcp.neon.tech/mcp
-    source_links: unchecked
-    map: unchecked
+    site: https://console.neon.tech
+    source_links: firefight
+    map: firefight
   - key: supabase
     name: Supabase
     category: Databases
@@ -469,8 +470,24 @@ providers:
     color: "#3ecf8e"
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
-    source_links: unchecked
-    map: unchecked
+    site: https://supabase.com/dashboard
+    connect_fields:
+      - key: project_ref
+        label: Project
+        hint: One project's ref, found under Project Settings, to keep the connection to that project. Leave it empty to reach every project the account can see.
+        placeholder: abcdefghijklmnopqrst
+        query: project_ref
+        optional: true
+      - key: read_only
+        label: Access
+        hint: Read-only leaves out every tool that changes the database or the project.
+        query: read_only
+        default: "true"
+        options:
+          - { value: "true", label: Read-only }
+          - { value: "false", label: Read and write }
+    source_links: firefight
+    map: firefight
   - key: planetscale
     name: PlanetScale
     category: Databases
@@ -491,7 +508,7 @@ providers:
     connect_with: connection_url
     source_links: none
     source_links_note: "A database reached by its own connection URL has no page to open."
-    map: unchecked
+    map: firefight
   - key: custom_mcp
     name: Custom MCP server
     category: Custom

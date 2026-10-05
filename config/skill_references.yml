@@ -282,3 +282,26 @@ fly:
     machines/autostop-autostart.md: launch/autostop-autostart
     monitoring/metrics.md: monitoring/metrics
     monitoring/logs-api-options.md: monitoring/logs-api-options
+
+# Neon's agent skills (Apache 2.0). Only the guides under its overview skill are copied, since the skills themselves
+# walk an agent through building on Neon rather than reading it.
+neon:
+  repository: https://github.com/neondatabase/agent-skills
+  license: LICENSE
+  paths:
+    skills/neon/references: neon
+
+# Supabase's agent skills (MIT): its Postgres best practices, one guide per rule.
+supabase:
+  repository: https://github.com/supabase/agent-skills
+  license: LICENSE
+  paths:
+    skills/supabase-postgres-best-practices/references: postgres
+
+# A database reached by its URL is plain Postgres, so its skills are backed by PlanetScale's Postgres guides (MIT),
+# which are about Postgres itself and travel here with their license.
+postgresql:
+  repository: https://github.com/planetscale/database-skills
+  license: LICENSE
+  paths:
+    skills/postgres/references: postgres
