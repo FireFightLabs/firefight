@@ -150,6 +150,16 @@ class IncidentEvent < ApplicationRecord
   before_destroy :purge_artifact, prepend: true
   has_many :webhook_deliveries, dependent: :delete_all
 
+  # The file is served only when the attachment names this event and holds the blob this event
+  # recorded archiving, so a row pointing at the wrong owner never reaches anyone.
+  def archived_file
+    attachment = artifact.attachment
+    return nil unless attachment
+    return nil unless attachment.record_id == id && attachment.blob_id.to_s == metadata.to_h["blob_id"].to_s
+
+    attachment
+  end
+
   def milestone?
     event_type == MILESTONE_NOTED
   end
