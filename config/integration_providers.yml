@@ -141,7 +141,27 @@ providers:
     color: "#362d59"
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
-    source_links: unchecked
+    # Sentry's server holds a connection to the organization, and optionally the project, its address names. The
+    # patterns are Sentry's own slug rules, ORG_SLUG_PATTERN and MIXED_SLUG_PATTERN in getsentry/sentry
+    # src/sentry/utils/slug.py, at most 50 characters as DEFAULT_SLUG_MAX_LENGTH says.
+    connect_fields:
+      - key: organization
+        label: Organization
+        hint: "The organization's slug, under Settings, General Settings in Sentry, or the name before .sentry.io in its address."
+        placeholder: acme
+        path: true
+        pattern: '(?![0-9]+\z)[A-Za-z0-9][A-Za-z0-9-]{0,49}(?<!-)'
+        allowed: "letters, numbers and dashes, at most 50 characters, not starting or ending with a dash and not only numbers"
+      - key: project
+        label: Project
+        hint: "A project's slug, under Settings, Projects. Leave it empty to reach every project, so Halon can ask about each service by its name."
+        placeholder: checkout
+        path: true
+        optional: true
+        pattern: '(?![0-9]+\z)[a-z0-9_-]{1,50}'
+        allowed: "lowercase letters, numbers, dashes and underscores, at most 50 characters, not only numbers"
+    source_links: server
+    source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
   - key: linear
