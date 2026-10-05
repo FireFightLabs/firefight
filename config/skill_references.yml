@@ -54,3 +54,38 @@ cloudflare:
     origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
     origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
     analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+
+# Kubernetes' documentation is CC BY 4.0. Each page is copied as the markdown the site is built from, in the
+# kubernetes/website repository, rather than cloning a repository that holds every translation and image.
+kubernetes:
+  site: https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of the Kubernetes documentation (https://kubernetes.io/docs), copied unchanged from the
+    markdown the site is built from, in https://github.com/kubernetes/website. They are licensed under the Creative
+    Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright The
+    Kubernetes Authors.
+  pages:
+    debug/debug-pods.md: tasks/debug/debug-application/debug-pods
+    debug/debug-running-pod.md: tasks/debug/debug-application/debug-running-pod
+    debug/determine-reason-pod-failure.md: tasks/debug/debug-application/determine-reason-pod-failure
+    debug/debug-service.md: tasks/debug/debug-application/debug-service
+    debug/debug-statefulset.md: tasks/debug/debug-application/debug-statefulset
+    workloads/pod-lifecycle.md: concepts/workloads/pods/pod-lifecycle
+    workloads/deployment.md: concepts/workloads/controllers/deployment
+    workloads/statefulset.md: concepts/workloads/controllers/statefulset
+    workloads/daemonset.md: concepts/workloads/controllers/daemonset
+    workloads/rollback-daemon-set.md: tasks/manage-daemon/rollback-daemon-set
+    workloads/scale-stateful-set.md: tasks/run-application/scale-stateful-set
+    workloads/job.md: concepts/workloads/controllers/job
+    workloads/cron-jobs.md: concepts/workloads/controllers/cron-jobs
+    workloads/horizontal-pod-autoscale.md: concepts/workloads/autoscaling/horizontal-pod-autoscale
+    configuration/probes.md: tasks/configure-pod-container/configure-liveness-readiness-startup-probes
+    configuration/manage-resources-containers.md: concepts/configuration/manage-resources-containers
+    configuration/images.md: concepts/containers/images
+    scheduling/assign-pod-node.md: concepts/scheduling-eviction/assign-pod-node
+    scheduling/taint-and-toleration.md: concepts/scheduling-eviction/taint-and-toleration
+    scheduling/node-pressure-eviction.md: concepts/scheduling-eviction/node-pressure-eviction
+    networking/ingress.md: concepts/services-networking/ingress
+    metrics/resource-metrics-pipeline.md: tasks/debug/debug-cluster/resource-metrics-pipeline
+    access/rbac.md: reference/access-authn-authz/rbac
