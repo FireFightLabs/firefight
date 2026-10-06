@@ -21,6 +21,7 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
                            .returns("id" => "whk-1", "secret" => RENDER_SECRET)
     with_app_host { Integrations::MapEvents.prepare!(row) }
     assert_equal [ "whk-1", true ], [ row.reload.map_events_webhook_id, row.live_updates.on ]
+    assert_equal Integrations::MapEventSources::Render.limits, row.live_updates.reason, "while on, the connection says what Render does not send"
 
     ResourceMap.record!(row, ResourceMap::Snapshot.new(resources: [ render_service("live"), render_service("live", id: "srv-old", name: "old") ]))
     stub_render_service("build_failed")
@@ -96,6 +97,7 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
                            .returns("id" => "hook_1", "secret" => VERCEL_SECRET)
     with_app_host { Integrations::MapEvents.prepare!(row) }
     assert row.reload.live_updates.on
+    assert_equal Integrations::MapEventSources::Vercel.limits, row.live_updates.reason
 
     ResourceMap.record!(row, ResourceMap::Snapshot.new(resources: [ vercel_project("ready"), vercel_project("ready", id: "prj_old", name: "old") ]))
     Integrations::VercelApi.any_instance.stubs(:project).with("prj_1").returns(

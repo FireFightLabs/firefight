@@ -79,6 +79,36 @@ module Integrations
           assert_includes snapshot.gap_texts, "Only the first 1 of 1500 repositories were listed."
         end
 
+        test "a change re-reads one repository with its infrastructure files, and only GitHub's not found takes it away" do
+          GithubApp.stubs(:get).with("/repos/acme/cdk", token: "ghs_token").returns(repo("acme/cdk"))
+          scope = ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/cdk")
+
+          snapshot = Github.new(@integration).map_refresh(@row, scope)
+
+          assert_equal [ [ "github", "acme", ResourceMap::KIND_REPOSITORY, "acme/cdk" ] ], snapshot.resources.map(&:key)
+          assert_equal [ "cdk.json", "bin/app.ts" ], snapshot.code_files.map(&:path)
+          assert_equal %w[acme/cdk], snapshot.code_read
+          assert_empty snapshot.gone
+
+          GithubApp.stubs(:get).with("/repos/acme/gone", token: "ghs_token").raises(GithubApp::NotFound, "GitHub: Not Found")
+          gone = Github.new(@integration).map_refresh(@row, scope.with(external_id: "acme/gone"))
+          assert_equal [ [ "github", "acme", ResourceMap::KIND_REPOSITORY, "acme/gone" ] ], gone.gone
+
+          GithubApp.stubs(:get).with("/repos/acme/odd", token: "ghs_token").raises(GithubApp::Error, "GitHub: Server Error")
+          assert_raises(GithubApp::Error) { Github.new(@integration).map_refresh(@row, scope.with(external_id: "acme/odd")) }
+          assert_nil Github.new(@integration).map_refresh(@row, ResourceMap::Scope.new(account: "acme")), "an account is read by a sweep"
+        end
+
+        test "a changed path counts as infrastructure when the sweep would read it by its path alone" do
+          defines = %w[cloudflare/dns.tf terragrunt.hcl workers/wrangler.toml fly.toml render.yaml vercel.json k8s/deployment.yaml
+                       kustomize/base/kustomization.yaml pulumi/Pulumi.yaml cdk.json charts/web/Chart.yaml charts/web/templates/svc.yaml
+                       helm/values.yaml infra/lib/stack.ts infrastructure/main.go stacks/web.py]
+          others = %w[README.md src/app.ts .github/workflows/ci.yml node_modules/x/main.tf pulumi/Pulumi.prod.yaml config/settings.yml]
+
+          defines.each { |path| assert Infrastructure.defines?(path), "#{path} may be infrastructure" }
+          others.each { |path| assert_not Infrastructure.defines?(path), "#{path} is not read as infrastructure" }
+        end
+
         private
 
         def repo(name, extra = {})

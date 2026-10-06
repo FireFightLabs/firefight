@@ -70,6 +70,29 @@ module Integrations
       assert_equal({}, @api.request("POST", "firefight", "services/web/restart"))
     end
 
+    test "a notification integration is listed, made for the project and deleted at the paths the client gives, and a refusal is told apart" do
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/integrations/notifications" && request.is_a?(Net::HTTP::Get) }
+          .returns(response(200, { data: { notificationIntegrations: [ { id: "theirs", webhook: "https://example.com" } ] }, pagination: { hasNextPage: false } }))
+      assert_equal [ "theirs" ], @api.notifications.items.map { |integration| integration["id"] }
+
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/integrations/notifications" && request.is_a?(Net::HTTP::Post) &&
+          JSON.parse(request.body) == { "name" => "Firefight live updates", "type" => "RAW_WEBHOOK", "webhook" => "https://ff.example/hook", "secret" => "s3cret",
+                                        "restricted" => true, "projects" => [ "firefight" ], "events" => { "trigger:build:start" => true } }
+      end.returns(response(200, { data: { id: "firefight-live-updates" } }))
+      assert_equal "firefight-live-updates", @api.create_notification(name: "Firefight live updates", url: "https://ff.example/hook", secret: "s3cret",
+                                                                      events: [ "trigger:build:start" ], projects: [ "firefight" ])["id"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/integrations/notifications/firefight-live-updates" && request.is_a?(Net::HTTP::Delete) }
+          .returns(response(200, { data: {} }))
+      @api.delete_notification("firefight-live-updates")
+
+      Http.stubs(:request).returns(response(403, { error: { message: "Missing permission: Notifications Create" } }))
+      assert_raises(NorthflankApi::Refused) { @api.notifications }
+      Http.stubs(:request).returns(response(404, { error: { message: "Job not found" } }))
+      assert_raises(NorthflankApi::NotFound) { @api.job("firefight", "nightly") }
+    end
+
     private
 
     def response(code, body)

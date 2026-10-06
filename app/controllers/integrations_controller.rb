@@ -6,10 +6,11 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret live_updates],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret live_updates live_updates_setup],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :live_updates, :destroy ]
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :live_updates, :live_updates_setup,
+                      :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -194,13 +195,29 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, alert: e.message
   end
 
+  # Opens the provider's own page that sets one place up to send changes as they happen, with the connection's address and
+  # secret filled in. A redirect, so the secret is never in a page Firefight renders.
+  def live_updates_setup
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    blocked = row.live_updates_setup_blocked_reason(params[:place].to_s)
+    return redirect_to integrations_path, alert: blocked if blocked
+
+    # The link is built from the place the provider offers, never from what was asked, so it only leads to its own pages.
+    offered = row.live_updates_offer.places.find { |each| each.place == params[:place].to_s }
+    redirect_to row.live_updates_setup_link(offered.place), allow_other_host: true
+  end
+
   # Removing the workspace's issue tracker, or a connection Firefight registered for map changes, takes back the webhook
-  # Firefight registered while its credentials still reach the provider.
+  # Firefight registered while its credentials still reach the provider. What a person set up to send changes stays at
+  # the provider, so the toast says how to remove it.
   def destroy
     IssueSyncService.new(current_workspace).connection_removed(@integration, by: current_membership)
+    removal = @integration.integration_environments.filter_map(&:live_updates_removal_words).uniq
     Integrations::MapEvents.connection_removed(@integration)
     @integration.update!(deleted_at: Time.current)
-    redirect_to integrations_path
+    return redirect_to integrations_path if removal.empty?
+
+    redirect_to integrations_path, notice: "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends. #{removal.join(' ')}"
   end
 
   private

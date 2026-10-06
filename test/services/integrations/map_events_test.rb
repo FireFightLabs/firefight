@@ -271,6 +271,43 @@ module Integrations
                    "The map still updates at each sweep.", row.reload.live_updates.reason
     end
 
+    test "a registration that no longer covers what the connection reaches is made again at the next sweep, and only then" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      with_app_host { MapEvents.prepare!(row) }
+      LiveTestHook.registered = nil
+
+      LiveTestHook.stubs(:register_again?).returns(false)
+      with_app_host { MapEvents.prepare!(row.reload) }
+      assert_nil LiveTestHook.registered
+
+      LiveTestHook.stubs(:register_again?).raises(Integrations::Error, "Live hook answered 500: oops")
+      with_app_host { MapEvents.prepare!(row.reload) }
+      assert_nil LiveTestHook.registered
+      assert_nil row.reload.map_events_error, "a question Live hook could not answer is asked again at the next sweep"
+
+      LiveTestHook.stubs(:register_again?).with(row, url: "https://firefight.example.com/api/v1/map_events/#{row.map_events_token}").returns(true)
+      with_app_host { MapEvents.prepare!(row.reload) }
+      assert LiveTestHook.registered
+      assert_equal 2, Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_MAP_SWEEP).where("params ->> 'webhook' = ?", IntegrationEnvironment::WEBHOOK_REGISTER).count
+
+      LiveTestHook.registered = nil
+      row.update!(map_events_turned_off_at: Time.current)
+      with_app_host { MapEvents.prepare!(row.reload) }
+      assert_nil LiveTestHook.registered, "nothing registers again while a person has live updates off"
+    ensure
+      LiveTestHook.registered = nil
+    end
+
+    test "while live updates are on the connection says what they do not follow, and a reason they are off comes first" do
+      row = connect_live!(@workspace, provider: "livepoll", name: "Live poll")
+      LiveTestPoll.stubs(:limits).returns("A service added reaches the map at each hourly sweep.")
+
+      assert_equal [ true, "A service added reaches the map at each hourly sweep." ], [ row.live_updates.on, row.live_updates.reason ]
+      row.update!(map_events_error: "Live poll answered 403: no")
+      assert_not row.live_updates.on
+      assert_equal "Firefight could not follow Live poll's changes: Live poll answered 403: no. The map still updates at each sweep.", row.live_updates.reason
+    end
+
     test "a connection set up by hand is off until its signing secret is saved" do
       state = @row.live_updates
 
@@ -284,7 +321,7 @@ module Integrations
     end
 
     test "a provider that cannot say what changed has no live updates" do
-      row = connection("northflank", Integration::KIND_NATIVE)
+      row = connection("linear", Integration::KIND_NATIVE)
 
       assert_nil row.live_updates
     end
