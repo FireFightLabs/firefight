@@ -484,7 +484,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     step = @investigation.steps.sole
     assert_equal 1, step.position
     assert_equal "fake_echo_text", step.tool_name
-    assert_equal "Fake echo text", step.label
+    assert_equal "Echo text · Fake", step.label, "the call, then the connection it ran through"
     assert result.start_with?("<tool_result tool=\"fake_echo_text\" step=\"1\" trust=\"untrusted\">")
   end
 

@@ -22,7 +22,7 @@ class AgentChatMessageSerializer < BaseSerializer
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
     charted = message.chat.charts.unscope(:order).where(tool_call_id: calls.map(&:tool_call_id)).distinct.pluck(:tool_call_id).to_set
     calls.filter_map do |call|
-      step = Chat::Tools.step(call.name, call.arguments)
+      step = Chat::Tools.step(call.name, call.arguments, workspace: workspace)
       next unless step
 
       status = self.class.step_status(call, calls)

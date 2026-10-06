@@ -16,6 +16,7 @@ module Mcp
         required: []
       )
 
+      # A tool's call also names the connection it ran through, as a person tells it apart, and its provider.
       def self.perform(workspace:, args:)
         scope = workspace.ability_invocations.order(created_at: :desc)
         scope = scope.where(decision: args[:decision].to_s) if args[:decision].present?
@@ -23,10 +24,10 @@ module Mcp
         invocations, truncated = capped(scope, args)
 
         respond(
-          activity: invocations.map do |invocation|
+          activity: Ability::ConnectionNamed.with_connection_names(invocations).map do |invocation|
             {
               id: invocation.id, principal: invocation.principal_label, source: invocation.source,
-              ability: invocation.action_key, decision: invocation.decision, outcome: invocation.outcome,
+              ability: invocation.action_key, connection: invocation.connection_name, provider: invocation.connection_provider, decision: invocation.decision, outcome: invocation.outcome,
               error: invocation.error_summary, duration_ms: invocation.duration_ms,
               at: invocation.created_at.utc.iso8601
             }.compact

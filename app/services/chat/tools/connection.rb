@@ -89,7 +89,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     environment_row = nil
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
-      label: Chat::Tools.label(shown_as, arguments), **{ approval_id: approval_id }.compact
+      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), **{ approval_id: approval_id }.compact
     ) do |authorization|
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)

@@ -38,7 +38,7 @@ module Chat::Tools::TrackedIssues
   def self.read(agent_run, read_tool, read_arguments, scope, &)
     agent_run.tool_call(
       action_key: read_tool.action_key, params: read_arguments, scope: scope, tool_name: read_tool.model_facing_name,
-      label: Chat::Tools.label(read_tool.model_facing_name, read_arguments), &
+      label: Chat::Tools.label(read_tool.model_facing_name, read_arguments, workspace: agent_run.workspace), &
     ).value
   rescue *REFUSED
     nil

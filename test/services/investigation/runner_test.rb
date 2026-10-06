@@ -202,6 +202,23 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_match "Faylee (Northflank) had faylee_list_resources switched on.", note.content
   end
 
+  test "a step through a connection is reported by the call and the connection, as Slack and the story list it" do
+    faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    faylee.tools.create!(name: "list_resources", description: "List", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    reported = []
+    Investigation::Delivery.any_instance.stubs(:step).with { |**step| reported << step[:title] }
+    investigator = fake(outcome: :answered, conclude: true)
+    investigator.define_singleton_method(:run) do |**arguments|
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "faylee_list_resources", status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: {}))
+      @investigation.conclude!(summary: "Faylee's web is down")
+      FirefightAi::AgentLoop::Outcome.new(status: :answered, turns_used: 0, spent_micros: 0)
+    end
+
+    Investigation::Runner.new(@investigation).run
+
+    assert_includes reported, "List resources · Faylee (Northflank)"
+  end
+
   private
 
   def turn(turns_used, spent_micros)

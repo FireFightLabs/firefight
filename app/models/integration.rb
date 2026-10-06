@@ -196,7 +196,10 @@ class Integration < ApplicationRecord
 
   # The connection each tool action key names, as a person tells it apart (display_name), read in one query. A removed
   # connection still names its old rows, and a system action names none.
-  def self.display_names_for(workspace_id, action_keys)
+  def self.display_names_for(workspace_id, action_keys) = connections_for(workspace_id, action_keys).transform_values(&:display_name)
+
+  # The connection each tool action key runs through, read in one query.
+  def self.connections_for(workspace_id, action_keys)
     keys = action_keys.map(&:to_s).uniq.select { |key| key.include?(".") }
     return {} if keys.empty?
 
@@ -205,7 +208,7 @@ class Integration < ApplicationRecord
     keys.each_with_object({}) do |key, found|
       slug, tool_name = key.split(".", 2)
       integration = integrations.find { |each| each.slug == slug && each.tools.any? { |tool| tool.name == tool_name } }
-      found[key] = integration.display_name if integration
+      found[key] = integration if integration
     end
   end
 

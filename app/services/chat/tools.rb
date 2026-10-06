@@ -105,13 +105,14 @@ module Chat::Tools
     ].freeze
   end
 
-  # nil for the agent's own bookkeeping, which is never shown.
-  def self.step(tool_name, arguments)
+  # nil for the agent's own bookkeeping, which is never shown. With a workspace, a connection tool is titled by what it
+  # does and the connection it runs through, as the confirmation names it.
+  def self.step(tool_name, arguments, workspace: nil)
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
 
     asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG))
     Step.new(
-      title: tool_name.to_s.tr("_", " ").humanize, headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
+      title: title_for(tool_name, workspace), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
       card: card_for(tool_name, arguments)
     )
   end
@@ -179,6 +180,15 @@ module Chat::Tools
   end
 
   # What the tool does, by its own name rather than the connection's, such as "Api request".
+  # A connection tool reads as "Api request · Faylee (Northflank)", never as its connection's slug made into words, which
+  # reads like the provider's name. Anything else is its own name made into words.
+  def self.title_for(tool_name, workspace)
+    tool = workspace && Target.connection_tool(workspace, tool_name)
+    return tool_name.to_s.tr("_", " ").humanize unless tool
+
+    "#{tool.name.tr('_.', '  ').humanize} · #{tool.integration.display_name}"
+  end
+
   def self.call_title(tool_call)
     workspace = tool_call.message&.chat&.workspace
     tool = workspace && Target.connection_tool(workspace, tool_call.name)
@@ -224,8 +234,8 @@ module Chat::Tools
   end
 
   # What a step is called wherever it is cited later, such as "Get form declare".
-  def self.label(tool_name, arguments)
-    shown = step(tool_name, arguments)
+  def self.label(tool_name, arguments, workspace: nil)
+    shown = step(tool_name, arguments, workspace: workspace)
     [ shown&.title, shown&.headline ].compact_blank.join(" ")
   end
 
