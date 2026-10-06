@@ -84,7 +84,7 @@ module Integrations
 
       tool :query_metrics,
            description: "Metrics of one Cloud Run service, Cloud SQL instance or Compute Engine instance over time, from Cloud " \
-                        "Monitoring: cpu, memory, requests, http_4xx and http_5xx for a service, cpu, memory, disk and " \
+                        "Monitoring: cpu, memory, requests, http_4xx, http_5xx and latency_p95 for a service, cpu, memory, disk and " \
                         "tcp_connections for a database, and network_in and network_out. Returns min, average, max and " \
                         "latest, and the person sees each metric as a chart",
            params_schema: {

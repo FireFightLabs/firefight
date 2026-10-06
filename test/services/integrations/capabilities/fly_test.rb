@@ -22,6 +22,16 @@ class Integrations::Capabilities::FlyTest < ActiveSupport::TestCase
     assert_equal "describe_resource", resolve(Integrations::Capabilities::STATUS, "resource" => "main-db").tool.name
   end
 
+  test "latency is the 95th percentile of Fly's edge response times, read for the baselines too" do
+    assert_equal %w[latency_p95], resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => %w[latency_p95]).arguments["metrics"]
+    latency = Integrations::Packs::Fly::METRICS.fetch("latency_p95")
+    assert_equal "histogram_quantile(0.95, sum by (le) (rate(fly_edge_http_response_time_seconds_bucket{app=\"web\"}[60s]))) * 1000",
+                 format(latency.total, app: "web", window: "60s")
+    assert_equal [ "ms", nil ], [ latency.unit, latency.per_instance ]
+    assert_includes Integrations::Packs::Fly::BASELINE_METRICS, "latency_p95"
+    assert_equal "latency_p95", Integrations::Capabilities.baseline_metric(@row, "latency_p95", ResourceMap::KIND_SERVICE)
+  end
+
   test "a rollback and a restart go to the change tools, and what Fly does not keep or offer is refused in words" do
     assert_equal [ "rollback_release", { "resource" => "web", "release" => "41" } ],
                  resolve(Integrations::Capabilities::ROLLBACK, "resource" => "web", "to" => "41").then { |call| [ call.tool.name, call.arguments ] }

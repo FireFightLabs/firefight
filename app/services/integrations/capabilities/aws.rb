@@ -3,9 +3,10 @@ module Integrations
     # AWS's own tools answer each capability as they are, by the resource's ARN, which the map keeps as its id. A
     # rollback, restart or scale runs the pack's tool for that change, so each is its own action to grant and approve.
     # The capability metric names map onto the CloudWatch metrics AWS documents as the same reading for each kind:
-    # CPUUtilization and MemoryUtilization for an ECS service, Invocations (each run of the function, its requests) and
-    # Errors for a Lambda function, CPUUtilization, NetworkIn and NetworkOut for an EC2 instance, and CPUUtilization and
-    # DatabaseConnections (its client network connections) for an RDS database.
+    # CPUUtilization and MemoryUtilization for an ECS service, Invocations (each run of the function, its requests),
+    # Errors, Duration and Throttles for a Lambda function, CPUUtilization, NetworkIn and NetworkOut for an EC2 instance,
+    # and CPUUtilization, DatabaseConnections (its client network connections), FreeableMemory and FreeStorageSpace for an
+    # RDS database. RDS reports the memory and storage left rather than used, and its charts say so.
     module Aws
       extend Adapter
 
@@ -29,9 +30,11 @@ module Integrations
       WRAPPED = TOOLS.values.excluding(TOOLS[METRICS]).freeze
       METRIC_MAP = {
         PACK::SERVICE => { "cpu" => "CPUUtilization", "memory" => "MemoryUtilization" },
-        PACK::FUNCTION => { "requests" => "Invocations", "errors" => "Errors" },
+        PACK::FUNCTION => { "requests" => "Invocations", "invocations" => "Invocations", "errors" => "Errors", "duration" => "Duration",
+                            "throttles" => "Throttles" },
         PACK::INSTANCE => { "cpu" => "CPUUtilization", "network_in" => "NetworkIn", "network_out" => "NetworkOut" },
-        PACK::DATABASE => { "cpu" => "CPUUtilization", "tcp_connections" => "DatabaseConnections" }
+        PACK::DATABASE => { "cpu" => "CPUUtilization", "tcp_connections" => "DatabaseConnections", "memory" => "FreeableMemory",
+                            "disk" => "FreeStorageSpace" }
       }.freeze
       PASSED = %w[text regex exclude limit minutes start end].freeze
       RANGE = %w[minutes start end].freeze

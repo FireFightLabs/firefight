@@ -292,7 +292,8 @@ module Integrations
 
         requests = found.find { |reading| reading.metric == "requests" }
         assert_equal [ "per minute", 120.0 ], [ requests.unit, requests.points.first.last ]
-        assert_equal %w[requests http_5xx cpu memory], found.map(&:metric)
+        assert_equal %w[requests http_5xx cpu memory latency_p95], found.map(&:metric)
+        assert_equal [ "ms", 2.0 ], found.find { |reading| reading.metric == "latency_p95" }.then { |latency| [ latency.unit, latency.points.first.last ] }
       end
 
       test "the health check reads the project" do

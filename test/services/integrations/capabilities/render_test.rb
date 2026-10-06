@@ -30,9 +30,19 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
   test "what Render cannot answer is refused in words" do
     assert_match "cannot leave lines out", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "exclude" => "healthz")
     assert_match "stream must be app, build, requests", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "cdn")
-    assert_match "Render does not keep disk", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "disk" ])
+    assert_match "Render does not keep network_in", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "network_in" ])
     assert_match "no connection offers metrics", unroutable(Integrations::Capabilities::METRICS, "resource" => "docs")
     assert_match "no connection offers scaling", unroutable(Integrations::Capabilities::SCALE, "resource" => "cache", "instances" => 2)
+  end
+
+  test "a web service's latency is the 95th percentile Render keeps, and a resource's disk its persistent disk usage" do
+    assert_equal %w[latency_p95 disk], resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => %w[latency_p95 disk]).arguments["metrics"]
+    latency = Integrations::Packs::Render::METRICS.fetch("latency_p95")
+    assert_equal [ "http-latency", { "quantile" => 0.95 } ], [ latency.path, latency.query ]
+    assert_equal "disk-usage", Integrations::Packs::Render::METRICS.fetch("disk").path
+    assert_equal "active_connections", Integrations::Capabilities.baseline_metric(@row, "tcp_connections", ResourceMap::KIND_DATABASE)
+    assert_empty Integrations::Capabilities::Render::METRIC_MAP.keys - Integrations::Capabilities::METRIC_NAMES
+    assert_empty Integrations::Capabilities::Render::METRIC_MAP.values - Integrations::Packs::Render::METRICS.keys
   end
 
   test "a rollback, restart and scale run as Render's change tools, with what the change needs" do

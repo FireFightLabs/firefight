@@ -31,7 +31,7 @@ module Integrations
       JOB_DAYS = 7
       MAX_JOB_DAYS = 30
       CELL_LIMIT = 300
-      METRICS = %w[requests errors http_4xx http_5xx cpu_time latency].freeze
+      METRICS = %w[requests errors http_4xx http_5xx cpu_time latency latency_p95].freeze
       DEFAULT_METRICS = %w[requests errors latency].freeze
       # Each metric's column in the metrics query, its title, unit and how a bucket's value becomes that unit.
       Metric = Data.define(:columns, :title, :unit, :convert)
@@ -46,7 +46,8 @@ module Integrations
         "http_5xx" => Metric.new(columns: { "http_5xx" => nil }, title: "5xx responses", unit: PER_MINUTE, convert: COUNTED),
         "cpu_time" => Metric.new(columns: { "cpu" => nil }, title: "CPU time per request, average", unit: MILLISECONDS, convert: SECONDS),
         "latency" => Metric.new(columns: { "latency_avg" => "average", "latency_p95" => "95th percentile" }, title: "Latency",
-                                unit: MILLISECONDS, convert: SECONDS)
+                                unit: MILLISECONDS, convert: SECONDS),
+        "latency_p95" => Metric.new(columns: { "latency_p95" => nil }, title: "Latency, 95th percentile", unit: MILLISECONDS, convert: SECONDS)
       }.freeze
       HEALTH_QUERY = "SELECT count() FROM #{Queries::JOBS_LOG} WHERE created_at >= now() - INTERVAL 1 MINUTE".freeze
       READ_ONLY = /\A\s*(SELECT|WITH|DESCRIBE|DESC|SHOW|EXPLAIN)\b/i
@@ -157,7 +158,7 @@ module Integrations
            read_only: true
 
       tool :endpoint_metrics,
-           description: "Requests, failures, 4xx and 5xx responses, CPU time and latency over time for one API endpoint, or for every " \
+           description: "Requests, failures, 4xx and 5xx responses, CPU time, latency and its 95th percentile alone over time for one API endpoint, or for every " \
                         "request the workspace answered, from tinybird.pipe_stats_rt. The person sees each metric as a chart",
            params_schema: {
              "type" => "object",
