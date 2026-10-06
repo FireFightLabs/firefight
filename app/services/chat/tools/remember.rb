@@ -20,7 +20,7 @@ class Chat::Tools::Remember < RubyLLM::Tool
       "type" => "object",
       "properties" => {
         "fact" => { "type" => "string", "description" => "The fact in one plain sentence, at most #{Chat::Memory::TEXT_LIMIT} characters" },
-        "about" => { "type" => "string", "description" => "The resource on the map or catalog entry it is about, by name, such as web or Checkout. Leave it out for the whole workspace" },
+        "about" => { "type" => "string", "description" => "The resource on the map or catalog entry it is about, by name or id, such as web or Checkout. Leave it out only when it is about the whole workspace" },
         "from_person" => { "type" => "boolean", "description" => "True only when the person asked you to remember this, in their own words. Leave it out for anything you worked out yourself" }
       },
       "required" => [ "fact" ]
@@ -31,12 +31,15 @@ class Chat::Tools::Remember < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
     fact = asked["fact"].to_s.strip
-    subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"])
+    named = Chat::Memory.subject_named(@agent_run.workspace, asked["about"])
+    return "#{named.refusal} Nothing was saved. Name what it is about, or leave about out to save it for the whole workspace." if named.refusal
+
+    subject = named.subject
     # Only a chat has a person to vouch for it. In a run the flag means nothing.
     teacher = @agent_run.memory_teacher
     vouched = asked["from_person"] == true && teacher.present?
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_CREATE, tool_name: name, params: asked.slice("about", "from_person"), tool_call_id: tool_call&.id) do
-      learned(fact, subject, teacher, vouched, asked["about"])
+      learned(fact, subject, teacher, vouched)
     end
   rescue ActiveRecord::RecordInvalid => error
     { error: error.record.errors.full_messages.to_sentence }
@@ -44,17 +47,18 @@ class Chat::Tools::Remember < RubyLLM::Tool
 
   private
 
-  def learned(fact, subject, teacher, vouched, about)
+  def learned(fact, subject, teacher, vouched)
     learned = Chat::Memory.learn!(@agent_run.workspace, text: fact, subject: subject, source: @agent_run.memory_source, added_by: teacher, vouched: vouched)
     known = learned.memory
     case learned.outcome
+    when Chat::Memory::LEARNED_REFUSED then return learned.reason
     when Chat::Memory::LEARNED_REJECTED
       return "A person rejected this before#{": #{known.state_reason}" if known.state_reason.present?}. It is not saved again."
     when Chat::Memory::LEARNED_KNOWN
       return "Already remembered."
     end
 
-    missing = about.present? && subject.nil? ? " Nothing called #{about} is on the map or in the catalog, so it is saved for the whole workspace." : ""
-    "#{vouched ? "Remembered, confirmed by #{teacher.display_name}." : 'Remembered, unconfirmed until a person confirms it.'}#{missing}"
+    Chat::Tools.tell_incident(@agent_run, known, Chat::MemoryPost::KIND_LEARNED)
+    vouched ? "Remembered, confirmed by #{teacher.display_name}." : "Remembered, unconfirmed until a person confirms it."
   end
 end

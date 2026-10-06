@@ -104,6 +104,14 @@ module Slack::WorkspaceAdapter::IncidentModals
 
   def rename_action_error(message) = { response_action: "errors", errors: { Slack::Modals::RenameAction::BLOCK => message } }
 
+  def open_memory_correction_modal(trigger_id:, post_id:, memory:)
+    open_modal(trigger_id: trigger_id, view: Slack::Modals::CorrectMemory.build(post_id: post_id, memory: memory))
+  end
+
+  def memory_correction(values:) = Slack::Modals::CorrectMemory.values(values)
+
+  def memory_correction_error(message) = { response_action: "errors", errors: { Slack::Modals::CorrectMemory::CORRECTION_BLOCK => message } }
+
   # The build returns nil when there is nothing in the workspace to link to.
   def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil, default_type: IncidentRelationship::RELATED)
     view = Slack::Modals::Link.build(incident, private_metadata: private_metadata, default_type: default_type)

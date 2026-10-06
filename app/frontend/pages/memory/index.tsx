@@ -19,7 +19,8 @@ export default function MemoryPage() {
   const canDecide = useCan("memory")
   const canInstruct = useCan("catalog")
   const [ tab, setTab ] = useState(tabFromUrl)
-  const toReview = memories.filter((memory) => !memory.confirmBlockedReason).length
+  // An expired memory was set aside already, so it no longer waits on anyone.
+  const toReview = memories.filter((memory) => !memory.confirmBlockedReason && memory.state !== "expired").length
 
   function switchTab(value: string) {
     const chosen = Object.values(MEMORY_PAGE_TABS).find((each) => each === value)

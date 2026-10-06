@@ -15,7 +15,10 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     pause_on("delete_permission_set", "delete_permission_set", "delete_permission_set")
     visit agent_chat_path(@conversation)
 
-    2.times { find("button[aria-label='Next question']").click }
+    2.times do
+      settled
+      find("button[aria-label='Next question']").click
+    end
     answer("set_3", "Confirm")
     on_question("set_1")
     assert_button "Continue", disabled: true
@@ -51,8 +54,21 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
 
   # The card moves on half a second after a pick, so each answer waits for its question to be the one shown.
   QUESTION = "[style*='opacity: 1']:has(button[aria-pressed])".freeze
+  CARD = ".rounded-card:has(button[aria-label='Next question'])".freeze
 
-  def on_question(slug) = assert_selector(QUESTION, text: slug)
+  def on_question(slug)
+    assert_selector(QUESTION, text: slug)
+    settled
+  end
+
+  # The card slides to a question, and a click made while it moves lands on whatever has slid under the pointer.
+  def settled
+    card = find(CARD)
+    page.document.synchronize do
+      moving = card.evaluate_script("this.getAnimations({ subtree: true }).some((animation) => animation.playState === 'running')")
+      raise Capybara::ExpectationNotMet, "the card is still moving" if moving
+    end
+  end
 
   def answer(slug, option)
     on_question(slug)
