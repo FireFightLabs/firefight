@@ -63,6 +63,15 @@ class Investigation::RegressionTest < ActiveSupport::TestCase
     Investigation::Regression.run_case!(run.results.first)
   end
 
+  test "a replay the AI account has no credit for could not finish, and says why" do
+    run = Investigation::Regression.start!(trigger: Investigation::RegressionRun::TRIGGER_OPERATOR)
+    Investigation::Rehearsal.stubs(:replay!).raises(FirefightAi::OutOfCredit, "refused")
+
+    run.results.each { |result| Investigation::Regression.run_case!(result) }
+
+    assert_equal [ Investigation::Regression::OUT_OF_CREDIT ], run.results.reload.map(&:reason).uniq
+  end
+
   test "a replay with no answer fails rather than being graded" do
     run = Investigation::Regression.start!(trigger: Investigation::RegressionRun::TRIGGER_OPERATOR)
     replay_answers(nil)

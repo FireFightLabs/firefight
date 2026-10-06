@@ -369,7 +369,7 @@ Entitlements.check(workspace, feature)              # → Result (allowed? + mes
 ```
 
 - The default backend is `Entitlements::OpenSourceBackend`, which **always allows** — self-hosters get every core feature with zero configuration.
-- The proprietary cloud build swaps in its own backend (trial state, credit caps) via `Entitlements.backend=`. That code lives in the private `firefight_cloud` gem, loaded only when the Gemfile's `FIREFIGHT_CLOUD` env flag is set at build time — it is never bundled or locked for self-hosters, and the app must always run without it.
+- The proprietary cloud build swaps in its own backend (trial state, credit caps) via `Entitlements.backend=`. A backend may also answer `ai_account(workspace)`, whose account pays for the AI: the open-source backend says `operator`, and a backend that does not answer is taken as Firefight's own. That code lives in the private `firefight_cloud` gem, loaded only when the Gemfile's `FIREFIGHT_CLOUD` env flag is set at build time — it is never bundled or locked for self-hosters, and the app must always run without it.
 - Rules: gate new premium-capable features through `Entitlements.allows?` with a new feature constant; never reference `firefight_cloud` from app code; never make core behavior depend on the gem's presence.
 
 ## Feature flags (unreleased work)

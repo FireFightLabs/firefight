@@ -61,4 +61,14 @@ class Investigation::UndoWriterTest < ActiveSupport::TestCase
     assert_enqueued_with(job: InvestigationUndoJob) { assert_nil Investigation::UndoWriter.request!(@plan, by: @alice) }
     assert_equal "Halon is writing the undo.", Investigation::UndoWriter.request!(@plan, by: @alice)
   end
+
+  test "an undo the AI account has no credit for says so in plain words, and can be asked again" do
+    FirefightAi::UndoWriter.any_instance.stubs(:write).raises(FirefightAi::OutOfCredit.new("OpenRouter refused"))
+
+    perform_enqueued_jobs(only: InvestigationUndoJob) { Investigation::UndoWriter.request!(@plan, by: @alice) }
+
+    assert_equal "Halon cannot write the undo for this fix right now because the AI account behind this Firefight is out of credit. " \
+                 "Whoever runs Firefight needs to add credit.", @plan.reload.undo_error
+    assert_nil @plan.undo_blocked_reason
+  end
 end

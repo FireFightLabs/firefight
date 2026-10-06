@@ -127,21 +127,18 @@ module FirefightAi
     end
 
     def call_llm(incident, prompt_text, feature:)
-      FirefightAi.translating_errors do
-        Inference.track(
-          workspace: @workspace,
-          feature:   feature,
-          provider:  model_choice.provider_name,
-          model:     model_choice.model,
-          inferable: incident,
-          prompt_template: "summary",
-          prompt_version: Prompt.version(system_prompt),
-          prompt_text: system_prompt
-        ) do
-          chat = FirefightAi.chat(model_choice)
-          chat.with_instructions(system_prompt)
-          chat.ask(prompt_text)
-        end
+      FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: {
+        workspace: @workspace,
+        feature:   feature,
+        provider:  model_choice.provider_name,
+        model:     model_choice.model,
+        inferable: incident,
+        prompt_template: "summary",
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
+      }) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.ask(prompt_text)
       end
     end
 

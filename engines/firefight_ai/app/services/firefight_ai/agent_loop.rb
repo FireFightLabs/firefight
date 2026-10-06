@@ -37,9 +37,12 @@ module FirefightAi
     # unseen, hold is how the app keeps that draft out of what the person reads, and the answer after the check goes out.
     # take_messages adds what a person sent while the agent worked to the chat and says whether there was any. It is
     # called only between a tool's result and the next model call, the one place a new message keeps the chat valid.
+    # output is the FirefightAi::OutputCap a turn may write, nil to leave the provider's own.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil)
+                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil)
       @chat = chat
+      @output = output
+      @output_limit = output&.max
       @room = Room.new(chat, memory)
       @nudge = nudge || ->(text) { chat.add_message(role: :user, content: text) }
       @on_chunk = on_chunk
@@ -76,6 +79,7 @@ module FirefightAi
 
     def run(&on_turn)
       @on_turn = on_turn
+      @chat.to_llm.with_max_output_tokens(@output_limit) if @output_limit
       loop do
         stop = stop_reason
         return outcome(stop) if stop
@@ -123,16 +127,33 @@ module FirefightAi
       generate
     end
 
-    # A provider that still says too long gets the chat rebuilt and one more try, never a second.
+    # A provider that still says too long gets the chat rebuilt and one more try, never a second. One that refuses for
+    # credit and names an output it can still pay for gets one more try at that, which stays the cap for the rest of the
+    # run, since every later turn would be refused the same way.
     def generate
-      Inference.track(@inference) { @chat.step(&streamer) }.first
-    rescue RubyLLM::ContextLengthExceededError
-      raise if @made_room_after_refusal || !@room.possible?
+      shortened = false
+      begin
+        Inference.track(tracked) { @chat.step(&streamer) }.first
+      rescue RubyLLM::ContextLengthExceededError
+        raise if @made_room_after_refusal || !@room.possible?
 
-      @made_room_after_refusal = true
-      @room.make_after_refusal
-      retry
+        @made_room_after_refusal = true
+        @room.make_after_refusal
+        retry
+      rescue RubyLLM::Error => e
+        smaller = @output && !shortened ? @output.after_refusal(e, @output_limit) : nil
+        FirefightAi.refused_for_good(@inference[:provider], e) unless smaller
+        raise unless smaller
+
+        FirefightAi.note_short_of_credit(@inference[:feature], @output_limit, smaller)
+        shortened = true
+        @output_limit = smaller
+        @chat.to_llm.with_max_output_tokens(smaller)
+        retry
+      end
     end
+
+    def tracked = @output_limit ? @inference.merge(max_output_tokens: @output_limit) : @inference
 
     # Written with everything still in view, which is what makes it worth more than a summary written
     # afterwards. No tools, since this turn is only for the note.
@@ -140,7 +161,7 @@ module FirefightAi
       llm = @chat.to_llm
       llm.with_tool_options(choice: :none)
       @nudge.call(Room::HANDOVER)
-      note = Inference.track(@inference) { @chat.step }.first
+      note = Inference.track(tracked) { @chat.step }.first
       record_turn(note) if note
       note&.content.to_s
     ensure

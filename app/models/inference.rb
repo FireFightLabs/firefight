@@ -2,8 +2,12 @@ class Inference < ApplicationRecord
   STATUS_SUCCESS = "success"
   STATUS_ERROR   = "error"
 
+  # The provider refused because the account paying for the model has no credit left. Kept on refusals a smaller retry
+  # then answered too, so a balance running low shows before calls start failing.
+  ERROR_OUT_OF_CREDIT = "out_of_credit"
+
   CONTEXT_KEYS = %i[
-    workspace feature provider model inferable member api_key prompt_template prompt_version
+    workspace feature provider model inferable member api_key prompt_template prompt_version max_output_tokens
   ].freeze
 
   belongs_to :workspace
@@ -35,13 +39,15 @@ class Inference < ApplicationRecord
         provider_request_id: provider_request_id(response),
         status:              STATUS_SUCCESS
       )
+      AiAccount.answered!(inference.provider)
       [ response, inference ]
     rescue StandardError => e
       create!(
         **attrs,
         latency_ms:  elapsed_ms_since(started),
         status:      STATUS_ERROR,
-        error_class: e.class.name
+        error_class: e.class.name,
+        error_kind:  (ERROR_OUT_OF_CREDIT if FirefightAi::Credit.from(e).out_of_credit?)
       )
       raise
     end

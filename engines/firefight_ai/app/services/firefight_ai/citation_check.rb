@@ -19,13 +19,10 @@ module FirefightAi
     def check(claims:, sources:)
       return [] if claims.empty?
 
-      response, = FirefightAi.translating_errors do
-        Inference.track(inference_context) do
-          chat = FirefightAi.chat(model_choice)
-          chat.with_instructions(system_prompt)
-          chat.with_schema(Schemas::CitationCheck)
-          chat.ask(prompt(claims, sources))
-        end
+      response, = FirefightAi.generate(model_choice, purpose: AiPurpose::CITATION_CHECK, inference: inference_context) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::CitationCheck)
+        chat.ask(prompt(claims, sources))
       end
       verdicts(response, claims.map(&:number))
     end

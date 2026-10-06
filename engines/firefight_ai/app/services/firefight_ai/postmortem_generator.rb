@@ -28,22 +28,19 @@ module FirefightAi
     private
 
     def call_ai(incident, prompt)
-      response, _ = FirefightAi.translating_errors do
-        Inference.track(
-          workspace: @workspace,
-          feature:   "postmortem_generate",
-          provider:  ai_model.provider_name,
-          model:     ai_model.model,
-          inferable: incident,
-          prompt_template: "postmortem_generate",
-          prompt_version: Prompt.version(system_prompt),
-          prompt_text: system_prompt
-        ) do
-          chat = FirefightAi.chat(ai_model)
-          chat.with_instructions(system_prompt)
-          chat.with_schema(Schemas::Postmortem)
-          chat.ask(prompt)
-        end
+      response, _ = FirefightAi.generate(ai_model, purpose: AiPurpose::POSTMORTEM, inference: {
+        workspace: @workspace,
+        feature:   "postmortem_generate",
+        provider:  ai_model.provider_name,
+        model:     ai_model.model,
+        inferable: incident,
+        prompt_template: "postmortem_generate",
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
+      }) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::Postmortem)
+        chat.ask(prompt)
       end
       # Structured output arrives as JSON text, parsed is the hash.
       response.parsed

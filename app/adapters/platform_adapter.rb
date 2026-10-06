@@ -360,8 +360,9 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # note is what to tell the person in place of the cause, when there is one.
   # @return [Hash] { success: true }
-  def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
+  def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:, note: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

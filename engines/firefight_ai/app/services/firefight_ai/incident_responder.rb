@@ -21,21 +21,18 @@ module FirefightAi
     private
 
     def call_ai(incident, prompt_text, feature:)
-      response, _ = FirefightAi.translating_errors do
-        Inference.track(
-          workspace: @workspace,
-          feature:   feature,
-          provider:  ai_model.provider_name,
-          model:     ai_model.model,
-          inferable: incident,
-          prompt_template: "incident_response",
-          prompt_version: Prompt.version(system_prompt),
-          prompt_text: system_prompt
-        ) do
-          chat = FirefightAi.chat(ai_model)
-          chat.with_instructions(system_prompt)
-          chat.ask(prompt_text)
-        end
+      response, _ = FirefightAi.generate(ai_model, purpose: AiPurpose::INCIDENT_RESPONSE, inference: {
+        workspace: @workspace,
+        feature:   feature,
+        provider:  ai_model.provider_name,
+        model:     ai_model.model,
+        inferable: incident,
+        prompt_template: "incident_response",
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
+      }) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.ask(prompt_text)
       end
       response.content
     end

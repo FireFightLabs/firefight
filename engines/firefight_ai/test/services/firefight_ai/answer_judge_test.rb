@@ -27,6 +27,7 @@ class FirefightAi::AnswerJudgeTest < ActiveSupport::TestCase
 
   def stub_model(content)
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:with_schema).returns(chat)
     chat.stubs(:ask).returns(llm_reply(content: content, input: 100, output: 20, cost: 0.0001))

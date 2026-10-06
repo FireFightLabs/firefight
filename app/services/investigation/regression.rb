@@ -5,6 +5,7 @@ class Investigation::Regression
   NO_ANSWER = "The replay ended without an answer.".freeze
   OPTED_OUT = "The workspace stopped letting Firefight test Halon before this case was replayed.".freeze
   LOST = "The replay stopped without finishing, so its worker was lost.".freeze
+  OUT_OF_CREDIT = "The replay could not finish, since the AI account is out of credit.".freeze
 
   class << self
     # Runs once for each version of Halon's prompt as it is deployed. Nil when this version already had its run, or
@@ -39,8 +40,8 @@ class Investigation::Regression
       grade(result)
     rescue StandardError => error
       Rails.logger.warn({ event: "halon_regression.case_errored", result_id: result.id, error: error.class.name }.to_json)
-      result.settle!(status: Investigation::RegressionResult::STATUS_ERRORED, reason: "The replay could not finish (#{error.class.name}).",
-                     spent_micros: result.replay&.reload&.spent_micros.to_i)
+      reason = AiCredit.out?(error) ? OUT_OF_CREDIT : "The replay could not finish (#{error.class.name})."
+      result.settle!(status: Investigation::RegressionResult::STATUS_ERRORED, reason: reason, spent_micros: result.replay&.reload&.spent_micros.to_i)
     ensure
       result.regression_run.finish_if_done!
     end
