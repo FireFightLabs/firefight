@@ -36,6 +36,26 @@ class WorkspaceSettingsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.transcripts_purge_after
   end
 
+  test "unconfirmed memories are used until someone decides, unless an admin picks a window, and the screen shows the choice" do
+    assert_nil @workspace.memory_expiry_days
+
+    patch settings_workspace_path, params: { memory_expiry_days: "60" }
+    assert_equal 60, @workspace.reload.memory_expiry_days
+    assert_equal "Workspace settings were updated.", flash[:notice]
+
+    get settings_workspace_path, headers: inertia_headers
+    assert_equal 60, inertia_props.dig("settings", "memoryExpiryDays")
+
+    patch settings_workspace_path, params: { memory_expiry_days: "" }
+    assert_nil @workspace.reload.memory_expiry_days
+  end
+
+  test "a memory window that is not on offer is refused" do
+    patch settings_workspace_path, params: { memory_expiry_days: "7" }
+
+    assert_nil @workspace.reload.memory_expiry_days
+  end
+
   test "a retention window is stored in days" do
     patch settings_workspace_path, params: { transcript_retention_days: 7 }
 

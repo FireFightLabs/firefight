@@ -280,16 +280,62 @@ class InvestigationTest < ActiveSupport::TestCase
     assert_empty investigation.reload.seed_pack
   end
 
-  test "a run starts with what the workspace remembers about the incident's services" do
+  test "a run starts with what the workspace remembers about the incident's services, kept encrypted and counted as used once" do
     entry = catalog_entries(:auth_service)
     IncidentFieldValue.create!(incident: @incident, incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
     memory = Chat::Memory.create!(workspace: @workspace, text: "Auth Service keeps sessions in Redis", state: Chat::Memory::STATE_UNCONFIRMED, subject: entry)
     Investigation::IncidentSeed.any_instance.stubs(:gather).returns({})
     Investigation::Clues.any_instance.stubs(:gather).returns({})
+    run = build_investigation
 
-    pack = build_investigation.build_seed_pack!
+    run.build_seed_pack!
+    run.build_seed_pack!
 
-    assert_equal [ memory.line ], pack[Investigation::Seeding::KEY_MEMORIES]
+    assert_equal [ memory.line ], run.reload.starting_facts[Investigation::Seeding::KEY_MEMORIES]
+    assert_not run.seed_pack.key?(Investigation::Seeding::KEY_MEMORIES)
+    stored = Investigation.where(id: run.id).pick(Arel.sql("seed_pack::text || seed_notes"))
+    assert_not_includes stored, "Auth Service keeps sessions in Redis"
+    assert_equal 1, memory.reload.use_count
+  end
+
+  test "a rehearsal reads its starting memories without counting a use" do
+    memory = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
+    Investigation::IncidentSeed.any_instance.stubs(:gather).returns({})
+    Investigation::Clues.any_instance.stubs(:gather).returns({})
+    rehearsal = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true, max_turns: 4, max_spend_cents: 400)
+
+    rehearsal.build_seed_pack!
+
+    assert_equal [ memory.line ], rehearsal.starting_facts[Investigation::Seeding::KEY_MEMORIES]
+    assert_equal 0, memory.reload.use_count
+  end
+
+  test "a starting memory set aside after the run began is told once, and marked in the facts the run reads again" do
+    disputed = Chat::Memory.create!(workspace: @workspace, text: "Sessions live in Redis", state: Chat::Memory::STATE_UNCONFIRMED)
+    corrected = Chat::Memory.create!(workspace: @workspace, text: "The primary is db-1", state: Chat::Memory::STATE_CONFIRMED)
+    kept = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
+    deleted = Chat::Memory.create!(workspace: @workspace, text: "Checkout retries twice", state: Chat::Memory::STATE_UNCONFIRMED)
+    Investigation::IncidentSeed.any_instance.stubs(:gather).returns({})
+    Investigation::Clues.any_instance.stubs(:gather).returns({})
+    run = build_investigation
+    run.build_seed_pack!
+    assert_empty run.untold_memory_changes!
+
+    disputed.dispute!("The session store is Postgres")
+    corrected.reject!(by: workspace_memberships(:alice_workspace_one), reason: "Moved", correction: "The primary is db-2")
+    deleted.destroy!
+
+    told = run.untold_memory_changes!
+    assert_equal 3, told.size
+    assert(told.any? { |note| note.include?(disputed.id) && note.include?("The session store is Postgres") })
+    assert(told.any? { |note| note.include?(corrected.id) && note.include?("The primary is db-2") })
+    assert(told.any? { |note| note.include?(deleted.id) && note.include?("deleted") })
+    assert_empty run.reload.untold_memory_changes!
+
+    lines = run.starting_facts[Investigation::Seeding::KEY_MEMORIES]
+    assert(lines.any? { |line| line.start_with?(disputed.id) && line.include?("[disputed since this run started") })
+    assert(lines.any? { |line| line.start_with?(corrected.id) && line.include?("[corrected since this run started: The primary is db-2]") })
+    assert_includes lines, kept.line
   end
 
   test "a run starts with the instructions for the workspace and the incident's services" do
@@ -300,9 +346,11 @@ class InvestigationTest < ActiveSupport::TestCase
     Investigation::IncidentSeed.any_instance.stubs(:gather).returns({})
     Investigation::Clues.any_instance.stubs(:gather).returns({})
 
-    pack = build_investigation.build_seed_pack!
+    run = build_investigation
+    run.build_seed_pack!
 
-    assert_equal [ workspace_wide.line, own.line ], pack[Investigation::Seeding::KEY_INSTRUCTIONS]
+    assert_equal [ workspace_wide.line, own.line ], run.reload.starting_facts[Investigation::Seeding::KEY_INSTRUCTIONS]
+    assert_not run.seed_pack.key?(Investigation::Seeding::KEY_INSTRUCTIONS)
   end
 
   test "an incident subject resolves to the incident seeder" do

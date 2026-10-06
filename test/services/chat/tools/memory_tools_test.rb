@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
@@ -26,7 +28,61 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_REJECTED, state_reason: "It is Postgres")
     assert_match "A person rejected this before: It is Postgres", Chat::Tools::Remember.new(@turn).call("fact" => "Checkout uses MySQL")
 
-    assert_match "Nothing called ledger is on the map or in the catalog", Chat::Tools::Remember.new(@turn).call("fact" => "Ledger is slow on Mondays", "about" => "ledger")
+    assert_equal "Nothing called ledger is on the map or in the catalog. Nothing was saved. Name what it is about, or leave about out to save it for the whole workspace.",
+                 Chat::Tools::Remember.new(@turn).call("fact" => "Ledger is slow on Mondays", "about" => "ledger")
+    assert_not Chat::Memory.where(workspace: @workspace).any? { |memory| memory.text.include?("Ledger") }
+  end
+
+  test "remember refuses a name several things share, listing their ids, and saves nothing" do
+    other = @workspace.catalog_entries.create!(catalog_type: catalog_entries(:auth_service).catalog_type, name: "Auth Service", slug: "auth-service-eu")
+
+    answer = Chat::Tools::Remember.new(@turn).call("fact" => "Sessions live in Redis", "about" => "Auth Service")
+
+    assert_match "More than one thing is called Auth Service", answer
+    assert_includes answer, other.id
+    assert_includes answer, catalog_entries(:auth_service).id
+    assert_not Chat::Memory.exists?(workspace: @workspace)
+  end
+
+  test "remember says why a live value or a fact about a person is not kept" do
+    assert_equal Chat::Memory::Screening::LIVE_VALUE, Chat::Tools::Remember.new(@turn).call("fact" => "Checkout currently runs 3 replicas")
+    assert_equal Chat::Memory::Screening::ABOUT_A_PERSON, Chat::Tools::Remember.new(@turn).call("fact" => "Ask ops@example.com before deploys")
+    assert_not Chat::Memory.exists?(workspace: @workspace)
+  end
+
+  test "a chat about an incident tells its channel what it learned and disputed, and one elsewhere does not" do
+    incident = incidents(:active_critical_ws1)
+    in_incident = Conversation::Turn.new(Conversation.create!(workspace: @workspace, kind: Conversation::KIND_PERSONAL, subject: incident, started_by: @member,
+                                                              max_turns: 10, max_spend_cents: 100), asker: @member)
+
+    assert_enqueued_jobs(1, only: MemoryNoteJob) { Chat::Tools::Remember.new(in_incident).call("fact" => "Deploys happen from main") }
+    memory = Chat::Memory.find_by!(workspace: @workspace)
+    assert_enqueued_with(job: MemoryNoteJob, args: [ memory.id, Chat::MemoryPost::KIND_DISPUTED, in_incident.conversation ]) do
+      Chat::Tools::DisputeMemory.new(in_incident).call("memory" => memory.id, "reason" => "Deploys go from release")
+    end
+    assert_no_enqueued_jobs(only: MemoryNoteJob) { Chat::Tools::Remember.new(@turn).call("fact" => "Checkout retries twice") }
+  end
+
+  test "recall about a resource gone from the map says so, and still finds what was remembered about it" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    ledger = ResourceMap::Resource.create!(workspace: @workspace, integration_environment: integration.integration_environments.create!, provider: "northflank",
+                                           account: "acme", kind: ResourceMap::KIND_SERVICE, external_id: "ledger", name: "ledger", first_seen_at: 2.days.ago,
+                                           last_seen_at: 2.days.ago, removed_at: 1.day.ago)
+    Chat::Memory.create!(workspace: @workspace, text: "ledger writes to the orders database", subject: ledger, state: Chat::Memory::STATE_OUTDATED)
+
+    answer = Chat::Tools::Recall.new(@turn).call("about" => "ledger")
+
+    assert_match "ledger is no longer on the map. It was last seen #{1.day.ago.to_date.iso8601}", answer
+    assert_match "ledger writes to the orders database", answer
+  end
+
+  test "recall says how many more matched than it shows" do
+    25.times { |index| Chat::Memory.create!(workspace: @workspace, text: "Queue #{index} drains into the ledger", state: Chat::Memory::STATE_UNCONFIRMED) }
+
+    answer = Chat::Tools::Recall.new(@turn).call("words" => "ledger")
+
+    assert_equal Chat::Memory::STARTING_LIMIT + 1, answer.lines.size
+    assert_match "5 more matched", answer
   end
 
   test "a change to memory in a chat is authorized as the asker and ledgered, without the fact's words" do
@@ -126,6 +182,14 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
 
     assert_match "What this workspace remembers", context
     assert_match "Deploys happen from main", context
+  end
+
+  test "the memories a chat starts with count as used once for the chat, not once per question" do
+    memory = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
+
+    2.times { Conversation::Runner.new(@conversation, asker: @member).send(:context) }
+
+    assert_equal 1, memory.reload.use_count
   end
 
   private

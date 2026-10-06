@@ -88,6 +88,10 @@ staging:
   cleanup_idempotency_keys:
     class: CleanupIdempotencyKeysJob
     schedule: at 3am every day
+  memory_expiry:
+    class: MemoryExpiryJob # stops using memories nobody confirmed within the workspace's window, where one is set
+    queue: background
+    schedule: every hour
   transcript_retention:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
@@ -162,6 +166,10 @@ production:
   cleanup_idempotency_keys:
     class: CleanupIdempotencyKeysJob
     schedule: at 3am every day
+  memory_expiry:
+    class: MemoryExpiryJob # stops using memories nobody confirmed within the workspace's window, where one is set
+    queue: background
+    schedule: every hour
   transcript_retention:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
