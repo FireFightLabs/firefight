@@ -27,7 +27,12 @@ module Integrations
     STREAM_APP = "app".freeze
     LOG_STREAMS = [ STREAM_APP, *%w[build requests internal cdn backup restore] ].freeze
     # The metric names every adapter maps to its provider's own, so a question reads the same whatever answers it.
-    METRIC_NAMES = %w[cpu memory requests errors http_4xx http_5xx cpu_time network_in network_out tcp_connections disk bandwidth].freeze
+    # latency_p95 is the time 95% of requests finished within, duration a function's average run, invocations its runs
+    # and throttles the runs its provider turned away.
+    METRIC_NAMES = %w[
+      cpu memory requests errors http_4xx http_5xx cpu_time network_in network_out tcp_connections disk bandwidth latency_p95
+      invocations duration throttles
+    ].freeze
     DEFAULT_MINUTES = 60
     MAX_MINUTES = 7 * 24 * 60
 
@@ -150,6 +155,10 @@ module Integrations
 
     # The adapter a provider's definition names (Integrations::Provider), or nil.
     def self.adapter_for(provider) = Provider.for(provider).adapter
+
+    # The metric the connection's baselines keep for a capability metric name on a kind of resource, or nil when its
+    # provider keeps nothing comparable (Adapter#baseline_metric).
+    def self.baseline_metric(environment_row, name, kind) = adapter_for(environment_row.integration.provider)&.baseline_metric(name, kind)
 
     # Provider tools an adapter answers one to one, which an agent holding the capability is not offered as well.
     def self.wrapped?(tool) = adapter_for(tool.integration.provider)&.wraps?(tool.name) || false

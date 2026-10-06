@@ -51,6 +51,10 @@ module Integrations
       LIST_LIMIT_MAX = 100
       DEPLOY_DAYS = 30
 
+      # Its baselines keep web transactions per minute as throughput, the same reading as requests. Errors are kept as
+      # a share of transactions, which a count per minute does not compare with.
+      def self.baseline_metric(name, _kind) = { "requests" => "throughput" }[name]
+
       # A regular expression goes to NRQL's RLIKE, and the stream must be what the app printed, since New Relic holds
       # what an agent sends it. A metric must be one New Relic records the same way everywhere. Without an account
       # nothing can be asked, so the platform answers.

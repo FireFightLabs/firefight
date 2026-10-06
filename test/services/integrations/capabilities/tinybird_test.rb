@@ -38,6 +38,13 @@ class Integrations::Capabilities::TinybirdTest < ActiveSupport::TestCase
     assert_equal [ "jobs", { "job_type" => "deployment", "limit" => 4 } ], route(Integrations::Capabilities::DEPLOYS, "resource" => "top_pages", "limit" => 4)
   end
 
+  test "an endpoint's latency_p95 is the 95th percentile alone of the latency Tinybird records" do
+    assert_equal [ "endpoint_metrics", { "endpoint" => "t_top", "metrics" => [ "latency_p95" ] } ],
+                 route(Integrations::Capabilities::METRICS, "resource" => "top_pages", "metrics" => [ "latency_p95" ])
+    assert_equal({ "latency_p95" => nil }, PACK::METRICS_READ.fetch("latency_p95").columns)
+    assert_empty PACK::METRICS - PACK::METRICS_READ.keys
+  end
+
   test "what Tinybird does not keep is refused in words, and nothing can be changed" do
     assert_match "not for a data source", unroutable(Integrations::Capabilities::METRICS, "resource" => "events")
     assert_match "does not keep memory", unroutable(Integrations::Capabilities::METRICS, "resource" => "top_pages", "metrics" => %w[memory])

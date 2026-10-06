@@ -50,7 +50,8 @@ module Integrations
       RECENT_EVENTS = 10
 
       # Each metric a tool takes, the endpoint that answers it and what it applies to. HTTP metrics are kept for web
-      # services only and active connections for datastores only (spec, paths /metrics/*).
+      # services only and active connections for datastores only (spec, paths /metrics/*). Latency is a quantile of a web
+      # service's requests (/metrics/http-latency, quantile) and disk usage its persistent disk's (/metrics/disk-usage).
       Metric = Data.define(:path, :title, :applies, :query) do
         def initialize(query: {}, **) = super
       end
@@ -61,7 +62,9 @@ module Integrations
         "requests" => Metric.new(path: "http-requests", title: "Requests", applies: [ WEB_SERVICE ]),
         "http_4xx" => Metric.new(path: "http-requests", title: "4xx responses", applies: [ WEB_SERVICE ], query: { "aggregateBy" => "statusCode" }),
         "http_5xx" => Metric.new(path: "http-requests", title: "5xx responses", applies: [ WEB_SERVICE ], query: { "aggregateBy" => "statusCode" }),
-        "active_connections" => Metric.new(path: "active-connections", title: "Active connections", applies: DATASTORES)
+        "active_connections" => Metric.new(path: "active-connections", title: "Active connections", applies: DATASTORES),
+        "latency_p95" => Metric.new(path: "http-latency", title: "Latency, 95th percentile", applies: [ WEB_SERVICE ], query: { "quantile" => 0.95 }),
+        "disk" => Metric.new(path: "disk-usage", title: "Disk usage", applies: COMPUTE)
       }.freeze
       STATUS_CLASSES = { "http_4xx" => "4", "http_5xx" => "5" }.freeze
       DEFAULT_METRICS = { WEB_SERVICE => %w[cpu memory requests http_5xx], POSTGRES => %w[cpu memory active_connections],
@@ -109,8 +112,9 @@ module Integrations
            read_only: true
 
       tool :query_metrics,
-           description: "Metrics of one service or datastore over time: CPU and memory, and for a web service requests and 4xx " \
-                        "and 5xx responses, and for a datastore its active connections. " \
+           description: "Metrics of one service or datastore over time: CPU, memory and persistent disk usage, and for a web " \
+                        "service requests, 4xx and 5xx responses and the latency 95% of its requests finished within, and for a " \
+                        "datastore its active connections. " \
                         "Returns min, average, max and latest per instance, and the person sees each metric as a chart",
            params_schema: {
              "type" => "object",
