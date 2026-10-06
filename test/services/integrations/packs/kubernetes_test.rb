@@ -224,6 +224,15 @@ module Integrations
         assert_match "cannot be scaled", call_error(:scale_workload, "resource" => "daemonset/agent", "replicas" => 1)
       end
 
+      test "a resource's labels are kept in its details for finding it by, and one with none leaves the key out" do
+        reading = Kubernetes::MapReading.new("cluster.example.com")
+        reading.add(Kubernetes::WORKLOADS.fetch(Kubernetes::DEPLOYMENT), deployment.deep_merge("metadata" => { "labels" => { "app" => "web", "team" => "payments" } }))
+        reading.add(Kubernetes::WORKLOADS.fetch(Kubernetes::DEPLOYMENT), deployment.deep_merge("metadata" => { "name" => "worker" }))
+
+        assert_equal({ "app" => "web", "team" => "payments" }, reading.resources.first.details[ResourceMap::TAGS])
+        assert_not reading.resources.last.details.key?(ResourceMap::TAGS)
+      end
+
       test "the map holds the workloads, services and ingresses with what serves what, and a list it may not read is a gap" do
         stub_list(DEPLOYMENTS, [ deployment ])
         stub_list("/apis/batch/v1/namespaces/production/cronjobs", [ { "metadata" => { "name" => "nightly", "namespace" => "production" }, "spec" => { "schedule" => "0 3 * * *" } } ])

@@ -45,6 +45,24 @@ class AgentAttachmentsTest < ApplicationSystemTestCase
     FileUtils.rm_f(log)
   end
 
+  # An image opened the moment it was sent once closed by itself when the server's message replaced the one
+  # shown on sending.
+  test "an image opened before the server answers stays open when the server's message takes its place" do
+    ConversationReplyJob.stubs(:perform_later).with { sleep 1.5 }
+    visit agent_chats_path
+
+    attach_file file_fixture("halon_graph.png").to_s, make_visible: true
+    prompt.send_keys("What broke?")
+    assert_selector "button[aria-label='Send']:not([disabled])"
+    prompt.send_keys(:enter)
+
+    find("button[aria-label='Open halon_graph.png'] img[src^='blob:']").click
+    within("[role='dialog']") { assert_selector "img[alt='halon_graph.png'][src^='blob:']" }
+
+    assert_selector "button[aria-label='Open halon_graph.png'] img:not([src^='blob:'])"
+    within("[role='dialog']") { assert_selector "img[alt='halon_graph.png']:not([src^='blob:'])" }
+  end
+
   test "a file Halon does not read says what is accepted and holds the message until it is removed" do
     zip = Rails.root.join("tmp/dump-#{SecureRandom.hex(3)}.zip")
     File.binwrite(zip, "PK\u0003\u0004#{"\u0000" * 20}")

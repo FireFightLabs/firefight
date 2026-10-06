@@ -1,25 +1,18 @@
-import { useState } from "react"
 import { IconAlertCircle, IconDownload, IconFileText } from "@tabler/icons-react"
 
 import { CHAT_ATTACHMENT_KINDS } from "@/lib/generated/constants"
-import { ImageDialog } from "@/pages/agent/components/image-dialog"
 import type { AgentChatAttachment } from "@/types/serializers"
 
 interface MessageAttachmentsProps {
   attachments: AgentChatAttachment[]
+  onOpenImage: (attachmentId: string) => void
 }
 
 // The files on a person's message: images inline, opening full size, and every other file as a chip that downloads it.
-export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
-  const [ open, setOpen ] = useState<AgentChatAttachment | null>(null)
+// The thread holds the full size view, so it stays open when the server's message replaces the one shown on sending.
+export function MessageAttachments({ attachments, onOpenImage }: MessageAttachmentsProps) {
   const images = attachments.filter((attachment) => attachment.kind === CHAT_ATTACHMENT_KINDS.IMAGE)
   const files = attachments.filter((attachment) => attachment.kind !== CHAT_ATTACHMENT_KINDS.IMAGE)
-
-  function close(isOpen: boolean) {
-    if (!isOpen) {
-      setOpen(null)
-    }
-  }
 
   return (
     <div className="flex max-w-[85%] flex-col items-end gap-1.5 self-end sm:max-w-[75%]">
@@ -29,7 +22,7 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
             <button
               key={image.id}
               type="button"
-              onClick={() => setOpen(image)}
+              onClick={() => onOpenImage(image.id)}
               aria-label={`Open ${image.name}`}
               className="overflow-hidden rounded-[12px] border border-border transition-opacity duration-150 hover:opacity-90"
             >
@@ -41,7 +34,6 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
       {files.map((file) => (
         <FileChip key={file.id} file={file} />
       ))}
-      <ImageDialog image={open} onOpenChange={close} />
     </div>
   )
 }
