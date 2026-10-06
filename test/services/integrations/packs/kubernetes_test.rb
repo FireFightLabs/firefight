@@ -260,6 +260,51 @@ module Integrations
         assert_no_setting_values(snapshot, "k8s-secret-pw")
       end
 
+      test "a ConfigMap a workload names is read in memory when the connection may, and a refusal leaves its settings as names with one gap" do
+        web = deployment.deep_dup
+        web["spec"]["template"]["spec"]["containers"].first["env"] = [
+          { "name" => "DATABASE_URL", "valueFrom" => { "configMapKeyRef" => { "name" => "db", "key" => "url" } } },
+          { "name" => "CACHE_URL", "valueFrom" => { "configMapKeyRef" => { "name" => "cache", "key" => "url" } } },
+          { "name" => "DB_PASSWORD", "valueFrom" => { "secretKeyRef" => { "name" => "db", "key" => "password" } } }
+        ]
+        stub_list("/apis/apps/v1/namespaces/production/deployments", [ web ])
+        stub_list("/api/v1/namespaces/production/services", [
+          { "metadata" => { "name" => "postgres", "namespace" => "production" }, "spec" => { "ports" => [ { "port" => 5432 } ] } }
+        ])
+        KubernetesApi.any_instance.stubs(:list).with { |asked, *| asked.exclude?("/deployments") && asked.exclude?("/services") }
+                     .returns(Pages::Read.new(items: [], complete: true))
+        stub_get("/api/v1/namespaces/production/configmaps/db", { "data" => { "url" => "postgres://app@postgres.production.svc:5432/shop" } })
+        KubernetesApi.any_instance.stubs(:get).with("/api/v1/namespaces/production/configmaps/cache").raises(KubernetesApi::NotFound, "gone")
+        KubernetesApi.any_instance.expects(:get).with { |asked, *| asked.include?("/secrets") }.never
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ [ "CACHE_URL", false ], [ "DATABASE_URL", true ], [ "DB_PASSWORD", false ] ], snapshot.uses.map { |found| [ found.variable, found.address? ] }.sort
+        assert_empty snapshot.gap_texts
+        assert_no_setting_values(snapshot, "postgres://app@postgres.production.svc:5432/shop")
+        ResourceMap.record!(@row, snapshot)
+        ResourceMap::Matcher.new(@workspace).run!
+        assert_equal [ "DATABASE_URL" ], ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_MATCHED).variables
+      end
+
+      test "a namespace whose ConfigMaps the connection may not read is asked once, and its settings stay names" do
+        web = deployment.deep_dup
+        web["spec"]["template"]["spec"]["containers"].first["env"] = [
+          { "name" => "DATABASE_URL", "valueFrom" => { "configMapKeyRef" => { "name" => "db", "key" => "url" } } },
+          { "name" => "CACHE_URL", "valueFrom" => { "configMapKeyRef" => { "name" => "cache", "key" => "url" } } }
+        ]
+        stub_list("/apis/apps/v1/namespaces/production/deployments", [ web ])
+        KubernetesApi.any_instance.stubs(:list).with { |asked, *| asked.exclude?("/deployments") }.returns(Pages::Read.new(items: [], complete: true))
+        KubernetesApi.any_instance.expects(:get).with { |asked, *| asked.include?("/configmaps/") }.once.raises(KubernetesApi::Forbidden, "forbidden")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ false, false ], snapshot.uses.map(&:address?)
+        assert_equal 1, snapshot.gap_texts.size
+        assert_match(/ConfigMaps in production could not be read/, snapshot.gap_texts.first)
+        assert snapshot.complete?, "a refused ConfigMap holds no resource back"
+      end
+
       test "the map holds the workloads, services and ingresses with what serves what, and a list it may not read is a gap" do
         stub_list(DEPLOYMENTS, [ deployment ])
         stub_list("/apis/batch/v1/namespaces/production/cronjobs", [ { "metadata" => { "name" => "nightly", "namespace" => "production" }, "spec" => { "schedule" => "0 3 * * *" } } ])

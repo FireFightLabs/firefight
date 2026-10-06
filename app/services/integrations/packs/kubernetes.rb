@@ -402,8 +402,8 @@ module Integrations
       # expired token, fails the sweep and leaves the map as it was.
       def map_of(environment_row)
         api = api(environment_row)
-        mapping = MapReading.new(api.host, environment_row.integration.workspace)
         gaps = []
+        mapping = MapReading.new(api.host, environment_row.integration.workspace, config_maps: config_maps_of(api, gaps))
         connected(environment_row).each do |namespace|
           [ *WORKLOADS.values, SERVICE, INGRESS ].each do |kind|
             listing = api.list(self.class.collection(kind, namespace))
@@ -420,6 +420,29 @@ module Integrations
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: mapping.uses, endpoints: mapping.endpoints)
       end
 
+      # A ConfigMap's data by namespace and name, read once each and only when a workload's env names one of its keys.
+      # ConfigMaps hold settings that are not secret, and reading them is optional (get on configmaps). A namespace that
+      # refuses is one gap, and its settings stay known by name. Secrets are never read.
+      # https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/config-map-v1/#get-read-the-specified-configmap
+      def config_maps_of(api, gaps)
+        read = {}
+        refused = Set.new
+        lambda do |namespace, name|
+          next if refused.include?(namespace)
+
+          read.fetch([ namespace, name ]) do
+            read[[ namespace, name ]] = api.get("#{CORE}/namespaces/#{segment(namespace)}/configmaps/#{segment(name)}")["data"].to_h
+          rescue KubernetesApi::NotFound
+            read[[ namespace, name ]] = {}
+          rescue KubernetesApi::Forbidden
+            refused << namespace
+            gaps << ResourceMap::Gap.new(text: "ConfigMaps in #{namespace} could not be read, so settings taken from them are known by name only. " \
+                                               "Allowing get on configmaps is optional and links workloads by those values too.", kinds: [])
+            nil
+          end
+        end
+      end
+
       # Builds the snapshot for map_of. A service is served by the workloads its selector picks, an ingress by the
       # services it routes to, and a hostname by the ingress or load balancer that answers for it. A workload's settings
       # are read in memory, and a service reports the names the cluster's DNS answers for it, so a workload whose
@@ -431,9 +454,10 @@ module Integrations
         # shorter forms (https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
         DNS_SUFFIXES = [ "", ".%<namespace>s", ".%<namespace>s.svc", ".%<namespace>s.svc.cluster.local" ].freeze
 
-        def initialize(host, workspace)
+        def initialize(host, workspace, config_maps: ->(_namespace, _name) { nil })
           @host = host
           @workspace = workspace
+          @config_maps = config_maps
           @resources = []
           @links = []
           @uses = []
@@ -479,16 +503,27 @@ module Integrations
           }.compact
         end
 
-        # Each container's env, a value read in memory, or a value from a Secret or ConfigMap named only, since Firefight
-        # never reads Secrets and the connection is not asked to read ConfigMaps (EnvVar value and valueFrom,
-        # https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables). envFrom
-        # brings in a whole Secret or ConfigMap whose names only reading it would give, so it is left out.
+        # Each container's env, read in memory, a value given in place or taken from a ConfigMap's key when the
+        # connection may read it, and a value from a Secret by name only, since Firefight never reads Secrets (EnvVar
+        # value and valueFrom, https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables).
+        # envFrom brings in a whole Secret or ConfigMap whose names only reading it would give, so it is left out.
         def workload_settings(found, kind, item)
           spec = Kubernetes.pod_template(kind.key, item).to_h["spec"].to_h
           env = [ *Array(spec["initContainers"]), *Array(spec["containers"]) ].flat_map { |container| Array(container["env"]) }
-          values, referenced = env.partition { |variable| variable.key?("value") }
-          ResourceMap::Use.read(from: found.key, workspace: @workspace, values: values.to_h { |variable| [ variable["name"].to_s, variable["value"].to_s ] },
-                                names: referenced.map { |variable| variable["name"] })
+          namespace = item.dig("metadata", "namespace")
+          values = {}
+          names = []
+          env.each do |variable|
+            value = variable.key?("value") ? variable["value"].to_s : config_value(namespace, variable.dig("valueFrom", "configMapKeyRef"))
+            value.nil? ? names << variable["name"] : values[variable["name"].to_s] = value
+          end
+          ResourceMap::Use.read(from: found.key, workspace: @workspace, values: values, names: names)
+        end
+
+        def config_value(namespace, reference)
+          return if reference.nil? || reference["name"].blank?
+
+          @config_maps.call(namespace, reference["name"])&.dig(reference["key"].to_s)
         end
 
         # The names a service answers on in the cluster, on each of its ports.

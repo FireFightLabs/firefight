@@ -67,8 +67,9 @@ module Integrations
         assert_equal 2, snapshot.resources.size
         assert snapshot.complete?
         assert_not snapshot.settings_complete?
-        assert_equal "Trigger.dev refused the environment's variables: Trigger.dev answered 403: Unauthorized. So what the tasks connect to is not " \
-                     "on the map. The API key's preset has to read environment variables, and Observer does not.", snapshot.gaps.sole.text
+        assert_equal "Trigger.dev refused the environment's variables: Trigger.dev answered 403: Unauthorized. So the tasks are not linked to what " \
+                     "their variables name. This is optional. Observer keeps the connection read only and cannot read environment variables, " \
+                     "and a key whose preset can read them links the tasks too.", snapshot.gaps.sole.text
       end
 
       test "a list of queues cut short at its page bound says so" do
