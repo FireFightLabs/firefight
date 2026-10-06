@@ -94,6 +94,8 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
     click_button "Turn off"
     within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
+    # The toast is hidden from view until the dialog has closed.
+    assert_no_selector "[role='dialog']", text: "Turn off live updates?"
     assert_text "Live updates are off. Firefight removed its webhook from Render."
     assert_text "Live updates were turned off, so the map updates at each sweep."
   end
