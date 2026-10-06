@@ -45,6 +45,32 @@ module Integrations
       assert_raises(Integrations::RateLimited) { @api.user }
     end
 
+    test "a site's hooks are listed, made, turned on and deleted at the paths the spec gives, and not found and a refusal are told apart" do
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/hooks" && URI.decode_www_form(uri.query).to_h == { "site_id" => "s1" } && request.is_a?(Net::HTTP::Get) }
+          .returns(response(200, [ { id: "h1", type: "url", event: "deploy_created", data: { url: "https://ff.example/hook" } } ]))
+      assert_equal [ "h1" ], @api.hooks("s1").map { |hook| hook["id"] }
+
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/api/v1/hooks" && URI.decode_www_form(uri.query).to_h == { "site_id" => "s1" } && request.is_a?(Net::HTTP::Post) &&
+          JSON.parse(request.body) == { "type" => "url", "event" => "deploy_created", "data" => { "url" => "https://ff.example/hook", "signature_secret" => "s3cret" } }
+      end.returns(response(201, { id: "h2" }))
+      assert_equal "h2", @api.create_hook("s1", event: "deploy_created", url: "https://ff.example/hook", secret: "s3cret")["id"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/hooks/types" && URI.decode_www_form(uri.query).to_h == { "site_id" => "s1" } && request.is_a?(Net::HTTP::Get) }
+          .returns(response(200, [ { name: "url", events: [ "deploy_created" ] } ]))
+      assert_equal "url", @api.hook_types("s1").sole["name"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/hooks/h2/enable" && request.is_a?(Net::HTTP::Post) }.returns(response(200, { id: "h2" }))
+      @api.enable_hook("h2")
+      Http.expects(:request).with { |uri, request, **| uri.path == "/api/v1/hooks/h2" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
+      assert_equal({}, @api.delete_hook("h2"))
+
+      Http.stubs(:request).returns(response(404, { code: 404, message: "Not Found" }))
+      assert_raises(NetlifyApi::NotFound) { @api.site("s9") }
+      Http.stubs(:request).returns(response(422, { code: 422, message: "Validation failed" }))
+      assert_raises(NetlifyApi::Refused) { @api.create_hook("s1", event: "deploy_created", url: "https://ff.example/hook", secret: "s3cret") }
+    end
+
     private
 
     def response(code, body)

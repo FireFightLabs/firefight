@@ -102,6 +102,9 @@ module Integrations
           raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
 
+        def limits = "Render says when a service builds, deploys, is suspended or resumed, or scales, and when a datastore changes. " \
+                     "A service created or deleted, and a change to its settings, reach the map at each hourly sweep."
+
         # A webhook already gone from Render is taken back all the same.
         def remove(row, webhook_id)
           api(row).delete_webhook(webhook_id)

@@ -339,6 +339,32 @@ module Integrations
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
+      test "an activity log event reads the one app or database it names again, with its hostnames, settings and address" do
+        AzureApi.any_instance.expects(:list).never
+        AzureApi.any_instance.stubs(:post).with { |path, *| path.end_with?("/config/appsettings/list") }.returns({ "properties" => { "DATABASE_URL" => "postgres://u:p@catalog.postgres.database.azure.com/shop" } })
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(account: SUBSCRIPTION, kind: ResourceMap::KIND_SERVICE, external_id: WEB_ID))
+
+        assert_equal %w[shop.example.com storefront storefront.azurewebsites.net], snapshot.resources.map(&:name).sort
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+
+        AzureApi.any_instance.stubs(:get).with("#{GROUP}/Microsoft.Sql/servers/shop-sql", Azure::SQL_VERSION).returns(
+          "name" => "shop-sql", "properties" => { "fullyQualifiedDomainName" => "shop-sql.database.windows.net" }
+        )
+        database = @pack.map_refresh(@row, ResourceMap::Scope.new(account: SUBSCRIPTION, kind: ResourceMap::KIND_DATABASE, external_id: SQL_ID))
+        assert_equal [ "orders", "shop-sql" ], [ database.resources.sole.name, database.resources.sole.details["server"] ]
+        assert_equal [ [ database.resources.sole.key, 1433 ] ], database.endpoints.map { |endpoint| [ endpoint.resource, endpoint.port ] }
+      end
+
+      test "an app Resource Manager answers not found for is gone, and one in another subscription is left to the sweep" do
+        AzureApi.any_instance.stubs(:get).with(APP_ID, Azure::APP_VERSION).raises(AzureApi::NotFound, "Azure answered 404: ResourceNotFound")
+
+        assert_equal [ [ "azure", SUBSCRIPTION, ResourceMap::KIND_SERVICE, APP_ID ] ],
+                     @pack.map_refresh(@row, ResourceMap::Scope.new(account: SUBSCRIPTION, kind: ResourceMap::KIND_SERVICE, external_id: APP_ID)).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SERVICE, external_id: APP_ID.sub(SUBSCRIPTION, "99999999-2222-3333-4444-555555555555")))
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.everything)
+      end
+
       private
 
       def pages(items, complete: true) = Integrations::Pages::Read.new(items: items, complete: complete)

@@ -5,6 +5,8 @@ module Integrations
   class GoogleCloudApi
     class Error < Integrations::Error; end
     class Forbidden < Error; end
+    # Google answered that the resource is not there, the one answer a re-read takes as gone.
+    class NotFound < Error; end
 
     TOKEN_URI = "https://oauth2.googleapis.com/token".freeze
     GRANT_TYPE = "urn:ietf:params:oauth:grant-type:jwt-bearer".freeze
@@ -14,6 +16,8 @@ module Integrations
     TOKEN_REFRESH_MARGIN = 5.minutes
     SERVICE_ACCOUNT = "service_account".freeze
     FORBIDDEN = 403
+    NOT_FOUND = 404
+    AUDIT_PAGE_SIZE = 1000
     PAGE_LIMIT = 10
     # A zone Compute Engine could not reach, as aggregatedList marks its scope (InstancesScopedList warning code).
     UNREACHABLE = "UNREACHABLE".freeze
@@ -123,6 +127,17 @@ module Integrations
       entries.first(limit)
     end
 
+    # Log entries of the project matching a Logging query, oldest first, every page up to PAGE_LIMIT, as a Pages::Read
+    # that says whether it holds all of them (entries.list, orderBy timestamp asc).
+    def log_entries_since(project_id, filter)
+      Pages.read(max_pages: PAGE_LIMIT) do |token|
+        body = { "resourceNames" => [ "projects/#{project_id}" ], "filter" => filter, "orderBy" => "timestamp asc",
+                 "pageSize" => AUDIT_PAGE_SIZE, "pageToken" => token }.compact
+        page = post("#{LOGGING}/entries:list", body)
+        [ Array(page["entries"]), page["nextPageToken"].presence ]
+      end
+    end
+
     # Cloud Monitoring's time series for one metric. query uses its own parameter names, such as interval.startTime.
     def time_series(project_id, query) = list("#{MONITORING}/projects/#{segment(project_id)}/timeSeries", "timeSeries", query).items
 
@@ -174,7 +189,7 @@ module Integrations
 
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{access_token}"
-      Http.json(uri, request, error_class: Error, provider_name: "Google Cloud", refine: ->(code, _reason) { Forbidden if code == FORBIDDEN })
+      Http.json(uri, request, error_class: Error, provider_name: "Google Cloud", refine: ->(code, _reason) { { FORBIDDEN => Forbidden, NOT_FOUND => NotFound }[code] })
     end
 
     def access_token
