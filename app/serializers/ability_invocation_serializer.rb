@@ -54,6 +54,12 @@ class AbilityInvocationSerializer < BaseSerializer
     invocation.approval_id
   end
 
+  # The connection a tool's action runs through, as a person tells it apart, such as "Faylee (Northflank)".
+  type :string, optional: true
+  def connection
+    invocation.connection_name
+  end
+
   type :string, optional: true
   def source
     invocation.source

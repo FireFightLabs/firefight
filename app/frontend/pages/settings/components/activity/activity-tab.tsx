@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 
 const ALL = "all"
 const DECISIONS = ["allow", "deny", "pending"] as const
@@ -119,7 +120,7 @@ export function ActivityTab({
                     {invocation.source ? sourceLabel(invocation.source) : "-"}
                   </TableCell>
                   <TableCell>
-                    <code className="text-xs">{invocation.actionKey}</code>
+                    <ActionLabel actionKey={invocation.actionKey} title={invocation.connection} />
                   </TableCell>
                   <TableCell>
                     <Badge variant={DECISION_VARIANT[invocation.decision] ?? "secondary"}>

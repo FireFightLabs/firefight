@@ -18,6 +18,10 @@ export type ApprovalQuestion = {
   q: string;
   /** a small line above the question, such as which tool it is about */
   eyebrow?: string;
+  /** a line under the question, such as the call made against what the question names */
+  subtitle?: string;
+  /** quieter words under that, such as what the agent said the call is for */
+  note?: string;
   type: "radio" | "check";
   options: string[];
   /** what the question is about, shown under it as a list rather than run into the sentence */
@@ -364,6 +368,8 @@ export default function ApprovalCard({
                   >
                     {question.eyebrow && <div className="pr-7 text-[12px] font-medium text-ink-3">{question.eyebrow}</div>}
                     <div className={`pr-7 font-medium text-ink ${question.eyebrow ? "mt-1 text-[15px]" : "text-[14px]"}`}>{question.q}</div>
+                    {question.subtitle && <div className="mt-0.5 pr-7 text-[13px] font-medium text-ink-2">{question.subtitle}</div>}
+                    {question.note && <div className="mt-1.5 pr-7 text-[13px] text-ink-3">{question.note}</div>}
                     {question.details && question.details.length > 0 && <DetailList details={question.details} className="mt-2.5" />}
                     <GlideMenu className="mt-2.5 flex flex-col gap-1" highlightClassName="inset-x-0 rounded-control bg-hover">
                       {question.options.map((option, i) => {

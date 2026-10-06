@@ -168,6 +168,16 @@ module Integrations
       tools.map(&:integration).uniq.flat_map { |integration| integration.integration_environments.enabled.includes(:environment).map { |row| connection_label(row) } }.uniq
     end
 
+    # The connections an agent may name for a capability, which are every one whose provider answers it, its tools switched on or
+    # not, so a connection that holds the resource is never missing from the choice. Asking one whose tool is off answers
+    # that it is off (switched_off).
+    def self.connection_choices(workspace, spec, tools)
+      rows = IntegrationEnvironment.reachable.includes(:integration, :environment).where(integrations: { workspace_id: workspace.id })
+                                   .order("integrations.created_at").to_a
+      answering = rows.select { |row| adapter_for(row.integration.provider)&.capabilities.to_a.include?(spec.key) }
+      (connections(tools) + answering.map { |row| connection_label(row) }).uniq
+    end
+
     def self.connection_label(row)
       wired = row.integration.integration_environments.enabled.count > 1 && row.environment
       wired ? "#{row.integration.slug}/#{row.environment.slug}" : row.integration.slug
@@ -183,7 +193,7 @@ module Integrations
     def self.tool_names = SPECS.values.map(&:tool_name)
 
     def self.schema(spec, connections)
-      properties = { RESOURCE_ARG => { "type" => "string", "description" => "The resource, by its name or id on the resource map" } }
+      properties = { RESOURCE_ARG => { "type" => "string", "description" => "The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it" } }
       if connections.size > 1
         choices = spec.writes ? connections : [ *connections, ALL ]
         properties[CONNECTION_ARG] = { "type" => "string", "enum" => choices,
@@ -274,10 +284,10 @@ module Integrations
 
     def self.candidates_for(workspace, spec, given, tools, principal)
       reference = given[RESOURCE_ARG].to_s.strip
-      raise Unroutable, "Say which resource, by its name or id on the resource map." if reference.empty?
+      raise Unroutable, "Say which resource, by its name or its id on the resource map." if reference.empty?
 
       visible = ResourceMap::Resource.visible_to(principal, workspace)
-      named = visible.named(workspace, reference).present.to_a
+      named = visible.referenced(workspace, reference).present.to_a
       raise Unroutable, "Nothing on the resource map is called #{reference}. get_resource_map lists what is there." if named.empty?
 
       candidates = holders(named, spec, visible)
@@ -398,10 +408,13 @@ module Integrations
       resources = candidates.map(&:resource).uniq
       return if resources.one?
 
-      named = resources.map { |resource| "#{resource.kind} #{resource.name} (id #{resource.external_id}, #{resource.provider})" }
+      named = resources.map do |resource|
+        through = candidates.select { |candidate| candidate.resource == resource }.map { |candidate| candidate.row.integration.display_name }.uniq
+        "#{resource.kind} #{resource.name} (map id #{resource.id}, on #{through.to_sentence}, its provider's id #{resource.external_id})"
+      end
       rows = labels(candidates)
       choice = rows.size > 1 ? ", or choose connection from: #{rows.join(', ')}" : ""
-      raise Unroutable, "More than one resource is called #{reference}: #{named.to_sentence}. Name it by its id#{choice}."
+      raise Unroutable, "More than one resource is called #{reference}: #{named.to_sentence}. Name it by its map id#{choice}."
     end
 
     def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -510,6 +510,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_140000) do
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "allowed_tool_names", default: [], null: false
     t.boolean "cancelled", default: false, null: false
+    t.jsonb "connections_seen"
     t.datetime "created_at", null: false
     t.jsonb "found_tool_names", default: [], null: false
     t.uuid "owner_id", null: false
@@ -1671,6 +1672,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_140000) do
     t.boolean "remote", default: false, null: false
     t.uuid "result_id"
     t.string "result_type"
+    t.string "target"
     t.text "thought_signature"
     t.string "tool_call_id", null: false
     t.datetime "updated_at", null: false

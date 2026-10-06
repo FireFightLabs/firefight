@@ -470,7 +470,7 @@ module Integrations
                     KIND_DROPLET => -> { api.droplets.items.map { |droplet| { kind: KIND_DROPLET, id: droplet["id"].to_s, name: droplet["name"].to_s } } },
                     KIND_DATABASE => -> { api.databases.items.map { |database| { kind: KIND_DATABASE, id: database["id"].to_s, name: database["name"].to_s } } } }
         listed = readers.slice(*(only ? [ only ] : readers.keys)).values.flat_map(&:call)
-        found = Named.find(listed, asked, id: :id, name: :name, provider: PROVIDER, describe: ->(row) { "#{KIND_NAMES.fetch(row[:kind])} #{row[:id]}" })
+        found = Named.find(listed, asked, id: :id, name: :name, provider: PROVIDER, describe: ->(row) { "#{KIND_NAMES.fetch(row[:kind])} #{row[:id]}" }, connection: environment_row)
         return found if found
 
         what = only ? "#{KIND_NAMES.fetch(only)} called #{asked}" : "app, Droplet or database called #{asked}"

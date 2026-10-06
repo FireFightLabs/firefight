@@ -124,9 +124,10 @@ module Chat::Tools::Groups
     )
   ].freeze
 
-  # connected names the connections behind a group, which can be there with every tool switched off.
-  View = Data.define(:key, :title, :covers, :entries, :could_connect, :connected) do
-    def initialize(key:, title:, covers:, entries:, could_connect: [], connected: []) = super
+  # connected names the connections behind a group, which can be there with every tool switched off, and idle those of
+  # them with no tool switched on, as a person tells them apart, even while the others' tools are on.
+  View = Data.define(:key, :title, :covers, :entries, :could_connect, :connected, :idle) do
+    def initialize(key:, title:, covers:, entries:, could_connect: [], connected: [], idle: []) = super
 
     def state
       return Chat::Tools::STATE_READY if entries.any?(&:tool)
@@ -153,7 +154,7 @@ module Chat::Tools::Groups
 
   def self.for(agent_run)
     entries = Chat::Tools.catalog(agent_run).group_by(&:group)
-    integrations = agent_run.workspace.integrations.active.to_a
+    integrations = agent_run.workspace.integrations.active.includes(:tools).order(:created_at).to_a
 
     firefight_views(entries) + resource_views(entries) + category_views(entries, integrations) + connection_views(entries, integrations)
   end
@@ -176,11 +177,20 @@ module Chat::Tools::Groups
   def self.category_views(entries, integrations)
     IntegrationProvider.categories.except(CUSTOM_CATEGORY).map do |category, tagline|
       key = category_key(category)
-      connected = integrations.select { |integration| of_connection(integration) == key }.map(&:name)
+      behind = integrations.select { |integration| of_connection(integration) == key }
+      connected = behind.map(&:name)
+      idle = idle(behind)
       covers = connected.any? ? "#{tagline}, through #{connected.to_sentence}" : tagline
+      covers += ", though #{idle.to_sentence} #{idle.one? ? 'has' : 'have'} no tools switched on" if idle.any? && idle.size < behind.size
       offered = IntegrationProvider.all.select { |provider| provider.category == category }.map(&:name)
-      View.new(key: key, title: category, covers: covers, entries: entries.fetch(key, []), could_connect: offered, connected: connected)
+      View.new(key: key, title: category, covers: covers, entries: entries.fetch(key, []), could_connect: offered, connected: connected, idle: idle)
     end
+  end
+
+  # The connections with no tool switched on, as a person tells them apart.
+  def self.idle(integrations)
+    integrations.reject { |integration| integration.tools.any? { |tool| tool.enabled? && tool.available? } }
+                .map { |integration| Chat::Tools.clean(integration.display_name, Chat::Tools::TITLE_LIMIT) }
   end
 
   # The admin's own name for it, and its tools' names, since what such a server says about itself is not ours to trust.

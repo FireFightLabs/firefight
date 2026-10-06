@@ -16,5 +16,21 @@ module FirefightAi
                "reads how it stands now from the provider that holds it. Both only read, so neither asks the person. Use a " \
                "provider's own tools to find something only when the map does not have it, and never one that changes " \
                "things or asks the person to confirm each call.".freeze
+
+    # Seen in a real chat, a workspace had two connections to one provider, each reaching its own project. Halon called
+    # the first connection's tool to change the second's project, then explained it with a routing fault no result had
+    # shown. These three hold in a chat and a run.
+    CONNECTION_RULE = "A connection's tool reaches only that connection's account or project, whatever its name suggests. " \
+                      "To read or change something in another connection's account, use that connection's own tool. If you " \
+                      "hold none for it, call open_tools again for its group, and if it is not there, say which connection " \
+                      "is missing it rather than reaching for another one's.".freeze
+
+    CHANGED_RULE = "When the person says they connected, removed or changed a connection, or switched its tools on or off, " \
+                   "call open_tools again for its group before you answer, since what you hold was found before the " \
+                   "change.".freeze
+
+    CAUSE_RULE = "Never state why something failed or cannot be done, such as a missing permission, a routing fault or a " \
+                 "missing parameter, unless a tool result said so. When you do not know why, say what you saw and that " \
+                 "the cause is not known.".freeze
   end
 end

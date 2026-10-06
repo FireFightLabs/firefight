@@ -35,7 +35,7 @@ module Mcp
       annotations(**READ_ONLY)
       input_schema(
         properties: {
-          resource: { type: "string", description: "A resource's name or its provider's id, such as web or firefight-prod/main. Leave it out for the whole map" }
+          resource: { type: "string", description: "A resource's name, its provider's id or its id on the map, such as web, firefight-prod/main or an id search_map gave. Leave it out for the whole map" }
         }
       )
 
@@ -44,12 +44,12 @@ module Mcp
         visible = ResourceMap::Resource.visible_to(principal, workspace)
         return respond(overview(workspace, visible, ResourceMap::Resource.environments_visible_to(principal, workspace))) if args[:resource].blank?
 
-        found = visible.named(workspace, args[:resource]).includes(integration_environment: %i[integration environment]).to_a
+        found = visible.referenced(workspace, args[:resource]).includes(integration_environment: %i[integration environment]).to_a
         if found.empty?
           return respond(error: "Nothing called #{args[:resource]} is on the map. Leave the resource out to see the whole map.")
         end
 
-        more = "#{found.size - SHEETS_SHOWN} more share this name, name one by its provider's id" if found.size > SHEETS_SHOWN
+        more = "#{found.size - SHEETS_SHOWN} more share this name, name one by its id on the map" if found.size > SHEETS_SHOWN
         respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible) }, more: more }.compact)
       end
 

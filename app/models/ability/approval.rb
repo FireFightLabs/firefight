@@ -2,6 +2,8 @@ module Ability
   # Bound to the exact request by a digest, so "approved" means this call
   # with these params, never the action in general. Consumed by exactly one execution.
   class Approval < ApplicationRecord
+    include Ability::ConnectionNamed
+
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
     STATUS_DENIED = "denied"

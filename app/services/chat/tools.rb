@@ -66,7 +66,9 @@ module Chat::Tools
     @firefight_reading_names ||= Mcp::Tools.all.filter_map { |tool_class| tool_class.name_value.to_s if tool_class.annotations_value&.read_only_hint }.to_set
   end
 
-  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status)
+  # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
+  # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call)
 
   # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
   # whoever approves it. It is taken off before the call is made, so the tool never sees it.
@@ -163,12 +165,24 @@ module Chat::Tools
     "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check."
   end
 
+  # A call with a target is asked about what it reaches, the call itself and the agent's words coming after, since the
+  # agent's words can name another account than the one the tool reaches.
   def self.confirmation(tool_call)
     step = step(tool_call.name, tool_call.arguments)
+    target = tool_call.try(:target).presence
+    call = (call_title(tool_call) if target)
     Confirmation.new(
-      tool_call_id: tool_call.tool_call_id, question: "#{step&.title || tool_call.name.humanize}?",
-      intent: intent_of(tool_call.arguments), asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting)
+      tool_call_id: tool_call.tool_call_id, question: target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?",
+      intent: intent_of(tool_call.arguments), asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
+      target: target, call: call
     )
+  end
+
+  # What the tool does, by its own name rather than the connection's, such as "Api request".
+  def self.call_title(tool_call)
+    workspace = tool_call.message&.chat&.workspace
+    tool = workspace && Target.connection_tool(workspace, tool_call.name)
+    (tool ? tool.name : tool_call.name).to_s.tr("_.", "  ").humanize
   end
 
   # A result that fits the running model is handed over whole. A larger one is kept in full and the

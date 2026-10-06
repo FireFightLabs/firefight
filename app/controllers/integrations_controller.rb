@@ -31,7 +31,7 @@ class IntegrationsController < InertiaController
 
     # A database connected from a URL can also be reached through an MCP server the team runs.
     kind = provider.nil? || provider.connection_url? || provider.mcp_alternative? ? Integration::KIND_MCP : provider.kind
-    reserved = Integration.name_blocked_reason(params.require(:name))
+    reserved = Integration.name_blocked_reason(params.require(:name), workspace: current_workspace, provider: provider&.key || params[:provider].to_s)
     return redirect_back(fallback_location: integrations_path, alert: reserved) if reserved
 
     # The server's whole address is pasted here, so only the fields that are not part of it are asked, and none when it
@@ -305,7 +305,7 @@ class IntegrationsController < InertiaController
   # fields belong to the environment connected now, and a way of connecting that asks none leaves them as they were.
   def connect!(provider, name, environment_id, region: nil, fields: nil, server_url: nil, kind: provider.kind)
     slug = Integration.slug_for(name)
-    reserved = Integration.name_blocked_reason(name)
+    reserved = Integration.name_blocked_reason(name, workspace: current_workspace, provider: provider.key)
     raise NameTaken, reserved if reserved
 
     integration = current_workspace.integrations.find_or_initialize_by(slug: slug)

@@ -114,7 +114,7 @@ class SettingsController < InertiaController
     scope = scope.where(decision: params[:decision]) if params[:decision].present?
 
     render inertia: "settings/activity", props: {
-      invocations: AbilityInvocationSerializer.many(scope.limit(ACTIVITY_LIMIT)),
+      invocations: AbilityInvocationSerializer.many(Ability::Invocation.with_connection_names(scope.limit(ACTIVITY_LIMIT))),
       decision: params[:decision].presence
     }
   end
@@ -123,9 +123,9 @@ class SettingsController < InertiaController
     scope = current_workspace.ability_approvals.order(created_at: :desc)
 
     render inertia: "settings/approvals", props: {
-      pendingApprovals: AbilityApprovalSerializer.many(scope.pending),
+      pendingApprovals: AbilityApprovalSerializer.many(Ability::Approval.with_connection_names(scope.pending)),
       resolvedApprovals: AbilityApprovalSerializer.many(
-        scope.where.not(status: Ability::Approval::STATUS_PENDING).limit(RESOLVED_APPROVALS_LIMIT)
+        Ability::Approval.with_connection_names(scope.where.not(status: Ability::Approval::STATUS_PENDING).limit(RESOLVED_APPROVALS_LIMIT))
       )
     }
   end

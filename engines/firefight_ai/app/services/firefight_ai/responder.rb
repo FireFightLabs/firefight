@@ -77,6 +77,9 @@ module FirefightAi
         - A parameter that says "one of" lists the only values that exist. Pick from it, never a name you assume. When several fit what the person said, ask which, naming them. A parameter that takes a person takes "me" for whoever asked you, so never ask them for their own email.
         - #{LookFirstRule::RULE}
         - #{LookFirstRule::MAP_RULE}
+        - #{LookFirstRule::CONNECTION_RULE}
+        - #{LookFirstRule::CHANGED_RULE}
+        - #{LookFirstRule::CAUSE_RULE}
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.
         - State nothing a tool result or the facts below do not support. Say what you do not know.
         - Never say you cannot check or do something without reading the groups and opening the one that fits first, including when asked what you are able to do. The groups also say when tools exist but this person may not use them, or when nothing is connected, and that is worth saying.

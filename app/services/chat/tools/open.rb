@@ -67,7 +67,17 @@ class Chat::Tools::Open < RubyLLM::Tool
     return listed_first(view) if chosen.empty?
 
     @offer.call(chosen.filter_map(&:tool))
-    [ listing(chosen), skills_for(chosen) ].compact.join("\n\n")
+    [ listing(chosen), idle(view), skills_for(chosen) ].compact.join("\n\n")
+  end
+
+  # A connection with every tool off has nothing to list, so it would go unseen beside the others in its group.
+  def idle(view)
+    return if view.idle.empty?
+
+    view.idle.map do |name|
+      "#{name} is connected, but none of its tools are switched on. An admin can switch them on in Integrations. " \
+        "Say so when the person asks about what it reaches, rather than using another connection's tools for it."
+    end.join("\n")
   end
 
   # A skill has the steps for these tools, so the agent is pointed at it here, where it is about to call them, rather
@@ -98,7 +108,7 @@ class Chat::Tools::Open < RubyLLM::Tool
     [
       "#{listing(view.entries)}\n" \
         "This group is large, so nothing was loaded. Call #{name} again with this group and tools, and name the ones you need.",
-      skills_for(view.entries)
+      idle(view), skills_for(view.entries)
     ].compact.join("\n\n")
   end
 

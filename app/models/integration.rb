@@ -99,12 +99,55 @@ class Integration < ApplicationRecord
   # which belong to the whole connection.
   def address_fields = settings.to_h.fetch(FIELDS_SETTING, {})
 
+  # How a person tells this connection from another one to the same provider, by the name it was given and the
+  # provider's, such as "Faylee (Northflank)". A connection named after its provider is that name alone.
+  def display_name
+    provider_name = IntegrationProvider.find(provider)&.name
+    return name if provider_name.blank? || provider_name.casecmp?(name.to_s.strip)
+
+    "#{name} (#{provider_name})"
+  end
+
+  ACCOUNTS_SHOWN = 3
+
+  # What the connection reaches, in words. That is its region and the connect fields that point it at an account, such as
+  # "project faylee", or when it was asked none, the accounts its sweep put on the map. environment_row narrows it to one
+  # environment. nil when nothing says.
+  def reach(environment_row = nil)
+    rows = environment_row ? [ environment_row ] : integration_environments.select(&:enabled)
+    entry = IntegrationProvider.find(provider)
+    fields = entry ? entry.address_fields + entry.environment_fields : []
+    parts = fields.filter_map do |field|
+      values = rows.flat_map { |row| Array(row.fields[field.key].presence || address_fields[field.key].presence) }.map(&:to_s).compact_blank.uniq
+      "#{field.label.sub(/\A[A-Z](?![A-Z])/, &:downcase)} #{values.to_sentence}" if values.any?
+    end
+    parts = mapped_accounts(rows) if parts.empty?
+    parts.unshift("region #{region.label}") if region && entry&.regions.to_a.size > 1
+    parts.to_sentence.presence
+  end
+
+  # The connection and what it reaches, such as "Faylee (Northflank), project faylee", which is how a call through it is
+  # put to a person.
+  def target_label(environment_row = nil) = [ display_name, reach(environment_row) ].compact.join(", ")
+
+  # Every word that names this connection or what it reaches, lowercased. These are its name and slug, its connect fields
+  # and the accounts its sweep found. A word too short to tell connections apart is left out.
+  def naming_terms
+    rows = integration_environments.to_a
+    values = rows.flat_map { |row| row.fields.values } + address_fields.values
+    accounts = ResourceMap::Resource.where(workspace_id: workspace_id, integration_environment_id: rows.map(&:id)).distinct.pluck(:account)
+    [ name, slug, slug.tr("_", " "), *values.flatten, *accounts, *accounts.flat_map { |account| account.split("/") } ]
+      .map { |term| term.to_s.strip.downcase }.select { |term| term.length >= MIN_TERM }.uniq
+  end
+
+  MIN_TERM = 3
+
   # Saved row by row because enabling one mints its Ability::Action in an after_save that
   # update_all would skip. reads_only turns the write tools off rather than adding anything.
   def set_all_tools!(enabled, reads_only: false)
     transaction do
       tools.available.each do |tool|
-        desired = enabled && (!reads_only || tool.read_only?)
+        desired = enabled && (!reads_only || tool.read_only?) && (tool.enabled? || tool.namesake.nil?)
         tool.update!(enabled: desired) if tool.enabled? != desired
       end
     end
@@ -123,9 +166,59 @@ class Integration < ApplicationRecord
 
   class UnknownEnvironment < StandardError; end
 
-  # Why a new connection cannot take this name, or nil when it can.
-  def self.name_blocked_reason(name)
-    "All is kept for asking every connection at once. Pick a different name." if slug_for(name) == SLUG_ALL
+  # Why a new connection cannot take this name, or nil when it can. With a workspace, a name whose tools Halon would
+  # call by another connection's tool's name is refused too.
+  def self.name_blocked_reason(name, workspace: nil, provider: nil)
+    return "All is kept for asking every connection at once. Pick a different name." if slug_for(name) == SLUG_ALL
+
+    tool_name_collision_reason(workspace, name, provider) if workspace
+  end
+
+  # Halon calls a tool by its connection's slug and the tool's name joined with an underscore, so a connection named a_b
+  # with a tool c and one named a with a tool b_c would both give it a_b_c. A connection has no tools until it is made,
+  # so its tools are taken to be those its provider's other connections here have. A tool only discovered later that
+  # still collides cannot be switched on (Integration::Tool#toggle_blocked_reason).
+  def self.tool_name_collision_reason(workspace, name, provider)
+    slug = slug_for(name)
+    others = workspace.integrations.where(deleted_at: nil).where.not(slug: slug).includes(:tools).to_a
+    own = others.select { |other| other.provider == provider.to_s }.flat_map { |other| other.tools.map(&:name) }.uniq
+    others.each do |other|
+      other.tools.each do |tool|
+        mine = own.find { |each| "#{slug}.#{each}".tr(".", "_") == tool.model_facing_name }
+        next unless mine
+
+        return "#{name.to_s.strip} would give its #{mine} tool the name #{tool.model_facing_name}, which #{other.display_name}'s " \
+               "#{tool.name} tool already has, so Halon could not tell them apart. Pick a different name."
+      end
+    end
+    nil
+  end
+
+  # The connection each tool action key names, as a person tells it apart (display_name), read in one query. A removed
+  # connection still names its old rows, and a system action names none.
+  def self.display_names_for(workspace_id, action_keys)
+    keys = action_keys.map(&:to_s).uniq.select { |key| key.include?(".") }
+    return {} if keys.empty?
+
+    integrations = where(workspace_id: workspace_id, slug: keys.map { |key| key.split(".", 2).first }.uniq).includes(:tools)
+                     .order(Arel.sql("deleted_at IS NOT NULL"), created_at: :desc).to_a
+    keys.each_with_object({}) do |key, found|
+      slug, tool_name = key.split(".", 2)
+      integration = integrations.find { |each| each.slug == slug && each.tools.any? { |tool| tool.name == tool_name } }
+      found[key] = integration.display_name if integration
+    end
+  end
+
+  # This connection's tools that another connection's tool shares a name with as Halon calls it, by tool name, read in
+  # one query.
+  def tool_namesakes
+    @tool_namesakes ||= begin
+      names = tools.map(&:model_facing_name)
+      others = Integration::Tool.joins(:integration).includes(:integration)
+                                .where(integrations: { workspace_id: workspace_id, deleted_at: nil }).where.not(integration_id: id)
+                                .where("replace(integrations.slug || '_' || integration_tools.name, '.', '_') IN (?)", names).to_a.index_by(&:model_facing_name)
+      tools.each_with_object({}) { |tool, found| found[tool.name] = others[tool.model_facing_name] if others[tool.model_facing_name] }
+    end
   end
 
   # The environment a caller named by slug, or nil for the connection's default. Every way in
@@ -152,6 +245,16 @@ class Integration < ApplicationRecord
   # and ledger rows.
   def slug_immutable
     errors.add(:slug, "cannot be changed after creation") if slug_changed?
+  end
+
+  def mapped_accounts(rows)
+    accounts = ResourceMap::Resource.present.where(workspace_id: workspace_id, integration_environment_id: rows.map(&:id))
+                                    .distinct.order(:account).limit(ACCOUNTS_SHOWN + 1).pluck(:account)
+    return [] if accounts.empty?
+
+    shown = accounts.first(ACCOUNTS_SHOWN)
+    shown << "more" if accounts.size > ACCOUNTS_SHOWN
+    [ "#{accounts.one? ? 'account' : 'accounts'} #{shown.to_sentence}" ]
   end
 
   def slug_not_reserved

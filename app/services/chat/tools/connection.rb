@@ -9,6 +9,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # RubyLLM pauses the turn before a call that needs the person's decision.
   def requires_approval? = @agent_run.confirms?(@tool.ability_action, tool_name: name)
 
+  # A call whose words name another connection is refused rather than put to the person (Chat::Tools::Target).
+  def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| misdirection(given).present? }
+
   def name = @tool.model_facing_name
 
   # Another system's words, so only text reaches the model and a runaway description is capped.
@@ -29,11 +32,28 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # The arguments match the tool's own schema, not an execute signature, so skip the base check.
   def call(tool_call: nil, **arguments)
     given = arguments.transform_keys(&:to_s)
+    return failed(tool_call&.id, gone) unless Integration::Tool.in_workspace(@agent_run.workspace).exists?(id: @tool.id)
+
+    refused = misdirection(given) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.connection_label(@tool, given))
+    return failed(tool_call&.id, refused) if refused
+
     @issue_kind = given[Chat::Tools::TrackedIssues::KIND_ARG]
     invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG), tool_call_id: tool_call&.id)
   end
 
   private
+
+  # Switched off, or its connection was, since the agent was handed it.
+  def gone
+    "#{name} was switched off since you were given it, so it was not run. An admin can switch it on in Integrations. " \
+      "Tell the person, and open the tools again once they say it is on."
+  end
+
+  def misdirection(given)
+    Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.intent_of(given), called: name) do |other|
+      Chat::Tools::Target.reach_instead(other, @tool.name)
+    end
+  end
 
   def tracks_issues? = @agent_run.incident.present? && Integrations::Issues.opens?(@tool)
 

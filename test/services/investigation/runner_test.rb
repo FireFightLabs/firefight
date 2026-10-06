@@ -188,6 +188,20 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_match "Memory #{memory.id} was disputed since you started: The session store is Postgres", note.content
   end
 
+  test "a connection's tools switched on while the run works are told to the agent at its next step" do
+    faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    faylee.integration_environments.create!(credentials: { token: "x" }.to_json)
+    tool = faylee.tools.create!(name: "list_resources", description: "List", read_only: true, enabled: false, params_schema: { "type" => "object" })
+    @investigation.chat_record.update!(connections_seen: Chat::Tools::Changes.snapshot(@workspace))
+    tool.update!(enabled: true)
+    fake(outcome: :answered, conclude: true, take: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    note = @investigation.chat.messages.where(role: Chat::Message::ROLE_USER).find_by!(nudge: true)
+    assert_match "Faylee (Northflank) had faylee_list_resources switched on.", note.content
+  end
+
   private
 
   def turn(turns_used, spent_micros)

@@ -12,8 +12,8 @@ module Mcp
       annotations(**WRITE)
       input_schema(
         properties: {
-          from: { type: "string", description: "The resource that depends, by name or provider id, such as web" },
-          to: { type: "string", description: "The resource it depends on, such as firefight-prod/main" },
+          from: { type: "string", description: "The resource that depends, by its name, its provider's id or its id on the map, such as web" },
+          to: { type: "string", description: "The resource it depends on, the same way, such as firefight-prod/main" },
           relation: { type: "string", enum: ResourceMap::RELATIONS, description: "How from relates to to, read as from uses to, from runs builds of to, from is managed in to, and so on" },
           evidence: { type: "string", description: "What you read that shows the link, in one or two sentences" }
         },
@@ -36,11 +36,14 @@ module Mcp
       end
 
       def self.one(workspace, visible, reference)
-        found = visible.named(workspace, reference).present.to_a
+        found = visible.referenced(workspace, reference).present.includes(integration_environment: :integration).to_a
         return respond(error: "Nothing called #{reference} is on the map. get_resource_map shows what is.") if found.empty?
         return found.first if found.one?
 
-        respond(error: "More than one resource is called #{reference}: #{found.map { |each| "#{each.external_id} (#{each.provider} #{each.kind})" }.join(', ')}. Name one by its id.")
+        named = found.map do |each|
+          "#{each.kind} #{each.name} (map id #{each.id}, on #{each.integration_environment&.integration&.display_name || each.provider}, its provider's id #{each.external_id})"
+        end
+        respond(error: "More than one resource is called #{reference}: #{named.join(', ')}. Name one by its map id.")
       end
     end
   end

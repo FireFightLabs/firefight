@@ -343,6 +343,41 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_not @conversation.reload.answer_owed?
   end
 
+  test "a connection's tools switched on since the last turn are told to the agent before the model is asked, as a note nobody reads" do
+    alice = workspace_memberships(:alice_workspace_one)
+    faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    faylee.integration_environments.create!(credentials: { token: "x" }.to_json).store_fields!("project" => "faylee")
+    tool = faylee.tools.create!(name: "api_request", description: "API", read_only: false, enabled: false, params_schema: { "type" => "object" })
+    @conversation.ask!("scale faylee's web to 0", asker: alice)
+    @conversation.chat_record.update!(connections_seen: Chat::Tools::Changes.snapshot(@workspace))
+    tool.update!(enabled: true)
+    fake(reply: "Done", take: true)
+
+    Conversation::Runner.new(@conversation, asker: alice).run
+
+    note = @conversation.chat.messages.find_by!(role: Chat::Message::ROLE_USER, nudge: true)
+    assert_match "Faylee (Northflank) had faylee_api_request switched on.", note.content
+    assert_equal [ "scale faylee's web to 0" ], @conversation.chat.readable_messages.where(role: Chat::Message::ROLE_USER).map(&:content)
+  end
+
+  test "a connection switched on while the agent works is told at its next step" do
+    alice = workspace_memberships(:alice_workspace_one)
+    faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    faylee.integration_environments.create!(credentials: { token: "x" }.to_json)
+    tool = faylee.tools.create!(name: "api_request", description: "API", read_only: false, enabled: false, params_schema: { "type" => "object" })
+    @conversation.ask!("scale faylee's web to 0", asker: alice)
+    told = nil
+    fake(reply: "Done", during: lambda { |arguments|
+      tool.update!(enabled: true)
+      told = arguments[:take_messages].call
+    })
+
+    Conversation::Runner.new(@conversation, asker: alice).run
+
+    assert told
+    assert_match "Faylee (Northflank) had faylee_api_request switched on.", @conversation.chat.messages.find_by!(nudge: true).content
+  end
+
   test "someone else's message waits for their own turn, since a turn acts with its asker's permissions" do
     alice = workspace_memberships(:alice_workspace_one)
     bob = workspace_memberships(:bob_workspace_one)
