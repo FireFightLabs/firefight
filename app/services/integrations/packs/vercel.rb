@@ -220,48 +220,72 @@ module Integrations
       # serves. What could not be read for one project is a gap, not a failed sweep.
       def map_of(environment_row)
         api = api(environment_row)
-        resources = []
-        links = []
-        gaps = []
-        uses = []
-        projects(environment_row).each do |project|
-          production = project.dig("targets", PRODUCTION) || {}
-          found = ResourceMap::Found.new(
-            provider: PROVIDER_KEY, account: project["accountId"].to_s, kind: ResourceMap::KIND_SITE, external_id: project["id"].to_s,
-            name: project["name"].presence || project["id"].to_s, status: project["paused"] ? "paused" : production["readyState"]&.downcase,
-            url: project_link(environment_row, project)&.url,
-            details: { "type" => project["framework"], "branch" => project.dig("link", "productionBranch"),
-                       ResourceMap::DEPLOYED_COMMIT => meta(production, COMMIT_SHA) }.compact
-          )
-          resources << found
-          uses.concat(project_settings(api, project, found, environment_row.integration.workspace, gaps)) unless slowed?(gaps)
-          repository = repository(project["link"])
-          if repository
-            resources << repository
-            links << ResourceMap::FoundLink.new(from: found.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
-          end
-          begin
-            domains = api.project_domains(project["id"])
-            domains.items.select { |domain| domain["verified"] && domain["redirect"].blank? }.each do |domain|
-              host = ResourceMap.domain(domain["name"])
-              resources << host
-              links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
-            end
-            if domains.incomplete?
-              gaps << ResourceMap::Gap.new(text: "Only the first #{domains.items.size} domains of #{project['name']} were read.", kinds: [ ResourceMap::KIND_DOMAIN ])
-            end
-          rescue Integrations::RateLimited
-            raise
-          rescue VercelApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("The domains of #{project['name']} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
-          end
-        end
+        reading = MapReading.new
+        projects(environment_row).each { |project| read_project(environment_row, api, project, reading) }
         listed = project_list(environment_row)
         if listed.incomplete?
-          gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} projects were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
+          reading.gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} projects were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
+        reading.snapshot
       end
+
+      # Only the project a change named, read again as the sweep reads it, with its repository, domains and settings. Gone
+      # only when Vercel answers not found for it. nil for a scope Vercel cannot narrow to, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        return unless scope.external_id && [ nil, ResourceMap::KIND_SITE ].include?(scope.kind)
+
+        api = api(environment_row)
+        project = begin
+          api.project(scope.external_id)
+        rescue VercelApi::NotFound
+          # A project's key is under the team it belongs to, which the event named. Without it a sweep says what is gone.
+          return scope.account && ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, scope.account, ResourceMap::KIND_SITE, scope.external_id ] ])
+        end
+        reading = MapReading.new
+        read_project(environment_row, api, project, reading)
+        reading.snapshot
+      end
+
+      # What map_of and map_refresh read, one project at a time.
+      MapReading = Struct.new(:resources, :links, :gaps, :uses) do
+        def initialize = super([], [], [], [])
+
+        def snapshot = ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
+      end
+
+      # One project with the repository it builds from, the verified domains it serves and its production settings, onto
+      # the reading. What could not be read for it is a gap.
+      def read_project(environment_row, api, project, reading)
+        production = project.dig("targets", PRODUCTION) || {}
+        found = ResourceMap::Found.new(
+          provider: PROVIDER_KEY, account: project["accountId"].to_s, kind: ResourceMap::KIND_SITE, external_id: project["id"].to_s,
+          name: project["name"].presence || project["id"].to_s, status: project["paused"] ? "paused" : production["readyState"]&.downcase,
+          url: project_link(environment_row, project)&.url,
+          details: { "type" => project["framework"], "branch" => project.dig("link", "productionBranch"),
+                     ResourceMap::DEPLOYED_COMMIT => meta(production, COMMIT_SHA) }.compact
+        )
+        reading.resources << found
+        reading.uses.concat(project_settings(api, project, found, environment_row.integration.workspace, reading.gaps)) unless slowed?(reading.gaps)
+        repository = repository(project["link"])
+        if repository
+          reading.resources << repository
+          reading.links << ResourceMap::FoundLink.new(from: found.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
+        end
+        domains = api.project_domains(project["id"])
+        domains.items.select { |domain| domain["verified"] && domain["redirect"].blank? }.each do |domain|
+          host = ResourceMap.domain(domain["name"])
+          reading.resources << host
+          reading.links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
+        end
+        if domains.incomplete?
+          reading.gaps << ResourceMap::Gap.new(text: "Only the first #{domains.items.size} domains of #{project['name']} were read.", kinds: [ ResourceMap::KIND_DOMAIN ])
+        end
+      rescue Integrations::RateLimited
+        raise
+      rescue VercelApi::Error => error
+        reading.gaps << ResourceMap::Gap.new(text: Sentence.join("The domains of #{project['name']} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
+      end
+      private :read_project
 
       # Being asked to slow down while reading settings stops reading them, and the map's own reads go on.
       SLOWED = "Vercel asked Firefight to slow down, so the rest of the projects' settings were not read this time.".freeze

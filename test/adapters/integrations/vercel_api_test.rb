@@ -47,6 +47,32 @@ module Integrations
       assert_raises(Integrations::RateLimited) { VercelApi.new("tok").project("web") }
     end
 
+    test "a webhook is made for the team with the events named and no projects, listed and deleted, at the paths the spec gives" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/webhooks" && request.is_a?(Net::HTTP::Post) && URI.decode_www_form(uri.query) == [ [ "teamId", "team_1" ] ] &&
+          JSON.parse(request.body) == { "url" => "https://ff.example/hook", "events" => [ "project.created" ] }
+      end.returns(response(200, { id: "hook_1", secret: "s3cret" }))
+      assert_equal "s3cret", VercelApi.new("tok", "team_1").create_webhook(url: "https://ff.example/hook", events: [ "project.created" ])["secret"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/webhooks" && request.is_a?(Net::HTTP::Get) }.returns(response(200, [ { id: "hook_1" } ]))
+      assert_equal [ "hook_1" ], VercelApi.new("tok", "team_1").webhooks.map { |webhook| webhook["id"] }
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/webhooks/hook_1" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
+      assert_equal({}, VercelApi.new("tok", "team_1").delete_webhook("hook_1"))
+    end
+
+    test "not found and a request turned down as it stands are told apart from other refusals" do
+      Http.stubs(:request).returns(response(404, { error: { code: "not_found", message: "Project not found" } }))
+      assert_raises(VercelApi::NotFound) { VercelApi.new("tok").project("prj_1") }
+
+      Http.stubs(:request).returns(response(403, { error: { code: "forbidden", message: "Not authorized" } }))
+      assert_raises(VercelApi::Refused) { VercelApi.new("tok").create_webhook(url: "https://ff.example/hook", events: [ "project.created" ]) }
+
+      Http.stubs(:request).returns(response(401, { error: { code: "forbidden", message: "Invalid token" } }))
+      error = assert_raises(VercelApi::Error) { VercelApi.new("tok").project("prj_1") }
+      assert_not error.is_a?(VercelApi::Refused)
+    end
+
     test "runtime logs are read from the live stream until it ends, and only whole rows count" do
       rows = [ { rowId: "1", level: "error", message: "boom", source: "serverless", timestampInMs: 1_790_000_000_000 },
                { rowId: "", level: "error", message: "limit", source: "delimiter", timestampInMs: 1_790_000_001_000 },

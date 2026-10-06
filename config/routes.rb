@@ -197,6 +197,7 @@ Rails.application.routes.draw do
         patch :retarget_environment
         patch :choose
         patch :map_events_secret
+        patch :live_updates
       end
       collection do
         get :oauth_start

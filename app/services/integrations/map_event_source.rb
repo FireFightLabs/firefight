@@ -9,7 +9,10 @@ module Integrations
   # and may answer:
   #   setup_steps                             sentences saying how an admin sends the provider's changes to the
   #                                           connection's address, for a provider Firefight cannot register with
-  #   register(row, url:)                     registers a webhook itself, answering a Webhook
+  #   register(row, url:)                     registers a webhook itself, answering a Webhook, and raises Refused when
+  #                                           the provider turns it down for its plan or a limit
+  #   confirmation_for(row, url:)             a sentence saying what registering would cost the account, such as its
+  #                                           only webhook, when a person should decide first, or nil
   #   refresh(row, webhook_id)                extends one that lapses, answering when it now does
   #   remove(row, webhook_id)                 takes it back while the connection's credentials still reach the provider
   #   poll(row, since:)                       reads the provider's change log after the cursor since (nil the first time,
@@ -27,6 +30,10 @@ module Integrations
       def initialize(id:, secret: nil, expires_at: nil) = super
     end
 
+    # The provider turned a registration down for the account's plan or a limit, which a retry within the day would not
+    # change.
+    class Refused < Integrations::Error; end
+
     # What one read of a change log found, and where the next read starts.
     Polled = Data.define(:events, :cursor)
 
@@ -42,6 +49,8 @@ module Integrations
       def setup_steps = []
 
       def registers? = respond_to?(:register)
+
+      def asks_first? = respond_to?(:confirmation_for)
 
       def polls? = respond_to?(:poll)
 

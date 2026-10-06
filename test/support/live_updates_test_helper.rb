@@ -81,12 +81,17 @@ end
 
 class LiveTestHook < LiveTestEvents
   class << self
-    attr_accessor :registered, :removed, :failure
+    # failure is a reason registering fails with, refusal one the provider gives for its plan or a limit, and asking what
+    # registering would cost the account, for a person to decide.
+    attr_accessor :registered, :removed, :failure, :refusal, :asking
 
     def setup_steps = []
 
+    def confirmation_for(_row, url:) = asking
+
     def register(_row, url:)
       raise Integrations::Error, failure if failure
+      raise Integrations::MapEventSource::Refused, refusal if refusal
 
       self.registered = url
       Integrations::MapEventSource::Webhook.new(id: "hook-1", secret: "registered-secret", expires_at: 2.days.from_now)

@@ -198,6 +198,37 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds
       end
 
+      test "a change to one project reads that project again, with its repository, domains and settings, and nothing else" do
+        VercelApi.any_instance.expects(:projects).never
+        VercelApi.any_instance.expects(:project).with("prj_1").returns(
+          "id" => "prj_1", "name" => "shop", "accountId" => "team_1", "framework" => "nextjs",
+          "link" => { "type" => "github", "org" => "acme", "repo" => "shop", "productionBranch" => "main" },
+          "targets" => { "production" => { "id" => "dpl_3", "readyState" => "ERROR", "meta" => { "githubCommitSha" => "d00dfeed" } } }
+        )
+        VercelApi.any_instance.stubs(:project_domains).with("prj_1").returns(Integrations::Pages::Read.new(items: [ { "name" => "shop.acme.dev", "verified" => true } ], complete: true))
+        VercelApi.any_instance.stubs(:project_env).with("prj_1").returns([ [ { "key" => "DATABASE_URL", "type" => "plain", "value" => "postgres://u:p@db.acme.dev/shop", "target" => [ "production" ] } ], false ])
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(account: "team_1", kind: ResourceMap::KIND_SITE, external_id: "prj_1"))
+
+        project = snapshot.resources.find { |found| found.external_id == "prj_1" }
+        assert_equal [ "team_1", "error", "d00dfeed" ], [ project.account, project.status, project.details[ResourceMap::DEPLOYED_COMMIT] ]
+        assert_equal %w[acme/shop prj_1 shop.acme.dev], snapshot.resources.map(&:external_id).sort
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+        assert_empty snapshot.gone
+      end
+
+      test "a project Vercel answers not found for is gone under the team the change named, and without one the sweep decides" do
+        VercelApi.any_instance.stubs(:project).raises(VercelApi::NotFound, "Vercel answered 404: Project not found")
+        scope = ResourceMap::Scope.new(account: "team_1", kind: ResourceMap::KIND_SITE, external_id: "prj_old")
+
+        assert_equal [ [ "vercel", "team_1", ResourceMap::KIND_SITE, "prj_old" ] ], @pack.map_refresh(@row, scope).gone
+        assert_nil @pack.map_refresh(@row, scope.with(account: nil))
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.everything)
+
+        VercelApi.any_instance.stubs(:project).raises(VercelApi::Error, "Vercel answered 500: oops")
+        assert_raises(VercelApi::Error) { @pack.map_refresh(@row, scope) }
+      end
+
       test "Vercel keeps no metrics the API reads, so it has no baselines, and the health check lists a project" do
         assert_nil @pack.baselines_of(@row, [], 7.days.ago..Time.current)
         VercelApi.any_instance.stubs(:check!).raises(VercelApi::Error, "Vercel answered 401: invalid token")

@@ -4,6 +4,12 @@ module Integrations
   # parameters encoded as the Go client generated from it does (render-oss/render-mcp-server, pkg/client/client_gen.go).
   class RenderApi
     class Error < Integrations::Error; end
+    # Render answered that the resource is not there (spec, 404NotFound), the one answer a re-read takes as gone.
+    class NotFound < Error; end
+    # Render turned the request down as it stands, such as a webhook on a plan without them (spec, 400BadRequest and the
+    # like), as opposed to a key it does not accept.
+    class Refused < Error; end
+    REFINED = { 400 => Refused, 402 => Refused, 403 => Refused, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze
 
     API_ROOT = "https://api.render.com/v1".freeze
     PROVIDER = "Render".freeze
@@ -62,6 +68,21 @@ module Integrations
 
     def scale(service_id, instances) = post("/services/#{segment(service_id)}/scale", "numInstances" => instances)
 
+    # The workspace's webhooks, each with its url and secret (spec, GET /webhooks, webhookWithCursor), read only to find one
+    # Firefight registered before at the same address.
+    def webhooks(owner_id) = list("/webhooks", "webhook", "ownerId" => owner_id)
+
+    # A webhook for the event types named, answering its id and the secret it signs with (spec, POST /webhooks, 201).
+    def create_webhook(owner_id, name:, url:, events:)
+      post("/webhooks", "ownerId" => owner_id, "name" => name, "url" => url, "enabled" => true, "eventFilter" => events)
+    end
+
+    # Switches back on a webhook Render switched off after its deliveries kept failing (render.com/docs/webhooks, Delivery
+    # failures and retries), answering it as Render now has it (spec, PATCH /webhooks/{webhookId}).
+    def enable_webhook(webhook_id) = patch("/webhooks/#{segment(webhook_id)}", "enabled" => true)
+
+    def delete_webhook(webhook_id) = delete("/webhooks/#{segment(webhook_id)}")
+
     private
 
     # Every page of a list, which Render answers as an array of { cursor, <key> } pairs, up to MAX_PAGES.
@@ -81,9 +102,13 @@ module Integrations
       send_request(uri, Net::HTTP::Get.new(uri))
     end
 
-    def post(path, body = nil)
+    def post(path, body = nil) = changing(Net::HTTP::Post, path, body)
+
+    def patch(path, body) = changing(Net::HTTP::Patch, path, body)
+
+    def changing(method, path, body)
       uri = URI.parse("#{API_ROOT}#{path}")
-      request = Net::HTTP::Post.new(uri)
+      request = method.new(uri)
       if body
         request["Content-Type"] = "application/json"
         request.body = body.to_json
@@ -91,10 +116,15 @@ module Integrations
       send_request(uri, request)
     end
 
+    def delete(path)
+      uri = URI.parse("#{API_ROOT}#{path}")
+      send_request(uri, Net::HTTP::Delete.new(uri))
+    end
+
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{@api_key}"
       request["Accept"] = "application/json"
-      Http.json(uri, request, error_class: Error, provider_name: PROVIDER)
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: ->(code, _reason) { REFINED[code] })
     end
 
     # A list value is sent once per value (resource=a&resource=b), which is how /logs and /metrics read one.

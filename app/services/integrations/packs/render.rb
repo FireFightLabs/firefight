@@ -30,6 +30,8 @@ module Integrations
         CRON_JOB => "cron job", STATIC_SITE => "static site", POSTGRES => "Postgres database", KEY_VALUE => "Key Value instance"
       }.freeze
       DATASTORES = [ POSTGRES, KEY_VALUE ].freeze
+      # The kinds a Render service is on the map as, by its type.
+      SERVICE_KINDS = KINDS.except(*DATASTORES).values.uniq.freeze
       # Render scales web services, private services and background workers (render.com/docs/scaling).
       SCALABLE = [ WEB_SERVICE, PRIVATE_SERVICE, BACKGROUND_WORKER ].freeze
       # The restart endpoint is not supported for cron jobs (spec, POST /services/{serviceId}/restart), and a static
@@ -337,40 +339,85 @@ module Integrations
         settings = {}
         services = api.services(account)
         bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ], gaps)
-        services.items.each do |service|
-          deploy = begin
-            api.deploys(service["id"], limit: 1).first
-          rescue Integrations::RateLimited
-            raise
-          rescue RenderApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("The latest deploy of #{service['name']} could not be read", error), kinds: [])
-            nil
-          end
-          found = reading.service(service, deploy)
-          settings[found] = service_env(api, service, gaps) unless slowed?(gaps)
-          next unless [ WEB_SERVICE, STATIC_SITE ].include?(service["type"])
-
-          begin
-            domains = api.custom_domains(service["id"])
-            bounded(domains, "custom domains of #{service['name']}", [ ResourceMap::KIND_DOMAIN ], gaps)
-            domains.items.each { |domain| reading.domain(found, domain["name"]) }
-          rescue Integrations::RateLimited
-            raise
-          rescue RenderApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("The custom domains of #{service['name']} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
-          end
-        end
+        services.items.each { |service| read_service(api, reading, service, settings, gaps) }
         [ [ POSTGRES, api.postgres_databases(account), "Postgres databases" ], [ KEY_VALUE, api.key_values(account), "Key Value instances" ] ].each do |type, stores, what|
           bounded(stores, what, [ ResourceMap::KIND_DATABASE ], gaps)
           stores.items.each { |store| reading.datastore(type, store) }
         end
         groups = slowed?(gaps) ? {} : group_env(api, account, services.items.map { |service| service["id"] }, gaps)
+        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, uses: uses_of(environment_row, settings, groups))
+      end
+
+      # Only the service or datastore a change named, read again as the sweep reads it, with what its settings point at.
+      # Render names either by data.serviceId (Integrations::MapEventSources::Render), and a datastore event says it is
+      # one. Gone only when Render answers not found for it. nil for a scope Render cannot narrow to, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        return unless scope.external_id && [ nil, *SERVICE_KINDS, ResourceMap::KIND_DATABASE ].include?(scope.kind)
+
+        api = api(environment_row)
+        account = workspace_of(environment_row)
+        reading = MapReading.new(account)
+        return refreshed_datastore(api, reading, account, scope.external_id) if scope.kind == ResourceMap::KIND_DATABASE
+
+        service = begin
+          api.service(scope.external_id)
+        rescue RenderApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: SERVICE_KINDS.map { |kind| [ PROVIDER_KEY, account, kind, scope.external_id ] })
+        end
+        gaps = []
+        settings = {}
+        read_service(api, reading, service, settings, gaps)
+        groups = slowed?(gaps) ? {} : group_env(api, account, [ service["id"] ], gaps)
+        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, uses: uses_of(environment_row, settings, groups))
+      end
+
+      # One service with its latest deploy, the domains it serves and its own settings, onto the reading. What could not be
+      # read for it is a gap.
+      def read_service(api, reading, service, settings, gaps)
+        deploy = begin
+          api.deploys(service["id"], limit: 1).first
+        rescue Integrations::RateLimited
+          raise
+        rescue RenderApi::Error => error
+          gaps << ResourceMap::Gap.new(text: Sentence.join("The latest deploy of #{service['name']} could not be read", error), kinds: [])
+          nil
+        end
+        found = reading.service(service, deploy)
+        settings[found] = service_env(api, service, gaps) unless slowed?(gaps)
+        return unless [ WEB_SERVICE, STATIC_SITE ].include?(service["type"])
+
+        begin
+          domains = api.custom_domains(service["id"])
+          bounded(domains, "custom domains of #{service['name']}", [ ResourceMap::KIND_DOMAIN ], gaps)
+          domains.items.each { |domain| reading.domain(found, domain["name"]) }
+        rescue Integrations::RateLimited
+          raise
+        rescue RenderApi::Error => error
+          gaps << ResourceMap::Gap.new(text: Sentence.join("The custom domains of #{service['name']} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
+        end
+      end
+      private :read_service
+
+      # A datastore is a Postgres database or a Key Value instance, and its id alone does not say which, so each is asked.
+      def refreshed_datastore(api, reading, account, id)
+        [ [ POSTGRES, :postgres ], [ KEY_VALUE, :key_value ] ].each do |type, read|
+          reading.datastore(type, api.public_send(read, id))
+          return ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links)
+        rescue RenderApi::NotFound
+          next
+        end
+        ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, account, ResourceMap::KIND_DATABASE, id ] ])
+      end
+      private :refreshed_datastore
+
+      # Each service's own settings over those of the groups linked to it, as where they point.
+      def uses_of(environment_row, settings, groups)
         workspace = environment_row.integration.workspace
-        uses = settings.flat_map do |key, own|
+        settings.flat_map do |key, own|
           ResourceMap::Use.read(from: key, workspace: workspace, values: groups.fetch(key.last, {}).merge(own.to_h))
         end
-        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, uses: uses)
       end
+      private :uses_of
 
       # A service's own variables, by name and value, read in memory only. Render's API answers every value as written,
       # so nothing is hidden by name. nil, with a settings gap, when they could not be read.
