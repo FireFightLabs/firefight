@@ -11,6 +11,12 @@ import { KIND_ICONS } from "@/pages/map/lib/icons"
 import { KIND_LABELS } from "@/pages/map/lib/labels"
 import type { MapSearchResult } from "@/types/serializers"
 
+// What the search answers with. refusal says why nothing can be found, such as a person who reads no part of the map.
+interface MapSearchResponse {
+  results: MapSearchResult[]
+  refusal: string | null
+}
+
 interface SearchPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -41,8 +47,9 @@ function placeOf(result: MapSearchResult): string {
 // One search across the map, the catalog and confirmed memories, ranked together by the server.
 export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
   const [ query, setQuery ] = useState("")
-  const { results, search } = useRemoteSearch<MapSearchResult>(searchPath)
-  const shown = query.trim() ? results ?? [] : []
+  const { results: answer, search } = useRemoteSearch<MapSearchResponse>(searchPath)
+  const shown = query.trim() ? answer?.results ?? [] : []
+  const refusal = query.trim() ? answer?.refusal : null
 
   // The server ranks, so the first result is selected here for Enter to open it.
   const shownKeys = shown.map((result) => `${result.type}:${result.id}`).join(" ")
@@ -82,9 +89,11 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
               <p className="px-4 py-6 text-sm text-muted-foreground">
                 Find a resource, a catalog entry or a confirmed memory by its name, an id or part of one, a tag, the team that owns it, or what a service does.
               </p>
+            ) : refusal ? (
+              <p className="px-4 py-6 text-sm text-muted-foreground">{refusal}</p>
             ) : (
               <>
-                {results && <CommandEmpty>Nothing you can see matches that.</CommandEmpty>}
+                {answer && <CommandEmpty>Nothing you can see matches that.</CommandEmpty>}
                 {shown.length > 0 && (
                   <CommandGroup heading="Best matches first">
                     {shown.map((result) => (

@@ -20,7 +20,7 @@ function searchPath(query: string) {
 
 export function ChatSearch({ chats, open, onOpenChange }: ChatSearchProps) {
   const [ query, setQuery ] = useState("")
-  const { results, search } = useRemoteSearch<AgentChat>(searchPath)
+  const { results, search } = useRemoteSearch<AgentChat[]>(searchPath)
   const shown = results ?? chats
 
   // The server filters, so the first result is selected here for Enter to open it.

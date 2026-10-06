@@ -15,8 +15,10 @@ class SearchDocument::Search
   CANDIDATES = 200
   # The usual constant for reciprocal rank fusion, which keeps one list's first place from drowning out agreement.
   FUSION_K = 60
-  # How alike a description has to read to count, so the nearest of an unrelated catalog is not offered as a match.
-  MEANING_FLOOR = 0.3
+  # How alike a description has to read to count, so the nearest of an unrelated catalog is not offered as a match. Set
+  # from text-embedding-3-small, the default embedding model: in SearchDocument::MeaningFloorTest every answering
+  # description scored 0.22 or more and every unrelated one 0.19 or less, and nothing published gives a threshold.
+  MEANING_FLOOR = 0.2
   MEANING_CANDIDATES = 20
   # A shorter query is a fragment of a name, which meaning says nothing about.
   MEANING_MIN_LENGTH = 4

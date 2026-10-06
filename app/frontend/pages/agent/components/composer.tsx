@@ -34,7 +34,7 @@ function promptAttachment(item: ComposerAttachment): PromptAttachment {
 }
 
 export function Composer({ conversationId, incidents, busy, fill, attachmentRules }: ComposerProps) {
-  const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
+  const { results, search } = useRemoteSearch<AgentChatIncident[]>(incidentSearchPath)
   const uploads = useAttachmentUploads(attachmentRules)
   // Set when Stop is pressed and cleared by the next question, so the hint says so until the answer ends.
   const [ stopRequested, setStopRequested ] = useState(false)

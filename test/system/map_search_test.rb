@@ -67,4 +67,19 @@ class MapSearchTest < ApplicationSystemTestCase
     assert_selector "tr[data-focused]", text: "Authentication tokens live for an hour"
     page.save_screenshot(Rails.root.join("tmp/screenshots/map-search-memory.png"))
   end
+
+  test "a member who reads no part of the map is told why in the search" do
+    member = workspace_memberships(:bob_workspace_one)
+    grant = limit_map_to(@workspace, member, catalog_entries(:production_env))
+    grant.update_column(:expires_at, 1.minute.ago)
+    sign_in(users(:bob), @workspace)
+    visit root_path
+
+    find("button[aria-label='Search the map, catalog and memory']").click
+    within("[role=dialog]") do
+      find("input").send_keys("web")
+      assert_text MapSearchController::NO_MAP_REACH
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/map-search-no-reach.png"))
+  end
 end

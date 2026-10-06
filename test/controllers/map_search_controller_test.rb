@@ -14,7 +14,7 @@ class MapSearchControllerTest < ActionDispatch::IntegrationTest
   test "the search answers with what it is, why it matched and the page that opens it" do
     get map_search_url(q: "orders-db"), as: :json
 
-    result = response.parsed_body.first
+    result = response.parsed_body["results"].first
     assert_equal [ "resource", "orders-db", "Exactly its name.", "database", "Northflank", "acme/shop", "Production" ],
                  result.values_at("type", "title", "why", "kind", "providerName", "account", "environment")
     assert_equal resource_map_path(view: ResourceMap::VIEW_FOCUS, resource: result["id"]), result["href"]
@@ -25,7 +25,7 @@ class MapSearchControllerTest < ActionDispatch::IntegrationTest
 
     get map_search_url(q: "db"), as: :json
 
-    assert_equal [ "orders-db" ], response.parsed_body.map { |result| result["title"] }
+    assert_equal [ "orders-db" ], response.parsed_body["results"].map { |result| result["title"] }
   end
 
   test "a catalog entry and a memory open where they live" do
@@ -33,8 +33,19 @@ class MapSearchControllerTest < ActionDispatch::IntegrationTest
 
     get map_search_url(q: "authentication"), as: :json
 
-    hrefs = response.parsed_body.to_h { |result| [ result["type"], result["href"] ] }
+    hrefs = response.parsed_body["results"].to_h { |result| [ result["type"], result["href"] ] }
     assert_equal catalogue_type_path("service", entry: catalog_entries(:auth_service).id), hrefs["catalog_entry"]
     assert_equal memory_path(memory: memory.id), hrefs["memory"]
+  end
+
+  test "a member who reads no part of the map is told why instead of finding nothing" do
+    grant = limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    grant.update_column(:expires_at, 1.minute.ago)
+    Ability::Resolver.bust!(principal_type: @member.class.polymorphic_name, principal_id: @member.id, workspace_id: @workspace.id)
+
+    get map_search_url(q: "web"), as: :json
+
+    assert_response :success
+    assert_equal({ "results" => [], "refusal" => MapSearchController::NO_MAP_REACH }, response.parsed_body)
   end
 end
