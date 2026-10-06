@@ -7,6 +7,8 @@ module Chat::Tools::Groups
   POSTMORTEMS = "postmortems".freeze
   ALERTS = "alerts".freeze
   CATALOG = "catalog".freeze
+  # The resource map itself, for where things run, how they depend on each other and what fails with one.
+  MAP = "resource_map".freeze
   SETUP = "workspace_setup".freeze
   PERMISSIONS = "permissions".freeze
   ACCESS = "machine_access".freeze
@@ -71,10 +73,21 @@ module Chat::Tools::Groups
       ]
     ),
     Firefight.new(
-      key: CATALOG, title: "Services, teams and ownership",
-      covers: "the resource map, read off the connections, for where something runs and which provider and account hold it, then search the catalog, who owns what, add or change entries and types",
+      key: MAP, title: "The resource map",
+      covers: "read off the connections, for where something runs and which provider and account hold it, then find resources by " \
+              "filter, read one, its links and neighbours, walk what it depends on or what depends on it, what fails with it, " \
+              "the map in numbers, and suggest a link",
       tools: [
-        Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::SUGGEST_RESOURCE_LINK, Mcp::Tools::UPSERT_CATALOG_ENTRY, Mcp::Tools::DELETE_CATALOG_ENTRY,
+        Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::FIND_RESOURCES, Mcp::Tools::GET_RESOURCE, Mcp::Tools::GET_RESOURCE_LINKS,
+        Mcp::Tools::GET_RESOURCE_NEIGHBOURS, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS, Mcp::Tools::RESOURCE_MAP_STATS,
+        Mcp::Tools::SUGGEST_RESOURCE_LINK
+      ]
+    ),
+    Firefight.new(
+      key: CATALOG, title: "Services, teams and ownership",
+      covers: "search the catalog, who owns what, add or change entries and types",
+      tools: [
+        Mcp::Tools::SEARCH_CATALOG, Mcp::Tools::UPSERT_CATALOG_ENTRY, Mcp::Tools::DELETE_CATALOG_ENTRY,
         Mcp::Tools::UPSERT_CATALOG_TYPE, Mcp::Tools::DELETE_CATALOG_TYPE
       ]
     ),

@@ -35,7 +35,7 @@ class Conversation::LookBeforeAskingTest < ActiveSupport::TestCase
     assert map.description.start_with?("The first place to find which provider and account hold a named domain, zone, service or database.")
 
     open_tools = tools.find { |tool| tool.name == Chat::Tools::Open.tool_name }
-    assert_match "Services, teams and ownership: the resource map, read off the connections, for where something runs and which provider and account hold it",
+    assert_match "The resource map: read off the connections, for where something runs and which provider and account hold it",
                  open_tools.description
 
     use_skill = tools.find { |tool| tool.name == Chat::Tools::UseSkill.tool_name }

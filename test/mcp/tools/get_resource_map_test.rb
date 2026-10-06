@@ -72,7 +72,39 @@ module Mcp
         assert_match "Leave the resource out to see the whole map", call(resource: "checkout")[:error]
       end
 
+      test "below 300 resources every one is listed, and from 300 the map is given as its numbers, saying so and where to look" do
+        fill(GetResourceMap::MAP_LINES - 4)
+
+        listed = call
+        assert_equal GetResourceMap::MAP_LINES - 1, listed[:accounts].sum { |account| account[:resources].size }
+        assert_nil listed[:overview]
+
+        fill(1, from: GetResourceMap::MAP_LINES)
+        overview = call
+
+        assert_nil overview[:accounts]
+        assert_equal GetResourceMap::MAP_LINES, overview[:resources]
+        assert_match "300 resources are on the map, too many to list one by one", overview[:overview]
+        assert_match "find_resources searches it", overview[:overview]
+        assert_equal({ "northflank" => 299, "github" => 1 }, overview[:by_provider])
+        assert_equal GetResourceMap::MAP_LINES - 2, overview[:by_kind][ResourceMap::KIND_SERVICE]
+        assert_equal({ GetResourceMap::NO_ENVIRONMENT => GetResourceMap::MAP_LINES }, overview[:by_environment])
+        assert_equal 1, overview[:by_health][ResourceMap::Resource::HEALTH_OK]
+        assert_equal %w[acme/app builder], overview[:most_depended_on].first(2).map { |row| row[:name] }.sort
+        assert_equal 1, overview[:most_depended_on].first[:dependents]
+        assert_equal [ "Jobs could not be read" ], overview[:connections].sole[:gaps]
+      end
+
       private
+
+      def fill(count, from: 0)
+        now = Time.current
+        ResourceMap::Resource.insert_all!(Array.new(count) do |index|
+          name = "svc-#{(from + index).to_s.rjust(3, '0')}"
+          { workspace_id: @workspace.id, provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: name, name: name,
+            integration_environment_id: @row.id, first_seen_at: now, last_seen_at: now }
+        end)
+      end
 
       def found(provider, account, kind, id, status: nil)
         ResourceMap::Found.new(provider: provider, account: account, kind: kind, external_id: id, name: id, status: status, url: "https://example.test/#{id}")

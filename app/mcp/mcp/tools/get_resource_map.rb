@@ -3,6 +3,15 @@ module Mcp
     # The map read off the workspace's connections, so an agent starts from what is known rather than listing each
     # provider again. Facts only, never live values: a status here is what the last sweep saw.
     class GetResourceMap < Base
+      extend MapPayloads
+
+      SHEETS_SHOWN = 5
+      # From this many resources the map is given as its numbers rather than one line each.
+      MAP_LINES = 300
+      MOST_DEPENDED_ON = 10
+      # What a count by environment calls resources only a connection wired to no environment reports.
+      NO_ENVIRONMENT = "no environment".freeze
+
       tool_name GET_RESOURCE_MAP
       authorize_as Ability::Action::RESOURCE_MAP
       description "The first place to find which provider and account hold a named domain, zone, service or database. " \
@@ -13,22 +22,22 @@ module Mcp
                   "by provider and account, with how they depend on each other and which repository each is managed in " \
                   "as code, such as Terraform or Helm, so a fix to one goes to that code. A zone's details carry its SSL mode, " \
                   "certificates and rule counts, and a change to them is recorded. " \
-                  "Without a resource, the whole map, one line per resource. With a resource, its fact sheet: where it " \
+                  "Without a resource, the whole map one line per resource, or from #{MAP_LINES} resources its numbers " \
+                  "by provider, kind, environment and health with the most depended on. With a resource, its fact sheet: where it " \
                   "runs, its page, the catalog services it runs with what each is for and who owns it, what people " \
                   "confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last " \
                   "week, and every link within two hops, each saying how it was found. A status is what the " \
                   "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
                   "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. It holds only what runs in the " \
-                  "environments the caller may read, and a sheet counts the links it leaves out for that reason. Docs: #{Docs::MCP_SERVER}"
+                  "environments the caller may read, and a sheet counts the links it leaves out for that reason. " \
+                  "On a large map, find_resources searches by name, provider, kind, environment, owner or tag, " \
+                  "traverse_resource_map and blast_radius walk the links, and get_resource_links lists one resource's. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {
           resource: { type: "string", description: "A resource's name or its provider's id, such as web or firefight-prod/main. Leave it out for the whole map" }
         }
       )
-
-      SHEETS_SHOWN = 5
-      MAP_LINES = 300
 
       # Only what the principal reads. Naming a resource outside it reads as naming nothing, and a link to one is counted, never named.
       def self.perform_with_principal(workspace:, principal:, args:)
@@ -44,19 +53,37 @@ module Mcp
         respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible) }, more: more }.compact)
       end
 
+      # The whole map one line per resource while it is small enough to read that way, and its numbers once it is not,
+      # saying so, since a list cut short would read as the whole map.
       def self.overview(workspace, visible, environments)
-        resources = visible.present.order(:provider, :account, :kind, :name).to_a
-        accounts = resources.first(MAP_LINES).group_by { |resource| [ resource.provider, resource.account ] }.map do |(provider, account), grouped|
+        return summary(workspace, visible, environments) if visible.present.limit(MAP_LINES).count >= MAP_LINES
+
+        accounts = visible.present.order(:provider, :account, :kind, :name).group_by { |resource| [ resource.provider, resource.account ] }.map do |(provider, account), grouped|
           { provider: provider, account: account, resources: grouped.map { |resource| line(resource) } }
         end
-        {
-          accounts: accounts, connections: connections(workspace, environments),
-          left_out: (resources.size > MAP_LINES ? "#{resources.size - MAP_LINES} more resources are on the map, name one to read it" : nil)
-        }.compact
+        { accounts: accounts, connections: connections(workspace, environments) }
       end
 
-      def self.sheet(resource, visible)
-        hidden = resource.links_out_of_reach(visible)
+      def self.summary(workspace, visible, environments)
+        stats = ResourceMap::Stats.new(workspace, within: visible)
+        total = stats.total
+        top = ResourceMap::Query.new(workspace, within: visible, sort: ResourceMap::Query::SORT_DEPENDENTS).page(limit: MOST_DEPENDED_ON).resources
+        {
+          overview: "#{ActiveSupport::NumberHelper.number_to_delimited(total)} resources are on the map, too many to list one by one, " \
+                    "so these are its numbers. find_resources searches it by name, provider, kind, environment, owner or tag, " \
+                    "traverse_resource_map walks what a resource depends on or what depends on it, and blast_radius says what fails with one.",
+          resources: total,
+          by_provider: stats.counts(ResourceMap::Stats::BY_PROVIDER), by_kind: stats.counts(ResourceMap::Stats::BY_KIND),
+          by_environment: stats.counts(ResourceMap::Stats::BY_ENVIRONMENT).transform_keys { |name| name || NO_ENVIRONMENT },
+          by_health: stats.counts(ResourceMap::Stats::BY_HEALTH),
+          most_depended_on: rows(top, visible),
+          connections: connections(workspace, environments)
+        }
+      end
+
+      # links leaves out the walk two links out, for a reader that walks the map with its own tools.
+      def self.sheet(resource, visible, links: true)
+        hidden = resource.links_out_of_reach(visible) if links
         environment_row = resource.integration_environment
         entries = resource.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).to_a
         {
@@ -67,8 +94,8 @@ module Mcp
           runs: runs(entries).presence, confirmed: confirmed(resource, entries).presence,
           past_incidents: past_incidents(resource.workspace, entries).presence,
           normal: (resource.baselines.fresh.order(:label).map(&:line).presence unless resource.removed_at),
-          links: resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) },
-          out_of_reach: (hidden.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
+          links: (resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) } if links),
+          out_of_reach: (hidden&.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
         }.compact
       end
 
@@ -98,7 +125,11 @@ module Mcp
       def self.line(resource) = [ resource.kind, resource.name, resource.status ].compact.join(", ")
 
       def self.link_line(link, hop)
-        how = case link.origin
+        "#{link.sentence} (#{how_found(link)}#{', two links away' if hop > 1})#{": #{link.note}" if link.note.present?}"
+      end
+
+      def self.how_found(link)
+        case link.origin
         when ResourceMap::ORIGIN_DECLARED then "declared by #{link.integration_environment&.integration&.name || 'a provider'}"
         when ResourceMap::ORIGIN_MATCHED then "matched from what the providers report"
         when ResourceMap::ORIGIN_PERSON then "added by a person"
@@ -106,7 +137,6 @@ module Mcp
           link.confirmed_at ? "suggested by Firefight, confirmed by a person" : "suggested by Firefight, #{link.certainty}, not confirmed: #{link.clues.join('. ')}"
         else link.confirmed_at ? "suggested by Halon, confirmed by a person" : "suggested by Halon, not confirmed"
         end
-        "#{link.sentence} (#{how}#{', two links away' if hop > 1})#{": #{link.note}" if link.note.present?}"
       end
 
       # What each connection could not read, so a missing resource is known to be missing rather than absent. Only rows
