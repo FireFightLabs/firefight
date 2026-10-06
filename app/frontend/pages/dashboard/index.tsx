@@ -54,17 +54,19 @@ export default function Dashboard() {
   }
 
   return (
-    <AuthenticatedLayout title="Incidents">
+    <AuthenticatedLayout
+      title="Incidents"
+      actions={
+        canDeclare && (
+          <Button onClick={openDeclare} className="gap-1.5">
+            <IconPlus className="size-4" />
+            Declare incident
+          </Button>
+        )
+      }
+    >
       <Head title="Incidents" />
       <div className="flex flex-col gap-6 py-4 md:gap-8 md:py-6">
-        {canDeclare && (
-          <div className="flex justify-end px-4 lg:px-6">
-            <Button onClick={openDeclare} className="gap-1.5">
-              <IconPlus className="size-4" />
-              Declare incident
-            </Button>
-          </div>
-        )}
         <Deferred data="stats" fallback={<StatCardsSkeleton />}>
           <StatCards stats={stats ?? []} />
         </Deferred>
