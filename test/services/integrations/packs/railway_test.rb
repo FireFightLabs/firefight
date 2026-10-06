@@ -197,6 +197,37 @@ module Integrations
         assert_includes Railway.new(@integration).map_of(@row).gap_texts, Railway::SLOWED
       end
 
+      test "a re-read reads only the service a change named, as the sweep reads it, with the database its variables name" do
+        web = RailwayApi.new("t").service_instances("prj-1", "env-prod").items.first
+        RailwayApi.any_instance.expects(:service_instance).with("env-prod", "svc-web").returns(web.merge("latestDeployment" => web["latestDeployment"].merge("status" => "SUCCESS")))
+        RailwayApi.any_instance.expects(:service_variables).with("prj-1", "env-prod", "svc-web").returns([ { "DATABASE_URL" => "${{Postgres.DATABASE_URL}}" }, {} ])
+        RailwayApi.any_instance.expects(:service_variables).with("prj-1", "env-prod", "svc-db").never
+
+        snapshot = Railway.new(@integration).map_refresh(@row, ResourceMap::Scope.new(account: "prj-1/env-prod", external_id: "svc-web"))
+
+        service = snapshot.resources.find { |found| found.external_id == "svc-web" }
+        assert_equal [ "success", "c4e4267d46e638ac" ], [ service.status, service.details[ResourceMap::DEPLOYED_COMMIT] ]
+        assert_equal %w[acme/shop shop.acme.dev svc-web web.up.railway.app], snapshot.resources.map(&:external_id).sort
+        assert_equal [ [ "svc-web", "svc-db", %w[DATABASE_URL] ] ],
+                     snapshot.links.select { |link| link.relation == ResourceMap::RELATION_USES }.map { |link| [ link.from.last, link.to.last, link.variables ] }
+        assert_empty snapshot.gone
+      end
+
+      test "a re-read finds a service gone only when Railway says it is not there, and reads nothing for another environment" do
+        RailwayApi.any_instance.stubs(:service_instance).with("env-prod", "svc-old").raises(RailwayApi::NotFound, "Railway refused this: ServiceInstance not found")
+        RailwayApi.any_instance.expects(:service_instance).with("env-prod", "svc-other").never
+
+        gone = Railway.new(@integration).map_refresh(@row, ResourceMap::Scope.new(account: "prj-1/env-prod", external_id: "svc-old"))
+        assert_equal Railway::KINDS.values.uniq.map { |kind| [ "railway", "prj-1/env-prod", kind, "svc-old" ] }, gone.gone
+
+        elsewhere = Railway.new(@integration).map_refresh(@row, ResourceMap::Scope.new(account: "prj-1/env-staging", external_id: "svc-other"))
+        assert_equal [ [], [] ], [ elsewhere.resources, elsewhere.gone ]
+        assert_nil Railway.new(@integration).map_refresh(@row, ResourceMap::Scope.new(account: "prj-1/env-prod"))
+
+        RailwayApi.any_instance.stubs(:service_instance).with("env-prod", "svc-web").raises(RailwayApi::Error, "Railway refused this: Something went wrong")
+        assert_raises(RailwayApi::Error) { Railway.new(@integration).map_refresh(@row, ResourceMap::Scope.new(account: "prj-1/env-prod", external_id: "svc-web")) }
+      end
+
       test "a service list cut short holds back every kind it puts on the map, its domains and repositories with it" do
         RailwayApi.any_instance.stubs(:service_instances).returns(Integrations::Pages::Read.new(items: [], complete: false))
 

@@ -9,6 +9,11 @@ module Integrations
       LIST_ORGANIZATIONS = "planetscale_list_organizations".freeze
       LIST_DATABASES = "planetscale_list_databases".freeze
       LIST_BRANCHES = "planetscale_list_branches".freeze
+      GET_DATABASE = "planetscale_get_database".freeze
+      GET_BRANCH = "planetscale_get_branch".freeze
+      # PlanetScale's answer for something that is not there (planetscale.com/docs/api/reference, errors), which its server
+      # hands back as the tool's error.
+      NOT_FOUND = "not_found".freeze
       PER_PAGE = 100
       MAX_PAGES = 10
       MYSQL_PORT = 3306
@@ -26,36 +31,97 @@ module Integrations
         @endpoints = []
       end
 
-      def map
+      # Everything the connection reaches, or with scope only the database or the branch a change named
+      # (Integrations::MapEventSources::Planetscale), read as the sweep reads it. nil for a scope it cannot narrow to, or
+      # when a tool the narrow read needs is off, which a sweep reads.
+      def map(scope: nil)
+        return refreshed(scope) if scope
+
         list(LIST_ORGANIZATIONS, "organizations", {}, kinds: ResourceMap::KINDS).each do |organization|
           org = organization["name"]
           databases = list(LIST_DATABASES, "databases in #{org}", { "organization" => org }, kinds: [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ])
           databases.each { |database| database(org, database) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints)
+        snapshot
       end
 
       private
 
-      def database(org, database)
+      def refreshed(scope)
+        return unless scope.account && scope.external_id && [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ].include?(scope.kind)
+
+        org = scope.account
+        name, branch_name = scope.external_id.split("/", 2)
+        one_branch = scope.kind == ResourceMap::KIND_BRANCH
+        return if one_branch && branch_name.blank?
+        return unless on?(GET_DATABASE) && on?(one_branch ? GET_BRANCH : LIST_BRANCHES)
+
+        path = { "organization" => org, "database" => name }
+        read_database = fetched(GET_DATABASE, path, "database #{name}")
+        if read_database == NOT_FOUND
+          return gone(org, [ ResourceMap::KIND_DATABASE, name ], *([ [ ResourceMap::KIND_BRANCH, scope.external_id ] ] if one_branch))
+        end
+
+        if one_branch
+          read = fetched(GET_BRANCH, path.merge("branch" => branch_name), "branch #{scope.external_id}")
+          return gone(org, [ ResourceMap::KIND_BRANCH, scope.external_id ]) if read == NOT_FOUND
+
+          branch(org, read_database, database_found(org, read_database), read)
+        else
+          database(org, read_database)
+        end
+        snapshot
+      end
+
+      def snapshot = ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints)
+
+      # What PlanetScale answered not found for, by kind and name, and nothing else.
+      def gone(org, *kinds_and_ids)
+        ResourceMap::Snapshot.new(resources: [], gone: kinds_and_ids.map { |kind, id| [ PROVIDER, org, kind, id ] })
+      end
+
+      # One object a tool answers, NOT_FOUND when PlanetScale says it is not there, or raises with its words.
+      def fetched(tool, path, what)
+        result = call(tool, { "pathParameters" => path })
+        raise Integrations::Error, "#{tool} is switched off for #{NAME}, so the #{what} could not be read again." if result.nil?
+
+        answered = Capabilities::Answers.data(result)
+        if result["isError"]
+          return NOT_FOUND if answered.is_a?(Hash) && answered["code"] == NOT_FOUND
+
+          raise Integrations::Error, Sentence.join("#{NAME} refused to read the #{what}", Capabilities::Answers.text(result).truncate(200))
+        end
+        return answered if answered.is_a?(Hash)
+
+        raise Integrations::Error, "#{NAME} answered the #{what} with something that is not JSON."
+      end
+
+      def database_found(org, database)
         found = ResourceMap::Found.new(
           provider: PROVIDER, account: org, kind: ResourceMap::KIND_DATABASE, external_id: database["name"], name: database["name"],
           status: database["state"], url: database["html_url"],
           details: { "engine" => database["kind"], "plan" => database["plan"], "region" => database.dig("region", "display_name") }.compact
         )
         @resources << found
+        found
+      end
 
+      def database(org, database)
+        found = database_found(org, database)
         where = { "organization" => org, "database" => database["name"] }
-        list(LIST_BRANCHES, "branches of #{database['name']}", where, kinds: [ ResourceMap::KIND_BRANCH ]).each do |branch|
-          branch_found = ResourceMap::Found.new(
-            provider: PROVIDER, account: org, kind: ResourceMap::KIND_BRANCH, external_id: "#{database['name']}/#{branch['name']}",
-            name: "#{database['name']}/#{branch['name']}", status: branch["state"], url: branch["html_url"],
-            details: { ResourceMap::PRODUCTION => branch["production"], "region" => branch.dig("region", "display_name") }.compact
-          )
-          @resources << branch_found
-          @links << ResourceMap::FoundLink.new(from: branch_found.key, to: found.key, relation: ResourceMap::RELATION_BRANCH_OF)
-          addresses(branch_found, database, branch)
-        end
+        list(LIST_BRANCHES, "branches of #{database['name']}", where, kinds: [ ResourceMap::KIND_BRANCH ]).each { |branch| branch(org, database, found, branch) }
+      end
+
+      # One branch of a database, linked to it, with where it is reached.
+      def branch(org, database, found, branch)
+        branch_found = ResourceMap::Found.new(
+          provider: PROVIDER, account: org, kind: ResourceMap::KIND_BRANCH, external_id: "#{database['name']}/#{branch['name']}",
+          name: "#{database['name']}/#{branch['name']}", status: branch["state"], url: branch["html_url"],
+          details: { ResourceMap::PRODUCTION => branch["production"], "region" => branch.dig("region", "display_name") }.compact
+        )
+        @resources << branch_found
+        @links << ResourceMap::FoundLink.new(from: branch_found.key, to: found.key, relation: ResourceMap::RELATION_BRANCH_OF)
+        addresses(branch_found, database, branch)
       end
 
       # Where a branch is reached, from the branch object (https://planetscale.com/docs/api/reference/list_branches). A

@@ -6,11 +6,11 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret live_updates live_updates_setup],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret forget_map_events_secrets live_updates live_updates_setup],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :live_updates, :live_updates_setup,
-                      :destroy ]
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :forget_map_events_secrets,
+                      :live_updates, :live_updates_setup, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -120,7 +120,20 @@ class IntegrationsController < InertiaController
     return redirect_to integrations_path, alert: "Paste the signing secret #{@integration.name} shows for its webhook." if params[:secret].to_s.strip.empty?
 
     row.save_map_events_secret!(params[:secret])
-    redirect_to integrations_path, notice: "Signing secret saved. Changes #{@integration.name} sends now reach the map."
+    return redirect_to integrations_path, notice: "Signing secret saved. Changes #{@integration.name} sends now reach the map." unless row.map_event_source.many_secrets?
+
+    saved = "#{row.map_events_secrets.size} signing #{'secret'.pluralize(row.map_events_secrets.size)}"
+    redirect_to integrations_path, notice: "Signing secret added. #{@integration.name} now has #{saved} saved, and a change signed with any one reaches the map."
+  end
+
+  # Forgets every signing secret saved for a provider whose webhooks each sign with their own, so an admin can start over.
+  def forget_map_events_secrets
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    blocked = row.forget_map_events_secrets_blocked_reason
+    return redirect_to integrations_path, alert: blocked if blocked
+
+    row.forget_map_events_secrets!
+    redirect_to integrations_path, notice: "Signing secrets forgotten. Changes #{@integration.name} sends no longer reach the map until you add a secret again."
   end
 
   # Turns live updates on or off for one connection, once the person confirmed what it does to the provider's account.
