@@ -7,7 +7,10 @@ module Interactions
     def self.execute(interaction)
       post_id, memory_id = interaction.action_value.to_s.split(":", 2)
       workspace = interaction.workspace
-      memory = MemoryPostService.new(workspace).correctable(post_id: post_id, memory_id: memory_id)
+      member = WorkspaceMemberProvisioner.find_or_provision!(workspace: workspace, platform_user_id: interaction.user_id, adapter: workspace.adapter)
+      return unless member
+
+      memory = MemoryPostService.new(workspace).correctable(post_id: post_id, memory_id: memory_id, member: member)
       return unless memory
 
       workspace.adapter.open_memory_correction_modal(trigger_id: interaction.trigger_id, post_id: post_id, memory: memory)

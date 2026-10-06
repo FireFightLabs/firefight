@@ -93,12 +93,11 @@ class ApiKey < ApplicationRecord
   end
 
   # Derived from the grants rather than stored, so there is no second copy to
-  # drift. Expired grants are included, lapsing is the Permissions screen's business.
+  # drift. Expired grants are included, lapsing is the Permissions screen's business. Read back in the matrix's own
+  # order, resources then actions, so the same grants always read the same way.
   def granted_permissions
-    ability_grants.includes(:action).each_with_object({}) do |grant, matrix|
-      key = grant.action&.key
-      next unless key && Ability::Action.grantable_keys.include?(key)
-
+    held = ability_grants.includes(:action).filter_map { |grant| grant.action&.key }.to_set
+    Ability::Action.grantable_keys.select { |key| held.include?(key) }.each_with_object({}) do |key, matrix|
       resource, action = key.split(".")
       (matrix[resource] ||= []) << action
     end
