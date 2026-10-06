@@ -701,4 +701,44 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.any_instance.stubs(:current_workspace).returns(workspace)
     ApplicationController.any_instance.stubs(:user_signed_in?).returns(true)
   end
+
+  test "a connection set up by hand shows its address, steps and live updates, and saving its signing secret turns them on" do
+    previous = ENV["APP_HOST"]
+    ENV["APP_HOST"] = "firefight.example.com"
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "livetest", name: "Live test", slug: "livetest")
+    row = integration.integration_environments.create!
+    row.give_map_events_token!
+
+    get integrations_url, headers: inertia_headers
+    live = inertia_props["integrations"].find { |each| each["id"] == integration.id }["environments"].sole["liveUpdates"]
+    assert_equal false, live["on"]
+    assert_equal "https://firefight.example.com/api/v1/map_events/#{row.map_events_token}", live["setup"]["address"]
+    assert_equal LiveTestEvents.setup_steps, live["setup"]["steps"]
+    assert_equal false, live["setup"]["secretSet"]
+
+    patch map_events_secret_integration_url(integration), params: { environment_row_id: row.id, secret: "whsec" }
+
+    assert_redirected_to integrations_path
+    assert_equal "Signing secret saved. Changes Live test sends now reach the map.", flash[:notice]
+    assert_equal "whsec", row.reload.map_events_secret
+    assert row.live_updates.on
+  ensure
+    ENV["APP_HOST"] = previous
+  end
+
+  test "an empty secret, a connection not set up by hand and a member are each refused" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "livetest", name: "Live test", slug: "livetest")
+    row = integration.integration_environments.create!
+
+    patch map_events_secret_integration_url(integration), params: { environment_row_id: row.id, secret: "  " }
+    assert_equal "Paste the signing secret Live test shows for its webhook.", flash[:alert]
+
+    sentry = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry", settings: { "server_url" => "https://mcp.sentry.example/mcp" })
+    patch map_events_secret_integration_url(sentry), params: { environment_row_id: sentry.integration_environments.create!.id, secret: "whsec" }
+    assert_equal "Sentry is not set up by hand to send its changes.", flash[:alert]
+
+    sign_in(users(:bob), @workspace)
+    patch map_events_secret_integration_url(integration), params: { environment_row_id: row.id, secret: "whsec" }
+    assert_nil row.reload.map_events_secret
+  end
 end

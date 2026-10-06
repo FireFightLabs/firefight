@@ -21,6 +21,18 @@ development:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  resource_map_event_poll:
+    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one, so the map follows it between sweeps
+    queue: background
+    schedule: every 5 minutes
+  resource_map_event_webhook_refresh:
+    class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
+    queue: background
+    schedule: at 3:15am every day
+  resource_map_event_cleanup:
+    class: Integrations::MapEventCleanupJob # drops map change events older than a week, kept only so a second delivery is a no-op
+    queue: background
+    schedule: at 3:30am every day
   search_document_backfill:
     class: SearchDocumentBackfillJob # indexes for search what has no search row yet, such as everything from before search
     queue: background
@@ -81,6 +93,18 @@ staging:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  resource_map_event_poll:
+    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one, so the map follows it between sweeps
+    queue: background
+    schedule: every 5 minutes
+  resource_map_event_webhook_refresh:
+    class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
+    queue: background
+    schedule: at 3:15am every day
+  resource_map_event_cleanup:
+    class: Integrations::MapEventCleanupJob # drops map change events older than a week, kept only so a second delivery is a no-op
+    queue: background
+    schedule: at 3:30am every day
   search_document_backfill:
     class: SearchDocumentBackfillJob # indexes for search what has no search row yet, such as everything from before search
     queue: background
@@ -163,6 +187,18 @@ production:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  resource_map_event_poll:
+    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one, so the map follows it between sweeps
+    queue: background
+    schedule: every 5 minutes
+  resource_map_event_webhook_refresh:
+    class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
+    queue: background
+    schedule: at 3:15am every day
+  resource_map_event_cleanup:
+    class: Integrations::MapEventCleanupJob # drops map change events older than a week, kept only so a second delivery is a no-op
+    queue: background
+    schedule: at 3:30am every day
   search_document_backfill:
     class: SearchDocumentBackfillJob # indexes for search what has no search row yet, such as everything from before search
     queue: background

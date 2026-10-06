@@ -1,6 +1,8 @@
 # "Configured for prod" is this row, "permitted in prod" is a grant. The
 # gateway requires both.
 class IntegrationEnvironment < ApplicationRecord
+  include IntegrationEnvironment::LiveUpdates
+
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"
   HEALTH_FAILING = "failing"

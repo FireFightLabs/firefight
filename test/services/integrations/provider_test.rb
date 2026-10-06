@@ -26,6 +26,18 @@ module Integrations
       assert_raises(ArgumentError) { Provider.new(key: "acme", poller: "Acme::Poller") }
     end
 
+    test "a provider's map events source loads and answers the contract its definition promises" do
+      definitions = Provider.all + [ Provider.for("livetest"), Provider.for("livepoll"), Provider.for("livehook"), Provider.for("liveapp") ]
+
+      definitions.filter_map(&:map_events).each do |source|
+        assert_operator source, :<, MapEventSource, "#{source} is a MapEventSource"
+        %i[verify events setup_steps].each { |method| assert source.respond_to?(method), "#{source} answers #{method}" }
+        assert source.respond_to?(:refresh) == false || source.registers?, "#{source} refreshes a webhook it never registers"
+        assert source.respond_to?(:remove) == source.registers?, "#{source} registers a webhook it cannot take back" if source.registers?
+        assert source.setup_steps.any?, "#{source} is neither registered, polled nor app wide, so an admin needs its steps" unless source.registers? || source.polls? || source.app_wide?
+      end
+    end
+
     test "every status word a provider maps is one of Firefight's own" do
       firefight = ResourceMap::Resource::STATUS_HEALTH.keys
       assert_includes firefight, "stopped", "Firefight's own status words are what providers map onto"

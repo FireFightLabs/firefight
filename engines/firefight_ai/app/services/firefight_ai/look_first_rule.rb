@@ -13,8 +13,8 @@ module FirefightAi
 
     MAP_RULE = "To find where a domain, zone, service, database or any other resource lives, look it up on the resource " \
                "map first. get_resource_map reads the map, and resource_status takes a resource by its name on the map and " \
-               "reads how it stands now from the provider that holds it, which works too where the map itself is not yours " \
-               "to read. Both only read, so neither asks the person. Use a provider's own tools to find something only " \
-               "when the map does not have it, and never one that changes things or asks the person to confirm each call.".freeze
+               "reads how it stands now from the provider that holds it. Both only read, so neither asks the person. Use a " \
+               "provider's own tools to find something only when the map does not have it, and never one that changes " \
+               "things or asks the person to confirm each call.".freeze
   end
 end
