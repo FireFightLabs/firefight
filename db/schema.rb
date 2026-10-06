@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_230000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_090200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -419,13 +419,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_230000) do
     t.datetime "updated_at", null: false
     t.integer "use_count", default: 0, null: false
     t.uuid "workspace_id", null: false
+    t.string "outdated_from"
+    t.string "outdated_cause"
+    t.uuid "decided_by_postmortem_id"
     t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
     t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
+    t.index ["decided_by_postmortem_id"], name: "index_chat_memories_on_decided_by_postmortem_id"
     t.index ["rejected_by_id"], name: "index_chat_memories_on_rejected_by_id"
     t.index ["replaced_by_id"], name: "index_chat_memories_on_replaced_by_id"
     t.index ["source_type", "source_id"], name: "index_chat_memories_on_source"
     t.index ["subject_type", "subject_id"], name: "index_chat_memories_on_subject"
     t.index ["workspace_id", "state"], name: "index_chat_memories_on_workspace_id_and_state"
+  end
+
+  create_table "chat_memory_posts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "incident_id", null: false
+    t.string "kind", null: false
+    t.string "channel_id", null: false
+    t.string "thread_id"
+    t.string "message_id"
+    t.uuid "memory_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["incident_id"], name: "index_chat_memory_posts_on_incident_id"
+    t.index ["workspace_id"], name: "index_chat_memory_posts_on_workspace_id"
+  end
+
+  create_table "chat_memory_uses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "memory_id", null: false
+    t.string "owner_type", null: false
+    t.uuid "owner_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["memory_id", "owner_type", "owner_id"], name: "index_chat_memory_uses_once_per_owner", unique: true
   end
 
   create_table "chat_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1319,6 +1345,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_230000) do
     t.integer "turns_used", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.text "seed_notes"
     t.index ["conversation_id"], name: "index_investigations_on_conversation_id"
     t.index ["replay_of_id"], name: "index_investigations_on_replay_of_id"
     t.index ["subject_type", "subject_id"], name: "index_investigations_on_live_subject", unique: true, where: "(((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('running'::character varying)::text])) AND (rehearsal = false))"
@@ -1890,6 +1917,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_230000) do
     t.string "issue_webhook_id"
     t.datetime "issue_webhook_expires_at"
     t.text "issue_webhook_error"
+    t.integer "memory_expiry_days"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
@@ -1941,10 +1969,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_230000) do
   add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspaces"
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
+  add_foreign_key "chat_memories", "postmortems", column: "decided_by_postmortem_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"
+  add_foreign_key "chat_memory_posts", "incidents", on_delete: :cascade
+  add_foreign_key "chat_memory_posts", "workspaces"
+  add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify

@@ -336,6 +336,7 @@ Rails.application.routes.draw do
     post "/memory/memories/:id/confirm", to: "memory#confirm_memory", as: :confirm_memory
     post "/memory/memories/:id/correct", to: "memory#correct_memory", as: :correct_memory
     post "/memory/memories/:id/reject", to: "memory#reject_memory", as: :reject_memory
+    delete "/memory/memories/:id", to: "memory#destroy_memory", as: :destroy_memory
     post "/memory/instructions", to: "memory#create_instruction", as: :memory_instructions
     patch "/memory/instructions/:id", to: "memory#update_instruction", as: :memory_instruction
     delete "/memory/instructions/:id", to: "memory#destroy_instruction"

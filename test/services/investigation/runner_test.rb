@@ -175,6 +175,19 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert @investigation.notes.sole.taken_at
   end
 
+  test "a starting memory disputed after the run began is told to the agent at its next step, as a note nobody is shown" do
+    memory = Chat::Memory.create!(workspace: @workspace, text: "Sessions live in Redis", state: Chat::Memory::STATE_UNCONFIRMED)
+    @investigation.update!(seed_pack: { "gathered_at" => Time.current.iso8601 },
+                           seed_notes: Investigation::Seeding.notes([ { "id" => memory.id, "line" => memory.line } ], []))
+    memory.dispute!("The session store is Postgres")
+    fake(outcome: :answered, conclude: true, take: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    note = @investigation.chat.messages.where(role: Chat::Message::ROLE_USER).find_by!(nudge: true)
+    assert_match "Memory #{memory.id} was disputed since you started: The session store is Postgres", note.content
+  end
+
   private
 
   def turn(turns_used, spent_micros)

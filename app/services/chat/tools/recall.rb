@@ -18,7 +18,7 @@ class Chat::Tools::Recall < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "about" => { "type" => "string", "description" => "A resource on the map or catalog entry, by name (optional)" },
+        "about" => { "type" => "string", "description" => "A resource on the map or catalog entry, by name or id, including one no longer on the map (optional)" },
         "words" => { "type" => "string", "description" => "Words the memory contains, such as database production (optional)" }
       }
     }
@@ -26,13 +26,16 @@ class Chat::Tools::Recall < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
-    subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], principal: @agent_run.acting_principal)
-    return "Nothing called #{asked['about']} is on the map or in the catalog." if asked["about"].present? && subject.nil?
+    named = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], principal: @agent_run.acting_principal, removed: true)
+    return named.refusal if named.refusal
 
+    subject = named.subject
     found = Chat::Memory.recall(@agent_run.workspace, principal: @agent_run.acting_principal, subject: subject, query: asked["words"])
-    return "Nothing is remembered about that yet." if found.empty?
+    gone = "#{subject.name} is no longer on the map. It was last seen #{subject.removed_at.to_date.iso8601}, so check before relying on any of this." if subject.is_a?(ResourceMap::Resource) && subject.removed_at
+    return [ gone, "Nothing is remembered about that yet." ].compact.join("\n") if found.memories.empty?
 
-    found.each(&:used!) if @agent_run.changes_memory?
-    found.map(&:line).join("\n")
+    found.memories.each(&:used!) if @agent_run.changes_memory?
+    more = "#{found.more} more matched. Ask with more words, or name what it is about, to see them." if found.more.positive?
+    [ gone, *found.memories.map(&:line), more ].compact.join("\n")
   end
 end
