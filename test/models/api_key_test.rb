@@ -196,6 +196,19 @@ class ApiKeyTest < ActiveSupport::TestCase
                  key.granted_permissions.transform_values(&:sort))
   end
 
+  test "granted_permissions lists resources and actions in the matrix's order, whatever order the grants were made in" do
+    key = api_keys(:read_only_key)
+    key.replace_permissions!({})
+    incidents = Ability::Action::RESOURCE_INCIDENTS
+    runbooks = Ability::Action::RESOURCE_RUNBOOKS
+    read, create, update, delete = Ability::Action::ACTIONS
+    [ [ runbooks, delete ], [ incidents, update ], [ runbooks, read ], [ incidents, create ], [ incidents, read ] ].each do |resource, action|
+      Ability::Grant.create!(workspace: key.workspace, principal: key, action: Ability::Action.system!(Ability::Action.system_key(resource, action)))
+    end
+
+    assert_equal [ [ incidents, [ read, create, update ] ], [ runbooks, [ read, delete ] ] ], key.reload.granted_permissions.to_a
+  end
+
   # A grant made on the Permissions screen used to be reconciled away on the key's next save.
   test "a grant made outside the matrix survives an unrelated save and shows up ticked" do
     key = api_keys(:read_only_key)
