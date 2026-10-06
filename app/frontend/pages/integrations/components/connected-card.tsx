@@ -27,6 +27,7 @@ import {
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
 import { ProviderMark } from "@/components/integrations/provider-mark";
+import { LiveUpdates } from "@/pages/integrations/components/live-updates";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
 type HealthStatus = Integration["environments"][number]["healthStatus"];
@@ -187,6 +188,14 @@ export function ConnectedCard({
                       </Select>
                     </div>
                   ))}
+                  {environment.liveUpdates && (
+                    <LiveUpdates
+                      integrationId={integration.id}
+                      rowId={environment.id}
+                      state={environment.liveUpdates}
+                      canManage={canManage}
+                    />
+                  )}
                 </div>
               );
             })}

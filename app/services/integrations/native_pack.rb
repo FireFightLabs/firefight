@@ -120,6 +120,12 @@ module Integrations
     def map_of(environment_row)
     end
 
+    # Only what lies within scope (a ResourceMap::Scope), read again after the provider said it changed, as a
+    # ResourceMap::Snapshot naming in gone the keys the provider answered not found for. nil means the pack cannot narrow
+    # its read to the scope, and the connection is swept in full instead.
+    def map_refresh(environment_row, scope)
+    end
+
     # What normal looks like for the given map resources, as ResourceMap::Baseline::Found readings over window. nil means
     # the pack reads no metrics.
     def baselines_of(environment_row, resources, window)

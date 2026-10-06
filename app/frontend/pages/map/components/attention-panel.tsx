@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { confirmResourceMapLinkPath, dismissResourceMapLinkPath } from "@/lib/routes"
 import { Clues } from "@/pages/map/components/clues"
 import { changeLabel, howFound, RELATION_SENTENCES } from "@/pages/map/lib/labels"
+import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
 import { shortAgo } from "@/pages/map/lib/time"
 import type {
   ResourceMapChange,
@@ -33,6 +34,7 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
   const alone = resources.filter((resource) => !linked.has(resource.id))
   const unread = connections.filter((connection) => connection.error || connection.baselineError || connection.gaps.length > 0)
   const accounts = new Set(resources.map((resource) => `${resource.provider}:${resource.account}`))
+  const live = connections.filter((connection) => connection.liveUpdates)
 
   return (
     <aside className="flex flex-col gap-6 overflow-y-auto border-t border-border bg-card/40 p-5 lg:border-t-0 lg:border-l" aria-label="What needs attention">
@@ -72,6 +74,14 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
         )}
       </Section>
 
+      {live.length > 0 && (
+        <Section title="Live updates">
+          {live.map((connection) => (
+            <LiveRow key={connection.id} connection={connection} />
+          ))}
+        </Section>
+      )}
+
       {unread.length > 0 && (
         <Section title="Not read">
           {unread.map((connection) => (
@@ -98,6 +108,24 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
         <Count value={accounts.size} label="Accounts" />
       </section>
     </aside>
+  )
+}
+
+function LiveRow({ connection }: { connection: ResourceMapConnection }) {
+  const state = connection.liveUpdates
+  if (!state) {
+    return null
+  }
+
+  return (
+    <div className="flex gap-2.5 rounded-lg px-3 py-2 text-sm">
+      <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${state.on ? "bg-success" : "bg-muted-foreground/50"}`} />
+      <span className="flex flex-col gap-0.5">
+        <span className="font-medium">{connection.name}</span>
+        <span className="text-xs text-muted-foreground">{liveUpdatesLine(state)}</span>
+        {state.reason && <span className="text-xs text-muted-foreground">{state.reason}</span>}
+      </span>
+    </div>
   )
 }
 
