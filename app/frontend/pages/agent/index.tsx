@@ -64,7 +64,7 @@ export default function AgentPage() {
   const threadClass = conversation ? "agent-thread-open grid" : starting ? "grid" : "hidden md:grid"
 
   return (
-    <AuthenticatedLayout title="Chat" sidebarCollapsed>
+    <AuthenticatedLayout title="Chat" sidebarCollapsed ownsSearchShortcut>
       <Head title="Chat" />
       <div className="agent-ui agent-chat" data-list={chatList.collapsed ? "collapsed" : "open"}>
         <ChatList

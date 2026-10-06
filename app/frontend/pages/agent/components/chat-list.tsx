@@ -6,7 +6,7 @@ import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
 import { ChatListSection } from "@/pages/agent/components/chat-list-section"
 import { ChatSearch } from "@/pages/agent/components/chat-search"
 import { ListButton } from "@/pages/agent/components/list-button"
-import { useSearchShortcut } from "@/pages/agent/hooks/use-search-shortcut"
+import { useSearchShortcut } from "@/hooks/use-search-shortcut"
 import type { AgentChat } from "@/types/serializers"
 
 const SCROLL_BUFFER_PX = 200

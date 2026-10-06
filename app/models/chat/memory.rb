@@ -30,6 +30,9 @@ class Chat::Memory < ApplicationRecord
   OUTDATED_ARCHIVED = "archived".freeze
   OUTDATED_CAUSES = [ OUTDATED_REMOVED, OUTDATED_RENAMED, OUTDATED_ARCHIVED ].freeze
 
+  # The Memory page shows the memory this names, so a search result can link straight to it.
+  QUERY_PARAM = "memory".freeze
+
   # The days a workspace can let an unconfirmed memory wait for a person before it stops being used.
   EXPIRY_CHOICES = [ 30, 60, 90, 180 ].freeze
 
@@ -192,15 +195,22 @@ class Chat::Memory < ApplicationRecord
     found = visible_to(principal, workspace).in_use.includes(:subject, :confirmed_by)
     found = found.where(subject: subject) if subject
     found = found.to_a
-    asked = Chat::Memory::Words.stems(query)
-    ranked = if asked.empty?
+    ranked = if Chat::Memory::Words.stems(query).empty?
       found.sort_by { |memory| [ memory.confirmed? ? 0 : 1, -memory.created_at.to_f ] }
     else
-      scored = scores(found, asked, Chat::Memory::Words.squished(query))
-      found.select { |memory| scored[memory.id].positive? }
-           .sort_by { |memory| [ -scored[memory.id], memory.confirmed? ? 0 : 1, -memory.created_at.to_f ] }
+      matching(found, query)
     end
     Recalled.new(memories: ranked.first(STARTING_LIMIT), more: [ ranked.size - STARTING_LIMIT, 0 ].max)
+  end
+
+  # Those of memories that hold any of the words asked, the best first, as recall ranks them. Nothing when no word counts.
+  def self.matching(memories, query)
+    asked = Chat::Memory::Words.stems(query)
+    return [] if asked.empty?
+
+    scored = scores(memories, asked, Chat::Memory::Words.squished(query))
+    memories.select { |memory| scored[memory.id].positive? }
+            .sort_by { |memory| [ -scored[memory.id], memory.confirmed? ? 0 : 1, -memory.created_at.to_f ] }
   end
 
   def self.scores(memories, asked, phrase)

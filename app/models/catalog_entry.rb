@@ -10,6 +10,9 @@ class CatalogEntry < ApplicationRecord
   include CatalogEntry::ReferenceManagement
   include CatalogEntry::Searchable
 
+  # The catalog type page opens the entry this names, so a search result can link straight to it.
+  QUERY_PARAM = "entry".freeze
+
   belongs_to :workspace
   belongs_to :catalog_type
 

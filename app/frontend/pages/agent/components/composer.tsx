@@ -3,7 +3,7 @@ import { useState } from "react"
 import PromptBar, { type PromptAttachment } from "@/components/agent-ui/prompt-bar"
 import { agentChatsIncidentsPath } from "@/lib/routes"
 import { UPLOAD_STATES, type ComposerAttachment, useAttachmentUploads } from "@/pages/agent/hooks/use-attachment-uploads"
-import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
+import { useRemoteSearch } from "@/hooks/use-remote-search"
 import { ask, stopChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatAttachmentRules, AgentChatIncident } from "@/types/serializers"
 
@@ -34,7 +34,7 @@ function promptAttachment(item: ComposerAttachment): PromptAttachment {
 }
 
 export function Composer({ conversationId, incidents, busy, fill, attachmentRules }: ComposerProps) {
-  const { results, search } = useRemoteSearch<AgentChatIncident>(incidentSearchPath)
+  const { results, search } = useRemoteSearch<AgentChatIncident[]>(incidentSearchPath)
   const uploads = useAttachmentUploads(attachmentRules)
   // Set when Stop is pressed and cleared by the next question, so the hint says so until the answer ends.
   const [ stopRequested, setStopRequested ] = useState(false)

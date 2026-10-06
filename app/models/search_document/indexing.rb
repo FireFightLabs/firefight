@@ -27,10 +27,12 @@ module SearchDocument::Indexing
 
   def search_document_facets = {}
 
-  # The labels of the fields that hold any of words, in field order, so a result can say why it was found.
+  # The labels of the fields that hold any of words, in field order, so a result can say why it was found. A field that
+  # says the same as one before it, such as an id that is the name, is not named twice.
   def search_document_matched(words)
     wanted = words.map(&:downcase).compact_blank
-    search_document_fields.select { |field| wanted.any? { |word| field.text.downcase.include?(word) } }.map(&:label)
+    matched = search_document_fields.select { |field| wanted.any? { |word| field.text.downcase.include?(word) } }
+    matched.uniq { |field| field.text.downcase }.map(&:label)
   end
 
   private

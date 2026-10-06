@@ -15,7 +15,24 @@ import {
 } from "@/components/ui/table"
 import { EntryDetailSheet } from "@/pages/catalogue/components/type/entry-detail-sheet"
 import { EntryFormDialog } from "@/pages/catalogue/components/type/entry-form-dialog"
+import { CATALOG_ENTRY_QUERY_PARAM } from "@/lib/generated/constants"
 import { whenClosed } from "@/lib/handlers"
+
+function entryIdFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get(CATALOG_ENTRY_QUERY_PARAM)
+}
+
+// The open entry lives in the address, so a search result or a shared link opens the same entry.
+function rememberEntry(entryId: string | null) {
+  const params = new URLSearchParams(window.location.search)
+  if (entryId) {
+    params.set(CATALOG_ENTRY_QUERY_PARAM, entryId)
+  } else {
+    params.delete(CATALOG_ENTRY_QUERY_PARAM)
+  }
+  const query = params.toString()
+  window.history.replaceState(window.history.state, "", query ? `${window.location.pathname}?${query}` : window.location.pathname)
+}
 
 export function EntryTable({
   type,
@@ -33,8 +50,18 @@ export function EntryTable({
   canManage: boolean
 }) {
   const [search, setSearch] = useState("")
-  const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null)
+  const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(() => entries.find((entry) => entry.id === entryIdFromUrl()) ?? null)
   const [editingEntry, setEditingEntry] = useState<CatalogEntry | null>(null)
+
+  function openEntry(entry: CatalogEntry) {
+    setSelectedEntry(entry)
+    rememberEntry(entry.id)
+  }
+
+  function closeEntry() {
+    setSelectedEntry(null)
+    rememberEntry(null)
+  }
 
   const visibleAttributes = type.attributeDefinitions.filter((definition) => definition.slug !== "description").slice(0, 4)
 
@@ -92,7 +119,7 @@ export function EntryTable({
                   <TableRow
                     key={entry.id}
                     className="cursor-pointer"
-                    onClick={() => setSelectedEntry(entry)}
+                    onClick={() => openEntry(entry)}
                   >
                     <TableCell>
                       <span className="font-mono text-sm font-medium">
@@ -138,7 +165,7 @@ export function EntryTable({
         referenceEntries={referenceEntries}
         workspaceMembers={workspaceMembers}
         open={selectedEntry !== null}
-        onOpenChange={whenClosed(() => setSelectedEntry(null))}
+        onOpenChange={whenClosed(closeEntry)}
         onEdit={(entry) => setEditingEntry(entry)}
         canManage={canManage}
       />

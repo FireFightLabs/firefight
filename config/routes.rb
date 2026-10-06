@@ -342,6 +342,7 @@ Rails.application.routes.draw do
     delete "/memory/instructions/:id", to: "memory#destroy_instruction"
 
     get "/map", to: "resource_map#index", as: :resource_map
+    get "/search", to: "map_search#index", as: :map_search
     post "/map/sync", to: "resource_map#sync", as: :resource_map_sync
     post "/map/links", to: "resource_map#create_link", as: :resource_map_links
     delete "/map/links/:id", to: "resource_map#destroy_link", as: :resource_map_link

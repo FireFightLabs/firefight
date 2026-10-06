@@ -42,6 +42,15 @@ module TypescriptConstants
       Export.new("CHAT_INSTRUCTION_TEXT_LIMIT", Chat::Instruction::TEXT_LIMIT, nil),
       Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
+      Export.new("MEMORY_QUERY_PARAM", Chat::Memory::QUERY_PARAM, nil),
+      Export.new("CATALOG_ENTRY_QUERY_PARAM", CatalogEntry::QUERY_PARAM, nil),
+      Export.new("RESOURCE_MAP_PAGE_QUERY", { "VIEW" => ResourceMap::PAGE_VIEW_PARAM, "RESOURCE" => ResourceMap::PAGE_RESOURCE_PARAM }, nil),
+      Export.new("RESOURCE_MAP_VIEWS", { "MAP" => ResourceMap::VIEW_MAP, "FOCUS" => ResourceMap::VIEW_FOCUS, "TABLE" => ResourceMap::VIEW_TABLE }, nil),
+      Export.new("MAP_SEARCH_TYPES", SearchDocument::Search::TYPES, "MapSearchType"),
+      Export.new("MAP_SEARCH_TYPE", {
+        "RESOURCE" => SearchDocument::Search::TYPE_RESOURCE, "CATALOG_ENTRY" => SearchDocument::Search::TYPE_CATALOG_ENTRY,
+        "MEMORY" => SearchDocument::Search::TYPE_MEMORY
+      }, nil),
       Export.new("RESOURCE_MAP_RELATIONS", ResourceMap::RELATIONS, "ResourceMapRelation"),
       Export.new("RESOURCE_MAP_ORIGINS", ResourceMap::ORIGINS, "ResourceMapOrigin"),
       Export.new("RESOURCE_MAP_CHANGE_KINDS", ResourceMap::Change::KINDS, "ResourceMapChangeKind"),
