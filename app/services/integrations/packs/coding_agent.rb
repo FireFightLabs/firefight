@@ -245,12 +245,13 @@ module Integrations
 
       # A repository's address: the one given, or where the resource map saw it, since the map holds what a code host
       # reported and an address is never pieced together from a name. A path two code hosts both hold, such as a mirror,
-      # is two repositories, so it is refused rather than one picked.
+      # is two repositories, so it is refused rather than one picked. Hosts are named in provider order, so the sentence
+      # reads the same every time.
       def repository_url(repo)
         return repo if repo.match?(REPOSITORY_URL)
 
         seen = ResourceMap::Resource.present.where(workspace: integration.workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repo)
-                                    .where.not(url: [ nil, "" ]).pluck(:provider, :url).uniq(&:last)
+                                    .where.not(url: [ nil, "" ]).order(:provider, :url).pluck(:provider, :url).uniq(&:last)
         return seen.first&.last if seen.size < 2
 
         hosts = seen.map { |provider, _url| ResourceMap.provider_name(provider) }.uniq.to_sentence

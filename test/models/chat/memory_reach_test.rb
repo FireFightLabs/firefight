@@ -65,6 +65,22 @@ class Chat::MemoryReachTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_CONFIRMED, @hidden.reload.state
   end
 
+  test "Correct on a hidden resource's memory opens no form, exactly as for a memory the message does not show" do
+    incident = incidents(:active_critical_ws1)
+    post = Chat::MemoryPost.create!(workspace: @workspace, incident: incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: incident.channel_id,
+                                    message_id: "1.1", memory_ids: [ @hidden.id, @shown.id ])
+    adapter = @workspace.adapter
+    Workspace.any_instance.stubs(:adapter).returns(adapter)
+    adapter.expects(:open_memory_correction_modal).with { |memory:, **| memory.id == @shown.id }.once
+
+    [ @hidden.id, SecureRandom.uuid, @shown.id ].each do |memory_id|
+      assert_nil Interactions::OpenMemoryCorrectionHandler.execute(
+        Interaction.new(platform: Platforms::SLACK, type: Interaction::BLOCK_ACTIONS, team_id: @workspace.platform_id, trigger_id: "T1",
+                        user_id: @member.platform_user_id, action_id: Identifiers::MEMORY_CORRECT, action_value: "#{post.id}:#{memory_id}")
+      )
+    end
+  end
+
   private
 
   def turn = Conversation::Turn.new(@conversation, asker: @member)

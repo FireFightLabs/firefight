@@ -36,7 +36,7 @@ module Investigation::Seeding
 
     subjects = Chat::Memory.subjects_for(incident)
     memories = Chat::Memory.starting_with(workspace, subjects, principal: acting_principal)
-    instructions = Chat::Instruction.for_subjects(workspace, subjects).map(&:line)
+    instructions = Chat::Instruction.for_subjects(workspace, subjects, principal: acting_principal).map(&:line)
     update!(seed_pack: seeder.gather.merge(KEY_CLUES => Investigation::Clues.new(self).gather),
             seed_notes: Investigation::Seeding.notes(memories.map { |memory| { "id" => memory.id, "line" => memory.line } }, instructions))
     Chat::Memory.handed_to!(memories, self) if changes_memory?

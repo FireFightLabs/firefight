@@ -18,7 +18,7 @@ class MemoryController < InertiaController
 
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
-      instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace)),
+      instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
       subjects: subject_options
     }
   end
@@ -97,7 +97,8 @@ class MemoryController < InertiaController
   # A memory about a resource outside the person's map reach is not on their page, and deciding on one finds nothing.
   def memories = Chat::Memory.visible_to(current_membership, current_workspace)
 
-  def instructions = Chat::Instruction.where(workspace: current_workspace)
+  # Instructions follow the same reach, so editing or removing one about a hidden resource finds nothing.
+  def instructions = Chat::Instruction.visible_to(current_membership, current_workspace)
 
   def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject], principal: current_membership)
 
