@@ -1,0 +1,146 @@
+module Integrations
+  # Live updates for the resource map. A provider that can say something changed (its definition's map_events, a
+  # MapEventSource) sends an event to an address that belongs to one connection, or Firefight reads its change log every
+  # few minutes. An event is never taken as the truth. It is a nudge to read the scope it names again, within about a
+  # minute, and write what that read found (ResourceMap.apply!). So a duplicate or an event out of order is harmless, and
+  # nothing is removed unless the re-read finds the provider no longer has it. The hourly sweep stays as the safety net.
+  module MapEvents
+    # Events about one scope wait this long, so a burst of them is read again once.
+    COALESCE = 30.seconds
+    # A webhook that lapses is extended once it has this long left.
+    REFRESH_WITHIN = 7.days
+    # What Firefight says in a connection's gaps when the provider asked it to slow down while reading a change.
+    SLOWED = "%<name>s asked Firefight to slow down, so a change it reported is read at the next sweep.".freeze
+
+    module_function
+
+    def source_of(provider_key) = Provider.for(provider_key).map_events
+
+    # The connection's own address, or nil while Firefight's own address is not set or the row has none yet.
+    def url_for(environment_row)
+      host = ENV["APP_HOST"].presence
+      return unless host && environment_row.map_events_token
+
+      Rails.application.routes.url_helpers.api_v1_map_events_url(environment_row.map_events_token, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+    end
+
+    # The secret every delivery to a provider's app wide address is signed with, set by whoever runs Firefight.
+    def app_secret(provider_key) = ENV["INTEGRATION_#{provider_key.to_s.upcase}_WEBHOOK_SECRET"].presence
+
+    # The connections an app wide delivery is about, by the installation the provider's source reads from it.
+    def rows_for_installation(provider_key, installation)
+      return IntegrationEnvironment.none if installation.blank?
+
+      IntegrationEnvironment.reachable.where(integrations: { provider: provider_key.to_s })
+                            .where("integration_environments.base_config ->> :key = :installation", key: IntegrationEnvironment::INSTALLATION_KEY,
+                                                                                                    installation: installation.to_s)
+    end
+
+    # Keeps each event once per connection and queues a re-read of each scope a new one names. Answers how many were new.
+    def receive!(environment_row, events, received_at: Time.current)
+      environment_row.update_columns(map_events_received_at: received_at) if events.any?
+      return 0 if events.empty?
+
+      rows = events.map do |event|
+        { workspace_id: environment_row.integration.workspace_id, integration_environment_id: environment_row.id,
+          provider_event_id: event.provider_id, action: event.action, scope: event.scope.to_job, scope_key: event.scope.key,
+          happened_at: event.at, received_at: received_at, created_at: received_at, updated_at: received_at }
+      end
+      kept = ResourceMap::ReceivedEvent.insert_all(rows, unique_by: :index_resource_map_events_once, returning: %w[scope_key])
+      kept.rows.flatten.uniq.each { |scope_key| MapEventJob.set(wait: COALESCE).perform_later(environment_row, scope_key) }
+      kept.rows.size
+    end
+
+    # Reads again what the events waiting on one scope name, and writes it onto the map. A scope the provider cannot read
+    # on its own, or a change to what the connection reaches, sweeps the connection in full instead.
+    def reread!(environment_row, scope_key)
+      events = ResourceMap::ReceivedEvent.claim!(environment_row, scope_key)
+      return if events.empty?
+
+      scope = events.first.scope_read
+      read_at = Time.current
+      partial = environment_row.integration.executor.map_refresh(environment_row, scope) unless scope.everything? || events.any? { |event| event.action == ResourceMap::Event::RESCOPE }
+      return swept!(environment_row, events) unless partial
+
+      partial = Provider.for(environment_row.integration.provider).in_firefight_words(partial)
+      changed = ResourceMap.apply!(environment_row, partial, scope: scope, at: events.map(&:happened_at).max, read_at: read_at)
+      MapSweep.written!(environment_row, changed) if changed.any?
+      ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_APPLIED)
+    rescue RateLimited
+      slowed!(environment_row)
+      ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_DEFERRED)
+    rescue Integrations::Error => error
+      Rails.logger.warn({ event: "map_events.reread_failed", integration_environment_id: environment_row.id, error: error.message.truncate(200) }.to_json)
+      ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_FAILED)
+    end
+
+    # One full sweep for however many events asked for one, since a sweep asked before the last one ran has nothing left.
+    def swept!(environment_row, events)
+      MapEventSweepJob.set(wait: COALESCE).perform_later(environment_row, Time.current.iso8601(6))
+      ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_SWEPT)
+    end
+
+    def slowed!(environment_row)
+      gap = format(SLOWED, name: environment_row.integration.name)
+      environment_row.update!(map_gaps: (environment_row.map_gaps + [ gap ]).uniq)
+    end
+
+    # Reads the provider's change log after where it was last read, keeping the new cursor only once its events are kept.
+    def poll!(environment_row)
+      source = source_of(environment_row.integration.provider)
+      return unless source&.polls?
+
+      polled = source.poll(environment_row, since: environment_row.map_events_cursor)
+      receive!(environment_row, polled.events)
+      environment_row.update!(map_events_cursor: polled.cursor, map_events_error: nil)
+    rescue RateLimited
+      nil
+    rescue Integrations::Error => error
+      environment_row.update!(map_events_error: error.message)
+    end
+
+    # Gives a connection whose provider sends changes its own address, and registers the provider's webhook when
+    # Firefight can. Run on connecting and with each hourly sweep, so a registration that failed is tried again.
+    def prepare!(environment_row)
+      source = source_of(environment_row.integration.provider)
+      return unless source
+
+      environment_row.give_map_events_token!
+      register!(environment_row, source) if source.registers? && environment_row.map_events_webhook_id.blank?
+    end
+
+    def register!(environment_row, source)
+      url = url_for(environment_row)
+      return environment_row.update!(map_events_error: "Firefight's own address is not set, so there is nowhere to send changes.") unless url
+
+      webhook = source.register(environment_row, url: url)
+      environment_row.update!(map_events_webhook_id: webhook.id, map_events_secret: webhook.secret, map_events_expires_at: webhook.expires_at,
+                              map_events_error: nil)
+    rescue Integrations::Error => error
+      environment_row.update!(map_events_error: error.message)
+    end
+
+    # Extends a registered webhook before it lapses.
+    def refresh!(environment_row)
+      source = source_of(environment_row.integration.provider)
+      return unless source.respond_to?(:refresh) && environment_row.map_events_webhook_id.present?
+
+      environment_row.update!(map_events_expires_at: source.refresh(environment_row, environment_row.map_events_webhook_id), map_events_error: nil)
+    rescue Integrations::Error => error
+      environment_row.update!(map_events_error: error.message)
+    end
+
+    # Takes back what Firefight registered, while the connection's credentials still reach the provider.
+    def connection_removed(integration)
+      source = source_of(integration.provider)
+      return unless source&.respond_to?(:remove)
+
+      integration.integration_environments.where.not(map_events_webhook_id: nil).find_each do |row|
+        source.remove(row, row.map_events_webhook_id)
+        row.update!(map_events_webhook_id: nil, map_events_expires_at: nil)
+      rescue Integrations::Error => error
+        Rails.logger.warn({ event: "map_events.webhook_remove_failed", integration_environment_id: row.id, error: error.message.truncate(200) }.to_json)
+      end
+    end
+  end
+end

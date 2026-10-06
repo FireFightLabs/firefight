@@ -6,10 +6,10 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :destroy ]
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -112,6 +112,16 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, notice: "#{@integration.name} now uses #{field.shown(row.fields[field.key], choices: field.options_from(row.learned))} for #{field.label.downcase_first}."
   end
 
+  # The signing secret an admin pasted from a provider set up by hand to send its changes to the connection's address.
+  def map_events_secret
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    return redirect_to integrations_path, alert: "#{@integration.name} is not set up by hand to send its changes." unless row.map_events_set_up_by_hand?
+    return redirect_to integrations_path, alert: "Paste the signing secret #{@integration.name} shows for its webhook." if params[:secret].to_s.strip.empty?
+
+    row.save_map_events_secret!(params[:secret])
+    redirect_to integrations_path, notice: "Signing secret saved. Changes #{@integration.name} sends now reach the map."
+  end
+
   # A full-page navigation to the provider. Nothing is persisted until the customer
   # returns authorized, so abandoning it leaves no half-connected row.
   def oauth_start
@@ -174,10 +184,11 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, alert: e.message
   end
 
-  # Removing the workspace's issue tracker takes back the webhook Firefight registered with it while its credentials
-  # still reach the tracker.
+  # Removing the workspace's issue tracker, or a connection Firefight registered for map changes, takes back the webhook
+  # Firefight registered while its credentials still reach the provider.
   def destroy
     IssueSyncService.new(current_workspace).connection_removed(@integration, by: current_membership)
+    Integrations::MapEvents.connection_removed(@integration)
     @integration.update!(deleted_at: Time.current)
     redirect_to integrations_path
   end

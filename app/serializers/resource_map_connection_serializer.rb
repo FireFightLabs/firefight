@@ -20,4 +20,11 @@ class ResourceMapConnectionSerializer < BaseSerializer
   # Why the last daily read of what normal looks like failed, or nil.
   type :string, optional: true
   def baseline_error = row.baseline_error
+
+  # Whether the provider's changes reach the map between sweeps, null for a provider that cannot say what changed.
+  type "{ on: boolean; lastEventAt: string | null; reason: string | null } | null"
+  def live_updates
+    state = row.live_updates
+    state && { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason }
+  end
 end

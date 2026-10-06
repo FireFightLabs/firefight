@@ -135,13 +135,14 @@ module ResourceMap
   # repository two services build from is one resource. gaps are what the sweep could not read (Gap), and the kinds
   # they name are unread. Only a complete read, one with no unread kind, takes away what it did not report.
   # code_files are the infrastructure files a code host's sweep read, for ResourceMap::CodeDefinitions, and code_read the
-  # repositories it read in full, the only ones whose suggestions it may take away.
-  Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read) do
-    def initialize(resources:, links: [], gaps: [], code_files: [], code_read: [])
+  # repositories it read in full, the only ones whose suggestions it may take away. gone is only for a targeted re-read
+  # (apply!): the keys of resources the provider answered not found for, the one way a re-read takes anything away.
+  Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read, :gone) do
+    def initialize(resources:, links: [], gaps: [], code_files: [], code_read: [], gone: [])
       loose = gaps.reject { |gap| gap.is_a?(Gap) }
       raise ArgumentError, "a gap names the kinds it could not read (ResourceMap::Gap), not only words: #{loose.first.inspect}" if loose.any?
 
-      super(resources:, links:, gaps: gaps.uniq, code_files:, code_read:)
+      super(resources:, links:, gaps: gaps.uniq, code_files:, code_read:, gone: gone.uniq)
     end
 
     def unread_kinds = gaps.flat_map(&:kinds).uniq
@@ -175,19 +176,73 @@ module ResourceMap
         forget(workspace_id, environment_row, ids.values, at, changed)
         Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
       end
-      # A link may end at something another connection reported, such as the hostname a DNS record points at.
-      elsewhere = present_ids(workspace_id, snapshot.links.flat_map { |found| [ found.from, found.to ] }.uniq - ids.keys)
-      snapshot.links.each do |found|
-        from, to = [ found.from, found.to ].map { |key| ids[key] || elsewhere[key] }
-        next unless from && to
-
-        Link.find_or_initialize_by(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
-                                   origin: ORIGIN_DECLARED, integration_environment: environment_row).update!(last_seen_at: at)
-      end
+      declare_links(workspace_id, environment_row, snapshot.links, ids, at)
       environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gap_texts)
     end
     changed.to_a
   end
+
+  # Writes a targeted re-read of one scope, after a provider said something in it changed (Integrations::MapEvents).
+  # Only what was read is touched. Each resource is upserted, its declared links are replaced when the read was
+  # complete, and a resource is taken away only when the provider answered not found for it (Snapshot#gone) within the
+  # scope asked. Nothing is removed for being absent, since a partial read never says what else exists. Changes are
+  # written at happened_at, the time the provider says the change happened. A resource seen again after read_at, by a
+  # sweep that wrote while this read was out, keeps what that sweep wrote. Returns the ids whose words changed.
+  def self.apply!(environment_row, partial, scope:, at:, read_at: nil)
+    workspace_id = environment_row.integration.workspace_id
+    changed = Set.new
+    now = Time.current
+
+    ActiveRecord::Base.transaction do
+      environment_row.lock!
+      newer = read_at ? seen_since(workspace_id, partial.resources.map(&:key) + partial.gone, read_at) : Set.new
+      fresh = partial.resources.uniq(&:key).reject { |found| newer.include?(found.key) }
+      ids = fresh.to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, now, changed, happened_at: at) ] }
+      if partial.complete? && ids.any?
+        Link.where(integration_environment_id: environment_row.id, origin: ORIGIN_DECLARED, from_resource_id: ids.values).delete_all
+      end
+      declare_links(workspace_id, environment_row, partial.links.select { |found| ids.key?(found.from) }, ids, now)
+      gone = partial.gone.select { |key| scope.covers?(key) } - ids.keys - newer.to_a
+      reported_by(workspace_id, environment_row, gone).each { |resource| let_go(resource, environment_row, at, changed) }
+    end
+    changed.to_a
+  end
+
+  # A link may end at something another connection reported, such as the hostname a DNS record points at.
+  def self.declare_links(workspace_id, environment_row, links, ids, at)
+    elsewhere = present_ids(workspace_id, links.flat_map { |found| [ found.from, found.to ] }.uniq - ids.keys)
+    links.each do |found|
+      from, to = [ found.from, found.to ].map { |key| ids[key] || elsewhere[key] }
+      next unless from && to
+
+      Link.find_or_initialize_by(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
+                                 origin: ORIGIN_DECLARED, integration_environment: environment_row).update!(last_seen_at: at)
+    end
+  end
+  private_class_method :declare_links
+
+  def self.seen_since(workspace_id, keys, read_at)
+    found = by_keys(workspace_id, keys).where(last_seen_at: read_at..).pluck(:provider, :account, :kind, :external_id)
+    found.to_set
+  end
+  private_class_method :seen_since
+
+  # The present resources with these keys that this connection reports.
+  def self.reported_by(workspace_id, environment_row, keys)
+    by_keys(workspace_id, keys).present
+                               .where("resource_map_resources.integration_environment_id = :id OR resource_map_resources.sightings ? :key",
+                                      id: environment_row.id, key: environment_row.id.to_s)
+  end
+  private_class_method :reported_by
+
+  def self.by_keys(workspace_id, keys)
+    return Resource.none if keys.empty?
+
+    keys.group_by { |provider, account, kind, _| [ provider, account, kind ] }.map do |(provider, account, kind), grouped|
+      Resource.where(workspace_id: workspace_id, provider: provider, account: account, kind: kind, external_id: grouped.map(&:last))
+    end.reduce(:or)
+  end
+  private_class_method :by_keys
 
   # A new commit on a service is a deploy, since a sweep only sees the commit that is running.
   DEPLOYED_COMMIT = "deployed_commit".freeze
@@ -227,7 +282,8 @@ module ResourceMap
   # What a resource is found by in search. A sweep that changes none of them leaves its search row alone.
   SEARCHED_COLUMNS = %w[name details sightings integration_environment_id removed_at].freeze
 
-  def self.upsert_resource(workspace_id, environment_row, found, at, changed)
+  # happened_at is when a change happened, the sweep's time unless an event said otherwise.
+  def self.upsert_resource(workspace_id, environment_row, found, at, changed, happened_at: at)
     identity = { workspace_id: workspace_id, provider: found.provider, account: found.account, kind: found.kind, external_id: found.external_id }
     # Two connections can report the same repository at once, so creating it tolerates losing that race.
     resource = Resource.find_by(identity) || Resource.create_or_find_by!(identity) do |fresh|
@@ -242,7 +298,7 @@ module ResourceMap
                      details: reported.details, sightings: sightings, last_seen_at: at, removed_at: nil)
     changed << resource.id if resource.previously_new_record? || resource.saved_changes.keys.intersect?(SEARCHED_COLUMNS)
     changes.each do |kind, from, to, detail|
-      resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: at)
+      resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: happened_at)
     end
     renamed = changes.find { |kind, _, _| kind == Change::KIND_RENAMED }
     Chat::Memory.flag_outdated!(resource, "#{renamed[1]} was renamed #{renamed[2]}", cause: Chat::Memory::OUTDATED_RENAMED) if renamed
@@ -257,19 +313,23 @@ module ResourceMap
     row = environment_row.id.to_s
     unseen = Resource.present.where(workspace_id: workspace_id).where.not(id: seen_ids)
                      .where("resource_map_resources.integration_environment_id = :id OR resource_map_resources.sightings ? :key", id: environment_row.id, key: row)
-    unseen.each do |resource|
-      changed << resource.id
-      others = resource.sightings.except(row)
-      if others.any?
-        resource.update!(sightings: others, details: others.values.reduce({}, :merge), integration_environment_id: others.keys.first)
-      else
-        resource.changes_seen.create!(workspace_id: workspace_id, kind: Change::KIND_REMOVED, happened_at: at)
-        Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection", cause: Chat::Memory::OUTDATED_REMOVED)
-        resource.update!(sightings: {}, removed_at: at)
-      end
-    end
+    unseen.each { |resource| let_go(resource, environment_row, at, changed) }
   end
   private_class_method :forget
+
+  # The connection no longer reports the resource. Another connection's sighting keeps it, with what that one said.
+  def self.let_go(resource, environment_row, at, changed)
+    changed << resource.id
+    others = resource.sightings.except(environment_row.id.to_s)
+    if others.any?
+      resource.update!(sightings: others, details: others.values.reduce({}, :merge), integration_environment_id: others.keys.first)
+    else
+      resource.changes_seen.create!(workspace_id: resource.workspace_id, kind: Change::KIND_REMOVED, happened_at: at)
+      Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection", cause: Chat::Memory::OUTDATED_REMOVED)
+      resource.update!(sightings: {}, removed_at: at)
+    end
+  end
+  private_class_method :let_go
 
   def self.changes_of(resource, found)
     return [ [ Change::KIND_APPEARED, nil, nil ] ] if resource.removed_at
