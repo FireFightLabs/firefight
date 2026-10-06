@@ -21,15 +21,21 @@ class Chat::Instruction < ApplicationRecord
   validate :one_current_per_scope, on: :create
 
   scope :current, -> { where(superseded_at: nil) }
+  # Every instruction in workspace except those about a resource outside principal's map reach, which read as never there.
+  scope :visible_to, ->(principal, workspace) {
+    where(workspace: workspace).where("chat_instructions.scope_type IS DISTINCT FROM ?", ResourceMap::Resource.name)
+      .or(where(workspace: workspace, scope_type: ResourceMap::Resource.name,
+                scope_id: ResourceMap::Resource.visible_to(principal, workspace).select(:id)))
+  }
 
   # The instructions a chat or run follows: the workspace's, then the teams that own what it touches, then those
-  # things themselves, so the most specific reads last.
-  def self.for_subjects(workspace, subjects)
+  # things themselves, so the most specific reads last. Only those principal may see, as for memories.
+  def self.for_subjects(workspace, subjects, principal:)
     entries = subjects.grep(CatalogEntry)
     teams = CatalogEntry.where(id: CatalogEntryRelationship.where(source_entry_id: entries.map(&:id)).select(:target_entry_id))
                         .joins(:catalog_type).where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_TEAM }).to_a
     places = (teams + subjects.compact).uniq
-    found = current.where(workspace: workspace).includes(:scope).to_a
+    found = visible_to(principal, workspace).current.includes(:scope).to_a
                    .select { |note| note.scope_id.nil? || places.include?(note.scope) }
     order = [ nil ] + places
     preload_labels(found.sort_by { |note| order.index(note.scope) })
@@ -41,10 +47,10 @@ class Chat::Instruction < ApplicationRecord
     notes
   end
 
-  # Every current set of instructions in a workspace paired with its earlier wordings, newest first, found by following which note
-  # replaced which, in one query.
-  def self.with_history(workspace)
-    all = preload_labels(where(workspace: workspace).includes(:scope, :added_by).order(:created_at).to_a)
+  # Every current set of instructions in a workspace that principal may see, paired with its earlier wordings, newest
+  # first, found by following which note replaced which, in one query.
+  def self.with_history(workspace, principal:)
+    all = preload_labels(visible_to(principal, workspace).includes(:scope, :added_by).order(:created_at).to_a)
     by_replacement = all.index_by(&:superseded_by_id)
     all.select { |note| note.superseded_at.nil? }.map do |note|
       earlier = []
