@@ -12,8 +12,10 @@ module Integrations
 
     private
 
-    # One connection's unexpected error is recorded on it and never stops the sweep of the others.
+    # One connection's unexpected error is recorded on it and never stops the sweep of the others. Each hour also gives
+    # a connection whose provider sends changes its address, and tries again a registration that failed.
     def sweep(row)
+      MapEvents.prepare!(row)
       MapSweep.run!(row) if MapSweep.due?(row)
     rescue StandardError => error
       Rails.logger.error({ event: "map_sweep.failed", integration_environment_id: row.id, error: error.class.name, message: error.message }.to_json)

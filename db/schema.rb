@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1099,8 +1099,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
     t.jsonb "map_gaps", default: [], null: false
     t.datetime "map_swept_at"
     t.datetime "updated_at", null: false
+    t.string "map_events_token"
+    t.text "map_events_secret"
+    t.string "map_events_webhook_id"
+    t.datetime "map_events_expires_at"
+    t.string "map_events_error"
+    t.datetime "map_events_received_at"
+    t.string "map_events_cursor"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
+    t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true
   end
 
   create_table "integration_tools", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1557,6 +1565,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
     t.index ["catalog_entry_id"], name: "index_resource_map_entry_links_on_catalog_entry_id"
     t.index ["resource_id"], name: "index_resource_map_entry_links_on_resource_id"
     t.index ["workspace_id"], name: "index_resource_map_entry_links_on_workspace_id"
+  end
+
+  create_table "resource_map_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "integration_environment_id", null: false
+    t.string "provider_event_id", null: false
+    t.string "action", null: false
+    t.jsonb "scope", default: {}, null: false
+    t.string "scope_key", null: false
+    t.datetime "happened_at", null: false
+    t.datetime "received_at", null: false
+    t.datetime "applied_at"
+    t.string "outcome"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_environment_id", "provider_event_id"], name: "index_resource_map_events_once", unique: true
+    t.index ["integration_environment_id", "scope_key"], name: "index_resource_map_events_waiting", where: "(outcome IS NULL)"
+    t.index ["received_at"], name: "index_resource_map_events_on_received_at"
   end
 
   create_table "resource_map_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2118,6 +2144,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
   add_foreign_key "resource_map_entry_links", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_entry_links", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "resource_map_entry_links", "workspaces"
+  add_foreign_key "resource_map_events", "integration_environments", on_delete: :cascade
+  add_foreign_key "resource_map_events", "workspaces"
   add_foreign_key "resource_map_links", "integration_environments", on_delete: :nullify
   add_foreign_key "resource_map_links", "resource_map_resources", column: "from_resource_id", on_delete: :cascade
   add_foreign_key "resource_map_links", "resource_map_resources", column: "to_resource_id", on_delete: :cascade
