@@ -3,7 +3,7 @@ source "https://rubygems.org"
 # 8.1.4 and later carry the Active Storage fix for CVE-2026-66066 (first in 8.1.3.1).
 gem "rails", "~> 8.1.4"
 # Use postgresql as the database for Active Record
-gem "pg", "~> 1.6"
+gem "pg", "~> 1.7"
 
 # The operator console: a second factor for operators, and the jobs dashboard behind it.
 gem "rotp", "~> 6.3"
@@ -41,7 +41,7 @@ gem "thruster", require: false
 # ruby-vips is the binding for the libvips system library, which backs the
 # default :vips variant processor. Active Storage loads it during boot to turn
 # off libvips's unfuzzed loaders, so the gem and the library are both required.
-gem "image_processing", "~> 2.1"
+gem "image_processing", "~> 2.2"
 gem "ruby-vips", "~> 2.0"
 gem "aws-sdk-s3", require: false
 
