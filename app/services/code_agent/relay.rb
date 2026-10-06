@@ -34,6 +34,16 @@ class CodeAgent::Relay
       error_kind: (Inference::ERROR_OUT_OF_CREDIT if proxy.refusal&.out_of_credit?),
       latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
     )
+    note_account(proxy)
     @session.charge!(cost)
+  end
+
+  # A coding agent's call is never retried shorter, so a refusal for credit is the account running out.
+  def note_account(proxy)
+    if proxy.status.to_i.between?(200, 299)
+      AiAccount.answered!(@session.provider)
+    elsif proxy.refusal&.out_of_credit?
+      AiAccount.ran_out!(@session.provider)
+    end
   end
 end

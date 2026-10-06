@@ -116,6 +116,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     assert_equal [ Inference::STATUS_ERROR, Inference::ERROR_OUT_OF_CREDIT, 16_000 ], [ refused.status, refused.error_kind, refused.max_output_tokens ]
     assert_equal [ Inference::STATUS_SUCCESS, nil, 9_000 ], [ answered.status, answered.error_kind, answered.max_output_tokens ]
     assert_equal answered, ledger.last
+    assert_empty AiAccount.out_of_credit, "a refusal a shorter call answered is not the account running out"
   end
 
   test "a balance that covers less than a useful answer is out of credit, with no second call" do
@@ -130,6 +131,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
 
     assert_equal 1, calls
     assert_equal 1, Inference.where(workspace: @workspace, feature: "credit_test", error_kind: Inference::ERROR_OUT_OF_CREDIT).count
+    assert_equal [ "openai" ], AiAccount.out_of_credit.pluck(:provider)
   end
 
   test "a second refusal after the shorter try is out of credit, never a third call" do
@@ -191,6 +193,25 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
 
     assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { run_loop(chat) } }
     assert_equal [ 16_000 ], chat.limits
+    assert_equal [ "openai" ], AiAccount.out_of_credit.pluck(:provider)
+  end
+
+  test "OpenRouter's balance is read with its management key, and nothing is read without one or for another provider" do
+    FirefightAi.configuration.stubs(:balance_keys).returns(openrouter: "mgmt-key")
+    sent = nil
+    ok = Net::HTTPOK.new("1.1", "200", "OK")
+    ok.stubs(:body).returns({ data: { total_credits: 20.0, total_usage: 7.5 } }.to_json)
+    http = mock("http")
+    http.expects(:request).with { |request| sent = request }.returns(ok)
+    Net::HTTP.expects(:start).with("openrouter.ai", 443, has_entries(use_ssl: true)).yields(http).returns(ok)
+
+    assert_in_delta 12.5, FirefightAi::Balance.remaining("openrouter")
+    assert_equal "Bearer mgmt-key", sent["Authorization"]
+    assert_equal "/api/v1/credits", sent.path
+    assert_nil FirefightAi::Balance.remaining("anthropic")
+
+    FirefightAi.configuration.stubs(:balance_keys).returns({})
+    assert_nil FirefightAi::Balance.remaining("openrouter")
   end
 
   private

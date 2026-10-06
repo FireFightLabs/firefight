@@ -55,8 +55,8 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     ConversationReplyJob.perform_now(conversation.id)
   end
 
-  OUT_OF_CREDIT = "Halon cannot answer right now because the AI account behind this workspace is out of credit. " \
-                  "Firefight's team has been told.".freeze
+  OUT_OF_CREDIT = "Halon cannot answer right now because the AI account behind this Firefight is out of credit. " \
+                  "Whoever runs Firefight needs to add credit.".freeze
 
   test "a dashboard chat whose AI account ran out of credit says so, without naming the provider" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)

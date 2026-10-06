@@ -87,24 +87,23 @@ class Operator::AttentionTest < ActiveSupport::TestCase
     assert items.none? { |item| item.kind == Operator::Attention::KIND_SKILL_BROKEN }, "a workspace's view leaves out what belongs to the install"
   end
 
-  test "an AI account whose last calls were refused for credit is out, since the first refusal after its last answer" do
-    call!(Inference::STATUS_SUCCESS, at: 3.hours.ago)
-    first = call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 2.hours.ago)
+  test "an AI account out of credit is listed for the whole install, since it ran out, with the calls refused since" do
+    since = 2.hours.ago
+    AiAccount.create!(provider: "openrouter", out_of_credit_since: since)
     call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 1.hour.ago)
+    call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 30.minutes.ago)
 
     out = install_items.find { |item| item.kind == Operator::Attention::KIND_AI_OUT_OF_CREDIT }
 
-    assert_equal "AI account out of credit", out.title
-    assert_equal "openrouter", out.subject
-    assert_equal Operator::IncidentProcess::TONE_BAD, out.tone
-    assert_equal first.created_at.to_i, out.at.to_i
-    assert_match "2 calls refused since #{first.created_at.utc.iso8601}", out.detail
+    assert_equal [ "AI account out of credit", "openrouter", Operator::IncidentProcess::TONE_BAD ], [ out.title, out.subject, out.tone ]
+    assert_equal since.to_i, out.at.to_i
+    assert_match "2 calls refused since #{since.utc.iso8601}", out.detail
     assert items.none? { |item| item.kind == Operator::Attention::KIND_AI_OUT_OF_CREDIT }, "the account is the install's, not a workspace's"
   end
 
-  test "an AI account that answered again after a refusal is short of credit, not out" do
+  test "an AI account refused in the window that has credit again is short of credit, not out" do
     call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 2.hours.ago)
-    call!(Inference::STATUS_SUCCESS, at: 1.hour.ago)
+    AiAccount.create!(provider: "openrouter", out_of_credit_since: nil)
 
     kinds = install_items.map(&:kind)
 

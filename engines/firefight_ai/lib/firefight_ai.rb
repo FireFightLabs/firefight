@@ -3,6 +3,7 @@ require "schematist"
 require "firefight_ai/version"
 require "firefight_ai/configuration"
 require "firefight_ai/credit"
+require "firefight_ai/balance"
 require "firefight_ai/errors"
 require "firefight_ai/prompt"
 require "firefight_ai/engine"
@@ -106,6 +107,7 @@ module FirefightAi
         Inference.track(inference.merge(max_output_tokens: limit)) { yield chat(choice).with_max_output_tokens(limit) }
       rescue RubyLLM::Error => e
         smaller = retried ? nil : cap.after_refusal(e, limit)
+        refused_for_good(inference[:provider], e) unless smaller
         raise unless smaller
 
         note_short_of_credit(inference[:feature], limit, smaller)
@@ -114,6 +116,11 @@ module FirefightAi
         retry
       end
     end
+  end
+
+  # The account is out from this call on, which the app records once per account, however many calls are refused.
+  def refused_for_good(provider, error)
+    AiAccount.ran_out!(provider) if error.is_a?(RubyLLM::Error) && Credit.from(error).out_of_credit?
   end
 
   def note_short_of_credit(feature, asked, affordable)
@@ -209,6 +216,9 @@ module FirefightAi
       ) do
         RubyLLM.embed(text, model: choice.model, provider: choice.provider&.to_sym)
       end
+    rescue RubyLLM::Error => e
+      refused_for_good(choice.provider_name, e)
+      raise
     end
     embedding
   end

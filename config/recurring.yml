@@ -10,6 +10,10 @@
 #     schedule: at 5am every day
 
 development:
+  ai_account_balance:
+    class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
+    queue: background
+    schedule: every hour
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
@@ -82,6 +86,10 @@ development:
     schedule: at 4am every day
 
 staging:
+  ai_account_balance:
+    class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
+    queue: background
+    schedule: every hour
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
@@ -176,6 +184,10 @@ staging:
     schedule: at 4am every day
 
 production:
+  ai_account_balance:
+    class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
+    queue: background
+    schedule: every hour
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background

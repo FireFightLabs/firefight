@@ -1,30 +1,12 @@
-# A Slack incoming webhook renders the text field. Failures are logged, never
-# shown to the installer.
+# Failures are logged, never shown to the installer.
 class InstallNotificationService
-  class DeliveryFailed < StandardError; end
+  DeliveryFailed = TeamWebhook::DeliveryFailed
 
-  OPEN_TIMEOUT = 5
-  READ_TIMEOUT = 5
-
-  def self.configured?
-    Rails.configuration.x.install_notification_webhook_url.present?
-  end
+  def self.configured? = TeamWebhook.configured?
 
   def notify(workspace, installer)
-    uri = URI.parse(Rails.configuration.x.install_notification_webhook_url)
-    request = Net::HTTP::Post.new(uri, "Content-Type" => "application/json")
-    request.body = payload(workspace, installer).to_json
-
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https",
-                               open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|
-      http.request(request)
-    end
-
-    raise DeliveryFailed, "#{response.code} #{response.message}" unless response.is_a?(Net::HTTPSuccess)
-
+    TeamWebhook.post!(payload(workspace, installer))
     Rails.logger.info({ event: "install_notification.sent", workspace_id: workspace.id })
-  rescue SocketError, Timeout::Error, OpenSSL::SSL::SSLError, Errno::ECONNREFUSED, Errno::ECONNRESET => e
-    raise DeliveryFailed, "#{e.class.name}: #{e.message}"
   end
 
   private

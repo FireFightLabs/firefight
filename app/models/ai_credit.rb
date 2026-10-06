@@ -1,6 +1,6 @@
 # What a person is told when a model call was refused because the AI account paying for it has no credit left. It
-# never names the provider. Every workspace runs on the deployment's own account, so the people running it are the
-# ones to tell, and whose account ran out is decided here alone.
+# never names the provider. Whose account it is decides who can add credit, so it is asked of Entitlements, and only
+# a team an alert actually reaches is said to have been told.
 module AiCredit
   # FirefightAi::OutOfCredit's reason, as a job or a run records it.
   REASON = FirefightAi::OutOfCredit.name.demodulize
@@ -12,10 +12,19 @@ module AiCredit
 
   # "Halon cannot answer right now because ...", with what it could not do in place of answer.
   def self.cannot(workspace, doing = ANSWER)
-    "Halon cannot #{doing} right now because #{why(workspace)}. #{told(workspace)}."
+    "Halon cannot #{doing} right now because #{why(workspace)}. #{who(workspace)}."
   end
 
-  def self.why(_workspace) = "the AI account behind this workspace is out of credit"
+  def self.why(workspace)
+    holder = firefights?(workspace) ? "this workspace" : "this Firefight"
+    "the AI account behind #{holder} is out of credit"
+  end
 
-  def self.told(_workspace) = "Firefight's team has been told"
+  def self.who(workspace)
+    return "Whoever runs Firefight needs to add credit" unless firefights?(workspace)
+
+    AiAccount.alerting? ? "Firefight's team has been told" : "Firefight's team can see this"
+  end
+
+  def self.firefights?(workspace) = Entitlements.ai_account(workspace) == Entitlements::AI_ACCOUNT_FIREFIGHT
 end

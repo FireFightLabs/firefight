@@ -142,6 +142,7 @@ module FirefightAi
         retry
       rescue RubyLLM::Error => e
         smaller = @output && !shortened ? @output.after_refusal(e, @output_limit) : nil
+        FirefightAi.refused_for_good(@inference[:provider], e) unless smaller
         raise unless smaller
 
         FirefightAi.note_short_of_credit(@inference[:feature], @output_limit, smaller)

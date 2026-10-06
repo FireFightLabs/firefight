@@ -29,7 +29,7 @@ class IncidentAiResponseJobTest < ActiveSupport::TestCase
 
   test "an AI account out of credit is said where the answer would have gone, without naming the provider" do
     FirefightAi::IncidentResponder.any_instance.stubs(:answer_question).raises(FirefightAi::OutOfCredit.new("OpenRouter refused"))
-    said = "Halon cannot answer right now because the AI account behind this workspace is out of credit. Firefight's team has been told."
+    said = "Halon cannot answer right now because the AI account behind this Firefight is out of credit. Whoever runs Firefight needs to add credit."
     Slack::Client.expects(:post_message).with(has_entries(thread_ts: "1234567890.123456", text: said)).returns({ ok: true, ts: "9999.9999" })
 
     IncidentAiResponseJob.perform_now(@incident.id, @incident.channel_id, "1234567890.123456", "what's going on?")

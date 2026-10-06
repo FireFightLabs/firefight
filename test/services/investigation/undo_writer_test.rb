@@ -67,8 +67,8 @@ class Investigation::UndoWriterTest < ActiveSupport::TestCase
 
     perform_enqueued_jobs(only: InvestigationUndoJob) { Investigation::UndoWriter.request!(@plan, by: @alice) }
 
-    assert_equal "Halon cannot write the undo for this fix right now because the AI account behind this workspace is out of credit. " \
-                 "Firefight's team has been told.", @plan.reload.undo_error
+    assert_equal "Halon cannot write the undo for this fix right now because the AI account behind this Firefight is out of credit. " \
+                 "Whoever runs Firefight needs to add credit.", @plan.reload.undo_error
     assert_nil @plan.undo_blocked_reason
   end
 end

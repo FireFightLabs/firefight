@@ -30,8 +30,8 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
       params: { selected_html: "<p>x</p>", instruction: "tighten" }, as: :json
 
     assert_response :service_unavailable
-    assert_equal "Halon cannot rewrite this section right now because the AI account behind this workspace is out of credit. " \
-                 "Firefight's team has been told.", response.parsed_body["error"]
+    assert_equal "Halon cannot rewrite this section right now because the AI account behind this Firefight is out of credit. " \
+                 "Whoever runs Firefight needs to add credit.", response.parsed_body["error"]
   end
 
   test "generate_postmortem redirects with the denial message and enqueues no job when blocked" do

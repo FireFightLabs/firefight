@@ -169,29 +169,23 @@ module Operator
     end
 
     # The AI accounts are the deployment's, one per provider and shared by every workspace, so they show only when no
-    # workspace is selected. An account is out while its latest refusal for credit is newer than its latest answer, and
-    # it ran out with the first refusal after that answer. One that answered again since is short, not out.
+    # workspace is selected. AiAccount says which is out of credit and since when, until a call answers or its balance
+    # shows credit. One that was refused in the window and has credit now is short, a warning.
     def credit_items
       return [] if @filter.workspace
 
-      credit_refusals.group(:provider).maximum(:created_at).filter_map do |provider, refused_at|
-        answered_at = Inference.where(provider: provider, status: Inference::STATUS_SUCCESS).maximum(:created_at)
-        if answered_at.nil? || answered_at < refused_at
-          out_of_credit_item(provider, answered_at)
-        elsif refused_at >= @filter.since
-          short_of_credit_item(provider)
-        end
-      end
+      out = AiAccount.out_of_credit.order(:out_of_credit_since).to_a
+      short = credit_refusals.where(created_at: @filter.range).where.not(provider: out.map(&:provider)).distinct.pluck(:provider)
+      out.map { |account| out_of_credit_item(account) } + short.sort.map { |provider| short_of_credit_item(provider) }
     end
 
     def credit_refusals = Inference.where(error_kind: Inference::ERROR_OUT_OF_CREDIT)
 
-    def out_of_credit_item(provider, answered_at)
-      refusals = credit_refusals.where(provider: provider)
-      refusals = refusals.where(created_at: answered_at..) if answered_at
-      since = refusals.minimum(:created_at)
-      item(key: "credit-#{provider}", kind: KIND_AI_OUT_OF_CREDIT, title: "AI account out of credit", subject: provider,
-           detail: "#{refusals.count} #{'call'.pluralize(refusals.count)} refused since #{since.utc.iso8601}, nothing answered since",
+    def out_of_credit_item(account)
+      since = account.out_of_credit_since
+      refused = credit_refusals.where(provider: account.provider, created_at: since..).count
+      item(key: "credit-#{account.provider}", kind: KIND_AI_OUT_OF_CREDIT, title: "AI account out of credit", subject: account.provider,
+           detail: "#{refused} #{'call'.pluralize(refused)} refused since #{since.utc.iso8601}, nothing answered since",
            at: since, target: nil)
     end
 

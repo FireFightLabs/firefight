@@ -39,6 +39,7 @@ class Inference < ApplicationRecord
         provider_request_id: provider_request_id(response),
         status:              STATUS_SUCCESS
       )
+      AiAccount.answered!(inference.provider)
       [ response, inference ]
     rescue StandardError => e
       create!(
