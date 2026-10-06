@@ -19,6 +19,12 @@ module Mcp
       callable.map { |spec, tools| build(spec, tools, workspace) } + (reads_checks ? [ key_query_tool ] : [])
     end
 
+    # One resource the principal reads, or the response saying it is not on the map or which ones share the name.
+    def self.locate(server_context, reference)
+      found = ResourceMap::Resource.locate(server_context[:workspace], server_context[:principal], reference)
+      found.is_a?(String) ? ToolDispatcher.error_response(found) : found
+    end
+
     # run_key_query, for anything on the map: one of the resource's key checks through the capability it names, each
     # call authorized as that capability's would be, the answer led by how it compares with normal.
     def self.key_query_tool
@@ -35,23 +41,17 @@ module Mcp
     end
 
     def self.key_query(server_context, args)
-      workspace = server_context[:workspace]
       given = args.transform_keys(&:to_s)
-      found = ResourceMap::Resource.visible_to(server_context[:principal], workspace).referenced(workspace, given["resource"].to_s).present.to_a
-      return ToolDispatcher.error_response("Nothing on the resource map is called #{given['resource']}. find_resources searches it.") if found.empty?
-      if found.many?
-        return ToolDispatcher.error_response("More than one resource is called #{given['resource']}: " \
-                                             "#{found.map { |each| "#{each.kind} #{each.name} (map id #{each.id})" }.to_sentence}. Name it by its map id.")
-      end
+      resource = locate(server_context, given["resource"])
+      return resource if resource.is_a?(::MCP::Tool::Response)
 
-      resource = found.first
       check = ResourceMap::KeyQueries.find(resource.kind, given["query"])
       return ToolDispatcher.error_response(ResourceMap::KeyQueries.unknown(resource, given["query"])) unless check
 
       plan = ResourceMap::KeyQueries.plan(resource, check, principal: server_context[:principal], tools: callable(check.capability, server_context))
       return ToolDispatcher.error_response(plan.refusal) unless plan.available?
 
-      minutes = given["minutes"].to_i.positive? ? given["minutes"].to_i : ResourceMap::KeyQueries::DEFAULT_MINUTES
+      minutes = ResourceMap::KeyQueries.minutes(given["minutes"])
       response, answered = answer(check.capability, server_context, plan.arguments(minutes).merge(APPROVAL_ID_ARG.to_s => given[APPROVAL_ID_ARG.to_s]).compact)
       return response unless answered
 

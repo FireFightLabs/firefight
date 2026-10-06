@@ -5,7 +5,7 @@
 module ResourceMap::KeyQueries
   CAPABILITIES = Integrations::Capabilities
   TOOL_NAME = CAPABILITIES::KEY_QUERY_TOOL
-  DEFAULT_MINUTES = 60
+  DEFAULT_MINUTES = CAPABILITIES::DEFAULT_MINUTES
   DEPLOYS_SHOWN = 10
   ERRORS_SHOWN = 20
 
@@ -112,6 +112,9 @@ module ResourceMap::KeyQueries
   end
 
   def self.for(kind) = BY_KIND.fetch(kind, [])
+
+  # How far back a read looks, in minutes, the default when none or nonsense was asked.
+  def self.minutes(value) = value.to_i.positive? ? value.to_i : DEFAULT_MINUTES
 
   def self.find(kind, key) = self.for(kind).find { |check| check.key == key.to_s }
 
