@@ -234,6 +234,16 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_equal offered.sort, grouped.sort
   end
 
+  test "the map's tools sit together in a group of their own, which open_tools lists by what it answers" do
+    map = Chat::Tools::Groups::FIREFIGHT.find { |group| group.key == Chat::Tools::Groups::MAP }
+
+    assert_equal [ Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::FIND_RESOURCES, Mcp::Tools::GET_RESOURCE, Mcp::Tools::GET_RESOURCE_LINKS,
+                   Mcp::Tools::GET_RESOURCE_NEIGHBOURS, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS,
+                   Mcp::Tools::RESOURCE_MAP_STATS, Mcp::Tools::SUGGEST_RESOURCE_LINK ], map.tools
+    assert_match "The resource map: read off the connections, for where something runs and which provider and account hold it, then find resources by filter",
+                 open_tool.description
+  end
+
   test "Halon is never offered the ways in built for an outside agent" do
     names = Chat::Tools.catalog(@investigation).map(&:name)
 

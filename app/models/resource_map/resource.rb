@@ -79,6 +79,16 @@ class ResourceMap::Resource < ApplicationRecord
       .order(Arel.sql("removed_at IS NOT NULL"), :provider, :account, :kind)
   end
 
+  # A resource by its name, its provider's id or Firefight's own id. A provider's id can look like Firefight's, so both are tried.
+  def self.referenced(workspace, reference)
+    wanted = reference.to_s.strip.downcase
+    return none if wanted.empty?
+
+    by_id = " OR resource_map_resources.id = CAST(:wanted AS uuid)" if wanted.match?(CatalogEntry::ReferenceManagement::UUID_FORMAT)
+    where(workspace: workspace).where("lower(resource_map_resources.name) = :wanted OR lower(resource_map_resources.external_id) = :wanted#{by_id}", wanted: wanted)
+      .order(Arel.sql("resource_map_resources.removed_at IS NOT NULL"), :provider, :account, :kind)
+  end
+
   # The resources principal may read on workspace's map. A resource is in the environments of the connection rows that
   # report it, so one that only a connection wired to no environment reports needs every environment.
   def self.visible_to(principal, workspace)

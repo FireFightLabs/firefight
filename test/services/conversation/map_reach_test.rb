@@ -28,10 +28,24 @@ class Conversation::MapReachTest < ActiveSupport::TestCase
     assert_match "Not allowed", map_tool(investigation).call
   end
 
+  test "the map's other tools read with the same reach, the person's in a chat and the investigator's in a run" do
+    limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND,
+                                                      max_turns: 10, max_spend_cents: 400)
+
+    in_chat = map_tool(Conversation::Turn.new(conversation, asker: @member), Mcp::Tools::FindResources).call
+    in_run = map_tool(investigation, Mcp::Tools::FindResources).call
+
+    assert_match "orders-db", in_chat
+    TwoEnvironmentMapHelper::HIDDEN_NAMES.each { |name| assert_not_includes in_chat, name }
+    assert_match "secret-db", in_run
+  end
+
   private
 
-  def map_tool(agent_run)
+  def map_tool(agent_run, tool_class = Mcp::Tools::GetResourceMap)
     action = Ability::Action.lookup(Ability::Action::MAP_READ, @workspace)
-    Chat::Tools::Firefight.new(agent_run, Mcp::Tools::GetResourceMap, action)
+    Chat::Tools::Firefight.new(agent_run, tool_class, action)
   end
 end

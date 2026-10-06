@@ -8,12 +8,14 @@ class ResourceMap::BlastRadius
 
   attr_reader :root
 
-  def initialize(root, within: nil)
+  # hops bounds how many links a failure is followed along, as far as a walk goes by default.
+  def initialize(root, within: nil, hops: ResourceMap::Graph::MAX_HOPS)
     @root = root
     @within = within
+    @hops = hops
   end
 
-  def graph = @graph ||= ResourceMap::Graph.new(root, direction: ResourceMap::Graph::DEPENDENTS, within: @within)
+  def graph = @graph ||= ResourceMap::Graph.new(root, direction: ResourceMap::Graph::DEPENDENTS, hops: @hops, within: @within)
 
   def dependents = graph.resources
 
@@ -22,7 +24,7 @@ class ResourceMap::BlastRadius
   def total = graph.total
 
   def suggested_dependent_ids
-    @suggested_dependent_ids ||= ResourceMap::Graph.new(root, direction: ResourceMap::Graph::DEPENDENTS, suggestions: true, within: @within)
+    @suggested_dependent_ids ||= ResourceMap::Graph.new(root, direction: ResourceMap::Graph::DEPENDENTS, suggestions: true, hops: @hops, within: @within)
                                                    .resources.where.not(id: dependents.select(:id)).pluck(:id)
   end
 
