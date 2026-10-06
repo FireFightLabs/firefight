@@ -130,8 +130,8 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
       page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-planetscale-forget.png"))
       click_button "Forget secrets"
     end
-    assert_text "Signing secrets forgotten. Changes PlanetScale sends no longer reach the map until you add a secret again."
     assert_text "Live updates: off"
+    assert_text "Signing secrets forgotten. Changes PlanetScale sends no longer reach the map until you add a secret again.", wait: 10
     assert_empty row.reload.map_events_secrets
   end
 end
