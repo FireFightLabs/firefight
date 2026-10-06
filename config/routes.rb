@@ -198,6 +198,7 @@ Rails.application.routes.draw do
         patch :choose
         patch :map_events_secret
         patch :live_updates
+        get :live_updates_setup
       end
       collection do
         get :oauth_start

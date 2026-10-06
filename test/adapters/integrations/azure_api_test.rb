@@ -81,6 +81,22 @@ module Integrations
       assert_equal({}, @api.post("/subscriptions/#{SUBSCRIPTION}/resourceGroups/rg/providers/Microsoft.Web/sites/web/restart", "2025-03-01"))
     end
 
+    test "the activity log is read for the subscription between two times with only the fields Firefight reads, and not found is told apart" do
+      @api.stubs(:access_token).returns("token")
+      Http.expects(:request).with do |uri, *|
+        query = URI.decode_www_form(uri.query).to_h
+        uri.path == "/subscriptions/#{SUBSCRIPTION}/providers/Microsoft.Insights/eventtypes/management/values" && query["api-version"] == "2015-04-01" &&
+          query["$filter"] == "eventTimestamp ge '2026-10-06T11:30:00.000000Z' and eventTimestamp le '2026-10-06T12:05:00.000000Z'" &&
+          query["$select"] == "eventDataId,eventTimestamp,operationName,resourceId,status"
+      end.returns(response(200, { value: [ { eventDataId: "e1" } ] }))
+
+      read = @api.activity_log(Time.zone.parse("2026-10-06T11:30:00Z"), Time.zone.parse("2026-10-06T12:05:00Z"))
+
+      assert_equal [ "e1" ], read.items.map { |event| event["eventDataId"] }
+      Http.stubs(:request).returns(response(404, { error: { code: "ResourceNotFound", message: "The Resource was not found." } }))
+      assert_raises(AzureApi::NotFound) { @api.get("/subscriptions/#{SUBSCRIPTION}/resourceGroups/rg/providers/Microsoft.Web/sites/gone", "2025-03-01") }
+    end
+
     private
 
     def response(code, body) = stub(code: code.to_s, body: body.to_json)

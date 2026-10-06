@@ -319,20 +319,40 @@ module Integrations
       def map_of(environment_row)
         token = GithubApp.installation_token(environment_row)
         repositories, total = installation_repositories(token)
+        listing = ResourceMap::Gap.new(text: "Only the first #{repositories.size} of #{total} repositories were listed.", kinds: [ ResourceMap::KIND_REPOSITORY ])
+        repositories_snapshot(repositories, token, gaps: repositories.size >= total ? [] : [ listing ])
+      end
+
+      # Only the repository a change named, read again as the sweep reads it, with its infrastructure files. Gone only when
+      # GitHub answers not found for it, which it also answers for one the installation no longer sees. nil for a scope
+      # GitHub cannot narrow to, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        name = scope.external_id
+        return unless name&.match?(REPO_FORMAT) && [ nil, ResourceMap::KIND_REPOSITORY ].include?(scope.kind)
+
+        token = GithubApp.installation_token(environment_row)
+        repository = begin
+          GithubApp.get("/repos/#{name}", token: token)
+        rescue GithubApp::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ GithubApp::PROVIDER_KEY, name.split("/").first, ResourceMap::KIND_REPOSITORY, name ] ])
+        end
+        repositories_snapshot([ repository ], token)
+      end
+
+      # The repositories as the map has them, with the infrastructure defined as code in them. A file left unread holds
+      # back a suggestion, never a resource.
+      def repositories_snapshot(repositories, token, gaps: [])
         infrastructure = Infrastructure.new(token)
         files = infrastructure.files(repositories)
-        listed_all = repositories.size >= total
-        listing = ResourceMap::Gap.new(text: "Only the first #{repositories.size} of #{total} repositories were listed.", kinds: [ ResourceMap::KIND_REPOSITORY ])
-        # A file left unread holds back a suggestion, never a resource.
         unread_files = infrastructure.gaps.map { |text| ResourceMap::Gap.new(text: text, kinds: []) }
         found = repositories.map do |repository|
           ResourceMap::Found.new(provider: GithubApp::PROVIDER_KEY, account: repository["full_name"].split("/").first, kind: ResourceMap::KIND_REPOSITORY,
                                  external_id: repository["full_name"], name: repository["full_name"], url: repository["html_url"],
                                  details: { "branch" => repository["default_branch"] }.compact)
         end
-        ResourceMap::Snapshot.new(resources: found, gaps: [ (listing unless listed_all), *unread_files ].compact, code_files: files,
-                                  code_read: infrastructure.read_in_full)
+        ResourceMap::Snapshot.new(resources: found, gaps: [ *gaps, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
       end
+      private :repositories_snapshot
 
       def installation_repositories(token)
         listed = []

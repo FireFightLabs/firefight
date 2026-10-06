@@ -35,14 +35,13 @@ module Integrations
     def get(path, query = {}) = json(api_uri(path, query))
 
     # A change, such as running or stopping a pipeline. An answer with no body, as stopPipeline's 204, reads as {}.
-    def post(path, body = nil)
+    def post(path, body = nil) = changing(Net::HTTP::Post, path, body)
+
+    def put(path, body) = changing(Net::HTTP::Put, path, body)
+
+    def delete(path)
       uri = api_uri(path, {})
-      request = authorized(Net::HTTP::Post.new(uri))
-      unless body.nil?
-        request["Content-Type"] = "application/json"
-        request.body = body.to_json
-      end
-      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: REFINE)
+      Http.json(uri, authorized(Net::HTTP::Delete.new(uri)), error_class: Error, provider_name: PROVIDER, refine: REFINE)
     end
 
     # Every page of a list, following next, up to pages. Returns the items and whether more were left.
@@ -67,6 +66,16 @@ module Integrations
     end
 
     private
+
+    def changing(method, path, body)
+      uri = api_uri(path, {})
+      request = authorized(method.new(uri))
+      unless body.nil?
+        request["Content-Type"] = "application/json"
+        request.body = body.to_json
+      end
+      Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: REFINE)
+    end
 
     def api_uri(path, query)
       uri = URI.parse("#{API_ROOT}#{path}")

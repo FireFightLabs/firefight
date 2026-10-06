@@ -1,0 +1,118 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Sends changes to the ECS services, Lambda functions, EC2 instances and RDS databases in this region to one Firefight connection, so its resource map follows them as they happen. Delete this stack to stop.",
+  "Parameters": {
+    "Address": {
+      "Type": "String",
+      "Description": "The connection's own address in Firefight, where changes are sent.",
+      "AllowedPattern": "https://.+"
+    },
+    "Key": {
+      "Type": "String",
+      "Description": "The key Firefight made for this connection. Firefight accepts a change only when it carries this key.",
+      "MinLength": 32
+    }
+  },
+  "Resources": {
+    "FirefightConnection": {
+      "Type": "AWS::Events::Connection",
+      "Properties": {
+        "Description": "Firefight live updates",
+        "AuthorizationType": "API_KEY",
+        "AuthParameters": {
+          "ApiKeyAuthParameters": {
+            "ApiKeyName": "x-firefight-key",
+            "ApiKeyValue": { "Ref": "Key" }
+          }
+        }
+      }
+    },
+    "FirefightDestination": {
+      "Type": "AWS::Events::ApiDestination",
+      "Properties": {
+        "Description": "Firefight live updates",
+        "ConnectionArn": { "Fn::GetAtt": [ "FirefightConnection", "Arn" ] },
+        "HttpMethod": "POST",
+        "InvocationEndpoint": { "Ref": "Address" },
+        "InvocationRateLimitPerSecond": 10
+      }
+    },
+    "FirefightRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            { "Effect": "Allow", "Principal": { "Service": [ "events.amazonaws.com" ] }, "Action": [ "sts:AssumeRole" ] }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "firefight-live-updates",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                { "Effect": "Allow", "Action": [ "events:InvokeApiDestination" ], "Resource": { "Fn::GetAtt": [ "FirefightDestination", "ArnForPolicy" ] } }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "FirefightStateChanges": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "State changes of EC2 instances, ECS services and RDS databases, sent to Firefight",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [ "aws.ec2", "aws.ecs", "aws.rds" ],
+          "detail-type": [ "EC2 Instance State-change Notification", "ECS Service Action", "ECS Deployment State Change", "RDS DB Instance Event" ]
+        },
+        "Targets": [
+          { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
+        ]
+      }
+    },
+    "FirefightApiCalls": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "Changes made to EC2 instances, ECS services, Lambda functions and RDS databases through their APIs, sent to Firefight",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [ "aws.ec2", "aws.ecs", "aws.lambda", "aws.rds" ],
+          "detail-type": [ "AWS API Call via CloudTrail" ],
+          "detail": {
+            "eventSource": [ "ec2.amazonaws.com", "ecs.amazonaws.com", "lambda.amazonaws.com", "rds.amazonaws.com" ],
+            "eventName": [
+              "RunInstances", "StartInstances", "StopInstances", "TerminateInstances", "ModifyInstanceAttribute", "CreateTags", "DeleteTags",
+              "CreateService", "UpdateService", "DeleteService", "TagResource", "UntagResource",
+              { "prefix": "CreateFunction" }, { "prefix": "UpdateFunctionCode" }, { "prefix": "UpdateFunctionConfiguration" },
+              { "prefix": "DeleteFunction" }, { "prefix": "TagResource" }, { "prefix": "UntagResource" },
+              "CreateDBInstance", "CreateDBInstanceReadReplica", "RestoreDBInstanceFromDBSnapshot", "RestoreDBInstanceToPointInTime",
+              "ModifyDBInstance", "RebootDBInstance", "StartDBInstance", "StopDBInstance", "PromoteReadReplica", "DeleteDBInstance",
+              "AddTagsToResource", "RemoveTagsFromResource"
+            ]
+          }
+        },
+        "Targets": [
+          { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
+        ]
+      }
+    },
+    "FirefightStackStatus": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "This stack being created or deleted, so Firefight knows whether this region sends it changes",
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [ "aws.cloudformation" ],
+          "detail-type": [ "CloudFormation Stack Status Change" ],
+          "detail": { "stack-id": [ { "Ref": "AWS::StackId" } ] }
+        },
+        "Targets": [
+          { "Id": "firefight", "Arn": { "Fn::GetAtt": [ "FirefightDestination", "Arn" ] }, "RoleArn": { "Fn::GetAtt": [ "FirefightRole", "Arn" ] } }
+        ]
+      }
+    }
+  }
+}

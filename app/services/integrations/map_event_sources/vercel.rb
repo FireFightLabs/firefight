@@ -61,6 +61,8 @@ module Integrations
           raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
 
+        def limits = "Vercel's preview deployments are not on the map, so they bring no update. Everything else on the map follows Vercel's changes within about a minute."
+
         # A webhook already gone from Vercel is taken back all the same.
         def remove(row, webhook_id)
           api(row).delete_webhook(webhook_id)
