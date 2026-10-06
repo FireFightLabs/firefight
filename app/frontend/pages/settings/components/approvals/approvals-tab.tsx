@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 
 const SOURCE_LABELS: Partial<Record<LedgerSource, string>> = {
   web: "Dashboard",
@@ -104,7 +105,7 @@ export function ApprovalsTab({
                       {approval.source ? sourceLabel(approval.source) : "-"}
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs">{approval.actionKey}</code>
+                      <ActionLabel actionKey={approval.actionKey} title={approval.connection} />
                     </TableCell>
                     <TableCell className="text-muted-foreground max-w-64 truncate text-xs">
                       {describeParams(approval.params)}
@@ -159,7 +160,7 @@ export function ApprovalsTab({
                     </TableCell>
                     <TableCell>{approval.principalLabel}</TableCell>
                     <TableCell>
-                      <code className="text-xs">{approval.actionKey}</code>
+                      <ActionLabel actionKey={approval.actionKey} title={approval.connection} />
                     </TableCell>
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[approval.status] ?? "secondary"}>{approval.status}</Badge>

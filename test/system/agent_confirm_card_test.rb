@@ -41,6 +41,29 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     assert @chat.reload.allows_tool?("delete_permission_set")
   end
 
+  test "a call through a connection is asked about what the tool reaches, not what the agent said" do
+    faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    faylee.integration_environments.create!(credentials: { token: "x" }.to_json).store_fields!("project" => "faylee")
+    faylee.tools.create!(name: "api_request", description: "API", read_only: false, enabled: true, params_schema: { "type" => "object" })
+    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    call = message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "faylee_api_request",
+                                               arguments: { "method" => "POST", "path" => "services/web/scale", "intent" => "Scale Faylee's web service to zero" })
+    @chat.request_decisions!([ call.tool_call_id ])
+    Chat::Tools::Target.record!(Conversation::Turn.new(@conversation, asker: workspace_memberships(:alice_workspace_one)), [ call ])
+    @conversation.reply_delivered!
+    @ids = [ call.tool_call_id ]
+
+    visit agent_chat_path(@conversation)
+
+    assert_selector "div.font-medium", text: "Faylee (Northflank), project faylee"
+    assert_text "Api request"
+    assert_text "Scale Faylee's web service to zero"
+    assert_text "services/web/scale"
+    assert_no_text "Api request on Faylee"
+    click_button "Confirm"
+    assert_decided [ Chat::APPROVAL_APPROVED ]
+  end
+
   private
 
   def pause_on(*tool_names)

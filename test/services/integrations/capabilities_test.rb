@@ -74,14 +74,17 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     assert_not Integrations::Capabilities.wrapped?(@northflank.tools.find_by!(name: "api_request"))
   end
 
-  test "two resources of one name are told apart by id, never picked for the agent" do
-    resource!(@northflank_row, "northflank", ResourceMap::KIND_DATABASE, "web-db-id", "web")
+  test "two resources of one name are told apart by their map id and connection, never picked for the agent" do
+    database = resource!(@northflank_row, "northflank", ResourceMap::KIND_DATABASE, "web-db-id", "web")
 
     error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "web" }, principal: map_reader) }
     assert_match "More than one resource is called web", error.message
-    assert_match(/northflank\) and (service|database) web \(id /, error.message)
+    assert_match "database web (map id #{database.id}, on #{@northflank.display_name}, its provider's id web-db-id)", error.message
+    assert_match "service web (map id #{@web.id}, on #{@northflank.display_name}, its provider's id web-id)", error.message
+    assert_match "Name it by its map id", error.message
     assert_no_match(/;/, error.message)
     assert_equal "web-db-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "web-db-id" }, principal: map_reader).arguments["resource"]
+    assert_equal "web-db-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => database.id }, principal: map_reader).arguments["resource"]
   end
 
   test "a connection wired to two environments is chosen with its environment" do

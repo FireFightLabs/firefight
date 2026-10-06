@@ -114,6 +114,17 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_match "says to ask them first", rule
     assert_match "a decision only the person can make", rule
     assert_match "never one that changes things or asks the person to confirm each call", FirefightAi::LookFirstRule::MAP_RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::CONNECTION_RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::CHANGED_RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::CAUSE_RULE
+  end
+
+  test "a connection's tool is said to reach only its own account, and a cause is stated only when a result said it" do
+    assert_match "A connection's tool reaches only that connection's account or project", FirefightAi::LookFirstRule::CONNECTION_RULE
+    assert_match "use that connection's own tool", FirefightAi::LookFirstRule::CONNECTION_RULE
+    assert_match "call open_tools again", FirefightAi::LookFirstRule::CONNECTION_RULE
+    assert_match "switched its tools on or off, call open_tools again for its group before you answer", FirefightAi::LookFirstRule::CHANGED_RULE
+    assert_match "a missing permission, a routing fault or a missing parameter, unless a tool result said so", FirefightAi::LookFirstRule::CAUSE_RULE
   end
 
   # A chat grows with every question, and each turn resends all of it.

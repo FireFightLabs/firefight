@@ -16,7 +16,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def description = @spec.description
 
   def parameters_schema
-    schema = Integrations::Capabilities.schema(@spec, Integrations::Capabilities.connections(@tools))
+    schema = Integrations::Capabilities.schema(@spec, Integrations::Capabilities.connection_choices(@agent_run.workspace, @spec, @tools))
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -26,13 +26,22 @@ class Chat::Tools::Capability < RubyLLM::Tool
     @spec.writes && @tools.any? { |tool| @agent_run.confirms?(tool.ability_action, tool_name: name) }
   end
 
+  # A change whose words name another connection than the one it would run through is refused rather than put to the
+  # person (Chat::Tools::Target).
+  def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| misdirection(given).present? }
+
   def call(tool_call: nil, **arguments)
     return refused(tool_call, "#{name} changes things, so it is not used while investigating. It belongs in the fix.") if @spec.writes && @agent_run.reads_only?
 
-    given = arguments.transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG)
+    asked = arguments.transform_keys(&:to_s)
+    given = asked.except(Chat::Tools::INTENT_ARG)
     return everywhere(given, tool_call) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
     found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given, @callable, principal: @agent_run.acting_principal)
+    if @spec.writes
+      refusal = misdirection(asked, found) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.describe(@agent_run, name, given))
+      return refused(tool_call, refusal) if refusal
+    end
     return ask(found, tool_call) unless found.fallback
 
     asked = connection(found)
@@ -45,6 +54,20 @@ class Chat::Tools::Capability < RubyLLM::Tool
   end
 
   private
+
+  # A change only, since only a change carries words for the person. found is the call already routed, when there is one.
+  def misdirection(asked, found = nil)
+    return unless @spec.writes
+
+    found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(Chat::Tools::INTENT_ARG), @callable,
+                                                 principal: @agent_run.acting_principal)
+    Chat::Tools::Target.misdirection(found.tool.integration, Chat::Tools.intent_of(asked), called: "#{name} of #{found.resource.name}") do |other|
+      label = Integrations::Capabilities.connections(other.tools.to_a).first || other.slug
+      "To reach #{other.target_label}, name the resource by its id on the map there, or pass connection #{label}."
+    end
+  rescue Integrations::Capabilities::Unroutable
+    nil
+  end
 
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
 

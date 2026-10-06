@@ -72,6 +72,42 @@ class IntegrationTest < ActiveSupport::TestCase
     assert_nil Integration.name_blocked_reason("Datadog")
   end
 
+  test "a name whose tools Halon would call by another connection's tool's name is refused when connecting" do
+    workspace = workspaces(:slack_workspace_one)
+    first = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Acme")
+    first.tools.create!(name: "api_request", params_schema: { "type" => "object" })
+    first.tools.create!(name: "prod_api_request", params_schema: { "type" => "object" })
+
+    reason = Integration.name_blocked_reason("Acme prod", workspace: workspace, provider: "northflank")
+
+    assert_equal "Acme prod would give its api_request tool the name acme_prod_api_request, which Acme (Northflank)'s prod_api_request " \
+                 "tool already has, so Halon could not tell them apart. Pick a different name.", reason
+    assert_nil Integration.name_blocked_reason("Acme eu", workspace: workspace, provider: "northflank")
+    assert_nil Integration.name_blocked_reason("Acme prod", workspace: workspace, provider: "datadog"), "a provider with other tools does not collide"
+  end
+
+  test "a tool discovered later under another connection's tool's name cannot be switched on, alone or with the rest" do
+    workspace = workspaces(:slack_workspace_one)
+    first = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Acme")
+    first.tools.create!(name: "prod_logs", enabled: true, params_schema: { "type" => "object" })
+    second = workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "custom_mcp", name: "Acme prod", settings: { "server_url" => "https://x.example/mcp" })
+    clash = second.tools.create!(name: "logs", params_schema: { "type" => "object" })
+    second.tools.create!(name: "traces", params_schema: { "type" => "object" })
+
+    assert_equal "Halon would call this tool acme_prod_logs, the name Acme (Northflank)'s prod_logs tool already has. Connect this account " \
+                 "again under another name to switch it on.", clash.toggle_blocked_reason
+    second.reload.set_all_tools!(true)
+    assert_equal({ "logs" => false, "traces" => true }, second.tools.reload.to_h { |tool| [ tool.name, tool.enabled ] })
+  end
+
+  test "an action key names its connection the way a person tells it apart, and a system action names none" do
+    workspace = workspaces(:slack_workspace_one)
+    faylee = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    faylee.tools.create!(name: "api_request", params_schema: { "type" => "object" })
+
+    assert_equal({ "faylee.api_request" => "Faylee (Northflank)" }, Integration.display_names_for(workspace.id, %w[faylee.api_request incidents.create]))
+  end
+
   test "a connection already called all before the name was kept still saves" do
     integration = workspaces(:slack_workspace_one).integrations.new(kind: Integration::KIND_MCP, provider: "custom", name: "All", slug: Integration::SLUG_ALL)
     integration.save!(validate: false)

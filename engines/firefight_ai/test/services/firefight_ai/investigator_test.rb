@@ -26,6 +26,9 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
 
     assert_includes prompt, FirefightAi::LookFirstRule::RULE
     assert_includes prompt, FirefightAi::LookFirstRule::MAP_RULE
+    assert_includes prompt, FirefightAi::LookFirstRule::CONNECTION_RULE
+    assert_includes prompt, FirefightAi::LookFirstRule::CHANGED_RULE
+    assert_includes prompt, FirefightAi::LookFirstRule::CAUSE_RULE
   end
 
   test "a run is told to start from the resources the facts list, with the map tools" do

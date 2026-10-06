@@ -155,5 +155,14 @@ module Ability
 
       assert_raises(ActiveRecord::RecordInvalid) { @approval.update!(notify: "carrier pigeon") }
     end
+
+    test "the Slack request names the connection a tool's action runs through" do
+      faylee = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+      faylee.tools.create!(name: "api_request", params_schema: { "type" => "object" })
+      @approval.update!(action_key: "faylee.api_request")
+
+      assert_match "wants to run `faylee.api_request` through *Faylee (Northflank)*", Slack::Messages::Approval.summary_text(Ability::Approval.find(@approval.id))
+      assert_equal [ "Faylee (Northflank)" ], Ability::Approval.with_connection_names([ Ability::Approval.find(@approval.id) ]).map(&:connection_name)
+    end
   end
 end

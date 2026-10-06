@@ -28,6 +28,7 @@ class Conversation::Runner
 
     delivery.thinking!
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
+    @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
 
     outcome = responder.run(
       chat: chat,
@@ -40,7 +41,7 @@ class Conversation::Runner
       memory: chat,
       check: -> { FirefightAi::Responder::CHECK if @looked_outside },
       hold: chat.method(:hold_last_reply!),
-      take_messages: -> { take_queued(chat) },
+      take_messages: -> { [ take_queued(chat), tell_changes(chat) ].any? },
       canceled: chat.method(:stop_requested?)
     ) do |turn|
       record(turn)
@@ -102,6 +103,18 @@ class Conversation::Runner
     asker.is_a?(WorkspaceMembership) && chat.take_queued!(from: asker).any?
   end
 
+  # A connection changed since the chat last looked, at the start of the turn or while it works. The agent is told before
+  # its next model call, and a newly switched on tool of a group it opened is handed to it.
+  def tell_changes(chat)
+    caught = @changes || Chat::Tools::Changes.catch_up!(@turn, chat)
+    @changes = nil
+    return false unless caught.note
+
+    Chat::Tools.offer_to(chat).call(caught.offered) if caught.offered.any?
+    chat.nudge!(caught.note)
+    true
+  end
+
   # The last word is a finished reply, so nothing is waiting for one. A turn paused on a confirmation ends on a tool call.
   def answered_already?(chat)
     last = chat.sent_messages.reload.last
@@ -113,6 +126,7 @@ class Conversation::Runner
   # The turn stops on calls that need the person's decision, and they are asked rather than answered.
   def ask_to_confirm(chat, outcome)
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
+    Chat::Tools::Target.record!(@turn, chat.awaiting_decision.where(target: nil).to_a)
     @conversation.reply_delivered!
     chat.clear_stop!
     delivery.confirm!(chat.awaiting_decision.to_a)

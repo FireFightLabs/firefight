@@ -26,7 +26,8 @@ module Slack
       end
 
       def self.summary_text(approval)
-        lines = [ "*#{approval.principal_label}* wants to run `#{approval.action_key}`" ]
+        through = " through *#{Slack::Mrkdwn.escape(approval.connection_name)}*" if approval.connection_name
+        lines = [ "*#{approval.principal_label}* wants to run `#{approval.action_key}`#{through}" ]
         lines << "*Scope:* `#{approval.scope.to_json}`" if approval.scope.present?
         lines << "*Params:* `#{approval.params.to_json.truncate(500)}`" if approval.params.present?
         lines << approvers_line(approval)

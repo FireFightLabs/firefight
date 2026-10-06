@@ -15,6 +15,10 @@ module Integrations
 
     def provider_key = @integration.provider
 
+    # The connection's own id, which never changes, for a reader keying something by the connection when the provider
+    # names no account.
+    def connection_id = @integration.id
+
     # The connection's name as a person gave it, such as "Datadog EU".
     def name = @integration.name
 

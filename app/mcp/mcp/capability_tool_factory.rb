@@ -14,12 +14,12 @@ module Mcp
 
       Integrations::Capabilities.offered(workspace).filter_map do |spec, tools|
         callable = tools.select { |tool| tool.callable_by?(principal, resolved) }
-        build(spec, callable) if callable.any?
+        build(spec, callable, workspace) if callable.any?
       end
     end
 
-    def self.build(spec, tools)
-      schema = Integrations::Capabilities.schema(spec, Integrations::Capabilities.connections(tools))
+    def self.build(spec, tools, workspace)
+      schema = Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools))
       schema["properties"] = schema["properties"].merge(APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" })
       key = spec.key
       ::MCP::Tool.define(

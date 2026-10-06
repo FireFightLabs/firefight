@@ -68,6 +68,12 @@ module Mcp
                      call(resource: "web")[:resources].sole[:normal]
       end
 
+      test "a resource can be named by its id on the map, as search_map and get_resource give it" do
+        web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
+
+        assert_equal [ "web" ], call(resource: web.id)[:resources].map { |sheet| sheet[:name] }
+      end
+
       test "a name that is not on the map says how to see what is" do
         assert_match "Leave the resource out to see the whole map", call(resource: "checkout")[:error]
       end

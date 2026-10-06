@@ -22,6 +22,7 @@ class Investigation::Runner
     delivery.start!
     chat = @investigation.chat_record(investigator.ai_model)
     chat.discard_interrupted_reply!
+    @changes = Chat::Tools::Changes.catch_up!(@investigation, chat).then { |caught| caught if caught.note }
 
     outcome = investigator.run(
       chat: chat,
@@ -75,7 +76,21 @@ class Investigation::Runner
     end.any?
     changed = @investigation.untold_memory_changes!
     @investigation.chat.nudge!(changed.join("\n")) if changed.any?
-    added || changed.any?
+    connections = tell_changes
+    added || changed.any? || connections
+  end
+
+  # A connection changed since the run last looked, at its start or while it works. The agent is told before its next
+  # model call, and a newly switched on tool of a group it opened is handed to it.
+  def tell_changes
+    chat = @investigation.chat
+    caught = @changes || Chat::Tools::Changes.catch_up!(@investigation, chat)
+    @changes = nil
+    return false unless caught.note
+
+    Chat::Tools.offer_to(chat).call(caught.offered) if caught.offered.any?
+    chat.nudge!(caught.note)
+    true
   end
 
   def investigator

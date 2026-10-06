@@ -19,6 +19,18 @@ module Integrations
       assert_equal "db-2", Named.find(ROWS, "db-2", id: :id, name: :name, provider: "Acme")[:id], "an id still finds one of them"
     end
 
+    test "a refusal read through a connection names the connection and each row's id on the map" do
+      workspace = workspaces(:slack_workspace_one)
+      integration = workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+      row = integration.integration_environments.create!
+      mapped = ResourceMap::Resource.create!(workspace: workspace, provider: "northflank", account: "team/faylee", kind: ResourceMap::KIND_DATABASE,
+                                             external_id: "db-1", name: "shared", integration_environment: row, first_seen_at: Time.current, last_seen_at: Time.current)
+
+      error = assert_raises(Named::Ambiguous) { Named.find(ROWS, "shared", id: :id, name: :name, provider: "Northflank", connection: row) }
+
+      assert_equal "More than one Northflank resource in Faylee (Northflank) is called shared: db-1 (map id #{mapped.id}), db-2. Name it by its id.", error.message
+    end
+
     test "rows with string keys or objects are read the same way, and a refusal can name each row its own way" do
       rows = [ { "id" => 7, "label" => "api" }, { "id" => 8, "label" => "api" } ]
       error = assert_raises(Named::Ambiguous) do

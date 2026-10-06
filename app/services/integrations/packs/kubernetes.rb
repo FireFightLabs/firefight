@@ -687,7 +687,7 @@ module Integrations
           fail! Sentence.all(error, "The service account's role cannot read #{kind.plural} in #{namespace}.")
         end
         # A name alone can match a workload of each kind, and its id is kind/name.
-        Named.find(found, name, id: ->(each) { "#{each[:kind].key}/#{each[:name]}" }, name: :name, provider: PROVIDER) ||
+        Named.find(found, name, id: ->(each) { "#{each[:kind].key}/#{each[:name]}" }, name: :name, provider: PROVIDER, connection: environment_row) ||
           fail!("No #{kind_given ? kinds.first.key : 'workload'} called #{name} in #{namespace}. list_resources shows what there is.")
       end
 

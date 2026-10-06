@@ -318,7 +318,7 @@ module Integrations
         fail! "Say which project, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
         rows = projects(environment_row).map { |project| { id: project["id"], name: project["name"], project: project } }
-        Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER)&.dig(:project) || fail!("No project called #{asked} in this team. list_resources shows what there is.")
+        Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row)&.dig(:project) || fail!("No project called #{asked} in this team. list_resources shows what there is.")
       end
 
       # The deployment asked for, or the production one, checked to be the project's own.

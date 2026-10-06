@@ -552,8 +552,8 @@ module Integrations
       # By its name on the map's last sweep, then in the live list. A name two resources share is refused with their ids.
       def named(environment_row, wanted)
         mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).pluck(:external_id, :name).map { |id, name| { id: id, name: name } }
-        found = Named.find(mapped, wanted, id: :id, name: :name, provider: PROVIDER) ||
-                Named.find(catalog(environment_row).items, wanted, id: :id, name: :name, provider: PROVIDER)
+        found = Named.find(mapped, wanted, id: :id, name: :name, provider: PROVIDER, connection: environment_row) ||
+                Named.find(catalog(environment_row).items, wanted, id: :id, name: :name, provider: PROVIDER, connection: environment_row)
         found && Target.parse(found[:id])
       end
 

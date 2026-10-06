@@ -406,7 +406,7 @@ module Integrations
       def find_resource(environment_row, asked)
         fail! "Say which app or cluster, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER) || fail!("Nothing called #{asked} in this organization. list_resources shows what there is.")
+        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row) || fail!("Nothing called #{asked} in this organization. list_resources shows what there is.")
       end
 
       def find_app(environment_row, asked)

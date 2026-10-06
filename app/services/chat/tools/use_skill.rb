@@ -48,7 +48,7 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
     ready, refused = entries.partition { |entry| entry.state == Chat::Tools::STATE_READY }
     @offer.call(ready.map(&:tool)) if ready.any?
 
-    [ steps_for(skill, entries), guides(skill), refusal(refused), switched_off(skill, entries) ].compact.join("\n\n")
+    [ steps_for(skill, entries), guides(skill), refusal(refused), switched_off(skill, entries), off_elsewhere(skill, entries) ].compact.join("\n\n")
   end
 
   private
@@ -100,6 +100,32 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
       "#{those.map(&:name).to_sentence} #{those.one? ? 'is' : 'are'} #{Chat::Tools::Open::STATE_WORDS.fetch(state)}, so a step that needs " \
         "#{those.one? ? 'it' : 'them'} cannot run. Say so, and who can do it instead."
     end.join("\n")
+  end
+
+  # A tool another connection to the provider has on is still out of reach through a connection that has it off, and a
+  # connection with every tool off has nothing to offer at all. Each is named, so the agent never reaches that connection's
+  # account through another connection's tool.
+  def off_elsewhere(skill, entries)
+    return if skill.firefight?
+
+    wanted = skill.tools.map { |name| Integrations::Capabilities.provider_tool(skill.source, name) || name }.uniq
+    reached = entries.map(&:handle) + entries.filter_map { |entry| Integrations::Capabilities.provider_tool(skill.source, entry.handle) }
+    lines = @agent_run.workspace.integrations.active.where(provider: skill.source).includes(:tools).order(:created_at).filter_map do |integration|
+      available = integration.tools.select(&:available?)
+      next idle(integration) if available.none?(&:enabled?)
+
+      off = available.reject(&:enabled?).map(&:name) & wanted & reached
+      next if off.empty?
+
+      "#{integration.display_name} has #{off.to_sentence} switched off, so a step that needs #{off.one? ? 'it' : 'them'} cannot reach " \
+        "#{integration.reach || 'its account'} through it. An admin can switch #{off.one? ? 'it' : 'them'} on in Integrations. Say so."
+    end
+    lines.join("\n").presence
+  end
+
+  def idle(integration)
+    "#{integration.display_name} is connected, but none of its tools are switched on, so no step reaches " \
+      "#{integration.reach || 'its account'}. An admin can switch them on in Integrations. Say so."
   end
 
   # A capability the skill names is missing when the provider tool it runs as is switched off, so that tool is named.

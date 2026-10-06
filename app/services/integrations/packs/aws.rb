@@ -741,7 +741,7 @@ module Integrations
         listed = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row)).entries
         found = listed.find { |entry| entry.arn == wanted } ||
                 Named.find(listed, wanted, id: ->(entry) { entry.details["instance_id"] || entry.arn }, name: :name, provider: PROVIDER,
-                                           describe: ->(entry) { "#{KIND_NAMES.fetch(entry.kind)} #{entry.arn}" })
+                                           describe: ->(entry) { "#{KIND_NAMES.fetch(entry.kind)} #{entry.arn}" }, connection: environment_row)
         found || fail!("Nothing called #{wanted} in #{regions(environment_row).join(', ')}. list_resources shows what there is.")
       end
 

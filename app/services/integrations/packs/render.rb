@@ -539,7 +539,7 @@ module Integrations
       def find_resource(environment_row, asked)
         fail! "Say which service or datastore, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER) || fail!("Nothing called #{asked} in this workspace. list_resources shows what there is.")
+        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row) || fail!("Nothing called #{asked} in this workspace. list_resources shows what there is.")
       end
 
       # The page Render gives each resource (dashboardUrl), the only address its API returns.

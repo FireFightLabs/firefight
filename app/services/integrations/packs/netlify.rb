@@ -247,7 +247,7 @@ module Integrations
         fail! "Say which site, by name, id or custom domain. list_sites shows them." if wanted.empty?
 
         sites = all_sites(environment_row).items
-        found = Named.find(sites, asked, id: "id", name: "name", provider: PROVIDER) ||
+        found = Named.find(sites, asked, id: "id", name: "name", provider: PROVIDER, connection: environment_row) ||
                 sites.find { |site| [ site["custom_domain"], *Array(site["domain_aliases"]) ].compact.map(&:downcase).include?(wanted) }
         found || fail!("No site called #{asked} reached by this token. list_sites shows what there is.")
       end

@@ -65,10 +65,15 @@ class Integration::Tool < ApplicationRecord
   end
 
   def toggle_blocked_reason
-    return if available?
+    return "The provider no longer offers this capability. Refresh the tools to check again." unless available?
+    return if enabled? || namesake.nil?
 
-    "The provider no longer offers this capability. Refresh the tools to check again."
+    "Halon would call this tool #{model_facing_name}, the name #{namesake.integration.display_name}'s #{namesake.name} tool already has. " \
+      "Connect this account again under another name to switch it on."
   end
+
+  # Another connection's tool Halon would call by the same name, or nil.
+  def namesake = integration.tool_namesakes[name]
 
   def configured_for?(scope)
     return false unless enabled? && available? && integration.operational?

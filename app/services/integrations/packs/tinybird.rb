@@ -219,10 +219,10 @@ module Integrations
         return workspace_status(environment_row) if name.empty?
 
         api = api(environment_row)
-        datasource = Named.find(read { api.datasources }, name, id: "id", name: "name", provider: PROVIDER)
+        datasource = Named.find(read { api.datasources }, name, id: "id", name: "name", provider: PROVIDER, connection: environment_row)
         return datasource_status(environment_row, datasource) if datasource
 
-        pipe = Named.find(read { api.pipes }, name, id: "id", name: "name", provider: PROVIDER)
+        pipe = Named.find(read { api.pipes }, name, id: "id", name: "name", provider: PROVIDER, connection: environment_row)
         fail! "#{PROVIDER} has no data source or pipe called #{name} in this workspace. list_datasources and list_endpoints name them." unless pipe
 
         endpoint_status(environment_row, pipe)
