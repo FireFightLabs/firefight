@@ -31,6 +31,14 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     assert_includes prompt, FirefightAi::LookFirstRule::CAUSE_RULE
   end
 
+  # Seen in a real chat, Halon searched the web and guessed a provider's path three times for a call that does not exist.
+  test "a run reads the provider's own guides before the web, and never retries a guessed call that answered 404 or 405" do
+    prompt = FirefightAi::Investigator.system_prompt
+
+    assert_includes prompt, FirefightAi::LookFirstRule::API_GUIDE_RULE
+    assert_includes prompt, FirefightAi::LookFirstRule::GUESSED_CALL_RULE
+  end
+
   test "a run is told to start from the resources the facts list, with the map tools" do
     prompt = FirefightAi::Investigator.system_prompt
 

@@ -180,6 +180,34 @@ class Chat::SkillTest < ActiveSupport::TestCase
     assert_match "Only when the zone is not on the map, find it with `execute`", Chat::Skill.find("cloudflare_triage").steps
   end
 
+  # Seen in a real chat, asked to create a Northflank pipeline, Halon searched Northflank's site and guessed POST
+  # pipelines three times, though Northflank's API has no call that creates one.
+  test "Northflank's fixes skill sends Halon to the API reference before the web, and says what the API does not offer" do
+    skill = Chat::Skill.find("northflank_fixes")
+
+    assert_match "creating or changing a pipeline", skill.used_when
+    assert_equal "api/index.md", skill.references.first
+    assert_includes skill.references, "api/project/pipelines.md"
+    assert_match "read api/index.md (use_skill with this skill and that reference)", skill.steps
+    assert_match "Look there before searching the web", skill.steps
+    assert_match "When the reference does not list an operation, Northflank's API does not offer it. Say so plainly", skill.steps
+    assert_match "The API lists and reads pipelines, and has no call that creates one", skill.steps
+    assert_match "open the project's Pipelines and create a new one", skill.steps
+    assert_match "pipelines/<pipeline>/release-flows/<stage>", skill.steps
+    assert_match "cannot be reached with `api_request`, so it is a step for a person", skill.steps
+    assert_no_match "Northflank's API docs give", skill.steps
+  end
+
+  # A skill that hands Halon a raw API tool without the provider's list of calls leaves it guessing paths.
+  test "every skill that names a raw API tool lists the provider's endpoint reference, or finds the endpoint with search" do
+    Chat::Skill.all.reject(&:firefight?).each do |skill|
+      if skill.tools.include?("api_request")
+        assert_includes skill.references, "api/index.md", "#{skill.name} names api_request without the endpoint reference"
+      end
+      assert_includes skill.tools, "search", "#{skill.name} names execute without search" if skill.tools.include?("execute")
+    end
+  end
+
   test "a guide is never read as a skill, and nothing outside a source's guides can be read" do
     assert Chat::Skill.all.none? { |skill| skill.domain == Chat::Skill::REFERENCES }
     assert_includes Chat::Skill.reference("planetscale", "postgres/ps-connections.md"), "PgBouncer"

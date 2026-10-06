@@ -117,6 +117,22 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_includes instructions, FirefightAi::LookFirstRule::CONNECTION_RULE
     assert_includes instructions, FirefightAi::LookFirstRule::CHANGED_RULE
     assert_includes instructions, FirefightAi::LookFirstRule::CAUSE_RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::API_GUIDE_RULE
+    assert_includes instructions, FirefightAi::LookFirstRule::GUESSED_CALL_RULE
+  end
+
+  # Seen in a real chat, asked to create a pipeline at a hosting provider, Halon searched the web and guessed the path
+  # three times, though the API has no such call and its endpoint list was one of the skill's guides.
+  test "the provider's skill and guides come before the web, and a 404 or 405 on a guessed path is checked, never retried" do
+    guide = FirefightAi::LookFirstRule::API_GUIDE_RULE
+    guessed = FirefightAi::LookFirstRule::GUESSED_CALL_RULE
+
+    assert_match "Before searching the web for how a provider's API works", guide
+    assert_match "the provider's skill and the guides it lists, through use_skill", guide
+    assert_match "Search the web only when they do not answer", guide
+    assert_match "404 or 405", guessed
+    assert_match "Check the provider's API reference before trying again, never send the same call again", guessed
+    assert_match "say plainly that the provider's API does not offer it", guessed
   end
 
   test "a connection's tool is said to reach only its own account, and a cause is stated only when a result said it" do
