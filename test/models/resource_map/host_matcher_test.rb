@@ -60,7 +60,7 @@ class ResourceMap::HostMatcherTest < ActiveSupport::TestCase
 
   test "a host many accounts share is told apart by the database's name, which is only a likely suggestion" do
     host = "aws.connect.psdb.cloud"
-    record_stores(endpoint("shop", host, port: 3306, database: "shop"), endpoint("blog", host, port: 3306, database: "blog"))
+    record_stores(endpoint("shop", host, port: 3306, database: "shop", shared: true), endpoint("blog", host, port: 3306, database: "blog", shared: true))
     record_services(web: { "DATABASE_URL" => "mysql2://abc:#{PASSWORD}@#{host}/shop?ssl={}" })
 
     match!
@@ -68,6 +68,17 @@ class ResourceMap::HostMatcherTest < ActiveSupport::TestCase
     link = ResourceMap::Link.find_by!(from_resource: resource("web"))
     assert_equal [ "shop", ResourceMap::ORIGIN_INFERRED, ResourceMap::CERTAINTY_LIKELY ], [ link.to_resource.name, link.origin, link.certainty ]
     assert_match(/shared host/, link.clues.join)
+  end
+
+  test "a server holding several databases is told apart by the database's name, which on the account's own server is a fact" do
+    host = "acme.database.windows.net"
+    record_stores(endpoint("orders", host, port: 1433, database: "orders"), endpoint("billing", host, port: 1433, database: "billing"))
+    record_services(web: { "SQL" => "Server=tcp:#{host},1433;Initial Catalog=orders;User ID=app;Password=#{PASSWORD}" })
+
+    match!
+
+    link = ResourceMap::Link.find_by!(from_resource: resource("web"))
+    assert_equal [ "orders", ResourceMap::ORIGIN_MATCHED ], [ link.to_resource.name, link.origin ]
   end
 
   test "a pooler whose hosts are numbered per cluster is matched by its domain and the tenant in the user's name" do
@@ -173,7 +184,9 @@ class ResourceMap::HostMatcherTest < ActiveSupport::TestCase
 
   def store(name) = ResourceMap::Found.new(provider: "neon", account: "org", kind: ResourceMap::KIND_DATABASE, external_id: name, name: name)
 
-  def endpoint(name, host, port: 5432, database: nil) = ResourceMap::Endpoint.at(resource: store_key(name), host: host, port: port, workspace: @workspace, database: database)
+  def endpoint(name, host, port: 5432, database: nil, shared: false)
+    ResourceMap::Endpoint.at(resource: store_key(name), host: host, port: port, workspace: @workspace, database: database, shared: shared)
+  end
 
   def record_stores(*endpoints, names: endpoints.map { |found| found.resource.last }.uniq)
     ResourceMap.record!(@databases, ResourceMap::Snapshot.new(resources: names.map { |name| store(name) }, endpoints: endpoints))

@@ -43,8 +43,8 @@ class ResourceMap::HostMatcher
     end
   end
 
-  # Each setting with the stores whose address it names, as use id, user id, variable, store id and whether only the
-  # database's name told the store apart.
+  # Each setting with the stores whose address it names, as use id, user id, variable, store id and whether only a
+  # database's name told the store apart on a host other accounts share.
   def matches_sql
     ResourceMap::Use.sanitize_sql_array([ <<~SQL.squish, { workspace: @workspace.id } ])
         WITH pairs AS (
@@ -58,7 +58,7 @@ class ResourceMap::HostMatcher
                                                AND endpoints.within_domain
           WHERE uses.workspace_id = :workspace
         )
-        SELECT DISTINCT uses.id, uses.resource_id, uses.variable, endpoints.resource_id, endpoints.database_fingerprint IS NOT NULL
+        SELECT DISTINCT uses.id, uses.resource_id, uses.variable, endpoints.resource_id, endpoints.shared_host AND endpoints.tenant_fingerprint IS NULL
         FROM pairs
         JOIN resource_map_uses uses ON uses.id = pairs.use_id
         JOIN resource_map_endpoints endpoints ON endpoints.id = pairs.endpoint_id

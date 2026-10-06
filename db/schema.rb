@@ -1551,6 +1551,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_090000) do
     t.uuid "integration_environment_id", null: false
     t.string "fingerprint", null: false
     t.boolean "within_domain", default: false, null: false
+    t.boolean "shared_host", default: false, null: false
     t.string "database_fingerprint"
     t.string "tenant_fingerprint"
     t.integer "port", null: false

@@ -4,8 +4,8 @@
 class ResourceMap::Endpoint < ApplicationRecord
   self.table_name = "resource_map_endpoints"
 
-  Found = Data.define(:resource, :fingerprint, :within_domain, :port, :database_fingerprint, :tenant_fingerprint) do
-    def initialize(resource:, fingerprint:, port:, within_domain: false, database_fingerprint: nil, tenant_fingerprint: nil) = super
+  Found = Data.define(:resource, :fingerprint, :within_domain, :shared_host, :port, :database_fingerprint, :tenant_fingerprint) do
+    def initialize(resource:, fingerprint:, port:, within_domain: false, shared_host: false, database_fingerprint: nil, tenant_fingerprint: nil) = super
   end
 
   belongs_to :workspace
@@ -13,12 +13,13 @@ class ResourceMap::Endpoint < ApplicationRecord
   belongs_to :integration_environment
 
   # The address resource (a Found's key) is reached at, or nil for a host or port that is missing. The host is only
-  # digested here and never kept.
-  def self.at(resource:, host:, port:, workspace:, database: nil, tenant: nil)
+  # digested here and never kept. database names the store on a server that holds several, and shared says other
+  # accounts' stores answer on the same host, so a database's name there is only a likely match.
+  def self.at(resource:, host:, port:, workspace:, database: nil, tenant: nil, shared: false)
     fingerprint = ResourceMap::Fingerprint.of(host, port, workspace)
     return unless fingerprint
 
-    Found.new(resource: resource, fingerprint: fingerprint, port: port.to_i,
+    Found.new(resource: resource, fingerprint: fingerprint, port: port.to_i, shared_host: shared,
               database_fingerprint: ResourceMap::Fingerprint.of_name(database, workspace),
               tenant_fingerprint: ResourceMap::Fingerprint.of_name(tenant, workspace))
   end
@@ -28,7 +29,7 @@ class ResourceMap::Endpoint < ApplicationRecord
   def self.within(resource:, domain:, port:, workspace:, database: nil, tenant: nil)
     return if database.blank? && tenant.blank?
 
-    found = at(resource: resource, host: domain, port: port, workspace: workspace, database: database, tenant: tenant)
+    found = at(resource: resource, host: domain, port: port, workspace: workspace, database: database, tenant: tenant, shared: true)
     found&.with(within_domain: true)
   end
 

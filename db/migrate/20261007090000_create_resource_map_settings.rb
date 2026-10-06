@@ -28,6 +28,8 @@ class CreateResourceMapSettings < ActiveRecord::Migration[8.1]
       t.string :fingerprint, null: false
       # The fingerprint is of a domain any host one label under it answers for, such as a shared pooler's.
       t.boolean :within_domain, null: false, default: false
+      # Other accounts' stores answer on the same host, so a database's name alone does not prove it is this one.
+      t.boolean :shared_host, null: false, default: false
       t.string :database_fingerprint
       t.string :tenant_fingerprint
       t.integer :port, null: false
