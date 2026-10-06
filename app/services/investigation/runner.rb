@@ -26,7 +26,7 @@ class Investigation::Runner
     outcome = investigator.run(
       chat: chat,
       tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat)) + Chat::Tools.known(@investigation, chat),
-      seed_pack: @investigation.seed_pack,
+      seed_pack: @investigation.starting_facts,
       budget: budget,
       answered: -> { @investigation.reload.finding.present? },
       canceled: -> { @investigation.reload.cancel_requested? },
@@ -66,12 +66,16 @@ class Investigation::Runner
 
   def titles = @titles ||= {}
 
-  # Shown where the run's steps are, so whoever added a note sees the run read it.
+  # Shown where the run's steps are, so whoever added a note sees the run read it. A starting memory a person set aside
+  # since the run began is told to the agent as a note of its own, which nobody needs to see.
   def take_notes
-    @investigation.take_notes!.each do |note|
+    added = @investigation.take_notes!.each do |note|
       name = note.sender&.display_name || Investigation::Noting::UNNAMED_RESPONDER
       delivery.step(key: "note-#{note.id}", title: "Read what #{name} added", status: FirefightAi::AgentLoop::STEP_DONE)
     end.any?
+    changed = @investigation.untold_memory_changes!
+    @investigation.chat.nudge!(changed.join("\n")) if changed.any?
+    added || changed.any?
   end
 
   def investigator

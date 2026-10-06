@@ -3,7 +3,7 @@ class MemoryController < InertiaController
   authorizes Ability::Action::RESOURCE_MEMORY,
     read: %i[index],
     create: %i[create_memory],
-    update: %i[confirm_memory correct_memory reject_memory]
+    update: %i[confirm_memory correct_memory reject_memory destroy_memory]
   authorizes Ability::Action::RESOURCE_CATALOG, update: %i[create_instruction update_instruction destroy_instruction]
 
   TAB_QUERY = "tab"
@@ -52,6 +52,13 @@ class MemoryController < InertiaController
     return redirect_to(memory_path, alert: memory.reject_blocked_reason) unless memory.reject!(by: current_membership, reason: params[:reason].to_s.strip)
 
     redirect_to memory_path, notice: "Rejected. Halon stops using it and does not learn it again."
+  end
+
+  def destroy_memory
+    memory = memories.find(params[:id])
+    memory.destroy!
+
+    redirect_to memory_path, notice: "Deleted. #{memory.delete_consequence}"
   end
 
   def create_instruction

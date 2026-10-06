@@ -186,6 +186,14 @@ module Chat::Tools
   # Read fresh, since a run's chat may have been opened after the run was loaded.
   # A memory write as whoever the agent acts for. A refusal or a wait is text the model reads, and the call is marked.
   # The ledger gets ids and flags only, never the fact, since a fact holding a secret is refused only after.
+  # A chat or run working on an incident tells its channel what it learned or disputed, so people can decide on it there.
+  # Elsewhere the Memory page's count is the sign.
+  def self.tell_incident(agent_run, memory, kind)
+    return unless agent_run.changes_memory? && agent_run.incident&.channel_id.present?
+
+    MemoryNoteJob.perform_later(memory.id, kind, agent_run.chat_owner)
+  end
+
   def self.memory_change(agent_run, crud_action, tool_name:, params:, tool_call_id:, &)
     agent_run.memory_change(crud_action, params: params, tool_name: tool_name, &)
   rescue AbilityGateway::Denied => denied

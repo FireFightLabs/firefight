@@ -451,16 +451,34 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Posts what Halon learned from an ended incident in its channel, each lesson with Confirm and Not right.
-  # memories are IncidentLearningService::LearnedMemory values.
+  # Asks an incident's channel to decide on memories, each with the actions its state allows, in a thread when given.
+  # post is a MemoryPostService::Shown.
   # @return [Hash] { message_id:, channel_id: }
-  def post_learned_memories(channel_id:, incident_id:, incident_identifier:, memories:)
+  def post_learned_memories(channel_id:, thread_id:, post:)
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # Redraws that message once someone decides on a lesson.
+  # Redraws that message once someone decides on a memory it shows.
   # @return [Hash] { success: true }
-  def update_learned_memories(channel_id:, message_id:, incident_id:, incident_identifier:, memories:)
+  def update_learned_memories(channel_id:, message_id:, post:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the form asking what is right instead of a memory. memory is a MemoryPostService::ShownMemory.
+  # @return [Hash] { success: true }
+  def open_memory_correction_modal(trigger_id:, post_id:, memory:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What a correction form was submitted with.
+  # @return [Hash] { correction:, reason: }
+  def memory_correction(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps a correction form open with why it was refused.
+  # @return [Hash] the platform's answer to the form
+  def memory_correction_error(message)
     raise NotImplemented.new(__method__, self.class)
   end
 
