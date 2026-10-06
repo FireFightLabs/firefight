@@ -279,7 +279,7 @@ The rules:
 
 ## Similarity search
 
-`SearchEmbedding` holds one vector per record, and `search_similar` is how the agent asks what looks like a situation rather than what matches its words. Incidents, findings and postmortems are embedded, and pgvector does the ranking.
+`SearchEmbedding` holds one vector per record, and `search_similar` is how the agent asks what looks like a situation rather than what matches its words. Incidents, findings and postmortems are embedded, and pgvector does the ranking. Catalog entries are embedded too, from their name, type, what they are for and their written attributes, once they have a description (`CatalogEntry::Searchable`), so a search of the map can find a service by what it does.
 
 The rules:
 
@@ -288,7 +288,7 @@ The rules:
 - **The embedding model is its own purpose** (`AiPurpose::EMBEDDING`, `EMBEDDING_AI_MODEL`) and deliberately not overridable per workspace. Every vector in a workspace must come from one model, so changing it means writing them all again.
 - **A record is embedded again only when its words change.** The row keeps a digest, and `WriteSearchEmbeddingJob` writes nothing when it matches.
 - **Asking for a vector is a call to another system, so it lives in `SearchEmbeddingService`.** `write!(record)` and `similar_to(query)` are the only two places `FirefightAi.embed` is called. The models say what to embed (`search_text`, `search_embeddable?`) and rank a given vector (`SearchEmbedding.nearest`), and never call the engine.
-- **Nothing is backfilled.** Records written before this landed have no vector until they change.
+- **Nothing is backfilled**, except catalog entries. Incidents, findings and postmortems written before this landed have no vector until they change. A catalog entry is embedded once when `SearchDocumentBackfillJob` first indexes it for search (docs/integrations.md, Search rows), since a workspace's catalog is small and searching it by meaning needs every description.
 - **pgvector is required**, and the column is fixed at 1536 numbers wide.
 - **A postmortem is embedded once it is completed**, not on every save while someone is still writing it.
 - **The search is authorized as an incident read**, so a finding is left out unless the caller also holds `investigations.read`. The types a caller may see are decided per call.

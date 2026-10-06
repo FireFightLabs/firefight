@@ -33,6 +33,7 @@ module CatalogType::SoftDeletion
         archived = catalog_entries.where(deleted_at: nil).to_a
         catalog_entries.update_all(deleted_at: Time.current)
         Chat::Memory.flag_outdated!(archived, "Its catalog type #{name} was archived", cause: Chat::Memory::OUTDATED_ARCHIVED) if archived.any?
+        SearchDocument.index_later(CatalogEntry, entry_ids)
       end
 
       update!(deleted_at: Time.current)

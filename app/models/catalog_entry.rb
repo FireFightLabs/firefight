@@ -8,6 +8,7 @@ class CatalogEntry < ApplicationRecord
 
   include CatalogEntry::AttributeValidation
   include CatalogEntry::ReferenceManagement
+  include CatalogEntry::Searchable
 
   belongs_to :workspace
   belongs_to :catalog_type

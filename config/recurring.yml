@@ -21,6 +21,10 @@ development:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
     queue: background
     schedule: every hour
+  search_document_backfill:
+    class: SearchDocumentBackfillJob # indexes for search what has no search row yet, such as everything from before search
+    queue: background
+    schedule: every hour
   resource_baseline_sweep:
     class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
     queue: background
@@ -75,6 +79,10 @@ staging:
     schedule: every 30 minutes
   resource_map_sweep:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
+    queue: background
+    schedule: every hour
+  search_document_backfill:
+    class: SearchDocumentBackfillJob # indexes for search what has no search row yet, such as everything from before search
     queue: background
     schedule: every hour
   resource_baseline_sweep:
@@ -153,6 +161,10 @@ production:
     schedule: every 30 minutes
   resource_map_sweep:
     class: Integrations::MapSweepJob # reads what each connection reaches onto the resource map
+    queue: background
+    schedule: every hour
+  search_document_backfill:
+    class: SearchDocumentBackfillJob # indexes for search what has no search row yet, such as everything from before search
     queue: background
     schedule: every hour
   resource_baseline_sweep:

@@ -8,4 +8,7 @@ class ResourceMap::EntryLink < ApplicationRecord
   belongs_to :added_by, class_name: "WorkspaceMembership", optional: true
 
   validates :resource_id, uniqueness: { scope: :catalog_entry_id }
+
+  # A resource is found by the services it runs and their owners.
+  after_commit -> { SearchDocument.index_later(ResourceMap::Resource, [ resource_id ]) }, on: [ :create, :destroy ]
 end

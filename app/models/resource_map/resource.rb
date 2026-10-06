@@ -1,6 +1,8 @@
 # One thing a connection reaches: a service, a database, a repository. Removed ones are kept, so a resource that comes
 # back keeps its links and when it was first seen.
 class ResourceMap::Resource < ApplicationRecord
+  include ResourceMap::Resource::Searchable
+
   self.table_name = "resource_map_resources"
 
   belongs_to :workspace

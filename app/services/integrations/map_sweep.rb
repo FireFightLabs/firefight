@@ -28,7 +28,8 @@ module Integrations
       return false unless snapshot
 
       snapshot = Provider.for(environment_row.integration.provider).in_firefight_words(snapshot)
-      ResourceMap.record!(environment_row, snapshot)
+      changed = ResourceMap.record!(environment_row, snapshot)
+      SearchDocument.index_later(ResourceMap::Resource, changed)
       workspace = environment_row.integration.workspace
       ResourceMap::CodeDefinitions.new(workspace).record!(environment_row, snapshot.code_files, read_in_full: snapshot.code_read)
       ResourceMap::Matcher.new(workspace).run!

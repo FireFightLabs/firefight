@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_06_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
   enable_extension "pgcrypto"
   enable_extension "vector"
 
@@ -1707,6 +1708,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
   end
 
+  create_table "search_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "searchable_type", null: false
+    t.uuid "searchable_id", null: false
+    t.string "title", null: false
+    t.tsvector "document", null: false
+    t.text "trigram_text", null: false
+    t.jsonb "facets", default: {}, null: false
+    t.string "content_digest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document"], name: "index_search_documents_on_document", using: :gin
+    t.index ["searchable_type", "searchable_id"], name: "index_search_documents_on_record", unique: true
+    t.index ["trigram_text"], name: "index_search_documents_on_trigram_text", opclass: :gin_trgm_ops, using: :gin
+    t.index ["workspace_id", "searchable_type"], name: "index_search_documents_on_workspace_and_type"
+  end
+
   create_table "search_embeddings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "content_digest", null: false
     t.datetime "created_at", null: false
@@ -2110,6 +2128,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_06_100000) do
   add_foreign_key "resource_map_resources", "workspaces"
   add_foreign_key "runbook_steps", "runbooks"
   add_foreign_key "runbooks", "workspaces"
+  add_foreign_key "search_documents", "workspaces"
   add_foreign_key "search_embeddings", "workspaces"
   add_foreign_key "shoutouts", "incidents"
   add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
