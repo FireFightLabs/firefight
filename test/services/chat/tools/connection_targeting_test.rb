@@ -108,6 +108,17 @@ class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
     assert_nil tool.approval_resolver.call(RubyLLM::ToolCall.new(id: "call_3", name: tool.name, arguments: { "intent" => "Scale web to zero" }))
   end
 
+  test "a step through a connection is titled by the call and the connection, wherever steps are listed" do
+    assert_equal "Api request · Faylee (Northflank)", Chat::Tools.step("faylee_api_request", {}, workspace: @workspace).title
+    assert_equal "Api request · Northflank", Chat::Tools.step("northflank_api_request", {}, workspace: @workspace).title
+    assert_equal "Scale", Chat::Tools.step("scale", {}, workspace: @workspace).title
+    assert_equal "Get incident", Chat::Tools.step("get_incident", {}, workspace: @workspace).title
+
+    message = @chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    message.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "faylee_api_request", arguments: { "path" => "services/web/scale" })
+    assert_equal [ "Api request · Faylee (Northflank)" ], AgentChatMessageSerializer.one(message)[:tools].map { |step| step[:title] }
+  end
+
   test "the question for the right tool names what it reaches, from the tool, and the call after it" do
     @faylee.tools.each { |tool| tool.update!(enabled: true) }
     call = pause_on("faylee_api_request", { "method" => "POST", "path" => "services/web/scale", "intent" => "Scale Faylee's web to 0" })

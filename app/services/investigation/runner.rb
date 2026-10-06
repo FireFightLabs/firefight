@@ -60,7 +60,7 @@ class Investigation::Runner
   end
 
   def report_step(step)
-    titles[step.key] = Chat::Tools.step(step.tool, step.arguments)&.title if step.tool.present?
+    titles[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @investigation.workspace)&.title if step.tool.present?
     title = titles[step.key]
     delivery.step(key: step.key, title: title, status: step.status) if title
   end
