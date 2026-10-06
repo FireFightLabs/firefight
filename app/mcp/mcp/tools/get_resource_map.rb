@@ -26,7 +26,8 @@ module Mcp
                   "by provider, kind, environment and health with the most depended on. With a resource, its fact sheet: where it " \
                   "runs, its page, the catalog services it runs with what each is for and who owns it, what people " \
                   "confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last " \
-                  "week, its key checks with their normal (run_key_query runs one), and every link within two hops, each saying how it was found. A status is what the " \
+                  "week, its key checks with their normal (run_key_query runs one), the log lines it usually prints (new_log_patterns " \
+                  "finds the ones it does not), and every link within two hops, each saying how it was found. A status is what the " \
                   "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
                   "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. It holds only what runs in the " \
                   "environments the caller may read, and a sheet counts the links it leaves out for that reason. " \
@@ -95,6 +96,7 @@ module Mcp
           past_incidents: past_incidents(resource.workspace, entries).presence,
           normal: (resource.baselines.fresh.order(:label).map(&:line).presence unless resource.removed_at),
           key_checks: (key_checks(resource, principal) unless resource.removed_at),
+          usual_log_lines: (usual_log_lines(resource, principal) unless resource.removed_at),
           links: (resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) } if links),
           out_of_reach: (hidden&.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
         }.compact
@@ -114,6 +116,12 @@ module Mcp
           normal = normal ? "Normal: #{normal}." : ("No normal read yet." if plan.check.metric?)
           [ "#{plan.check.key} (#{plan.check.label}): #{read} through #{plan.connection}.", normal ].compact.join(" ")
         end
+      end
+
+      # The kinds of line it printed most in the last week, or why none are known.
+      def self.usual_log_lines(resource, principal)
+        lines = resource.log_templates.this_week.most_lines_first.limit(ResourceMap::LogTemplate::SHOWN).map(&:line)
+        lines.presence || [ ResourceMap::LogTemplate.missing_reason(resource, principal) ]
       end
 
       # The catalog services it runs, with what each is for and who owns it, as people wrote them in the catalog.

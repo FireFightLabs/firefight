@@ -32,7 +32,7 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
   const toReview = links.filter((link) => link.unconfirmed)
   const linked = new Set(links.flatMap((link) => [ link.fromId, link.toId ]))
   const alone = resources.filter((resource) => !linked.has(resource.id))
-  const unread = connections.filter((connection) => connection.error || connection.baselineError || connection.gaps.length > 0)
+  const unread = connections.filter((connection) => connection.error || connection.baselineError || connection.logPatternsError || connection.gaps.length > 0)
   const accounts = new Set(resources.map((resource) => `${resource.provider}:${resource.account}`))
   const live = connections.filter((connection) => connection.liveUpdates)
 
@@ -92,6 +92,9 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
                 {connection.error && <span className="text-xs text-muted-foreground">The last sync failed: {connection.error}</span>}
                 {connection.baselineError && (
                   <span className="text-xs text-muted-foreground">What normal looks like could not be read: {connection.baselineError}</span>
+                )}
+                {connection.logPatternsError && (
+                  <span className="text-xs text-muted-foreground">The usual log lines could not be read: {connection.logPatternsError}</span>
                 )}
                 {connection.gaps.map((gap) => (
                   <span key={gap} className="text-xs text-muted-foreground">{gap}</span>

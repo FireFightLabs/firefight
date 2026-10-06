@@ -117,6 +117,8 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_includes instructions, FirefightAi::LookFirstRule::CONNECTION_RULE
     assert_includes instructions, FirefightAi::LookFirstRule::CHANGED_RULE
     assert_includes instructions, FirefightAi::LookFirstRule::CAUSE_RULE
+    assert_includes instructions, FirefightAi::NormalRule::RULE
+    assert_match "A log pattern seen all week is not the cause by itself", FirefightAi::NormalRule::RULE
   end
 
   test "a connection's tool is said to reach only its own account, and a cause is stated only when a result said it" do

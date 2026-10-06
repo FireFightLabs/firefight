@@ -21,6 +21,7 @@ import { CHAT_MEMORY_STATES } from "@/lib/generated/constants"
 import { STATE_LABELS, STATE_TONES } from "@/pages/memory/lib/labels"
 import { Clues } from "@/pages/map/components/clues"
 import { KeyChecks } from "@/pages/map/components/key-checks"
+import { UsualLogLines } from "@/pages/map/components/usual-log-lines"
 import { changeLabel, howFound, KIND_LABELS, RELATION_SENTENCES } from "@/pages/map/lib/labels"
 import { shortAgo } from "@/pages/map/lib/time"
 import type { SharedProps } from "@/types"
@@ -106,6 +107,10 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
           <Baselines baselines={resource.baselines} />
         </Section>
       )}
+
+      <Section title="Usual log lines">
+        <UsualLogLines resourceId={resource.id} />
+      </Section>
 
       {pointing.length > 0 && (
         <Section title="Settings that point here">

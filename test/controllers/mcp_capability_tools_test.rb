@@ -12,7 +12,7 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
   end
 
   test "an outside agent is offered the capabilities it could call, beside the provider tools" do
-    assert_equal [ "search_logs" ], Mcp::CapabilityToolFactory.tools_for(@workspace, @alice).map(&:name_value)
+    assert_equal %w[search_logs new_log_patterns], Mcp::CapabilityToolFactory.tools_for(@workspace, @alice).map(&:name_value)
     assert_empty Mcp::CapabilityToolFactory.tools_for(@workspace, workspace_memberships(:bob_workspace_one))
   end
 
@@ -30,6 +30,20 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
                  response.content.map { |part| part[:text] || part["text"] }
     assert Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.query_metrics", source: AbilityGateway::SOURCE_MCP)
     assert_match "has no throttles check", Mcp::CapabilityToolFactory.key_query({ workspace: @workspace, principal: @alice }, { resource: "web", query: "throttles" }).content.first[:text]
+  end
+
+  test "new_log_patterns is offered with logs, and answers patterns read through the logs capability, never the raw lines" do
+    assert_includes Mcp::CapabilityToolFactory.tools_for(@workspace, @alice).map(&:name_value), "new_log_patterns"
+    lines = [ "user ada logged in", "ERROR disk full on /var/lib" ].map { |text| Integrations::Telemetry::LogLine.new(at: Time.current, source: "web", text: text) }
+    Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, **| tool == @search && arguments == { "resource" => "web-id", "minutes" => 60, "limit" => 2_000 } }
+                                .returns(Integrations::Telemetry.result(Integrations::Telemetry.logs_text(lines, asked: "web"), link: nil))
+
+    response = Mcp::CapabilityToolFactory.log_patterns({ workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    text = response.content.sole[:text]
+    assert_match "No usual log lines are known for web yet, so every pattern counts as new.", text
+    assert_match "- [error] web ERROR disk full on /var/lib (1 line)", text
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.search_logs", source: AbilityGateway::SOURCE_MCP)
   end
 
   test "a call is authorized and ledgered as the provider tool's action, with that tool's own arguments" do

@@ -20,7 +20,7 @@ class Chat::Tools::KeyQuery < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     given = arguments.transform_keys(&:to_s)
-    resource = locate(given["resource"].to_s)
+    resource = ResourceMap::Resource.locate(@agent_run.workspace, @agent_run.acting_principal, given["resource"])
     return refused(tool_call, resource) if resource.is_a?(String)
 
     check = ResourceMap::KeyQueries.find(resource.kind, given["query"])
@@ -32,7 +32,7 @@ class Chat::Tools::KeyQuery < RubyLLM::Tool
     plan = ResourceMap::KeyQueries.plan(resource, check, principal: @agent_run.acting_principal, tools: callable)
     return refused(tool_call, plan.refusal) unless plan.available?
 
-    minutes = given["minutes"].to_i.positive? ? given["minutes"].to_i : ResourceMap::KeyQueries::DEFAULT_MINUTES
+    minutes = ResourceMap::KeyQueries.minutes(given["minutes"])
     capability = Chat::Tools::Capability.new(@agent_run, spec, able, callable: callable)
     text = capability.call(tool_call: tool_call, **plan.arguments(minutes).symbolize_keys)
     answered = capability.answered
@@ -42,15 +42,6 @@ class Chat::Tools::KeyQuery < RubyLLM::Tool
   end
 
   private
-
-  # One resource the agent may read. A name several share is refused with each one's id, so the agent names one.
-  def locate(reference)
-    found = ResourceMap::Resource.visible_to(@agent_run.acting_principal, @agent_run.workspace).referenced(@agent_run.workspace, reference).present.to_a
-    return "Nothing on the resource map is called #{reference}. get_resource_map lists what is there." if found.empty?
-    return found.first if found.one?
-
-    "More than one resource is called #{reference}: #{found.map { |each| "#{each.kind} #{each.name} (map id #{each.id})" }.to_sentence}. Name it by its map id."
-  end
 
   def refused(tool_call, text)
     Chat::Tools.mark_failed(@agent_run, tool_call&.id)

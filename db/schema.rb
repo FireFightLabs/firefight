@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_122100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_104000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1123,6 +1123,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_122100) do
     t.string "map_events_confirmation"
     t.datetime "map_events_turned_off_at"
     t.datetime "map_events_refused_at"
+    t.string "log_patterns_error"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
     t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true
@@ -1647,6 +1648,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_122100) do
     t.index ["to_resource_id", "relation"], name: "index_resource_map_links_standing_in", where: "(dismissed_at IS NULL)"
     t.index ["to_resource_id"], name: "index_resource_map_links_on_to_resource_id"
     t.index ["workspace_id"], name: "index_resource_map_links_on_workspace_id"
+  end
+
+  create_table "resource_map_log_templates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "resource_id", null: false
+    t.uuid "integration_environment_id", null: false
+    t.string "digest", null: false
+    t.text "template", null: false
+    t.string "level"
+    t.integer "lines", null: false
+    t.integer "samples", null: false
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_environment_id"], name: "index_resource_map_log_templates_on_integration_environment_id"
+    t.index ["resource_id", "digest"], name: "index_resource_map_log_templates_on_resource_id_and_digest", unique: true
+    t.index ["workspace_id"], name: "index_resource_map_log_templates_on_workspace_id"
   end
 
   create_table "resource_map_resources", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2212,6 +2231,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_122100) do
   add_foreign_key "resource_map_links", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "resource_map_links", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "resource_map_links", "workspaces"
+  add_foreign_key "resource_map_log_templates", "integration_environments", on_delete: :cascade
+  add_foreign_key "resource_map_log_templates", "resource_map_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "resource_map_log_templates", "workspaces"
   add_foreign_key "resource_map_resources", "integration_environments", on_delete: :nullify
   add_foreign_key "resource_map_resources", "workspaces"
   add_foreign_key "resource_map_uses", "integration_environments", on_delete: :cascade
