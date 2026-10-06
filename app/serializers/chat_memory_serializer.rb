@@ -14,6 +14,10 @@ class ChatMemorySerializer < BaseSerializer
   type :string, optional: true
   def about = memory.about
 
+  # What it is about is gone from the map.
+  type :boolean
+  def about_removed = memory.about_removed?
+
   type :string, optional: true
   def subject = Chat::Memory.subject_key(memory.subject)
 
@@ -37,6 +41,10 @@ class ChatMemorySerializer < BaseSerializer
 
   type :string, optional: true
   def confirmed_by = memory.confirmed_by&.display_name
+
+  # A completed postmortem made the last decision, whoever completed it.
+  type :boolean
+  def decided_by_postmortem = memory.decided_by_postmortem_id.present?
 
   type :string, optional: true
   def confirmed_at = memory.confirmed_at&.utc&.iso8601
@@ -64,4 +72,8 @@ class ChatMemorySerializer < BaseSerializer
 
   type :string, optional: true
   def reject_blocked_reason = memory.reject_blocked_reason
+
+  # What deleting it means, said before and after.
+  type :string
+  def delete_consequence = memory.delete_consequence
 end
