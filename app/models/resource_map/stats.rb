@@ -14,8 +14,11 @@ class ResourceMap::Stats
 
   attr_reader :workspace
 
+  # within, such as ResourceMap::Resource.visible_to, keeps every number to those resources, the connections that report
+  # one of them, and the changes and suggestions that touch only them.
   def initialize(workspace, within: nil, **filters)
     @workspace = workspace
+    @within = within
     @query = ResourceMap::Query.new(workspace, within: within, **filters)
   end
 
@@ -40,17 +43,30 @@ class ResourceMap::Stats
   def connections
     IntegrationEnvironment.joins(:integration).merge(Integration.active).where(integrations: { workspace_id: workspace.id })
                           .where("integration_environments.map_swept_at IS NOT NULL OR integration_environments.map_error IS NOT NULL")
+                          .then { |rows| @within ? rows.where(reporting_sql) : rows }
                           .includes(:integration, :environment).order(:map_swept_at).map do |row|
       Connection.new(environment_row: row, swept_at: row.map_swept_at, error: row.map_error, gaps: row.map_gaps)
     end
   end
 
-  def suggestions_to_review = ResourceMap::Link.to_review.where(workspace: workspace).count
+  def suggestions_to_review
+    links = ResourceMap::Link.to_review.where(workspace: workspace)
+    (@within ? links.where(from_resource_id: @within.select(:id), to_resource_id: @within.select(:id)) : links).count
+  end
 
   # What changed in the last day, by kind of change.
-  def recent_changes = ResourceMap::Change.where(workspace: workspace).since(CHANGE_WINDOW.ago).group(:kind).count
+  def recent_changes
+    changes = ResourceMap::Change.where(workspace: workspace).since(CHANGE_WINDOW.ago)
+    (@within ? changes.where(resource_id: @within.select(:id)) : changes).group(:kind).count
+  end
 
   private
+
+  def reporting_sql
+    inside = @within.where(workspace_id: workspace.id).where("resource_map_resources.integration_environment_id = integration_environments.id " \
+                                                            "OR resource_map_resources.sightings ? CAST(integration_environments.id AS text)")
+    "EXISTS (#{inside.select(1).to_sql})"
+  end
 
   def health_sql
     words = ResourceMap::Resource::STATUS_HEALTH.group_by(&:last).transform_values { |pairs| pairs.map(&:first) }

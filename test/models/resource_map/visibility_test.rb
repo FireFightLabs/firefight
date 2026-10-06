@@ -78,6 +78,22 @@ class ResourceMap::VisibilityTest < ActiveSupport::TestCase
     assert AbilityGateway.reach(principal: @member, action_key: Ability::Action::MAP_READ, workspace: @workspace)
   end
 
+  test "the query layer composes with what a limited reader sees, and never reaches past it" do
+    limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    visible = ResourceMap::Resource.visible_to(@member, @workspace)
+    web = map_resource(@workspace, "web")
+    database = map_resource(@workspace, "orders-db")
+
+    assert_equal %w[orders-db web], ResourceMap::Query.new(@workspace, within: visible).scope.order(:name).pluck(:name)
+    assert_equal %w[orders-db], ResourceMap::Graph.new(web, direction: ResourceMap::Graph::DEPENDS_ON, within: visible).nodes.map { |node| node.resource.name }
+    assert_equal %w[web], ResourceMap::BlastRadius.new(database, within: visible).dependents.pluck(:name)
+    stats = ResourceMap::Stats.new(@workspace, within: visible)
+    assert_equal 2, stats.total
+    assert_equal [ @production_row ], stats.connections.map(&:environment_row)
+    assert_equal({ ResourceMap::Change::KIND_APPEARED => 2 }, stats.recent_changes)
+    assert_equal 5, ResourceMap::Stats.new(@workspace, within: ResourceMap::Resource.visible_to(SystemAgent.investigator, @workspace)).total
+  end
+
   private
 
   def visible_names(principal) = ResourceMap::Resource.visible_to(principal, @workspace).order(:name).pluck(:name)
