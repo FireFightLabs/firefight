@@ -11,16 +11,27 @@ class Chat::Memory < ApplicationRecord
   STATE_CONFIRMED = "confirmed".freeze
   # Something showed it may be wrong, so it is not used until a person decides.
   STATE_DISPUTED = "disputed".freeze
-  # What it is about changed or went away on the map, so it needs a fresh look.
+  # What it is about changed or went away, so it needs a fresh look.
   STATE_OUTDATED = "outdated".freeze
   STATE_REJECTED = "rejected".freeze
-  STATES = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_DISPUTED, STATE_OUTDATED, STATE_REJECTED ].freeze
-  # What Halon is handed. Disputed and rejected memories are kept for people, never used.
+  # Nobody confirmed it within the workspace's window, so it stopped being used.
+  STATE_EXPIRED = "expired".freeze
+  STATES = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_DISPUTED, STATE_OUTDATED, STATE_REJECTED, STATE_EXPIRED ].freeze
+  # What Halon is handed. Disputed, rejected and expired memories are kept for people, never used.
   USED_STATES = [ STATE_CONFIRMED, STATE_UNCONFIRMED, STATE_OUTDATED ].freeze
   SUBJECT_TYPES = [ ResourceMap::Resource.name, CatalogEntry.name ].freeze
   TEXT_LIMIT = 500
-  # How many memories a chat or a run starts with, so memory never crowds out the question.
+  # How many memories a chat or a run starts with, and recall answers with, so memory never crowds out the question.
   STARTING_LIMIT = 20
+
+  # Why a memory was flagged outdated. Only the sweep's own flag for a removed resource is lifted when it comes back.
+  OUTDATED_REMOVED = "removed".freeze
+  OUTDATED_RENAMED = "renamed".freeze
+  OUTDATED_ARCHIVED = "archived".freeze
+  OUTDATED_CAUSES = [ OUTDATED_REMOVED, OUTDATED_RENAMED, OUTDATED_ARCHIVED ].freeze
+
+  # The days a workspace can let an unconfirmed memory wait for a person before it stops being used.
+  EXPIRY_CHOICES = [ 30, 60, 90, 180 ].freeze
 
   encrypts :text
 
@@ -31,19 +42,35 @@ class Chat::Memory < ApplicationRecord
   belongs_to :confirmed_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :rejected_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :replaced_by, class_name: "Chat::Memory", optional: true
+  # The completed postmortem that made the last decision on it, whether or not a person completed it.
+  belongs_to :decided_by_postmortem, class_name: "Postmortem", optional: true
 
   validates :text, presence: true, length: { maximum: TEXT_LIMIT }
   validates :state, inclusion: { in: STATES }
   validates :subject_type, inclusion: { in: SUBJECT_TYPES }, allow_nil: true
+  validates :outdated_cause, inclusion: { in: OUTDATED_CAUSES }, allow_nil: true
   # What each decision may move a memory from. A rejected memory stays rejected.
   CONFIRMABLE_FROM = STATES - [ STATE_REJECTED, STATE_CONFIRMED ]
   REJECTABLE_FROM = STATES - [ STATE_REJECTED ]
+  # A postmortem confirms what Halon learned, never what Halon disputed or a person rejected.
+  POSTMORTEM_CONFIRMS_FROM = [ STATE_UNCONFIRMED, STATE_OUTDATED, STATE_EXPIRED ].freeze
 
-  # What learning a fact came to: saved, already known, or refused because a person rejected it before.
+  # What learning a fact came to. Saved, already known, refused because a person rejected it before, or refused because
+  # it is something memory never holds.
   LEARNED_SAVED = :saved
   LEARNED_KNOWN = :known
   LEARNED_REJECTED = :rejected
-  Learned = Data.define(:outcome, :memory)
+  LEARNED_REFUSED = :refused
+  Learned = Data.define(:outcome, :memory, :reason) do
+    def initialize(outcome:, memory: nil, reason: nil) = super
+  end
+
+  # What a name given for a memory's subject came to, the subject or why none was picked.
+  Named = Data.define(:subject, :refusal)
+  # What recall found, the best first, and how many more matched than it shows.
+  Recalled = Data.define(:memories, :more)
+  # How a starting memory changed since a run began, as a key to tell it once, the mark in its facts and the note it reads.
+  Change = Data.define(:key, :mark, :note)
 
   scope :in_use, -> { where(state: USED_STATES) }
   scope :most_trusted_first, -> { order(Arel.sql(sanitize_sql_array([ "CASE state WHEN ? THEN 0 ELSE 1 END", STATE_CONFIRMED ])), created_at: :desc) }
@@ -56,13 +83,49 @@ class Chat::Memory < ApplicationRecord
     relevant.includes(:subject, :confirmed_by).most_trusted_first.limit(STARTING_LIMIT).to_a
   end
 
-  # What a memory is about, named the way a person or Halon would: a resource on the map by its name or provider id,
-  # else a catalog entry by its name or slug. nil when neither matches.
-  def self.subject_named(workspace, name)
-    return nil if name.blank?
+  # Memories a chat or run was handed at its start count as used, once for each chat or run however many turns it takes.
+  def self.handed_to!(memories, owner)
+    return if memories.empty?
 
-    ResourceMap::Resource.named(workspace, name).present.first ||
-      workspace.catalog_entries.active.where("lower(name) = :wanted OR lower(slug) = :wanted", wanted: name.to_s.strip.downcase).first
+    rows = memories.map { |memory| { memory_id: memory.id, owner_type: owner.class.polymorphic_name, owner_id: owner.id, created_at: Time.current } }
+    counted = Chat::MemoryUse.insert_all(rows, unique_by: :index_chat_memory_uses_once_per_owner, returning: :memory_id).rows.flatten
+    where(id: counted).update_all([ "use_count = use_count + 1, last_used_at = ?", Time.current ]) if counted.any?
+  end
+
+  # What a memory is about, named the way a person or Halon would. A resource on the map by its name, provider id or
+  # Firefight id, or a catalog entry by its name, slug or id. A name nothing has, or one several things share, is
+  # refused with a sentence, never guessed. removed also looks among resources gone from the map, when none present has it.
+  def self.subject_named(workspace, name, removed: false)
+    wanted = name.to_s.strip
+    return Named.new(subject: nil, refusal: nil) if wanted.empty?
+
+    found = named_candidates(workspace, wanted, removed: false)
+    found = named_candidates(workspace, wanted, removed: true) if found.empty? && removed
+    return Named.new(subject: found.sole, refusal: nil) if found.one?
+    return Named.new(subject: nil, refusal: "Nothing called #{wanted} is on the map or in the catalog.") if found.empty?
+
+    choices = found.map { |subject| "#{subject.id} (#{subject_label(subject)})" }.join(", ")
+    Named.new(subject: nil, refusal: "More than one thing is called #{wanted}: #{choices}. Name it by its id.")
+  end
+
+  def self.named_candidates(workspace, wanted, removed:)
+    resources = ResourceMap::Resource.where(workspace: workspace).where(removed_at: nil)
+    resources = ResourceMap::Resource.where(workspace: workspace).where.not(removed_at: nil) if removed
+    entries = removed ? CatalogEntry.none : workspace.catalog_entries.active
+    lowered = wanted.downcase
+    by_id = wanted.match?(CatalogEntry::ReferenceManagement::UUID_FORMAT)
+    [
+      *(by_id ? resources.where(id: wanted) : ResourceMap::Resource.named(workspace, wanted).merge(resources)).to_a,
+      *(by_id ? entries.where(id: wanted) : entries.where("lower(name) = :wanted OR lower(slug) = :wanted", wanted: lowered)).includes(:catalog_type).to_a
+    ]
+  end
+  private_class_method :named_candidates
+
+  def self.subject_label(subject)
+    case subject
+    when CatalogEntry then "#{subject.catalog_type.name} #{subject.name} in the catalog"
+    else "#{ResourceMap.provider_name(subject.provider)} #{subject.kind} #{subject.name} on the map"
+    end
   end
 
   # A subject as the dashboard names it, its type and id, such as "CatalogEntry:<id>". Instructions use the same keys.
@@ -80,11 +143,19 @@ class Chat::Memory < ApplicationRecord
     end
   end
 
-  # The one way a fact is learned, from a chat, a run or an ended incident. The same fact about the same thing is never
-  # saved twice, and one a person rejected is never learned again. A vouched fact is confirmed by whoever taught it.
+  # The one way a fact is learned, from a chat, a run or an ended incident. The same fact about the same thing, in any
+  # wording, is never saved twice, and one a person rejected is never learned again. A vouched fact is confirmed by
+  # whoever taught it. A live value or a fact about a person is refused with why.
   def self.learn!(workspace, text:, subject:, source:, added_by: nil, vouched: false)
-    known = where(workspace: workspace, subject: subject).to_a.find { |memory| memory.text.casecmp?(text) }
+    # Read with any credential already redacted, so one is refused as a secret by validation rather than as an address.
+    refusal = Chat::Memory::Screening.refusal(workspace, Chat::SecretFree.redacted(text.to_s))
+    return Learned.new(outcome: LEARNED_REFUSED, reason: refusal) if refusal
+
+    signature = Chat::Memory::Words.signature(text)
+    known = where(workspace: workspace, subject: subject).to_a.find { |memory| Chat::Memory::Words.signature(memory.text) == signature }
     return Learned.new(outcome: LEARNED_REJECTED, memory: known) if known&.state == STATE_REJECTED
+    # Learned again, so it is worth another wait for a person.
+    known.revive! if known&.state == STATE_EXPIRED
     return Learned.new(outcome: LEARNED_KNOWN, memory: known) if known
 
     confirmer = added_by if vouched
@@ -107,15 +178,76 @@ class Chat::Memory < ApplicationRecord
     services + ResourceMap::Resource.present.joins(:entry_links).where(resource_map_entry_links: { catalog_entry_id: services.map(&:id) }).distinct.to_a
   end
 
-  # The workspace's memories in use, matched by what they are about and by any of the words asked. Text is encrypted,
-  # so the words are matched here rather than in SQL, over one workspace's memories.
+  # The workspace's memories in use about a subject, or matching the words asked. The best come first, ranked by how many
+  # of the words they hold and how rare each is with a boost for the whole phrase, then confirmed first, then newest.
   def self.recall(workspace, subject: nil, query: nil)
-    found = where(workspace: workspace).in_use.includes(:subject, :confirmed_by).most_trusted_first
+    found = where(workspace: workspace).in_use.includes(:subject, :confirmed_by)
     found = found.where(subject: subject) if subject
-    words = query.to_s.downcase.split(/\W+/).reject { |word| word.length < 3 }
     found = found.to_a
-    found = found.select { |memory| words.any? { |word| memory.text.downcase.include?(word) } } if words.any?
-    found.first(STARTING_LIMIT)
+    asked = Chat::Memory::Words.stems(query)
+    ranked = if asked.empty?
+      found.sort_by { |memory| [ memory.confirmed? ? 0 : 1, -memory.created_at.to_f ] }
+    else
+      scored = scores(found, asked, Chat::Memory::Words.squished(query))
+      found.select { |memory| scored[memory.id].positive? }
+           .sort_by { |memory| [ -scored[memory.id], memory.confirmed? ? 0 : 1, -memory.created_at.to_f ] }
+    end
+    Recalled.new(memories: ranked.first(STARTING_LIMIT), more: [ ranked.size - STARTING_LIMIT, 0 ].max)
+  end
+
+  def self.scores(memories, asked, phrase)
+    rarity = Hash.new(0)
+    memories.each { |memory| Chat::Memory::Words.stems(memory.text).uniq.each { |word| rarity[word] += 1 } }
+    phrase = nil if asked.uniq.size < 2
+    memories.to_h { |memory| [ memory.id, Chat::Memory::Words.score(memory.text, asked, phrase, rarity: rarity, total: memories.size) ] }
+  end
+  private_class_method :scores
+
+  # How a run's starting memory changed since it began, or nil while it still holds. memory is nil once deleted.
+  def self.change_since_start(id, memory)
+    return Change.new(key: "deleted", mark: "[deleted since this run started]", note: "Memory #{id} was deleted by a person since you started. Do not rely on it.") unless memory
+
+    case memory.state
+    when STATE_REJECTED
+      if memory.replaced_by
+        Change.new(key: "corrected:#{memory.replaced_by_id}", mark: "[corrected since this run started: #{memory.replaced_by.text}]",
+                   note: "Memory #{id} was corrected by #{memory.decider} since you started. What is right instead: #{memory.replaced_by.text}")
+      else
+        Change.new(key: STATE_REJECTED, mark: "[rejected since this run started]",
+                   note: "Memory #{id} was rejected by #{memory.decider} since you started#{": #{memory.state_reason}" if memory.state_reason.present?}. Do not rely on it.")
+      end
+    when STATE_DISPUTED
+      Change.new(key: STATE_DISPUTED, mark: "[disputed since this run started: #{memory.state_reason}]",
+                 note: "Memory #{id} was disputed since you started: #{memory.state_reason} Do not rely on it until a person decides.")
+    when STATE_EXPIRED
+      Change.new(key: STATE_EXPIRED, mark: "[no longer in use since this run started]",
+                 note: "Memory #{id} stopped being used since you started, since nobody confirmed it in time. Treat it as unchecked.")
+    end
+  end
+
+  # What a memory is about changed, renamed, archived or gone, so what it says may no longer hold. One guarded update
+  # over one subject or several, and a disputed, rejected or expired memory is left as it was. It keeps what it was so
+  # the flag can be lifted.
+  def self.flag_outdated!(subject, reason, cause:)
+    where(subject: subject, state: [ STATE_UNCONFIRMED, STATE_CONFIRMED ])
+      .update_all([ "outdated_from = state, state = ?, state_reason = ?, outdated_cause = ?, updated_at = ?", STATE_OUTDATED, reason, cause, Time.current ])
+  end
+
+  # The cause is gone, such as a removed resource the map sees again, so a memory still flagged for it goes back to what
+  # it was. A memory a person decided on since is no longer outdated, so it is never touched.
+  def self.clear_outdated!(subject, cause:)
+    where(subject: subject, state: STATE_OUTDATED, outdated_cause: cause).where.not(outdated_from: nil)
+      .update_all([ "state = outdated_from, state_reason = NULL, outdated_from = NULL, outdated_cause = NULL, updated_at = ?", Time.current ])
+  end
+
+  # An unconfirmed memory nobody confirmed within the workspace's window stops being used, counted from when it was
+  # last learned or came back into use. Returns how many expired.
+  def self.expire!(workspace)
+    days = workspace.memory_expiry_days
+    return 0 unless days
+
+    where(workspace: workspace, state: STATE_UNCONFIRMED).where(updated_at: ...days.days.ago)
+      .update_all(state: STATE_EXPIRED, state_reason: "Nobody confirmed it within #{days} days.", updated_at: Time.current)
   end
 
   def confirmed? = state == STATE_CONFIRMED
@@ -125,10 +257,30 @@ class Chat::Memory < ApplicationRecord
 
   def about = subject.respond_to?(:name) ? subject.name : nil
 
+  # A resource this memory is about that is gone from the map.
+  def about_removed? = subject.is_a?(ResourceMap::Resource) && subject.removed_at.present?
+
   # How Halon reads it: the fact, what it is about, and whether anyone vouched for it.
   def line
-    trust = confirmed? ? "confirmed by #{confirmed_by&.display_name || 'a person'}" : state
     "#{id} (#{[ about, trust ].compact.join(', ')}): #{text}"
+  end
+
+  # Who stands behind it, in words. Only a person is ever named, and a postmortem nobody signed off is never one.
+  def trust
+    return state unless confirmed?
+    return "confirmed by #{confirmed_by.display_name}" if confirmed_by
+    return "confirmed by a postmortem" if decided_by_postmortem_id
+
+    "confirmed"
+  end
+
+  # Who made the last decision on it, in words.
+  def decider
+    person = rejected_by || confirmed_by
+    return person.display_name if person
+    return "a postmortem" if decided_by_postmortem_id
+
+    "a person"
   end
 
   # Why a person cannot confirm it now, or nil. The page and the controller ask this rather than reading the state.
@@ -141,37 +293,50 @@ class Chat::Memory < ApplicationRecord
 
   def reject_blocked_reason = ("It was rejected already." unless REJECTABLE_FROM.include?(state))
 
-  # A person saying it is wrong. Kept as rejected with who and why, and a correction replaces it as theirs.
-  def reject!(by:, reason:, correction: nil)
+  # What deleting it means, for the dialog that asks first and the notice after.
+  def delete_consequence
+    return "Halon has nothing left to say the wording was wrong, so it may learn it again." if state == STATE_REJECTED
+
+    "Halon stops using it, and nothing keeps where it came from."
+  end
+
+  # A person saying it is wrong, or a postmortem nobody signed off when by is nil. Kept as rejected with who and why,
+  # and a correction replaces it as confirmed by them.
+  def reject!(by:, reason:, correction: nil, postmortem: nil)
     transaction do
-      if !decide!(STATE_REJECTED, from: REJECTABLE_FROM, state_reason: reason.presence, rejected_by_id: by&.id, rejected_at: Time.current)
+      if !decide!(STATE_REJECTED, from: REJECTABLE_FROM, state_reason: reason.presence, rejected_by_id: by&.id, rejected_at: Time.current,
+                                  decided_by_postmortem_id: postmortem&.id)
         nil
       elsif correction.blank?
         self
       else
         replacement = self.class.create!(workspace: workspace, text: correction, subject: subject, state: STATE_CONFIRMED, source: source,
-                                         added_by: by, confirmed_by: by, confirmed_at: Time.current)
+                                         added_by: by, confirmed_by: by, confirmed_at: Time.current, decided_by_postmortem: postmortem)
         update_columns(replaced_by_id: replacement.id)
         replacement
       end
     end
   end
 
-  # What a memory is about changed on the map, renamed or gone, so what it says may no longer hold. One guarded update,
-  # and a disputed or rejected memory is left as a person left it.
-  def self.flag_outdated!(subject, reason)
-    where(subject: subject, state: [ STATE_UNCONFIRMED, STATE_CONFIRMED ])
-      .update_all(state: STATE_OUTDATED, state_reason: reason, updated_at: Time.current)
+  # A person vouching for it. A rejected memory stays rejected.
+  def confirm!(by:, reason: nil)
+    decide!(STATE_CONFIRMED, from: CONFIRMABLE_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current, state_reason: reason,
+                             decided_by_postmortem_id: nil)
   end
 
-  # A person, or a published postmortem when by is nil, vouching for it. A rejected memory stays rejected.
-  def confirm!(by:, reason: nil)
-    decide!(STATE_CONFIRMED, from: CONFIRMABLE_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
-                             state_reason: reason)
+  # A completed postmortem agreeing with what Halon learned, credited to whoever completed it when that was a person.
+  def confirm_from_postmortem!(postmortem, by:)
+    decide!(STATE_CONFIRMED, from: POSTMORTEM_CONFIRMS_FROM, confirmed_by_id: by&.id, confirmed_at: Time.current,
+                             state_reason: "The #{postmortem.incident.identifier} postmortem agrees", decided_by_postmortem_id: postmortem.id)
   end
 
   def dispute!(reason)
     decide!(STATE_DISPUTED, from: [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED ], state_reason: reason)
+  end
+
+  # An expired memory learned again goes back to waiting for a person, with a fresh window.
+  def revive!
+    decide!(STATE_UNCONFIRMED, from: [ STATE_EXPIRED ], state_reason: nil)
   end
 
   def used!
@@ -180,9 +345,10 @@ class Chat::Memory < ApplicationRecord
 
   private
 
-  # Guarded, so two people deciding on the same memory at once cannot both land.
+  # Guarded, so two people deciding on the same memory at once cannot both land. A decision ends any outdated flag.
   def decide!(state, from:, **columns)
-    moved = self.class.where(id: id, state: from).update_all(columns.merge(state: state, updated_at: Time.current)) > 0
+    moved = self.class.where(id: id, state: from)
+                      .update_all(columns.merge(state: state, outdated_from: nil, outdated_cause: nil, updated_at: Time.current)) > 0
     reload
     moved
   end

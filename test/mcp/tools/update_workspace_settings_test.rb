@@ -29,6 +29,18 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     assert_equal 30, @workspace.transcript_retention_days
   end
 
+  test "unconfirmed memories expire after one of the offered windows, and null keeps using them" do
+    Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { memory_expiry_days: 90 })
+    assert_equal 90, @workspace.reload.memory_expiry_days
+
+    refused = Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { memory_expiry_days: 45 })
+    assert refused.error?
+    assert_equal 90, @workspace.reload.memory_expiry_days
+
+    Mcp::Tools::UpdateWorkspaceSettings.perform_with_principal(workspace: @workspace, principal: @admin, args: { memory_expiry_days: nil })
+    assert_nil @workspace.reload.memory_expiry_days
+  end
+
   test "retention can be cleared to keep transcripts forever" do
     @workspace.update!(transcript_retention_days: 30)
 
@@ -106,7 +118,7 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     body = Mcp::Tools::GetWorkspaceConfig.perform_with_principal(workspace: @workspace, principal: @admin, args: {}).structured_content
 
     assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay,
-                   web_search_enabled: true, halon_regression_enabled: false, code_fix_agent: nil, issue_tracker: nil,
+                   web_search_enabled: true, halon_regression_enabled: false, memory_expiry_days: nil, code_fix_agent: nil, issue_tracker: nil,
                    issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER, issue_tracker_target: {}, issue_webhook_secret_set: false }, body[:settings])
   end
 end

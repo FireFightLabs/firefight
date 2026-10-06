@@ -259,7 +259,7 @@ class Investigation < ApplicationRecord
     done = steps.where.not(position: nil).map { |step| "- step #{step.position}: #{step.label.presence || step.tool_name} (#{step.status})" }
 
     [
-      "The facts Firefight already holds:\n#{JSON.pretty_generate(seed_pack)}",
+      "The facts Firefight already holds:\n#{JSON.pretty_generate(starting_facts)}",
       ("Your theories so far:\n#{theories.join("\n")}" if theories.any?),
       ("The steps you have taken:\n#{done.join("\n")}" if done.any?)
     ].compact.join("\n\n")

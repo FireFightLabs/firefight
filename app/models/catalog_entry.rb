@@ -22,6 +22,9 @@ class CatalogEntry < ApplicationRecord
   validate :workspace_matches_type
   validate :slug_immutable, on: :update
 
+  # What Halon remembers about an entry may not hold once it is renamed or archived, so it is flagged for a fresh look.
+  after_update :flag_memories_outdated, if: -> { saved_change_to_name? || saved_change_to_deleted_at? }
+
   scope :active, -> { where(deleted_at: nil) }
   scope :ordered, -> { order(:name) }
   scope :with_relationships, -> { includes(outgoing_relationships: [ :target_entry, :catalog_attribute_definition ]) }
@@ -82,6 +85,14 @@ class CatalogEntry < ApplicationRecord
       errors.add(:external_id, "is required when source is set")
     elsif external_id.present? && source.blank?
       errors.add(:source, "is required when external_id is set")
+    end
+  end
+
+  def flag_memories_outdated
+    if deleted_at && saved_change_to_deleted_at?
+      Chat::Memory.flag_outdated!(self, "#{name} was archived in the catalog", cause: Chat::Memory::OUTDATED_ARCHIVED)
+    elsif saved_change_to_name?
+      Chat::Memory.flag_outdated!(self, "#{name_before_last_save} was renamed #{name}", cause: Chat::Memory::OUTDATED_RENAMED)
     end
   end
 end

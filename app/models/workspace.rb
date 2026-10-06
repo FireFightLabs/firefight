@@ -120,6 +120,8 @@ class Workspace < ApplicationRecord
 
   validates :transcript_retention_days,
             numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  # Off unless chosen, so an unconfirmed memory is used until a person decides on it.
+  validates :memory_expiry_days, inclusion: { in: Chat::Memory::EXPIRY_CHOICES, message: "must be one of the offered choices" }, allow_nil: true
 
   # A grant says who may ask. This is the admin's separate call on whether the
   # transcript is readable at all.

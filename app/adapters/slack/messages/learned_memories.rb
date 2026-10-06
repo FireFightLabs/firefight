@@ -1,42 +1,92 @@
 module Slack
   module Messages
-    # What Halon learned from an ended incident, each lesson with its buttons until someone decides on it.
+    # Memories an incident's channel is asked to decide on, which the incident or its postmortem taught, or which a chat
+    # or run working on it learned or disputed. Each memory carries the buttons its state allows, and a decided one
+    # says who decided.
     module LearnedMemories
-      INTRO = "Halon already uses these, marked unconfirmed. Confirm the ones that are right, and mark the rest not right so it stops using them.".freeze
-      DECIDED = {
-        Chat::Memory::STATE_CONFIRMED => ":white_check_mark: Confirmed", Chat::Memory::STATE_REJECTED => ":no_entry_sign: Marked not right"
+      TITLES = {
+        Chat::MemoryPost::KIND_INCIDENT => ":brain:  *What Halon learned from %<incident>s*",
+        Chat::MemoryPost::KIND_POSTMORTEM => ":brain:  *What Halon learned from the %<incident>s postmortem*",
+        Chat::MemoryPost::KIND_LEARNED => ":brain:  *Halon learned something about your setup*",
+        Chat::MemoryPost::KIND_DISPUTED => ":grey_question:  *Halon disputed a memory*"
       }.freeze
+      LESSONS = "Halon already uses these, marked unconfirmed. Confirm the ones that are right, and mark the rest not right so it stops using them.".freeze
+      FOOTERS = {
+        Chat::MemoryPost::KIND_INCIDENT => LESSONS,
+        Chat::MemoryPost::KIND_POSTMORTEM => LESSONS,
+        Chat::MemoryPost::KIND_LEARNED => "Halon already uses this, marked unconfirmed. Confirm it if it is right, or mark it not right so it stops using it.",
+        Chat::MemoryPost::KIND_DISPUTED => "Something Halon read contradicted this, so it stopped using it. Say whether it still holds."
+      }.freeze
+      # A memory in one of these still waits for a person, so it carries buttons.
+      WAITING = [ Chat::Memory::STATE_UNCONFIRMED, Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED, Chat::Memory::STATE_EXPIRED ].freeze
+      # A memory Halon stopped trusting is confirmed as still right, not as something new.
+      STILL_RIGHT = [ Chat::Memory::STATE_OUTDATED, Chat::Memory::STATE_DISPUTED ].freeze
 
-      def self.build(incident_id:, incident_identifier:, memories:)
+      # post is a MemoryPostService::Shown.
+      def self.build(post)
         [
-          { type: "section", text: { type: "mrkdwn", text: ":brain:  *What Halon learned from #{incident_identifier}*" } },
-          { type: "context", elements: [ { type: "mrkdwn", text: INTRO } ] },
-          { type: "divider" }
-        ] + memories.flat_map { |memory| memory_blocks(incident_id, memory) }
+          { type: "section", text: { type: "mrkdwn", text: title(post) } },
+          { type: "divider" },
+          *(post.memories.empty? ? [ gone ] : post.memories.flat_map { |memory| memory_blocks(post.post_id, memory) }),
+          (footer(post) if post.memories.any? { |memory| WAITING.include?(memory.state) })
+        ].compact
       end
 
-      def self.fallback(incident_identifier, memories)
-        "What Halon learned from #{incident_identifier}: #{memories.map(&:text).join(' ')}"
+      def self.fallback(post)
+        "#{title(post).gsub(/:[a-z_]+:\s+|\*/, '')}: #{post.memories.map(&:text).join(' ')}"
       end
 
-      # The lesson came from a model, so it is escaped like any other outside text.
-      def self.memory_blocks(incident_id, memory)
-        about = memory.about.present? ? "About #{Slack::Mrkdwn.escape(memory.about)}" : "About the whole workspace"
+      def self.title(post) = format(TITLES.fetch(post.kind), incident: post.incident_identifier)
+
+      def self.footer(post) = { type: "context", elements: [ { type: "mrkdwn", text: FOOTERS.fetch(post.kind) } ] }
+
+      def self.gone = { type: "context", elements: [ { type: "mrkdwn", text: "Someone deleted these on the Memory page." } ] }
+
+      # The memory came from a model or a person, so it is escaped like any other outside text.
+      def self.memory_blocks(post_id, memory)
         [
           { type: "section", text: { type: "mrkdwn", text: Slack::Mrkdwn.escape(memory.text) } },
-          { type: "context", elements: [ { type: "mrkdwn", text: about } ] },
-          decision_block(incident_id, memory)
-        ]
+          { type: "context", elements: [ { type: "mrkdwn", text: [ about(memory), standing(memory) ].compact.join("  ·  ") } ] },
+          (actions(post_id, memory) if WAITING.include?(memory.state))
+        ].compact
       end
 
-      def self.decision_block(incident_id, memory)
-        decided = DECIDED[memory.state]
-        return { type: "context", elements: [ { type: "mrkdwn", text: [ decided, ("by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by) ].compact.join(" ") } ] } if decided
+      def self.about(memory)
+        return "About the whole workspace" if memory.about.blank?
 
-        value = "#{incident_id}:#{memory.id}"
+        "About #{Slack::Mrkdwn.escape(memory.about)}#{', which is no longer on the map' if memory.about_removed}"
+      end
+
+      # Where the memory stands, said in words, so a disputed or outdated one never reads as if it were live.
+      def self.standing(memory)
+        by = " by #{Slack::Mrkdwn.escape(memory.decided_by)}" if memory.decided_by
+        case memory.state
+        when Chat::Memory::STATE_CONFIRMED then ":white_check_mark: Confirmed#{by}"
+        when Chat::Memory::STATE_REJECTED
+          return ":no_entry_sign: Marked not right#{by}" unless memory.correction
+
+          ":pencil2: Corrected#{by}. Halon now remembers this instead. #{Slack::Mrkdwn.escape(memory.correction)}"
+        when Chat::Memory::STATE_DISPUTED then [ ":grey_question: Disputed.", reason(memory), "Halon stopped using it until someone decides." ].compact.join(" ")
+        when Chat::Memory::STATE_OUTDATED then [ ":warning: Possibly outdated.", reason(memory), "Halon still uses it, flagged." ].compact.join(" ")
+        when Chat::Memory::STATE_EXPIRED then [ ":hourglass: Expired.", reason(memory), "Halon stopped using it." ].compact.join(" ")
+        end
+      end
+
+      # Why it stands where it does, as a sentence of its own.
+      def self.reason(memory)
+        return nil if memory.reason.blank?
+
+        said = Slack::Mrkdwn.escape(memory.reason.strip)
+        said.end_with?(".", "!", "?") ? said : "#{said}."
+      end
+
+      def self.actions(post_id, memory)
+        value = "#{post_id}:#{memory.id}"
+        confirm = STILL_RIGHT.include?(memory.state) ? "Still right" : "Confirm"
         { type: "actions", elements: [
-          { type: "button", style: "primary", action_id: Identifiers::MEMORY_CONFIRM, text: { type: "plain_text", text: "Confirm" }, value: value },
-          { type: "button", action_id: Identifiers::MEMORY_REJECT, text: { type: "plain_text", text: "Not right" }, value: value }
+          { type: "button", style: "primary", action_id: Identifiers::MEMORY_CONFIRM, text: { type: "plain_text", text: confirm }, value: value },
+          { type: "button", action_id: Identifiers::MEMORY_REJECT, text: { type: "plain_text", text: "Not right" }, value: value },
+          { type: "button", action_id: Identifiers::MEMORY_CORRECT, text: { type: "plain_text", text: "Correct" }, value: value }
         ] }
       end
     end
