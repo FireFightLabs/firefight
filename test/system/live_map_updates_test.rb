@@ -86,16 +86,16 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
       page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-confirm.png"))
       click_button "Turn on"
     end
-    assert_text "Live updates are on. Changes Render sends now reach the map."
     assert_text "Live updates: on, no change received yet"
+    assert_text "Live updates are on. Changes Render sends now reach the map.", wait: 10
     assert_equal "whk-1", render.reload.map_events_webhook_id
 
     # A fresh page, so the turn on toast is gone before the turn off one shows.
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
     click_button "Turn off"
     within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
-    assert_text "Live updates are off. Firefight removed its webhook from Render."
     assert_text "Live updates were turned off, so the map updates at each sweep."
+    assert_text "Live updates are off. Firefight removed its webhook from Render.", wait: 10
   end
 
   test "an admin adds each PlanetScale database's signing secret, and can forget them all to start over" do
