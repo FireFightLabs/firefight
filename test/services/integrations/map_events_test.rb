@@ -44,7 +44,8 @@ module Integrations
 
     test "a burst of events about one scope is one re-read, and the job queued for each later one finds nothing left" do
       MapEvents.receive!(@row, [ event("e1", at: 3.minutes.ago), event("e2", at: 2.minutes.ago) ])
-      MapEvents.receive!(@row, [ event("e3", at: 1.minute.ago) ])
+      latest = 1.minute.ago
+      MapEvents.receive!(@row, [ event("e3", at: latest) ])
       LiveTestPack.world[[ @web.kind, "web" ]] = @web.with(status: "failed")
 
       perform_enqueued_jobs(only: MapEventJob)
@@ -52,7 +53,7 @@ module Integrations
       assert_equal 1, LiveTestPack.reads.size
       assert_equal "failed", resource("web").status
       assert_equal [ ResourceMap::ReceivedEvent::OUTCOME_APPLIED ], ResourceMap::ReceivedEvent.where(integration_environment: @row).distinct.pluck(:outcome)
-      assert_equal 1.minute.ago.to_i, resource("web").changes_seen.find_by!(kind: ResourceMap::Change::KIND_STATUS_CHANGED).happened_at.to_i, "the change is at the latest event's time"
+      assert_equal latest.to_i, resource("web").changes_seen.find_by!(kind: ResourceMap::Change::KIND_STATUS_CHANGED).happened_at.to_i, "the change is at the latest event's time"
     end
 
     test "events out of order reach the same map, since each re-read reads what the provider has now" do
