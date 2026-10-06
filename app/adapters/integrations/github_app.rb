@@ -10,6 +10,9 @@ module Integrations
     # The installation was not granted a permission the call needs, which GitHub says as "Resource not accessible by
     # integration" (docs.github.com, REST API, troubleshooting).
     class NotPermitted < Error; end
+    # GitHub answered that the repository is not there, or not one the installation can see, the one answer a re-read
+    # takes as gone.
+    class NotFound < Error; end
 
     API_ROOT = "https://api.github.com".freeze
     PROVIDER_KEY = "github".freeze
@@ -21,6 +24,7 @@ module Integrations
     DOWNLOAD_LIMIT = 2_000_000
     PROVIDER = "GitHub".freeze
     NOT_PERMITTED = /not accessible by integration/i
+    NOT_FOUND = 404
     REFINE = ->(code, said) { NotPermitted if code == 403 && said.match?(NOT_PERMITTED) }
 
     BLAME_QUERY = <<~GRAPHQL.freeze
@@ -206,6 +210,7 @@ module Integrations
         unless response.code.to_i.between?(200, 299)
           message = "GitHub: #{body['message'] || "HTTP #{response.code}"}"
           raise RateLimited, message if rate_limited?(response)
+          raise NotFound, message if response.code.to_i == NOT_FOUND
 
           raise Error, message
         end

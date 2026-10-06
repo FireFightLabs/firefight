@@ -44,6 +44,7 @@ module Integrations
         Railway::EVENTS.each { |type| assert_equal 1, Railway.events(SAMPLE.merge("type" => type), headers: {}).size }
         assert_empty Railway.events(SAMPLE.merge("type" => "VolumeAlert.triggered"), headers: {})
         assert_empty Railway.events(SAMPLE.merge("resource" => SAMPLE["resource"].except("service")), headers: {})
+        assert_match "variables", Railway.limits, "what Railway does not send is said on the connection"
       end
 
       test "registering adds a webhook with a new secret header, or gives Firefight's own at this address a new one, never touching another" do

@@ -55,6 +55,9 @@ module Integrations
           raise MapEventSource::Refused, error.message
         end
 
+        def limits = "Railway says when a deployment changes status. A service added, renamed or removed, and a change to its variables, " \
+                     "reach the map at each hourly sweep."
+
         # A webhook already gone from Railway is taken back all the same.
         def remove(row, webhook_id)
           api(row).delete_webhook(webhook_id)

@@ -4,7 +4,7 @@ module ResourceMap
   # changes nothing the re-read would not. id is the provider's own id for it, which makes a second delivery a no-op,
   # and at is when the provider says it happened, the time the change is recorded at.
   #
-  # action says what kind of change it was. rescope is the connection's reach changing, such as repositories added to an
+  # action says what kind of change it was. rescope is the connection's reach changing, such as repositories removed from an
   # app's installation, which only a full sweep reads.
   Event = Data.define(:id, :at, :action, :scope) do
     def initialize(id:, at:, action:, scope: Scope.everything)

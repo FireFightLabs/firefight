@@ -46,6 +46,9 @@ module Integrations
                                    action: type == BRANCH_READY ? ResourceMap::Event::ADDED : ResourceMap::Event::UPDATED, scope: scope) ]
         end
 
+        def limits = "PlanetScale says when a branch changes in a database whose webhook is set up. A database removed, or one without " \
+                     "Firefight's webhook, reaches the map at each hourly sweep."
+
         # Every database's webhook signs with its own secret, so each one an admin saves is kept.
         def many_secrets? = true
 

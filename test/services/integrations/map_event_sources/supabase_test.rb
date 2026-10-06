@@ -38,6 +38,7 @@ module Integrations
 
       test "an admin creates the endpoint with the Management API and saves the secret they chose, and Supabase's early access is said" do
         assert_not Supabase.registers?
+        assert_match "hourly sweep", Supabase.limits
         assert_not Supabase.many_secrets?
         assert Supabase::EVENTS.all? { |type| Supabase.setup_steps.join(" ").include?(type) }
         assert_includes Supabase.by_hand_note, "early access"

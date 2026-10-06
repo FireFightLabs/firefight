@@ -199,6 +199,7 @@ Rails.application.routes.draw do
         patch :map_events_secret
         delete :map_events_secrets, action: :forget_map_events_secrets
         patch :live_updates
+        get :live_updates_setup
       end
       collection do
         get :oauth_start

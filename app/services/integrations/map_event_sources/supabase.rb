@@ -58,6 +58,9 @@ module Integrations
           [ ResourceMap::Event.new(id: id, at: at, action: type == PROJECT_CREATED ? ResourceMap::Event::ADDED : ResourceMap::Event::UPDATED, scope: scope) ]
         end
 
+        def limits = "Supabase says when a project or a preview branch changes in the organizations and projects you set an endpoint " \
+                     "up for. Any other reaches the map at each hourly sweep."
+
         def setup_steps
           [
             "Choose a signing secret of 8 to 64 characters.",

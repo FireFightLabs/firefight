@@ -46,6 +46,7 @@ module Integrations
       test "an admin adds a webhook to each database, each with a secret of its own, so every one saved counts" do
         assert Planetscale.many_secrets?
         assert_not Planetscale.registers?
+        assert_match "hourly sweep", Planetscale.limits
         assert Planetscale::EVENTS.all? { |type| Planetscale.setup_steps.join(" ").include?(type) }
       end
     end
