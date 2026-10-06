@@ -36,6 +36,11 @@ module Integrations
 
     def deployment(deployment_id) = get("/api/v1/deployments/#{segment(deployment_id)}")
 
+    # The environment's variables as name, value and isSecret, a secret's value redacted. environment is the slug the key
+    # belongs to (dev, stg, prod or preview), and a key of another environment is refused.
+    # https://github.com/triggerdotdev/trigger.dev/blob/main/apps/webapp/app/routes/api.v1.projects.$projectRef.envvars.$slug.ts
+    def environment_variables(project, environment) = Array(get("/api/v1/projects/#{segment(project)}/envvars/#{segment(environment)}"))
+
     # Error groups with how often each happened in the range (list_errors_v1).
     def errors(filter: {}, limit: PAGE_SIZE) = paged("/api/v1/errors", deep("filter", filter), limit, 1)
 

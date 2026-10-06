@@ -26,6 +26,10 @@ module Integrations
 
     def canonical_urls = get("#{API_PREFIX}/get_canonical_urls")
 
+    # The deployment's environment variables, name to value (ListEnvVarsResponse). Convex says a later version may leave
+    # its secret ones out.
+    def environment_variables = get("#{API_PREFIX}/list_environment_variables")["environmentVariables"].to_h
+
     # One page of audit log events on or after from (milliseconds since epoch), least recent first, with the cursor for
     # the next page.
     def audit_log(from:, limit: AUDIT_PAGE, cursor: nil)
