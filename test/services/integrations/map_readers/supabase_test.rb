@@ -90,6 +90,42 @@ module Integrations
         assert_no_match(/supabase\.co/, snapshot.inspect.gsub(%r{https://supabase\.com/dashboard\S*}, ""))
       end
 
+      test "a re-read of one project reads it and its branches as the sweep does, and finds it gone only when Supabase says not found" do
+        tools = { Supabase::GET_PROJECT => Integration::Tool.new, Supabase::LIST_BRANCHES => Integration::Tool.new }
+        scope = ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "abcdefghijklmnopqrst")
+        asked = []
+        snapshot = Supabase.new(settings, tools) do |tool, arguments|
+          asked << [ tool, arguments ]
+          next answer(tool) unless tool == Supabase::GET_PROJECT
+
+          { "content" => [ { "type" => "text", "text" => PROJECTS["projects"].first.merge("status" => "INACTIVE").to_json } ] }
+        end.map(scope: scope)
+
+        assert_equal [ Supabase::GET_PROJECT, { "id" => "abcdefghijklmnopqrst" } ], asked.first
+        project = snapshot.resources.first
+        assert_equal [ [ "supabase", "acme", ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst" ], "INACTIVE" ], [ project.key, project.status ]
+        assert_equal 3, snapshot.resources.size
+
+        missing = { "content" => [ { "type" => "text", "text" => "Project not found" } ], "isError" => true }
+        gone = Supabase.new(settings, tools) { |tool, _arguments| tool == Supabase::GET_PROJECT ? missing : answer(tool) }.map(scope: scope)
+        assert_equal [ [ "supabase", "acme", ResourceMap::KIND_DATABASE, "abcdefghijklmnopqrst" ] ], gone.gone
+
+        refused = { "content" => [ { "type" => "text", "text" => "Your account does not have the necessary privileges" } ], "isError" => true }
+        assert_raises(Integrations::Error) { Supabase.new(settings, tools) { |_tool, _arguments| refused }.map(scope: scope) }
+        assert_nil Supabase.new(settings, {}) { |tool, _arguments| answer(tool) }.map(scope: scope), "with get_project off a sweep reads it"
+      end
+
+      test "a connection scoped to one project reads only that one again, and nothing for another project an organization's endpoint sent" do
+        scoped = settings(Capabilities::Supabase::SCOPED_TO => "abcdefghijklmnopqrst")
+        ours = Supabase.new(scoped) { |tool, _arguments| answer(tool) }
+                       .map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "abcdefghijklmnopqrst"))
+        assert_equal "abcdefghijklmnopqrst", ours.resources.first.external_id
+
+        other = Supabase.new(scoped) { |tool, _arguments| answer(tool) }
+                        .map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "anotherprojectrefxxx"))
+        assert_equal [ [], [] ], [ other.resources, other.gone ]
+      end
+
       private
 
       def settings(fields = {})

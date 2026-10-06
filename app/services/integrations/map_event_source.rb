@@ -9,6 +9,10 @@ module Integrations
   # and may answer:
   #   setup_steps                             sentences saying how an admin sends the provider's changes to the
   #                                           connection's address, for a provider Firefight cannot register with
+  #   by_hand_note                            a sentence said beside those steps while no secret is saved, such as what the
+  #                                           provider asks of an account before it sends anything
+  #   many_secrets?                           true when an admin adds a webhook at each of several places, such as each
+  #                                           database, and each signs with a secret of its own, so every one saved counts
   #   register(row, url:)                     registers a webhook itself, answering a Webhook, and raises Refused when
   #                                           the provider turns it down for its plan or a limit
   #   confirmation_for(row, url:)             a sentence saying what registering would cost the account, such as its
@@ -70,6 +74,10 @@ module Integrations
       end
 
       def setup_steps = []
+
+      def by_hand_note = nil
+
+      def many_secrets? = false
 
       def limits = nil
 

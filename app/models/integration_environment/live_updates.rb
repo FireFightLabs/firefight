@@ -99,9 +99,35 @@ module IntegrationEnvironment::LiveUpdates
 
   def map_events_secret_set? = map_events_secret.present?
 
-  # The secret an admin pasted from the provider. Saving it again replaces it.
+  # Every secret a delivery may be signed with. A provider whose webhooks each sign with their own (many_secrets?) keeps
+  # one a line, which no secret holds.
+  def map_events_secrets = map_events_secret.to_s.split("\n").compact_blank
+
+  # The secret an admin pasted from the provider. Saving it again replaces it, or joins the others when each of the
+  # provider's webhooks has its own.
   def save_map_events_secret!(secret)
+    secret = secret.to_s.strip
+    secret = (map_events_secrets + [ secret ]).uniq.join("\n") if map_event_source&.many_secrets?
     update!(map_events_secret: secret, map_events_error: nil)
+  end
+
+  # Drops every saved secret, so nothing the provider sends counts until an admin saves one again.
+  def forget_map_events_secrets!
+    update!(map_events_secret: nil)
+  end
+
+  # Why a person cannot forget the saved secrets, or nil. Only a provider whose webhooks each sign with their own keeps
+  # several, and anywhere else saving a new secret replaces the one there is.
+  def forget_map_events_secrets_blocked_reason
+    return "#{integration.name} keeps one signing secret, which saving a new one replaces." unless map_events_set_up_by_hand? && map_event_source.many_secrets?
+
+    "No signing secret is saved for #{integration.name}." unless map_events_secret_set?
+  end
+
+  def forget_map_events_secrets_words
+    count = map_events_secrets.size
+    "Firefight forgets the #{count} signing #{'secret'.pluralize(count)} saved for #{integration.name}. Changes it sends no longer reach the map " \
+      "until you add a secret again, and the map updates at each hourly sweep."
   end
 
   # Firefight registers, extends and removes the provider's webhook with the connection's own credentials, and no person
@@ -206,7 +232,9 @@ module IntegrationEnvironment::LiveUpdates
     return "#{name}'s registration for changes lapsed. Firefight registers again at the next sweep." if source.registers? && map_events_lapsed?
     return "Firefight registers for #{name}'s changes at the next sweep." if source.registers? && map_events_webhook_id.blank?
 
-    "Send #{name}'s changes to Firefight and save the signing secret under Integrations to turn them on." if !source.registers? && !map_events_secret_set?
+    return if source.registers? || map_events_secret_set?
+
+    Integrations::Sentence.all("Send #{name}'s changes to Firefight and save the signing secret under Integrations to turn them on", source.by_hand_note)
   end
 
   def map_events_lapsed? = map_events_expires_at.present? && map_events_expires_at <= Time.current

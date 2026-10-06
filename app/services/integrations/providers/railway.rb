@@ -5,6 +5,7 @@ module Integrations
       key: "railway",
       pack: "Integrations::Packs::Railway",
       adapter: "Integrations::Capabilities::Railway",
+      map_events: "Integrations::MapEventSources::Railway",
       status_words: {
         "initializing" => "pending", "waiting" => "pending", "needs_approval" => "pending",
         "skipped" => "stopped", "removing" => "stopped", "removed" => "stopped"
