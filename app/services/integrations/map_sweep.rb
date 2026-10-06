@@ -38,7 +38,8 @@ module Integrations
     end
 
     # What follows every write of the map, a sweep or a re-read after a change event (MapEvents): search indexes what
-    # changed in one job and the matcher runs again for the workspace. Anything else that reads the map as a whole after
+    # changed in one job and the matchers run again for the workspace, linking what settings name exactly
+    # (ResourceMap::HostMatcher) and suggesting the rest. Anything else that reads the map as a whole after
     # it changes joins here, so both paths keep it.
     def self.written!(environment_row, changed)
       SearchDocument.index_later(ResourceMap::Resource, changed)

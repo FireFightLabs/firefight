@@ -72,6 +72,42 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
     timings.each { |tool, (_, seconds)| assert_operator seconds, :<, 10, tool.name }
   end
 
+  test "the matchers read only the pairs that share a word or an address, so a sweep on the large map stays quick" do
+    row = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "aws", name: "AWS", slug: "aws_scale").integration_environments.create!
+    # Each database is named for its own project, and three services for each of the first thousand projects share it.
+    connection.execute(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, { workspace: @workspace.id } ]))
+      UPDATE resource_map_resources SET name = CASE WHEN kind = 'database' THEN 'p' || substring(external_id FROM 10) || 'x-prod'
+                                                    WHEN substring(external_id FROM 10)::int < 4000 THEN 'p' || (substring(external_id FROM 10)::int % 1000) || 'x-web'
+                                                    ELSE name END
+      WHERE workspace_id = :workspace
+    SQL
+    # Every service has a setting, and the three services of each of the first thousand projects name the address its database reports.
+    connection.execute(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, { workspace: @workspace.id, row: row.id } ]))
+      INSERT INTO resource_map_uses (workspace_id, resource_id, integration_environment_id, variable, fingerprint, port, last_seen_at, created_at, updated_at)
+      SELECT :workspace, id, :row, 'DATABASE_URL',
+             md5(CASE WHEN substring(external_id FROM 10)::int < 4000 THEN 'address' || (substring(external_id FROM 10)::int % 1000)
+                      ELSE 'elsewhere' || external_id END), 5432, now(), now(), now()
+      FROM resource_map_resources WHERE workspace_id = :workspace AND kind = 'service'
+    SQL
+    connection.execute(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, { workspace: @workspace.id, row: row.id } ]))
+      INSERT INTO resource_map_endpoints (workspace_id, resource_id, integration_environment_id, fingerprint, port, last_seen_at, created_at, updated_at)
+      SELECT :workspace, id, :row, md5('address' || substring(external_id FROM 10)), 5432, now(), now(), now()
+      FROM resource_map_resources WHERE workspace_id = :workspace AND kind = 'database'
+    SQL
+    connection.execute("ANALYZE resource_map_uses")
+    connection.execute("ANALYZE resource_map_endpoints")
+
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    ResourceMap::Matcher.new(@workspace).run!
+    seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+    links = ResourceMap::Link.where(workspace: @workspace, relation: ResourceMap::RELATION_USES, origin: [ ResourceMap::ORIGIN_MATCHED, ResourceMap::ORIGIN_INFERRED ])
+    assert_equal 3000, links.where(origin: ResourceMap::ORIGIN_MATCHED).count
+    assert_equal 0, links.where(origin: ResourceMap::ORIGIN_INFERRED).count, "a pair matched exactly is not suggested as well"
+    # Generous, since machines differ. Comparing every service with every database in Ruby would take far longer.
+    assert_operator seconds, :<, 60
+  end
+
   private
 
   def assert_indexed(relation, label) = assert_no_match FULL_SCANS, explain(relation.to_sql), label

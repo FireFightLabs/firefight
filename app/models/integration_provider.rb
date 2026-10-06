@@ -129,9 +129,9 @@ class IntegrationProvider
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
-                      :app) do
+                      :app, :setting_words) do
     def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], site: nil, code_agent: false, app: nil, **) = super
+                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], **) = super
 
     # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
     def app_connect? = kind == Integration::KIND_MCP && app.present? && IntegrationProvider.app_client(key).present?
@@ -235,7 +235,10 @@ class IntegrationProvider
         # A coding agent writes a change for any repository in its own environment and opens the pull request itself.
         # It writes a fix's code changes only once an admin chooses it under Settings, Workspace.
         code_agent: raw["code_agent"] == true,
-        app: raw["app"] && App.new(**raw["app"].symbolize_keys)
+        app: raw["app"] && App.new(**raw["app"].symbolize_keys),
+        # Words in a setting's name that point at this provider's stores, such as NEON in NEON_DATABASE_URL. A clue the
+        # map's matcher reads when a setting's value is hidden or names no address a store reported.
+        setting_words: Array(raw["setting_words"]).map { |word| word.to_s.upcase }
       )
     end.freeze
   end
@@ -275,6 +278,9 @@ class IntegrationProvider
   end
 
   def self.coding_agents = all.select(&:code_agent)
+
+  # Every word any provider's stores are named by in a setting.
+  def self.setting_words = @setting_words ||= all.flat_map(&:setting_words).uniq.freeze
 
   # A code host's pack writes a change in Firefight's sandbox for the repositories its connection sees.
   def self.code_hosts = all.select { |entry| entry.code_fix_tool && !entry.code_agent }
