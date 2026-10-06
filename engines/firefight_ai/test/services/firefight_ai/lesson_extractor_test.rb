@@ -37,6 +37,20 @@ class FirefightAi::LessonExtractorTest < ActiveSupport::TestCase
     assert_empty @extractor.extract(@incident, sources: [ FirefightAi::LessonExtractor::Source.new(title: "Empty", text: "") ]).lessons
   end
 
+  test "is shown what the workspace already remembers, rejected ones marked, so it never learns them again" do
+    chat = stub_model
+    asked = nil
+    chat.stubs(:ask).with { |prompt| (asked = prompt) || true }.returns(llm_reply(content: { "lessons" => [], "verdicts" => [] }, input: 100, output: 50, cost: 0.0001))
+    remembered = [
+      FirefightAi::LessonExtractor::Remembered.new(text: "Checkout keeps sessions in Redis", rejected: false),
+      FirefightAi::LessonExtractor::Remembered.new(text: "Checkout uses MySQL", rejected: true)
+    ]
+
+    @extractor.extract(@incident, sources: @sources, remembered: remembered)
+
+    assert_includes asked, "Already remembered in this workspace:\n- Checkout keeps sessions in Redis\n- Checkout uses MySQL (rejected)"
+  end
+
   private
 
   def stub_model(lessons: [], verdicts: [])
@@ -45,5 +59,6 @@ class FirefightAi::LessonExtractorTest < ActiveSupport::TestCase
     chat.stubs(:with_schema).returns(chat)
     chat.stubs(:ask).returns(llm_reply(content: { "lessons" => lessons, "verdicts" => verdicts }, input: 100, output: 50, cost: 0.0001))
     RubyLLM.stubs(:chat).returns(chat)
+    chat
   end
 end

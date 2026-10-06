@@ -22,12 +22,10 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")
 
-    assert_broadcast_on(
-      ConversationChannel.broadcasting_for(conversation),
-      { "type" => Conversation::LiveDelivery::EVENT_FAILED }
-    ) do
-      ConversationReplyJob.perform_now(conversation.id)
-    end
+    ConversationReplyJob.perform_now(conversation.id)
+
+    sent = broadcasts(ConversationChannel.broadcasting_for(conversation)).map { |message| JSON.parse(message)["type"] }
+    assert_includes sent, Conversation::LiveDelivery::EVENT_FAILED
 
     assert_equal Conversation::Delivery::FAILED,
                  conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content

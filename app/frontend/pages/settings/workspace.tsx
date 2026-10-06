@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ARCHIVE_CHANNEL_DELAY_CHOICES } from "@/lib/generated/constants"
+import { ARCHIVE_CHANNEL_DELAY_CHOICES, MEMORY_EXPIRY_DAY_CHOICES } from "@/lib/generated/constants"
 import { integrationsPath, settingsWorkspacePath } from "@/lib/routes"
 import {
   IssueTrackingCard,
@@ -27,6 +27,17 @@ interface WorkspacePageProps extends SharedProps {
 
 function retentionText(days?: number): string {
   return days ? String(days) : ""
+}
+
+// No window is a choice of its own in the picker, sent as an empty value the server saves as none.
+const MEMORIES_KEPT = "kept"
+
+function expiryChoice(days?: number): string {
+  return days ? String(days) : MEMORIES_KEPT
+}
+
+function expiryDays(choice: string): string {
+  return choice === MEMORIES_KEPT ? "" : choice
 }
 
 // Firefight's own agent is no connection, and a connection's slug never holds a hyphen, so this never names one.
@@ -47,6 +58,7 @@ export default function Workspace() {
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
   const [webSearch, setWebSearch] = useState(settings.webSearchEnabled)
   const [regression, setRegression] = useState(settings.halonRegressionEnabled)
+  const [memoryExpiry, setMemoryExpiry] = useState(expiryChoice(settings.memoryExpiryDays))
   const [codeFixAgent, setCodeFixAgent] = useState(agentChoice(settings.codeFixAgent))
   const connectedAgents = settings.codeFixAgents.length > 1
   const [issueTracking, setIssueTracking] = useState<IssueTrackingState>({
@@ -86,6 +98,7 @@ export default function Workspace() {
         archive_channel_delay: archiveDelay,
         web_search_enabled: webSearch,
         halon_regression_enabled: regression,
+        memory_expiry_days: expiryDays(memoryExpiry),
         code_fix_agent: agentSlug(codeFixAgent),
         issue_tracker: trackerSlug(issueTracking.tracker),
         issue_creation: issueTracking.creation,
@@ -236,6 +249,33 @@ export default function Workspace() {
                 </p>
               </div>
               <Switch id="halon-regression" checked={regression} onCheckedChange={setRegression} />
+            </div>
+
+            <div className="max-w-prose">
+              <Label htmlFor="memory-expiry" className="text-foreground">
+                Stop using unconfirmed memories
+              </Label>
+              <div className="mt-2">
+                <Select value={memoryExpiry} onValueChange={setMemoryExpiry}>
+                  <SelectTrigger id="memory-expiry" className="w-72">
+                    <SelectValue placeholder="Choose when" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={MEMORIES_KEPT}>Never, use them until someone decides</SelectItem>
+                    {MEMORY_EXPIRY_DAY_CHOICES.map((days) => (
+                      <SelectItem key={days} value={String(days)}>
+                        After {days} days without a confirmation
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {errors.memory_expiry_days && <p className="mt-2 text-sm text-destructive">{errors.memory_expiry_days}</p>}
+              <p className="mt-2 text-sm text-muted-foreground">
+                Halon uses what it learns at once, marked unconfirmed until a person confirms it. Choose a window and a
+                memory nobody confirms in time expires. Halon stops using it, and it moves to Expired on the Memory page,
+                where anyone can still confirm it. One Halon learns again starts waiting afresh.
+              </p>
             </div>
 
             <div className="max-w-prose">

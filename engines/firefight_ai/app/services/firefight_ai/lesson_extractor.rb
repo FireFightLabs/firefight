@@ -15,18 +15,21 @@ module FirefightAi
     # What the app hands over: a titled block of text such as the finding, the summary or the postmortem.
     Source = Data.define(:title, :text)
     Known = Data.define(:id, :text)
+    # Something the workspace already holds about what the incident touches, for the extractor never to learn again.
+    Remembered = Data.define(:text, :rejected)
 
     def initialize(workspace)
       @workspace = workspace
     end
 
     # subjects are the names a lesson may be about. known are lessons learned before, for the sources to agree with or
-    # contradict. only_mistakes asks for the one lesson about what Halon got wrong, when an answer was marked wrong late.
-    def extract(incident, sources:, subjects: [], known: [], only_mistakes: false)
+    # contradict. remembered is what the workspace already holds on the same subjects, never to be learned again.
+    # only_mistakes asks for the one lesson about what Halon got wrong, when an answer was marked wrong late.
+    def extract(incident, sources:, subjects: [], known: [], remembered: [], only_mistakes: false)
       sources = sources.select { |source| source.text.present? }
       return Result.new(lessons: [], verdicts: []) if sources.empty?
 
-      content = call_ai(incident, prompt(incident, sources, subjects, known, only_mistakes)).parsed
+      content = call_ai(incident, prompt(incident, sources, subjects, known, remembered, only_mistakes)).parsed
       content = content.is_a?(Hash) ? content.with_indifferent_access : {}
       found = lessons(content, subjects)
       Result.new(lessons: only_mistakes ? found.first(1) : found, verdicts: verdicts(content, known))
@@ -89,15 +92,17 @@ module FirefightAi
         - Set about to one of the names given, copied exactly, or leave it empty.
         - For each lesson learned before, say whether the sources agree with it, contradict it, or say nothing about it. When they contradict it, give what is right instead.
         - Never restate a lesson learned before, in any words.
+        - Never write anything the workspace already remembers, in any words. One marked rejected is known to be wrong, so never write it either.
         - Plain sentences, no markdown, no em dashes, no semicolons.
       PROMPT
     end
 
-    def prompt(incident, sources, subjects, known, only_mistakes)
+    def prompt(incident, sources, subjects, known, remembered, only_mistakes)
       parts = [ "Incident: #{incident.identifier} #{incident.name}" ]
       parts << "Write only the lesson about what Halon got wrong, at most one, and none when the sources do not show what was really going on." if only_mistakes
       parts << "Names a lesson may be about:\n#{subjects.map { |name| "- #{name}" }.join("\n")}" if subjects.any?
       parts << "Lessons learned before:\n#{known.map { |each| "- #{each.id}: #{each.text}" }.join("\n")}" if known.any?
+      parts << "Already remembered in this workspace:\n#{remembered.map { |each| "- #{each.text}#{' (rejected)' if each.rejected}" }.join("\n")}" if remembered.any?
       sources.each { |source| parts << "## #{source.title}\n#{source.text.last(MAX_SOURCE_CHARS)}" }
       parts.join("\n\n")
     end

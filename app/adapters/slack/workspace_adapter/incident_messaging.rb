@@ -550,23 +550,19 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
-  def post_learned_memories(channel_id:, incident_id:, incident_identifier:, memories:)
+  def post_learned_memories(channel_id:, thread_id:, post:)
     translate_errors do
       result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id,
-        text: Slack::Messages::LearnedMemories.fallback(incident_identifier, memories),
-        blocks: Slack::Messages::LearnedMemories.build(incident_id: incident_id, incident_identifier: incident_identifier, memories: memories)
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post)
       )
       { message_id: result[:ts], channel_id: channel_id }
     end
   end
 
-  def update_learned_memories(channel_id:, message_id:, incident_id:, incident_identifier:, memories:)
-    update_message(
-      channel_id: channel_id, message_id: message_id,
-      text: Slack::Messages::LearnedMemories.fallback(incident_identifier, memories),
-      blocks: Slack::Messages::LearnedMemories.build(incident_id: incident_id, incident_identifier: incident_identifier, memories: memories)
-    )
+  def update_learned_memories(channel_id:, message_id:, post:)
+    update_message(channel_id: channel_id, message_id: message_id,
+                   text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post))
     { success: true }
   end
 

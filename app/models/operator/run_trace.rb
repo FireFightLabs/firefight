@@ -50,7 +50,7 @@ module Operator
     end
 
     def facts_span
-      pack = run.seed_pack
+      pack = run.starting_facts
       return nil if pack.blank?
 
       # Counts every list in the seed pack, so a new section shows up without changing this code.
