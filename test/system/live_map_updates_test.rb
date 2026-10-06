@@ -86,6 +86,8 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
       page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-confirm.png"))
       click_button "Turn on"
     end
+    # The toast is hidden from view until the dialog has closed.
+    assert_no_selector "[role='dialog']", text: "Turn on live updates?"
     assert_text "Live updates are on. Changes Render sends now reach the map."
     assert_text "Live updates: on, no change received yet"
     assert_equal "whk-1", render.reload.map_events_webhook_id
