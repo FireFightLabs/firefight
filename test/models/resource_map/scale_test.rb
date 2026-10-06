@@ -1,0 +1,83 @@
+require "test_helper"
+
+# A workspace holding 100,000 resources among other workspaces' resources, read through its indexes. A plan that scans
+# either table in full would read every workspace's rows, so each query's plan is checked rather than its time, which
+# varies by machine. Rows are written by the database itself, since building them in Ruby takes far longer than the test.
+class ResourceMap::ScaleTest < ActiveSupport::TestCase
+  RESOURCES = 100_000
+  OTHERS = 150_000
+  CHAIN = 10
+  FULL_SCANS = /Seq Scan on resource_map_(resources|links)\b/
+
+  setup do
+    @workspace = workspaces(:slack_workspace_one)
+    fill(@workspace, RESOURCES, linked: true)
+    fill(workspaces(:slack_workspace_two), OTHERS)
+    fill(workspaces(:slack_workspace_expired), OTHERS)
+    connection.execute("ANALYZE resource_map_resources")
+    connection.execute("ANALYZE resource_map_links")
+  end
+
+  test "every filter, a later page, the capped count and the walk along links read through indexes" do
+    first = ResourceMap::Query.new(@workspace).page(limit: 50)
+    assert_equal [ ResourceMap::Query::COUNT_CAP, true, "10,000+" ], [ first.total, first.capped, first.total_label ]
+
+    {
+      "first page" => {}, "provider and account" => { provider: "aws", account: "account-2" }, "kind" => { kind: ResourceMap::KIND_DATABASE },
+      "status" => { status: "failed" }, "health" => { health: ResourceMap::Resource::HEALTH_FAILING }, "tag" => { tag: "team=payments" },
+      "tag named alone" => { tag: "team" }, "field" => { fields: { ResourceMap::TAGS => { "team" => "payments" } } }, "name prefix" => { name_prefix: "resource-0999" }
+    }.each do |label, filters|
+      query = ResourceMap::Query.new(@workspace, **filters)
+      assert_indexed query.listing(cursor: first.next_cursor, limit: 51), label
+      # The count stops at the cap, so a scan that stops there costs little, and the planner rightly takes one for a
+      # workspace that is a large share of the table. A filter has to narrow it through an index.
+      counting = explain(query.scope.limit(ResourceMap::Query::COUNT_CAP + 1).select(:id).to_sql)
+      assert_match(/\ALimit/, counting, "#{label} count")
+      assert_no_match FULL_SCANS, counting, "#{label} count" if filters.any?
+    end
+
+    root = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "resource-0")
+    graph = ResourceMap::Graph.new(root)
+
+    assert_equal CHAIN - 1, graph.total
+    assert_equal CHAIN - 1, graph.nodes.last.hop
+    assert_no_match FULL_SCANS, explain(graph.reached_sql)
+    assert_no_match FULL_SCANS, explain(ResourceMap::Graph.new(root, kinds: [ ResourceMap::KIND_SERVICE ]).reached_sql)
+    last = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "resource-#{CHAIN - 1}")
+    assert_no_match FULL_SCANS, explain(ResourceMap::Graph.new(last, direction: ResourceMap::Graph::DEPENDS_ON).reached_sql)
+    assert_equal graph.resources.pluck(:id).sort, ResourceMap::BlastRadius.new(root).dependent_ids.sort
+  end
+
+  private
+
+  def assert_indexed(relation, label) = assert_no_match FULL_SCANS, explain(relation.to_sql), label
+
+  def explain(sql) = connection.select_values("EXPLAIN #{sql}").join("\n")
+
+  def connection = ResourceMap::Resource.connection
+
+  # Resources named resource-000000 onwards, the first thousand databases and the rest services, across two providers,
+  # a hundred accounts and three statuses, one in a hundred tagged. Linked, each one uses the one before it in chains
+  # of ten. Other workspaces' links are left out, since writing them is most of the test's time and no plan reads them.
+  def fill(workspace, count, linked: false)
+    connection.execute(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, { workspace: workspace.id, last: count - 1 } ]))
+      INSERT INTO resource_map_resources (workspace_id, provider, account, kind, external_id, name, status, details, first_seen_at, last_seen_at, created_at, updated_at)
+      SELECT :workspace, CASE WHEN i % 2 = 0 THEN 'aws' ELSE 'google_cloud' END, 'account-' || (i % 100),
+             CASE WHEN i < 1000 THEN 'database' ELSE 'service' END, 'resource-' || i, 'resource-' || lpad(i::text, 6, '0'),
+             (ARRAY['running', 'failed', 'pending'])[i % 3 + 1],
+             CASE WHEN i % 100 = 0 THEN '{"tags": {"team": "payments"}}'::jsonb ELSE '{}'::jsonb END, now(), now(), now(), now()
+      FROM generate_series(0, :last) AS i
+    SQL
+    return unless linked
+
+    connection.execute(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, { workspace: workspace.id } ]))
+      WITH numbered AS (
+        SELECT id, substring(external_id FROM 10)::int AS i FROM resource_map_resources WHERE workspace_id = :workspace
+      )
+      INSERT INTO resource_map_links (workspace_id, from_resource_id, to_resource_id, relation, origin, last_seen_at, created_at, updated_at)
+      SELECT :workspace, later.id, earlier.id, 'uses', 'declared', now(), now(), now()
+      FROM numbered later JOIN numbered earlier ON earlier.i = later.i - 1
+      WHERE later.i % #{CHAIN} <> 0
+    SQL
+  end
+end

@@ -461,7 +461,8 @@ module Integrations
             "namespace" => item.dig("metadata", "namespace"),
             "instances" => Kubernetes.desired(kind.key, item),
             "schedule" => item.dig("spec", "schedule"),
-            "images" => Kubernetes.images(kind.key, item).join(", ").presence
+            "images" => Kubernetes.images(kind.key, item).join(", ").presence,
+            ResourceMap::TAGS => item.dig("metadata", "labels").presence
           }.compact
         end
 

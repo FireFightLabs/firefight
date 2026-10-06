@@ -244,6 +244,12 @@ module Integrations
         assert_match "Azure SQL databases could not be read", snapshot.gap_texts.first
       end
 
+      test "a resource's tags are kept in its details for finding it by, and one with none leaves the key out" do
+        resource = { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "tags" => { "team" => "payments", "env" => "prod" } }
+        assert_equal({ "team" => "payments", "env" => "prod" }, @pack.send(:item, resource, Azure::TYPE_POSTGRES, "Ready")[:details][ResourceMap::TAGS])
+        assert_not @pack.send(:item, resource.merge("tags" => {}), Azure::TYPE_POSTGRES, "Ready")[:details].key?(ResourceMap::TAGS)
+      end
+
       test "an app list that could not be read holds back the hostnames apps serve, and a server still provisioning reads pending" do
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
 

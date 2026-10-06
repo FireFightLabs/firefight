@@ -202,6 +202,15 @@ module Integrations
         assert_match "Compute Engine instances could not be read", snapshot.gap_texts.first
       end
 
+      test "each kind's labels are kept in its details from where Google's API puts them, and none leaves the key out" do
+        labels = { "team" => "payments" }
+        assert_equal labels, @pack.send(:run_item, SERVICE.merge("labels" => labels))[:details][ResourceMap::TAGS]
+        assert_equal labels, @pack.send(:sql_item, "acme-prod", { "name" => "orders", "region" => "us-central1", "settings" => { "userLabels" => labels } })[:details][ResourceMap::TAGS]
+        assert_equal labels, @pack.send(:machine_item, { "name" => "bastion", "zone" => "zones/us-central1-a", "labels" => labels })[:details][ResourceMap::TAGS]
+        assert_equal labels, @pack.send(:cluster_item, "acme-prod", { "name" => "main", "location" => "us-central1", "resourceLabels" => labels })[:details][ResourceMap::TAGS]
+        assert_not @pack.send(:run_item, SERVICE)[:details].key?(ResourceMap::TAGS)
+      end
+
       test "a zone Google Cloud could not reach is a gap, so its machines and clusters are not taken as gone" do
         GoogleCloudApi.any_instance.stubs(:compute_instances).returns(reached([], unreachable: [ "us-east1-b" ]))
         GoogleCloudApi.any_instance.stubs(:clusters).returns(reached([], unreachable: [ "europe-west1-c" ]))
