@@ -5,7 +5,7 @@
 export default interface Integration {
   id: string
   disabled: boolean
-  environments: { id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: "unknown" | "healthy" | "failing"; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: { on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean } | null; turnOn: string | null; turnOff: string | null } | null }[]
+  environments: { id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: "unknown" | "healthy" | "failing"; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: { on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlocked: string | null } | null; turnOn: string | null; turnOff: string | null } | null }[]
   kind: "mcp" | "http" | "native"
   name: string
   provider: string

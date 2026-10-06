@@ -43,6 +43,34 @@ module Integrations
       assert_raises(Integrations::RateLimited) { @api.restart("dep-1") }
     end
 
+    test "a project's webhook is a notification rule with a webhook channel carrying Firefight's header, outside preview environments" do
+      Http.expects(:request).with do |_, request, **|
+        body = JSON.parse(request.body)
+        input = body.dig("variables", "input")
+        body["query"].include?("notificationRuleCreate(input: $input)") && input["workspaceId"] == "ws-1" && input["projectId"] == "prj-1" &&
+          input["eventTypes"] == %w[Deployment.failed] && input["ephemeralEnvironments"] == false &&
+          input["channelConfigs"] == [ { "type" => "webhook", "url" => "https://ff.example/hook", "headers" => { "X-Secret" => "s" } } ]
+      end.returns(response(200, { data: { notificationRuleCreate: { id: "rule-1" } } }))
+
+      assert_equal({ "id" => "rule-1" }, @api.create_webhook("ws-1", "prj-1", url: "https://ff.example/hook", events: %w[Deployment.failed], headers: { "X-Secret" => "s" }))
+
+      Http.expects(:request).with { |_, request, **| JSON.parse(request.body).dig("variables", "id") == "rule-1" && request.body.include?("notificationRuleDelete") }
+          .returns(response(200, { data: { notificationRuleDelete: true } }))
+      assert @api.delete_webhook("rule-1")
+    end
+
+    test "Railway saying something is not there is NotFound, and a refusal of the request as it stands is Refused" do
+      Http.stubs(:request).returns(response(200, { errors: [ { message: "ServiceInstance not found" } ] }))
+      assert_raises(RailwayApi::NotFound) { @api.service_instance("env-1", "svc-1") }
+
+      Http.stubs(:request).returns(response(200, { errors: [ { message: "Not Authorized" } ] }))
+      assert_raises(RailwayApi::Refused) { @api.create_webhook("ws-1", "prj-1", url: "https://ff.example/hook", events: [], headers: {}) }
+
+      Http.stubs(:request).returns(response(200, { errors: [ { message: "Problem processing request" } ] }))
+      error = assert_raises(RailwayApi::Error) { @api.notification_rules("ws-1", "prj-1") }
+      assert_equal RailwayApi::Error, error.class
+    end
+
     private
 
     def response(code, body)

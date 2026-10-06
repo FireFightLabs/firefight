@@ -6,11 +6,33 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { liveUpdatesIntegrationPath, mapEventsSecretIntegrationPath } from "@/lib/routes"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import {
+  liveUpdatesIntegrationPath,
+  mapEventsSecretIntegrationPath,
+  mapEventsSecretsIntegrationPath,
+} from "@/lib/routes"
 import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
 import type { Integration } from "@/types/serializers"
 
 type LiveUpdatesState = NonNullable<Integration["environments"][number]["liveUpdates"]>
+
+type SetupState = NonNullable<LiveUpdatesState["setup"]>
+
+// What the secret field says, given whether each of the provider's webhooks signs with a secret of its own.
+function secretPlaceholder(setup: SetupState): string {
+  if (setup.manySecrets) {
+    return setup.secretCount > 0 ? `${setup.secretCount} saved. Paste another to add it` : "Paste a signing secret"
+  }
+  return setup.secretSet ? "Saved. Paste a new one to replace it" : "Paste the signing secret"
+}
+
+function secretNote(setup: SetupState): string {
+  const accepted = setup.manySecrets
+    ? "Each webhook signs with a secret of its own, so add each one. Firefight accepts a change signed with any of them, and a secret is never shown again."
+    : "Firefight accepts a change only when it is signed with this secret, and the secret is never shown again."
+  return `${accepted} A change is never taken as it is sent. Firefight reads what it names again and updates the map.`
+}
 
 // Whether a connection's changes reach the map between sweeps, and for a provider set up by hand, where to send them
 // and the secret they are signed with.
@@ -27,7 +49,7 @@ export function LiveUpdates({
 }) {
   const [secret, setSecret] = useState("")
   const [copied, setCopied] = useState(false)
-  const [confirming, setConfirming] = useState<"on" | "off" | null>(null)
+  const [confirming, setConfirming] = useState<"on" | "off" | "forget" | null>(null)
   const setup = state.setup
   const secretId = `map-events-secret-${rowId}`
 
@@ -58,6 +80,19 @@ export function LiveUpdates({
 
   function stopConfirming() {
     setConfirming(null)
+  }
+
+  function askForget() {
+    setConfirming("forget")
+  }
+
+  function confirmForget() {
+    router.delete(mapEventsSecretsIntegrationPath(integrationId), {
+      data: { environment_row_id: rowId },
+      preserveScroll: true,
+      preserveState: true,
+      onFinish: stopConfirming,
+    })
   }
 
   function confirmTurn() {
@@ -150,18 +185,42 @@ export function LiveUpdates({
                 type="password"
                 autoComplete="off"
                 className="h-8 w-64"
-                placeholder={setup.secretSet ? "Saved. Paste a new one to replace it" : "Paste the signing secret"}
+                placeholder={secretPlaceholder(setup)}
                 value={secret}
                 onChange={changeSecret}
               />
             </div>
             <Button type="submit" size="sm" variant="outline" disabled={secret.trim() === ""}>
-              Save secret
+              {setup.manySecrets ? "Add secret" : "Save secret"}
             </Button>
+            {setup.manySecrets &&
+              (setup.forgetSecretsBlocked ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-fit">
+                      <Button type="button" size="sm" variant="outline" disabled>
+                        Forget secrets
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{setup.forgetSecretsBlocked}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button type="button" size="sm" variant="outline" onClick={askForget}>
+                  Forget secrets
+                </Button>
+              ))}
           </form>
+          <ConfirmDeleteDialog
+            open={confirming === "forget"}
+            title="Forget signing secrets?"
+            description={setup.forgetSecrets ?? ""}
+            confirmLabel="Forget secrets"
+            onConfirm={confirmForget}
+            onCancel={stopConfirming}
+          />
           <p className="text-muted-foreground text-xs">
-            Firefight accepts a change only when it is signed with this secret, and the secret is never shown again. A
-            change is never taken as it is sent. Firefight reads what it names again and updates the map.
+            {secretNote(setup)}
           </p>
         </div>
       )}

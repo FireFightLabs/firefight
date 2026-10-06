@@ -10,6 +10,10 @@ module Integrations
       NAME = "Supabase".freeze
       LIST_PROJECTS = "list_projects".freeze
       LIST_BRANCHES = "list_branches".freeze
+      GET_PROJECT = "get_project".freeze
+      # The server hands back the Management API's own message when it refuses (supabase-mcp, management-api/index.ts,
+      # assertSuccess), which for a project that is not there says so.
+      NOT_FOUND = /\bnot found\b/i
       DOMAIN = "supabase.co".freeze
       POOLER_DOMAIN = "pooler.supabase.com".freeze
       DIRECT_PORTS = [ 5432, 6543 ].freeze
@@ -26,20 +30,58 @@ module Integrations
         @endpoints = []
       end
 
-      def map
-        scoped = settings&.field(Capabilities::Supabase::SCOPED_TO)
+      # Everything the connection reaches, or with scope only the project a change named and its branches
+      # (Integrations::MapEventSources::Supabase), read as the sweep reads it. nil for a scope it cannot narrow to, or when
+      # a tool the narrow read needs is off, which a sweep reads.
+      def map(scope: nil)
+        return refreshed(scope) if scope
+
         if scoped
-          # A connection scoped to one project has no account tools, so the project is known only by its ref.
-          project({ "ref" => scoped })
-          gap("This connection is scoped to project #{scoped}, and Supabase gives such a connection no project details, so it is named by its ref.", kinds: [])
+          scoped_project
         else
           kinds = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ]
           Array(objects(listing(LIST_PROJECTS, "projects", {}, kinds: kinds), "projects", kinds: kinds, key: "projects")).each { |project| project(project) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints)
+        snapshot
       end
 
       private
+
+      def refreshed(scope)
+        ref = scope.external_id
+        return unless scope.kind == ResourceMap::KIND_DATABASE && ref
+        # An organization's endpoint sends every project's changes, and a connection scoped to one reads only that one.
+        if scoped
+          return ResourceMap::Snapshot.new(resources: []) unless scoped == ref
+
+          scoped_project
+          return snapshot
+        end
+        return unless on?(GET_PROJECT) && on?(LIST_BRANCHES)
+
+        result = call(GET_PROJECT, { "id" => ref })
+        if result["isError"]
+          words = Capabilities::Answers.text(result)
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER, scope.account, ResourceMap::KIND_DATABASE, ref ] ]) if scope.account && words.match?(NOT_FOUND)
+
+          raise Integrations::Error, Sentence.join("#{NAME} refused to read project #{ref}", words.truncate(200))
+        end
+        project = Capabilities::Answers.data(result)
+        raise Integrations::Error, "#{NAME} answered project #{ref} with something that is not JSON." unless project.is_a?(Hash)
+
+        project(project)
+        snapshot
+      end
+
+      def scoped = settings&.field(Capabilities::Supabase::SCOPED_TO)
+
+      # A connection scoped to one project has no account tools, so the project is known only by its ref.
+      def scoped_project
+        project({ "ref" => scoped })
+        gap("This connection is scoped to project #{scoped}, and Supabase gives such a connection no project details, so it is named by its ref.", kinds: [])
+      end
+
+      def snapshot = ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints)
 
       def project(project)
         ref = project["ref"].presence || project["id"]

@@ -16,8 +16,8 @@ class Api::V1::MapEventsController < ActionController::API
     return head :content_too_large if raw_body.bytesize > MAX_BYTES
 
     # Nothing is accepted before a secret is saved, unless Firefight registered the webhook and the provider signs it its own way.
-    expected = row.map_events_secret.present? || row.map_events_webhook_id.present?
-    unless expected && source.verify(raw_body: raw_body, headers: request.headers, secret: row.map_events_secret)
+    secrets = row.map_events_secrets.presence || ([ nil ] if row.map_events_webhook_id.present?)
+    unless secrets&.any? { |secret| source.verify(raw_body: raw_body, headers: request.headers, secret: secret) }
       Rails.logger.warn({ event: "map_events.signature_refused", integration_environment_id: row.id, provider: row.integration.provider }.to_json)
       return head :unauthorized
     end

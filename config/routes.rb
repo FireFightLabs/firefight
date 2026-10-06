@@ -197,6 +197,7 @@ Rails.application.routes.draw do
         patch :retarget_environment
         patch :choose
         patch :map_events_secret
+        delete :map_events_secrets, action: :forget_map_events_secrets
         patch :live_updates
       end
       collection do

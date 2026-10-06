@@ -297,24 +297,7 @@ module Integrations
         account = "#{project}/#{environment['id']}"
         found = []
         links = []
-        resources(environment_row).each do |resource|
-          instance = resource[:instance]
-          latest = instance["latestDeployment"] || {}
-          item = ResourceMap::Found.new(
-            provider: PROVIDER_KEY, account: account, kind: KINDS.fetch(resource[:type]), external_id: resource[:id], name: resource[:name],
-            status: latest["status"]&.downcase, url: service_url(environment_row, project, environment["id"], resource[:id]),
-            details: { "type" => resource[:engine] ? "#{resource[:engine]} #{DATABASE}" : resource[:type], "instances" => instance["numReplicas"],
-                       "region" => instance["region"], ResourceMap::DEPLOYED_COMMIT => latest.dig("meta", "commitHash") }.compact
-          )
-          found << item
-          repository(item, instance.dig("source", "repo"), found, links)
-          domains = instance["domains"] || {}
-          (Array(domains["serviceDomains"]) + Array(domains["customDomains"])).filter_map { |domain| domain["domain"].presence }.uniq.each do |host|
-            domain = ResourceMap.domain(host)
-            found << domain
-            links << ResourceMap::FoundLink.new(from: domain.key, to: item.key, relation: ResourceMap::RELATION_SERVED_BY)
-          end
-        end
+        resources(environment_row).each { |resource| read_resource(environment_row, project, environment, account, resource, found, links) }
         gaps = []
         uses, endpoints = settings(environment_row, account, links, gaps)
         listed = instances(environment_row)
@@ -324,6 +307,55 @@ module Integrations
         end
         ResourceMap::Snapshot.new(resources: found, links: links, gaps: gaps, uses: uses, endpoints: endpoints)
       end
+
+      # Only the service a change named (Integrations::MapEventSources::Railway), read again as the sweep reads it, with
+      # where its variables point. A project's webhook sends every environment's changes, so one about another
+      # environment reads nothing here. Gone only when Railway answers that the service is not there. nil for a scope
+      # Railway cannot narrow to, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        return unless scope.external_id && (scope.kind.nil? || KINDS.value?(scope.kind))
+
+        project = project_of(environment_row)
+        environment = environment(environment_row)
+        account = "#{project}/#{environment['id']}"
+        return ResourceMap::Snapshot.new(resources: []) if scope.account && scope.account != account
+
+        instance = begin
+          api(environment_row).service_instance(environment["id"], scope.external_id)
+        rescue RailwayApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: KINDS.values.uniq.map { |kind| [ PROVIDER_KEY, account, kind, scope.external_id ] })
+        end
+        return unless instance
+
+        resource = resource_of(instance)
+        found = []
+        links = []
+        read_resource(environment_row, project, environment, account, resource, found, links)
+        gaps = []
+        uses, endpoints = settings(environment_row, account, links, gaps, only: [ resource ])
+        ResourceMap::Snapshot.new(resources: found, links: links, gaps: gaps, uses: uses, endpoints: endpoints)
+      end
+
+      # One service, database or cron job with the repository it builds from and the domains it serves, onto found and links.
+      def read_resource(environment_row, project, environment, account, resource, found, links)
+        instance = resource[:instance]
+        latest = instance["latestDeployment"] || {}
+        item = ResourceMap::Found.new(
+          provider: PROVIDER_KEY, account: account, kind: KINDS.fetch(resource[:type]), external_id: resource[:id], name: resource[:name],
+          status: latest["status"]&.downcase, url: service_url(environment_row, project, environment["id"], resource[:id]),
+          details: { "type" => resource[:engine] ? "#{resource[:engine]} #{DATABASE}" : resource[:type], "instances" => instance["numReplicas"],
+                     "region" => instance["region"], ResourceMap::DEPLOYED_COMMIT => latest.dig("meta", "commitHash") }.compact
+        )
+        found << item
+        repository(item, instance.dig("source", "repo"), found, links)
+        domains = instance["domains"] || {}
+        (Array(domains["serviceDomains"]) + Array(domains["customDomains"])).filter_map { |domain| domain["domain"].presence }.uniq.each do |host|
+          domain = ResourceMap.domain(host)
+          found << domain
+          links << ResourceMap::FoundLink.new(from: domain.key, to: item.key, relation: ResourceMap::RELATION_SERVED_BY)
+        end
+      end
+      private :read_resource
 
       # How many services' variables one sweep reads. Railway allows a Free plan's token 100 requests an hour (docs,
       # content/docs/reference/public-api.md, Rate Limits), which the hourly sweep shares with everything else the token
@@ -346,12 +378,12 @@ module Integrations
       # Where each service's variables point, read in memory. A reference to a database on the map is a declared link
       # naming the variable, a sealed variable is known by its name only, and a database's own private domain and TCP
       # proxy are where it is reached. Only a share of the services is read each sweep (SETTINGS_PER_SWEEP), and the
-      # rest keep what an earlier sweep read.
-      def settings(environment_row, account, links, gaps)
+      # rest keep what an earlier sweep read. only reads those resources alone, as a re-read does, listing the others
+      # only when a variable names one by its name.
+      def settings(environment_row, account, links, gaps, only: nil)
         api = api(environment_row)
-        all = resources(environment_row).sort_by { |resource| resource[:id] }
-        share = share_of(all, gaps)
-        by_name = all.index_by { |resource| resource[:name] }
+        share = only || share_of(resources(environment_row).sort_by { |resource| resource[:id] }, gaps)
+        by_name = -> { @by_name ||= resources(environment_row).index_by { |resource| resource[:name] } }
         workspace = environment_row.integration.workspace
         share.each_with_object([ [], [] ]) do |resource, (uses, endpoints)|
           unrendered, rendered = api.service_variables(project_of(environment_row), environment(environment_row)["id"], resource[:id])
@@ -386,7 +418,7 @@ module Integrations
       def declared(key, account, unrendered, by_name, links)
         unrendered.each do |name, value|
           value.to_s.scan(REFERENCE).each do |service_name, _|
-            target = by_name[service_name]
+            target = by_name.call[service_name] unless service_name == SHARED
             next if service_name == SHARED || target.nil? || target[:type] != DATABASE
 
             to = [ PROVIDER_KEY, account, ResourceMap::KIND_DATABASE, target[:id] ]
@@ -455,15 +487,15 @@ module Integrations
         end
       end
 
-      def resources(environment_row)
-        @resources ||= instances(environment_row).items.map do |instance|
-          engine = engine_of(instance.dig("source", "image"))
-          type = if instance["cronSchedule"].present? then CRON_JOB
-          elsif engine then DATABASE
-          else SERVICE
-          end
-          { id: instance["serviceId"], name: instance["serviceName"], type: type, engine: engine, instance: instance }
+      def resources(environment_row) = @resources ||= instances(environment_row).items.map { |instance| resource_of(instance) }
+
+      def resource_of(instance)
+        engine = engine_of(instance.dig("source", "image"))
+        type = if instance["cronSchedule"].present? then CRON_JOB
+        elsif engine then DATABASE
+        else SERVICE
         end
+        { id: instance["serviceId"], name: instance["serviceName"], type: type, engine: engine, instance: instance }
       end
 
       # The environment's service instances, as a Pages::Read that says whether they were read to the end.

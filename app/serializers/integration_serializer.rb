@@ -33,7 +33,7 @@ class IntegrationSerializer < BaseSerializer
   # what changed. setup is there for a provider an admin sends them from by hand: the connection's own address (null
   # while Firefight's own address is not set), the steps, and whether a signing secret is saved. turnOn and turnOff are
   # what a person confirms before turning live updates on or off, null where they cannot.
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean } | null; turnOn: string | null; turnOff: string | null } | null".freeze
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlocked: string | null } | null; turnOn: string | null; turnOff: string | null } | null".freeze
 
   type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: #{LIVE_UPDATES_TYPE} }[]"
   def environments
@@ -69,7 +69,12 @@ class IntegrationSerializer < BaseSerializer
     state = row.live_updates
     return unless state
 
-    setup = ({ address: Integrations::MapEvents.url_for(row), steps: row.map_event_source.setup_steps, secretSet: row.map_events_secret_set? } if row.map_events_set_up_by_hand?)
+    if row.map_events_set_up_by_hand?
+      setup = { address: Integrations::MapEvents.url_for(row), steps: row.map_event_source.setup_steps, secretSet: row.map_events_secret_set?,
+                manySecrets: row.map_event_source.many_secrets?, secretCount: row.map_events_secrets.size,
+                forgetSecrets: (row.forget_map_events_secrets_words unless row.forget_map_events_secrets_blocked_reason),
+                forgetSecretsBlocked: row.forget_map_events_secrets_blocked_reason }
+    end
     { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup,
       turnOn: (row.live_updates_turn_on_words unless row.live_updates_turn_on_blocked_reason),
       turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason) }
