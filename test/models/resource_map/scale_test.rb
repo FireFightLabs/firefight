@@ -48,6 +48,30 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
     assert_equal graph.resources.pluck(:id).sort, ResourceMap::BlastRadius.new(root).dependent_ids.sort
   end
 
+  test "the map tools answer on the large map, and get_resource_map gives its numbers rather than reading every resource" do
+    admin = workspace_memberships(:alice_workspace_one)
+    timings = {
+      Mcp::Tools::GetResourceMap => {}, Mcp::Tools::FindResources => { provider: [ "aws" ], name_starts_with: "resource-01" },
+      Mcp::Tools::GetResource => { resource: "resource-5" }, Mcp::Tools::GetResourceLinks => { resource: "resource-5" },
+      Mcp::Tools::GetResourceNeighbours => { resource: "resource-5" },
+      Mcp::Tools::TraverseResourceMap => { resource: "resource-0", direction: ResourceMap::Graph::DEPENDENTS, hops: 6 },
+      Mcp::Tools::BlastRadius => { resource: "resource-0" }, Mcp::Tools::ResourceMapStats => { group_by: ResourceMap::Stats::BY_ACCOUNT }
+    }.to_h do |tool, args|
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      answer = tool.perform_with_principal(workspace: @workspace, principal: admin, args: args).structured_content
+      assert_nil answer[:error], tool.name
+      [ tool, [ answer, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started ] ]
+    end
+
+    overview = timings[Mcp::Tools::GetResourceMap].first
+    assert_equal RESOURCES, overview[:resources]
+    assert_nil overview[:accounts]
+    assert_equal CHAIN - 1, timings[Mcp::Tools::BlastRadius].first[:dependents]
+    assert_equal "10,000+", Mcp::Tools::FindResources.perform_with_principal(workspace: @workspace, principal: admin, args: {}).structured_content[:total]
+    # Generous, since machines differ. A tool that read every resource row into Ruby would take far longer.
+    timings.each { |tool, (_, seconds)| assert_operator seconds, :<, 10, tool.name }
+  end
+
   private
 
   def assert_indexed(relation, label) = assert_no_match FULL_SCANS, explain(relation.to_sql), label
