@@ -25,6 +25,7 @@ module Integrations
             "restartPolicyType" => "ALWAYS", "latestDeployment" => { "id" => "dep-db", "status" => "SUCCESS" } },
           { "serviceId" => "svc-cron", "serviceName" => "nightly", "cronSchedule" => "0 3 * * *", "restartPolicyType" => "NEVER" }
         ], complete: true))
+        RailwayApi.any_instance.stubs(:service_variables).returns([ {}, {} ])
       end
 
       test "the credentials are stored trimmed, and only the restart, rollback and scale change anything" do
@@ -141,6 +142,59 @@ module Integrations
         assert_equal [ [ "svc-web", ResourceMap::RELATION_BUILT_FROM, "acme/shop" ], [ "web.up.railway.app", ResourceMap::RELATION_SERVED_BY, "svc-web" ],
                        [ "shop.acme.dev", ResourceMap::RELATION_SERVED_BY, "svc-web" ] ],
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
+      end
+
+      test "a reference to a database is a declared use, values are read in memory, and the database's own addresses are where it is reached" do
+        rendered = "postgresql://postgres:railway-db-pw@postgres.railway.internal:5432/railway"
+        RailwayApi.any_instance.stubs(:service_variables).with("prj-1", "env-prod", "svc-web").returns([
+          { "DATABASE_URL" => "${{Postgres.DATABASE_URL}}", "DATABASE_PUBLIC_URL" => "${{ Postgres.DATABASE_PUBLIC_URL }}", "FEATURE" => "${{shared.FEATURE}}",
+            "REDIS_URL" => nil },
+          { "DATABASE_URL" => rendered, "REDIS_URL" => nil, "RAILWAY_PRIVATE_DOMAIN" => "web.railway.internal" }
+        ])
+        RailwayApi.any_instance.stubs(:service_variables).with("prj-1", "env-prod", "svc-db").returns([
+          { "POSTGRES_PASSWORD" => "railway-db-pw" },
+          { "RAILWAY_PRIVATE_DOMAIN" => "postgres.railway.internal", "RAILWAY_TCP_PROXY_DOMAIN" => "shuttle.proxy.rlwy.net", "RAILWAY_TCP_PROXY_PORT" => "41234",
+            "DATABASE_URL" => rendered }
+        ])
+
+        snapshot = @pack.map_of(@row)
+
+        declared = snapshot.links.select { |link| link.relation == ResourceMap::RELATION_USES }
+        assert_equal [ [ "svc-web", "svc-db", %w[DATABASE_PUBLIC_URL DATABASE_URL] ] ], declared.map { |link| [ link.from.last, link.to.last, link.variables ] }
+        web = snapshot.uses.select { |use| use.from.last == "svc-web" }.index_by(&:variable)
+        assert_equal %w[DATABASE_URL REDIS_URL], web.keys.sort
+        assert_nil web["REDIS_URL"].fingerprint, "a sealed variable is known by its name only"
+        assert_empty snapshot.uses.select { |use| use.from.last == "svc-db" }
+        assert_equal [ ResourceMap::Fingerprint.of("postgres.railway.internal", 5432, @workspace), ResourceMap::Fingerprint.of("shuttle.proxy.rlwy.net", 41_234, @workspace) ],
+                     snapshot.endpoints.map(&:fingerprint)
+        ResourceMap.record!(@row, snapshot)
+        ResourceMap::Matcher.new(@workspace).run!
+        assert_equal %w[DATABASE_PUBLIC_URL DATABASE_URL],
+                     ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_DECLARED, relation: ResourceMap::RELATION_USES).variables
+        assert_no_setting_values(snapshot, rendered, "railway-db-pw", "postgres.railway.internal", "shuttle.proxy.rlwy.net")
+      end
+
+      test "a project with more services than a sweep reads is read a share an hour, and being asked to slow down stops reading" do
+        many = (1..25).map { |number| { "serviceId" => format("svc-%02d", number), "serviceName" => "s#{number}" } }
+        RailwayApi.any_instance.stubs(:service_instances).returns(Integrations::Pages::Read.new(items: many, complete: true))
+        read = []
+        RailwayApi.any_instance.stubs(:service_variables).with { |_, _, id| read << id }.returns([ {}, {} ])
+
+        travel_to Time.utc(2026, 10, 7, 0, 30) do
+          snapshot = @pack.map_of(@row)
+          assert_equal Railway::SETTINGS_PER_SWEEP, read.size
+          assert snapshot.complete?
+          assert_not snapshot.settings_complete?
+        end
+        first = read.dup
+        read.clear
+        travel_to Time.utc(2026, 10, 7, 1, 30) do
+          Railway.new(@integration).map_of(@row)
+        end
+        assert_not_equal first, read, "the next hour reads another share"
+
+        RailwayApi.any_instance.stubs(:service_variables).raises(RailwayApi::Error.new("Railway answered 429").extend(Integrations::RateLimited))
+        assert_includes Railway.new(@integration).map_of(@row).gap_texts, Railway::SLOWED
       end
 
       test "a service list cut short holds back every kind it puts on the map, its domains and repositories with it" do

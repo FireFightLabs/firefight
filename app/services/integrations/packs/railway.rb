@@ -315,12 +315,97 @@ module Integrations
             links << ResourceMap::FoundLink.new(from: domain.key, to: item.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
         end
+        gaps = []
+        uses, endpoints = settings(environment_row, account, links, gaps)
         listed = instances(environment_row)
-        return ResourceMap::Snapshot.new(resources: found, links: links) unless listed.incomplete?
-
-        gap = ResourceMap::Gap.new(text: "Only the first #{listed.items.size} services were read.", kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
-        ResourceMap::Snapshot.new(resources: found, links: links, gaps: [ gap ])
+        if listed.incomplete?
+          gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} services were read.",
+                                       kinds: KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
+        end
+        ResourceMap::Snapshot.new(resources: found, links: links, gaps: gaps, uses: uses, endpoints: endpoints)
       end
+
+      # How many services' variables one sweep reads. Railway allows a Free plan's token 100 requests an hour (docs,
+      # content/docs/reference/public-api.md, Rate Limits), which the hourly sweep shares with everything else the token
+      # does, so a project with more services is read a share at a time, a different share each hour.
+      SETTINGS_PER_SWEEP = 20
+      # A reference to another service's variable, as Railway writes it in a variable's value (docs,
+      # content/docs/guides/variables.md, Reference Variables), such as ${{Postgres.DATABASE_URL}}. shared names the
+      # project's shared variables, not a service.
+      REFERENCE = /\$\{\{\s*([^.{}]+?)\s*\.\s*([A-Za-z0-9_]+)\s*\}\}/
+      SHARED = "shared".freeze
+      # Variables Railway provides each service with the names it answers on, its private domain and the public TCP
+      # proxy in front of a database when it has one (docs, content/docs/reference/variables.md, Railway-provided variables).
+      PRIVATE_DOMAIN = "RAILWAY_PRIVATE_DOMAIN".freeze
+      PROXY_DOMAIN = "RAILWAY_TCP_PROXY_DOMAIN".freeze
+      PROXY_PORT = "RAILWAY_TCP_PROXY_PORT".freeze
+      # The port each database engine Railway runs listens on inside the project, as its templates set it.
+      ENGINE_PORTS = { "Postgres" => 5432, "Redis" => 6379, "MongoDB" => 27_017, "MySQL" => 3306, "Memcached" => 11_211 }.freeze
+      SLOWED = "Railway asked Firefight to slow down, so the rest of the services' variables were not read this time.".freeze
+
+      # Where each service's variables point, read in memory. A reference to a database on the map is a declared link
+      # naming the variable, a sealed variable is known by its name only, and a database's own private domain and TCP
+      # proxy are where it is reached. Only a share of the services is read each sweep (SETTINGS_PER_SWEEP), and the
+      # rest keep what an earlier sweep read.
+      def settings(environment_row, account, links, gaps)
+        api = api(environment_row)
+        all = resources(environment_row).sort_by { |resource| resource[:id] }
+        share = share_of(all, gaps)
+        by_name = all.index_by { |resource| resource[:name] }
+        workspace = environment_row.integration.workspace
+        share.each_with_object([ [], [] ]) do |resource, (uses, endpoints)|
+          unrendered, rendered = api.service_variables(project_of(environment_row), environment(environment_row)["id"], resource[:id])
+          key = [ PROVIDER_KEY, account, KINDS.fetch(resource[:type]), resource[:id] ]
+          if resource[:type] == DATABASE
+            endpoints.concat(database_endpoints(key, resource, rendered, workspace))
+            next
+          end
+          declared(key, account, unrendered, by_name, links)
+          sealed = rendered.select { |_, value| value.nil? }.keys
+          uses.concat(ResourceMap::Use.read(from: key, workspace: workspace, values: rendered.compact.reject { |name, _| name.start_with?("RAILWAY_") },
+                                            names: sealed))
+        rescue Integrations::RateLimited
+          gaps << ResourceMap::Gap.new(text: SLOWED, kinds: [], settings: true)
+          break [ uses, endpoints ]
+        rescue RailwayApi::Error => error
+          gaps << ResourceMap::Gap.new(text: Sentence.join("The variables of #{resource[:name]} could not be read", error), kinds: [], settings: true)
+        end
+      end
+
+      # The services this sweep reads variables for, a different share each hour when there are more than a sweep reads.
+      def share_of(all, gaps)
+        return all if all.size <= SETTINGS_PER_SWEEP
+
+        gaps << ResourceMap::Gap.new(text: "The variables of #{SETTINGS_PER_SWEEP} of #{all.size} services were read this hour, to stay within " \
+                                           "Railway's request limit. The others are read in the hours that follow.", kinds: [], settings: true)
+        start = (Time.current.to_i / 1.hour.to_i * SETTINGS_PER_SWEEP) % all.size
+        all.rotate(start).first(SETTINGS_PER_SWEEP)
+      end
+
+      # A variable set to a reference to a database on the map says outright that the service uses it.
+      def declared(key, account, unrendered, by_name, links)
+        unrendered.each do |name, value|
+          value.to_s.scan(REFERENCE).each do |service_name, _|
+            target = by_name[service_name]
+            next if service_name == SHARED || target.nil? || target[:type] != DATABASE
+
+            to = [ PROVIDER_KEY, account, ResourceMap::KIND_DATABASE, target[:id] ]
+            index = links.index { |link| link.from == key && link.to == to && link.relation == ResourceMap::RELATION_USES }
+            found = ResourceMap::FoundLink.new(from: key, to: to, relation: ResourceMap::RELATION_USES,
+                                               variables: ((index ? links[index].variables : []) + [ name ]).uniq.sort)
+            index ? links[index] = found : links << found
+          end
+        end
+      end
+
+      def database_endpoints(key, resource, rendered, workspace)
+        private_port = ENGINE_PORTS[resource[:engine]]
+        [
+          (ResourceMap::Endpoint.at(resource: key, host: rendered[PRIVATE_DOMAIN], port: private_port, workspace: workspace) if private_port),
+          ResourceMap::Endpoint.at(resource: key, host: rendered[PROXY_DOMAIN], port: rendered[PROXY_PORT], workspace: workspace)
+        ].compact
+      end
+      private :settings, :share_of, :declared, :database_endpoints
 
       # What normal looks like for its services and databases: a week of CPU and memory, one reading an hour. A resource
       # Railway cannot read keeps yesterday's baselines, and being asked to slow down stops the whole read.

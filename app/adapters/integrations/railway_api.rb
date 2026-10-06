@@ -91,6 +91,18 @@ module Integrations
       }
     GRAPHQL
 
+    # A service's variables twice, as the CLI reads them to edit them (src/gql/queries/strings/ServiceVariablesForEdit.graphql):
+    # as set, with unrendered, where a reference to another service stays as written (${{Postgres.DATABASE_URL}}), and
+    # rendered, as the deployment gets them (variablesForServiceDeployment, schema "All rendered variables that are
+    # required for a service deployment"). Each is a map of name to value, a sealed variable's value null
+    # (src/controllers/variables.rs). Values are read only in memory.
+    SERVICE_VARIABLES = <<~GRAPHQL.freeze
+      query ServiceVariables($projectId: String!, $environmentId: String!, $serviceId: String!) {
+        unrendered: variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, unrendered: true)
+        rendered: variablesForServiceDeployment(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+      }
+    GRAPHQL
+
     def initialize(token)
       @token = token
     end
@@ -105,6 +117,11 @@ module Integrations
         nodes = Array(connection["edges"]).filter_map { |edge| edge["node"] }
         [ nodes, (connection.dig("pageInfo", "endCursor") if connection.dig("pageInfo", "hasNextPage")) ]
       end
+    end
+
+    def service_variables(project_id, environment_id, service_id)
+      answer = query(SERVICE_VARIABLES, "projectId" => project_id, "environmentId" => environment_id, "serviceId" => service_id)
+      [ answer["unrendered"].to_h, answer["rendered"].to_h ]
     end
 
     def deployments(project_id, environment_id, service_id, limit:)
