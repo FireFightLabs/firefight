@@ -19,9 +19,6 @@ module FirefightAi
 
     attr_accessor :default_model, :default_provider, :provider_settings, :request_timeout
 
-    # Keys that read an account's balance, kept apart from provider_settings since RubyLLM has no use for them.
-    attr_accessor :balance_keys
-
     # Deploy-level kill switch for milestone noting. Entitlement and credits still gate per workspace.
     attr_writer :milestones_enabled
 
@@ -29,7 +26,6 @@ module FirefightAi
       @default_model = nil
       @default_provider = nil
       @provider_settings = {}
-      @balance_keys = {}
       @request_timeout = 120
       @milestones_enabled = true
     end

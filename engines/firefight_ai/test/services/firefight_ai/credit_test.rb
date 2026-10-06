@@ -196,8 +196,8 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     assert_equal [ "openai" ], AiAccount.out_of_credit.pluck(:provider)
   end
 
-  test "OpenRouter's balance is read with its management key, and nothing is read without one or for another provider" do
-    FirefightAi.configuration.stubs(:balance_keys).returns(openrouter: "mgmt-key")
+  test "OpenRouter's balance is read with the key calls are made with, and nothing is read without one or for another provider" do
+    FirefightAi.configuration.stubs(:provider_settings).returns(openrouter_api_key: "sk-or-key")
     sent = nil
     ok = Net::HTTPOK.new("1.1", "200", "OK")
     ok.stubs(:body).returns({ data: { total_credits: 20.0, total_usage: 7.5 } }.to_json)
@@ -206,11 +206,18 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     Net::HTTP.expects(:start).with("openrouter.ai", 443, has_entries(use_ssl: true)).yields(http).returns(ok)
 
     assert_in_delta 12.5, FirefightAi::Balance.remaining("openrouter")
-    assert_equal "Bearer mgmt-key", sent["Authorization"]
+    assert_equal "Bearer sk-or-key", sent["Authorization"]
     assert_equal "/api/v1/credits", sent.path
     assert_nil FirefightAi::Balance.remaining("anthropic")
 
-    FirefightAi.configuration.stubs(:balance_keys).returns({})
+    FirefightAi.configuration.stubs(:provider_settings).returns({})
+    assert_nil FirefightAi::Balance.remaining("openrouter")
+  end
+
+  test "a key OpenRouter refuses for its balance reads as nothing" do
+    FirefightAi.configuration.stubs(:provider_settings).returns(openrouter_api_key: "sk-or-key")
+    Net::HTTP.stubs(:start).returns(Net::HTTPForbidden.new("1.1", "403", "Forbidden"))
+
     assert_nil FirefightAi::Balance.remaining("openrouter")
   end
 

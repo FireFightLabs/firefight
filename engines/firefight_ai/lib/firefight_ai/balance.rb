@@ -1,7 +1,7 @@
 module FirefightAi
   # What is left on the deployment's account with a provider, in dollars, for the providers that say. OpenRouter says
-  # through its credits endpoint, which takes a management key rather than the key calls are made with, so nothing is
-  # read until OPENROUTER_MANAGEMENT_KEY is set.
+  # through its credits endpoint, read with the key calls are made with. A key it refuses there reads as nothing, and
+  # the account then waits for its next answered call.
   module Balance
     OPENROUTER = "openrouter".freeze
     OPENROUTER_BASE = "https://openrouter.ai/api/v1".freeze
@@ -13,7 +13,7 @@ module FirefightAi
     def remaining(provider)
       return nil unless provider.to_s == OPENROUTER
 
-      key = FirefightAi.configuration.balance_keys[:openrouter]
+      key = FirefightAi.configuration.provider_settings[:openrouter_api_key]
       return nil if key.blank?
 
       data = get_json("#{FirefightAi.configuration.provider_settings[:openrouter_api_base].presence || OPENROUTER_BASE}/credits", key)
