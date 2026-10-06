@@ -103,7 +103,6 @@
   height: calc(100dvh - var(--header-height));
   margin-top: -1.5rem;
   overflow: hidden;
-  border-top: 1px solid var(--line);
 }
 
 @media (min-width: 48rem) {
