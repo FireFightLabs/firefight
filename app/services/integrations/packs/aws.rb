@@ -93,6 +93,8 @@ module Integrations
       LISTED_PER_KIND = 100
       # DescribeServices takes at most 10 services a call, DescribeServiceDeployments and DescribeServiceRevisions 20.
       SERVICES_PER_CALL = 10
+      # What DescribeServices is asked to include for a service's tags.
+      TAGS = "TAGS".freeze
       ARNS_PER_CALL = 20
       # The states DescribeInstances reports for an instance that still exists.
       LIVE_INSTANCE_STATES = %w[pending running shutting-down stopping stopped].freeze
@@ -249,7 +251,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, and the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags). For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -425,7 +427,7 @@ module Integrations
       # The account on the resource map, per region: its ECS services, Lambda functions, EC2 instances and RDS databases,
       # each with its page in the console. A list AWS refuses, or one cut short, is a gap, and its kind is not taken as gone.
       def map_of(environment_row)
-        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row))
+        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true)
         account = account_of(environment_row)
         resources = reading.entries.map do |entry|
           ResourceMap::Found.new(provider: PROVIDER_KEY, account: account, kind: entry.kind, external_id: entry.arn, name: entry.name,
@@ -495,14 +497,16 @@ module Integrations
       end
 
       # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap naming its kind and
-      # leaves the rest read, and being asked to slow down stops the read with a gap naming every kind.
-      def inventory(environment_row, kinds:, regions:)
+      # leaves the rest read, and being asked to slow down stops the read with a gap naming every kind. Only the map asks
+      # for tags, since ECS and Lambda return them only on request.
+      def inventory(environment_row, kinds:, regions:, tags: false)
         entries = []
         gaps = []
         regions.each do |region|
           kinds.each do |kind|
-            found, more = list_kind(environment_row, kind, region)
+            found, more, untagged = list_kind(environment_row, kind, region, tags)
             entries.concat(found)
+            gaps << untagged if untagged
             next unless more
 
             gaps << ResourceMap::Gap.new(text: "Only the first #{AwsApi::MAX_PAGES} pages of #{KIND_PLURALS.fetch(kind)} in #{region} were read.", kinds: [ kind ])
@@ -516,25 +520,37 @@ module Integrations
         Reading.new(entries: entries, gaps: gaps)
       end
 
-      def list_kind(environment_row, kind, region)
+      def list_kind(environment_row, kind, region, tags)
         case kind
-        when SERVICE then ecs_services(environment_row, region)
-        when FUNCTION then lambda_functions(environment_row, region)
+        when SERVICE then ecs_services(environment_row, region, tags)
+        when FUNCTION then lambda_functions(environment_row, region, tags)
         when INSTANCE then ec2_instances(environment_row, region)
         else rds_databases(environment_row, region)
         end
       end
 
-      def ecs_services(environment_row, region)
+      # With tags, DescribeServices returns each service's tags (include TAGS). A key whose policy refuses that still reads
+      # the services, without tags, and says so in a gap that holds nothing back, since every service was read.
+      def ecs_services(environment_row, region, tags = false)
         clusters, more = api(environment_row).all(:ecs, region, :list_clusters, {}, :cluster_arns)
+        untagged = nil
         entries = clusters.flat_map do |cluster|
           arns, cut = api(environment_row).all(:ecs, region, :list_services, { cluster: cluster }, :service_arns)
           more ||= cut
           arns.each_slice(SERVICES_PER_CALL).flat_map do |slice|
-            Array(api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: slice)[:services]).map { |service| service_entry(service, region) }
+            described = nil
+            if tags && untagged.nil?
+              begin
+                described = api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: slice, include: [ TAGS ])
+              rescue AwsApi::Denied => error
+                untagged = untagged_gap(SERVICE, region, error)
+              end
+            end
+            described ||= api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: slice)
+            Array(described[:services]).map { |service| service_entry(service, region) }
           end
         end
-        [ entries, more ]
+        [ entries, more, untagged ]
       end
 
       # A rollout stays COMPLETED after its tasks start failing, so a service running fewer tasks than it wants once its
@@ -546,12 +562,32 @@ module Integrations
         cluster = service[:cluster_arn].to_s.split("/").last
         Entry.new(kind: SERVICE, arn: service[:service_arn], name: service[:service_name], region: region, cluster: cluster, status: status,
                   details: { "region" => region, "type" => service[:launch_type] || "capacity provider", "instances" => service[:desired_count],
-                             "cluster" => cluster, "task_definition" => family_revision(service[:task_definition]) }.compact)
+                             "cluster" => cluster, "task_definition" => family_revision(service[:task_definition]),
+                             ResourceMap::TAGS => tags_of(service[:tags]) }.compact)
       end
 
-      def lambda_functions(environment_row, region)
+      # ListFunctions returns no tags, so with tags each function's are read with ListTags. A key whose policy refuses it
+      # keeps the functions without tags, and a gap says so. Being asked to slow down stops the read as any list does.
+      def lambda_functions(environment_row, region, tags = false)
         functions, more = api(environment_row).all(:lambda, region, :list_functions, {}, :functions)
-        [ functions.map { |function| function_entry(function, region) }, more ]
+        untagged = nil
+        entries = functions.map do |function|
+          entry = function_entry(function, region)
+          next entry unless tags && untagged.nil?
+
+          found = tags_of(api(environment_row).call(:lambda, region, :list_tags, resource: function[:function_arn])[:tags])
+          found ? entry.with(details: entry.details.merge(ResourceMap::TAGS => found)) : entry
+        rescue AwsApi::Denied => error
+          untagged = untagged_gap(FUNCTION, region, error)
+          entry
+        end
+        [ entries, more, untagged ]
+      end
+
+      # Tags left unread hold no resource back, so the gap names no kind and what is gone is still taken away.
+      def untagged_gap(kind, region, error)
+        ResourceMap::Gap.new(text: Sentence.join("Tags of #{KIND_PLURALS.fetch(kind)} in #{region} could not be read, so they are on the map without them", error),
+                             kinds: [])
       end
 
       # Failed when the function cannot run or its last change failed, and Lambda's own state otherwise.
@@ -594,8 +630,11 @@ module Integrations
                              ResourceMap::TAGS => tags_of(database[:tag_list]) }.compact)
       end
 
-      # The tags EC2 and RDS return with each resource, as key and value. ECS and Lambda list theirs only on request.
-      def tags_of(tags) = Array(tags).to_h { |tag| [ tag[:key].to_s, tag[:value].to_s ] }.presence
+      # Tags as key and value, from EC2's and RDS's lists of key and value pairs, ECS's of key and value, or Lambda's hash.
+      def tags_of(tags)
+        pairs = tags.is_a?(Hash) ? tags.to_a : Array(tags).map { |tag| [ tag[:key], tag[:value] ] }
+        pairs.to_h { |key, value| [ key.to_s, value.to_s ] }.presence
+      end
 
       # The resource a tool was asked about, from its ARN when that says enough, and otherwise by name from what the
       # connection lists.

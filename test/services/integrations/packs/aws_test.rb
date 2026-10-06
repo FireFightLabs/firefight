@@ -347,6 +347,54 @@ module Integrations
         assert_not @pack.send(:database_entry, database, "eu-west-1").details.key?(ResourceMap::TAGS)
       end
 
+      test "the map reads ECS services' tags with DescribeServices and Lambda functions' with ListTags, and only the map asks for them" do
+        inventory!
+        AwsApi.any_instance.expects(:call).with(:ecs, "eu-west-1", :describe_services, cluster: CLUSTER_ARN, services: [ SERVICE_ARN ], include: [ Aws::TAGS ])
+              .returns(services: [ service.merge(tags: [ { key: "team", value: "payments" } ]) ])
+        AwsApi.any_instance.expects(:call).with(:lambda, "eu-west-1", :list_tags, resource: FUNCTION_ARN).returns(tags: { "team" => "checkout" })
+
+        found = @pack.map_of(@row).resources.index_by(&:external_id)
+
+        assert_equal({ "team" => "payments" }, found[SERVICE_ARN].details[ResourceMap::TAGS])
+        assert_equal({ "team" => "checkout" }, found[FUNCTION_ARN].details[ResourceMap::TAGS])
+        assert_not @pack.send(:function_entry, function, "eu-west-1").details.key?(ResourceMap::TAGS)
+
+        AwsApi.any_instance.expects(:call).with { |_service, _region, operation, *| operation == :list_tags }.never
+        AwsApi.any_instance.expects(:call).with { |_service, _region, operation, params| operation == :describe_services && params.key?(:include) }.never
+        call(:list_resources, {})
+      end
+
+      test "a key that may not read tags still puts every service and function on the map, without tags, with a gap that holds nothing back" do
+        inventory!
+        denied = "AWS answered AccessDeniedException: not authorized to perform: ecs:ListTagsForResource"
+        AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, params| operation == :describe_services && params.key?(:include) }.raises(AwsApi::Denied, denied)
+        AwsApi.any_instance.stubs(:call).with { |_service, _region, operation, params| operation == :describe_services && !params.key?(:include) }.returns(services: [ service ])
+        answer(:list_tags, raises: [ AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform: lambda:ListTags" ])
+
+        snapshot = @pack.map_of(@row)
+
+        found = snapshot.resources.index_by(&:external_id)
+        assert_equal "web", found[SERVICE_ARN].name
+        assert_equal "checkout", found[FUNCTION_ARN].name
+        assert_not found[SERVICE_ARN].details.key?(ResourceMap::TAGS)
+        tag_gaps = snapshot.gaps.select { |gap| gap.text.start_with?("Tags of") }
+        assert_equal [ "Tags of ECS services in eu-west-1 could not be read, so they are on the map without them: #{denied}.",
+                       "Tags of Lambda functions in eu-west-1 could not be read, so they are on the map without them: AWS answered AccessDeniedException: not authorized to perform: lambda:ListTags." ],
+                     tag_gaps.map(&:text)
+        assert tag_gaps.all? { |gap| gap.kinds.empty? }
+        assert_equal [ ResourceMap::KIND_FUNCTION ], snapshot.unread_kinds, "only the Lambda list refused in us-east-1 holds anything back"
+      end
+
+      test "being asked to slow down while reading a function's tags stops the map's read like any list" do
+        inventory!
+        answer(:list_tags, raises: [ AwsApi::RateLimited, "AWS answered TooManyRequestsException: Rate exceeded" ])
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal Aws::KIND_NAMES.keys, snapshot.unread_kinds
+        assert_match "AWS asked to slow down while listing Lambda functions in eu-west-1", snapshot.gaps.last.text
+      end
+
       test "being asked to slow down stops the map's read, with every kind left unread" do
         AwsApi.any_instance.stubs(:all).raises(AwsApi::RateLimited, "AWS answered ThrottlingException: Rate exceeded")
 
@@ -436,6 +484,7 @@ module Integrations
         %i[list_clusters describe_instances describe_db_instances].each { |operation| listing.call(operation, "us-east-1", []) }
         AwsApi.any_instance.stubs(:all).with { |_service, region, called, *| called == :list_functions && region == "us-east-1" }
                     .raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform: lambda:ListFunctions")
+        answer(:list_tags, tags: {})
       end
 
       def service(rollout: "COMPLETED")
