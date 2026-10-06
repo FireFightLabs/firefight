@@ -198,6 +198,59 @@ module Integrations
         assert_not snapshot.settings_complete?
       end
 
+      test "a change to one service reads that service again, with its deploy, domains and settings, and nothing else" do
+        RenderApi.any_instance.expects(:services).never
+        RenderApi.any_instance.expects(:postgres_databases).never
+        web = { "id" => "srv-web", "name" => "web", "type" => "web_service", "suspended" => "not_suspended", "dashboardUrl" => WEB_PAGE,
+                "repo" => "https://github.com/acme/app", "serviceDetails" => { "plan" => "pro", "numInstances" => 3, "url" => "https://web.onrender.com" } }
+        RenderApi.any_instance.expects(:service).with("srv-web").returns(web)
+        RenderApi.any_instance.stubs(:deploys).with("srv-web", limit: 1).returns([ { "id" => "dep-3", "status" => "build_failed", "commit" => { "id" => "d00d" } } ])
+        RenderApi.any_instance.stubs(:custom_domains).with("srv-web").returns(Integrations::Pages::Read.new(items: [ { "name" => "shop.acme.dev" } ], complete: true))
+        url = "postgresql://web:pw@dpg-own.oregon-postgres.render.com/app"
+        RenderApi.any_instance.stubs(:env_vars).with("srv-web").returns(Integrations::Pages::Read.new(items: [ { "key" => "DATABASE_URL", "value" => url } ], complete: true))
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "srv-web"))
+
+        service = snapshot.resources.find { |found| found.external_id == "srv-web" }
+        assert_equal [ "tea-1", "build_failed", 3, "d00d" ], [ service.account, service.status, service.details["instances"], service.details[ResourceMap::DEPLOYED_COMMIT] ]
+        assert_equal %w[acme/app shop.acme.dev srv-web web.onrender.com], snapshot.resources.map(&:external_id).sort
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+        assert_empty snapshot.gone
+        assert snapshot.complete?
+      end
+
+      test "a service Render answers not found for is gone, whichever kind it was on the map" do
+        RenderApi.any_instance.stubs(:service).raises(RenderApi::NotFound, "Render answered 404: not found")
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "srv-old"))
+
+        assert_empty snapshot.resources
+        assert_equal [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ].map { |kind| [ "render", "tea-1", kind, "srv-old" ] }, snapshot.gone
+      end
+
+      test "a datastore is read again as Postgres or Key Value, and gone only when Render has neither" do
+        database = ResourceMap::Scope.new(kind: ResourceMap::KIND_DATABASE, external_id: "dpg-1")
+        RenderApi.any_instance.stubs(:postgres).with("dpg-1").returns("id" => "dpg-1", "name" => "db", "status" => "unavailable", "version" => "17")
+        assert_equal [ "unavailable", "Postgres 17" ], @pack.map_refresh(@row, database).resources.sole.then { |found| [ found.status, found.details["engine"] ] }
+
+        RenderApi.any_instance.stubs(:postgres).with("red-1").raises(RenderApi::NotFound, "Render answered 404: not found")
+        RenderApi.any_instance.stubs(:key_value).with("red-1").returns("id" => "red-1", "name" => "cache", "status" => "available")
+        cache = @pack.map_refresh(@row, database.with(external_id: "red-1")).resources.sole
+        assert_equal [ "cache", "Key Value instance" ], [ cache.name, cache.details["type"] ]
+
+        RenderApi.any_instance.stubs(:postgres).with("red-gone").raises(RenderApi::NotFound, "Render answered 404: not found")
+        RenderApi.any_instance.stubs(:key_value).with("red-gone").raises(RenderApi::NotFound, "Render answered 404: not found")
+        assert_equal [ [ "render", "tea-1", ResourceMap::KIND_DATABASE, "red-gone" ] ], @pack.map_refresh(@row, database.with(external_id: "red-gone")).gone
+      end
+
+      test "a change Render cannot narrow to one resource is left to the sweep, and any other refusal is not taken as gone" do
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SERVICE))
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.everything)
+
+        RenderApi.any_instance.stubs(:service).raises(RenderApi::Error, "Render answered 500: oops")
+        assert_raises(RenderApi::Error) { @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "srv-web")) }
+      end
+
       test "a name two resources share is refused, with the ids to name one by" do
         RenderApi.any_instance.stubs(:key_values).returns(Integrations::Pages::Read.new(items: [ { "id" => "red-2", "name" => "db", "status" => "available" } ], complete: true))
 

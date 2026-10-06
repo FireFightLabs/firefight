@@ -13,6 +13,7 @@ export function ConfirmDeleteDialog({
   title,
   description,
   confirmLabel = "Delete",
+  confirmVariant = "destructive",
   onConfirm,
   onCancel,
 }: {
@@ -20,6 +21,8 @@ export function ConfirmDeleteDialog({
   title: string
   description: string
   confirmLabel?: string
+  // A confirmation that adds rather than removes, such as turning something on, is not drawn as destructive.
+  confirmVariant?: "destructive" | "default"
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -32,7 +35,7 @@ export function ConfirmDeleteDialog({
         </DialogHeader>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button type="button" variant="destructive" onClick={onConfirm}>{confirmLabel}</Button>
+          <Button type="button" variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -741,4 +741,47 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     patch map_events_secret_integration_url(integration), params: { environment_row_id: row.id, secret: "whsec" }
     assert_nil row.reload.map_events_secret
   end
+
+  test "an admin turns live updates on and off for a connection that asked first, each with a toast" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "livehook", name: "Live hook", slug: "livehook")
+    row = integration.integration_environments.create!
+    LiveTestHook.asking = "Firefight's would be the account's only webhook."
+    previous = ENV["APP_HOST"]
+    ENV["APP_HOST"] = "firefight.example.com"
+    Integrations::MapEvents.prepare!(row)
+
+    get integrations_url, headers: inertia_headers
+    state = inertia_props["integrations"].find { |each| each["name"] == "Live hook" }["environments"].sole["liveUpdates"]
+    assert_equal [ false, LiveTestHook.asking, nil ], [ state["on"], state["turnOn"], state["turnOff"] ]
+
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
+    assert_redirected_to integrations_path
+    assert_equal "Live updates are on. Changes Live hook sends now reach the map.", flash[:notice]
+    assert row.reload.live_updates.on
+
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
+    assert_equal "Live updates are already on for Live hook.", flash[:alert]
+
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: false }
+    assert_equal "Live updates are off. Firefight removed its webhook from Live hook.", flash[:notice]
+    assert_not row.reload.live_updates.on
+
+    LiveTestHook.failure = "Live hook answered 500: down"
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
+    assert_equal "Firefight could not follow Live hook's changes: Live hook answered 500: down. The map still updates at each sweep.", flash[:alert]
+  ensure
+    LiveTestHook.asking = nil
+    LiveTestHook.failure = nil
+    ENV["APP_HOST"] = previous
+  end
+
+  test "a member cannot turn live updates on" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "livehook", name: "Live hook", slug: "livehook")
+    row = integration.integration_environments.create!
+    sign_in(users(:bob), @workspace)
+
+    patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
+
+    assert_nil row.reload.map_events_webhook_id
+  end
 end

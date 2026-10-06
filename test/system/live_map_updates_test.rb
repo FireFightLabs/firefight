@@ -47,4 +47,54 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-map.png"))
   end
+
+  test "a connection Firefight registered for changes says live updates are on, and one whose plan refused says why it is off" do
+    render = connect_live!(@workspace, provider: "render", name: "Render")
+    render.give_map_events_token!
+    render.update!(map_events_webhook_id: "whk-1", map_events_secret: "whsec_c2VjcmV0", map_events_received_at: 3.minutes.ago)
+    vercel = connect_live!(@workspace, provider: "vercel", name: "Vercel")
+    vercel.update!(map_events_error: "Vercel answered 403: Webhooks are not available on the Hobby plan. #{Integrations::MapEventSources::Vercel::PLAN_NOTE}")
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
+    assert_text "Live updates: on, last event 3 minutes ago"
+    assert_no_selector "#map-events-secret-#{render.id}"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render.png"))
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => vercel.integration_id)
+    assert_text "Live updates: off"
+    assert_text "Firefight could not follow Vercel's changes: Vercel answered 403: Webhooks are not available on the Hobby plan."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-vercel-refused.png"))
+  end
+
+  test "a Render workspace where Firefight's webhook would be the only one waits for an admin to turn live updates on, and off again" do
+    render = connect_live!(@workspace, provider: "render", name: "Render")
+    Integrations::Packs::Render.store_credentials!(render, Integrations::Packs::Render::API_KEY => "rnd_key")
+    render.store_fields!(Integrations::Packs::Render::WORKSPACE => "tea-1")
+    Integrations::RenderApi.any_instance.stubs(:webhooks).returns(Integrations::Pages::Read.new(items: [], complete: true))
+    Integrations::RenderApi.any_instance.stubs(:create_webhook).returns("id" => "whk-1", "secret" => "whsec_c2VjcmV0")
+    Integrations::RenderApi.any_instance.stubs(:delete_webhook).returns({})
+    Integrations::MapEvents.prepare!(render)
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
+    assert_text "Live updates: off"
+    assert_text "Firefight asks before adding its webhook to Render."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-turn-on.png"))
+
+    click_button "Turn on"
+    within(find("[role='dialog']", text: "Turn on live updates?")) do
+      assert_text Integrations::MapEventSources::Render::ONLY_WEBHOOK
+      page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-confirm.png"))
+      click_button "Turn on"
+    end
+    assert_text "Live updates are on. Changes Render sends now reach the map."
+    assert_text "Live updates: on, no change received yet"
+    assert_equal "whk-1", render.reload.map_events_webhook_id
+
+    # A fresh page, so the turn on toast is gone before the turn off one shows.
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
+    click_button "Turn off"
+    within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
+    assert_text "Live updates are off. Firefight removed its webhook from Render."
+    assert_text "Live updates were turned off, so the map updates at each sweep."
+  end
 end

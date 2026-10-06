@@ -179,6 +179,98 @@ module Integrations
       LiveTestHook.failure = nil
     end
 
+    test "each registration, extension and removal is in the activity log under the map sweep, a refusal with the provider's words" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      LiveTestHook.failure = "Live hook answered 403: not allowed"
+      with_app_host { MapEvents.prepare!(row) }
+      LiveTestHook.failure = nil
+      with_app_host { MapEvents.prepare!(row) }
+      MapEventWebhookRefreshJob.perform_now
+      MapEvents.connection_removed(row.integration)
+
+      logged = Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_MAP_SWEEP).order(:created_at)
+      assert_equal [ [ "register", Ability::Invocation::OUTCOME_ERROR, "Live hook answered 403: not allowed" ],
+                     [ "register", Ability::Invocation::OUTCOME_SUCCESS, nil ], [ "refresh", Ability::Invocation::OUTCOME_SUCCESS, nil ],
+                     [ "remove", Ability::Invocation::OUTCOME_SUCCESS, nil ] ],
+                   logged.map { |invocation| [ invocation.params["webhook"], invocation.outcome, invocation.error_summary ] }
+      assert logged.all? { |invocation| invocation.principal_label == SystemAgent.map_sweep.principal_label && invocation.params["connection"] == "livehook" }
+      assert logged.all? { |invocation| invocation.action_key == IntegrationEnvironment::MAP_EVENTS_WEBHOOK_ACTION_KEY && invocation.triggered_by_label == "Live updates" }
+    ensure
+      LiveTestHook.failure = nil
+    end
+
+    test "a registration refused for the plan or a limit is tried again a day later, and at once on a connection change" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      LiveTestHook.refusal = "Live hook answered 403: not on this plan"
+      with_app_host { MapEvents.prepare!(row) }
+      assert_equal "Firefight could not follow Live hook's changes: Live hook answered 403: not on this plan. Firefight tries again tomorrow. " \
+                   "The map still updates at each sweep.", row.reload.live_updates.reason
+
+      LiveTestHook.refusal = nil
+      travel 23.hours do
+        with_app_host { MapEvents.prepare!(row) }
+        assert_nil row.reload.map_events_webhook_id, "an hourly sweep within the day does not try again"
+        with_app_host { MapEvents.prepare!(row, now: true) }
+        assert_equal "hook-1", row.reload.map_events_webhook_id, "a connection change tries at once"
+      end
+      assert_equal 2, Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_MAP_SWEEP).count
+
+      row.update!(map_events_webhook_id: nil, map_events_refused_at: 25.hours.ago)
+      with_app_host { MapEvents.prepare!(row) }
+      assert_equal "hook-1", row.reload.map_events_webhook_id, "a day later the sweep tries again"
+    ensure
+      LiveTestHook.refusal = nil
+    end
+
+    test "a source that asks first waits for a person, who turns live updates on and off" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      LiveTestHook.asking = "Firefight's would be the account's only webhook."
+      LiveTestHook.registered = nil
+
+      with_app_host { MapEvents.prepare!(row) }
+      row.reload
+      assert_nil LiveTestHook.registered
+      assert_not row.live_updates.on
+      assert_equal "Firefight asks before adding its webhook to Live hook. Firefight's would be the account's only webhook.", row.live_updates.reason
+      assert_equal LiveTestHook.asking, row.live_updates_turn_on_words
+      assert_nil row.live_updates_turn_on_blocked_reason
+      with_app_host { MapEvents.prepare!(row) }
+      assert_nil LiveTestHook.registered, "the hourly sweep does not decide for the person"
+
+      with_app_host { MapEvents.turn_on!(row) }
+      assert row.reload.live_updates.on
+      assert_equal "Live updates are already on for Live hook.", row.live_updates_turn_on_blocked_reason
+      assert_nil row.live_updates_turn_off_blocked_reason
+
+      MapEvents.turn_off!(row)
+      row.reload
+      assert_equal [ "hook-1", nil ], [ LiveTestHook.removed, row.map_events_webhook_id ]
+      assert_equal "Live updates were turned off, so the map updates at each sweep.", row.live_updates.reason
+      LiveTestHook.asking = nil
+      with_app_host { MapEvents.prepare!(row, now: true) }
+      assert_nil row.reload.map_events_webhook_id, "nothing registers again until a person turns them on"
+      assert_equal %w[register remove], Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_MAP_SWEEP).order(:created_at).map { |each| each.params["webhook"] }
+    ensure
+      LiveTestHook.asking = nil
+    end
+
+    test "a connection whose webhook costs nothing cannot be turned off" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      with_app_host { MapEvents.prepare!(row) }
+
+      assert_equal "Firefight's webhook costs Live hook nothing, so live updates stay on while it is connected.", row.reload.live_updates_turn_off_blocked_reason
+    end
+
+    test "a provider that asks Firefight to slow down while it registers is tried again at the next sweep" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      LiveTestHook.stubs(:register).raises(Integrations::Error.new("Live hook answered 429: slow down").extend(Integrations::RateLimited))
+
+      with_app_host { MapEvents.prepare!(row) }
+
+      assert_equal "Firefight could not follow Live hook's changes: Live hook asked it to slow down, so Firefight registers again at the next sweep. " \
+                   "The map still updates at each sweep.", row.reload.live_updates.reason
+    end
+
     test "a connection set up by hand is off until its signing secret is saved" do
       state = @row.live_updates
 

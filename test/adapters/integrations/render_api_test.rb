@@ -50,6 +50,37 @@ module Integrations
       assert_equal "Render answered 403: You do not have permissions for the requested resource.", error.message
     end
 
+    test "a webhook is made for the workspace with the events named, switched on again, and deleted, at the paths the spec gives" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/webhooks" && request.is_a?(Net::HTTP::Post) &&
+          JSON.parse(request.body) == { "ownerId" => "tea-1", "name" => "Firefight", "url" => "https://ff.example/hook", "enabled" => true, "eventFilter" => [ "deploy_ended" ] }
+      end.returns(response(201, { id: "whk-1", secret: "whsec_abc" }))
+      assert_equal "whsec_abc", @api.create_webhook("tea-1", name: "Firefight", url: "https://ff.example/hook", events: [ "deploy_ended" ])["secret"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/webhooks/whk-1" && request.is_a?(Net::HTTP::Patch) && JSON.parse(request.body) == { "enabled" => true } }
+          .returns(response(200, { id: "whk-1", enabled: true }))
+      assert @api.enable_webhook("whk-1")["enabled"]
+
+      Http.expects(:request).with { |uri, request, **| uri.path == "/v1/webhooks/whk-1" && request.is_a?(Net::HTTP::Delete) }.returns(stub(code: "204", body: ""))
+      assert_equal({}, @api.delete_webhook("whk-1"))
+
+      Http.expects(:request).with { |uri, *| uri.path == "/v1/webhooks" && URI.decode_www_form(uri.query).include?([ "ownerId", "tea-1" ]) }
+          .returns(response(200, [ { cursor: "c1", webhook: { id: "whk-1", url: "https://ff.example/hook" } } ]))
+      assert_equal [ "whk-1" ], @api.webhooks("tea-1").items.map { |webhook| webhook["id"] }
+    end
+
+    test "not found and a request turned down as it stands are told apart from other refusals" do
+      Http.stubs(:request).returns(response(404, { message: "not found" }))
+      assert_raises(RenderApi::NotFound) { @api.service("srv-1") }
+
+      Http.stubs(:request).returns(response(400, { message: "webhooks are not available on your plan" }))
+      assert_raises(RenderApi::Refused) { @api.create_webhook("tea-1", name: "Firefight", url: "https://ff.example/hook", events: []) }
+
+      Http.stubs(:request).returns(response(401, { message: "unauthorized" }))
+      error = assert_raises(RenderApi::Error) { @api.owner("tea-1") }
+      assert_not error.is_a?(RenderApi::Refused)
+    end
+
     test "being asked to slow down is its own error" do
       Http.stubs(:request).returns(response(429, { message: "rate limit exceeded" }))
 
