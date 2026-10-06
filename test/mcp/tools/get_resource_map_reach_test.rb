@@ -36,6 +36,20 @@ module Mcp
         assert_no_hidden_name(sheet)
       end
 
+      test "a setting of a service outside the reader's environments that points at a store they read is never named" do
+        ResourceMap::Link.create!(workspace: @workspace, from_resource: map_resource(@workspace, "dev-worker"), to_resource: map_resource(@workspace, "orders-db"),
+                                  relation: ResourceMap::RELATION_USES, origin: ResourceMap::ORIGIN_MATCHED, variables: [ "SECRET_DB_URL" ],
+                                  clues: [ "SECRET_DB_URL on dev-worker names the address" ], last_seen_at: Time.current)
+        limit_map_to(@workspace, @member, catalog_entries(:production_env))
+
+        sheet = GetResourceMap.perform_with_principal(workspace: @workspace, principal: @member, args: { resource: "orders-db" }).structured_content
+        links = GetResourceLinks.perform_with_principal(workspace: @workspace, principal: @member, args: { resource: "orders-db" }).structured_content
+        view = ResourceMap::View.new(@workspace, @member).links
+
+        [ sheet, links, view.map(&:variables) ].each { |read| assert_not_includes read.to_json, "SECRET_DB_URL" }
+        assert_no_hidden_name(sheet)
+      end
+
       test "naming a resource outside the reader's environments reads the same as naming nothing" do
         limit_map_to(@workspace, @member, catalog_entries(:production_env))
 

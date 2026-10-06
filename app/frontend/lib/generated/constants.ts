@@ -183,6 +183,14 @@ export const RESOURCE_MAP_ORIGINS = [
 ] as const
 export type ResourceMapOrigin = (typeof RESOURCE_MAP_ORIGINS)[number]
 
+export const RESOURCE_MAP_ORIGIN = {
+  "DECLARED": "declared",
+  "MATCHED": "matched",
+  "PERSON": "person",
+  "SUGGESTED": "suggested",
+  "INFERRED": "inferred"
+} as const
+
 export const RESOURCE_MAP_CHANGE_KINDS = [
   "appeared",
   "removed",

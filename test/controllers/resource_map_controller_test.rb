@@ -28,6 +28,19 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Jobs could not be read" ], props["connections"].sole["gaps"]
   end
 
+  test "a link carries the names of the settings it was found in, and a matched one says why it cannot be removed by hand" do
+    ResourceMap::Link.create!(workspace: @workspace, from_resource: resource("web"), to_resource: resource("db"), relation: ResourceMap::RELATION_USES,
+                              origin: ResourceMap::ORIGIN_MATCHED, variables: [ "DATABASE_URL" ], clues: [ "DATABASE_URL on web names the address" ],
+                              last_seen_at: Time.current)
+
+    link = inertia_props(resource_map_path)["links"].find { |each| each["origin"] == ResourceMap::ORIGIN_MATCHED }
+
+    assert_equal [ "DATABASE_URL" ], link["variables"]
+    assert_nil link["foundBy"]
+    assert_equal "DATABASE_URL on web names this address, so the link goes when the setting stops naming it.", link["removalBlockedReason"]
+    assert_equal [], inertia_props(resource_map_path)["links"].find { |each| each["origin"] == ResourceMap::ORIGIN_DECLARED }["variables"]
+  end
+
   test "a person adds a link, can remove it, and cannot remove one a provider reports" do
     post resource_map_links_path, params: { from_id: resource("web").id, to_id: resource("db").id, relation: ResourceMap::RELATION_USES, note: "DATABASE_URL" }
     added = ResourceMap::Link.find_by!(from_resource: resource("web"), to_resource: resource("db"))
