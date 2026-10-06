@@ -103,6 +103,9 @@ GEM
       version_gem (~> 1.1, >= 1.1.10)
     aws-eventstream (1.4.0)
     aws-partitions (1.1292.0)
+    aws-sdk-cloudtrail (1.128.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
     aws-sdk-cloudwatch (1.149.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
@@ -888,6 +891,7 @@ PLATFORMS
 
 DEPENDENCIES
   archspec
+  aws-sdk-cloudtrail
   aws-sdk-cloudwatch
   aws-sdk-cloudwatchlogs
   aws-sdk-ec2

@@ -21,6 +21,15 @@ module Integrations
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with
   #                                           the app's secret, INTEGRATION_<KEY>_WEBHOOK_SECRET.
+  #   offers(row)                             for a provider a person sets up to send changes, from a template Firefight
+  #                                           made, the places they may set it up in (Offer), such as a cloud's regions,
+  #                                           with offer_words (what setting it up does), offer_action (the button),
+  #                                           offer_unavailable_reason (nil, or why no link can be made),
+  #                                           offer_link(row, place:, url:, secret:) (the provider's own page for it, the
+  #                                           secret being one Firefight made for the connection), delivery_place(payload)
+  #                                           and delivery_ends?(payload) (where a delivery came from, and whether it says
+  #                                           that place's setup is being removed) and removal_words(row, places) (how a
+  #                                           person removes what they set up, which Firefight cannot)
   # One provider may both poll and be sent changes on the same connection. An event read both ways carries the same id,
   # so it is read again once.
   class MapEventSource
@@ -36,6 +45,12 @@ module Integrations
 
     # What one read of a change log found, and where the next read starts.
     Polled = Data.define(:events, :cursor)
+
+    # A place a person may set the provider up to send changes from, by its key and the name a person reads, with why it
+    # cannot be set up there, or nil.
+    Offer = Data.define(:place, :label, :unavailable) do
+      def initialize(place:, label:, unavailable: nil) = super
+    end
 
     class << self
       def verify(raw_body:, headers:, secret:)
@@ -55,6 +70,8 @@ module Integrations
       def polls? = respond_to?(:poll)
 
       def app_wide? = respond_to?(:installation_of)
+
+      def offers? = respond_to?(:offers)
     end
   end
 end

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
+import { LiveUpdatesOffer } from "@/pages/integrations/components/live-updates-offer"
 import { liveUpdatesIntegrationPath, mapEventsSecretIntegrationPath } from "@/lib/routes"
 import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
 import type { Integration } from "@/types/serializers"
@@ -115,6 +116,7 @@ export function LiveUpdates({
         onConfirm={confirmTurn}
         onCancel={stopConfirming}
       />
+      {state.offer && canManage && <LiveUpdatesOffer integrationId={integrationId} rowId={rowId} offer={state.offer} />}
       {setup && canManage && (
         <div className="flex flex-col gap-2 pt-1">
           {setup.address ? (

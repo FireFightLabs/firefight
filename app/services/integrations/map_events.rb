@@ -109,7 +109,17 @@ module Integrations
       return unless source
 
       environment_row.give_map_events_token!
+      environment_row.give_map_events_secret! if source.offers?
       register!(environment_row, source) if source.registers? && environment_row.map_events_registration_due?(now: now)
+    end
+
+    # Notes where a verified delivery came from, for a provider a person set up to send changes, so the connection says
+    # which of its places send them, and forgets a place whose setup says it is being removed.
+    def delivered!(environment_row, source, payload)
+      return unless source.offers?
+
+      place = source.delivery_place(payload)
+      environment_row.map_events_sent!(place, ended: source.delivery_ends?(payload)) if place
     end
 
     # A person turned live updates on, having read what it costs when the source asked first. Tried at once.
@@ -166,9 +176,11 @@ module Integrations
       environment_row.update!(map_events_error: error.message)
     end
 
-    # Takes back what Firefight registered, while the connection's credentials still reach the provider.
+    # Takes back what Firefight registered, while the connection's credentials still reach the provider. What a person set
+    # up to send changes stays at the provider, so its secret is forgotten and nothing it sends is accepted again.
     def connection_removed(integration)
       source = source_of(integration.provider)
+      integration.integration_environments.update_all(map_events_secret: nil, map_events_sent_from: {}, updated_at: Time.current) if source&.offers?
       return unless source&.respond_to?(:remove)
 
       integration.integration_environments.where.not(map_events_webhook_id: nil).find_each do |row|

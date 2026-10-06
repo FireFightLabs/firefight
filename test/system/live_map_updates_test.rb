@@ -97,4 +97,32 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     assert_text "Live updates are off. Firefight removed its webhook from Render."
     assert_text "Live updates were turned off, so the map updates at each sweep."
   end
+
+  test "an AWS connection offers each region's stack to get changes instantly, and shows the region that sends them" do
+    Integrations::AwsApi.any_instance.stubs(:identity).returns(account: "123456789012")
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "aws", name: "AWS", slug: "aws")
+    row = integration.integration_environments.create!
+    row.store_fields!(Integrations::Packs::Aws::REGIONS => %w[eu-west-1 us-east-1])
+    Integrations::MapEvents.prepare!(row)
+    row.reload.map_events_sent!("eu-west-1")
+    template = Integrations::MapEventSources::Aws::TEMPLATE_URL
+    previous = ENV[template]
+    ENV[template] = "https://firefight-templates.s3.us-east-1.amazonaws.com/aws-live-updates.json"
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => integration.id)
+
+    assert_text "Live updates: on"
+    assert_text "Get changes instantly"
+    assert_text "Sending, last heard from just now"
+    assert_text "Not sending yet"
+    link = find_link("Create stack")
+    assert_equal "_blank", link[:target]
+    assert_includes link[:href], "/live_updates_setup?environment_row_id=#{row.id}&place=us-east-1"
+    assert_no_text row.map_events_secret
+    assert_text "To stop, delete the CloudFormation stack #{Integrations::MapEventSources::Aws.stack_name(row)} in eu-west-1."
+    page.scroll_to(find_link("Create stack"), align: :center)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-aws.png"))
+  ensure
+    ENV[template] = previous if template
+  end
 end
