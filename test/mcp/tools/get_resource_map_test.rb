@@ -68,6 +68,23 @@ module Mcp
                      call(resource: "web")[:resources].sole[:normal]
       end
 
+      test "a fact sheet lists the key checks with the read each runs, its normal, and why one cannot run, or why the kind has none" do
+        web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
+        @row.integration.tools.create!(name: "query_metrics", description: "Metrics", read_only: true, enabled: true, params_schema: { "type" => "object" })
+        now = Time.current
+        ResourceMap::Baseline.record!(@row, [ web ], [ ResourceMap::Baseline::Found.new(key: web.key, metric: "cpu", label: "CPU", unit: "vCPU", points: [ [ now, 0.25 ] ]) ],
+                                      window_from: now - 7.days, window_to: now)
+
+        checks = call(resource: "web")[:resources].sole[:key_checks]
+
+        assert_includes checks, "cpu (CPU): query_metrics of cpu through Northflank. Normal: usually 0.25 vCPU, 95% under 0.25 vCPU."
+        assert_includes checks, "memory (Memory): query_metrics of memory through Northflank. No normal read yet."
+        assert_includes checks, "latency_p95: not available here. Northflank does not keep latency_p95 for this resource. It keeps " \
+                                "cpu, memory, requests, http_4xx, http_5xx, network_in, network_out, tcp_connections, disk, bandwidth."
+        assert(checks.any? { |line| line.start_with?("recent_deploys: not available here.") })
+        assert_equal [ ResourceMap::KeyQueries::NONE.fetch(ResourceMap::KIND_BUILD_SERVICE) ], call(resource: "builder")[:resources].sole[:key_checks]
+      end
+
       test "a resource can be named by its id on the map, as search_map and get_resource give it" do
         web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
 

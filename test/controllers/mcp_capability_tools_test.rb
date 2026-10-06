@@ -16,6 +16,22 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
     assert_empty Mcp::CapabilityToolFactory.tools_for(@workspace, workspace_memberships(:bob_workspace_one))
   end
 
+  test "run_key_query is offered with a capability a check reads through, and runs as that capability's provider tool, led by its comparison" do
+    northflank = @workspace.integrations.find_by!(slug: "northflank")
+    northflank.tools.create!(name: "query_metrics", description: "Metrics", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    assert_includes Mcp::CapabilityToolFactory.tools_for(@workspace, @alice).map(&:name_value), "run_key_query"
+    Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, **| tool.name == "query_metrics" && arguments == { "resource" => "web-id", "metrics" => [ "cpu" ], "minutes" => 60 } }
+                                .returns("content" => [ { "type" => "text", "text" => "CPU of web" } ])
+
+    response = Mcp::CapabilityToolFactory.key_query({ workspace: @workspace, principal: @alice }, { resource: "web", query: "cpu" })
+
+    assert_not response.error?
+    assert_equal [ "CPU of web, from Northflank. No reading came back for cpu, so it is not compared with normal.", "CPU of web" ],
+                 response.content.map { |part| part[:text] || part["text"] }
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.query_metrics", source: AbilityGateway::SOURCE_MCP)
+    assert_match "has no throttles check", Mcp::CapabilityToolFactory.key_query({ workspace: @workspace, principal: @alice }, { resource: "web", query: "throttles" }).content.first[:text]
+  end
+
   test "a call is authorized and ledgered as the provider tool's action, with that tool's own arguments" do
     Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, **| tool == @search && arguments == { "resource" => "web-id" } }
                                 .returns("content" => [ { "type" => "text", "text" => "no lines" } ])

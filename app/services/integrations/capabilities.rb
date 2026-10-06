@@ -35,6 +35,8 @@ module Integrations
     ].freeze
     DEFAULT_MINUTES = 60
     MAX_MINUTES = 7 * 24 * 60
+    # The shared read that runs one of a resource's key checks (ResourceMap::KeyQueries) through a capability.
+    KEY_QUERY_TOOL = "run_key_query".freeze
 
     RANGE = {
       "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{DEFAULT_MINUTES})" },
@@ -198,8 +200,15 @@ module Integrations
       spec && adapter_for(provider)&.tool_for(spec.key)
     end
 
-    # Names the capabilities take, so no connection tool is offered under the same name.
-    def self.tool_names = SPECS.values.map(&:tool_name)
+    # Names the capabilities and the reads built on them take, so no connection tool is offered under the same name.
+    def self.tool_names = [ *SPECS.values.map(&:tool_name), KEY_QUERY_TOOL ]
+
+    # The tools principal may run for a capability, so a call is routed only to a connection it can use.
+    def self.callable(workspace, key, principal)
+      resolved = Ability::Resolver.resolve(principal, workspace)
+      tools = offered(workspace).find { |spec, _tools| spec.key == key }&.last.to_a
+      tools.select { |tool| tool.callable_by?(principal, resolved) }
+    end
 
     def self.schema(spec, connections)
       properties = { RESOURCE_ARG => { "type" => "string", "description" => "The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it" } }

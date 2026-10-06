@@ -354,6 +354,8 @@ Rails.application.routes.draw do
     post "/map/links/:id/dismiss", to: "resource_map#dismiss_link", as: :dismiss_resource_map_link
     post "/map/resources/:id/entries", to: "resource_map#link_entry", as: :resource_map_resource_entries
     delete "/map/resources/:id/entries/:entry_id", to: "resource_map#unlink_entry", as: :resource_map_resource_entry
+    get "/map/resources/:id/checks", to: "resource_map#checks", as: :resource_map_resource_checks
+    post "/map/resources/:id/checks/:check", to: "resource_map#run_check", as: :resource_map_resource_check
 
     resources :webhooks, only: [ :create, :update, :destroy ] do
       member do

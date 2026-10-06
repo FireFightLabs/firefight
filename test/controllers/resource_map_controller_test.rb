@@ -127,6 +127,37 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     assert_not ResourceMap::Link.exists?(from_resource: resource("web"), to_resource: resource("db"))
   end
 
+  test "a resource's key checks are read when its panel opens, each with its normal and whether the person may run it" do
+    @row.integration.tools.create!(name: "query_metrics", description: "Metrics", read_only: true, enabled: true, params_schema: { "type" => "object" })
+
+    get resource_map_resource_checks_path(resource("web"))
+
+    checks = response.parsed_body["checks"].index_by { |check| check["key"] }
+    assert_equal [ true, "Northflank", nil, nil ], checks["cpu"].values_at("available", "connection", "reads", "runBlockedReason")
+    assert_equal "5xx responses", checks["error_rate"]["reads"]
+    assert_match "does not keep latency_p95", checks["latency_p95"]["runBlockedReason"]
+    assert_nil response.parsed_body["none"]
+
+    get resource_map_resource_checks_path(resource("builder"))
+    assert_equal [ [], ResourceMap::KeyQueries::NONE.fetch(ResourceMap::KIND_BUILD_SERVICE) ], response.parsed_body.values_at("checks", "none")
+  end
+
+  test "running a check from the panel answers inline, through the gateway as the person" do
+    @row.integration.tools.create!(name: "query_metrics", description: "Metrics", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    Integrations::NativeExecutor.expects(:call).returns("content" => [ { "type" => "text", "text" => "CPU of web" } ])
+
+    post resource_map_resource_check_path(resource("web"), "cpu")
+
+    outcome = response.parsed_body["outcome"]
+    assert_equal [ "CPU of web", false ], outcome.values_at("text", "failed")
+    assert_match "CPU of web, from Northflank.", outcome["headline"]
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: "northflank.query_metrics", source: AbilityGateway::SOURCE_WEB)
+
+    post resource_map_resource_check_path(resource("web"), "throttles")
+    assert_response :unprocessable_entity
+    assert_match "web has no throttles check", response.parsed_body.dig("outcome", "refusal")
+  end
+
   private
 
   def found(kind, id) = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: kind, external_id: id, name: id)
