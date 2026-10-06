@@ -73,6 +73,34 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "It is confirmed already.", nil, true ], shipped.values_at("confirmBlockedReason", "rejectBlockedReason", "inUse")
   end
 
+  test "a memory is deleted for good with a toast, and deleting a rejected one says its wording may be learned again" do
+    used = remember("Auth Service runs on web")
+    rejected = remember("Deploys happen on Fridays")
+    rejected.reject!(by: @member, reason: "One off")
+
+    delete destroy_memory_path(used)
+    assert_not Chat::Memory.exists?(used.id)
+    assert_equal "Deleted. Halon stops using it, and nothing keeps where it came from.", flash[:notice]
+
+    delete destroy_memory_path(rejected)
+    assert_not Chat::Memory.exists?(rejected.id)
+    assert_equal "Deleted. Halon has nothing left to say the wording was wrong, so it may learn it again.", flash[:notice]
+    assert_equal Chat::Memory::LEARNED_SAVED, Chat::Memory.learn!(@workspace, text: "Deploys happen on Fridays", subject: nil, source: nil).outcome
+  end
+
+  test "someone the gateway refuses memory cannot delete one, and another workspace's is not found" do
+    memory = remember("Auth Service runs on web")
+    elsewhere = Chat::Memory.create!(workspace: workspaces(:slack_workspace_two), text: "Theirs", state: Chat::Memory::STATE_UNCONFIRMED)
+
+    delete destroy_memory_path(elsewhere)
+    assert_response :not_found
+    assert Chat::Memory.exists?(elsewhere.id)
+
+    AbilityGateway.stubs(:permitted?).returns(false)
+    delete destroy_memory_path(memory)
+    assert Chat::Memory.exists?(memory.id)
+  end
+
   test "instructions are written, edited and removed, each kept as history" do
     post memory_instructions_path, params: { text: "Check the worker logs first", subject: "CatalogEntry:#{@auth.id}" }
     note = Chat::Instruction.current.find_by!(workspace: @workspace, scope: @auth)

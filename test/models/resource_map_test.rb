@@ -108,6 +108,19 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_REJECTED, rejected.reload.state
   end
 
+  test "a resource that comes back lifts the flag its removal set, and leaves what a person decided since" do
+    ResourceMap.record!(@row, snapshot(web), at: 2.hours.ago)
+    lifted = Chat::Memory.create!(workspace: @workspace, text: "web serves checkout", subject: resource("web"), state: Chat::Memory::STATE_CONFIRMED)
+    decided = Chat::Memory.create!(workspace: @workspace, text: "web runs two instances", subject: resource("web"), state: Chat::Memory::STATE_UNCONFIRMED)
+    ResourceMap.record!(@row, snapshot, at: 1.hour.ago)
+    decided.reload.reject!(by: workspace_memberships(:alice_workspace_one), reason: "It runs one")
+
+    ResourceMap.record!(@row, snapshot(web))
+
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, nil ], lifted.reload.values_at(:state, :state_reason)
+    assert_equal Chat::Memory::STATE_REJECTED, decided.reload.state
+  end
+
   test "a link reaches something another connection reported, and a hostname both name keeps what each said" do
     web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
     app = ResourceMap.domain("app.acme.com")

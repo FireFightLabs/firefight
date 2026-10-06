@@ -38,6 +38,7 @@ module TypescriptConstants
       Export.new("PAST_INCIDENT_DAYS", Incident::Outcome::PAST_WINDOW_DAYS, nil),
       Export.new("CHAT_MEMORY_STATES", Chat::Memory::STATES, "ChatMemoryState"),
       Export.new("CHAT_MEMORY_TEXT_LIMIT", Chat::Memory::TEXT_LIMIT, nil),
+      Export.new("MEMORY_EXPIRY_DAY_CHOICES", Chat::Memory::EXPIRY_CHOICES, nil),
       Export.new("CHAT_INSTRUCTION_TEXT_LIMIT", Chat::Instruction::TEXT_LIMIT, nil),
       Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
