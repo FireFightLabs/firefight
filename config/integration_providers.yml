@@ -26,6 +26,9 @@
 # path field without a pattern takes a slug's, so no value carries a slash, a query or a fragment into the address.
 # Every other field belongs to the environment it was connected for. The code behind a provider reads them through
 # Integrations::ConnectionSettings, never from the row.
+# setting_words are words in a service's setting names that point at this provider's stores, such as NEON in
+# NEON_DATABASE_URL. The map's matcher reads them as a clue when a setting's value is hidden or names no address a store
+# reported.
 # Section headings on the gallery. A provider naming a category that is not
 # listed here still renders, it just shows no tagline, so adding a provider
 # in a new category stays a registry edit rather than a code change.
@@ -729,6 +732,7 @@ providers:
     site: https://console.neon.tech
     source_links: firefight
     map: firefight
+    setting_words: [NEON]
   - key: supabase
     name: Supabase
     category: Databases
@@ -754,6 +758,7 @@ providers:
           - { value: "false", label: Read and write }
     source_links: firefight
     map: firefight
+    setting_words: [SUPABASE]
   - key: planetscale
     name: PlanetScale
     category: Databases
@@ -763,6 +768,7 @@ providers:
     server_url: https://mcp.pscale.dev/mcp/planetscale
     source_links: firefight
     map: firefight
+    setting_words: [PLANETSCALE, PSCALE]
   - key: clickhouse
     name: ClickHouse
     category: Databases
@@ -773,6 +779,7 @@ providers:
     site: https://console.clickhouse.cloud
     source_links: firefight
     map: firefight
+    setting_words: [CLICKHOUSE]
   - key: tinybird
     name: Tinybird
     category: Databases
@@ -798,6 +805,7 @@ providers:
       - { key: aws-ap-southeast-2, label: "Sydney, AWS (api.ap-southeast-2.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/ap-southeast-2" }
     source_links: firefight
     map: firefight
+    setting_words: [TINYBIRD]
   - key: turso
     name: Turso
     category: Databases
@@ -808,6 +816,7 @@ providers:
     source_links: none
     source_links_note: "Turso documents no dashboard address for a database, and its tools' answers carry none."
     map: firefight
+    setting_words: [TURSO, LIBSQL]
   - key: upstash
     name: Upstash
     category: Databases
@@ -818,6 +827,7 @@ providers:
     site: https://console.upstash.com
     source_links: firefight
     map: firefight
+    setting_words: [UPSTASH]
   - key: postgresql
     name: PostgreSQL
     category: Databases

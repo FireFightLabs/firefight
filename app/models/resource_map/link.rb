@@ -1,5 +1,6 @@
-# How two resources depend on each other, and how that was found. A sweep owns the links it declared or matched, a
-# person or Halon owns the ones they added.
+# How two resources depend on each other, and how that was found. A sweep owns the links it declared, the matchers the
+# ones they matched or inferred, and a person or Halon the ones they added. variables names the settings a link was
+# found in, such as DATABASE_URL, never their values.
 class ResourceMap::Link < ApplicationRecord
   self.table_name = "resource_map_links"
 
@@ -29,8 +30,10 @@ class ResourceMap::Link < ApplicationRecord
   # confirmed, is removed by hand. An unconfirmed suggestion is confirmed or dismissed instead.
   def removal_blocked_reason
     case origin
-    when ResourceMap::ORIGIN_DECLARED, ResourceMap::ORIGIN_MATCHED
+    when ResourceMap::ORIGIN_DECLARED
       "#{integration_environment&.integration&.name || 'A connection'} reports this link, so it goes when the connection stops reporting it."
+    when ResourceMap::ORIGIN_MATCHED
+      "#{variables.to_sentence.presence || 'A setting'} on #{from_resource.name} names this address, so the link goes when the setting stops naming it."
     when *ResourceMap::SUGGESTION_ORIGINS
       "Confirm or dismiss this suggestion instead." if confirmed_at.nil?
     end
@@ -72,6 +75,14 @@ class ResourceMap::Link < ApplicationRecord
     decided = self.class.where(id: id, confirmed_at: nil, dismissed_at: nil).update_all(dismissed_at: Time.current, updated_at: Time.current) > 0
     reload
     decided
+  end
+
+  # Writes the matchers' links in bulk, each row a pair's columns, made or written over the link the pair already has, so
+  # that link keeps its id. Answers the ids written. A caller leaves out a pair whose link it may not change.
+  def self.write_all(rows)
+    rows.each_slice(1000).flat_map do |slice|
+      upsert_all(slice, unique_by: "index_resource_map_links_identity", returning: :id).rows.flatten
+    end
   end
 
   def sentence = "#{from_resource.name} #{ResourceMap::RELATION_WORDS.fetch(relation)} #{to_resource.name}"

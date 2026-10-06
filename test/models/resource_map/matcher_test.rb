@@ -76,7 +76,66 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
     assert_equal [ resource("job").id ], row.suggested_dependent_ids
   end
 
+  test "a setting named for a store's provider with its value hidden is a possible suggestion when one database fits" do
+    neon = connection("neon")
+    ResourceMap.record!(neon, snapshot([ neon_database("ledger") ]))
+    record_settings("job", names: [ "NEON_DATABASE_URL" ])
+
+    ResourceMap::Matcher.new(@workspace).run!
+
+    link = ResourceMap::Link.find_by!(from_resource: resource("job"), to_resource: resource("ledger"))
+    assert_equal [ ResourceMap::CERTAINTY_POSSIBLE, [ "NEON_DATABASE_URL" ] ], [ link.certainty, link.variables ]
+    assert_equal [ "job has a setting called NEON_DATABASE_URL, which points at Neon" ], link.clues
+  end
+
+  test "a setting's name that agrees with a shared project word makes the suggestion likely, and two databases it could be make none alone" do
+    neon = connection("neon")
+    ResourceMap.record!(neon, snapshot([ neon_database("firefight-analytics"), neon_database("ledger") ]))
+    record_settings("web", names: [ "NEON_URL" ])
+
+    ResourceMap::Matcher.new(@workspace).run!
+
+    link = ResourceMap::Link.find_by!(from_resource: resource("web"), to_resource: resource("firefight-analytics"))
+    assert_equal ResourceMap::CERTAINTY_LIKELY, link.certainty
+    assert_equal [ "Both are named for firefight", "web has a setting called NEON_URL, which points at Neon" ], link.clues
+    assert_not ResourceMap::Link.exists?(from_resource: resource("web"), to_resource: resource("ledger"))
+  end
+
+  test "a setting named for an engine fits the database that reports it" do
+    upstash = connection("upstash")
+    ResourceMap.record!(upstash, ResourceMap::Snapshot.new(resources: [
+                          ResourceMap::Found.new(provider: "upstash", account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "sessions",
+                                                 name: "sessions", details: { "engine" => "redis" })
+                        ]))
+    record_settings("job", names: [ "REDIS_URL" ])
+
+    ResourceMap::Matcher.new(@workspace).run!
+
+    assert_equal [ "job has a setting called REDIS_URL, which points at a Redis store" ],
+                 ResourceMap::Link.find_by!(from_resource: resource("job"), to_resource: resource("sessions")).clues
+  end
+
+  test "an exact match and the suggestions are written under the one per-workspace lock" do
+    held = nil
+    ResourceMap::HostMatcher.any_instance.stubs(:run!).with do
+      held = ResourceMap::Link.connection.select_value("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
+      true
+    end.returns([])
+
+    ResourceMap::Matcher.new(@workspace).run!
+
+    assert_equal 1, held
+  end
+
   private
+
+  def record_settings(name, names:)
+    row = ResourceMap::Resource.find_by!(external_id: name).integration_environment
+    found = ResourceMap::Use.read(from: service(name).key, workspace: @workspace, names: names)
+    ResourceMap.record!(row, snapshot(ResourceMap::Resource.where(integration_environment: row).map { |each| service(each.external_id) }).with(uses: found))
+  end
+
+  def neon_database(name) = ResourceMap::Found.new(provider: "neon", account: "org", kind: ResourceMap::KIND_DATABASE, external_id: name, name: name)
 
   def connection(slug)
     @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: slug.humanize, slug: slug).integration_environments.create!

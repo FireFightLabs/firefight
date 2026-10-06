@@ -13,6 +13,8 @@ class ResourceMap::Resource < ApplicationRecord
   has_many :entry_links, class_name: "ResourceMap::EntryLink", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
   has_many :catalog_entries, through: :entry_links
   has_many :baselines, class_name: "ResourceMap::Baseline", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
+  has_many :uses, class_name: "ResourceMap::Use", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
+  has_many :endpoints, class_name: "ResourceMap::Endpoint", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
 
   validates :provider, :account, :external_id, :name, presence: true
   validates :kind, inclusion: { in: ResourceMap::KINDS }

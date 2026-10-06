@@ -106,8 +106,9 @@ module ResourceMap
   # that is not a connection, such as domains.
   def self.provider_entry(key) = IntegrationProvider.find(key)
 
-  # How a link was found. Declared and matched come from sweeps and are replaced by the next one. Added by a person and
-  # suggested by Halon are kept until someone removes them, and a suggestion is not a fact until it is confirmed.
+  # How a link was found. Declared comes from a sweep and is replaced by the next one. Matched is a setting naming a
+  # store's exact address (ResourceMap::HostMatcher), kept while the setting names it. Added by a person and suggested by
+  # Halon are kept until someone removes them, and a suggestion is not a fact until it is confirmed.
   ORIGIN_DECLARED = "declared".freeze
   ORIGIN_MATCHED = "matched".freeze
   ORIGIN_PERSON = "person".freeze
@@ -116,7 +117,6 @@ module ResourceMap
   # project. Like Halon's suggestions, it is not a fact until a person confirms it.
   ORIGIN_INFERRED = "inferred".freeze
   ORIGINS = [ ORIGIN_DECLARED, ORIGIN_MATCHED, ORIGIN_PERSON, ORIGIN_SUGGESTED, ORIGIN_INFERRED ].freeze
-  SWEPT_ORIGINS = [ ORIGIN_DECLARED, ORIGIN_MATCHED ].freeze
   SUGGESTION_ORIGINS = [ ORIGIN_SUGGESTED, ORIGIN_INFERRED ].freeze
 
   # How sure a suggestion is. Likely is two clues that agree, possible is one.
@@ -126,27 +126,33 @@ module ResourceMap
 
   # Something a sweep could not read, as the words a person reads and the kinds of resource it would have put on the map.
   # A gap always names its kinds, empty only for what holds no resource back (a setting, a file). A sweep with a gap that
-  # names any kind takes nothing away, so what it could not read is never taken as gone.
-  Gap = Data.define(:text, :kinds) do
-    def initialize(text:, kinds:) = super(text: text, kinds: Array(kinds))
+  # names any kind takes nothing away, so what it could not read is never taken as gone. settings marks a gap in the
+  # services' settings or the stores' addresses, so the ones read before are kept rather than taken as gone.
+  Gap = Data.define(:text, :kinds, :settings) do
+    def initialize(text:, kinds:, settings: false) = super(text: text, kinds: Array(kinds), settings: settings)
   end
 
   # What one sweep of one connection saw. A resource is named by its key, the same whichever connection reports it, so a
   # repository two services build from is one resource. gaps are what the sweep could not read (Gap), and the kinds
   # they name are unread. Only a complete read, one with no unread kind, takes away what it did not report.
   # code_files are the infrastructure files a code host's sweep read, for ResourceMap::CodeDefinitions, and code_read the
-  # repositories it read in full, the only ones whose suggestions it may take away.
-  Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read) do
-    def initialize(resources:, links: [], gaps: [], code_files: [], code_read: [])
+  # repositories it read in full, the only ones whose suggestions it may take away. uses are where services' settings
+  # point (ResourceMap::Use::Found) and endpoints where stores say they are reached (ResourceMap::Endpoint::Found), both
+  # as keyed digests, never a value.
+  Snapshot = Data.define(:resources, :links, :gaps, :code_files, :code_read, :uses, :endpoints) do
+    def initialize(resources:, links: [], gaps: [], code_files: [], code_read: [], uses: [], endpoints: [])
       loose = gaps.reject { |gap| gap.is_a?(Gap) }
       raise ArgumentError, "a gap names the kinds it could not read (ResourceMap::Gap), not only words: #{loose.first.inspect}" if loose.any?
 
-      super(resources:, links:, gaps: gaps.uniq, code_files:, code_read:)
+      super(resources:, links:, gaps: gaps.uniq, code_files:, code_read:, uses: uses.compact, endpoints: endpoints.compact)
     end
 
     def unread_kinds = gaps.flat_map(&:kinds).uniq
 
     def complete? = unread_kinds.empty?
+
+    # Whether every setting and address was read, the only read that takes away the ones it no longer saw.
+    def settings_complete? = complete? && gaps.none?(&:settings)
 
     def gap_texts = gaps.map(&:text).uniq
   end
@@ -157,12 +163,16 @@ module ResourceMap
     def key = [ provider, account, kind, external_id ]
   end
 
-  FoundLink = Data.define(:from, :to, :relation)
+  # variables names the settings a provider says the link comes from, such as a reference to a database's URL.
+  FoundLink = Data.define(:from, :to, :relation, :variables) do
+    def initialize(from:, to:, relation:, variables: []) = super
+  end
 
   # Writes a sweep. Everything the connection reported is upserted and seen now. After a complete read, what it reported
-  # before and no longer does is marked removed and its declared and matched links are replaced. A read with a gap that
-  # held back any kind removes nothing, since a list it missed may hold what it no longer sees. A person's links and
-  # Halon's suggestions stay. Returns the ids of the resources whose words changed, for search to index in one go.
+  # before and no longer does is marked removed and its declared links are replaced. A read with a gap that held back
+  # any kind removes nothing, since a list it missed may hold what it no longer sees. A person's links, Halon's
+  # suggestions and the links matched from settings (ResourceMap::HostMatcher) stay. Returns the ids of the resources
+  # whose words changed, for search to index in one go.
   def self.record!(environment_row, snapshot, at: Time.current)
     workspace_id = environment_row.integration.workspace_id
     changed = Set.new
@@ -173,8 +183,9 @@ module ResourceMap
       ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at, changed) ] }
       if snapshot.complete?
         forget(workspace_id, environment_row, ids.values, at, changed)
-        Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
+        Link.where(integration_environment_id: environment_row.id, origin: ORIGIN_DECLARED).delete_all
       end
+      record_settings!(workspace_id, environment_row, ids, snapshot, at)
       # A link may end at something another connection reported, such as the hostname a DNS record points at.
       elsewhere = present_ids(workspace_id, snapshot.links.flat_map { |found| [ found.from, found.to ] }.uniq - ids.keys)
       snapshot.links.each do |found|
@@ -182,12 +193,33 @@ module ResourceMap
         next unless from && to
 
         Link.find_or_initialize_by(workspace_id: workspace_id, from_resource_id: from, to_resource_id: to, relation: found.relation,
-                                   origin: ORIGIN_DECLARED, integration_environment: environment_row).update!(last_seen_at: at)
+                                   origin: ORIGIN_DECLARED, integration_environment: environment_row)
+            .update!(last_seen_at: at, variables: found.variables.map(&:to_s).uniq.sort)
       end
       environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gap_texts)
     end
     changed.to_a
   end
+
+  # Where the connection's services' settings point and where its stores are reached. A complete read replaces what it
+  # reported before, and a partial one only adds, so a setting it could not read this time is not taken as gone.
+  def self.record_settings!(workspace_id, environment_row, ids, snapshot, at)
+    { Use => settings_rows(snapshot.uses, :from, ids), Endpoint => settings_rows(snapshot.endpoints, :resource, ids) }.each do |model, rows|
+      rows = rows.map { |row| row.merge(workspace_id: workspace_id, integration_environment_id: environment_row.id, last_seen_at: at) }
+      model.where(integration_environment_id: environment_row.id).where("last_seen_at < ?", at).delete_all if snapshot.settings_complete?
+      model.upsert_all(rows, unique_by: model == Use ? "index_resource_map_uses_identity" : "index_resource_map_endpoints_identity") if rows.any?
+    end
+  end
+  private_class_method :record_settings!
+
+  # Each found use or endpoint as a row of its own resource's, leaving out one whose resource the sweep did not report.
+  def self.settings_rows(found, key, ids)
+    found.filter_map do |each|
+      resource_id = ids[each.public_send(key)]
+      resource_id && each.to_h.except(key).merge(resource_id: resource_id)
+    end.uniq { |row| row.values_at(:resource_id, :variable, :fingerprint, :within_domain, :database_fingerprint, :tenant_fingerprint) }
+  end
+  private_class_method :settings_rows
 
   # A new commit on a service is a deploy, since a sweep only sees the commit that is running.
   DEPLOYED_COMMIT = "deployed_commit".freeze

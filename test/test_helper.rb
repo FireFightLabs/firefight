@@ -32,5 +32,6 @@ module ActiveSupport
     include LlmResponseHelper
     include MapReaderHelper
     include TwoEnvironmentMapHelper
+    include SettingValuesHelper
   end
 end

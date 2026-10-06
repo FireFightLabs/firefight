@@ -68,6 +68,24 @@ module Integrations
       assert_equal [ "ready", ResourceMap::Resource::HEALTH_OK ], ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web").then { |web| [ web.status, web.health ] }
     end
 
+    test "a sweep keeps where its services' settings point and links what they name exactly, without keeping a value" do
+      row = connection("northflank", Integration::KIND_NATIVE)
+      store = connection("neon", Integration::KIND_NATIVE)
+      database = ResourceMap::Found.new(provider: "neon", account: "org", kind: ResourceMap::KIND_DATABASE, external_id: "app-db", name: "app-db")
+      ResourceMap.record!(store, ResourceMap::Snapshot.new(resources: [ database ], endpoints: [
+                            ResourceMap::Endpoint.at(resource: database.key, host: "ep-a.neon.tech", port: 5432, workspace: @workspace)
+                          ]))
+      web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+      url = "postgres://app:sweep-secret@ep-a.neon.tech/app"
+      snapshot = ResourceMap::Snapshot.new(resources: [ web ], uses: ResourceMap::Use.read(from: web.key, workspace: @workspace, values: { "DATABASE_URL" => url }))
+      NativeExecutor.stubs(:map_of).returns(snapshot)
+
+      assert MapSweep.run!(row)
+
+      assert_equal [ "DATABASE_URL" ], ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_MATCHED).variables
+      assert_no_setting_values(snapshot, url, "sweep-secret", "ep-a.neon.tech")
+    end
+
     private
 
     def connection(provider, kind, settings: {})

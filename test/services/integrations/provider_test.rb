@@ -62,6 +62,14 @@ module Integrations
       end
     end
 
+    test "a provider whose stores settings are named for is on the map, and its words are whole words in capitals" do
+      IntegrationProvider.all.select { |entry| entry.setting_words.any? }.each do |entry|
+        assert_equal IntegrationProvider::MAP_FIREFIGHT, entry.map, "#{entry.key} names setting words for stores that are not on the map"
+        entry.setting_words.each { |word| assert_match(/\A[A-Z][A-Z0-9]+\z/, word, "#{entry.key}'s setting word #{word}") }
+      end
+      assert_includes ResourceMap::Use.words("NEON_DATABASE_URL"), IntegrationProvider.find("neon").setting_words.first
+    end
+
     # The rest of the app reaches a provider through the shared contracts, so code outside the integrations layer never
     # decides by which provider it is. ArchSpec holds the constants, this holds the names. It looks for a provider's key
     # where a provider is compared or chosen (provider == "x", provider: "x", find("x"), for("x"), when "x"), so a key
