@@ -9,6 +9,7 @@ module Integrations
       NAME = Capabilities::Turso::PROVIDER
       LIST_DATABASES = "list_databases".freeze
       KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ].freeze
+      HTTPS_PORT = 443
 
       def map
         data = listing(LIST_DATABASES, "databases", kinds: KINDS)
@@ -25,7 +26,7 @@ module Integrations
           child = by_id[field(database, "DbId", "id").to_s]
           ResourceMap::FoundLink.new(from: child.key, to: parent.key, relation: ResourceMap::RELATION_BRANCH_OF) if parent && child
         end
-        ResourceMap::Snapshot.new(resources: found, links: links)
+        ResourceMap::Snapshot.new(resources: found, links: links, endpoints: found.filter_map { |database| address(database) })
       end
 
       private
@@ -43,6 +44,12 @@ module Integrations
           details: { "engine" => database["engine"], "region" => database["primaryRegion"], "hostname" => field(database, "Hostname", "hostname"),
                      "delete_protection" => database["delete_protection"] }.compact
         )
+      end
+
+      # A database answers on its hostname, [db]-[org].turso.io, over libsql:// or https:// on the HTTPS port
+      # (https://docs.turso.tech/api-reference/databases/list).
+      def address(database)
+        workspace && ResourceMap::Endpoint.at(resource: database.key, host: database.details["hostname"], port: HTTPS_PORT, workspace: workspace)
       end
 
       def field(database, *names) = names.filter_map { |name| database[name].presence }.first

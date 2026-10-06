@@ -35,6 +35,35 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE ], odd.unread_kinds
       end
 
+      test "a service is reached at the endpoints its object lists, or those get_service_details gives, or it is a settings gap" do
+        workspace = workspaces(:slack_workspace_one)
+        settings = ConnectionSettings.of(workspace.integrations.build(kind: Integration::KIND_MCP, provider: Clickhouse::PROVIDER).integration_environments.build)
+        endpoints = [ { "protocol" => "https", "host" => "abc123.eu-central-1.aws.clickhouse.cloud", "port" => 8443 },
+                      { "protocol" => "nativesecure", "host" => "abc123.eu-central-1.aws.clickhouse.cloud", "port" => 9440 } ]
+        listed = Clickhouse.new(settings) do |tool, _|
+          tool == Clickhouse::LIST_ORGANIZATIONS ? result([ ORGANIZATION ]) : result([ SERVICE.merge("endpoints" => endpoints) ])
+        end.map
+        assert_equal [ 8443, 9440 ], listed.endpoints.map(&:port)
+        assert_equal ResourceMap::Fingerprint.of("abc123.eu-central-1.aws.clickhouse.cloud", 8443, workspace), listed.endpoints.first.fingerprint
+
+        tool = Struct.new(:params_schema).new({})
+        asked = []
+        described = Clickhouse.new(settings, { Clickhouse::DETAILS => tool }) do |name, arguments|
+          asked << [ name, arguments ]
+          case name
+          when Clickhouse::LIST_ORGANIZATIONS then result([ ORGANIZATION ])
+          when Clickhouse::DETAILS then result("result" => SERVICE.merge("endpoints" => endpoints))
+          else result([ SERVICE ])
+          end
+        end.map
+        assert_equal [ 8443, 9440 ], described.endpoints.map(&:port)
+        assert_equal({ "organizationId" => ORGANIZATION["id"], "serviceId" => "svc-1" }, asked.assoc(Clickhouse::DETAILS).last)
+
+        off = Clickhouse.new(settings) { |name, _| name == Clickhouse::LIST_ORGANIZATIONS ? result([ ORGANIZATION ]) : result([ SERVICE ]) }.map
+        assert_equal [ true ], off.gaps.map(&:settings)
+        assert_match "get_service_details is switched off", off.gaps.sole.text
+      end
+
       private
 
       def result(body) = { "content" => [ { "type" => "text", "text" => body.to_json } ] }

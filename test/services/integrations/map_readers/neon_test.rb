@@ -109,6 +109,17 @@ module Integrations
         assert_includes snapshot.gaps.map(&:text), "The databases on 2 more branches of shop were not read, only on its default and latest #{Neon::DATABASE_READS}."
       end
 
+      test "a branch is reached at its compute's host and at the pooler's, which adds -pooler to the compute's id" do
+        snapshot = Neon.new(settings) { |tool, _arguments| answer(tool) }.map
+
+        main = snapshot.resources.find { |resource| resource.external_id == "shop-123/br-main-1" }
+        workspace = workspaces(:slack_workspace_one)
+        assert_equal [ main.key ], snapshot.endpoints.map(&:resource).uniq
+        assert_equal %w[ep-cool-1.us-east-2.aws.neon.tech ep-cool-1-pooler.us-east-2.aws.neon.tech].map { |host| ResourceMap::Fingerprint.of(host, 5432, workspace) },
+                     snapshot.endpoints.map(&:fingerprint)
+        assert_empty Neon.new { |tool, _arguments| answer(tool) }.map.endpoints, "without a connection there is no workspace to digest under"
+      end
+
       private
 
       def settings

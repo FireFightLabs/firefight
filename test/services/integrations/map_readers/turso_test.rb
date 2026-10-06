@@ -31,6 +31,15 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], refused.unread_kinds
       end
 
+      test "a database is reached at its hostname on the HTTPS port, and one without a hostname has no address" do
+        workspace = workspaces(:slack_workspace_one)
+        settings = ConnectionSettings.of(workspace.integrations.build(kind: Integration::KIND_MCP, provider: Turso::PROVIDER).integration_environments.build)
+        snapshot = Turso.new(settings) { |_tool, _arguments| result(DATABASES) }.map
+
+        assert_equal [ [ snapshot.resources.first.key, ResourceMap::Fingerprint.of("shop-acme.turso.io", 443, workspace) ] ],
+                     snapshot.endpoints.map { |endpoint| [ endpoint.resource, endpoint.fingerprint ] }
+      end
+
       private
 
       def result(body) = { "content" => [ { "type" => "text", "text" => body.to_json } ] }

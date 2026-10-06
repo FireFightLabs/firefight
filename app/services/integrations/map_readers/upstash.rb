@@ -9,22 +9,28 @@ module Integrations
       NAME = Capabilities::Upstash::PROVIDER
       LIST_DATABASES = "redis_list_databases".freeze
       LIST_QSTASH = "qstash_list_users".freeze
+      GET_DATABASE = "redis_get_database".freeze
+      DOMAIN = "upstash.io".freeze
+      REDIS_PORT = 6379
+      HTTPS_PORT = 443
       REGIONS = %w[us eu].freeze
       ACCOUNT = "upstash".freeze
 
       def initialize(...)
         super
         @resources = []
+        @endpoints = []
       end
 
       def map
         databases = read(LIST_DATABASES, "Redis databases", {}, "databases", ResourceMap::KIND_DATABASE)
         Array(databases).each { |database| database(database) }
+        addresses(Array(databases))
         REGIONS.each do |region|
           users = read(LIST_QSTASH, "QStash of the #{region} region", { Capabilities::Upstash::REGION => region }, "users", ResourceMap::KIND_QUEUE)
           Array(users).first(1).each { |user| qstash(region, user) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: @resources, gaps: gaps, endpoints: @endpoints)
       end
 
       private
@@ -38,6 +44,45 @@ module Integrations
           details: { "engine" => "redis", "region" => database["primary_region"].presence || database["region"], "plan" => database["type"],
                      "read_regions" => database["read_regions"].presence, "eviction" => database["eviction"] }.compact
         )
+      end
+
+      # Where each database is reached. The Developer API's Database object has endpoint, a slug or a full host, and port
+      # (https://upstash.com/docs/devops/developer-api/redis/list_databases). Upstash does not say whether its server's
+      # list carries them, so a database listed without one is described with redis_get_database, never asking for its
+      # credentials, when that tool is on. Clients connect over TLS on the port, and the REST API answers on HTTPS at the
+      # same host. QStash answers on one host for every account, so it has no address of its own.
+      def addresses(databases)
+        return if workspace.nil?
+
+        missing = []
+        databases.each do |database|
+          database = described(database) || (missing << database && next) if database["endpoint"].blank?
+          address(database)
+        end
+        return if missing.empty?
+
+        gap("Upstash did not say where #{missing.size} Redis #{'database'.pluralize(missing.size)} #{missing.one? ? 'is' : 'are'} reached" \
+            "#{" and #{GET_DATABASE} is switched off" unless on?(GET_DATABASE)}, so settings that name #{missing.one? ? 'it' : 'them'} are not linked.",
+            kinds: [], settings: true)
+      end
+
+      def described(database)
+        return unless on?(GET_DATABASE) && !@describing_refused
+
+        answer = call(GET_DATABASE, { "database_id" => database["database_id"].to_s }, "where #{database['database_name'] || database['database_id']} is reached")
+        @describing_refused = answer.nil? || answer["isError"]
+        data = @describing_refused ? nil : Capabilities::Answers.data(answer)
+        data = data["database"] if data.is_a?(Hash) && data["database"].is_a?(Hash)
+        data.is_a?(Hash) && data["endpoint"].present? ? data : nil
+      end
+
+      def address(database)
+        key = [ PROVIDER, ACCOUNT, ResourceMap::KIND_DATABASE, database["database_id"].to_s ]
+        endpoint = database["endpoint"].to_s
+        host = endpoint.include?(".") ? endpoint : "#{endpoint}.#{DOMAIN}"
+        [ database["port"].presence || REDIS_PORT, HTTPS_PORT ].uniq.each do |port|
+          @endpoints << ResourceMap::Endpoint.at(resource: key, host: host, port: port, workspace: workspace)
+        end
       end
 
       def qstash(region, user)

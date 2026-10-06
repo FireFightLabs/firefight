@@ -203,7 +203,22 @@ module Integrations
           kind: ResourceMap::KIND_SERVICE, external_id: name, name: name, status: map_status(api), url: dashboard_link(environment_row)&.url,
           details: { "project" => info["projectName"], "type" => info["deploymentType"], "reference" => info["reference"] }.compact
         )
-        ResourceMap::Snapshot.new(resources: [ found ], links: [], gaps: [])
+        uses, gaps = settings_of(api, found, environment_row)
+        ResourceMap::Snapshot.new(resources: [ found ], links: [], gaps: gaps, uses: uses)
+      end
+
+      # What the deployment's environment variables point at, such as an outside database its functions call, read in
+      # memory with one call (list_environment_variables). A deploy key limited to chosen actions may not read them, which
+      # is a gap that keeps what was read before.
+      # https://github.com/get-convex/convex-backend/blob/main/npm-packages/@convex-dev/platform/deployment-openapi.json
+      def settings_of(api, found, environment_row)
+        values = api.environment_variables
+        [ ResourceMap::Use.read(from: found.key, workspace: ConnectionSettings.of(environment_row).workspace, values: values), [] ]
+      rescue Integrations::RateLimited
+        [ [], [ ResourceMap::Gap.new(text: "Convex asked Firefight to slow down, so the deployment's settings are read at the next sweep.", kinds: [], settings: true) ] ]
+      rescue ConvexApi::Error
+        [ [], [ ResourceMap::Gap.new(text: "Convex refused the deployment's environment variables, so what they point at is not on the map. " \
+                                           "A deploy key that may read environment variables lets Firefight read them.", kinds: [], settings: true) ] ]
       end
 
       def check_health!(environment_row)

@@ -32,9 +32,10 @@ module Integrations
     def gaps = @gaps ||= []
 
     # Records what could not be read and the kinds of resource it would have put on the map, which the sweep then takes
-    # nothing of as gone. kinds is empty only for what holds no resource back. Answers nil.
-    def gap(words, kinds:)
-      gaps << ResourceMap::Gap.new(text: words, kinds: kinds)
+    # nothing of as gone. kinds is empty only for what holds no resource back. settings marks a gap in where stores are
+    # reached or where settings point, so those read before are kept. Answers nil.
+    def gap(words, kinds:, settings: false)
+      gaps << ResourceMap::Gap.new(text: words, kinds: kinds, settings: settings)
       nil
     end
 
@@ -78,6 +79,9 @@ module Integrations
 
 
     def on?(name) = @tools.key?(name)
+
+    # The workspace whose keys digest the addresses a reader reports (ResourceMap::Endpoint), nil without a connection.
+    def workspace = settings&.workspace
 
     # The parameters the connected tool reports, for a provider whose server publishes them and whose docs do not.
     def parameters(name) = @tools[name]&.params_schema.to_h.fetch("properties", {})
