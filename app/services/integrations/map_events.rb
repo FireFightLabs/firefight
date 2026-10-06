@@ -65,6 +65,9 @@ module Integrations
 
       partial = Provider.for(environment_row.integration.provider).in_firefight_words(partial)
       changed = ResourceMap.apply!(environment_row, partial, scope: scope, at: events.map(&:happened_at).max, read_at: read_at)
+      # A code host's re-read of one repository holds its infrastructure files, and takes away only that repository's
+      # suggestions when it read it in full.
+      ResourceMap::CodeDefinitions.new(environment_row.integration.workspace).record!(environment_row, partial.code_files, read_in_full: partial.code_read)
       MapSweep.written!(environment_row, changed) if changed.any?
       ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_APPLIED)
     rescue RateLimited
