@@ -47,4 +47,22 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-map.png"))
   end
+
+  test "a connection Firefight registered for changes says live updates are on, and one whose plan refused says why it is off" do
+    render = connect_live!(@workspace, provider: "render", name: "Render")
+    render.give_map_events_token!
+    render.update!(map_events_webhook_id: "whk-1", map_events_secret: "whsec_c2VjcmV0", map_events_received_at: 3.minutes.ago)
+    vercel = connect_live!(@workspace, provider: "vercel", name: "Vercel")
+    vercel.update!(map_events_error: "Vercel answered 403: Webhooks are not available on the Hobby plan. #{Integrations::MapEventSources::Vercel::PLAN_NOTE}")
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
+    assert_text "Live updates: on, last event 3 minutes ago"
+    assert_no_selector "#map-events-secret-#{render.id}"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render.png"))
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => vercel.integration_id)
+    assert_text "Live updates: off"
+    assert_text "Firefight could not follow Vercel's changes: Vercel answered 403: Webhooks are not available on the Hobby plan."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-vercel-refused.png"))
+  end
 end

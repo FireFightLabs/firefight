@@ -179,6 +179,36 @@ module Integrations
       LiveTestHook.failure = nil
     end
 
+    test "each registration, extension and removal is in the activity log under the map sweep, a refusal with the provider's words" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      LiveTestHook.failure = "Live hook answered 403: not allowed"
+      with_app_host { MapEvents.prepare!(row) }
+      LiveTestHook.failure = nil
+      with_app_host { MapEvents.prepare!(row) }
+      MapEventWebhookRefreshJob.perform_now
+      MapEvents.connection_removed(row.integration)
+
+      logged = Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_MAP_SWEEP).order(:created_at)
+      assert_equal [ [ "register", Ability::Invocation::OUTCOME_ERROR, "Live hook answered 403: not allowed" ],
+                     [ "register", Ability::Invocation::OUTCOME_SUCCESS, nil ], [ "refresh", Ability::Invocation::OUTCOME_SUCCESS, nil ],
+                     [ "remove", Ability::Invocation::OUTCOME_SUCCESS, nil ] ],
+                   logged.map { |invocation| [ invocation.params["webhook"], invocation.outcome, invocation.error_summary ] }
+      assert logged.all? { |invocation| invocation.principal_label == SystemAgent.map_sweep.principal_label && invocation.params["connection"] == "livehook" }
+      assert logged.all? { |invocation| invocation.action_key == IntegrationEnvironment::MAP_EVENTS_WEBHOOK_ACTION_KEY && invocation.triggered_by_label == "Live updates" }
+    ensure
+      LiveTestHook.failure = nil
+    end
+
+    test "a provider that asks Firefight to slow down while it registers is tried again at the next sweep" do
+      row = connect_live!(@workspace, provider: "livehook", name: "Live hook")
+      LiveTestHook.stubs(:register).raises(Integrations::Error.new("Live hook answered 429: slow down").extend(Integrations::RateLimited))
+
+      with_app_host { MapEvents.prepare!(row) }
+
+      assert_equal "Firefight could not follow Live hook's changes: Live hook asked it to slow down, so Firefight registers again at the next sweep. " \
+                   "The map still updates at each sweep.", row.reload.live_updates.reason
+    end
+
     test "a connection set up by hand is off until its signing secret is saved" do
       state = @row.live_updates
 

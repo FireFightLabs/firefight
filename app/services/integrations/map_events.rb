@@ -11,6 +11,7 @@ module Integrations
     REFRESH_WITHIN = 7.days
     # What Firefight says in a connection's gaps when the provider asked it to slow down while reading a change.
     SLOWED = "%<name>s asked Firefight to slow down, so a change it reported is read at the next sweep.".freeze
+    SLOWED_REGISTERING = "%<name>s asked it to slow down, so Firefight registers again at the next sweep.".freeze
 
     module_function
 
@@ -113,9 +114,11 @@ module Integrations
       url = url_for(environment_row)
       return environment_row.update!(map_events_error: "Firefight's own address is not set, so there is nowhere to send changes.") unless url
 
-      webhook = source.register(environment_row, url: url)
+      webhook = environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REGISTER) { source.register(environment_row, url: url) }
       environment_row.update!(map_events_webhook_id: webhook.id, map_events_secret: webhook.secret, map_events_expires_at: webhook.expires_at,
                               map_events_error: nil)
+    rescue RateLimited
+      environment_row.update!(map_events_error: format(SLOWED_REGISTERING, name: environment_row.integration.name))
     rescue Integrations::Error => error
       environment_row.update!(map_events_error: error.message)
     end
@@ -125,7 +128,8 @@ module Integrations
       source = source_of(environment_row.integration.provider)
       return unless source.respond_to?(:refresh) && environment_row.map_events_webhook_id.present?
 
-      environment_row.update!(map_events_expires_at: source.refresh(environment_row, environment_row.map_events_webhook_id), map_events_error: nil)
+      expires_at = environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REFRESH) { source.refresh(environment_row, environment_row.map_events_webhook_id) }
+      environment_row.update!(map_events_expires_at: expires_at, map_events_error: nil)
     rescue Integrations::Error => error
       environment_row.update!(map_events_error: error.message)
     end
@@ -136,7 +140,7 @@ module Integrations
       return unless source&.respond_to?(:remove)
 
       integration.integration_environments.where.not(map_events_webhook_id: nil).find_each do |row|
-        source.remove(row, row.map_events_webhook_id)
+        row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REMOVE) { source.remove(row, row.map_events_webhook_id) }
         row.update!(map_events_webhook_id: nil, map_events_expires_at: nil)
       rescue Integrations::Error => error
         Rails.logger.warn({ event: "map_events.webhook_remove_failed", integration_environment_id: row.id, error: error.message.truncate(200) }.to_json)

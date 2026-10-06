@@ -9,6 +9,13 @@ module IntegrationEnvironment::LiveUpdates
   # of two ways in while the other still works.
   State = Data.define(:on, :last_event_at, :reason)
 
+  # A webhook Firefight registers changes how the connection is set up at the provider, recorded as such.
+  MAP_EVENTS_WEBHOOK_ACTION_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_UPDATE)
+  MAP_EVENTS_WEBHOOK_LABEL = "Live updates".freeze
+  WEBHOOK_REGISTER = "register".freeze
+  WEBHOOK_REFRESH = "refresh".freeze
+  WEBHOOK_REMOVE = "remove".freeze
+
   included do
     encrypts :map_events_secret
     normalizes :map_events_secret, with: ->(value) { value.to_s.strip.presence }
@@ -33,6 +40,26 @@ module IntegrationEnvironment::LiveUpdates
   # The secret an admin pasted from the provider. Saving it again replaces it.
   def save_map_events_secret!(secret)
     update!(map_events_secret: secret, map_events_error: nil)
+  end
+
+  # Firefight registers, extends and removes the provider's webhook with the connection's own credentials, and no person
+  # asked it to, so each call is in the activity log under the map sweep, as its reads are. change says which (register,
+  # refresh or remove). Returns the block's result, and a call that fails is recorded with the provider's words.
+  def record_map_events_webhook!(change)
+    invocation = AbilityGateway.record!(
+      decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: SystemAgent.map_sweep,
+      action: Ability::Action.lookup(MAP_EVENTS_WEBHOOK_ACTION_KEY, integration.workspace), action_key: MAP_EVENTS_WEBHOOK_ACTION_KEY,
+      workspace: integration.workspace, scope: {},
+      params: { "webhook" => change, "connection" => integration.slug, "environment" => environment&.slug }.compact,
+      context: { source: AbilityGateway::SOURCE_MAP_SWEEP, triggered_by_label: MAP_EVENTS_WEBHOOK_LABEL }
+    )
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    invocation.finalize!(outcome: Ability::Invocation::OUTCOME_SUCCESS, duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
+    result
+  rescue StandardError => error
+    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: Ability::Invocation.summary_of(error.message))
+    raise
   end
 
   # Gives the row its address once. The update names the empty token, so two sweeps at once give it one.

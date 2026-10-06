@@ -6,11 +6,18 @@ module Integrations
     class Error < Integrations::Error; end
     # Refused by the plan, such as a rollback past the previous production deployment on Hobby (spec, requestRollback 402).
     class PlanLimited < Error; end
+    # Vercel answered that the project or webhook is not there, the one answer a re-read takes as gone.
+    class NotFound < Error; end
+    # Vercel turned the request down as it stands, such as a webhook on a plan without them or past the team's limit
+    # (spec, createWebhook 400 and 403).
+    class Refused < Error; end
 
     API_ROOT = "https://api.vercel.com".freeze
     TEAM_ID = /\Ateam_/
     PROVIDER = "Vercel".freeze
     PAYMENT_REQUIRED = 402
+    NOT_FOUND = 404
+    REFUSED = [ 400, 403 ].freeze
     PAGE_SIZE = 100
     MAX_PAGES = 10
     # The runtime log stream ends with a row like this when Vercel stops it (vercel/vercel, packages/cli/src/util/logs.ts).
@@ -106,6 +113,26 @@ module Integrations
       post("/v1/projects/#{segment(project_id)}/rollback/#{segment(deployment_id)}", { "description" => description.presence })
     end
 
+    # The team's webhooks, each with its url but never its secret (spec, getWebhooks, a bare array), read only to find one
+    # Firefight registered before at the same address.
+    def webhooks = Array(get("/v1/webhooks"))
+
+    # A webhook for every project in the team, answering its id and the secret it signs with (spec, createWebhook). No
+    # projectIds, since Vercel sends project events only to a webhook for all of the team's projects (docs, webhooks,
+    # Project Events).
+    def create_webhook(url:, events:)
+      uri = uri("/v1/webhooks")
+      request = Net::HTTP::Post.new(uri)
+      request["Content-Type"] = "application/json"
+      request.body = { "url" => url, "events" => events }.to_json
+      send_request(uri, request)
+    end
+
+    def delete_webhook(webhook_id)
+      uri = uri("/v1/webhooks/#{segment(webhook_id)}")
+      send_request(uri, Net::HTTP::Delete.new(uri))
+    end
+
     # A promotion is queued (202) behind a rolling release in progress, or done (201), so it answers its status too.
     def promote(project_id, deployment_id)
       uri = uri("/v10/projects/#{segment(project_id)}/promote/#{segment(deployment_id)}")
@@ -161,7 +188,14 @@ module Integrations
       raise error
     end
 
-    def refined(code, _reason) = code.to_i == PAYMENT_REQUIRED ? PlanLimited : Error
+    def refined(code, _reason)
+      case code.to_i
+      when PAYMENT_REQUIRED then PlanLimited
+      when NOT_FOUND then NotFound
+      when *REFUSED then Refused
+      else Error
+      end
+    end
 
     def parse_row(line)
       row = JSON.parse(line)
