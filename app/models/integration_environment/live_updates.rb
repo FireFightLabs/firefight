@@ -6,7 +6,7 @@ module IntegrationEnvironment::LiveUpdates
 
   # What a person reads about live updates on one connection. on says whether changes reach the map between sweeps,
   # last_event_at when the provider last said something changed, and reason why they do not, or what is wrong with one
-  # of two ways in while the other still works.
+  # of two ways in while the other still works, or while they are on, what they do not follow.
   State = Data.define(:on, :last_event_at, :reason)
 
   # What a person may set up at the provider to send changes as they happen, for a provider that offers it. It holds the
@@ -36,8 +36,9 @@ module IntegrationEnvironment::LiveUpdates
     source = map_event_source
     return unless source
 
-    reason = live_updates_off_reason(source)
-    State.new(on: live_updates_on?(source), last_event_at: map_events_received_at, reason: reason)
+    on = live_updates_on?(source)
+    reason = live_updates_off_reason(source) || (source.limits if on)
+    State.new(on: on, last_event_at: map_events_received_at, reason: reason)
   end
 
   def live_updates_offer

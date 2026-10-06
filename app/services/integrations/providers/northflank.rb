@@ -6,6 +6,7 @@ module Integrations
       key: "northflank",
       pack: "Integrations::Packs::Northflank",
       adapter: "Integrations::Capabilities::Northflank",
+      map_events: "Integrations::MapEventSources::Northflank",
       read_guard: "Integrations::ReadGuards::Northflank",
       status_words: {
         "predeployment" => "pending", "triggerallocation" => "pending", "allocating" => "starting", "postdeployment" => "starting",

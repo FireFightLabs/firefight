@@ -11,12 +11,19 @@ module Integrations
     # nothing to do with the token.
     class NotEnabled < Error; end
     NOT_ENABLED = /feature flag is not enabled/i
+    # Northflank answered that the resource is not there, the one answer a re-read takes as gone.
+    class NotFound < Error; end
+    # Northflank turned the request down as it stands, such as a token whose role may not add notification integrations.
+    class Refused < Error; end
+    REFINED = { 400 => Refused, 403 => Refused, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze
     VERBS = { "GET" => Net::HTTP::Get, "POST" => Net::HTTP::Post, "PATCH" => Net::HTTP::Patch, "PUT" => Net::HTTP::Put,
               "DELETE" => Net::HTTP::Delete }.freeze
 
     API_ROOT = "https://api.northflank.com/v1".freeze
     PAGE_SIZE = 100
     MAX_PAGES = 10
+    # The notification integration type that posts to an address of one's own.
+    RAW_WEBHOOK = "RAW_WEBHOOK".freeze
 
     def initialize(token)
       @token = token
@@ -80,6 +87,24 @@ module Integrations
       get("/projects/#{segment(project_id)}/#{kind}/#{segment(resource_id)}/metrics", { "queryType" => "range" }.merge(query))["data"] || {}
     end
 
+    def job(project_id, job_id) = get("/projects/#{segment(project_id)}/jobs/#{segment(job_id)}")["data"] || {}
+
+    # The token's team's notification integrations, each with its type and webhook address but never its secret
+    # (@northflank/js-client, ListNotificationsResult, GET /v1/integrations/notifications), read only to find one Firefight
+    # made at the same address.
+    def notifications = list("/integrations/notifications", "notificationIntegrations")
+
+    # A RAW_WEBHOOK notification integration for the events named, restricted to the projects named, sending secret in its
+    # X-Northflank-Notification-Integration-Token header (@northflank/js-client, CreateNotificationData, POST
+    # /v1/integrations/notifications). Its role needs Account, Observability, Notifications, Create.
+    def create_notification(name:, url:, secret:, events:, projects:)
+      body = { "name" => name, "type" => RAW_WEBHOOK, "webhook" => url, "secret" => secret, "restricted" => true, "projects" => projects,
+               "events" => events.index_with(true) }
+      changing(Net::HTTP::Post, "/integrations/notifications", body)["data"] || {}
+    end
+
+    def delete_notification(notification_id) = changing(Net::HTTP::Delete, "/integrations/notifications/#{segment(notification_id)}")
+
     # Any call inside a project, as the api_request tool asks for it. The body goes as JSON.
     def request(verb, project_id, path, body = nil)
       uri = URI.parse("#{API_ROOT}/projects/#{segment(project_id)}/#{path}")
@@ -103,6 +128,16 @@ module Integrations
       end
     end
 
+    def changing(verb, path, body = nil)
+      uri = URI.parse("#{API_ROOT}#{path}")
+      request = verb.new(uri)
+      if body
+        request["Content-Type"] = "application/json"
+        request.body = body.to_json
+      end
+      send_request(uri, request)
+    end
+
     def get(path, query = {})
       uri = URI.parse("#{API_ROOT}#{path}")
       uri.query = encode(query) if query.any?
@@ -112,7 +147,7 @@ module Integrations
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{@token}"
       Http.json(uri, request, error_class: Error, provider_name: "Northflank", rate_limited: RateLimited,
-                              refine: ->(code, reason) { NotEnabled if [ 401, 403 ].include?(code) && reason.match?(NOT_ENABLED) })
+                              refine: ->(code, reason) { [ 401, 403 ].include?(code) && reason.match?(NOT_ENABLED) ? NotEnabled : REFINED[code] })
     end
 
     # A repeated parameter such as metricTypes is sent once per value, which is how Northflank reads a list.

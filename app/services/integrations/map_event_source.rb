@@ -13,10 +13,18 @@ module Integrations
   #                                           the provider turns it down for its plan or a limit
   #   confirmation_for(row, url:)             a sentence saying what registering would cost the account, such as its
   #                                           only webhook, when a person should decide first, or nil
+  #   register_again?(row, url:)              whether a registration from before no longer covers what the connection
+  #                                           reaches, for a provider whose webhooks are one per resource, such as a
+  #                                           resource added since or a webhook the provider switched off. Asked with
+  #                                           each hourly sweep, and registering again is safe, since register takes
+  #                                           back what it finds at the address
   #   refresh(row, webhook_id)                extends one that lapses, answering when it now does
   #   remove(row, webhook_id)                 takes it back while the connection's credentials still reach the provider
   #   poll(row, since:)                       reads the provider's change log after the cursor since (nil the first time,
   #                                           when it starts from now), answering a Polled
+  #   limits                                  a sentence saying what live updates do not follow, such as a resource
+  #                                           added or its settings changing, which the hourly sweep reads, shown on
+  #                                           the connection while they are on
   #   installation_of(payload, headers:)      for a provider that sends every connection's changes to one address for its
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with
@@ -62,6 +70,8 @@ module Integrations
       end
 
       def setup_steps = []
+
+      def limits = nil
 
       def registers? = respond_to?(:register)
 

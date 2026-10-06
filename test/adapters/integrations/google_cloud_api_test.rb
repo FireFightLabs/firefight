@@ -91,6 +91,23 @@ module Integrations
       assert_equal [ [ "apps" ], false, [ "europe-west1-c" ] ], [ clusters.items.map { |cluster| cluster["name"] }, clusters.complete, clusters.unreachable ]
     end
 
+    test "a log read since a time is oldest first, every page, and a resource Google cannot find is told apart" do
+      api = GoogleCloudApi.new(KEY)
+      api.stubs(:access_token).returns("token")
+      bodies = []
+      Http.expects(:request).twice.with { |uri, request, **| uri.to_s == "#{GoogleCloudApi::LOGGING}/entries:list" && bodies << JSON.parse(request.body) }
+          .returns(response(200, { entries: [ { insertId: "e1" } ], nextPageToken: "p2" })).then.returns(response(200, { entries: [ { insertId: "e2" } ] }))
+
+      read = api.log_entries_since("acme-prod", "logName=x")
+
+      assert_equal [ %w[e1 e2], true ], [ read.items.map { |entry| entry["insertId"] }, read.complete ]
+      assert_equal [ [ "projects/acme-prod" ], "logName=x", "timestamp asc", 1000, nil ], bodies.first.values_at("resourceNames", "filter", "orderBy", "pageSize", "pageToken")
+      assert_equal "p2", bodies.last["pageToken"]
+
+      Http.stubs(:request).returns(response(404, { error: { message: "The Cloud SQL instance does not exist." } }))
+      assert_raises(GoogleCloudApi::NotFound) { api.sql_instance("acme-prod", "gone") }
+    end
+
     private
 
     def response(code, body) = stub(code: code.to_s, body: body.to_json)

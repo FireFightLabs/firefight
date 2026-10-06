@@ -65,6 +65,9 @@ module Integrations
 
       partial = Provider.for(environment_row.integration.provider).in_firefight_words(partial)
       changed = ResourceMap.apply!(environment_row, partial, scope: scope, at: events.map(&:happened_at).max, read_at: read_at)
+      # A code host's re-read of one repository holds its infrastructure files, and takes away only that repository's
+      # suggestions when it read it in full.
+      ResourceMap::CodeDefinitions.new(environment_row.integration.workspace).record!(environment_row, partial.code_files, read_in_full: partial.code_read)
       MapSweep.written!(environment_row, changed) if changed.any?
       ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_APPLIED)
     rescue RateLimited
@@ -110,7 +113,21 @@ module Integrations
 
       environment_row.give_map_events_token!
       environment_row.give_map_events_secret! if source.offers?
-      register!(environment_row, source) if source.registers? && environment_row.map_events_registration_due?(now: now)
+      return unless source.registers?
+
+      register!(environment_row, source) if environment_row.map_events_registration_due?(now: now) || register_again?(environment_row, source)
+    end
+
+    # Whether a registration from before has fallen short of what the connection reaches. A provider that cannot be asked
+    # now is asked again at the next sweep.
+    def register_again?(environment_row, source)
+      return false unless source.respond_to?(:register_again?) && environment_row.map_events_webhook_id.present? && environment_row.map_events_turned_off_at.nil?
+
+      url = url_for(environment_row)
+      url.present? && source.register_again?(environment_row, url: url)
+    rescue Integrations::Error => error
+      Rails.logger.warn({ event: "map_events.register_again_unknown", integration_environment_id: environment_row.id, error: error.message.truncate(200) }.to_json)
+      false
     end
 
     # Notes where a verified delivery came from, for a provider a person set up to send changes, so the connection says

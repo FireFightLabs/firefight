@@ -129,7 +129,8 @@ module Integrations
           CredentialField.new(key: TOKEN, label: "Token", secret: true, placeholder: "ATATT...",
                               hint: "An API token, or a workspace access token, that can read repositories, pull requests and pipelines " \
                                     "(read:repository:bitbucket, read:pullrequest:bitbucket and read:pipeline:bitbucket). Running, rerunning or stopping a " \
-                                    "pipeline also needs write:pipeline:bitbucket.")
+                                    "pipeline also needs write:pipeline:bitbucket. Following changes live " \
+                                    "needs a workspace owner's token with read:webhook:bitbucket, write:webhook:bitbucket and delete:webhook:bitbucket.")
         ]
       end
 
@@ -295,18 +296,68 @@ module Integrations
         bitbucket = api(environment_row)
         workspace = workspace_of(environment_row)
         listed, more = bitbucket.list("/repositories/#{Http.segment(workspace)}", {}, pages: MAX_REPOSITORY_PAGES)
+        listing = more ? [ ResourceMap::Gap.new(text: "Only the first #{listed.size} repositories were listed.", kinds: [ ResourceMap::KIND_REPOSITORY ]) ] : []
+        repositories_snapshot(bitbucket, workspace, listed, gaps: listing)
+      end
+
+      # Only the repository a change named, read again as the sweep reads it, with its infrastructure files, or a branch a
+      # push named, whose repository is read again only when it is the main branch, since a push says nothing of which
+      # branch is main. Gone only when Bitbucket answers not found for the repository. nil for a scope Bitbucket cannot
+      # narrow to, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        return unless scope.external_id
+
+        case scope.kind
+        when nil, ResourceMap::KIND_REPOSITORY then refreshed_repository(environment_row, scope.external_id)
+        when ResourceMap::KIND_BRANCH then pushed_branch(environment_row, scope.external_id)
+        end
+      end
+
+      def refreshed_repository(environment_row, name)
+        return unless name.match?(REPO_FORMAT)
+
+        bitbucket = api(environment_row)
+        workspace = workspace_of(environment_row)
+        repository = begin
+          bitbucket.get(BitbucketApi.repository(name))
+        rescue BitbucketApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, workspace, ResourceMap::KIND_REPOSITORY, name ] ])
+        end
+        repositories_snapshot(bitbucket, workspace, [ repository ])
+      end
+      private :refreshed_repository
+
+      # A branch is named as workspace/repository/branch, and a branch's own name may hold slashes.
+      def pushed_branch(environment_row, name)
+        workspace_slug, slug, branch = name.split("/", 3)
+        return unless branch.present?
+
+        bitbucket = api(environment_row)
+        repository = begin
+          bitbucket.get(BitbucketApi.repository("#{workspace_slug}/#{slug}"))
+        rescue BitbucketApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [])
+        end
+        return ResourceMap::Snapshot.new(resources: []) unless repository.dig("mainbranch", "name") == branch
+
+        repositories_snapshot(bitbucket, workspace_of(environment_row), [ repository ])
+      end
+      private :pushed_branch
+
+      # The repositories as the map has them, with the infrastructure defined as code in them. A file left unread holds
+      # back a suggestion, never a resource.
+      def repositories_snapshot(bitbucket, workspace, listed, gaps: [])
         infrastructure = Infrastructure.new(bitbucket)
         files = infrastructure.files(listed.map { |repository| repository_of(repository) })
-        listing = more ? [ ResourceMap::Gap.new(text: "Only the first #{listed.size} repositories were listed.", kinds: [ ResourceMap::KIND_REPOSITORY ]) ] : []
         found = listed.map do |repository|
           ResourceMap::Found.new(provider: PROVIDER_KEY, account: workspace, kind: ResourceMap::KIND_REPOSITORY, external_id: repository["full_name"],
                                  name: repository["full_name"], url: repository.dig("links", "html", "href"),
                                  details: { "branch" => repository.dig("mainbranch", "name") }.compact)
         end
-        # A file left unread holds back a suggestion, never a resource.
         unread_files = infrastructure.gaps.map { |text| ResourceMap::Gap.new(text: text, kinds: []) }
-        ResourceMap::Snapshot.new(resources: found, gaps: [ *listing, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
+        ResourceMap::Snapshot.new(resources: found, gaps: [ *gaps, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
       end
+      private :repositories_snapshot
 
       def check_health!(environment_row)
         api(environment_row).get("/repositories/#{Http.segment(workspace_of(environment_row))}", "pagelen" => 1)
