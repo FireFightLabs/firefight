@@ -3,10 +3,18 @@ module Integrations
   # parameters and fields are the ones in Netlify's OpenAPI document (netlify/open-api, swagger.yml).
   class NetlifyApi
     class Error < Integrations::Error; end
+    # Netlify answered that the site or hook is not there, the one answer a re-read takes as gone.
+    class NotFound < Error; end
+    # Netlify turned the request down as it stands, such as a hook its plan does not allow, as opposed to a token it does
+    # not accept.
+    class Refused < Error; end
+    REFINED = { 400 => Refused, 403 => Refused, 404 => NotFound, 422 => Refused }.freeze
 
     API_ROOT = "https://api.netlify.com/api/v1".freeze
     PAGE_SIZE = 100
     MAX_PAGES = 10
+    # The hook type that posts to an address of one's own.
+    URL_HOOK = "url".freeze
 
     def initialize(token)
       @token = token
@@ -43,7 +51,41 @@ module Integrations
       send_request(uri, Net::HTTP::Post.new(uri))
     end
 
+    # The site's outgoing hooks (listHooksBySiteId), each with its type, event, data.url and whether Netlify disabled it,
+    # read only to find the ones Firefight made at the connection's own address.
+    def hooks(site_id) = Array(get("/hooks", "site_id" => site_id))
+
+    # The hook types the site's plan offers, each with its events and, for this site, the events it restricts (listHookTypes
+    # with site_id, as Netlify's own MCP server reads them, netlify/netlify-mcp, events/hooks-api.ts). A hook for a
+    # restricted event is stored and never fires.
+    def hook_types(site_id) = Array(get("/hooks/types", "site_id" => site_id))
+
+    # An outgoing webhook for one event of one site, signed with secret (createHookBySiteId, a url hook's data is its url
+    # and signature_secret, netlify/netlify-mcp, events/hooks-api.ts).
+    def create_hook(site_id, event:, url:, secret:)
+      write(Net::HTTP::Post, "/hooks", { "type" => URL_HOOK, "event" => event, "data" => { "url" => url, "signature_secret" => secret } }, "site_id" => site_id)
+    end
+
+    # Clears a hook Netlify disabled after its deliveries kept failing (enableHook).
+    def enable_hook(hook_id) = write(Net::HTTP::Post, "/hooks/#{Http.segment(hook_id)}/enable")
+
+    def delete_hook(hook_id)
+      uri = URI.parse("#{API_ROOT}/hooks/#{Http.segment(hook_id)}")
+      send_request(uri, Net::HTTP::Delete.new(uri))
+    end
+
     private
+
+    def write(verb, path, body = nil, query = {})
+      uri = URI.parse("#{API_ROOT}#{path}")
+      uri.query = URI.encode_www_form(query) if query.any?
+      request = verb.new(uri)
+      if body
+        request["Content-Type"] = "application/json"
+        request.body = body.to_json
+      end
+      send_request(uri, request)
+    end
 
     def get(path, query = {})
       uri = URI.parse("#{API_ROOT}#{path}")
@@ -54,7 +96,7 @@ module Integrations
 
     def send_request(uri, request)
       request["Authorization"] = "Bearer #{@token}"
-      Http.json(uri, request, error_class: Error, provider_name: "Netlify")
+      Http.json(uri, request, error_class: Error, provider_name: "Netlify", refine: ->(code, _reason) { REFINED[code] })
     end
   end
 end

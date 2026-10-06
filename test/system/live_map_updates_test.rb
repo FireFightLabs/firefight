@@ -6,7 +6,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     sign_in(users(:alice), @workspace)
-    # Northflank sends no changes yet, so the test gives it the test provider's, set up by hand.
+    # Northflank stands in for a provider set up by hand, with the test provider's changes.
     Integrations::Providers::Northflank.stubs(:map_events).returns(LiveTestEvents)
     @row = connect_live!(@workspace, provider: "northflank", name: "Northflank")
     @row.give_map_events_token!
@@ -86,6 +86,8 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
       page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-confirm.png"))
       click_button "Turn on"
     end
+    # The toast is hidden from view until the dialog has closed.
+    assert_no_selector "[role='dialog']", text: "Turn on live updates?"
     assert_text "Live updates are on. Changes Render sends now reach the map."
     assert_text "Live updates: on, no change received yet"
     assert_equal "whk-1", render.reload.map_events_webhook_id
@@ -94,6 +96,8 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
     click_button "Turn off"
     within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
+    # The toast is hidden from view until the dialog has closed.
+    assert_no_selector "[role='dialog']", text: "Turn off live updates?"
     assert_text "Live updates are off. Firefight removed its webhook from Render."
     assert_text "Live updates were turned off, so the map updates at each sweep."
   end

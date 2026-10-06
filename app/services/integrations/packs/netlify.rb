@@ -153,26 +153,55 @@ module Integrations
       def map_of(environment_row)
         read = all_sites(environment_row)
         found = read.items
-        resources = []
-        links = []
-        settings = Settings.new(api(environment_row), ConnectionSettings.of(environment_row).workspace)
-        found.each do |site|
-          resource = site_resource(site)
-          resources << resource
-          settings.read(site, resource)
+        reading = MapReading.new(Settings.new(api(environment_row), ConnectionSettings.of(environment_row).workspace))
+        found.each { |site| reading.site(site, site_resource(site)) }
+        gaps = read.incomplete? ? [ ResourceMap::Gap.new(text: "Only the first #{found.size} sites were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ]) ] : []
+        reading.snapshot(gaps)
+      end
+
+      # Only the site a deploy notification named, read again as the sweep reads it, with its domains, repository and
+      # settings. Gone only when Netlify answers not found for it, under the team the map already has it in, and otherwise
+      # nil, for a sweep to say. nil for a scope Netlify cannot narrow to.
+      def map_refresh(environment_row, scope)
+        return unless scope.external_id && [ nil, ResourceMap::KIND_SITE ].include?(scope.kind)
+
+        site = begin
+          api(environment_row).site(scope.external_id)
+        rescue NetlifyApi::NotFound
+          known = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY, kind: ResourceMap::KIND_SITE,
+                                                      external_id: scope.external_id).pick(:account)
+          return known && ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, known, ResourceMap::KIND_SITE, scope.external_id ] ])
+        end
+        reading = MapReading.new(Settings.new(api(environment_row), ConnectionSettings.of(environment_row).workspace))
+        reading.site(site, site_resource(site))
+        reading.snapshot([])
+      end
+
+      # What map_of and map_refresh read, one site at a time: the site, the domains it serves, the repository it builds from
+      # and its settings.
+      class MapReading
+        def initialize(settings)
+          @settings = settings
+          @resources = []
+          @links = []
+        end
+
+        def site(site, resource)
+          @resources << resource
+          @settings.read(site, resource)
           [ site["custom_domain"], *Array(site["domain_aliases"]) ].compact_blank.uniq.each do |host|
             domain = ResourceMap.domain(host)
-            resources << domain
-            links << ResourceMap::FoundLink.new(from: domain.key, to: resource.key, relation: ResourceMap::RELATION_SERVED_BY)
+            @resources << domain
+            @links << ResourceMap::FoundLink.new(from: domain.key, to: resource.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
           repository = ResourceMap.repository_of(site.dig("build_settings", "repo_url"))
-          next unless repository
+          return unless repository
 
-          resources << repository
-          links << ResourceMap::FoundLink.new(from: resource.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
+          @resources << repository
+          @links << ResourceMap::FoundLink.new(from: resource.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
         end
-        gaps = read.incomplete? ? [ ResourceMap::Gap.new(text: "Only the first #{found.size} sites were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ]) ] : []
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps + settings.gaps, uses: settings.uses)
+
+        def snapshot(gaps) = ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps + @settings.gaps, uses: @settings.uses)
       end
 
       # Each site's environment variables, one call a site, read in memory for where they point. A secret is known by its
