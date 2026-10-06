@@ -49,6 +49,7 @@ gem "aws-sdk-s3", require: false
 gem "pdf-reader", "~> 2.14", require: false
 
 # The AWS integration reads and changes what a workspace runs on AWS, required only when a call is made
+gem "aws-sdk-cloudtrail", require: false
 gem "aws-sdk-cloudwatch", require: false
 gem "aws-sdk-cloudwatchlogs", require: false
 gem "aws-sdk-ec2", require: false

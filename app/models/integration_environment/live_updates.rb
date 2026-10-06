@@ -9,6 +9,12 @@ module IntegrationEnvironment::LiveUpdates
   # of two ways in while the other still works, or while they are on, what they do not follow.
   State = Data.define(:on, :last_event_at, :reason)
 
+  # What a person may set up at the provider to send changes as they happen, for a provider that offers it. It holds the
+  # sentences saying what it does, the button's words, each place with when it last sent something (nil while it has
+  # not) or why it cannot be set up there, why no setup can be made anywhere, if so, and how to remove it.
+  Offered = Data.define(:words, :action, :places, :unavailable, :removal)
+  OfferedPlace = Data.define(:place, :label, :sent_at, :unavailable)
+
   # A webhook Firefight registers changes how the connection is set up at the provider, recorded as such.
   MAP_EVENTS_WEBHOOK_ACTION_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_UPDATE)
   MAP_EVENTS_WEBHOOK_LABEL = "Live updates".freeze
@@ -33,6 +39,59 @@ module IntegrationEnvironment::LiveUpdates
     on = live_updates_on?(source)
     reason = live_updates_off_reason(source) || (source.limits if on)
     State.new(on: on, last_event_at: map_events_received_at, reason: reason)
+  end
+
+  def live_updates_offer
+    source = map_event_source
+    return unless source&.offers?
+
+    places = source.offers(self).map do |offer|
+      OfferedPlace.new(place: offer.place, label: offer.label, sent_at: map_events_sent_at(offer.place), unavailable: offer.unavailable)
+    end
+    Offered.new(words: source.offer_words, action: source.offer_action, places: places, unavailable: source.offer_unavailable_reason,
+                removal: source.removal_words(self, places.select(&:sent_at).map(&:place)))
+  end
+
+  # The provider's own page that sets one place up, with the connection's address and secret in it.
+  def live_updates_setup_link(place)
+    map_event_source.offer_link(self, place: place, url: Integrations::MapEvents.url_for(self), secret: map_events_secret)
+  end
+
+  # Why a person cannot set the provider up to send changes from this place, or nil.
+  def live_updates_setup_blocked_reason(place)
+    source = map_event_source
+    return "#{integration.name} cannot be set up to send its changes." unless source&.offers?
+    return "#{integration.name} is switched off. Switch it on first." unless integration.operational? && enabled?
+    offered = source.offers(self).find { |offer| offer.place == place }
+    return "#{integration.name} does not read #{place.presence || 'that place'}." unless offered
+    return source.offer_unavailable_reason || offered.unavailable if source.offer_unavailable_reason || offered.unavailable
+    return "Firefight's own address is not set, so there is nowhere to send changes." unless Integrations::MapEvents.url_for(self)
+
+    "Firefight has not made this connection's key yet. Try again in a minute." if map_events_secret.blank?
+  end
+
+  # How to remove what a person set up at the provider, said when the connection is removed, or nil when nothing sent.
+  def live_updates_removal_words
+    source = map_event_source
+    source.removal_words(self, map_events_sent_from.keys) if source&.offers? && map_events_sent_from.present?
+  end
+
+  # Records that a place sent a verified delivery, or that its setup is being removed. One statement, so two deliveries at
+  # once each keep their place.
+  def map_events_sent!(place, ended: false)
+    rows = self.class.where(id: id)
+    return rows.update_all([ "map_events_sent_from = map_events_sent_from - ?", place ]) if ended
+
+    rows.update_all([ "map_events_sent_from = map_events_sent_from || jsonb_build_object(?::text, ?::text)", place, Time.current.utc.iso8601 ])
+  end
+
+  def map_events_sent_at(place) = map_events_sent_from[place]&.then { |stamp| Time.iso8601(stamp) }
+
+  # Gives the row the secret a provider set up by a person sends with, once.
+  def give_map_events_secret!
+    return if map_events_secret.present?
+
+    with_lock { update!(map_events_secret: SecureRandom.hex(32)) if map_events_secret.blank? }
   end
 
   # Whether an admin sends the provider's changes to the connection's address and pastes the signing secret.
@@ -114,6 +173,7 @@ module IntegrationEnvironment::LiveUpdates
   def live_updates_on?(source)
     return false unless integration.operational? && enabled?
     return true if source.polls? && map_events_error.blank?
+    return map_events_sent_from.present? if source.offers?
     return installation_id.present? && Integrations::MapEvents.app_secret(integration.provider).present? if source.app_wide?
     return map_events_webhook_id.present? && !map_events_lapsed? if source.registers?
 
@@ -125,6 +185,10 @@ module IntegrationEnvironment::LiveUpdates
     return "#{name} is switched off, so changes there do not reach the map." unless integration.operational? && enabled?
     return "Live updates were turned off, so the map updates at each sweep." if source.registers? && map_events_turned_off_at.present?
     if map_events_error.present?
+      if source.offers? && map_events_sent_from.present?
+        return Integrations::Sentence.join("Firefight could not read #{name}'s change log", map_events_error,
+                                           after: "Changes still arrive as they happen from #{map_events_sent_from.keys.to_sentence}.")
+      end
       after = map_events_refused_at ? "Firefight tries again tomorrow. The map still updates at each sweep." : "The map still updates at each sweep."
       return Integrations::Sentence.join("Firefight could not follow #{name}'s changes", map_events_error, after: after)
     end
