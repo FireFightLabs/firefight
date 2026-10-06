@@ -237,19 +237,24 @@ module Integrations
 
       # The one database the connection URL reaches, named by its host, port and name, which is all the map needs and
       # holds no credential.
+      # The database is also reached at the host and port its URL names, which a service's DATABASE_URL may name too. A
+      # service can reach it another way, such as through a pooler or a private host, which this address will not match.
       def map_of(environment_row)
-        found = read(environment_row) do |connection|
+        workspace = ConnectionSettings.of(environment_row).workspace
+        found, endpoint = read(environment_row) do |connection|
           row = connection.exec(<<~SQL).to_a.first
             SELECT current_database() AS database, current_setting('server_version') AS version,
                    CASE WHEN pg_is_in_recovery() THEN 'replica' ELSE 'primary' END AS role
           SQL
-          ResourceMap::Found.new(
+          database = ResourceMap::Found.new(
             provider: PROVIDER, account: connection.host, kind: ResourceMap::KIND_DATABASE,
             external_id: "#{connection.host}:#{connection.port}/#{row['database']}", name: row["database"], status: RUNNING,
             details: { "engine" => "PostgreSQL #{row['version']}", "type" => row["role"] }
           )
+          [ database, ResourceMap::Endpoint.at(resource: database.key, host: connection.host, port: connection.port, workspace: workspace,
+                                               database: row["database"]) ]
         end
-        ResourceMap::Snapshot.new(resources: [ found ])
+        ResourceMap::Snapshot.new(resources: [ found ], endpoints: [ endpoint ])
       end
 
       def check_health!(environment_row)

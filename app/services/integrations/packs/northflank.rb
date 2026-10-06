@@ -211,7 +211,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. For Halon to apply fixes, its role can also update services.")
+                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services.")
         ]
       end
 
@@ -457,7 +457,67 @@ module Integrations
         rescue NorthflankApi::Error => error
           gaps << ResourceMap::Gap.new(text: Sentence.join("Jobs could not be read", error), kinds: [ ResourceMap::KIND_JOB ])
         end
-        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps)
+        groups = secret_groups(api, project, gaps)
+        uses = details.select { |service| service["serviceType"] != "build" }.flat_map do |service|
+          key = mapping.key_of(ResourceMap::KIND_SERVICE, service["id"])
+          inherited = groups.select { |group| group.applies_to?(service["id"], service["tags"]) }.sort_by(&:priority)
+          inherited.each { |group| group.addons.each { |addon, variables| mapping.uses(key, addon, variables) } }
+          values = inherited.map(&:variables).reduce({}, :merge).merge(service["runtimeEnvironment"].to_h)
+          ResourceMap::Use.read(from: key, workspace: environment_row.integration.workspace, values: values)
+        end
+        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: uses)
+      end
+
+      # A secret group as it applies to services, with the variables it gives them, the addons linked to it with the names
+      # each linked key reaches a service under, and its restrictions (@northflank/js-client, ListSecretsResult). An
+      # unrestricted group reaches every service in the project, and a restricted one the services it names or whose
+      # tags match.
+      SecretGroup = Data.define(:priority, :restrictions, :variables, :addons) do
+        def applies_to?(service_id, tags)
+          return true unless restrictions["restricted"]
+          return true if Array(restrictions["nfObjects"]).any? { |object| object["id"] == service_id }
+
+          wanted = Array(restrictions["tags"])
+          return false if wanted.empty?
+
+          restrictions["tagMatchCondition"] == "and" ? (wanted - Array(tags)).empty? : wanted.intersect?(Array(tags))
+        end
+      end
+      # Being asked to slow down while reading secret groups stops reading them, and the map's own reads go on.
+      SLOWED = "Northflank asked Firefight to slow down, so the rest of the secret groups were not read this time.".freeze
+      SECRETS_PERMISSION = "Its role needs to read secret groups (Project, Secrets) for the settings services inherit and the " \
+                           "databases linked to them.".freeze
+
+      # The project's secret groups, one list and one read per group, within an hourly budget a sweep shares with the
+      # rest of the account's calls. A list the token may not read is a settings gap that names the permission.
+      def secret_groups(api, project, gaps)
+        listed = api.secret_groups(project)
+        gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} secret groups were read.", kinds: [], settings: true) if listed.incomplete?
+        listed.items.filter_map do |group|
+          details = api.secret_group(project, group["id"])
+          SecretGroup.new(priority: group["priority"].to_i, restrictions: group["restrictions"].to_h,
+                          variables: details.dig("secrets", "variables").to_h, addons: linked_addons(details))
+        end
+      rescue NorthflankApi::RateLimited
+        gaps << ResourceMap::Gap.new(text: SLOWED, kinds: [], settings: true)
+        []
+      rescue NorthflankApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.all(Sentence.join("Secret groups could not be read", error), SECRETS_PERMISSION), kinds: [], settings: true)
+        []
+      end
+
+      # Each addon a group links, with the variable names its keys reach services under, from the details' addonSecrets.
+      # Their variables come as names, or keys with the aliases a link gives them, so each is read as a name.
+      def linked_addons(details)
+        Array(details["addonSecrets"]).to_h do |addon|
+          variables = addon["variables"]
+          names = case variables
+          when Hash then variables.keys
+          when Array then variables.flat_map { |each| each.is_a?(Hash) ? Array(each["aliases"]).presence || [ each["keyName"] || each["name"] ] : [ each ] }
+          else []
+          end
+          [ addon["id"].to_s, names.compact.map(&:to_s) ]
+        end
       end
 
       # What normal looks like for its services and databases, one metrics read each. A week comes back in coarse steps,
@@ -517,6 +577,18 @@ module Integrations
           add(ResourceMap::KIND_DATABASE, addon["id"], addon["name"], status: addon["status"].to_s.downcase.presence,
               page: [ KIND_ADDONS, addon["id"] ], details: { "type" => addon.dig("spec", "type") }.compact)
         end
+
+        # A service uses a database a secret group links, through the variables it names, one link however many groups
+        # link it.
+        def uses(from, addon_id, variables)
+          to = key(ResourceMap::KIND_DATABASE, addon_id)
+          index = @links.index { |link| link.from == from && link.to == to && link.relation == ResourceMap::RELATION_USES }
+          found = ResourceMap::FoundLink.new(from: from, to: to, relation: ResourceMap::RELATION_USES,
+                                             variables: ((index ? @links[index].variables : []) + variables).uniq.sort)
+          index ? @links[index] = found : @links << found
+        end
+
+        def key_of(kind, id) = key(kind, id)
 
         def job(job)
           add(ResourceMap::KIND_JOB, job["id"], job["name"], page: [ KIND_JOBS, job["id"] ],

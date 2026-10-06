@@ -334,6 +334,7 @@ module Integrations
         account = workspace_of(environment_row)
         reading = MapReading.new(account)
         gaps = []
+        settings = {}
         services = api.services(account)
         bounded(services, "services", [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ], gaps)
         services.items.each do |service|
@@ -346,6 +347,7 @@ module Integrations
             nil
           end
           found = reading.service(service, deploy)
+          settings[found] = service_env(api, service, gaps) unless slowed?(gaps)
           next unless [ WEB_SERVICE, STATIC_SITE ].include?(service["type"])
 
           begin
@@ -362,8 +364,52 @@ module Integrations
           bounded(stores, what, [ ResourceMap::KIND_DATABASE ], gaps)
           stores.items.each { |store| reading.datastore(type, store) }
         end
-        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps)
+        groups = slowed?(gaps) ? {} : group_env(api, account, services.items.map { |service| service["id"] }, gaps)
+        workspace = environment_row.integration.workspace
+        uses = settings.flat_map do |key, own|
+          ResourceMap::Use.read(from: key, workspace: workspace, values: groups.fetch(key.last, {}).merge(own.to_h))
+        end
+        ResourceMap::Snapshot.new(resources: reading.resources, links: reading.links, gaps: gaps, uses: uses)
       end
+
+      # A service's own variables, by name and value, read in memory only. Render's API answers every value as written,
+      # so nothing is hidden by name. nil, with a settings gap, when they could not be read.
+      def service_env(api, service, gaps)
+        read = api.env_vars(service["id"])
+        gaps << ResourceMap::Gap.new(text: "Only the first #{read.items.size} settings of #{service['name']} were read.", kinds: [], settings: true) if read.incomplete?
+        read.items.to_h { |variable| [ variable["key"], variable["value"] ] }
+      rescue Integrations::RateLimited
+        gaps << ResourceMap::Gap.new(text: SLOWED, kinds: [], settings: true)
+        nil
+      rescue RenderApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("The settings of #{service['name']} could not be read", error), kinds: [], settings: true)
+        nil
+      end
+      private :service_env
+
+      # Being asked to slow down while reading settings stops reading them, and the map's own reads go on.
+      SLOWED = "Render asked Firefight to slow down, so the rest of the services' settings were not read this time.".freeze
+
+      def slowed?(gaps) = gaps.any? { |gap| gap.text == SLOWED }
+      private :slowed?
+
+      # The variables each service gets from the environment groups linked to it, by service id. A service's own
+      # variable of the same name wins, as it does on Render (render.com/docs/configure-environment-variables).
+      def group_env(api, account, service_ids, gaps)
+        groups = api.env_groups(account)
+        gaps << ResourceMap::Gap.new(text: "Only the first #{groups.size} environment groups were read.", kinds: [], settings: true) if groups.size >= RenderApi::PAGE_SIZE
+        groups.select { |group| Array(group["serviceLinks"]).any? { |link| service_ids.include?(link["id"]) } }.each_with_object({}) do |group, by_service|
+          values = Array(api.env_group(group["id"])["envVars"]).to_h { |variable| [ variable["key"], variable["value"] ] }
+          Array(group["serviceLinks"]).each { |link| by_service[link["id"]] = by_service.fetch(link["id"], {}).merge(values) }
+        end
+      rescue Integrations::RateLimited
+        gaps << ResourceMap::Gap.new(text: SLOWED, kinds: [], settings: true)
+        {}
+      rescue RenderApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("The environment groups could not be read", error), kinds: [], settings: true)
+        {}
+      end
+      private :group_env
 
       # A list read only up to its bound is a gap, and what it holds is not taken as gone.
       def bounded(read, what, kinds, gaps)

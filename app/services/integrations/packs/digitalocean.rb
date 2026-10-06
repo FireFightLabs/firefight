@@ -39,6 +39,22 @@ module Integrations
       # plain git source, which names its clone address.
       SOURCES = %w[github gitlab bitbucket].freeze
       GIT = "git".freeze
+      # An app spec's environment variables (app_variable_definition) are GENERAL or SECRET, and a SECRET's value comes
+      # back encrypted, so only its name is read. A value of ${db.DATABASE_URL} is a bindable variable that names the
+      # spec's database component db, left unresolved in the spec, and that component's cluster_name is the managed
+      # database it attaches (app_database_spec).
+      # https://docs.digitalocean.com/products/app-platform/reference/app-spec/
+      # https://docs.digitalocean.com/products/app-platform/how-to/use-environment-variables/
+      SECRET = "SECRET".freeze
+      BINDABLE = /\$\{([A-Za-z0-9_-]+)\.[A-Za-z0-9_]+\}/
+      # A managed database's connection and private_connection name the host and port an app connects to, beside its
+      # password, of which only the host and port are read. PostgreSQL's connection pools answer on the same host on
+      # port 25061.
+      # https://docs.digitalocean.com/reference/api/digitalocean/#tag/Databases/operation/databases_list_clusters
+      # https://docs.digitalocean.com/products/databases/postgresql/how-to/manage-connection-pools/
+      CONNECTIONS = %w[connection private_connection].freeze
+      POOL_PORT = 25_061
+      POSTGRESQL = "pg".freeze
 
       CPU = "cpu".freeze
       MEMORY = "memory".freeze
@@ -322,6 +338,9 @@ module Integrations
         resources = []
         links = []
         gaps = []
+        @uses = []
+        @endpoints = []
+        @attached = []
         { KIND_APP => -> { api.apps }, KIND_DROPLET => -> { api.droplets }, KIND_DATABASE => -> { api.databases } }.each do |kind, read|
           listed = read.call
           listed.items.each { |row| map_row(environment_row, kind, row, account, resources, links) }
@@ -333,7 +352,7 @@ module Integrations
         rescue DigitaloceanApi::Error => error
           gaps << ResourceMap::Gap.new(text: Sentence.join("The #{KIND_NAMES.fetch(kind)}s could not be read", error), kinds: LISTED_KINDS.fetch(kind))
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: resources, links: links + attached_links(resources), gaps: gaps, uses: @uses, endpoints: @endpoints)
       end
 
       # What normal looks like for its apps, Droplets and MySQL databases, one metrics read each. Instances are averaged,
@@ -388,9 +407,57 @@ module Integrations
                              details: { "size" => row["size_slug"], "region" => row.dig("region", "slug"), "image" => row.dig("image", "distribution"),
                                         ResourceMap::TAGS => tags_of(row) }.compact)
         else
-          resources << found(environment_row, kind, row["id"], row["name"], account, status: row["status"],
-                             details: { "engine" => row["engine"], "version" => row["version"], "nodes" => row["num_nodes"],
-                                        "size" => row["size"], "region" => row["region"], ResourceMap::TAGS => tags_of(row) }.compact)
+          database = found(environment_row, kind, row["id"], row["name"], account, status: row["status"],
+                           details: { "engine" => row["engine"], "version" => row["version"], "nodes" => row["num_nodes"],
+                                      "size" => row["size"], "region" => row["region"], ResourceMap::TAGS => tags_of(row) }.compact)
+          resources << database
+          @endpoints.concat(endpoints_of(environment_row, database, row))
+        end
+      end
+
+      # Where an app reaches the database, read off its connections in memory, the password never.
+      def endpoints_of(environment_row, database, row)
+        workspace = ConnectionSettings.of(environment_row).workspace
+        CONNECTIONS.flat_map do |name|
+          host = row.dig(name, "host")
+          ports = [ row.dig(name, "port"), (POOL_PORT if row["engine"] == POSTGRESQL) ].compact.uniq
+          ports.map { |port| ResourceMap::Endpoint.at(resource: database.key, host: host, port: port, workspace: workspace) }
+        end.compact
+      end
+
+      # An app's settings, from the spec and each of its components. A SECRET is read by its name, and a value that binds
+      # a database component of the spec is that component's reference rather than an address.
+      def settings_of(environment_row, app_found, spec)
+        definitions = [ *Array(spec["envs"]), *components(spec).flat_map { |component| Array(component["envs"]) } ]
+        databases = Array(spec["databases"]).to_h { |database| [ database["name"].to_s, database ] }
+        bound = Hash.new { |hash, key| hash[key] = [] }
+        values = {}
+        names = []
+        definitions.each do |definition|
+          key = definition["key"].to_s
+          next if key.empty?
+
+          binds = definition["value"].to_s.scan(BINDABLE).flatten & databases.keys
+          if binds.any? then binds.each { |component| bound[component] << key }
+          elsif definition["type"] == SECRET then names << key
+          else values[key] = definition["value"].to_s
+          end
+        end
+        @uses.concat(ResourceMap::Use.read(from: app_found.key, workspace: ConnectionSettings.of(environment_row).workspace, values: values, names: names))
+        databases.each_value do |database|
+          next if database["cluster_name"].blank?
+
+          @attached << [ app_found.key, database["cluster_name"].to_s, bound[database["name"].to_s].uniq.sort ]
+        end
+      end
+
+      # An app attaches a managed database by its cluster's name, which is how the database list names it, so each one
+      # read is linked as declared, with the settings that bind it.
+      def attached_links(resources)
+        databases = resources.select { |each| each.kind == ResourceMap::KIND_DATABASE && each.provider == PROVIDER_KEY }.index_by(&:name)
+        @attached.filter_map do |app_key, cluster, variables|
+          database = databases[cluster]
+          database && ResourceMap::FoundLink.new(from: app_key, to: database.key, relation: ResourceMap::RELATION_USES, variables: variables)
         end
       end
 
@@ -404,6 +471,7 @@ module Integrations
                           details: { "region" => app.dig("region", "slug"), "tier" => app["tier_slug"], ResourceMap::DEPLOYED_COMMIT => commit,
                                      "components" => components(spec).size }.compact)
         resources << app_found
+        settings_of(environment_row, app_found, spec)
         components(spec).filter_map { |component| repository_of(component) }.uniq.each do |repository|
           resources << repository
           links << ResourceMap::FoundLink.new(from: app_found.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)

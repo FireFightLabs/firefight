@@ -28,6 +28,9 @@ module Integrations
       }.freeze
       TYPES_BY_KIND = KINDS.invert.freeze
       SQL_STOPPED = "NEVER".freeze
+      SQL_OUTGOING = "OUTGOING".freeze
+      # The port each engine listens on, by the start of an instance's databaseVersion.
+      SQL_PORTS = { "POSTGRES" => 5432, "MYSQL" => 3306, "SQLSERVER" => 1433 }.freeze
 
       # The console pages Google's documentation links to, each opened on the connected project.
       PAGES = { TYPE_RUN => "run/services", TYPE_SQL => "sql", TYPE_MACHINE => "compute/instances", TYPE_CLUSTER => "kubernetes/list" }.freeze
@@ -350,12 +353,16 @@ module Integrations
 
       # The project on the resource map: its Cloud Run services and the addresses they serve, Cloud SQL instances,
       # Compute Engine instances and GKE clusters. A product the key may not read, or whose API is off in the project, is
-      # a gap, and nothing of its kind is taken as gone.
+      # a gap, and nothing of its kind is taken as gone. A Cloud Run service's settings are read in memory and the Cloud
+      # SQL instances it mounts are links it declares, and each Cloud SQL instance reports the addresses it is reached at.
       def map_of(environment_row)
         project = project_of(environment_row)
         listing = catalog(environment_row)
+        workspace = environment_row.integration.workspace
         resources = []
         links = []
+        uses = []
+        endpoints = []
         listing.items.each do |item|
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: project, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
                                          status: item[:status], url: console(environment_row, project, PAGES.fetch(item[:type])), details: item[:details])
@@ -365,8 +372,14 @@ module Integrations
             resources << domain
             links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
+          case item[:type]
+          when TYPE_RUN
+            uses.concat(run_settings(found.key, item[:source], workspace))
+            links.concat(cloud_sql_links(found.key, item[:source]))
+          when TYPE_SQL then endpoints.concat(sql_endpoints(found.key, item[:source], workspace))
+          end
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps, uses: uses, endpoints: endpoints)
       end
 
       # What normal looks like for each Cloud Run service, Cloud SQL instance and Compute Engine instance, read an hour at
@@ -442,6 +455,36 @@ module Integrations
         end
       end
 
+      # A service's settings, read in memory from its containers' env (EnvVar, a value or a valueSource.secretKeyRef,
+      # https://cloud.google.com/run/docs/reference/rest/v2/Container#EnvVar). A value from Secret Manager is named only.
+      def run_settings(key, service, workspace)
+        env = Array(service.dig("template", "containers")).flat_map { |container| Array(container["env"]) }
+        values, secrets = env.partition { |variable| variable.key?("value") }
+        ResourceMap::Use.read(from: key, workspace: workspace, values: values.to_h { |variable| [ variable["name"].to_s, variable["value"].to_s ] },
+                              names: secrets.map { |variable| variable["name"] })
+      end
+
+      # The Cloud SQL instances a service mounts (Volume.cloudSqlInstance.instances, each project:region:instance,
+      # https://cloud.google.com/run/docs/reference/rest/v2/Volume#CloudSqlInstance), which are the instances' own
+      # connection names and so their ids on the map. A mount is not a setting, so the link names none.
+      def cloud_sql_links(key, service)
+        Array(service.dig("template", "volumes")).flat_map { |volume| Array(volume.dig("cloudSqlInstance", "instances")) }.uniq.map do |name|
+          ResourceMap::FoundLink.new(from: key, to: [ PROVIDER_KEY, name.split(":").first, KINDS.fetch(TYPE_SQL), name ], relation: ResourceMap::RELATION_USES)
+        end
+      end
+
+      # The addresses an instance is reached at, its public and private IPs (an OUTGOING address is where it connects
+      # from, not to) and its DNS names, on its engine's port (DatabaseInstance ipAddresses, dnsName and dnsNames,
+      # https://cloud.google.com/sql/docs/postgres/admin-api/rest/v1/instances#DatabaseInstance).
+      def sql_endpoints(key, instance, workspace)
+        port = SQL_PORTS.find { |engine, _| instance["databaseVersion"].to_s.start_with?(engine) }&.last
+        return [] unless port
+
+        hosts = Array(instance["ipAddresses"]).reject { |address| address["type"] == SQL_OUTGOING }.map { |address| address["ipAddress"] }
+        hosts += [ instance["dnsName"], *Array(instance["dnsNames"]).map { |name| name["name"] } ]
+        hosts.compact_blank.uniq.filter_map { |host| ResourceMap::Endpoint.at(resource: key, host: host, port: port, workspace: workspace) }
+      end
+
       # A list's resources as items, whether the list was read in full, and the zones Google Cloud could not reach.
       def whole(read, &) = [ read.items.map(&), read.complete, read.try(:unreachable).to_a ]
 
@@ -467,6 +510,7 @@ module Integrations
         container = Array(service.dig("template", "containers")).first.to_h
         hosts = Array(service["urls"]).push(service["uri"]).compact.filter_map { |url| host_of(url) }.uniq
         { type: TYPE_RUN, id: service["name"], name: target&.name || service["name"], location: target&.location, status: run_status(service), hosts: hosts,
+          source: service,
           details: { TYPE => TYPE_RUN, "region" => target&.location, "image" => container["image"],
                      "latest_revision" => short(service["latestReadyRevision"]), ResourceMap::TAGS => service["labels"].presence }.compact }
       end
@@ -482,7 +526,7 @@ module Integrations
       def sql_item(project, instance)
         status = instance.dig("settings", "activationPolicy") == SQL_STOPPED ? "stopped" : instance["state"].to_s.downcase
         { type: TYPE_SQL, id: instance["connectionName"].presence || "#{project}:#{instance['region']}:#{instance['name']}", name: instance["name"],
-          location: instance["region"], status: status, hosts: [],
+          location: instance["region"], status: status, hosts: [], source: instance,
           details: { TYPE => TYPE_SQL, "engine" => instance["databaseVersion"], "tier" => instance.dig("settings", "tier"),
                      "availability" => instance.dig("settings", "availabilityType"), "region" => instance["region"],
                      ResourceMap::TAGS => instance.dig("settings", "userLabels").presence }.compact }

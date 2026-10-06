@@ -25,6 +25,10 @@ module Integrations
 
     def site(site_id) = get("/sites/#{Http.segment(site_id)}")
 
+    # A site's own environment variables (getEnvVars with site_id), each with its values per deploy context. A secret's
+    # values are not readable outside Netlify, apart from the local development context's.
+    def env_vars(account_id, site_id) = Array(get("/accounts/#{Http.segment(account_id)}/env", "site_id" => site_id))
+
     # production and branch are the swagger's own filters on listSiteDeploys.
     def deploys(site_id, limit:, production: nil, branch: nil)
       query = { "per_page" => limit, "page" => 1, "production" => production, "branch" => branch.presence }

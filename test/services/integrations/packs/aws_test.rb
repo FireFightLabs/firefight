@@ -405,6 +405,50 @@ module Integrations
         assert_match "AWS asked to slow down while listing ECS services in eu-west-1", snapshot.gaps.sole.text
       end
 
+      test "the map reads each service's and function's settings in memory and each database's address and password secret, keeping no value" do
+        inventory!
+        secret = "arn:aws:secretsmanager:eu-west-1:#{ACCOUNT}:secret:rds!db-1-AbCdEf"
+        AwsApi.any_instance.stubs(:all).with { |_service, at, called, *| called == :list_functions && at == "eu-west-1" }
+              .returns([ [ function.merge(environment: { variables: { "API_TOKEN" => "sk_live_123", "REDIS_URL" => "rediss://default:redispw@cache.example.com:6380" } }) ], false ])
+        AwsApi.any_instance.stubs(:all).with { |_service, at, called, *| called == :describe_db_instances && at == "eu-west-1" }
+              .returns([ [ database(endpoint: { address: "orders.abc.eu-west-1.rds.amazonaws.com", port: 5432 }, master_user_secret: { secret_arn: secret }) ], false ])
+        AwsApi.any_instance.expects(:call).with(:ecs, "eu-west-1", :describe_task_definition, task_definition: TASK_DEFINITION).once
+              .returns(task_definition: task_definition(secrets: [ { name: "DATABASE_PASSWORD", value_from: "#{secret}:password::" } ]))
+
+        snapshot = @pack.map_of(@row)
+
+        uses = snapshot.uses.group_by(&:from).transform_values { |found| found.map(&:variable).sort }
+        assert_equal({ service_key => %w[DATABASE_PASSWORD DATABASE_URL], function_key => %w[REDIS_URL] }, uses)
+        assert_equal [ 5432, 0 ], snapshot.endpoints.map(&:port)
+        assert snapshot.endpoints.all? { |found| found.resource == [ "aws", ACCOUNT, ResourceMap::KIND_DATABASE, DATABASE_ARN ] }
+        assert_no_setting_values(snapshot, "hunter2", "postgres://app:hunter2@db/prod", "sk_live_123", "redispw", "cache.example.com",
+                                 "orders.abc.eu-west-1.rds.amazonaws.com")
+
+        ResourceMap.record!(@row, snapshot)
+        ResourceMap::Matcher.new(@workspace).run!
+        link = ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_MATCHED)
+        assert_equal [ "web", "orders", [ "DATABASE_PASSWORD" ] ], [ link.from_resource.name, link.to_resource.name, link.variables ]
+        assert_no_setting_values(snapshot, "hunter2", "sk_live_123", "redispw", "orders.abc.eu-west-1.rds.amazonaws.com")
+      end
+
+      test "a function whose variables Lambda could not decrypt, and task definitions the key may not read, are gaps that hold no resource back" do
+        inventory!
+        AwsApi.any_instance.stubs(:all).with { |_service, at, called, *| called == :list_functions && at == "eu-west-1" }
+              .returns([ [ function.merge(environment: { error: { error_code: "KMSAccessDeniedException", message: "Lambda was unable to decrypt the environment variables." } }) ], false ])
+        answer(:describe_task_definition, raises: [ AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform: ecs:DescribeTaskDefinition" ])
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal %w[checkout web], snapshot.resources.map(&:name).select { |name| %w[checkout web].include?(name) }.sort
+        settings = snapshot.gaps.select(&:settings)
+        assert_equal [ "The settings of ECS services in eu-west-1 could not be read. Allow ecs:DescribeTaskDefinition to read them: AWS answered AccessDeniedException: not authorized to perform: ecs:DescribeTaskDefinition.",
+                       "The settings of Lambda function checkout could not be read: Lambda was unable to decrypt the environment variables." ],
+                     settings.map(&:text).sort
+        assert settings.all? { |gap| gap.kinds.empty? }
+        assert_empty snapshot.uses
+        assert_not snapshot.settings_complete?
+      end
+
       test "a week of metrics per resource an hour a point, counts made per minute, and a slow down stops the read" do
         function_resource = ResourceMap::Resource.new(provider: "aws", account: ACCOUNT, kind: ResourceMap::KIND_FUNCTION, external_id: FUNCTION_ARN, name: "checkout")
         database_resource = ResourceMap::Resource.new(provider: "aws", account: ACCOUNT, kind: ResourceMap::KIND_DATABASE, external_id: DATABASE_ARN, name: "orders")
@@ -498,14 +542,18 @@ module Integrations
         }
       end
 
-      def task_definition(log_driver: "awslogs")
+      def service_key = [ "aws", ACCOUNT, ResourceMap::KIND_SERVICE, SERVICE_ARN ]
+
+      def function_key = [ "aws", ACCOUNT, ResourceMap::KIND_FUNCTION, FUNCTION_ARN ]
+
+      def task_definition(log_driver: "awslogs", secrets: nil)
         {
           family: "web", revision: 42, cpu: "512", memory: "1024",
           container_definitions: [ {
             name: "app", image: "123.dkr.ecr.eu-west-1.amazonaws.com/web:9f1c", essential: true, port_mappings: [ { container_port: 8080, protocol: "tcp" } ],
             health_check: { command: [ "CMD-SHELL", "curl -f http://localhost:8080/up" ], interval: 30, retries: 3 },
             environment: [ { name: "DATABASE_URL", value: "postgres://app:hunter2@db/prod" } ],
-            secrets: [ { name: "STRIPE_KEY", value_from: "arn:aws:secretsmanager:eu-west-1:#{ACCOUNT}:secret:stripe" } ],
+            secrets: secrets || [ { name: "STRIPE_KEY", value_from: "arn:aws:secretsmanager:eu-west-1:#{ACCOUNT}:secret:stripe" } ],
             log_configuration: { log_driver: log_driver, options: { "awslogs-group" => "/ecs/web", "awslogs-stream-prefix" => "web", "awslogs-region" => "eu-west-1" } }
           } ]
         }

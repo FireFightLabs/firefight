@@ -128,15 +128,21 @@ module Mcp
         "#{link.sentence} (#{how_found(link)}#{', two links away' if hop > 1})#{": #{link.note}" if link.note.present?}"
       end
 
+      # How a link was found, with the settings it was found in by name, never their values.
       def self.how_found(link)
-        case link.origin
+        settings = "#{link.from_resource.name}'s #{link.variables.to_sentence} #{'setting'.pluralize(link.variables.size)}" if link.variables.any?
+        found = case link.origin
         when ResourceMap::ORIGIN_DECLARED then "declared by #{link.integration_environment&.integration&.name || 'a provider'}"
-        when ResourceMap::ORIGIN_MATCHED then "matched from what the providers report"
+        when ResourceMap::ORIGIN_MATCHED
+          return "matched from #{settings}, which #{link.variables.one? ? 'names' : 'name'} its address" if settings && link.integration_environment.nil?
+
+          "matched from what #{link.integration_environment&.integration&.name || 'the providers'} report#{'s' if link.integration_environment}"
         when ResourceMap::ORIGIN_PERSON then "added by a person"
         when ResourceMap::ORIGIN_INFERRED
           link.confirmed_at ? "suggested by Firefight, confirmed by a person" : "suggested by Firefight, #{link.certainty}, not confirmed: #{link.clues.join('. ')}"
         else link.confirmed_at ? "suggested by Halon, confirmed by a person" : "suggested by Halon, not confirmed"
         end
+        settings ? "#{found}, from #{settings}" : found
       end
 
       # What each connection could not read, so a missing resource is known to be missing rather than absent. Only rows

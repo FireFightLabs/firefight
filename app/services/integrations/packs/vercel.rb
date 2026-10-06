@@ -223,6 +223,7 @@ module Integrations
         resources = []
         links = []
         gaps = []
+        uses = []
         projects(environment_row).each do |project|
           production = project.dig("targets", PRODUCTION) || {}
           found = ResourceMap::Found.new(
@@ -233,6 +234,7 @@ module Integrations
                        ResourceMap::DEPLOYED_COMMIT => meta(production, COMMIT_SHA) }.compact
           )
           resources << found
+          uses.concat(project_settings(api, project, found, environment_row.integration.workspace, gaps)) unless slowed?(gaps)
           repository = repository(project["link"])
           if repository
             resources << repository
@@ -258,8 +260,16 @@ module Integrations
         if listed.incomplete?
           gaps << ResourceMap::Gap.new(text: "Only the first #{listed.items.size} projects were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ])
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
       end
+
+      # Being asked to slow down while reading settings stops reading them, and the map's own reads go on.
+      SLOWED = "Vercel asked Firefight to slow down, so the rest of the projects' settings were not read this time.".freeze
+      # A variable whose value Vercel shows as written. Every other type (encrypted, sensitive, secret, system) is known
+      # by its name only, and so is one Vercel marks as a secret in its newer visibility field (spec, filterProjectEnvs,
+      # type and visibility).
+      PLAIN = "plain".freeze
+      SECRET_VISIBILITY = "secret".freeze
 
       def check_health!(environment_row)
         api(environment_row).check!
@@ -278,6 +288,28 @@ module Integrations
       end
 
       def projects(environment_row) = project_list(environment_row).items
+
+      # The production settings of a project, as the site runs them. The project list carries them when Vercel includes
+      # env on each project (spec, getProjects), and otherwise one read per project gets them.
+      def project_settings(api, project, found, workspace, gaps)
+        variables = project["env"]
+        unless variables.is_a?(Array)
+          variables, more = api.project_env(project["id"])
+          gaps << ResourceMap::Gap.new(text: "Only the first page of #{project['name']}'s settings was read.", kinds: [], settings: true) if more
+        end
+        production = variables.select { |variable| Array(variable["target"]).include?(PRODUCTION) }
+        plain, hidden = production.partition { |variable| variable["type"] == PLAIN && variable["visibility"] != SECRET_VISIBILITY && variable.key?("value") }
+        ResourceMap::Use.read(from: found.key, workspace: workspace, values: plain.to_h { |variable| [ variable["key"], variable["value"] ] },
+                              names: hidden.map { |variable| variable["key"] })
+      rescue Integrations::RateLimited
+        gaps << ResourceMap::Gap.new(text: SLOWED, kinds: [], settings: true)
+        []
+      rescue VercelApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("The settings of #{project['name']} could not be read", error), kinds: [], settings: true)
+        []
+      end
+
+      def slowed?(gaps) = gaps.any? { |gap| gap.text == SLOWED }
 
       # The team's projects, as a Pages::Read that says whether they were read to the end.
       def project_list(environment_row) = @project_list ||= api(environment_row).projects

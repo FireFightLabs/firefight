@@ -36,6 +36,17 @@ module Integrations
 
     def project(id_or_name) = get("/v9/projects/#{segment(id_or_name)}")
 
+    # A project's environment variables, without decrypt, so only a plain variable's value is readable and every other
+    # type comes back without its value or encrypted (spec, filterProjectEnvs, GET /v10/projects/{idOrName}/env, whose
+    # answer is a bare variable, { envs, pagination } or { envs, hiddenProductionEnvCount }). Answers the variables and
+    # whether a page was left.
+    def project_env(project_id)
+      answer = get("/v10/projects/#{segment(project_id)}/env")
+      return [ [ answer ], false ] if answer.is_a?(Hash) && answer.key?("key")
+
+      [ Array(answer["envs"]), answer.dig("pagination", "next").present? ]
+    end
+
     # Every domain of a project, as a Pages::Read, newest first, each page read until the timestamp the one before gave as
     # next (spec, getProjectDomains and Pagination).
     def project_domains(project_id)

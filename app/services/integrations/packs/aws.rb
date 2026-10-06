@@ -251,7 +251,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, and the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags). For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), and ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -426,14 +426,19 @@ module Integrations
 
       # The account on the resource map, per region: its ECS services, Lambda functions, EC2 instances and RDS databases,
       # each with its page in the console. A list AWS refuses, or one cut short, is a gap, and its kind is not taken as gone.
+      # Each service's and function's settings are read in memory, and each database's address and the secret its
+      # password is kept in are reported, so the map links a service to the database its settings name (ResourceMap::Use).
       def map_of(environment_row)
-        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true)
         account = account_of(environment_row)
+        settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
+        reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings)
         resources = reading.entries.map do |entry|
           ResourceMap::Found.new(provider: PROVIDER_KEY, account: account, kind: entry.kind, external_id: entry.arn, name: entry.name,
                                  status: entry.status, url: resource_link(entry)&.url, details: entry.details)
         end
-        ResourceMap::Snapshot.new(resources: resources, gaps: reading.gaps)
+        found = reading.entries.filter_map(&:settings)
+        ResourceMap::Snapshot.new(resources: resources, gaps: reading.gaps + found.flat_map(&:gaps), uses: found.flat_map(&:uses),
+                                  endpoints: found.flat_map(&:endpoints))
       end
 
       # What normal looks like, one GetMetricData call per resource for a week an hour a point. Counts become counts per
@@ -468,10 +473,16 @@ module Integrations
       end
 
       # A resource as the tools address it: its kind, ARN, name, region, and the cluster an ECS service runs in.
-      Entry = Data.define(:kind, :arn, :name, :region, :cluster, :status, :details) do
-        def initialize(cluster: nil, status: nil, details: {}, **) = super
+      Entry = Data.define(:kind, :arn, :name, :region, :cluster, :status, :details, :settings) do
+        def initialize(cluster: nil, status: nil, details: {}, settings: nil, **) = super
       end
       Reading = Data.define(:entries, :gaps)
+      # What one map read needs to turn settings into uses, and the task definitions it already read, by ARN.
+      SettingsReading = Data.define(:account, :workspace, :task_definitions, :stopped)
+      # A resource's settings as uses, a database's addresses as endpoints, and what could not be read. Never a value.
+      Settings = Data.define(:uses, :endpoints, :gaps) do
+        def initialize(uses: [], endpoints: [], gaps: []) = super
+      end
 
       private
 
@@ -499,12 +510,12 @@ module Integrations
       # What the connection reaches, kind by kind and region by region. A list AWS refuses is a gap naming its kind and
       # leaves the rest read, and being asked to slow down stops the read with a gap naming every kind. Only the map asks
       # for tags, since ECS and Lambda return them only on request.
-      def inventory(environment_row, kinds:, regions:, tags: false)
+      def inventory(environment_row, kinds:, regions:, tags: false, settings: nil)
         entries = []
         gaps = []
         regions.each do |region|
           kinds.each do |kind|
-            found, more, untagged = list_kind(environment_row, kind, region, tags)
+            found, more, untagged = list_kind(environment_row, kind, region, tags, settings)
             entries.concat(found)
             gaps << untagged if untagged
             next unless more
@@ -520,18 +531,18 @@ module Integrations
         Reading.new(entries: entries, gaps: gaps)
       end
 
-      def list_kind(environment_row, kind, region, tags)
+      def list_kind(environment_row, kind, region, tags, settings = nil)
         case kind
-        when SERVICE then ecs_services(environment_row, region, tags)
-        when FUNCTION then lambda_functions(environment_row, region, tags)
+        when SERVICE then ecs_services(environment_row, region, tags, settings)
+        when FUNCTION then lambda_functions(environment_row, region, tags, settings)
         when INSTANCE then ec2_instances(environment_row, region)
-        else rds_databases(environment_row, region)
+        else rds_databases(environment_row, region, settings)
         end
       end
 
       # With tags, DescribeServices returns each service's tags (include TAGS). A key whose policy refuses that still reads
       # the services, without tags, and says so in a gap that holds nothing back, since every service was read.
-      def ecs_services(environment_row, region, tags = false)
+      def ecs_services(environment_row, region, tags = false, settings = nil)
         clusters, more = api(environment_row).all(:ecs, region, :list_clusters, {}, :cluster_arns)
         untagged = nil
         entries = clusters.flat_map do |cluster|
@@ -547,7 +558,10 @@ module Integrations
               end
             end
             described ||= api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: slice)
-            Array(described[:services]).map { |service| service_entry(service, region) }
+            Array(described[:services]).map do |service|
+              entry = service_entry(service, region)
+              settings ? entry.with(settings: service_settings(environment_row, entry, service, settings)) : entry
+            end
           end
         end
         [ entries, more, untagged ]
@@ -568,11 +582,12 @@ module Integrations
 
       # ListFunctions returns no tags, so with tags each function's are read with ListTags. A key whose policy refuses it
       # keeps the functions without tags, and a gap says so. Being asked to slow down stops the read as any list does.
-      def lambda_functions(environment_row, region, tags = false)
+      def lambda_functions(environment_row, region, tags = false, settings = nil)
         functions, more = api(environment_row).all(:lambda, region, :list_functions, {}, :functions)
         untagged = nil
         entries = functions.map do |function|
           entry = function_entry(function, region)
+          entry = entry.with(settings: function_settings(entry, function, settings)) if settings
           next entry unless tags && untagged.nil?
 
           found = tags_of(api(environment_row).call(:lambda, region, :list_tags, resource: function[:function_arn])[:tags])
@@ -617,10 +632,87 @@ module Integrations
                              ResourceMap::TAGS => tags_of(instance[:tags]) }.compact)
       end
 
-      def rds_databases(environment_row, region)
+      def rds_databases(environment_row, region, settings = nil)
         databases, more = api(environment_row).all(:rds, region, :describe_db_instances, {}, :db_instances)
-        [ databases.map { |database| database_entry(database, region) }, more ]
+        entries = databases.map do |database|
+          entry = database_entry(database, region)
+          settings ? entry.with(settings: database_settings(entry, database, settings)) : entry
+        end
+        [ entries, more ]
       end
+
+      # A function's environment variables, which ListFunctions already returns (FunctionConfiguration.Environment,
+      # https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html). A function whose variables Lambda could not
+      # decrypt for this key, such as one under a customer managed KMS key, answers Environment.Error instead
+      # (https://docs.aws.amazon.com/lambda/latest/api/API_EnvironmentResponse.html), and its settings are a gap.
+      def function_settings(entry, function, settings)
+        environment = function[:environment] || {}
+        if environment[:error]
+          text = Sentence.join("The settings of Lambda function #{entry.name} could not be read", environment.dig(:error, :message) || environment.dig(:error, :error_code))
+          return Settings.new(gaps: [ ResourceMap::Gap.new(text: text, kinds: [], settings: true) ])
+        end
+
+        values = environment[:variables].to_h.to_h { |name, value| [ name.to_s, value.to_s ] }
+        Settings.new(uses: ResourceMap::Use.read(from: key_of(entry, settings), workspace: settings.workspace, values: values))
+      end
+
+      # A service's settings, from its task definition's containers (DescribeTaskDefinition, ContainerDefinition
+      # environment and secrets, https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html).
+      # Plain variables are read in memory. A secret is named only, with the ARN it is read from, which is not a secret
+      # and matches the one an RDS database keeps its password in. Each task definition is read once per map read.
+      # Variables kept in files on S3 (environmentFiles) are not read.
+      def service_settings(environment_row, entry, service, settings)
+        arn = service[:task_definition].to_s
+        return Settings.new if arn.empty?
+        return Settings.new(gaps: [ settings_stopped_gap(entry.region) ]) if settings.stopped.include?(entry.region)
+
+        definition = settings.task_definitions[arn] ||= api(environment_row).call(:ecs, entry.region, :describe_task_definition, task_definition: arn)[:task_definition] || {}
+        containers = Array(definition[:container_definitions])
+        values = containers.flat_map { |container| Array(container[:environment]) }.reverse.to_h { |pair| [ pair[:name].to_s, pair[:value].to_s ] }
+        secrets = containers.flat_map { |container| Array(container[:secrets]) }
+        from = key_of(entry, settings)
+        uses = ResourceMap::Use.read(from: from, workspace: settings.workspace, values: values, names: secrets.map { |secret| secret[:name] })
+        references = secrets.filter_map do |secret|
+          ResourceMap::Use.reference(from: from, variable: secret[:name], reference: secret_arn(secret[:value_from]), workspace: settings.workspace)
+        end
+        files = containers.any? { |container| Array(container[:environment_files]).any? }
+        gaps = files ? [ ResourceMap::Gap.new(text: "#{entry.name} reads settings from files on S3, which Firefight does not read.", kinds: [], settings: true) ] : []
+        Settings.new(uses: (references + uses).uniq(&:variable), gaps: gaps)
+      rescue Integrations::RateLimited => error
+        settings.stopped << entry.region
+        Settings.new(gaps: [ ResourceMap::Gap.new(text: Sentence.join("AWS asked to slow down while reading task definitions in #{entry.region}, so the rest of their settings were not read", error),
+                                                  kinds: [], settings: true) ])
+      rescue AwsApi::Error => error
+        settings.stopped << entry.region
+        Settings.new(gaps: [ ResourceMap::Gap.new(text: Sentence.join("The settings of ECS services in #{entry.region} could not be read. Allow ecs:DescribeTaskDefinition to read them", error),
+                                                  kinds: [], settings: true) ])
+      end
+
+      def settings_stopped_gap(region)
+        ResourceMap::Gap.new(text: "The settings of the other ECS services in #{region} were not read.", kinds: [], settings: true)
+      end
+
+      # A Secrets Manager ARN a container reads, without the JSON key and version a container may add after it
+      # (arn:aws:secretsmanager:region:account:secret:name:json-key:version-stage:version-id,
+      # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/secrets-envvar-secrets-manager.html).
+      def secret_arn(value_from)
+        parts = value_from.to_s.split(":")
+        parts[2] == "secretsmanager" ? parts.first(7).join(":") : value_from.to_s
+      end
+
+      # Where a database is reached (DBInstance.Endpoint) and the Secrets Manager secret RDS keeps its master password in
+      # when it manages it (DBInstance.MasterUserSecret.SecretArn,
+      # https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DBInstance.html).
+      def database_settings(entry, database, settings)
+        key = key_of(entry, settings)
+        endpoints = [
+          ResourceMap::Endpoint.at(resource: key, host: database.dig(:endpoint, :address), port: database.dig(:endpoint, :port), workspace: settings.workspace),
+          ResourceMap::Endpoint.reference(resource: key, reference: database.dig(:master_user_secret, :secret_arn), workspace: settings.workspace)
+        ]
+        Settings.new(endpoints: endpoints.compact)
+      end
+
+      def key_of(entry, settings) = [ PROVIDER_KEY, settings.account, entry.kind, entry.arn ]
 
       def database_entry(database, region)
         Entry.new(kind: DATABASE, arn: database[:db_instance_arn], name: database[:db_instance_identifier], region: region,

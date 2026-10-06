@@ -16,6 +16,7 @@ module Integrations
         @pack = TriggerDev.new(@integration)
         TriggerDevApi.any_instance.stubs(:deployments).with(status: TriggerDev::DEPLOYED, limit: TriggerDevApi::MIN_DEPLOYMENT_PAGE).returns([ DEPLOYED ])
         TriggerDevApi.any_instance.stubs(:deployment).with("deployment_2").returns(DETAILS)
+        TriggerDevApi.any_instance.stubs(:environment_variables).returns([])
       end
 
       test "the key is stored trimmed, the project ref is a field of the form, and only promoting a deployment changes anything" do
@@ -43,6 +44,31 @@ module Integrations
         assert_equal [ ResourceMap::KIND_JOB, "proj_acme", nil, "deployed" ], [ task.kind, task.account, task.url, task.status ]
         assert_equal({ "version" => "20261002.1", "file" => "src/trigger/email.ts" }, task.details)
         assert_empty snapshot.gaps
+      end
+
+      test "the environment's variables are read in memory for every task, a secret by its name, from the key's own environment" do
+        TriggerDevApi.any_instance.expects(:environment_variables).with("proj_acme", "prod").returns([
+          { "name" => "DATABASE_URL", "value" => "postgres://app:task-pass@db.example.com:6543/app", "isSecret" => false },
+          { "name" => "UPSTASH_REDIS_REST_TOKEN", "value" => "<redacted>", "isSecret" => true }
+        ])
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ %w[DATABASE_URL UPSTASH_REDIS_REST_TOKEN] ] * 2, snapshot.uses.group_by(&:from).values.map { |uses| uses.map(&:variable).sort }
+        assert_equal 6543, snapshot.uses.find { |use| use.variable == "DATABASE_URL" }.port
+        assert_no_setting_values(snapshot, "task-pass", "db.example.com")
+      end
+
+      test "a key whose preset cannot read variables is a gap that names what it lacks and holds no task back" do
+        TriggerDevApi.any_instance.stubs(:environment_variables).raises(TriggerDevApi::Error, "Trigger.dev answered 403: Unauthorized")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal 2, snapshot.resources.size
+        assert snapshot.complete?
+        assert_not snapshot.settings_complete?
+        assert_equal "Trigger.dev refused the environment's variables: Trigger.dev answered 403: Unauthorized. So what the tasks connect to is not " \
+                     "on the map. The API key's preset has to read environment variables, and Observer does not.", snapshot.gaps.sole.text
       end
 
       test "a list of queues cut short at its page bound says so" do

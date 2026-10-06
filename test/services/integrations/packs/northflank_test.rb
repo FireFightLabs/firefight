@@ -17,6 +17,7 @@ module Integrations
         NorthflankApi.any_instance.stubs(:addons).returns(listed([
           { "id" => "db", "name" => "db", "spec" => { "type" => "postgresql" }, "status" => "running", "appId" => "/firefight-labs/firefight/db" }
         ]))
+        NorthflankApi.any_instance.stubs(:secret_groups).returns(listed([]))
       end
 
       test "the token and project are stored trimmed, and every tool only reads except the one that changes the project" do
@@ -328,6 +329,54 @@ module Integrations
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
         assert_equal [ "Jobs could not be read: Northflank answered 401: needs Jobs Read." ], snapshot.gap_texts
         assert_equal [ ResourceMap::KIND_JOB ], snapshot.unread_kinds, "jobs it could not read are not taken as gone"
+      end
+
+      test "a service's own settings and those its secret groups give it are read in memory, and a linked database is a declared use" do
+        own = "postgres://web:nf-own-pw@primary.db--abcd.addon.code.run:5432/app"
+        NorthflankApi.any_instance.stubs(:services).returns(listed([ { "id" => "web" }, { "id" => "worker" } ]))
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "web").returns(
+          "id" => "web", "name" => "web", "serviceType" => "deployment", "appId" => "/firefight-labs/firefight/web", "tags" => [ "api" ],
+          "runtimeEnvironment" => { "DATABASE_URL" => own, "LOG_LEVEL" => "info" }
+        )
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "worker").returns(
+          "id" => "worker", "name" => "worker", "serviceType" => "deployment", "appId" => "/firefight-labs/firefight/worker"
+        )
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([]))
+        NorthflankApi.any_instance.stubs(:secret_groups).with("firefight").returns(listed([
+          { "id" => "db-secrets", "priority" => 10, "restrictions" => { "restricted" => true, "nfObjects" => [ { "id" => "web", "type" => "service" } ] } },
+          { "id" => "tagged", "priority" => 20, "restrictions" => { "restricted" => true, "tags" => [ "api" ], "tagMatchCondition" => "or" } }
+        ]))
+        NorthflankApi.any_instance.stubs(:secret_group).with("firefight", "db-secrets").returns(
+          "secrets" => { "variables" => { "DATABASE_URL" => "postgres://web:nf-group-pw@elsewhere.example.com/app", "CACHE_URL" => "redis://default:nf-cache-pw@cache.internal:6379" } },
+          "addonSecrets" => [ { "id" => "db", "addonType" => "postgresql", "variables" => [ { "keyName" => "POSTGRES_URI", "aliases" => [ "DATABASE_URL" ] } ] } ]
+        )
+        NorthflankApi.any_instance.stubs(:secret_group).with("firefight", "tagged").returns("addonSecrets" => [ { "id" => "db", "variables" => { "DB_HOST" => "x" } } ])
+
+        snapshot = @pack.map_of(@row)
+
+        web = snapshot.uses.select { |use| use.from.last == "web" }.index_by(&:variable)
+        assert_equal %w[CACHE_URL DATABASE_URL], web.keys.sort
+        assert_equal ResourceMap::Fingerprint.of("primary.db--abcd.addon.code.run", 5432, @workspace), web["DATABASE_URL"].fingerprint, "the service's own value wins"
+        assert_empty snapshot.uses.select { |use| use.from.last == "worker" }
+        uses = snapshot.links.select { |link| link.relation == ResourceMap::RELATION_USES }
+        assert_equal [ [ "web", "db", %w[DATABASE_URL DB_HOST] ] ], uses.map { |link| [ link.from.last, link.to.last, link.variables ] }
+        ResourceMap.record!(@row, snapshot)
+        assert_no_setting_values(snapshot, own, "nf-own-pw", "nf-group-pw", "nf-cache-pw", "cache.internal", "primary.db--abcd.addon.code.run")
+      end
+
+      test "secret groups the token may not read are a settings gap naming the permission, and nothing is held back" do
+        NorthflankApi.any_instance.stubs(:service).returns("id" => "web", "name" => "web", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/web")
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([]))
+        NorthflankApi.any_instance.stubs(:secret_groups).raises(NorthflankApi::Error, "Northflank answered 403: Forbidden")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ "Secret groups could not be read: Northflank answered 403: Forbidden. #{Northflank::SECRETS_PERMISSION}" ], snapshot.gap_texts
+        assert snapshot.complete?
+        assert_not snapshot.settings_complete?
+
+        NorthflankApi.any_instance.stubs(:secret_groups).raises(NorthflankApi::RateLimited, "Northflank answered 429")
+        assert_equal [ Northflank::SLOWED ], Northflank.new(@integration).map_of(@row).gap_texts
       end
 
       test "a list cut short at the page bound is a gap naming what it holds, so nothing past it is taken as gone" do

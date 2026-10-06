@@ -15,6 +15,7 @@ module Integrations
         FlyApi.any_instance.stubs(:postgres_clusters).with("acme").returns([
           { "id" => "pg1", "name" => "main-db", "status" => "ready", "plan" => "basic", "region" => "iad", "attached_apps" => [ { "name" => "web" } ] }
         ])
+        FlyApi.any_instance.stubs(:secret_names).returns([])
       end
 
       test "the token and organization are stored trimmed, and only the restart and rollback change anything" do
@@ -172,6 +173,38 @@ module Integrations
                        [ "Managed Postgres clusters could not be read: Fly answered 404: not found.", [ ResourceMap::KIND_DATABASE ] ] ],
                      snapshot.gaps.map { |gap| [ gap.text, gap.kinds ] }
         assert_equal [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_DATABASE ], snapshot.unread_kinds, "a list cut short or refused takes nothing off the map"
+      end
+
+      test "an app's plain environment is read by value and its secrets by name, and nothing of a value is kept" do
+        env = { "REDIS_URL" => "redis://default:fly-redis-pw@cache.internal:6379", "PORT" => "8080" }
+        FlyApi.any_instance.stubs(:machines).with("web").returns([ machine("m1", "started").deep_merge("config" => { "env" => env }) ])
+        FlyApi.any_instance.stubs(:certificates).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        FlyApi.any_instance.stubs(:secret_names).with("web").returns(%w[DATABASE_URL SECRET_KEY_BASE])
+
+        snapshot = @pack.map_of(@row)
+
+        uses = snapshot.uses.index_by(&:variable)
+        assert_equal %w[DATABASE_URL REDIS_URL], uses.keys.sort
+        assert_equal [ "redis", 6379 ], [ uses["REDIS_URL"].scheme, uses["REDIS_URL"].port ]
+        assert_nil uses["DATABASE_URL"].fingerprint, "a secret is known by its name only"
+        assert_equal [ "fly", "acme", ResourceMap::KIND_SERVICE, "web" ], uses["REDIS_URL"].from
+        ResourceMap.record!(@row, snapshot)
+        assert_no_setting_values(snapshot, env["REDIS_URL"], "fly-redis-pw", "cache.internal")
+      end
+
+      test "secret names Fly refuses, or asks Firefight to slow down for, are a settings gap that holds nothing back" do
+        FlyApi.any_instance.stubs(:app_list).returns(Integrations::Pages::Read.new(items: [ { "name" => "web" }, { "name" => "api" } ], complete: true))
+        FlyApi.any_instance.stubs(:machines).returns([])
+        FlyApi.any_instance.stubs(:certificates).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        FlyApi.any_instance.stubs(:secret_names).with("web").raises(FlyApi::Error.new("Fly answered 429: slow down").extend(Integrations::RateLimited))
+        FlyApi.any_instance.expects(:secret_names).with("api").never
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ [ "Fly.io asked Firefight to slow down, so the secret names of web and the apps after it were not read.", [], true ] ],
+                     snapshot.gaps.map { |gap| [ gap.text, gap.kinds, gap.settings ] }
+        assert snapshot.complete?
+        assert_not snapshot.settings_complete?
       end
 
       test "an app list cut short at its bound is a gap, and its apps and domains are not taken as gone" do

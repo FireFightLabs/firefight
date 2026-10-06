@@ -15,6 +15,7 @@ module Integrations
         @row.store_fields!(Convex::DEPLOYMENT_URL => "#{URL}/")
         @pack = Convex.new(@integration)
         ConvexApi.any_instance.stubs(:deployment_info).returns(INFO)
+        ConvexApi.any_instance.stubs(:environment_variables).returns({})
         travel_to Time.zone.parse("2026-10-04T12:00:00Z")
       end
 
@@ -106,6 +107,23 @@ module Integrations
         assert_match "happy-animal-123, the prod deployment of project Chat", text
         assert_match "https://happy-animal-123.convex.site (HTTP actions)", text
         assert_match "pause_deployment, by a member in the dashboard", text
+      end
+
+      test "the deployment's environment variables are read in memory for where they point, and a key that may not read them is a gap" do
+        ConvexApi.any_instance.stubs(:audit_log).returns("items" => [], "pagination" => { "hasMore" => false })
+        ConvexApi.any_instance.stubs(:environment_variables).returns("DATABASE_URL" => "postgres://app:convex-pass@ep-a.neon.tech/app", "OPENAI_MODEL" => "gpt")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+        assert_equal ResourceMap::Fingerprint.of("ep-a.neon.tech", 5432, @workspace), snapshot.uses.sole.fingerprint
+        assert_no_setting_values(snapshot, "convex-pass", "ep-a.neon.tech", "postgres://app:convex-pass@ep-a.neon.tech/app")
+
+        ConvexApi.any_instance.stubs(:environment_variables).raises(ConvexApi::Error, "Convex answered 403: forbidden")
+        refused = @pack.map_of(@row)
+        assert refused.complete?
+        assert_not refused.settings_complete?
+        assert_match(/may read environment variables/, refused.gaps.sole.text)
       end
 
       test "the map holds the deployment under its project, with its dashboard page and its state, and the health check reads it" do

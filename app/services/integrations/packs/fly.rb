@@ -275,12 +275,15 @@ module Integrations
 
       # The organization on the resource map: its apps with their machines and the hostnames their certificates cover,
       # and its Managed Postgres clusters with the apps attached to them. What could not be read for one app is a gap.
+      # Each app's settings go with it as uses, its machines' plain environment by value and its secrets by name only.
       def map_of(environment_row)
         api = api(environment_row)
         organization = organization_of(environment_row)
         resources = []
         links = []
         gaps = []
+        uses = []
+        secrets_read = true
         listed = api.app_list(organization)
         apps = listed.items
         if listed.incomplete?
@@ -300,6 +303,8 @@ module Integrations
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_SERVICE, external_id: name, name: name,
                                          status: app["status"].presence, url: page(environment_row, name), details: app_details(machines))
           resources << found
+          names, secrets_read = secret_names(api, name, gaps, secrets_read)
+          uses.concat(ResourceMap::Use.read(from: found.key, workspace: environment_row.integration.workspace, values: machine_env(machines), names: names))
           begin
             certificates = api.certificates(name)
             certificates.items.each do |certificate|
@@ -335,7 +340,7 @@ module Integrations
         rescue FlyApi::Error => error
           gaps << ResourceMap::Gap.new(text: Sentence.join("Managed Postgres clusters could not be read", error), kinds: [ ResourceMap::KIND_DATABASE ])
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
       end
 
       # What normal looks like for each app: a week of CPU, memory and requests per minute, one reading an hour, for the
@@ -436,6 +441,30 @@ module Integrations
         images = machines.filter_map { |machine| image_of(machine) }.uniq
         { "instances" => machines.size, "region" => machines.filter_map { |machine| machine["region"] }.uniq.sort.join(", ").presence,
           "image" => (images.one? ? images.first : nil) }.compact
+      end
+
+      # The plain environment an app's machines run with, read in memory for where its settings point. The Machines API
+      # gives each machine's config.env as name and value (spec, fly.MachineConfig env), and secrets are not in it.
+      def machine_env(machines)
+        Array(machines).each_with_object({}) do |machine, env|
+          machine.dig("config", "env").to_h.each { |name, value| env[name] ||= value.to_s }
+        end
+      end
+
+      # The names of an app's secrets, where a connection string such as DATABASE_URL usually is, since fly mpg attach
+      # and fly postgres attach set it as one. Values are never asked for. Once Fly asks to slow down, the rest of the
+      # apps' secrets are left for the next sweep, so the map's own reads go on.
+      def secret_names(api, name, gaps, reading)
+        return [ [], false ] unless reading
+
+        [ api.secret_names(name), true ]
+      rescue Integrations::RateLimited
+        gaps << ResourceMap::Gap.new(text: "Fly.io asked Firefight to slow down, so the secret names of #{name} and the apps after it were not read.",
+                                     kinds: [], settings: true)
+        [ [], false ]
+      rescue FlyApi::Error => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("The secret names of #{name} could not be read", error), kinds: [], settings: true)
+        [ [], true ]
       end
 
       def image_of(machine)

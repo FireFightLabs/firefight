@@ -17,6 +17,7 @@ module Integrations
             "link" => { "type" => "github", "org" => "acme", "repo" => "shop", "productionBranch" => "main" },
             "targets" => { "production" => { "id" => "dpl_2", "readyState" => "READY", "meta" => { "githubCommitSha" => "c4e4267d46e638ac" } } } }
         ], complete: true))
+        VercelApi.any_instance.stubs(:project_env).returns([ [], false ])
       end
 
       test "the token and team are stored trimmed, and only the rollback and promotion change anything" do
@@ -151,6 +152,41 @@ module Integrations
         assert_nil snapshot.resources.find { |found| found.external_id == "prj_1" }.url
         assert_equal [ "The domains of shop could not be read: Vercel answered 403: forbidden." ], snapshot.gaps.map(&:text)
         assert_equal [ ResourceMap::KIND_DOMAIN ], snapshot.unread_kinds, "a domain list Vercel refused takes no domain off the map"
+      end
+
+      test "production's plain settings are read by value, every other type by name, and no value is kept" do
+        VercelApi.any_instance.stubs(:project_domains).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        plain = "postgres://shop:vercel-plain-pw@ep-shop.us-east-2.aws.neon.tech/shop"
+        VercelApi.any_instance.stubs(:project_env).with("prj_1").returns([ [
+          { "key" => "DATABASE_URL", "type" => "plain", "value" => plain, "target" => [ "production", "preview" ] },
+          { "key" => "PREVIEW_DB_URL", "type" => "plain", "value" => "postgres://u:p@preview.example.com/x", "target" => [ "preview" ] },
+          { "key" => "KV_URL", "type" => "encrypted", "value" => "eyJ2IjoiZW5jcnlwdGVkLXZhbHVlIn0", "target" => "production",
+            "contentHint" => { "type" => "redis-url", "storeId" => "store_1" } },
+          { "key" => "NEON_API_KEY", "type" => "sensitive", "target" => [ "production" ] },
+          { "key" => "SHOWN_BUT_SECRET_URL", "type" => "plain", "visibility" => "secret", "value" => "https://u:secret-visible@api.example.com", "target" => [ "production" ] }
+        ], false ])
+
+        snapshot = @pack.map_of(@row)
+
+        uses = snapshot.uses.index_by(&:variable)
+        assert_equal %w[DATABASE_URL KV_URL NEON_API_KEY SHOWN_BUT_SECRET_URL], uses.keys.sort
+        assert_equal ResourceMap::Fingerprint.of("ep-shop.us-east-2.aws.neon.tech", 5432, @workspace), uses["DATABASE_URL"].fingerprint
+        assert [ "KV_URL", "NEON_API_KEY", "SHOWN_BUT_SECRET_URL" ].all? { |name| uses[name].fingerprint.nil? }, "a value Vercel hides is a name only"
+        ResourceMap.record!(@row, snapshot)
+        assert_no_setting_values(snapshot, plain, "vercel-plain-pw", "ep-shop.us-east-2.aws.neon.tech", "eyJ2IjoiZW5jcnlwdGVkLXZhbHVlIn0", "secret-visible")
+      end
+
+      test "settings Vercel refuses are a gap that holds nothing back, and being asked to slow down stops reading them" do
+        VercelApi.any_instance.stubs(:project_domains).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        VercelApi.any_instance.stubs(:project_env).raises(VercelApi::Error, "Vercel answered 403: Not authorized")
+
+        snapshot = @pack.map_of(@row)
+        assert_equal [ [ "The settings of shop could not be read: Vercel answered 403: Not authorized.", [], true ] ],
+                     snapshot.gaps.map { |gap| [ gap.text, gap.kinds, gap.settings ] }
+        assert snapshot.complete?
+
+        VercelApi.any_instance.stubs(:project_env).raises(VercelApi::Error.new("Vercel answered 429: slow down").extend(Integrations::RateLimited))
+        assert_equal [ Vercel::SLOWED ], Vercel.new(@integration).map_of(@row).gaps.map(&:text)
       end
 
       test "a domain list cut short is a gap, so no domain past it is taken as gone" do

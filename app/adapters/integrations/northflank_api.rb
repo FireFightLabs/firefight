@@ -37,6 +37,14 @@ module Integrations
 
     def service(project_id, service_id) = get("/projects/#{segment(project_id)}/services/#{segment(service_id)}")["data"] || {}
 
+    # The project's secret groups, each with who it applies to (@northflank/js-client, ListSecretsResult restrictions),
+    # and one group with its variables and the addons linked to it (GetSecretdetailsResult secrets.variables and
+    # addonSecrets, GET /v1/projects/{projectId}/secrets/{secretId}/details). Both need the token's role to read
+    # secret groups, and the values are read only in memory.
+    def secret_groups(project_id) = list("/projects/#{segment(project_id)}/secrets", "secrets")
+
+    def secret_group(project_id, secret_id) = get("/projects/#{segment(project_id)}/secrets/#{segment(secret_id)}/details")["data"] || {}
+
     def addon(project_id, addon_id) = get("/projects/#{segment(project_id)}/addons/#{segment(addon_id)}")["data"] || {}
 
     def deployments(project_id, service_id, limit:)

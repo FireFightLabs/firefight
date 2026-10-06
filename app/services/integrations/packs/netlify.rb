@@ -155,9 +155,11 @@ module Integrations
         found = read.items
         resources = []
         links = []
+        settings = Settings.new(api(environment_row), ConnectionSettings.of(environment_row).workspace)
         found.each do |site|
           resource = site_resource(site)
           resources << resource
+          settings.read(site, resource)
           [ site["custom_domain"], *Array(site["domain_aliases"]) ].compact_blank.uniq.each do |host|
             domain = ResourceMap.domain(host)
             resources << domain
@@ -170,7 +172,55 @@ module Integrations
           links << ResourceMap::FoundLink.new(from: resource.key, to: repository.key, relation: ResourceMap::RELATION_BUILT_FROM)
         end
         gaps = read.incomplete? ? [ ResourceMap::Gap.new(text: "Only the first #{found.size} sites were read.", kinds: [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ]) ] : []
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps + settings.gaps, uses: settings.uses)
+      end
+
+      # Each site's environment variables, one call a site, read in memory for where they point. A secret is known by its
+      # name, since its value is not readable outside Netlify. The value read is the production one, or the one every
+      # context shares. Being asked to slow down stops the reads for this sweep, and the sites left are read at the next.
+      # https://open-api.netlify.com/#tag/environmentVariables/operation/getEnvVars
+      class Settings
+        PRODUCTION_CONTEXTS = %w[production all].freeze
+
+        attr_reader :uses
+
+        def initialize(api, workspace)
+          @api = api
+          @workspace = workspace
+          @uses = []
+          @refused = []
+          @stopped = false
+        end
+
+        def read(site, resource)
+          return if @stopped || site["account_id"].blank?
+
+          values = {}
+          names = []
+          @api.env_vars(site["account_id"], site["id"]).each do |variable|
+            key = variable["key"].to_s
+            value = PRODUCTION_CONTEXTS.lazy.filter_map { |context| Array(variable["values"]).find { |each| each["context"] == context } }.first
+            if variable["is_secret"] || value.nil? then names << key
+            else values[key] = value["value"].to_s
+            end
+          end
+          @uses.concat(ResourceMap::Use.read(from: resource.key, workspace: @workspace, values: values, names: names))
+        rescue Integrations::RateLimited
+          @stopped = true
+        rescue NetlifyApi::Error => error
+          @refused << [ site["name"], error ]
+        end
+
+        def gaps
+          gaps = []
+          gaps << ResourceMap::Gap.new(text: "Netlify asked Firefight to slow down, so some sites' settings are read at the next sweep.", kinds: [], settings: true) if @stopped
+          if @refused.any?
+            gaps << ResourceMap::Gap.new(text: Sentence.join("Netlify refused the settings of #{@refused.map(&:first).to_sentence}", @refused.first.last,
+                                                             after: "Firefight tries again at the next sweep"),
+                                         kinds: [], settings: true)
+          end
+          gaps
+        end
       end
 
       def check_health!(environment_row)

@@ -402,7 +402,7 @@ module Integrations
       # expired token, fails the sweep and leaves the map as it was.
       def map_of(environment_row)
         api = api(environment_row)
-        mapping = MapReading.new(api.host)
+        mapping = MapReading.new(api.host, environment_row.integration.workspace)
         gaps = []
         connected(environment_row).each do |namespace|
           [ *WORKLOADS.values, SERVICE, INGRESS ].each do |kind|
@@ -417,18 +417,27 @@ module Integrations
           end
         end
         mapping.connect!
-        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: mapping.uses, endpoints: mapping.endpoints)
       end
 
       # Builds the snapshot for map_of. A service is served by the workloads its selector picks, an ingress by the
-      # services it routes to, and a hostname by the ingress or load balancer that answers for it.
+      # services it routes to, and a hostname by the ingress or load balancer that answers for it. A workload's settings
+      # are read in memory, and a service reports the names the cluster's DNS answers for it, so a workload whose
+      # DATABASE_URL names a service in the cluster is linked to it.
       class MapReading
-        attr_reader :resources, :links
+        attr_reader :resources, :links, :uses, :endpoints
 
-        def initialize(host)
+        # The suffixes a service's name answers with in the cluster's DNS, <service>.<namespace>.svc.cluster.local and its
+        # shorter forms (https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/).
+        DNS_SUFFIXES = [ "", ".%<namespace>s", ".%<namespace>s.svc", ".%<namespace>s.svc.cluster.local" ].freeze
+
+        def initialize(host, workspace)
           @host = host
+          @workspace = workspace
           @resources = []
           @links = []
+          @uses = []
+          @endpoints = []
           @workloads = []
           @services = []
           @ingresses = []
@@ -442,9 +451,13 @@ module Integrations
                                          details: details(kind, item))
           @resources << found
           case kind.key
-          when SERVICE.key then @services << [ found, item ]
+          when SERVICE.key
+            @services << [ found, item ]
+            @endpoints.concat(service_endpoints(found, item))
           when INGRESS.key then @ingresses << [ found, item ]
-          else @workloads << [ found, item, Kubernetes.template_labels(kind.key, item) ]
+          else
+            @workloads << [ found, item, Kubernetes.template_labels(kind.key, item) ]
+            @uses.concat(workload_settings(found, kind, item))
           end
         end
 
@@ -464,6 +477,29 @@ module Integrations
             "images" => Kubernetes.images(kind.key, item).join(", ").presence,
             ResourceMap::TAGS => item.dig("metadata", "labels").presence
           }.compact
+        end
+
+        # Each container's env, a value read in memory, or a value from a Secret or ConfigMap named only, since Firefight
+        # never reads Secrets and the connection is not asked to read ConfigMaps (EnvVar value and valueFrom,
+        # https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables). envFrom
+        # brings in a whole Secret or ConfigMap whose names only reading it would give, so it is left out.
+        def workload_settings(found, kind, item)
+          spec = Kubernetes.pod_template(kind.key, item).to_h["spec"].to_h
+          env = [ *Array(spec["initContainers"]), *Array(spec["containers"]) ].flat_map { |container| Array(container["env"]) }
+          values, referenced = env.partition { |variable| variable.key?("value") }
+          ResourceMap::Use.read(from: found.key, workspace: @workspace, values: values.to_h { |variable| [ variable["name"].to_s, variable["value"].to_s ] },
+                                names: referenced.map { |variable| variable["name"] })
+        end
+
+        # The names a service answers on in the cluster, on each of its ports.
+        def service_endpoints(found, service)
+          name = service.dig("metadata", "name")
+          namespace = service.dig("metadata", "namespace")
+          ports = Array(service.dig("spec", "ports")).filter_map { |port| port["port"] }
+          DNS_SUFFIXES.flat_map do |suffix|
+            host = name + format(suffix, namespace: namespace)
+            ports.map { |port| ResourceMap::Endpoint.at(resource: found.key, host: host, port: port, workspace: @workspace) }
+          end.compact
         end
 
         def serve_service(found, service)
