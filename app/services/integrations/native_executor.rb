@@ -28,6 +28,12 @@ module Integrations
       NativePack.fetch!(environment_row.integration).map_of(environment_row)
     end
 
+    # A re-read of one scope after the provider said something there changed, or nil when the pack cannot narrow its
+    # read to it (Integrations::MapEvents).
+    def self.map_refresh(environment_row, scope)
+      NativePack.fetch!(environment_row.integration).map_refresh(environment_row, scope)
+    end
+
     def self.baselines_of(environment_row, resources, window)
       NativePack.fetch!(environment_row.integration).baselines_of(environment_row, resources, window)
     end

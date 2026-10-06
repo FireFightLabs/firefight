@@ -19,6 +19,8 @@ Rails.application.routes.draw do
       post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
       # Authenticated by the workspace's issue tracker webhook secret, as the tracker signs it.
       post "issue_events/:token", to: "issue_events#create", as: :issue_events
+      post "map_events/:token", to: "map_events#create", as: :map_events
+      post "app_events/:provider", to: "app_events#create", as: :app_events
 
       resources :incidents, only: [ :index, :show, :create, :update ] do
         resources :timeline, only: [ :index ], controller: "timeline" do
@@ -194,6 +196,7 @@ Rails.application.routes.draw do
         patch :toggle
         patch :retarget_environment
         patch :choose
+        patch :map_events_secret
       end
       collection do
         get :oauth_start

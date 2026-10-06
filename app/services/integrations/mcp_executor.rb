@@ -53,6 +53,18 @@ module Integrations
 
     def self.map_of(environment_row) = reader(environment_row, :map_reader, :swept!)&.map
 
+    # A re-read of one scope after the provider said something there changed, through the same reader and switched on
+    # tools, recorded under the map sweep. A reader narrows its read when its map takes scope:, and answers a Snapshot
+    # naming in gone what the provider answered not found for. nil when it cannot narrow, so the connection is swept in
+    # full instead.
+    def self.map_refresh(environment_row, scope)
+      return unless narrows?(Provider.for(environment_row.integration.provider).map_reader)
+
+      reader(environment_row, :map_reader, :swept!).map(scope: scope)
+    end
+
+    def self.narrows?(reader) = reader.present? && reader.instance_method(:map).parameters.any? { |_type, name| name == :scope }
+
     # What normal looks like, through the baseline reader the provider's definition names, with its own fixed reads and
     # only the tools an admin switched on, each call recorded under the map sweep. Without one there are no baselines.
     def self.baselines_of(environment_row, resources, window)
@@ -77,6 +89,6 @@ module Integrations
     def self.client_for(integration, environment_row)
       McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row))
     end
-    private_class_method :client_for, :reader
+    private_class_method :client_for, :reader, :narrows?
   end
 end

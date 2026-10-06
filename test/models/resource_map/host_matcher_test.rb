@@ -159,6 +159,19 @@ class ResourceMap::HostMatcherTest < ActiveSupport::TestCase
     assert_equal %w[DATABASE_URL], ResourceMap::Use.where(resource: resource("web")).pluck(:variable)
   end
 
+  test "a re-read after a change event replaces the settings of what it read and leaves the rest" do
+    record_services(web: { "DATABASE_URL" => "postgres://u:p@one.example.com/app" }, worker: { "QUEUE_URL" => "redis://queue.example.com" })
+    record_stores(endpoint("app-db", "two.example.com"))
+
+    partial = ResourceMap::Snapshot.new(resources: [ service("web") ], uses: settings("web", "DATABASE_URL" => "postgres://u:p@two.example.com/app"))
+    changed = ResourceMap.apply!(@platform, partial, scope: ResourceMap::Scope.new(kind: ResourceMap::KIND_SERVICE, external_id: "web"), at: Time.current)
+    Integrations::MapSweep.written!(@platform, changed)
+
+    assert_equal 1, ResourceMap::Use.where(resource: resource("web")).count
+    assert_equal [ "QUEUE_URL" ], ResourceMap::Use.where(resource: resource("worker")).pluck(:variable)
+    assert ResourceMap::Link.exists?(from_resource: resource("web"), to_resource: resource("app-db"), origin: ResourceMap::ORIGIN_MATCHED)
+  end
+
   test "a declared link carries the settings the provider says it comes from" do
     record_stores(endpoint("app-db", NEON_HOST))
     ResourceMap.record!(@platform, ResourceMap::Snapshot.new(resources: [ service("web") ],
