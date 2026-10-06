@@ -89,6 +89,14 @@ class ResourceMap::Resource < ApplicationRecord
       .order(Arel.sql("resource_map_resources.removed_at IS NOT NULL"), :provider, :account, :kind)
   end
 
+  # One line saying what it is and where it runs, for a reader that has no room for a fact sheet.
+  def line
+    environment = integration_environment&.environment&.name
+    place = [ ResourceMap.provider_name(provider), account ].join(" ")
+    [ "#{kind.humanize(capitalize: false)} #{name} on #{place}", ("in #{environment}" if environment), (status_label&.downcase || "status unknown"),
+      ("gone since #{removed_at.to_date.iso8601}" if removed_at) ].compact.join(", ")
+  end
+
   # The resources principal may read on workspace's map. A resource is in the environments of the connection rows that
   # report it, so one that only a connection wired to no environment reports needs every environment.
   def self.visible_to(principal, workspace)

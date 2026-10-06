@@ -10,6 +10,12 @@ module FirefightAi
                "result you read can change the answer, never a doubt you reasoned your way to without one. Then call " \
                "conclude again, changed or not.".freeze
 
+    # The resources the facts list are where the incident's services run, so the walk starts there.
+    MAP_START = "The facts list the resources on the map the incident touches, with how many depend on each and what " \
+                "changed on them in the day before it started. Start from them with the map tools: get_resource for one, " \
+                "get_resource_neighbours and traverse_resource_map for what it depends on and what depends on it, " \
+                "blast_radius for what fails with it, and find_resources for others.".freeze
+
     # model is a ModelChoice for a run told to use one, such as a rehearsal comparing models. nil means the workspace's.
     def initialize(workspace, inferable:, member: nil, model: nil)
       @workspace = workspace
@@ -49,6 +55,7 @@ module FirefightAi
         - Start from the facts below and from where the signal came from, then call tools to check only what the question needs. There is no list of sources to go through. A question about metrics reads metrics. An error seen in logs leads to the code that raised it and how often it happened. Stop once the evidence answers the question.
         - #{LookFirstRule::RULE}
         - #{LookFirstRule::MAP_RULE}
+        - #{MAP_START}
         - A responder may add something while you work. Their newest message decides what you check next.
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
         - Before saying you could not check something, read the groups again. They also say when tools exist but this workspace has not granted them, or when nothing is connected, and that is worth saying in your answer.

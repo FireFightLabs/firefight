@@ -28,6 +28,13 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     assert_includes prompt, FirefightAi::LookFirstRule::MAP_RULE
   end
 
+  test "a run is told to start from the resources the facts list, with the map tools" do
+    prompt = FirefightAi::Investigator.system_prompt
+
+    assert_includes prompt, FirefightAi::Investigator::MAP_START
+    assert_match "Start from them with the map tools: get_resource for one", prompt
+  end
+
   test "a resumed run is not handed the facts a second time" do
     chat = chat_double(messages: [ RubyLLM::Message.new(role: :user, content: "Investigate this incident") ])
     chat.expects(:with_instructions)

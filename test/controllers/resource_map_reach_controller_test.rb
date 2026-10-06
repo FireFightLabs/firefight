@@ -94,6 +94,50 @@ class ResourceMapReachControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "the Memory page leaves out a hidden resource's instructions, and editing, removing or writing them finds nothing" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
+    Entitlements.stubs(:allows?).returns(true)
+    limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    Ability::Grant.grant!(workspace: @workspace, principal: @member, target: { action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_UPDATE)) })
+    hidden = Chat::Instruction.create!(workspace: @workspace, scope: map_resource(@workspace, "secret-db"), text: "Rotate the card tokens before touching it")
+    shown = Chat::Instruction.create!(workspace: @workspace, scope: map_resource(@workspace, "web"), text: "Check the session store first")
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+    assert_equal [ shown.id ], JSON.parse(response.body).dig("props", "instructions").map { |note| note["id"] }
+    assert_not_includes response.body, "card tokens"
+    TwoEnvironmentMapHelper::HIDDEN_NAMES.each { |name| assert_not_includes response.body, name }
+
+    patch memory_instruction_path(hidden), params: { text: "Rotate nothing" }
+    assert_response :not_found
+    delete memory_instruction_path(hidden)
+    assert_response :not_found
+    assert_nil hidden.reload.superseded_at
+
+    hidden_key = Chat::Memory.subject_key(map_resource(@workspace, "secret-db"))
+    unknown_key = "#{ResourceMap::Resource.name}:#{SecureRandom.uuid}"
+    [ hidden_key, unknown_key ].each do |key|
+      post memory_instructions_path, params: { text: "Check it twice", subject: key }
+      assert_response :not_found
+    end
+    assert_not Chat::Instruction.exists?(workspace: @workspace, text: "Check it twice")
+  end
+
+  test "the map panel shows a limited member the instructions for what they read, and none about a hidden resource" do
+    limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    entry = catalog_entries(:auth_service)
+    %w[web secret-db].each { |name| ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: entry, resource: map_resource(@workspace, name)) }
+    Chat::Instruction.create!(workspace: @workspace, scope: map_resource(@workspace, "secret-db"), text: "Rotate the card tokens before touching it")
+    Chat::Instruction.create!(workspace: @workspace, scope: entry, text: "Page the auth team before a rollback")
+    sign_in(users(:bob), @workspace)
+
+    props = inertia_props(resource_map_path)
+
+    web = props["resources"].find { |resource| resource["name"] == "web" }
+    assert_equal [ "Page the auth team before a rollback" ], web["instructions"].map(&:last)
+    assert_not_includes response.body, "card tokens"
+  end
+
   private
 
   def inertia_headers = { "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version.to_s }

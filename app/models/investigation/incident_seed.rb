@@ -11,6 +11,8 @@ class Investigation::IncidentSeed
 
   def gather
     alerts = seed_alerts
+    map = Investigation::MapFacts.new(@investigation, @incident, Investigation::Clues.new(@investigation).gather)
+    resources = map.resources
     {
       Investigation::Seeding::KEY_GATHERED_AT => Time.current.iso8601,
       "incident" => incident_facts,
@@ -19,6 +21,8 @@ class Investigation::IncidentSeed
       "runbooks" => runbook_facts,
       "past_incidents" => past_incident_facts(alerts),
       "services" => service_facts,
+      "resources" => resources.presence,
+      "resources_held_back" => (map.held_back if resources.any?),
       "brief" => @investigation.brief.presence
     }.compact
   end

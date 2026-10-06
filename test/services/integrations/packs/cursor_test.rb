@@ -43,7 +43,7 @@ module Integrations
       end
 
       test "a repository two code hosts both hold is two repositories, so its address has to be given" do
-        %w[github gitlab].each do |host|
+        %w[gitlab github].each do |host|
           connection = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: host, name: host.capitalize, slug: host)
           ResourceMap.record!(connection.integration_environments.create!(base_config: { "installation_id" => "1" }), ResourceMap::Snapshot.new(resources: [
             ResourceMap::Found.new(provider: host, account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/web", name: "acme/web",
