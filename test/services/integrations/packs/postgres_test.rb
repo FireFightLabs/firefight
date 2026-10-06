@@ -89,6 +89,23 @@ module Integrations
         assert_match(/\APostgreSQL \d+/, database.details["engine"])
         assert_equal "primary", database.details["type"]
         assert_no_match "postgres:postgres", database.to_h.to_json
+        port = database.external_id[/:(\d+)\//, 1]
+        assert_equal [ ResourceMap::Endpoint.at(resource: database.key, host: "127.0.0.1", port: port, workspace: @workspace, database: name) ], snapshot.endpoints
+        assert_not_includes snapshot.inspect, test_database_url
+      end
+
+      test "a service whose DATABASE_URL names the same host, port and database uses it, as a fact" do
+        snapshot = @pack.map_of(@row)
+        ResourceMap.record!(@row, snapshot)
+        platform = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "northflank", name: "Hosting").integration_environments.create!
+        web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+        ResourceMap.record!(platform, ResourceMap::Snapshot.new(resources: [ web ],
+                                                               uses: ResourceMap::Use.read(from: web.key, workspace: @workspace, values: { "DATABASE_URL" => test_database_url })))
+
+        ResourceMap::Matcher.new(@workspace).run!
+
+        link = ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_MATCHED)
+        assert_equal [ "web", snapshot.resources.sole.name ], [ link.from_resource.name, link.to_resource.name ]
       end
 
       test "table health reads the statistics Postgres keeps" do

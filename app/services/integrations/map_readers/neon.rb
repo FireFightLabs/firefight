@@ -28,11 +28,13 @@ module Integrations
       BRANCH_KINDS = [ ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
       # Neon gives a project no state of its own, and one it lists is one it serves.
       LISTED = "ready".freeze
+      POSTGRES_PORT = 5432
 
       def initialize(...)
         super
         @resources = []
         @links = []
+        @endpoints = []
       end
 
       def map
@@ -46,7 +48,7 @@ module Integrations
           gap("Only the first #{PROJECT_LIMIT} projects#{where} were read.", kinds: ALL_KINDS) if projects.size >= PROJECT_LIMIT
           projects.each { |project| project(project, organization) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps)
+        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints)
       end
 
       private
@@ -104,7 +106,22 @@ module Integrations
             }.compact
           )
           @resources << compute
-          @links << ResourceMap::FoundLink.new(from: branch.key, to: compute.key, relation: ResourceMap::RELATION_SERVED_BY) if branch
+          next unless branch
+
+          @links << ResourceMap::FoundLink.new(from: branch.key, to: compute.key, relation: ResourceMap::RELATION_SERVED_BY)
+          addresses(branch, endpoint["host"])
+        end
+      end
+
+      # A service connects to the branch through its compute's host, directly or through the pooler, whose host adds
+      # -pooler to the compute's id and keeps the rest (https://neon.com/docs/connect/connection-pooling). Both answer on
+      # Postgres's port.
+      def addresses(branch, host)
+        return if host.blank? || workspace.nil?
+
+        first, rest = host.split(".", 2)
+        [ host, ("#{first}-pooler.#{rest}" if rest) ].compact.each do |each|
+          @endpoints << ResourceMap::Endpoint.at(resource: branch.key, host: each, port: POSTGRES_PORT, workspace: workspace)
         end
       end
 

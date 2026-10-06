@@ -10,10 +10,13 @@ module Integrations
       LIST_ORGANIZATIONS = "get_organizations".freeze
       LIST_SERVICES = "get_services_list".freeze
       KINDS = [ ResourceMap::KIND_DATABASE ].freeze
+      DETAILS = Capabilities::Clickhouse::DETAILS
 
       def initialize(...)
         super
         @resources = []
+        @endpoints = []
+        @undescribed = 0
       end
 
       def map
@@ -23,7 +26,12 @@ module Integrations
                           { Capabilities::Clickhouse::ORGANIZATION => organization["id"] })
           services&.each { |service| service(organization, service) }
         end
-        ResourceMap::Snapshot.new(resources: @resources, gaps: gaps)
+        if @undescribed.positive?
+          gap("ClickHouse did not say where #{@undescribed} #{'service'.pluralize(@undescribed)} #{@undescribed == 1 ? 'is' : 'are'} reached" \
+              "#{" and #{DETAILS} is switched off" unless on?(DETAILS)}, so settings that name #{@undescribed == 1 ? 'it' : 'them'} are not linked.",
+              kinds: [], settings: true)
+        end
+        ResourceMap::Snapshot.new(resources: @resources, gaps: gaps, endpoints: @endpoints)
       end
 
       private
@@ -40,6 +48,32 @@ module Integrations
             "read_only" => service["isReadonly"]
           }.compact
         )
+        addresses(organization, service, @resources.last)
+      end
+
+      # Where a service is reached, its Service object's endpoints, each a protocol, host and port, such as https on
+      # 8443 and nativesecure on 9440 (https://clickhouse.com/docs/cloud/manage/api/swagger, Service). The list may
+      # leave them out, so a service without them is described with get_service_details when that tool is on.
+      def addresses(organization, service, found)
+        return if workspace.nil?
+
+        endpoints = service["endpoints"].presence || described(organization, service)
+        return @undescribed += 1 unless endpoints.is_a?(Array)
+
+        endpoints.select { |endpoint| endpoint.is_a?(Hash) }.each do |endpoint|
+          @endpoints << ResourceMap::Endpoint.at(resource: found.key, host: endpoint["host"], port: endpoint["port"], workspace: workspace)
+        end
+      end
+
+      def described(organization, service)
+        return unless on?(DETAILS) && !@describing_refused
+
+        answer = call(DETAILS, { Capabilities::Clickhouse::ORGANIZATION => organization["id"], Capabilities::Clickhouse::SERVICE => service["id"] },
+                      "where #{service['name'] || service['id']} is reached")
+        @describing_refused = answer.nil? || answer["isError"]
+        data = @describing_refused ? nil : Capabilities::Answers.data(answer)
+        data = data["result"] if data.is_a?(Hash) && data["result"].is_a?(Hash)
+        data["endpoints"] if data.is_a?(Hash)
       end
 
       # The list a tool answered, from the Cloud API's result envelope or as a bare list, or nil with a gap.

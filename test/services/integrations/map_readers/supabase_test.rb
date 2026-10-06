@@ -73,6 +73,23 @@ module Integrations
         assert_match "scoped to project abcdefghijklmnopqrst", snapshot.gaps.sole.text
       end
 
+      test "a project and each branch of its own are reached at their host, their dedicated pooler, the shared pooler by ref and the API address" do
+        snapshot = Supabase.new(settings) { |tool, _arguments| answer(tool) }.map
+        project, _main, feature = snapshot.resources
+        workspace = workspaces(:slack_workspace_one)
+
+        assert_equal [ project.key ] * 5 + [ feature.key ] * 5, snapshot.endpoints.map(&:resource)
+        assert_includes snapshot.endpoints.map(&:fingerprint), ResourceMap::Fingerprint.of("db.abcdefghijklmnopqrst.supabase.co", 6543, workspace)
+        assert_includes snapshot.endpoints.map(&:fingerprint), ResourceMap::Fingerprint.of("abcdefghijklmnopqrst.supabase.co", 443, workspace)
+        pooled = snapshot.endpoints.select(&:within_domain)
+        assert_equal [ 5432, 6543 ] * 2, pooled.map(&:port)
+        assert_equal ResourceMap::Fingerprint.of_name("zyxwvutsrqponmlkjihg", workspace), pooled.last.tenant_fingerprint
+
+        use = ResourceMap::Use.of(%w[web], "DATABASE_URL", "postgres://postgres.abcdefghijklmnopqrst:pw@aws-1-us-east-1.pooler.supabase.com:6543/postgres", workspace)
+        assert pooled.any? { |endpoint| endpoint.fingerprint == use.domain_fingerprint && endpoint.tenant_fingerprint == use.tenant_fingerprint && endpoint.resource == project.key }
+        assert_no_match(/supabase\.co/, snapshot.inspect.gsub(%r{https://supabase\.com/dashboard\S*}, ""))
+      end
+
       private
 
       def settings(fields = {})
