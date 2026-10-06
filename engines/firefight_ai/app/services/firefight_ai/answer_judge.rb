@@ -13,13 +13,10 @@ module FirefightAi
 
     # rated and replayed are each the answer's text, its summary with the cause it gave.
     def judge(rated:, replayed:)
-      response, = FirefightAi.translating_errors do
-        Inference.track(inference_context) do
-          chat = FirefightAi.chat(model_choice)
-          chat.with_instructions(system_prompt)
-          chat.with_schema(Schemas::SameCause)
-          chat.ask("## The first answer\n#{rated}\n\n## The second answer\n#{replayed}")
-        end
+      response, = FirefightAi.generate(model_choice, purpose: AiPurpose::CITATION_CHECK, inference: inference_context) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::SameCause)
+        chat.ask("## The first answer\n#{rated}\n\n## The second answer\n#{replayed}")
       end
       verdict(response.parsed)
     end

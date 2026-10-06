@@ -17,7 +17,7 @@ class Conversation::QuietDelivery
 
   def answered!(_reply) = nil
 
-  def failed! = nil
+  def failed!(_text = nil) = nil
 
   def confirm!(_tool_calls) = nil
 end

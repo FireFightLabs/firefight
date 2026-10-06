@@ -2,6 +2,13 @@
 class Conversation::Delivery
   FAILED = "Something went wrong on my side, so I did not finish that one. Ask me again.".freeze
 
+  # Saved in the chat and said where the person asked, so a turn that could not finish is never a silence.
+  def self.give_up!(conversation, text)
+    conversation.note!(text)
+    conversation.reply_delivered!
+    self.for(conversation).failed!(text)
+  end
+
   def self.for(conversation)
     return Conversation::QuietDelivery.new(conversation) if conversation.mcp?
     conversation.personal? ? Conversation::LiveDelivery.new(conversation) : new(conversation)
@@ -60,8 +67,8 @@ class Conversation::Delivery
   end
 
   # Tells the person, or they would watch a spinner forever.
-  def failed!
-    answered!(FAILED)
+  def failed!(text = FAILED)
+    answered!(text)
   end
 
   def confirm!(tool_calls)

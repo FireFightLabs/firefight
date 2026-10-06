@@ -163,6 +163,22 @@ class InvestigationJobTest < ActiveSupport::TestCase
     InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
   end
 
+  test "a run whose AI account ran out of credit ends at once and says so in its thread, without naming the provider" do
+    @investigation.update!(thread_id: "1700000000.000100")
+    Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::OutOfCredit.new("OpenRouter: can only afford 60329"))
+    said = "Halon cannot answer right now because the AI account behind this workspace is out of credit. Firefight's team has been told"
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
+      has_entries(thread_id: "1700000000.000100", reason: said, rerun: @incident)
+    )
+
+    assert_no_enqueued_jobs(only: InvestigationJob) { InvestigationJob.perform_now(@investigation.id) }
+
+    @investigation.reload
+    assert_equal Investigation::STATUS_FAILED, @investigation.status
+    assert_equal AiCredit::REASON, @investigation.error_summary, "operators see the cause"
+    assert_equal said, @investigation.stopped_because
+  end
+
   test "the precise cause is kept on the run for us, and never said in the thread" do
     error = FirefightAi::TerminalError.new("too long", reason: "ContextLengthExceededError")
 

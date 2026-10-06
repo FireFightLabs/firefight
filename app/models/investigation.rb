@@ -232,9 +232,11 @@ class Investigation < ApplicationRecord
 
   def spent_cents = (spent_micros / 10_000.0).round(2)
 
-  # Why a failed run stopped, in the words the thread was told. A technical cause is never shown to people.
+  # Why a failed run stopped, in the words the thread was told. A technical cause is never shown to people, except that
+  # the AI account ran out of credit, which is said without naming whose.
   def stopped_because
     return nil unless status == STATUS_FAILED
+    return AiCredit.cannot(workspace).delete_suffix(".") if AiCredit.recorded?(error_summary)
 
     PLAIN_STOP_REASONS.include?(error_summary.to_s) ? error_summary : GAVE_UP
   end

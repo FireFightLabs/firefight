@@ -12,16 +12,17 @@ class ConversationReplyJob < ApplicationJob
   discard_on FirefightAi::TerminalError do |job, _error|
     say_nothing_came_of_it(job)
   end
+  # Declared after TerminalError, so it is the one that answers.
+  discard_on FirefightAi::OutOfCredit do |job, _error|
+    conversation = Conversation.find_by(id: job.arguments.first)
+    Conversation::Delivery.give_up!(conversation, AiCredit.cannot(conversation.workspace)) if conversation
+  end
   discard_on ActiveRecord::RecordNotFound
 
   # The person is told when the job gives up, or they would wait forever.
   def self.say_nothing_came_of_it(job)
     conversation = Conversation.find_by(id: job.arguments.first)
-    return unless conversation
-
-    conversation.note!(Conversation::Delivery::FAILED)
-    conversation.reply_delivered!
-    Conversation::Delivery.for(conversation).failed!
+    Conversation::Delivery.give_up!(conversation, Conversation::Delivery::FAILED) if conversation
   end
 
   # A job queued before the asker was passed along falls back to whoever started the conversation.

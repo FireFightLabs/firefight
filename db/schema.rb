@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1076,9 +1076,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_093000) do
     t.string "status", null: false
     t.string "stop_reason"
     t.uuid "workspace_id", null: false
+    t.integer "max_output_tokens"
+    t.string "error_kind"
     t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
+    t.index ["error_kind", "created_at"], name: "index_inferences_on_error_kind_and_created_at", where: "(error_kind IS NOT NULL)"
     t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
     t.index ["member_id"], name: "index_inferences_on_member_id"
+    t.index ["provider", "status", "created_at"], name: "index_inferences_on_provider_and_status_and_created_at"
     t.index ["workspace_id", "created_at"], name: "index_inferences_on_workspace_id_and_created_at"
     t.index ["workspace_id", "feature", "created_at"], name: "index_inferences_on_workspace_id_and_feature_and_created_at"
     t.index ["workspace_id", "inferable_type", "inferable_id"], name: "idx_on_workspace_id_inferable_type_inferable_id_af35668ca4"

@@ -87,6 +87,37 @@ class Operator::AttentionTest < ActiveSupport::TestCase
     assert items.none? { |item| item.kind == Operator::Attention::KIND_SKILL_BROKEN }, "a workspace's view leaves out what belongs to the install"
   end
 
+  test "an AI account whose last calls were refused for credit is out, since the first refusal after its last answer" do
+    call!(Inference::STATUS_SUCCESS, at: 3.hours.ago)
+    first = call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 2.hours.ago)
+    call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 1.hour.ago)
+
+    out = install_items.find { |item| item.kind == Operator::Attention::KIND_AI_OUT_OF_CREDIT }
+
+    assert_equal "AI account out of credit", out.title
+    assert_equal "openrouter", out.subject
+    assert_equal Operator::IncidentProcess::TONE_BAD, out.tone
+    assert_equal first.created_at.to_i, out.at.to_i
+    assert_match "2 calls refused since #{first.created_at.utc.iso8601}", out.detail
+    assert items.none? { |item| item.kind == Operator::Attention::KIND_AI_OUT_OF_CREDIT }, "the account is the install's, not a workspace's"
+  end
+
+  test "an AI account that answered again after a refusal is short of credit, not out" do
+    call!(Inference::STATUS_ERROR, kind: Inference::ERROR_OUT_OF_CREDIT, at: 2.hours.ago)
+    call!(Inference::STATUS_SUCCESS, at: 1.hour.ago)
+
+    kinds = install_items.map(&:kind)
+
+    assert_includes kinds, Operator::Attention::KIND_AI_SHORT_OF_CREDIT
+    assert_not_includes kinds, Operator::Attention::KIND_AI_OUT_OF_CREDIT
+  end
+
+  test "an AI account with no refusals needs nobody" do
+    call!(Inference::STATUS_ERROR, at: 1.hour.ago)
+
+    assert install_items.none? { |item| item.kind.in?([ Operator::Attention::KIND_AI_OUT_OF_CREDIT, Operator::Attention::KIND_AI_SHORT_OF_CREDIT ]) }
+  end
+
   test "failures come before warnings" do
     run!(status: Investigation::STATUS_FAILED, error_summary: Investigation::BUDGET_SPENT)
     run!(status: Investigation::STATUS_FAILED, error_summary: "Faraday::TimeoutError")
@@ -103,6 +134,13 @@ class Operator::AttentionTest < ActiveSupport::TestCase
   private
 
   def items = Operator::Attention.new(Operator::Filter.new(workspace: @workspace), jobs: nil).items
+
+  def install_items = Operator::Attention.new(Operator::Filter.new, jobs: nil).items
+
+  def call!(status, at:, kind: nil)
+    Inference.create!(workspace: @workspace, feature: "conversation", provider: "openrouter", model: "gpt-5.6-luna",
+                      status: status, error_kind: kind, created_at: at)
+  end
 
   def item_for(kind, run) = items.find { |item| item.kind == kind && item.target_id == run.id }
 

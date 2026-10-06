@@ -28,6 +28,12 @@ class PostmortemSerializer < BaseSerializer
     postmortem.generation_error
   end
 
+  # Said in place of the cause when the cause is one a person should read.
+  type :string, optional: true
+  def generation_note
+    postmortem.generation_failure_note
+  end
+
   # Polymorphic, a member, an agent or an API key.
   type :string
   def generated_by

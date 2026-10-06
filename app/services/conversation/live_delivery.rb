@@ -61,8 +61,8 @@ class Conversation::LiveDelivery
     broadcast(type: EVENT_ANSWERED)
   end
 
-  # Without this the page would wait forever after a failed turn.
-  def failed!
+  # Without this the page would wait forever after a failed turn. What to say is already saved in the chat it reloads.
+  def failed!(_text = nil)
     broadcast(type: EVENT_FAILED)
   end
 

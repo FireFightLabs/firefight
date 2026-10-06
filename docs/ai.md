@@ -16,7 +16,8 @@ engines/firefight_ai/
     milestone_extractor.rb                           # Transcript → the milestones of the investigation, as data
     schemas/postmortem.rb                            # Structured-output schema for postmortem generation
     schemas/milestones.rb                            # Structured-output schema for milestone extraction
-  lib/firefight_ai/errors.rb                         # TransientError / TerminalError, the only errors that leave the engine
+  lib/firefight_ai/errors.rb                         # TransientError / TerminalError / OutOfCredit, the only errors that leave the engine
+  lib/firefight_ai/credit.rb                         # Reads a provider's refusal for credit and what it can still pay for
 
 app/jobs/
   postmortem_generation_job.rb                       # Runs the generator while Postmortem#generation_state is "generating", delivers the result
@@ -29,7 +30,7 @@ app/services/
 
 **The engine writes text, the app delivers it.** Engine services return plain results: `PostmortemGenerator#generate` returns a `Draft` (title, summary, markdown per section, model) and `IncidentResponder#answer_question` returns a string. Nothing under `engines/firefight_ai/` names a job queue, a channel, or a platform adapter. The app-side jobs own entitlement checks, persistence (`Postmortem.complete_generation!`), announcements through `WorkspaceAdapter`, and failure notices. Each platform describes its own markup through `PlatformAdapter#ai_output_style`, which the app passes into the responder, so the engine never learns Slack mrkdwn.
 
-**Errors stop at the engine boundary.** Every model call runs inside `FirefightAi.translating_errors`, which maps the client library's exceptions to `FirefightAi::TransientError` (worth retrying) and `FirefightAi::TerminalError` (retrying gives the same answer). Both carry `reason`, the client error's own name, for failure messages. App jobs `retry_on` the first and `discard_on` the second and never name the client library. A rate limit is transient whatever class the library raised it under: `FirefightAi.rate_limited?` reads the response status and the message, since OpenAI's tokens per minute limit arrived as a bad request and a bad request is given up on.
+**Errors stop at the engine boundary.** Every model call runs inside `FirefightAi.translating_errors`, which maps the client library's exceptions to `FirefightAi::TransientError` (worth retrying) and `FirefightAi::TerminalError` (retrying gives the same answer). Both carry `reason`, the client error's own name, for failure messages. App jobs `retry_on` the first and `discard_on` the second and never name the client library. A rate limit is transient whatever class the library raised it under: `FirefightAi.rate_limited?` reads the response status and the message, since OpenAI's tokens per minute limit arrived as a bad request and a bad request is given up on. `FirefightAi::OutOfCredit` is a `TerminalError` for an account with no credit left (see Output budgets and credit below), so every job that discards terminal errors gives up on it without retrying, and a job a person waits on can say so in plain words.
 
 ## Model-agnostic by configuration
 
@@ -46,13 +47,33 @@ Every call has a purpose (`AiPurpose::POSTMORTEM`, `INCIDENT_RESPONSE`, `SUMMARY
 
 The answer is a `FirefightAi::ModelChoice` (`model`, `provider`). A provider only travels with a model RubyLLM's registry cannot place on its own, such as a Bedrock or Ollama deployment: set `POSTMORTEM_AI_PROVIDER`, `FIREFIGHT_AI_PROVIDER`, or the override row's `provider`. `FirefightAi.chat(choice)` opens the chat and passes `assume_model_exists` for an unregistered model. `Inference.provider_for(model, provider:)` records the explicit provider or asks the registry, never guesses from the model name.
 
+## Output budgets and credit
+
+A provider reserves a call's whole output cap against the account's balance before it writes a word, and a call with no cap reserves the model's own maximum (65,536 tokens on the model dev ran, about $0.08 a call). An account with a few cents left then refused every call, although a normal reply writes a few hundred tokens. So every call carries a cap that fits what its purpose writes.
+
+- **`FirefightAi.output_cap(purpose, model:)`** returns an `OutputCap` (`max`, `floor`). The maximum is the purpose's `<PREFIX>_MAX_OUTPUT_TOKENS` env var (`INVESTIGATION_AI_MAX_OUTPUT_TOKENS`, `POSTMORTEM_AI_MAX_OUTPUT_TOKENS`, ...), else the built-in in `FirefightAi.output_caps`, and never above the `max_output_tokens` the registry holds for the model. A purpose never takes its parent's cap, since what it writes is its own even on its parent's model. No workspace override exists, since a workspace that switches model is held to that model's own limit already.
+- **The built-ins**, from the inference ledger (`output_tokens` by feature, reasoning included):
+
+  | Purpose | Max | Floor | Why |
+  |---|---|---|---|
+  | `INVESTIGATION` (every agent turn of a run or chat, and the undo writer) | 16,000 | 4,000 | Turns wrote at most about 5,200 tokens (p99 about 3,400) on the largest model, a `conclude` carrying theory, evidence and fix plan is the longest. The floor is above that p99. |
+  | `POSTMORTEM` (generation and section rewrite) | 16,000 | 6,000 | A whole document of nine sections in one structured answer, plus reasoning. |
+  | `CITATION_CHECK`, `LESSONS` (and the regression judge) | 8,000 | 2,000 | Checks wrote at most about 1,500 tokens. One model ran away to 59,000 tokens of reasoning and was cut off anyway. |
+  | `INCIDENT_RESPONSE`, `SUMMARY`, `MILESTONES` | 4,000 | 1,000 | Each wrote under 300 tokens. |
+
+  `CODE_FIX` runs through `FirefightAi::ModelProxy`, which already caps a coding agent's output at `MAX_OUTPUT_TOKENS`, and an embedding writes nothing.
+- **`FirefightAi.generate(choice, purpose:, inference:) { |chat| ... }`** is how every single-call service calls a model: one fresh chat with the cap, inside `Inference.track` and `translating_errors`. The agent loop takes the cap as `output:` and sets it on the saved chat when it runs.
+- **Retry with what is affordable.** OpenRouter refuses with a 402 that names what the balance still covers ("You requested up to 65536 tokens, but can only afford 60329"). `FirefightAi::Credit` reads the status, the error object and its words, and `OutputCap#after_refusal` returns that amount when it is at least the floor. The call is then made once more with it, never a third time, and logged as `ai.short_of_credit`. In the agent loop the smaller cap stays for the rest of the run, since every later turn would be refused the same way. Both calls are ledger rows, the refused one with `error_kind` `out_of_credit`.
+- **Out of credit.** A refusal with no amount, or one below the floor, or a second refusal, becomes `FirefightAi::OutOfCredit` and is logged at error level as `ai.out_of_credit` for alerting. What counts, read by `Credit#out_of_credit?`: any 402 (OpenRouter, Anthropic's `billing_error`, DeepSeek), OpenAI's `insufficient_quota` (a 429 that would otherwise be retried as a rate limit), Anthropic's "credit balance is too low" (a 400) and Gemini's "prepayment credits are depleted" (a 429). OpenRouter's in-flight budget 402, with a `Retry-After` header or `limit_source` `openrouter_in_flight_budget`, is a wait and stays a `TransientError` (reason `InFlightBudget`).
+- **What a person is told** comes from `AiCredit` (`app/models/ai_credit.rb`), never the provider's words and never its name: "Halon cannot answer right now because the AI account behind this workspace is out of credit. Firefight's team has been told." A chat in the dashboard, Slack or MCP (`Conversation::Delivery.give_up!`), an @mention or catchup answer, a run's stop reason (`Investigation#stopped_because`, while `error_summary` keeps `OutOfCredit` for operators), a postmortem (`Postmortem#generation_failure_note`, on the page and in the requester's ephemeral), a section rewrite and an undo each say it with what Halon could not do. Lessons, milestones and embeddings have nobody waiting and are discarded. A regression case settles as errored with `Investigation::Regression::OUT_OF_CREDIT`. Which account ran out is decided in `AiCredit` alone, so it is the one place to change when a workspace holds its own.
+
 `AiModelOverride` rows are operator data: set from the Rails console today and from the operator console in firefight_cloud later, never from the dashboard. Self-hosters set env vars. Don't read model env vars directly in services — go through `FirefightAi.model_for`.
 
 ## Inference ledger — every call is tracked
 
 Every row says which prompt produced it. `prompt_template` is the prompt's name and `prompt_version` is `FirefightAi::Prompt.version`, a digest of the wording itself, so an edited prompt cannot keep an old version and two wordings cannot share one. Per run values (the asker, the incident, the seed pack) are excluded, since they change every call and live in the saved chat. `PromptVersion` holds each wording once, written the first time the ledger sees it, so a version can be read back as the words the model was given. Ordering comes from when a version was first seen, not from the digest. `inferences.prompt_version` is a string, the digest as written, so a row joins its `PromptVersion`. It was once an integer, which kept only the digits a digest began with, and those values were cleared.
 
-Every LLM call is wrapped in `Inference.track` (`app/models/inference.rb`), which records feature, provider, model, token counts (input/output/cache), `cost_micros`, latency, finish reason (`stop_reason`), the provider's request id, and status — success or error — plus who triggered it (`member` or `api_key`) and what it was about (`inferable` polymorphic).
+Every LLM call is wrapped in `Inference.track` (`app/models/inference.rb`), which records feature, provider, model, token counts (input/output/cache), `cost_micros`, latency, finish reason (`stop_reason`), the provider's request id, and status — success or error — plus who triggered it (`member` or `api_key`) and what it was about (`inferable` polymorphic). `max_output_tokens` is the cap the call reserved, and `error_kind` is `out_of_credit` on a call the provider refused for credit (set in `Inference.track` and by `CodeAgent::Relay` for a coding agent's calls), including a refusal a shorter retry then answered.
 
 ```ruby
 Inference.track(workspace:, feature:, provider:, model:, inferable: incident, member:) do

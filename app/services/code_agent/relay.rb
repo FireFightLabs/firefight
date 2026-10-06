@@ -31,6 +31,7 @@ class CodeAgent::Relay
       inferable: @session, input_tokens: usage.input, output_tokens: usage.output, cache_read_tokens: usage.cache_read,
       cache_write_tokens: usage.cache_write, cost_micros: cost,
       status: proxy.status.to_i.between?(200, 299) ? Inference::STATUS_SUCCESS : Inference::STATUS_ERROR,
+      error_kind: (Inference::ERROR_OUT_OF_CREDIT if proxy.refusal&.out_of_credit?),
       latency_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
     )
     @session.charge!(cost)

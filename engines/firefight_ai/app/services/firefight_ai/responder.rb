@@ -44,7 +44,7 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
-          check: check, hold: hold, take_messages: take_messages
+          check: check, hold: hold, take_messages: take_messages, output: output_cap
         ).run(&on_turn)
       end
     end
@@ -54,6 +54,8 @@ module FirefightAi
     end
 
     private
+
+    def output_cap = FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: ai_model.model)
 
     def inference_context
       {

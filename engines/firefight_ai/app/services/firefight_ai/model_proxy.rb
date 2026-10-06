@@ -21,6 +21,9 @@ module FirefightAi
 
     attr_reader :usage, :status
 
+    # The provider's answer to a refused call, kept so the refusal can be read, such as for credit.
+    attr_reader :refusal
+
     def self.providers
       settings = FirefightAi.configuration.provider_settings
       {
@@ -80,6 +83,7 @@ module FirefightAi
             json ? whole << chunk : read_usage(buffer << chunk)
           end
           json ? read_object(whole) : read_usage(buffer << "\n", finished: true)
+          @refusal = Credit.new(status: @status, body: whole) if json && @status >= 400
         end
       end
     end

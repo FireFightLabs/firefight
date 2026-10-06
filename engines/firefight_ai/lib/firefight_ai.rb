@@ -2,6 +2,7 @@ require "ruby_llm"
 require "schematist"
 require "firefight_ai/version"
 require "firefight_ai/configuration"
+require "firefight_ai/credit"
 require "firefight_ai/errors"
 require "firefight_ai/prompt"
 require "firefight_ai/engine"
@@ -48,6 +49,75 @@ module FirefightAi
       AiPurpose::CODE_FIX => "gpt-4o",
       AiPurpose::EMBEDDING => "text-embedding-3-small"
     }.fetch(purpose)
+  end
+
+  # How much one call for a purpose may write, and the least still worth asking for when the account can pay for less.
+  OutputCap = Data.define(:max, :floor) do
+    # The cap to try once more after the provider refused for credit and named what it can still pay for. Nil when it
+    # named nothing, or too little for a useful answer.
+    def after_refusal(error, tried)
+      affordable = Credit.from(error).affordable
+      affordable if affordable && affordable >= floor && affordable < tried
+    end
+  end
+
+  # A provider reserves the whole cap against the balance before it writes a word, and with no cap it reserves the
+  # model's own maximum, so each purpose asks for what it writes plus room for the model's reasoning. Read from the
+  # ledger: an agent turn wrote at most about 5,200 tokens, a citation check about 1,500, the rest under 1,000. Each
+  # floor is what a full answer of that kind has needed, so a reply cut shorter is never asked for.
+  def output_caps
+    {
+      AiPurpose::INVESTIGATION => [ 16_000, 4_000 ],
+      AiPurpose::POSTMORTEM => [ 16_000, 6_000 ],
+      AiPurpose::CITATION_CHECK => [ 8_000, 2_000 ],
+      AiPurpose::LESSONS => [ 8_000, 2_000 ],
+      AiPurpose::INCIDENT_RESPONSE => [ 4_000, 1_000 ],
+      AiPurpose::SUMMARY => [ 4_000, 1_000 ],
+      AiPurpose::MILESTONES => [ 4_000, 1_000 ]
+    }
+  end
+
+  # The purpose's env var sets the maximum, as its model is set. A purpose never takes its parent's, since what it
+  # writes is its own even on its parent's model. Never above what the registry says the model can write.
+  def output_cap(purpose, model:)
+    built_in_max, floor = output_caps.fetch(purpose)
+    max = ENV["#{env_prefix(purpose)}_MAX_OUTPUT_TOKENS"].presence&.to_i || built_in_max
+    max = [ max, max_output_tokens(model) ].compact.min
+    OutputCap.new(max: max, floor: [ floor, max ].min)
+  end
+
+  # What the registry says the model can write in one answer. Nil when it is not known.
+  def max_output_tokens(model_id)
+    limit = RubyLLM.models.find(model_id.to_s).max_output_tokens.to_i
+    limit.positive? ? limit : nil
+  rescue RubyLLM::ModelNotFoundError
+    nil
+  end
+
+  # One model call for a purpose, in the ledger and capped at what the purpose writes. A provider that refuses for
+  # credit and names an output it can still pay for is asked once more with that, when it still fits a useful answer.
+  # The block gets a fresh chat each time. Returns the response and its ledger row, as Inference.track does.
+  def generate(choice, purpose:, inference:)
+    cap = output_cap(purpose, model: choice.model)
+    translating_errors do
+      limit = cap.max
+      retried = false
+      begin
+        Inference.track(inference.merge(max_output_tokens: limit)) { yield chat(choice).with_max_output_tokens(limit) }
+      rescue RubyLLM::Error => e
+        smaller = retried ? nil : cap.after_refusal(e, limit)
+        raise unless smaller
+
+        note_short_of_credit(inference[:feature], limit, smaller)
+        limit = smaller
+        retried = true
+        retry
+      end
+    end
+  end
+
+  def note_short_of_credit(feature, asked, affordable)
+    Rails.logger.warn({ event: "ai.short_of_credit", feature: feature, asked: asked, affordable: affordable }.to_json)
   end
 
   # Most specific first, workspace override for the purpose, for any purpose, the

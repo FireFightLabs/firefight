@@ -134,6 +134,25 @@ class PostmortemGenerationJobTest < ActiveSupport::TestCase
     end
   end
 
+  test "an AI account out of credit fails the generation once, and the requester and the page are told why in plain words" do
+    Postmortem.start_generation!(@incident, by: @member)
+    generator = mock("generator")
+    generator.stubs(:generate).raises(FirefightAi::OutOfCredit.new("OpenRouter: can only afford 900"))
+    FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
+    said = "Halon cannot write this postmortem right now because the AI account behind this workspace is out of credit. " \
+           "Firefight's team has been told."
+    adapter = mock("adapter")
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+    adapter.expects(:post_postmortem_generation_failed).with(has_entries(incident: @incident, retrying: false, note: said)).once
+
+    assert_nothing_raised { PostmortemGenerationJob.perform_now(@incident.id) }
+
+    postmortem = @incident.reload.postmortem
+    assert postmortem.generation_failed?
+    assert_equal AiCredit::REASON, postmortem.generation_error
+    assert_equal said, postmortem.generation_failure_note
+  end
+
   test "an error the engine did not classify marks the placeholder failed instead of leaving it generating" do
     Postmortem.start_generation!(@incident, by: @member)
     PostmortemGenerationService.any_instance.stubs(:generate!).raises(ActiveRecord::RecordInvalid)

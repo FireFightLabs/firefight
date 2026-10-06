@@ -39,6 +39,10 @@ module Mcp
         return respond(waiting(conversation)) if outcome.status == FirefightAi::AgentLoop::STATUS_WAITING
 
         respond(status: STATUS_ANSWERED, answer: runner.reply, conversation_id: conversation.id)
+      rescue FirefightAi::OutOfCredit
+        said = AiCredit.cannot(workspace)
+        Conversation::Delivery.give_up!(conversation, said)
+        Mcp::ToolDispatcher.error_response(said)
       end
 
       # What the agent paused on, in the words the dashboard would show, so the caller can tell the person.

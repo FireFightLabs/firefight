@@ -10,21 +10,18 @@ module FirefightAi
       context = incident.to_full_context(workspace: @workspace)
       summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
 
-      response, _ = FirefightAi.translating_errors do
-        Inference.track(
-          workspace: @workspace,
-          feature:   FEATURE,
-          provider:  model_choice.provider_name,
-          model:     model_choice.model,
-          inferable: incident,
-          prompt_template: FEATURE,
-          prompt_version: Prompt.version(system_prompt),
-          prompt_text: system_prompt
-        ) do
-          chat = FirefightAi.chat(model_choice)
-          chat.with_instructions(system_prompt)
-          chat.ask(build_prompt(context, summary, selected_html, instruction))
-        end
+      response, _ = FirefightAi.generate(model_choice, purpose: AiPurpose::POSTMORTEM, inference: {
+        workspace: @workspace,
+        feature:   FEATURE,
+        provider:  model_choice.provider_name,
+        model:     model_choice.model,
+        inferable: incident,
+        prompt_template: FEATURE,
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
+      }) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.ask(build_prompt(context, summary, selected_html, instruction))
       end
 
       sanitize_html(response.content)

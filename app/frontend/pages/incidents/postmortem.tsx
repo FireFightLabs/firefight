@@ -245,11 +245,15 @@ export default function PostmortemPage() {
           ) : (
             <div className="mx-auto flex max-w-4xl flex-col items-center gap-4 px-4 py-24 text-center lg:px-6">
               <p className="text-base font-medium">
-                Generation failed
-                {postmortem?.generationError
-                  ? ` (${postmortem.generationError})`
-                  : ""}
-                .
+                {postmortem?.generationNote ?? (
+                  <>
+                    Generation failed
+                    {postmortem?.generationError
+                      ? ` (${postmortem.generationError})`
+                      : ""}
+                    .
+                  </>
+                )}
               </p>
               <p className="max-w-md text-sm text-muted-foreground">
                 Nothing was written. You can run it again, or start a blank

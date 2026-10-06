@@ -22,6 +22,19 @@ class Mcp::Tools::AskHalonTest < ActiveSupport::TestCase
     assert_equal @member, answered_as
   end
 
+  test "an AI account out of credit is said to the caller in plain words, and the chat no longer owes an answer" do
+    Conversation::Runner.stubs(:new).returns(stub.tap { |runner| runner.stubs(:run).raises(FirefightAi::OutOfCredit.new("OpenRouter refused")) })
+
+    response = Mcp::Tools::AskHalon.perform_with_principal(workspace: @workspace, principal: @member, args: { question: "What changed today?" })
+
+    said = "Halon cannot answer right now because the AI account behind this workspace is out of credit. Firefight's team has been told."
+    assert response.error?
+    assert_equal said, response.content.first[:text]
+    conversation = @workspace.conversations.sole
+    assert_not conversation.answer_owed?
+    assert_equal said, conversation.chat.readable_messages.last.content
+  end
+
   test "the chat is kept, so the next question from the same key carries on with it" do
     Conversation::Runner.stubs(:new).returns(stub(run: answered_outcome, reply: "ok"))
 

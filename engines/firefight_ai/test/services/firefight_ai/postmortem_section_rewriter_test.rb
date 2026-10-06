@@ -13,6 +13,7 @@ class FirefightAi::PostmortemSectionRewriterTest < ActiveSupport::TestCase
     captured_prompt = nil
     response = llm_reply(content: "<p>tightened paragraph</p>")
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(response)
     RubyLLM.stubs(:chat).returns(chat)
@@ -35,6 +36,7 @@ class FirefightAi::PostmortemSectionRewriterTest < ActiveSupport::TestCase
 
     response = llm_reply(content: '<p>safe</p><script>alert(1)</script><a href="javascript:bad()" onclick="x()">link</a>')
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).returns(response)
     RubyLLM.stubs(:chat).returns(chat)
@@ -54,6 +56,7 @@ class FirefightAi::PostmortemSectionRewriterTest < ActiveSupport::TestCase
     captured_prompt = nil
     response = llm_reply(content: "<p>ok</p>")
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(response)
     RubyLLM.stubs(:chat).returns(chat)
