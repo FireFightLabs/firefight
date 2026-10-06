@@ -90,6 +90,8 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     assert_text "Live updates: on, no change received yet"
     assert_equal "whk-1", render.reload.map_events_webhook_id
 
+    # A fresh page, so the turn on toast is gone before the turn off one shows.
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
     click_button "Turn off"
     within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
     assert_text "Live updates are off. Firefight removed its webhook from Render."
