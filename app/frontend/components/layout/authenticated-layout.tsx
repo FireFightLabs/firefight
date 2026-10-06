@@ -16,6 +16,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 interface AuthenticatedLayoutProps {
   children: ReactNode;
   title?: string;
+  actions?: ReactNode;
   sidebarCollapsed?: boolean;
 }
 
@@ -83,6 +84,7 @@ function useSidebarOpen(collapsed: boolean) {
 export function AuthenticatedLayout({
   children,
   title = "Dashboard",
+  actions,
   sidebarCollapsed = false,
 }: AuthenticatedLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen(sidebarCollapsed);
@@ -101,7 +103,7 @@ export function AuthenticatedLayout({
       >
         <AppSidebar />
         <SidebarInset>
-          <SiteHeader title={title} />
+          <SiteHeader title={title} actions={actions} />
           <DisconnectedBanner />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2 pt-6">

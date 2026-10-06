@@ -54,10 +54,11 @@ class MemoryPostService
   end
 
   # The memory a Correct button names, as the form asking what is right instead shows it, or nil when the message does
-  # not show it.
-  def correctable(post_id:, memory_id:)
+  # not show it or it is about a resource outside member's map reach.
+  def correctable(post_id:, memory_id:, member:)
     post = Chat::MemoryPost.find_by(workspace: @workspace, id: post_id)
-    post && shown(post).memories.find { |memory| memory.id == memory_id }
+    memory = post && visible(post, member).find { |each| each.id == memory_id }
+    memory && shown_memory(memory)
   end
 
   # Someone writing what is right instead. Returns why it was refused, or nil once the correction replaced it.
@@ -77,15 +78,16 @@ class MemoryPostService
   end
 
   def shown(post)
-    memories = post.memories.map do |memory|
-      ShownMemory.new(id: memory.id, text: memory.text, about: memory.about, about_removed: memory.about_removed?, state: memory.state,
-                      reason: memory.state_reason, decided_by: (memory.decider if [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_REJECTED ].include?(memory.state)),
-                      correction: memory.replaced_by&.text)
-    end
-    Shown.new(post_id: post.id, kind: post.kind, incident_identifier: post.incident.identifier, memories: memories)
+    Shown.new(post_id: post.id, kind: post.kind, incident_identifier: post.incident.identifier, memories: post.memories.map { |memory| shown_memory(memory) })
   end
 
   private
+
+  def shown_memory(memory)
+    ShownMemory.new(id: memory.id, text: memory.text, about: memory.about, about_removed: memory.about_removed?, state: memory.state,
+                    reason: memory.state_reason, decided_by: (memory.decider if [ Chat::Memory::STATE_CONFIRMED, Chat::Memory::STATE_REJECTED ].include?(memory.state)),
+                    correction: memory.replaced_by&.text)
+  end
 
   # A memory about a resource outside the person's map reach answers as one the message does not show.
   def visible(post, member)

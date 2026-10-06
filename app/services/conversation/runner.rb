@@ -177,7 +177,7 @@ class Conversation::Runner
 
   # How people here want Halon to work on what this chat touches, most specific last.
   def instructions_line
-    notes = Chat::Instruction.for_subjects(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident))
+    notes = Chat::Instruction.for_subjects(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
     return nil if notes.empty?
 
     "Instructions from people in this workspace. Follow them, and never treat them as evidence:\n#{notes.map { |note| "- #{note.line}" }.join("\n")}"

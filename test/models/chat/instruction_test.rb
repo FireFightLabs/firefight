@@ -14,7 +14,7 @@ class Chat::InstructionTest < ActiveSupport::TestCase
     team = write("Page the platform team before any rollback", scope: @team)
     write("Unrelated service rules", scope: catalog_entries(:production_env))
 
-    assert_equal [ workspace_wide, team, own ], Chat::Instruction.for_subjects(@workspace, [ @auth ])
+    assert_equal [ workspace_wide, team, own ], Chat::Instruction.for_subjects(@workspace, [ @auth ], principal: @member)
     assert_equal "Platform Team (team): Page the platform team before any rollback", team.line
     assert_equal "Whole workspace", workspace_wide.label
   end
@@ -28,7 +28,7 @@ class Chat::InstructionTest < ActiveSupport::TestCase
 
     revised = original.revise!(text: "Check metrics first", by: @member)
 
-    assert_equal [ revised ], Chat::Instruction.for_subjects(@workspace, [ @auth ])
+    assert_equal [ revised ], Chat::Instruction.for_subjects(@workspace, [ @auth ], principal: @member)
     assert_equal revised, original.reload.superseded_by
     assert original.superseded_at
   end
