@@ -426,8 +426,9 @@ module Integrations
                                      kinds: [], settings: true) ] ]
       rescue TriggerDevApi::Error => error
         [ [], [ ResourceMap::Gap.new(text: Sentence.join("Trigger.dev refused the environment's variables", error,
-                                                         after: "So what the tasks connect to is not on the map. The API key's preset " \
-                                                                "has to read environment variables, and Observer does not"),
+                                                         after: "So the tasks are not linked to what their variables name. This is optional. " \
+                                                                "Observer keeps the connection read only and cannot read environment variables, " \
+                                                                "and a key whose preset can read them links the tasks too"),
                                      kinds: [], settings: true) ] ]
       end
 

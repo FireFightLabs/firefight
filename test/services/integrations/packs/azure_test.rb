@@ -286,6 +286,7 @@ module Integrations
 
         gap = snapshot.gaps.select(&:settings).sole
         assert_match "Reading them needs Microsoft.Web/sites/config/list/action, which the Reader role does not include", gap.text
+        assert_match "A custom role holding only that action is optional", gap.text
         assert_empty gap.kinds
         assert snapshot.complete?
         assert_not snapshot.settings_complete?

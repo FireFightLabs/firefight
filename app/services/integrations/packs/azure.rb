@@ -174,7 +174,9 @@ module Integrations
         [
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
                               hint: "A client secret of the service principal's app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
-                                    "on the subscription. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change.")
+                                    "on the subscription. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
+                                    "Optionally, to link App Service and Function apps to the databases their settings name, also give it a custom role " \
+                                    "holding only Microsoft.Web/sites/config/list/action.")
         ]
       end
 
@@ -477,7 +479,8 @@ module Integrations
       rescue AzureApi::Forbidden => error
         reading.stopped << error
         reading.gaps << ResourceMap::Gap.new(text: Sentence.join("App settings could not be read. Reading them needs Microsoft.Web/sites/config/list/action, " \
-                                                                 "which the Reader role does not include", error), kinds: [], settings: true)
+                                                                 "which the Reader role does not include. A custom role holding only that action is optional, and links " \
+                                                                 "App Service and Function apps to the databases their settings name", error), kinds: [], settings: true)
         []
       rescue AzureApi::Error => error
         reading.gaps << ResourceMap::Gap.new(text: Sentence.join("The settings of #{item[:name]} could not be read", error), kinds: [], settings: true)
