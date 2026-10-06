@@ -26,6 +26,8 @@ module Integrations
         RenderApi.any_instance.stubs(:key_values).with("tea-1").returns(Integrations::Pages::Read.new(items: [
           { "id" => "red-1", "name" => "cache", "status" => "available", "plan" => "starter", "dashboardUrl" => "https://dashboard.render.com/r/red-1" }
         ], complete: true))
+        RenderApi.any_instance.stubs(:env_vars).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        RenderApi.any_instance.stubs(:env_groups).returns([])
       end
 
       test "the key and workspace are stored trimmed, and only the restart, rollback and scale change anything" do
@@ -158,6 +160,42 @@ module Integrations
         assert_equal [ [ "srv-web", ResourceMap::RELATION_BUILT_FROM, "acme/app" ], [ "web.onrender.com", ResourceMap::RELATION_SERVED_BY, "srv-web" ] ],
                      snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
         assert_equal [ [ "The custom domains of web could not be read: Render answered 403: no.", [ ResourceMap::KIND_DOMAIN ] ] ], snapshot.gaps.map { |gap| [ gap.text, gap.kinds ] }
+      end
+
+      test "each service's own variables and those of the groups linked to it are read in memory, its own winning, and no value is kept" do
+        RenderApi.any_instance.stubs(:deploys).returns([])
+        RenderApi.any_instance.stubs(:custom_domains).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        own = "postgresql://web:render-own-pw@dpg-own.oregon-postgres.render.com/app"
+        shared = "postgresql://web:render-group-pw@dpg-group.oregon-postgres.render.com/app"
+        RenderApi.any_instance.stubs(:env_vars).with("srv-web").returns(Integrations::Pages::Read.new(items: [ { "key" => "DATABASE_URL", "value" => own } ], complete: true))
+        RenderApi.any_instance.stubs(:env_groups).with("tea-1").returns([ { "id" => "evg-1", "serviceLinks" => [ { "id" => "srv-web" }, { "id" => "crn-1" } ] },
+                                                                        { "id" => "evg-2", "serviceLinks" => [ { "id" => "srv-other" } ] } ])
+        RenderApi.any_instance.expects(:env_group).with("evg-1").returns("envVars" => [ { "key" => "DATABASE_URL", "value" => shared },
+                                                                                       { "key" => "REDIS_URL", "value" => "redis://red-1:6379" } ])
+        RenderApi.any_instance.expects(:env_group).with("evg-2").never
+
+        snapshot = @pack.map_of(@row)
+
+        web = snapshot.uses.select { |use| use.from.last == "srv-web" }.index_by(&:variable)
+        assert_equal %w[DATABASE_URL REDIS_URL], web.keys.sort
+        assert_equal ResourceMap::Fingerprint.of("dpg-own.oregon-postgres.render.com", 5432, @workspace), web["DATABASE_URL"].fingerprint
+        assert_equal %w[DATABASE_URL REDIS_URL], snapshot.uses.select { |use| use.from.last == "crn-1" }.map(&:variable).sort
+        ResourceMap.record!(@row, snapshot)
+        assert_no_setting_values(snapshot, own, shared, "render-own-pw", "render-group-pw", "dpg-own.oregon-postgres.render.com", "red-1:6379")
+      end
+
+      test "settings Render refuses are a gap that holds nothing back, and being asked to slow down stops reading them" do
+        RenderApi.any_instance.stubs(:deploys).returns([])
+        RenderApi.any_instance.stubs(:custom_domains).returns(Integrations::Pages::Read.new(items: [], complete: true))
+        RenderApi.any_instance.stubs(:env_vars).with("srv-web").raises(RenderApi::Error.new("Render answered 429: slow down").extend(Integrations::RateLimited))
+        RenderApi.any_instance.expects(:env_vars).with("crn-1").never
+        RenderApi.any_instance.expects(:env_groups).never
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ [ Render::SLOWED, [], true ] ], snapshot.gaps.map { |gap| [ gap.text, gap.kinds, gap.settings ] }
+        assert snapshot.complete?
+        assert_not snapshot.settings_complete?
       end
 
       test "a name two resources share is refused, with the ids to name one by" do

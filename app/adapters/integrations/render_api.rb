@@ -33,6 +33,17 @@ module Integrations
 
     def deploys(service_id, limit:) = page("/services/#{segment(service_id)}/deploys", "deploy", "limit" => limit)
 
+    # A service's own environment variables, each a key and its value (spec, GET /services/{serviceId}/env-vars,
+    # envVarWithCursor), read only in memory for where its settings point.
+    def env_vars(service_id) = list("/services/#{segment(service_id)}/env-vars", "envVar")
+
+    # The environment groups of a workspace, each naming the services linked to it (spec, GET /env-groups, envGroupMeta
+    # serviceLinks), and one group with its variables (GET /env-groups/{envGroupId}, envGroup envVars). The list's rows
+    # carry no cursor, so one page of PAGE_SIZE is read and a full page is taken as possibly cut short.
+    def env_groups(owner_id) = Array(get("/env-groups", "ownerId" => owner_id, "limit" => PAGE_SIZE))
+
+    def env_group(env_group_id) = get("/env-groups/#{segment(env_group_id)}")
+
     def custom_domains(service_id) = list("/services/#{segment(service_id)}/custom-domains", "customDomain")
 
     def events(service_id, query) = page("/services/#{segment(service_id)}/events", "event", query)

@@ -64,6 +64,11 @@ module Integrations
       end
     end
 
+    # The names of an app's secrets. show_secrets is never sent, so Fly answers names and digests and no value (spec,
+    # GET /v1/apps/{app_name}/secrets, Secrets_list, and superfly/flyctl internal/appsecrets/secrets.go, which lists them
+    # the same way).
+    def secret_names(app_name) = Array(machines_get("/apps/#{segment(app_name)}/secrets")["secrets"]).filter_map { |secret| secret["name"].presence }
+
     def postgres_clusters(org_slug) = Array(machines_get("/postgres", "org_slug" => org_slug)["data"])
 
     def postgres_cluster(cluster_id) = machines_get("/postgres/#{segment(cluster_id)}")
