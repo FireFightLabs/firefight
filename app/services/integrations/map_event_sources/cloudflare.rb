@@ -36,6 +36,9 @@ module Integrations
 
         def events(_payload, headers:) = []
 
+        def limits = "Firefight reads Cloudflare's audit log every 5 minutes, so a change reaches the map within about 6 minutes. A DNS record " \
+                     "renamed keeps its old hostname on the map until the daily read."
+
         def poll(row, since:)
           before = Time.current
           return MapEventSource::Polled.new(events: [], cursor: before.utc.iso8601) if since.blank?

@@ -303,6 +303,37 @@ module Integrations
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
+      test "an audit log entry reads the one resource it names again, a service with its settings and mounts, an instance with its addresses" do
+        GoogleCloudApi.any_instance.expects(:run_services).never
+        service = SERVICE.merge("template" => { "containers" => [ { "image" => "us-docker.pkg.dev/acme/web:v3", "env" => [ { "name" => "DATABASE_URL", "value" => "postgres://u:p@10.20.0.3:5432/orders" } ] } ],
+                                                "volumes" => [ { "cloudSqlInstance" => { "instances" => [ SQL_ID ] } } ] })
+        GoogleCloudApi.any_instance.expects(:run_service).with("acme-prod", "us-central1", "web").returns(service)
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme-prod", kind: ResourceMap::KIND_SERVICE, external_id: RUN_ID))
+
+        web = snapshot.resources.find { |found| found.external_id == RUN_ID }
+        assert_equal "us-docker.pkg.dev/acme/web:v3", web.details["image"]
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+        assert_includes snapshot.links.map { |link| [ link.relation, link.to.last ] }, [ ResourceMap::RELATION_USES, SQL_ID ]
+
+        GoogleCloudApi.any_instance.expects(:sql_instance).with("acme-prod", "orders").returns(
+          "name" => "orders", "connectionName" => SQL_ID, "region" => "us-central1", "state" => "MAINTENANCE", "databaseVersion" => "POSTGRES_16",
+          "ipAddresses" => [ { "type" => "PRIVATE", "ipAddress" => "10.20.0.3" } ]
+        )
+        instance = @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme-prod", kind: ResourceMap::KIND_DATABASE, external_id: SQL_ID))
+        assert_equal [ "maintenance", [ 5432 ] ], [ instance.resources.sole.status, instance.endpoints.map(&:port) ]
+        assert instance.endpoints.all? { |endpoint| endpoint.resource == instance.resources.sole.key }
+      end
+
+      test "a resource Google answers not found for is gone, and one in another project or with no id is left to the sweep" do
+        GoogleCloudApi.any_instance.stubs(:compute_instance).raises(GoogleCloudApi::NotFound, "Google Cloud answered 404: not found")
+
+        assert_equal [ [ "google_cloud", "acme-prod", ResourceMap::KIND_VIRTUAL_MACHINE, VM_ID ] ],
+                     @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme-prod", kind: ResourceMap::KIND_VIRTUAL_MACHINE, external_id: VM_ID)).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_VIRTUAL_MACHINE, external_id: VM_ID.sub("acme-prod", "acme-dev")))
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme-prod", kind: ResourceMap::KIND_DATABASE))
+      end
+
       private
 
       def pages(items, complete: true) = Integrations::Pages::Read.new(items: items, complete: complete)

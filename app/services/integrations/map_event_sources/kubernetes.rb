@@ -25,6 +25,9 @@ module Integrations
 
         def events(_payload, headers:) = []
 
+        def limits = "Firefight watches the cluster every 2 minutes, so a workload, service or ingress changing reaches the map within about 3 " \
+                     "minutes. A ConfigMap a workload reads, and a workload's labels a service picks it by, change on the map at each hourly sweep."
+
         def poll_every = EVERY
 
         # The cursor holds each list's version by "<namespace>/<plural>". A list without one, the first time or a namespace

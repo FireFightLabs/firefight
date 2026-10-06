@@ -28,6 +28,9 @@ module Integrations
 
         def events(_payload, headers:) = []
 
+        def limits = "Firefight reads each project's operations every 5 minutes, so a change reaches the map within about 6 minutes. A new " \
+                     "project reaches the map at each hourly sweep."
+
         def poll(row, since:)
           raise Integrations::Error, NO_TOOL unless row.integration.tools.available.exists?(name: MapReaders::Neon::LIST_OPERATIONS)
 

@@ -14,6 +14,9 @@ module Integrations
 
         def events(_payload, headers:) = []
 
+        def limits = "Firefight reads each app's machines every 5 minutes, so an app changing reaches the map within about 6 minutes. A change " \
+                     "to an app's certificates or Managed Postgres clusters reaches the map at each hourly sweep."
+
         # The cursor holds each app's fingerprint by name. The first read only takes them, so changes are followed from
         # now. An app whose machines could not be read keeps its fingerprint from before, and an app is taken as removed
         # only when the whole list was read without it.

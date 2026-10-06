@@ -65,6 +65,9 @@ module Integrations
 
       partial = Provider.for(environment_row.integration.provider).in_firefight_words(partial)
       changed = ResourceMap.apply!(environment_row, partial, scope: scope, at: events.map(&:happened_at).max, read_at: read_at)
+      # A code host's re-read of one repository holds its infrastructure files, and takes away only that repository's
+      # suggestions when it read it in full.
+      ResourceMap::CodeDefinitions.new(environment_row.integration.workspace).record!(environment_row, partial.code_files, read_in_full: partial.code_read)
       MapSweep.written!(environment_row, changed) if changed.any?
       ResourceMap::ReceivedEvent.finish!(events, ResourceMap::ReceivedEvent::OUTCOME_APPLIED)
     rescue RateLimited
@@ -114,8 +117,32 @@ module Integrations
       return unless source
 
       environment_row.give_map_events_token!
+      environment_row.give_map_events_secret! if source.offers?
       environment_row.update_columns(map_events_refused_at: nil, map_events_polled_at: nil) if now && source.polls? && !source.registers?
-      register!(environment_row, source) if source.registers? && environment_row.map_events_registration_due?(now: now)
+      return unless source.registers?
+
+      register!(environment_row, source) if environment_row.map_events_registration_due?(now: now) || register_again?(environment_row, source)
+    end
+
+    # Whether a registration from before has fallen short of what the connection reaches. A provider that cannot be asked
+    # now is asked again at the next sweep.
+    def register_again?(environment_row, source)
+      return false unless source.respond_to?(:register_again?) && environment_row.map_events_webhook_id.present? && environment_row.map_events_turned_off_at.nil?
+
+      url = url_for(environment_row)
+      url.present? && source.register_again?(environment_row, url: url)
+    rescue Integrations::Error => error
+      Rails.logger.warn({ event: "map_events.register_again_unknown", integration_environment_id: environment_row.id, error: error.message.truncate(200) }.to_json)
+      false
+    end
+
+    # Notes where a verified delivery came from, for a provider a person set up to send changes, so the connection says
+    # which of its places send them, and forgets a place whose setup says it is being removed.
+    def delivered!(environment_row, source, payload)
+      return unless source.offers?
+
+      place = source.delivery_place(payload)
+      environment_row.map_events_sent!(place, ended: source.delivery_ends?(payload)) if place
     end
 
     # A person turned live updates on, having read what it costs when the source asked first. Tried at once.
@@ -172,9 +199,11 @@ module Integrations
       environment_row.update!(map_events_error: error.message)
     end
 
-    # Takes back what Firefight registered, while the connection's credentials still reach the provider.
+    # Takes back what Firefight registered, while the connection's credentials still reach the provider. What a person set
+    # up to send changes stays at the provider, so its secret is forgotten and nothing it sends is accepted again.
     def connection_removed(integration)
       source = source_of(integration.provider)
+      integration.integration_environments.update_all(map_events_secret: nil, map_events_sent_from: {}, updated_at: Time.current) if source&.offers?
       return unless source&.respond_to?(:remove)
 
       integration.integration_environments.where.not(map_events_webhook_id: nil).find_each do |row|

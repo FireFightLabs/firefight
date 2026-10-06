@@ -336,27 +336,34 @@ module Integrations
       def map_of(environment_row)
         subscription = subscription_of(environment_row)
         listing = catalog(environment_row)
-        reading = SettingsReading.new(workspace: environment_row.integration.workspace, gaps: [], stopped: [])
-        resources = []
-        links = []
-        uses = []
-        endpoints = []
-        listing.items.each do |item|
-          found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: subscription, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
-                                         status: item[:status], url: portal_link(environment_row, item[:id]).url, details: item[:details])
-          resources << found
-          item[:hosts].each do |host|
-            domain = ResourceMap.domain(host)
-            resources << domain
-            links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
-          end
-          case item[:type]
-          when TYPE_WEB, TYPE_FUNCTION then uses.concat(site_settings(environment_row, found.key, item, reading))
-          when TYPE_CONTAINER then uses.concat(container_settings(found.key, item[:source], reading))
-          when TYPE_SQL, TYPE_POSTGRES then endpoints.concat(database_endpoints(found.key, item, reading))
-          end
+        reading = MapReading.new(SettingsReading.new(workspace: environment_row.integration.workspace, gaps: [], stopped: []))
+        listing.items.each { |item| map_item(environment_row, subscription, item, reading) }
+        reading.snapshot(listing.gaps)
+      end
+
+      # Only the app or database an activity log event named, read again as the sweep reads it, with the hostnames it
+      # serves, an app's settings and a database's address. Gone only when Resource Manager answers not found for it. nil
+      # for a scope Azure cannot narrow to.
+      def map_refresh(environment_row, scope)
+        target = Target.parse(scope.external_id)
+        subscription = subscription_of(environment_row)
+        return unless target && target.subscription.casecmp?(subscription) && target.name != MASTER
+
+        item = begin
+          refreshed_item(api(environment_row), target)
+        rescue AzureApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, subscription, KINDS.fetch(target.type), target.id ] ])
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps + reading.gaps, uses: uses, endpoints: endpoints)
+        reading = MapReading.new(SettingsReading.new(workspace: environment_row.integration.workspace, gaps: [], stopped: []))
+        map_item(environment_row, subscription, item, reading)
+        reading.snapshot([])
+      end
+
+      # What map_of and map_refresh read, one app or database at a time.
+      MapReading = Struct.new(:settings, :resources, :links, :uses, :endpoints) do
+        def initialize(settings) = super(settings, [], [], [], [])
+
+        def snapshot(gaps) = ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps + settings.gaps, uses: uses, endpoints: endpoints)
       end
 
       # What normal looks like for each app and database, read an hour at a time over the window. A resource Azure will
@@ -424,6 +431,33 @@ module Integrations
             gaps << ResourceMap::Gap.new(text: Sentence.join("#{what} could not be read", error), kinds: listed_kinds(types))
           end
           Listing.new(items: items, gaps: gaps)
+        end
+      end
+
+      # One app or database onto the reading, with the hostnames it serves, and an app's settings or a database's address.
+      def map_item(environment_row, subscription, item, reading)
+        found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: subscription, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
+                                       status: item[:status], url: portal_link(environment_row, item[:id]).url, details: item[:details])
+        reading.resources << found
+        item[:hosts].each do |host|
+          domain = ResourceMap.domain(host)
+          reading.resources << domain
+          reading.links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
+        end
+        case item[:type]
+        when TYPE_WEB, TYPE_FUNCTION then reading.uses.concat(site_settings(environment_row, found.key, item, reading.settings))
+        when TYPE_CONTAINER then reading.uses.concat(container_settings(found.key, item[:source], reading.settings))
+        when TYPE_SQL, TYPE_POSTGRES then reading.endpoints.concat(database_endpoints(found.key, item, reading.settings))
+        end
+      end
+
+      # One app or database read as the list reads it. An Azure SQL database's address is its server's.
+      def refreshed_item(api, target)
+        case target.type
+        when TYPE_WEB then site_item(api.get(target.id, WEB_VERSION))
+        when TYPE_CONTAINER then container_item(api.get(target.id, APP_VERSION))
+        when TYPE_POSTGRES then postgres_item(api.get(target.id, POSTGRES_VERSION))
+        when TYPE_SQL then sql_item(api.get(target.id.sub(%r{/databases/[^/]+\z}i, ""), SQL_VERSION), api.get(target.id, SQL_VERSION))
         end
       end
 
@@ -519,13 +553,15 @@ module Integrations
         found = servers.items.flat_map do |server|
           databases = api.list("#{server['id']}/databases", SQL_VERSION)
           complete &&= databases.complete
-          databases.items.reject { |database| database["name"] == MASTER }.map do |database|
-            item(database, TYPE_SQL, database.dig("properties", "status"),
-                 details: { "server" => server["name"], "sku" => database.dig("sku", "name"), "objective" => database.dig("properties", "currentServiceObjectiveName") })
-              .merge(server_host: server.dig("properties", "fullyQualifiedDomainName"))
-          end
+          databases.items.reject { |database| database["name"] == MASTER }.map { |database| sql_item(server, database) }
         end
         [ found, complete ]
+      end
+
+      def sql_item(server, database)
+        item(database, TYPE_SQL, database.dig("properties", "status"),
+             details: { "server" => server["name"], "sku" => database.dig("sku", "name"), "objective" => database.dig("properties", "currentServiceObjectiveName") })
+          .merge(server_host: server.dig("properties", "fullyQualifiedDomainName"))
       end
 
       def postgres_item(server)

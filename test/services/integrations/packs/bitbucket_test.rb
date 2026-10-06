@@ -362,6 +362,29 @@ module Integrations
         assert_empty snapshot.code_read
       end
 
+      test "a change re-reads one repository with its infrastructure files, a push only when it moved the main branch, and only Bitbucket's not found takes it away" do
+        get(REPO, { "full_name" => "acme/web", "mainbranch" => { "name" => "main" }, "size" => 1000, "links" => { "html" => { "href" => "https://bitbucket.org/acme/web" } } })
+        get("#{REPO}/commits/main", { "values" => [ { "hash" => HEAD } ] })
+        list("#{REPO}/src/#{HEAD}/", [ { "type" => "commit_file", "path" => "infra/dns.tf", "size" => 100 } ])
+        text_at("#{REPO}/src/#{HEAD}/infra/dns.tf", %(resource "cloudflare_record" "app" {}))
+        repository = ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/web")
+
+        snapshot = @pack.map_refresh(@row, repository)
+        assert_equal [ [ "bitbucket", "acme", ResourceMap::KIND_REPOSITORY, "acme/web" ] ], snapshot.resources.map(&:key)
+        assert_equal [ "infra/dns.tf" ], snapshot.code_files.map(&:path)
+        assert_equal [ "acme/web" ], snapshot.code_read
+
+        main = @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_BRANCH, external_id: "acme/web/main"))
+        assert_equal [ "acme/web" ], main.resources.map(&:external_id)
+        feature = @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_BRANCH, external_id: "acme/web/feature/main"))
+        assert_empty feature.resources, "a push to another branch changes nothing the map reads"
+        assert_empty feature.code_files
+
+        BitbucketApi.any_instance.stubs(:get).with { |called, *| called == "/repositories/acme/gone" }.raises(BitbucketApi::NotFound, "Bitbucket answered 404: Repository not found")
+        assert_equal [ [ "bitbucket", "acme", ResourceMap::KIND_REPOSITORY, "acme/gone" ] ], @pack.map_refresh(@row, repository.with(external_id: "acme/gone")).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme")), "a workspace is read by a sweep"
+      end
+
       private
 
       def call(tool, arguments = {}) = @pack.call(tool.to_s, environment_row: @row, arguments: arguments)

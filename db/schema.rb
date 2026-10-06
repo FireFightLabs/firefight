@@ -1123,6 +1123,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_202000) do
     t.string "map_events_confirmation"
     t.datetime "map_events_turned_off_at"
     t.datetime "map_events_refused_at"
+    t.jsonb "map_events_sent_from", default: {}, null: false
     t.datetime "map_events_polled_at"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"

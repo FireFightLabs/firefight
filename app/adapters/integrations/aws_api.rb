@@ -21,6 +21,7 @@ module Integrations
       lambda: [ "aws-sdk-lambda", "Aws::Lambda::Client" ],
       ec2: [ "aws-sdk-ec2", "Aws::EC2::Client" ],
       rds: [ "aws-sdk-rds", "Aws::RDS::Client" ],
+      cloudtrail: [ "aws-sdk-cloudtrail", "Aws::CloudTrail::Client" ],
       cloudwatch: [ "aws-sdk-cloudwatch", "Aws::CloudWatch::Client" ],
       logs: [ "aws-sdk-cloudwatchlogs", "Aws::CloudWatchLogs::Client" ]
     }.freeze
