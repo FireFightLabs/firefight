@@ -120,7 +120,8 @@ module Integrations
         [
           CredentialField.new(key: TOKEN, label: "Access token", secret: true, placeholder: "glpat-...",
                               hint: "A personal, group or project access token with the read_api and read_repository scopes. A group token reaches every project in its group. " \
-                                    "Retrying, running or canceling a pipeline needs the api scope in place of read_api.")
+                                    "Retrying, running or canceling a pipeline needs the api scope in place of read_api. So does following " \
+                                    "changes live, with the Maintainer role on a project or the Owner role on a group on Premium or Ultimate.")
         ]
       end
 
@@ -287,19 +288,39 @@ module Integrations
       def map_of(environment_row)
         gitlab = api(environment_row)
         projects, more = gitlab.list("/projects", { "membership" => true, "order_by" => "id", "sort" => "asc" }, pages: MAX_PROJECT_PAGES)
-        repositories = projects.map { |project| repository_of(project) }
-        infrastructure = Infrastructure.new(gitlab)
-        files = infrastructure.files(repositories)
         listing = more ? [ ResourceMap::Gap.new(text: "Only the first #{projects.size} projects were listed.", kinds: [ ResourceMap::KIND_REPOSITORY ]) ] : []
+        projects_snapshot(gitlab, projects, gaps: listing)
+      end
+
+      # Only the project a change named, read again as the sweep reads it, with its infrastructure files. Gone only when
+      # GitLab answers not found for it. nil for a scope GitLab cannot narrow to, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        path = scope.external_id
+        return unless path&.include?("/") && [ nil, ResourceMap::KIND_REPOSITORY ].include?(scope.kind)
+
+        gitlab = api(environment_row)
+        project = begin
+          gitlab.get(GitlabApi.project(path))
+        rescue GitlabApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, path.rpartition("/").first, ResourceMap::KIND_REPOSITORY, path ] ])
+        end
+        projects_snapshot(gitlab, [ project ])
+      end
+
+      # The projects as the map has them, with the infrastructure defined as code in them. A file left unread holds back a
+      # suggestion, never a resource.
+      def projects_snapshot(gitlab, projects, gaps: [])
+        infrastructure = Infrastructure.new(gitlab)
+        files = infrastructure.files(projects.map { |project| repository_of(project) })
         found = projects.map do |project|
           ResourceMap::Found.new(provider: PROVIDER_KEY, account: project.dig("namespace", "full_path").presence || project["path_with_namespace"].split("/").first,
                                  kind: ResourceMap::KIND_REPOSITORY, external_id: project["path_with_namespace"], name: project["path_with_namespace"],
                                  url: project["web_url"], details: { "branch" => project["default_branch"] }.compact)
         end
-        # A file left unread holds back a suggestion, never a resource.
         unread_files = infrastructure.gaps.map { |text| ResourceMap::Gap.new(text: text, kinds: []) }
-        ResourceMap::Snapshot.new(resources: found, gaps: [ *listing, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
+        ResourceMap::Snapshot.new(resources: found, gaps: [ *gaps, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
       end
+      private :projects_snapshot
 
       def check_health!(environment_row)
         api(environment_row).get("/projects", "membership" => true, "simple" => true, "per_page" => 1)

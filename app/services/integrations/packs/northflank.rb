@@ -218,7 +218,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services.")
+                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
         ]
       end
 
@@ -466,15 +466,65 @@ module Integrations
           gaps << ResourceMap::Gap.new(text: Sentence.join("Jobs could not be read", error), kinds: [ ResourceMap::KIND_JOB ])
         end
         groups = secret_groups(api, project, gaps)
-        uses = details.select { |service| service["serviceType"] != "build" }.flat_map do |service|
-          key = mapping.key_of(ResourceMap::KIND_SERVICE, service["id"])
-          inherited = groups.select { |group| group.applies_to?(service["id"], service["tags"]) }.sort_by(&:priority)
-          inherited.each { |group| group.addons.each { |addon, variables| mapping.uses(key, addon, variables) } }
-          values = inherited.map(&:variables).reduce({}, :merge).merge(service["runtimeEnvironment"].to_h)
-          ResourceMap::Use.read(from: key, workspace: environment_row.integration.workspace, values: values)
+        uses = details.flat_map { |service| service_uses(environment_row, mapping, service, groups) }
+        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: uses)
+      end
+
+      # Only the service, addon or job a notification named, read again as the sweep reads it, a service with the settings
+      # its secret groups give it. Gone only when Northflank answers not found for it, under the account the map already
+      # has the project in, and otherwise nil, for a sweep to say. A service's id may be a build service's, so both are
+      # gone. nil for a scope Northflank cannot narrow to.
+      def map_refresh(environment_row, scope)
+        reader = REFRESHERS[scope.kind]
+        return unless scope.external_id && reader
+
+        project = project_of(environment_row)
+        api = api(environment_row)
+        found = begin
+          api.public_send(reader, project, scope.external_id)
+        rescue NorthflankApi::NotFound
+          {}
+        end
+        return gone(environment_row, scope) if found.blank?
+
+        mapping = MapReading.new([ team_of(found["appId"]), project ].compact.join("/")) { |kind, id| app_link(environment_row, team_of(found["appId"]), kind, id)&.url }
+        gaps = []
+        uses = []
+        case scope.kind
+        when ResourceMap::KIND_DATABASE then mapping.database(found)
+        when ResourceMap::KIND_JOB then mapping.job(found)
+        else
+          mapping.service(found)
+          uses = service_uses(environment_row, mapping, found, secret_groups(api, project, gaps))
         end
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: uses)
       end
+
+      # The read for each kind a notification names. A service's kind is not known until it is read.
+      REFRESHERS = { nil => :service, ResourceMap::KIND_DATABASE => :addon, ResourceMap::KIND_JOB => :job }.freeze
+      private_constant :REFRESHERS
+
+      # The settings a service runs with, from the secret groups that apply to it and its own runtime variables, and the
+      # databases those groups link it to. A build service runs nothing.
+      def service_uses(environment_row, mapping, service, groups)
+        return [] if service["serviceType"] == "build"
+
+        key = mapping.key_of(ResourceMap::KIND_SERVICE, service["id"])
+        inherited = groups.select { |group| group.applies_to?(service["id"], service["tags"]) }.sort_by(&:priority)
+        inherited.each { |group| group.addons.each { |addon, variables| mapping.uses(key, addon, variables) } }
+        values = inherited.map(&:variables).reduce({}, :merge).merge(service["runtimeEnvironment"].to_h)
+        ResourceMap::Use.read(from: key, workspace: environment_row.integration.workspace, values: values)
+      end
+      private :service_uses
+
+      def gone(environment_row, scope)
+        account = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY).pick(:account)
+        return unless account
+
+        kinds = scope.kind ? [ scope.kind ] : [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_BUILD_SERVICE ]
+        ResourceMap::Snapshot.new(resources: [], gone: kinds.map { |kind| [ PROVIDER_KEY, account, kind, scope.external_id ] })
+      end
+      private :gone
 
       # A secret group as it applies to services, with the variables it gives them, the addons linked to it with the names
       # each linked key reaches a service under, and its restrictions (@northflank/js-client, ListSecretsResult). An

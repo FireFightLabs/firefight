@@ -84,7 +84,7 @@ module Integrations
 
       tool :query_metrics,
            description: "Metrics of one Cloud Run service, Cloud SQL instance or Compute Engine instance over time, from Cloud " \
-                        "Monitoring: cpu, memory, requests, http_4xx and http_5xx for a service, cpu, memory, disk and " \
+                        "Monitoring: cpu, memory, requests, http_4xx, http_5xx and latency_p95 for a service, cpu, memory, disk and " \
                         "tcp_connections for a database, and network_in and network_out. Returns min, average, max and " \
                         "latest, and the person sees each metric as a chart",
            params_schema: {
@@ -358,29 +358,62 @@ module Integrations
       def map_of(environment_row)
         project = project_of(environment_row)
         listing = catalog(environment_row)
-        workspace = environment_row.integration.workspace
-        resources = []
-        links = []
-        uses = []
-        endpoints = []
-        listing.items.each do |item|
-          found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: project, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
-                                         status: item[:status], url: console(environment_row, project, PAGES.fetch(item[:type])), details: item[:details])
-          resources << found
-          item[:hosts].each do |host|
-            domain = ResourceMap.domain(host)
-            resources << domain
-            links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
-          end
-          case item[:type]
-          when TYPE_RUN
-            uses.concat(run_settings(found.key, item[:source], workspace))
-            links.concat(cloud_sql_links(found.key, item[:source]))
-          when TYPE_SQL then endpoints.concat(sql_endpoints(found.key, item[:source], workspace))
-          end
-        end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps, uses: uses, endpoints: endpoints)
+        reading = MapReading.new(environment_row.integration.workspace)
+        listing.items.each { |item| map_item(environment_row, project, item, reading) }
+        reading.snapshot(listing.gaps)
       end
+
+      # Only the Cloud Run service, Cloud SQL instance, Compute Engine instance or GKE cluster an audit log entry named,
+      # read again as the sweep reads it, with the addresses it serves, a service's settings and the instances it mounts,
+      # and an instance's addresses. Gone only when Google answers not found for it. nil for a scope Google Cloud cannot
+      # narrow to, such as a Cloud SQL instance whose region the entry did not say.
+      def map_refresh(environment_row, scope)
+        target = Target.parse(scope.external_id)
+        project = project_of(environment_row)
+        return unless target && target.project == project
+
+        api = api(environment_row)
+        item = begin
+          case target.type
+          when TYPE_RUN then run_item(api.run_service(project, target.location, target.name))
+          when TYPE_SQL then sql_item(project, api.sql_instance(project, target.name))
+          when TYPE_MACHINE then machine_item(api.compute_instance(project, target.location, target.name))
+          when TYPE_CLUSTER then cluster_item(project, api.cluster(project, target.location, target.name))
+          end
+        rescue GoogleCloudApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, project, target.kind, target.id ] ])
+        end
+        reading = MapReading.new(environment_row.integration.workspace)
+        map_item(environment_row, project, item, reading)
+        reading.snapshot([])
+      end
+
+      # What map_of and map_refresh read, one resource at a time.
+      MapReading = Struct.new(:workspace, :resources, :links, :uses, :endpoints) do
+        def initialize(workspace) = super(workspace, [], [], [], [])
+
+        def snapshot(gaps) = ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses, endpoints: endpoints)
+      end
+
+      # One resource onto the reading, with the hosts it serves, and a service's settings and mounts or an instance's
+      # addresses.
+      def map_item(environment_row, project, item, reading)
+        found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: project, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
+                                       status: item[:status], url: console(environment_row, project, PAGES.fetch(item[:type])), details: item[:details])
+        reading.resources << found
+        item[:hosts].each do |host|
+          domain = ResourceMap.domain(host)
+          reading.resources << domain
+          reading.links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
+        end
+        case item[:type]
+        when TYPE_RUN
+          reading.uses.concat(run_settings(found.key, item[:source], reading.workspace))
+          reading.links.concat(cloud_sql_links(found.key, item[:source]))
+        when TYPE_SQL then reading.endpoints.concat(sql_endpoints(found.key, item[:source], reading.workspace))
+        end
+      end
+      private :map_item
 
       # What normal looks like for each Cloud Run service, Cloud SQL instance and Compute Engine instance, read an hour at
       # a time over the window. A rate per second becomes one per minute, which a live reading can be compared with. A

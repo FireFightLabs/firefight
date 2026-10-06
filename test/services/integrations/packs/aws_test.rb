@@ -364,6 +364,57 @@ module Integrations
         call(:list_resources, {})
       end
 
+      test "a change names one resource, read again as the sweep reads it with its tags and settings, and one AWS no longer has is gone" do
+        AwsApi.any_instance.expects(:call).with(:ecs, "eu-west-1", :describe_services, cluster: "prod", services: [ SERVICE_ARN ], include: [ Aws::TAGS ])
+              .returns(services: [ service.merge(tags: [ { key: "team", value: "payments" } ]) ])
+
+        refreshed = @pack.map_refresh(@row, scope(ResourceMap::KIND_SERVICE, SERVICE_ARN))
+
+        found = refreshed.resources.sole
+        assert_equal [ service_key, "degraded", { "team" => "payments" } ], [ found.key, found.status, found.details[ResourceMap::TAGS] ]
+        assert_equal [ "DATABASE_URL", "STRIPE_KEY" ], refreshed.uses.map(&:variable).sort, "a re-read refreshes where its settings point"
+        assert_empty refreshed.gone
+
+        AwsApi.any_instance.unstub(:call)
+        answer(:describe_services, services: [ service.merge(status: "INACTIVE") ])
+        assert_equal [ service_key ], @pack.map_refresh(@row, scope(ResourceMap::KIND_SERVICE, SERVICE_ARN)).gone, "an inactive service is one the sweep no longer lists"
+
+        answer(:get_function_configuration, raises: [ AwsApi::NotFound, "AWS answered ResourceNotFoundException: Function not found" ])
+        assert_equal [ function_key ], @pack.map_refresh(@row, scope(ResourceMap::KIND_FUNCTION, FUNCTION_ARN)).gone
+      end
+
+      test "a function, an instance and a database are each read again on their own" do
+        settings = { variables: { "DATABASE_URL" => "postgres://app:hunter2@orders.abc.eu-west-1.rds.amazonaws.com/orders" } }
+        answer(:get_function_configuration, **function.merge(function_arn: "#{FUNCTION_ARN}:$LATEST", environment: settings))
+        answer(:list_tags, tags: { "team" => "checkout" })
+        function_read = @pack.map_refresh(@row, scope(ResourceMap::KIND_FUNCTION, FUNCTION_ARN))
+        assert_equal [ function_key, { "team" => "checkout" } ], [ function_read.resources.sole.key, function_read.resources.sole.details[ResourceMap::TAGS] ]
+        assert_equal [ "DATABASE_URL" ], function_read.uses.map(&:variable)
+
+        answer(:describe_instances, reservations: [ { owner_id: ACCOUNT, instances: [ instance ] } ])
+        assert_equal "running", @pack.map_refresh(@row, scope(ResourceMap::KIND_VIRTUAL_MACHINE, INSTANCE_ARN)).resources.sole.status
+        answer(:describe_instances, reservations: [ { owner_id: ACCOUNT, instances: [ instance.merge(state: { name: "terminated" }) ] } ])
+        assert_equal [ [ "aws", ACCOUNT, ResourceMap::KIND_VIRTUAL_MACHINE, INSTANCE_ARN ] ], @pack.map_refresh(@row, scope(ResourceMap::KIND_VIRTUAL_MACHINE, INSTANCE_ARN)).gone
+
+        AwsApi.any_instance.expects(:call).with(:rds, "eu-west-1", :describe_db_instances, db_instance_identifier: DATABASE_ARN)
+              .returns(db_instances: [ database(endpoint: { address: "orders.abc.eu-west-1.rds.amazonaws.com", port: 5432 }) ])
+        database_read = @pack.map_refresh(@row, scope(ResourceMap::KIND_DATABASE, DATABASE_ARN))
+        assert_equal "available", database_read.resources.sole.status
+        assert_equal 1, database_read.endpoints.size
+      end
+
+      test "a change the connection cannot narrow is swept, and one outside its regions or account changes nothing" do
+        AwsApi.any_instance.expects(:call).never
+
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.everything)
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(account: ACCOUNT, kind: ResourceMap::KIND_SERVICE))
+        assert_nil @pack.map_refresh(@row, scope(ResourceMap::KIND_SERVICE, "arn:aws:ecs:eu-west-1:#{ACCOUNT}:service/web")), "an older service ARN does not name its cluster"
+        elsewhere = @pack.map_refresh(@row, scope(ResourceMap::KIND_SERVICE, SERVICE_ARN.sub("eu-west-1", "ap-south-1")))
+        assert_equal [ [], [] ], [ elsewhere.resources, elsewhere.gone ]
+        other = @pack.map_refresh(@row, ResourceMap::Scope.new(account: "999999999999", kind: ResourceMap::KIND_SERVICE, external_id: SERVICE_ARN))
+        assert_equal [ [], [] ], [ other.resources, other.gone ]
+      end
+
       test "a key that may not read tags still puts every service and function on the map, without tags, with a gap that holds nothing back" do
         inventory!
         denied = "AWS answered AccessDeniedException: not authorized to perform: ecs:ListTagsForResource"
@@ -543,6 +594,8 @@ module Integrations
       end
 
       def service_key = [ "aws", ACCOUNT, ResourceMap::KIND_SERVICE, SERVICE_ARN ]
+
+      def scope(kind, arn) = ResourceMap::Scope.new(account: ACCOUNT, kind: kind, external_id: arn)
 
       def function_key = [ "aws", ACCOUNT, ResourceMap::KIND_FUNCTION, FUNCTION_ARN ]
 

@@ -71,7 +71,7 @@ module Integrations
       }.freeze
       BASELINE_METRICS = {
         SERVICE => %w[CPUUtilization MemoryUtilization], FUNCTION => %w[Invocations Errors Duration Throttles],
-        INSTANCE => %w[CPUUtilization NetworkIn NetworkOut], DATABASE => %w[CPUUtilization DatabaseConnections FreeableMemory ReadLatency WriteLatency]
+        INSTANCE => %w[CPUUtilization NetworkIn NetworkOut], DATABASE => %w[CPUUtilization DatabaseConnections FreeableMemory FreeStorageSpace ReadLatency WriteLatency]
       }.freeze
       # A week read for a baseline comes back an hour a point, well inside GetMetricData's limit on points.
       BASELINE_PERIOD = 3600
@@ -251,7 +251,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), and ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -432,13 +432,29 @@ module Integrations
         account = account_of(environment_row)
         settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
         reading = inventory(environment_row, kinds: KIND_NAMES.keys, regions: regions(environment_row), tags: true, settings: settings)
-        resources = reading.entries.map do |entry|
-          ResourceMap::Found.new(provider: PROVIDER_KEY, account: account, kind: entry.kind, external_id: entry.arn, name: entry.name,
-                                 status: entry.status, url: resource_link(entry)&.url, details: entry.details)
-        end
-        found = reading.entries.filter_map(&:settings)
-        ResourceMap::Snapshot.new(resources: resources, gaps: reading.gaps + found.flat_map(&:gaps), uses: found.flat_map(&:uses),
-                                  endpoints: found.flat_map(&:endpoints))
+        snapshot_of(reading, account)
+      end
+
+      # Only the resource a change named, by its ARN, read again as the sweep reads it, tags and settings included
+      # (Integrations::MapEventSources::Aws). Gone only when AWS answers that it is not there, or that an instance is
+      # terminated or a service inactive, which the sweep's lists leave out. A resource in a region or account the
+      # connection does not read changes nothing. nil for a scope that names no one resource, or an ECS service ARN in the
+      # older form without its cluster, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        parts = scope.external_id.to_s.match(ARN)
+        return unless parts && KIND_NAMES.key?(scope.kind)
+        return if scope.kind == SERVICE && parts[:resource].split("/").size < 3
+
+        account = account_of(environment_row)
+        return ResourceMap::Snapshot.new(resources: []) if (scope.account && scope.account != account) || regions(environment_row).exclude?(parts[:region])
+
+        settings = SettingsReading.new(account: account, workspace: environment_row.integration.workspace, task_definitions: {}, stopped: Set.new)
+        entry, gaps = refreshed(environment_row, scope.kind, scope.external_id, parts, settings)
+        return snapshot_of(Reading.new(entries: [ entry ], gaps: gaps), account) if entry
+
+        ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, account, scope.kind, scope.external_id ] ])
+      rescue AwsApi::NotFound
+        ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, account, scope.kind, scope.external_id ] ])
       end
 
       # What normal looks like, one GetMetricData call per resource for a week an hour a point. Counts become counts per
@@ -485,6 +501,50 @@ module Integrations
       end
 
       private
+
+      # Resources read, with what their settings point at, as the map takes them.
+      def snapshot_of(reading, account)
+        resources = reading.entries.map do |entry|
+          ResourceMap::Found.new(provider: PROVIDER_KEY, account: account, kind: entry.kind, external_id: entry.arn, name: entry.name,
+                                 status: entry.status, url: resource_link(entry)&.url, details: entry.details)
+        end
+        found = reading.entries.filter_map(&:settings)
+        ResourceMap::Snapshot.new(resources: resources, gaps: reading.gaps + found.flat_map(&:gaps), uses: found.flat_map(&:uses),
+                                  endpoints: found.flat_map(&:endpoints))
+      end
+
+      # One resource by its ARN with what could not be read for it, or nil when AWS no longer has it.
+      def refreshed(environment_row, kind, arn, parts, settings)
+        region = parts[:region]
+        case kind
+        when SERVICE
+          services, untagged = described_services(environment_row, region, parts[:resource].split("/")[1], [ arn ], true)
+          service = services.find { |each| each[:status] != "INACTIVE" }
+          return unless service
+
+          entry = service_entry(service, region)
+          [ entry.with(settings: service_settings(environment_row, entry, service, settings)), [ untagged ].compact ]
+        when FUNCTION
+          function = api(environment_row).call(:lambda, region, :get_function_configuration, function_name: arn).merge(function_arn: arn)
+          entry = function_entry(function, region)
+          entry = entry.with(settings: function_settings(entry, function, settings))
+          tagged, untagged = function_tags(environment_row, entry, region)
+          [ tagged, [ untagged ].compact ]
+        when INSTANCE
+          id = parts[:resource].delete_prefix("instance/")
+          reservations = api(environment_row).call(:ec2, region, :describe_instances, instance_ids: [ id ])[:reservations]
+          reservation = Array(reservations).find { |each| Array(each[:instances]).any? { |instance| LIVE_INSTANCE_STATES.include?(instance.dig(:state, :name)) } }
+          return unless reservation
+
+          [ instance_entry(Array(reservation[:instances]).first, reservation[:owner_id], region), [] ]
+        else
+          database = Array(api(environment_row).call(:rds, region, :describe_db_instances, db_instance_identifier: arn)[:db_instances]).first
+          return unless database
+
+          entry = database_entry(database, region)
+          [ entry.with(settings: database_settings(entry, database, settings)), [] ]
+        end
+      end
 
       # One client per environment row, so the SDK's clients are reused across one call's requests.
       def api(environment_row)
@@ -549,22 +609,29 @@ module Integrations
           arns, cut = api(environment_row).all(:ecs, region, :list_services, { cluster: cluster }, :service_arns)
           more ||= cut
           arns.each_slice(SERVICES_PER_CALL).flat_map do |slice|
-            described = nil
-            if tags && untagged.nil?
-              begin
-                described = api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: slice, include: [ TAGS ])
-              rescue AwsApi::Denied => error
-                untagged = untagged_gap(SERVICE, region, error)
-              end
-            end
-            described ||= api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: slice)
-            Array(described[:services]).map do |service|
+            services, refused = described_services(environment_row, region, cluster, slice, tags && untagged.nil?)
+            untagged ||= refused
+            services.map do |service|
               entry = service_entry(service, region)
               settings ? entry.with(settings: service_settings(environment_row, entry, service, settings)) : entry
             end
           end
         end
         [ entries, more, untagged ]
+      end
+
+      # Services of one cluster, with their tags when asked. A key whose policy refuses tags reads them without, and the
+      # gap says so.
+      def described_services(environment_row, region, cluster, arns, tags)
+        untagged = nil
+        if tags
+          begin
+            return [ Array(api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: arns, include: [ TAGS ])[:services]), nil ]
+          rescue AwsApi::Denied => error
+            untagged = untagged_gap(SERVICE, region, error)
+          end
+        end
+        [ Array(api(environment_row).call(:ecs, region, :describe_services, cluster: cluster, services: arns)[:services]), untagged ]
       end
 
       # A rollout stays COMPLETED after its tasks start failing, so a service running fewer tasks than it wants once its
@@ -590,13 +657,18 @@ module Integrations
           entry = entry.with(settings: function_settings(entry, function, settings)) if settings
           next entry unless tags && untagged.nil?
 
-          found = tags_of(api(environment_row).call(:lambda, region, :list_tags, resource: function[:function_arn])[:tags])
-          found ? entry.with(details: entry.details.merge(ResourceMap::TAGS => found)) : entry
-        rescue AwsApi::Denied => error
-          untagged = untagged_gap(FUNCTION, region, error)
+          entry, untagged = function_tags(environment_row, entry, region)
           entry
         end
         [ entries, more, untagged ]
+      end
+
+      # A function with its tags, or without them and a gap when the key's policy refuses ListTags.
+      def function_tags(environment_row, entry, region)
+        found = tags_of(api(environment_row).call(:lambda, region, :list_tags, resource: entry.arn)[:tags])
+        [ found ? entry.with(details: entry.details.merge(ResourceMap::TAGS => found)) : entry, nil ]
+      rescue AwsApi::Denied => error
+        [ entry, untagged_gap(FUNCTION, region, error) ]
       end
 
       # Tags left unread hold no resource back, so the gap names no kind and what is gone is still taken away.

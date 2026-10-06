@@ -7,6 +7,7 @@ module Integrations
       key: "aws",
       pack: "Integrations::Packs::Aws",
       adapter: "Integrations::Capabilities::Aws",
+      map_events: "Integrations::MapEventSources::Aws",
       status_words: {
         "available" => "ready",
         "backing-up" => "pending", "configuring-enhanced-monitoring" => "pending", "configuring-iam-database-auth" => "pending",

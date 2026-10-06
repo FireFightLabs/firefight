@@ -41,7 +41,8 @@ module Integrations
 
       # The metrics a tool takes, as PromQL over the series Fly documents (superfly/docs, monitoring/metrics.mdx).
       # %<app>s is the app's name and %<window>s the rate window. CPU is a counter of centiseconds, so a rate over it
-      # divided by 100 is the CPUs in use. Memory is what is not available, in MB. Requests are per minute.
+      # divided by 100 is the CPUs in use. Memory is what is not available, in MB. Requests are per minute. Latency is the
+      # 95th percentile of fly_edge_http_response_time_seconds, the histogram of response times at Fly's edge, in ms.
       Metric = Data.define(:title, :unit, :per_instance, :total)
       EDGE = "fly_edge_http_responses_count{app=\"%<app>s\"%<status>s}".freeze
       METRICS = {
@@ -57,13 +58,15 @@ module Integrations
                                  total: "sum(rate(#{format(EDGE, app: '%<app>s', status: ',status=~"4.."')}[%<window>s])) * 60"),
         "http_5xx" => Metric.new(title: "5xx responses", unit: "per minute", per_instance: nil,
                                  total: "sum(rate(#{format(EDGE, app: '%<app>s', status: ',status=~"5.."')}[%<window>s])) * 60"),
+        "latency_p95" => Metric.new(title: "Latency, 95th percentile", unit: "ms", per_instance: nil,
+                                    total: "histogram_quantile(0.95, sum by (le) (rate(fly_edge_http_response_time_seconds_bucket{app=\"%<app>s\"}[%<window>s]))) * 1000"),
         "network_in" => Metric.new(title: "Network in", unit: "bytes/s", total: nil,
                                    per_instance: "sum by (instance) (rate(fly_instance_net_recv_bytes{app=\"%<app>s\"}[%<window>s]))"),
         "network_out" => Metric.new(title: "Network out", unit: "bytes/s", total: nil,
                                     per_instance: "sum by (instance) (rate(fly_instance_net_sent_bytes{app=\"%<app>s\"}[%<window>s]))")
       }.freeze
       DEFAULT_METRICS = %w[cpu memory requests http_5xx].freeze
-      BASELINE_METRICS = %w[cpu memory requests].freeze
+      BASELINE_METRICS = %w[cpu memory requests latency_p95].freeze
       POINTS = 60
       MIN_STEP = 15
       MIN_WINDOW = 60
@@ -104,7 +107,8 @@ module Integrations
 
       tool :query_metrics,
            description: "Metrics of one app over time from Fly's metrics: CPU and memory per machine, requests and 4xx and 5xx " \
-                        "responses at Fly's edge per minute, and network in and out per machine. Returns min, average, max and " \
+                        "responses at Fly's edge per minute, the latency 95% of responses at the edge finished within, and network " \
+                        "in and out per machine. Returns min, average, max and " \
                         "latest for each, and the person sees each metric as a chart",
            params_schema: {
              "type" => "object",
@@ -343,7 +347,7 @@ module Integrations
         ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
       end
 
-      # What normal looks like for each app: a week of CPU, memory and requests per minute, one reading an hour, for the
+      # What normal looks like for each app: a week of CPU, memory, requests per minute and latency, one reading an hour, for the
       # whole app. An app Fly cannot read keeps yesterday's baselines, and being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
         api = api(environment_row)

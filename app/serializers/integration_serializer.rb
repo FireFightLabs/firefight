@@ -32,8 +32,13 @@ class IntegrationSerializer < BaseSerializer
   # liveUpdates says whether the provider's changes reach the map between sweeps, null for a provider that cannot say
   # what changed. setup is there for a provider an admin sends them from by hand: the connection's own address (null
   # while Firefight's own address is not set), the steps, and whether a signing secret is saved. turnOn and turnOff are
-  # what a person confirms before turning live updates on or off, null where they cannot.
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean } | null; turnOn: string | null; turnOff: string | null } | null".freeze
+  # what a person confirms before turning live updates on or off, null where they cannot. offer is there for a provider
+  # a person may set up to send changes as they happen from a template, with what it does, the button's words, each place
+  # with when it last sent something or why it cannot be set up there, why it cannot be set up at all (or null) and how
+  # to remove it. The link itself is a
+  # redirect (live_updates_setup), so the connection's secret is never in the page.
+  OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null } | null".freeze
 
   type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: #{LIVE_UPDATES_TYPE} }[]"
   def environments
@@ -70,7 +75,11 @@ class IntegrationSerializer < BaseSerializer
     return unless state
 
     setup = ({ address: Integrations::MapEvents.url_for(row), steps: row.map_event_source.setup_steps, secretSet: row.map_events_secret_set? } if row.map_events_set_up_by_hand?)
-    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup,
+    offer = row.live_updates_offer&.then do |offered|
+      { words: offered.words, action: offered.action, unavailable: offered.unavailable, removal: offered.removal,
+        places: offered.places.map { |place| { place: place.place, label: place.label, sentAt: place.sent_at&.utc&.iso8601, unavailable: place.unavailable } } }
+    end
+    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup, offer: offer,
       turnOn: (row.live_updates_turn_on_words unless row.live_updates_turn_on_blocked_reason),
       turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason) }
   end

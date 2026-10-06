@@ -424,6 +424,44 @@ module Integrations
         assert_match "only services have builds", error.message
       end
 
+      test "a notification about a service reads that service again with the settings its secret groups give it, and nothing else" do
+        NorthflankApi.any_instance.expects(:services).never
+        NorthflankApi.any_instance.expects(:service).with("firefight", "web").returns(
+          "id" => "web", "name" => "web", "serviceType" => "deployment", "appId" => "/firefight-labs/firefight/web",
+          "status" => { "deployment" => { "status" => "FAILED" } }, "deployment" => { "internal" => { "deployedSHA" => "d00dfeed" } },
+          "runtimeEnvironment" => { "DATABASE_URL" => "postgres://u:p@db.acme.dev/app" }
+        )
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "web"))
+
+        web = snapshot.resources.sole
+        assert_equal [ ResourceMap::KIND_SERVICE, "firefight-labs/firefight", "failed", "d00dfeed" ], [ web.kind, web.account, web.status, web.details[ResourceMap::DEPLOYED_COMMIT] ]
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+      end
+
+      test "a notification about an addon or a job reads that one again" do
+        NorthflankApi.any_instance.expects(:addon).with("firefight", "db").returns("id" => "db", "name" => "db", "status" => "backup", "appId" => "/firefight-labs/firefight/db", "spec" => { "type" => "postgresql" })
+        NorthflankApi.any_instance.expects(:job).with("firefight", "nightly").returns("id" => "nightly", "name" => "nightly", "jobType" => "cron", "appId" => "/firefight-labs/firefight/nightly")
+
+        database = @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_DATABASE, external_id: "db")).resources.sole
+        job = @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_JOB, external_id: "nightly")).resources.sole
+
+        assert_equal [ ResourceMap::KIND_DATABASE, "backup", "firefight-labs/firefight" ], [ database.kind, database.status, database.account ]
+        assert_equal [ ResourceMap::KIND_JOB, "cron" ], [ job.kind, job.details["type"] ]
+      end
+
+      test "a service Northflank answers not found for is gone as a service or a build service, and with nothing on the map the sweep decides" do
+        NorthflankApi.any_instance.stubs(:service).raises(NorthflankApi::NotFound, "Northflank answered 404: not found")
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "web"))
+
+        ResourceMap.record!(@row, ResourceMap::Snapshot.new(resources: [
+          ResourceMap::Found.new(provider: "northflank", account: "firefight-labs/firefight", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
+        ]))
+        assert_equal [ [ "northflank", "firefight-labs/firefight", ResourceMap::KIND_SERVICE, "web" ], [ "northflank", "firefight-labs/firefight", ResourceMap::KIND_BUILD_SERVICE, "web" ] ],
+                     @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "web")).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_DOMAIN, external_id: "app.acme.dev"))
+      end
+
       private
 
       def listed(items, complete: true) = Pages::Read.new(items: items, complete: complete)

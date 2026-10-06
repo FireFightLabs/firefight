@@ -6,6 +6,8 @@ module Integrations
   class AzureApi
     class Error < Integrations::Error; end
     class Forbidden < Error; end
+    # Resource Manager answered that the resource is not there, the one answer a re-read takes as gone.
+    class NotFound < Error; end
 
     # Where one of Azure's clouds signs in, runs Resource Manager and answers Log Analytics queries. A token's scope is
     # its audience's host followed by /.default. The hosts are the ones Microsoft documents: sign-in on Microsoft Entra's
@@ -29,6 +31,10 @@ module Integrations
     TOKEN_CACHE_KEY = "azure_tokens".freeze
     TOKEN_REFRESH_MARGIN = 5.minutes
     FORBIDDEN = 403
+    NOT_FOUND = 404
+    ACTIVITY_LOG_VERSION = "2015-04-01".freeze
+    # The fields of an activity log event Firefight reads, the rest left out of the answer ($select).
+    ACTIVITY_LOG_FIELDS = %w[eventDataId eventTimestamp operationName resourceId status].freeze
     PAGE_LIMIT = 10
     METRICS_VERSION = "2023-10-01".freeze
     # Azure names a tenant, a principal and a subscription by GUID.
@@ -77,6 +83,15 @@ module Integrations
     # Azure Monitor's metrics of one resource (Metrics_List), with the parameters as the API names them.
     def metrics(resource_id, query) = get("#{resource_id}/providers/Microsoft.Insights/metrics", METRICS_VERSION, query)
 
+    # The subscription's activity log between two times, every page up to PAGE_LIMIT, as a Pages::Read (Activity Logs,
+    # List, 2015-04-01, with the filter pattern for a subscription in a time range, which is the only form that reads it
+    # all). Reader may read it.
+    def activity_log(from, to)
+      filter = "eventTimestamp ge '#{from.utc.iso8601(6)}' and eventTimestamp le '#{to.utc.iso8601(6)}'"
+      list("/subscriptions/#{segment(@subscription)}/providers/Microsoft.Insights/eventtypes/management/values", ACTIVITY_LOG_VERSION,
+           "$filter" => filter, "$select" => ACTIVITY_LOG_FIELDS.join(","))
+    end
+
     def segment(value) = Http.segment(value)
 
     private
@@ -114,7 +129,7 @@ module Integrations
 
     def send_request(uri, request, audience)
       request["Authorization"] = "Bearer #{access_token(audience)}"
-      Http.json(uri, request, error_class: Error, provider_name: "Azure", refine: ->(code, _reason) { Forbidden if code == FORBIDDEN })
+      Http.json(uri, request, error_class: Error, provider_name: "Azure", refine: ->(code, _reason) { { FORBIDDEN => Forbidden, NOT_FOUND => NotFound }[code] })
     end
 
     def access_token(audience)

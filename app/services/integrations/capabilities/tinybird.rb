@@ -27,7 +27,7 @@ module Integrations
       # such as one endpoint's latency or a copy job, so they stay offered.
       WRAPPED = [ TOOLS[STATUS], TOOLS[ERRORS] ].freeze
       # The capability's metric names, which the pack's tool takes as they are.
-      METRIC_NAMES_READ = %w[requests errors http_4xx http_5xx cpu_time].to_h { |name| [ name, name ] }.freeze
+      METRIC_NAMES_READ = %w[requests errors http_4xx http_5xx cpu_time latency_p95].to_h { |name| [ name, name ] }.freeze
       RANGE_ARGS = %w[minutes start end].freeze
       LOG_ARGS = [ "text", "regex", "exclude", "limit", *RANGE_ARGS ].freeze
 
