@@ -6,7 +6,7 @@ module Integrations
       ADMIN = "https://app.netlify.com/projects/shop".freeze
       SITE = {
         "id" => "site-1", "name" => "shop", "state" => "current", "url" => "http://shop.example.com", "ssl_url" => "https://shop.example.com",
-        "admin_url" => ADMIN, "account_slug" => "acme", "custom_domain" => "shop.example.com", "domain_aliases" => [ "www.shop.example.com" ],
+        "admin_url" => ADMIN, "account_id" => "acc-1", "account_slug" => "acme", "custom_domain" => "shop.example.com", "domain_aliases" => [ "www.shop.example.com" ],
         "ssl" => true, "force_ssl" => true, "managed_dns" => false, "password" => "hunter2", "deploy_hook" => "https://api.netlify.com/hooks/secret",
         "build_settings" => { "repo_url" => "https://github.com/acme/shop", "repo_branch" => "main", "cmd" => "npm run build", "dir" => "dist",
                               "env" => { "STRIPE_KEY" => "sk_live_abc" } },
@@ -21,6 +21,7 @@ module Integrations
         Netlify.store_credentials!(@row, Netlify::API_TOKEN => " nfp-token ")
         @pack = Netlify.new(@integration)
         NetlifyApi.any_instance.stubs(:sites).returns(Pages::Read.new(items: [ SITE ], complete: true))
+        NetlifyApi.any_instance.stubs(:env_vars).returns([])
       end
 
       test "the token is stored trimmed, and every tool only reads except putting a site back on an earlier deploy" do
@@ -108,6 +109,38 @@ module Integrations
         assert_includes relations, [ "www.shop.example.com", ResourceMap::RELATION_SERVED_BY, "site-1" ]
         assert_includes relations, [ "site-1", ResourceMap::RELATION_BUILT_FROM, "acme/shop" ]
         assert_empty snapshot.gaps
+      end
+
+      test "a site's settings are read in memory, the production value first, and a secret by its name" do
+        NetlifyApi.any_instance.expects(:env_vars).with("acc-1", "site-1").returns([
+          { "key" => "DATABASE_URL", "is_secret" => false,
+            "values" => [ { "context" => "deploy-preview", "value" => "postgres://u:preview-pass@preview.example.com/app" },
+                          { "context" => "production", "value" => "postgres://u:prod-pass@db.example.com/app" } ] },
+          { "key" => "SUPABASE_SERVICE_KEY", "is_secret" => true, "values" => [ { "context" => "dev", "value" => "dev-only-secret" } ] },
+          { "key" => "THEME", "values" => [ { "context" => "all", "value" => "dark" } ] }
+        ])
+
+        snapshot = @pack.map_of(@row)
+
+        uses = snapshot.uses.index_by(&:variable)
+        assert_equal %w[DATABASE_URL SUPABASE_SERVICE_KEY], uses.keys.sort
+        assert_equal ResourceMap::Fingerprint.of("db.example.com", 5432, @workspace), uses["DATABASE_URL"].fingerprint
+        assert_nil uses["SUPABASE_SERVICE_KEY"].fingerprint
+        assert_empty snapshot.gaps
+        assert_no_setting_values(snapshot, "prod-pass", "preview-pass", "db.example.com", "dev-only-secret")
+      end
+
+      test "settings Netlify refuses or is slow to give are a gap that keeps the ones read before, and no site is held back" do
+        NetlifyApi.any_instance.stubs(:env_vars).raises(NetlifyApi::Error, "Netlify answered 403: forbidden")
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ "Netlify refused the settings of shop: Netlify answered 403: forbidden. Firefight tries again at the next sweep." ], snapshot.gaps.map(&:text)
+        assert snapshot.complete?
+        assert_not snapshot.settings_complete?
+
+        NetlifyApi.any_instance.stubs(:env_vars).raises(NetlifyApi::Error.new("Netlify answered 429").extend(Integrations::RateLimited))
+        assert_match(/slow down/, @pack.map_of(@row).gaps.sole.text)
       end
 
       test "a map cut short says so and takes no site as gone" do

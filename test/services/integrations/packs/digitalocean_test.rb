@@ -170,6 +170,38 @@ module Integrations
         assert_includes relations, [ APP_ID, ResourceMap::RELATION_BUILT_FROM, "acme/shop" ]
       end
 
+      test "an app's settings are read in memory, a bound database is a declared link, a secret is a name, and a database's address is digested" do
+        spec = SPEC.deep_dup.merge(
+          "envs" => [ { "key" => "REDIS_URL", "value" => "rediss://default:kv-pass@cache.example.com:25061", "type" => "GENERAL" },
+                      { "key" => "LOG_LEVEL", "value" => "info" } ],
+          "databases" => [ { "name" => "db", "engine" => "PG", "cluster_name" => "orders", "production" => true },
+                           { "name" => "dev", "engine" => "PG" } ]
+        )
+        spec["services"].first["envs"] += [ { "key" => "ORDERS_URL", "value" => "${db.DATABASE_URL}", "scope" => "RUN_TIME" },
+                                            { "key" => "PGHOST", "value" => "${db.HOSTNAME}" } ]
+        DigitaloceanApi.any_instance.stubs(:apps).returns(listed(APP.merge("spec" => spec)))
+        connection = { "host" => "orders-do-user-1-0.b.db.ondigitalocean.com", "port" => 25_060, "password" => "pg-pass",
+                       "uri" => "postgresql://doadmin:pg-pass@orders-do-user-1-0.b.db.ondigitalocean.com:25060/defaultdb" }
+        DigitaloceanApi.any_instance.stubs(:databases).returns(listed({ "id" => "db-9", "name" => "orders", "engine" => "pg", "connection" => connection,
+                                                                    "private_connection" => connection.merge("host" => "private-orders.b.db.ondigitalocean.com") }))
+
+        snapshot = @pack.map_of(@row)
+
+        uses = snapshot.uses.index_by(&:variable)
+        assert_equal %w[DATABASE_URL REDIS_URL], uses.keys.sort
+        assert_nil uses["DATABASE_URL"].fingerprint
+        assert_equal 25_061, uses["REDIS_URL"].port
+        link = snapshot.links.find { |each| each.relation == ResourceMap::RELATION_USES }
+        assert_equal [ APP_ID, "db-9", %w[ORDERS_URL PGHOST] ], [ link.from.last, link.to.last, link.variables ]
+        assert_equal 1, snapshot.links.count { |each| each.relation == ResourceMap::RELATION_USES }
+        assert_equal 4, snapshot.endpoints.size
+        assert_no_setting_values(snapshot, "kv-pass", "cache.example.com", "hunter2", "pg-pass", connection["host"], connection["uri"])
+
+        ResourceMap.record!(@row, snapshot)
+        assert_equal %w[ORDERS_URL PGHOST], ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_DECLARED, relation: ResourceMap::RELATION_USES).variables
+        assert_no_setting_values(snapshot, "kv-pass", "hunter2", "pg-pass", connection["host"])
+      end
+
       test "a Droplet's and a database's tags are kept as keys alone, since DigitalOcean's tags carry no value" do
         DigitaloceanApi.any_instance.stubs(:droplets).returns(Pages::Read.new(items: [ { "id" => 1, "name" => "one", "tags" => %w[web prod] } ], complete: true))
         DigitaloceanApi.any_instance.stubs(:databases).returns(Pages::Read.new(items: [ { "id" => "db-2", "name" => "orders", "engine" => "pg" } ], complete: true))

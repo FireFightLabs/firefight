@@ -14,6 +14,8 @@ module Integrations
       PROVIDER_KEY = "trigger_dev".freeze
       PROJECT_REF = /\Aproj_[a-z0-9]+\z/
       KEY_PREFIX = "tr_".freeze
+      # A secret key names its environment's slug after the prefix, such as prod in tr_prod_sk_.
+      KEY_ENVIRONMENT = /\Atr_([a-z]+)_/
 
       # A run's status, as the runs API names it (CommonRunsFilter).
       RUN_STATUSES = %w[PENDING_VERSION QUEUED EXECUTING REATTEMPTING FROZEN COMPLETED CANCELED FAILED CRASHED INTERRUPTED SYSTEM_FAILURE].freeze
@@ -364,7 +366,8 @@ module Integrations
                                  name: task["slug"], status: deployment["status"].to_s.downcase.presence, url: nil,
                                  details: { "version" => deployment["version"], "file" => task["filePath"] }.compact)
         end
-        ResourceMap::Snapshot.new(resources: resources, links: [], gaps: [])
+        uses, gaps = settings_of(environment_row, project, resources)
+        ResourceMap::Snapshot.new(resources: resources, links: [], gaps: gaps, uses: uses)
       end
 
       # What normal looks like for each task over the week: runs started and failed per minute, from one query over every
@@ -403,6 +406,29 @@ module Integrations
         fail! "This environment has no Trigger.dev API key. Reconnect it on the Integrations page." if key.blank?
 
         TriggerDevApi.new(key)
+      end
+
+      # The environment's variables, which every task in it runs with, read in memory with one call. A secret's value comes
+      # back redacted, so it is known by its name. A key whose preset cannot read variables, such as Observer, is refused,
+      # which is a gap that keeps what was read before.
+      def settings_of(environment_row, project, tasks)
+        return [ [], [] ] if tasks.empty?
+
+        slug = ConnectionSettings.of(environment_row).credential(API_KEY).to_s[KEY_ENVIRONMENT, 1]
+        variables = api(environment_row).environment_variables(project, slug)
+        secret, plain = variables.partition { |variable| variable["isSecret"] }
+        values = plain.to_h { |variable| [ variable["name"].to_s, variable["value"].to_s ] }
+        names = secret.map { |variable| variable["name"].to_s }
+        workspace = ConnectionSettings.of(environment_row).workspace
+        [ tasks.flat_map { |task| ResourceMap::Use.read(from: task.key, workspace: workspace, values: values, names: names) }, [] ]
+      rescue Integrations::RateLimited
+        [ [], [ ResourceMap::Gap.new(text: "Trigger.dev asked Firefight to slow down, so the environment's variables are read at the next sweep.",
+                                     kinds: [], settings: true) ] ]
+      rescue TriggerDevApi::Error => error
+        [ [], [ ResourceMap::Gap.new(text: Sentence.join("Trigger.dev refused the environment's variables", error,
+                                                         after: "So what the tasks connect to is not on the map. The API key's preset " \
+                                                                "has to read environment variables, and Observer does not"),
+                                     kinds: [], settings: true) ] ]
       end
 
       def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Trigger.dev project ref. Reconnect it.")

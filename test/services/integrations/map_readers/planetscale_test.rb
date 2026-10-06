@@ -75,6 +75,26 @@ module Integrations
         assert_match "planetscale_list_branches is switched off", snapshot.gap_texts.sole
       end
 
+      test "a Postgres branch is matched by its domain and the branch id in the user's name, a MySQL production branch by its shared address and database" do
+        workspace = workspaces(:slack_workspace_one)
+        integration = workspace.integrations.build(kind: Integration::KIND_MCP, provider: Planetscale::PROVIDER)
+        settings = ConnectionSettings.of(integration.integration_environments.build)
+        branches = { "data" => [ { "id" => "wmqh5ngwvupj", "name" => "main", "kind" => "postgresql", "production" => true } ] }
+        postgres = Planetscale.new(settings) { |tool, _| tool == Planetscale::LIST_BRANCHES ? result(branches) : answer(tool) }.map
+
+        assert_equal [ 5432, 6432 ], postgres.endpoints.map(&:port)
+        assert postgres.endpoints.all?(&:within_domain)
+        use = ResourceMap::Use.of(%w[web], "DATABASE_URL", "postgresql://postgres.wmqh5ngwvupj:pscale_pw_x@abc-useast1-1.horizon.psdb.cloud:5432/shop", workspace)
+        assert_equal [ use.domain_fingerprint, use.tenant_fingerprint ], postgres.endpoints.first.then { |endpoint| [ endpoint.fingerprint, endpoint.tenant_fingerprint ] }
+
+        mysql = { "data" => [ { "id" => "b1", "name" => "main", "kind" => "mysql", "production" => true, "mysql_address" => "aws.connect.psdb.cloud" },
+                              { "id" => "b2", "name" => "dev", "kind" => "mysql", "production" => false, "mysql_address" => "aws.connect.psdb.cloud" } ] }
+        shared = Planetscale.new(settings) { |tool, _| tool == Planetscale::LIST_BRANCHES ? result(mysql) : answer(tool) }.map
+        endpoint = shared.endpoints.sole
+        assert_equal [ "planetscale", "acme", ResourceMap::KIND_BRANCH, "shop/main" ], endpoint.resource
+        assert_equal [ true, 3306, ResourceMap::Fingerprint.of_name("shop", workspace) ], [ endpoint.shared_host, endpoint.port, endpoint.database_fingerprint ]
+      end
+
       private
 
       def answer(tool) = result({ Planetscale::LIST_ORGANIZATIONS => ORGS, Planetscale::LIST_DATABASES => DATABASES, Planetscale::LIST_BRANCHES => BRANCHES }.fetch(tool))
