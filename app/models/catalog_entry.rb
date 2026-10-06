@@ -33,6 +33,13 @@ class CatalogEntry < ApplicationRecord
   scope :externally_managed, -> { where.not(source: nil) }
 
   scope :in_system_type, ->(system_keys) { active.joins(:catalog_type).where(catalog_types: { system_key: system_keys }) }
+  # An entry the way a person or a model names it, by its name or slug in any case, or by its id.
+  scope :referenced, lambda { |reference|
+    wanted = reference.to_s.strip
+    next where(id: wanted) if wanted.match?(ReferenceManagement::UUID_FORMAT)
+
+    where("lower(catalog_entries.name) = :wanted OR lower(catalog_entries.slug) = :wanted", wanted: wanted.downcase)
+  }
 
   def entry_attributes
     self[:attributes] || {}

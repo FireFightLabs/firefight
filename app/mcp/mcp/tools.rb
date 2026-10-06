@@ -54,6 +54,13 @@ module Mcp
     UPDATE_WORKSPACE_SETTINGS = "update_workspace_settings".freeze
     LIST_INTEGRATIONS = "list_integrations".freeze
     GET_RESOURCE_MAP = "get_resource_map".freeze
+    FIND_RESOURCES = "find_resources".freeze
+    GET_RESOURCE = "get_resource".freeze
+    GET_RESOURCE_LINKS = "get_resource_links".freeze
+    GET_RESOURCE_NEIGHBOURS = "get_resource_neighbours".freeze
+    TRAVERSE_RESOURCE_MAP = "traverse_resource_map".freeze
+    BLAST_RADIUS = "blast_radius".freeze
+    RESOURCE_MAP_STATS = "resource_map_stats".freeze
     SUGGEST_RESOURCE_LINK = "suggest_resource_link".freeze
     UPSERT_SEVERITY = "upsert_severity".freeze
     DELETE_SEVERITY = "delete_severity".freeze
@@ -107,6 +114,7 @@ module Mcp
         CreateActionItemIssue, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
         GetWorkspaceConfig, UpdateWorkspaceSettings, ListIntegrations, GetResourceMap, SuggestResourceLink,
+        FindResources, GetResource, GetResourceLinks, GetResourceNeighbours, TraverseResourceMap, BlastRadius, ResourceMapStats,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
         UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook, TestWebhook,

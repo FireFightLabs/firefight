@@ -380,4 +380,14 @@ class CatalogEntryTest < ActiveSupport::TestCase
     assert_not entry.valid?
     assert_includes entry.errors[:external_id], "is required when source is set"
   end
+
+  test "an entry is referenced by its name or slug in any case, or by its id" do
+    team = catalog_entries(:platform_team)
+    entries = workspaces(:slack_workspace_one).catalog_entries
+
+    assert_equal [ team ], entries.referenced(" platform TEAM ").to_a
+    assert_equal [ team ], entries.referenced("platform_team").to_a
+    assert_equal [ team ], entries.referenced(team.id).to_a
+    assert_empty entries.referenced("nobody")
+  end
 end
