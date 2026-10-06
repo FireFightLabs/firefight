@@ -185,7 +185,7 @@ class Conversation::Runner
 
   # What the workspace learned about what this chat touches, so it starts from what is known.
   def memories_line
-    memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident))
+    memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
     return nil if memories.empty?
 
     "What this workspace remembers. Each is a hunch to check, and only a confirmed one was vouched for by a person:\n#{memories.map { |memory| "- #{memory.line}" }.join("\n")}"

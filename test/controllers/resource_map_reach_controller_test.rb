@@ -50,6 +50,50 @@ class ResourceMapReachControllerTest < ActionDispatch::IntegrationTest
     TwoEnvironmentMapHelper::HIDDEN_NAMES.each { |name| assert(labels.none? { |label| label.start_with?(name) }) }
   end
 
+  test "a limited member's writes find only what they read, so a hidden resource or link answers as missing" do
+    limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    Ability::Grant.grant!(workspace: @workspace, principal: @member, target: { action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_UPDATE)) })
+    hidden = map_resource(@workspace, "secret-db")
+    suggestion = ResourceMap::Link.suggest!(from: map_resource(@workspace, "dev-worker"), to: hidden, relation: ResourceMap::RELATION_RUNS_BUILDS_OF, note: "seen in logs")
+    entry_link = ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: catalog_entries(:auth_service), resource: hidden)
+    sign_in(users(:bob), @workspace)
+
+    post resource_map_links_path, params: { from_id: map_resource(@workspace, "web").id, to_id: hidden.id, relation: ResourceMap::RELATION_USES }
+    assert_response :not_found
+    post confirm_resource_map_link_path(suggestion)
+    assert_response :not_found
+    post dismiss_resource_map_link_path(suggestion)
+    assert_response :not_found
+    post resource_map_resource_entries_path(hidden), params: { catalog_entry_id: catalog_entries(:auth_service).id }
+    assert_response :not_found
+    delete resource_map_resource_entry_path(hidden, catalog_entries(:auth_service))
+    assert_response :not_found
+
+    assert_nil suggestion.reload.confirmed_at
+    assert_nil suggestion.dismissed_at
+    assert ResourceMap::EntryLink.exists?(entry_link.id)
+    assert_not ResourceMap::Link.exists?(from_resource: map_resource(@workspace, "web"), to_resource: hidden)
+  end
+
+  test "the Memory page leaves out a hidden resource's memories, and confirming one finds nothing" do
+    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
+    Entitlements.stubs(:allows?).returns(true)
+    limit_map_to(@workspace, @member, catalog_entries(:production_env))
+    hidden = Chat::Memory.create!(workspace: @workspace, text: "secret-db holds the card tokens", subject: map_resource(@workspace, "secret-db"),
+                                   state: Chat::Memory::STATE_UNCONFIRMED)
+    sign_in(users(:bob), @workspace)
+
+    get memory_path, headers: inertia_headers
+    assert_not_includes response.body, "card tokens"
+
+    post confirm_memory_path(hidden)
+    assert_response :not_found
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, hidden.reload.state
+
+    post memory_memories_path, params: { text: "secret-db is in Frankfurt", subject: Chat::Memory.subject_key(map_resource(@workspace, "secret-db")) }
+    assert_response :not_found
+  end
+
   private
 
   def inertia_headers = { "X-Inertia" => "true", "X-Inertia-Version" => InertiaRails.configuration.version.to_s }

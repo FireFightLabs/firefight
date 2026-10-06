@@ -31,7 +31,7 @@ class Chat::Tools::Remember < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
     fact = asked["fact"].to_s.strip
-    subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"])
+    subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], principal: @agent_run.acting_principal)
     # Only a chat has a person to vouch for it. In a run the flag means nothing.
     teacher = @agent_run.memory_teacher
     vouched = asked["from_person"] == true && teacher.present?

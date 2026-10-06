@@ -65,14 +65,17 @@ class ResourceMapController < InertiaController
   end
 
   def unlink_entry
-    link = ResourceMap::EntryLink.where(workspace: current_workspace).find_by!(resource_id: params[:id], catalog_entry_id: params[:entry_id])
+    link = ResourceMap::EntryLink.where(workspace: current_workspace, resource_id: visible.select(:id)).find_by!(resource_id: params[:id], catalog_entry_id: params[:entry_id])
     link.destroy!
     redirect_to resource_map_path, notice: "#{link.resource.name} no longer runs #{link.catalog_entry.name}."
   end
 
   private
 
-  def resource(id) = ResourceMap::Resource.present.where(workspace: current_workspace).find(id)
+  # A write finds only what the person reads on the map, so a resource outside their environments answers as missing.
+  def visible = ResourceMap::Resource.visible_to(current_membership, current_workspace)
 
-  def links = ResourceMap::Link.where(workspace: current_workspace)
+  def resource(id) = visible.present.find(id)
+
+  def links = ResourceMap::Link.where(workspace: current_workspace, from_resource_id: visible.select(:id), to_resource_id: visible.select(:id))
 end

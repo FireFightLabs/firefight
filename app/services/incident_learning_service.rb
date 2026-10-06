@@ -41,7 +41,7 @@ class IncidentLearningService
   # Returns false when the lesson is not the incident's.
   def decide!(incident_id:, memory_id:, member:, confirmed:, channel_id:, message_id:)
     incident = @workspace.incidents.find_by(id: incident_id)
-    memory = Chat::Memory.where(workspace: @workspace, source: incident).find_by(id: memory_id) if incident
+    memory = Chat::Memory.visible_to(member, @workspace).where(source: incident).find_by(id: memory_id) if incident
     return false unless memory
 
     if confirmed

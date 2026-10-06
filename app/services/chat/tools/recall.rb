@@ -26,10 +26,10 @@ class Chat::Tools::Recall < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
-    subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"])
+    subject = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], principal: @agent_run.acting_principal)
     return "Nothing called #{asked['about']} is on the map or in the catalog." if asked["about"].present? && subject.nil?
 
-    found = Chat::Memory.recall(@agent_run.workspace, subject: subject, query: asked["words"])
+    found = Chat::Memory.recall(@agent_run.workspace, principal: @agent_run.acting_principal, subject: subject, query: asked["words"])
     return "Nothing is remembered about that yet." if found.empty?
 
     found.each(&:used!) if @agent_run.changes_memory?

@@ -13,7 +13,7 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     remember("Auth Service uses Redis", subject: @checkout, state: Chat::Memory::STATE_REJECTED)
     remember("Auth Service is in Frankfurt", subject: @checkout, state: Chat::Memory::STATE_DISPUTED)
 
-    assert_equal [ confirmed, workspace_wide ], Chat::Memory.starting_with(@workspace, [ @checkout ])
+    assert_equal [ confirmed, workspace_wide ], Chat::Memory.starting_with(@workspace, [ @checkout ], principal: map_reader)
   end
 
   test "an incident touches the catalog services named on it and the resources they run on" do
@@ -33,12 +33,12 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     production = remember("firefight-prod is the production database", subject: @checkout)
     remember("Deploys happen from main")
 
-    assert_equal [ production ], Chat::Memory.recall(@workspace, query: "which PRODUCTION database")
-    assert_equal [ production ], Chat::Memory.recall(@workspace, subject: @checkout)
+    assert_equal [ production ], Chat::Memory.recall(@workspace, principal: map_reader, query: "which PRODUCTION database")
+    assert_equal [ production ], Chat::Memory.recall(@workspace, principal: map_reader, subject: @checkout)
     assert production.dispute!("The query against it found no tables")
     assert_not production.dispute!("again")
     assert_equal "The query against it found no tables", production.reload.state_reason
-    assert_empty Chat::Memory.recall(@workspace, subject: @checkout)
+    assert_empty Chat::Memory.recall(@workspace, principal: map_reader, subject: @checkout)
   end
 
   private

@@ -27,7 +27,7 @@ class Chat::Tools::DisputeMemory < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
-    memory = Chat::Memory.where(workspace: @agent_run.workspace).find_by(id: asked["memory"].to_s)
+    memory = Chat::Memory.visible_to(@agent_run.acting_principal, @agent_run.workspace).find_by(id: asked["memory"].to_s)
     return "There is no memory #{asked['memory']}." unless memory
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
       next "It is #{memory.state} already, so it is not in use." unless memory.dispute!(asked["reason"].to_s.strip)

@@ -24,7 +24,7 @@ module Investigation::Seeding
     return seed_pack if seed_pack.present?
 
     subjects = Chat::Memory.subjects_for(incident)
-    memories = Chat::Memory.starting_with(workspace, subjects).map(&:line)
+    memories = Chat::Memory.starting_with(workspace, subjects, principal: acting_principal).map(&:line)
     instructions = Chat::Instruction.for_subjects(workspace, subjects).map(&:line)
     update!(seed_pack: seeder.gather.merge(KEY_CLUES => Investigation::Clues.new(self).gather, KEY_MEMORIES => memories,
                                            KEY_INSTRUCTIONS => instructions))

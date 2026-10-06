@@ -14,7 +14,7 @@ class MemoryController < InertiaController
   before_action :require_agent!
 
   def index
-    memories = Chat::Memory.where(workspace: current_workspace).includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
@@ -87,11 +87,12 @@ class MemoryController < InertiaController
 
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
 
-  def memories = Chat::Memory.where(workspace: current_workspace)
+  # A memory about a resource outside the person's map reach is not on their page, and deciding on one finds nothing.
+  def memories = Chat::Memory.visible_to(current_membership, current_workspace)
 
   def instructions = Chat::Instruction.where(workspace: current_workspace)
 
-  def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject])
+  def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject], principal: current_membership)
 
   def subject_options
     entries = current_workspace.catalog_entries.active.includes(:catalog_type).order(:name).map do |entry|
