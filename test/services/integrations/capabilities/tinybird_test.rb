@@ -63,7 +63,7 @@ class Integrations::Capabilities::TinybirdTest < ActiveSupport::TestCase
                                   details: { "type" => type }, integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
   end
 
-  def route(key, given) = Integrations::Capabilities.resolve(@workspace, key, given).then { |call| [ call.tool.name, call.arguments ] }
+  def route(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader).then { |call| [ call.tool.name, call.arguments ] }
 
-  def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, key, given) }.message
+  def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader) }.message
 end

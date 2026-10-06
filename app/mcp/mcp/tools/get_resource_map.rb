@@ -4,7 +4,7 @@ module Mcp
     # provider again. Facts only, never live values: a status here is what the last sweep saw.
     class GetResourceMap < Base
       tool_name GET_RESOURCE_MAP
-      authorize_as Ability::Action::RESOURCE_INTEGRATIONS
+      authorize_as Ability::Action::RESOURCE_MAP
       description "The first place to find which provider and account hold a named domain, zone, service or database. " \
                   "It only reads, so look here before asking a person or using a provider's own tools. " \
                   "What runs where, read off the workspace's connections: services, build services, databases and " \
@@ -18,7 +18,8 @@ module Mcp
                   "confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last " \
                   "week, and every link within two hops, each saying how it was found. A status is what the " \
                   "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
-                  "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. Docs: #{Docs::MCP_SERVER}"
+                  "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. It holds only what runs in the " \
+                  "environments the caller may read, and a sheet counts the links it leaves out for that reason. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {
@@ -29,30 +30,33 @@ module Mcp
       SHEETS_SHOWN = 5
       MAP_LINES = 300
 
-      def self.perform(workspace:, args:)
-        return respond(overview(workspace)) if args[:resource].blank?
+      # Only what the principal reads. Naming a resource outside it reads as naming nothing, and a link to one is counted, never named.
+      def self.perform_with_principal(workspace:, principal:, args:)
+        visible = ResourceMap::Resource.visible_to(principal, workspace)
+        return respond(overview(workspace, visible, ResourceMap::Resource.environments_visible_to(principal, workspace))) if args[:resource].blank?
 
-        found = ResourceMap::Resource.named(workspace, args[:resource]).includes(integration_environment: %i[integration environment]).to_a
+        found = visible.named(workspace, args[:resource]).includes(integration_environment: %i[integration environment]).to_a
         if found.empty?
           return respond(error: "Nothing called #{args[:resource]} is on the map. Leave the resource out to see the whole map.")
         end
 
         more = "#{found.size - SHEETS_SHOWN} more share this name, name one by its provider's id" if found.size > SHEETS_SHOWN
-        respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource) }, more: more }.compact)
+        respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible) }, more: more }.compact)
       end
 
-      def self.overview(workspace)
-        resources = ResourceMap::Resource.present.where(workspace: workspace).order(:provider, :account, :kind, :name).to_a
+      def self.overview(workspace, visible, environments)
+        resources = visible.present.order(:provider, :account, :kind, :name).to_a
         accounts = resources.first(MAP_LINES).group_by { |resource| [ resource.provider, resource.account ] }.map do |(provider, account), grouped|
           { provider: provider, account: account, resources: grouped.map { |resource| line(resource) } }
         end
         {
-          accounts: accounts, connections: connections(workspace),
+          accounts: accounts, connections: connections(workspace, environments),
           left_out: (resources.size > MAP_LINES ? "#{resources.size - MAP_LINES} more resources are on the map, name one to read it" : nil)
         }.compact
       end
 
-      def self.sheet(resource)
+      def self.sheet(resource, visible)
+        hidden = resource.links_out_of_reach(visible)
         environment_row = resource.integration_environment
         entries = resource.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).to_a
         {
@@ -63,7 +67,8 @@ module Mcp
           runs: runs(entries).presence, confirmed: confirmed(resource, entries).presence,
           past_incidents: past_incidents(resource.workspace, entries).presence,
           normal: (resource.baselines.fresh.order(:label).map(&:line).presence unless resource.removed_at),
-          links: resource.neighborhood.map { |link, hop| link_line(link, hop) }
+          links: resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) },
+          out_of_reach: (hidden.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
         }.compact
       end
 
@@ -104,10 +109,12 @@ module Mcp
         "#{link.sentence} (#{how}#{', two links away' if hop > 1})#{": #{link.note}" if link.note.present?}"
       end
 
-      # What each connection could not read, so a missing resource is known to be missing rather than absent.
-      def self.connections(workspace)
+      # What each connection could not read, so a missing resource is known to be missing rather than absent. Only rows
+      # wired to an environment the principal reads, since a gap can name what it could not read.
+      def self.connections(workspace, environments)
         rows = IntegrationEnvironment.joins(:integration).merge(Integration.active).where(integrations: { workspace_id: workspace.id })
-                                     .includes(:integration)
+        rows = rows.where(catalog_entry_id: environments) unless environments.nil?
+        rows = rows.includes(:integration)
         rows.select { |row| row.map_swept_at || row.map_error }.map do |row|
           { connection: row.integration.name, swept: row.map_swept_at&.iso8601, error: row.map_error, gaps: row.map_gaps.presence }.compact
         end

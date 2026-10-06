@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RequiresApprovalBadge } from "@/pages/settings/components/permissions/requires-approval-badge"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
@@ -111,7 +112,7 @@ export function SetEditor({
                       disabled={!canManage}
                       onCheckedChange={() => toggle(action.id)}
                     />
-                    <code className="min-w-0 flex-1 truncate text-xs">{action.key}</code>
+                    <ActionLabel actionKey={action.key} title={action.title} description={action.description} />
                     <RequiresApprovalBadge action={action} rules={approvalRules} />
                     <Badge variant={RISK_VARIANT[action.riskLevel] ?? "secondary"} className="shrink-0">
                       {action.riskLevel}

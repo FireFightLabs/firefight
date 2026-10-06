@@ -31,7 +31,7 @@ class Chat::Tools::Remember < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
     fact = asked["fact"].to_s.strip
-    named = Chat::Memory.subject_named(@agent_run.workspace, asked["about"])
+    named = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], principal: @agent_run.acting_principal)
     return "#{named.refusal} Nothing was saved. Name what it is about, or leave about out to save it for the whole workspace." if named.refusal
 
     subject = named.subject

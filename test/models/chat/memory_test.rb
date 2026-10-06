@@ -14,7 +14,7 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     remember("Auth Service is in Frankfurt", subject: @checkout, state: Chat::Memory::STATE_DISPUTED)
     remember("Auth Service retries twice", subject: @checkout, state: Chat::Memory::STATE_EXPIRED)
 
-    assert_equal [ confirmed, workspace_wide ], Chat::Memory.starting_with(@workspace, [ @checkout ])
+    assert_equal [ confirmed, workspace_wide ], Chat::Memory.starting_with(@workspace, [ @checkout ], principal: map_reader)
   end
 
   test "an incident touches the catalog services named on it and the resources they run on" do
@@ -42,12 +42,12 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     production = remember("firefight-prod is the production database", subject: @checkout)
     remember("Deploys happen from main")
 
-    assert_equal [ production ], Chat::Memory.recall(@workspace, query: "which PRODUCTION database").memories
-    assert_equal [ production ], Chat::Memory.recall(@workspace, subject: @checkout).memories
+    assert_equal [ production ], Chat::Memory.recall(@workspace, principal: map_reader, query: "which PRODUCTION database").memories
+    assert_equal [ production ], Chat::Memory.recall(@workspace, principal: map_reader, subject: @checkout).memories
     assert production.dispute!("The query against it found no tables")
     assert_not production.dispute!("again")
     assert_equal "The query against it found no tables", production.reload.state_reason
-    assert_empty Chat::Memory.recall(@workspace, subject: @checkout).memories
+    assert_empty Chat::Memory.recall(@workspace, principal: map_reader, subject: @checkout).memories
   end
 
   test "recall ranks by how many asked words match, stemmed, with the whole phrase first, then confirmed, then newest" do
@@ -57,7 +57,7 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     confirmed_one = remember("The worker restarts nightly", state: Chat::Memory::STATE_CONFIRMED)
     remember("Nothing to do with it")
 
-    found = Chat::Memory.recall(@workspace, query: "checkout queue restarted").memories
+    found = Chat::Memory.recall(@workspace, principal: map_reader, query: "checkout queue restarted").memories
 
     assert_equal [ phrase, both ], found.first(2)
     assert_equal [ confirmed_one, one_word ], found.last(2)
@@ -66,7 +66,7 @@ class Chat::MemoryTest < ActiveSupport::TestCase
   test "recall answers with at most twenty and says how many more matched" do
     25.times { |index| remember("Queue #{index} drains into the ledger") }
 
-    recalled = Chat::Memory.recall(@workspace, query: "ledger")
+    recalled = Chat::Memory.recall(@workspace, principal: map_reader, query: "ledger")
 
     assert_equal Chat::Memory::STARTING_LIMIT, recalled.memories.size
     assert_equal 5, recalled.more
@@ -133,21 +133,21 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     web = map_resource("web")
     other_web = map_resource("web", external_id: "web-eu")
 
-    assert_equal "Nothing called ledger is on the map or in the catalog.", Chat::Memory.subject_named(@workspace, "ledger").refusal
-    shared = Chat::Memory.subject_named(@workspace, "web")
+    assert_equal "Nothing called ledger is on the map or in the catalog.", Chat::Memory.subject_named(@workspace, "ledger", principal: map_reader).refusal
+    shared = Chat::Memory.subject_named(@workspace, "web", principal: map_reader)
     assert_nil shared.subject
     assert_includes shared.refusal, web.id
     assert_includes shared.refusal, other_web.id
-    assert_equal other_web, Chat::Memory.subject_named(@workspace, other_web.id).subject
-    assert_equal @checkout, Chat::Memory.subject_named(@workspace, @checkout.slug).subject
+    assert_equal other_web, Chat::Memory.subject_named(@workspace, other_web.id, principal: map_reader).subject
+    assert_equal @checkout, Chat::Memory.subject_named(@workspace, @checkout.slug, principal: map_reader).subject
   end
 
   test "a resource gone from the map is found by name only when asked for, and only when nothing present has the name" do
     gone = map_resource("ledger")
     gone.update!(removed_at: 1.day.ago)
 
-    assert Chat::Memory.subject_named(@workspace, "ledger").refusal
-    assert_equal gone, Chat::Memory.subject_named(@workspace, "ledger", removed: true).subject
+    assert Chat::Memory.subject_named(@workspace, "ledger", principal: map_reader).refusal
+    assert_equal gone, Chat::Memory.subject_named(@workspace, "ledger", principal: map_reader, removed: true).subject
   end
 
   test "a flag the sweep set for a removed resource is lifted when it comes back, never one a person decided on since" do

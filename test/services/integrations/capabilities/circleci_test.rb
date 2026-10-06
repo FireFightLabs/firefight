@@ -42,7 +42,7 @@ class Integrations::Capabilities::CircleciTest < ActiveSupport::TestCase
     assert_equal gitlab_row, resolve(Integrations::Capabilities::STATUS, "resource" => "acme/platform/api").environment_row
     assert_match "named by CircleCI's own ids", unroutable(Integrations::Capabilities::STATUS, "resource" => "acme/platform/api", "connection" => "circleci")
 
-    answers = Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::STATUS, "resource" => "acme/platform/api", "connection" => "all")
+    answers = Integrations::Capabilities.resolve_all(@workspace, Integrations::Capabilities::STATUS, { "resource" => "acme/platform/api", "connection" => "all" }, principal: map_reader)
     assert_equal "gitlab.ci_status", answers.grep(Integrations::Capabilities::Call).sole.tool.action_key
     assert_equal @circleci_row, answers.grep(Integrations::Capabilities::Refused).sole.environment_row
   end
@@ -50,7 +50,7 @@ class Integrations::Capabilities::CircleciTest < ActiveSupport::TestCase
   test "CircleCI is not asked when its tool is off or the caller may not run it" do
     others = Integration::Tool.in_workspace(@workspace).reject { |tool| tool.integration.provider == "circleci" }
     assert_raises(Integrations::Capabilities::Unroutable) do
-      Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "acme/web" }, others)
+      Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "acme/web" }, others, principal: map_reader)
     end
 
     @list_runs.update!(enabled: false)
@@ -71,7 +71,7 @@ class Integrations::Capabilities::CircleciTest < ActiveSupport::TestCase
                                   first_seen_at: Time.current, last_seen_at: Time.current)
   end
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message
 end

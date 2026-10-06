@@ -29,7 +29,7 @@ module Mcp
 
       def found(id) = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: id, name: id)
 
-      def call(**args) = SuggestResourceLink.perform(workspace: @workspace, args: args).structured_content
+      def call(principal: map_reader, **args) = SuggestResourceLink.perform_with_principal(workspace: @workspace, principal: principal, args: args).structured_content
     end
   end
 end

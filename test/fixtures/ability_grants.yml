@@ -23,3 +23,12 @@ _fixture:
 <% end %>
 <% end %>
 <% end %>
+
+# What a workspace grants Firefight's investigator at install (Workspace::AgentDefaults).
+<% { "workspace_one" => "11111111-1111-1111-1111-111111111111", "workspace_two" => "22222222-2222-2222-2222-222222222222" }.each do |label, workspace_id| %>
+investigator_map_read_<%= label %>:
+  workspace_id: <%= workspace_id %>
+  principal_type: SystemAgent
+  principal_id: 55555555-5555-5555-5555-555555555555
+  action: map_read
+<% end %>

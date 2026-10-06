@@ -6,7 +6,7 @@ module Ability
 
     test "sync_system_actions! seeds every resource/action pair idempotently" do
       Ability::Action.sync_system_actions!
-      expected = Ability::Action::RESOURCES.size * Ability::Action::ACTIONS.size
+      expected = Ability::Action.managed_keys.size
       assert_equal expected, Ability::Action.system_actions.count
 
       assert_no_difference "Ability::Action.count" do

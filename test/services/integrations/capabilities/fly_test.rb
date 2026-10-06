@@ -44,7 +44,7 @@ class Integrations::Capabilities::FlyTest < ActiveSupport::TestCase
 
   private
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message
 

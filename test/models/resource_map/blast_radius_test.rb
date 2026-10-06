@@ -21,7 +21,7 @@ class ResourceMap::BlastRadiusTest < ActiveSupport::TestCase
   end
 
   test "what fails with a resource is what the map page counts as its dependents, and suggestions are kept apart" do
-    view = ResourceMap::View.new(@workspace).rows.index_by(&:resource)
+    view = ResourceMap::View.new(@workspace, map_reader).rows.index_by(&:resource)
 
     [ @database, @web, @builder, @domain, @worker ].each do |resource|
       radius = ResourceMap::BlastRadius.new(resource)

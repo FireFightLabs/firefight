@@ -1,17 +1,19 @@
 # The resource map page: what runs where, read off the connections, and the links people add or confirm on it.
 class ResourceMapController < InertiaController
-  authorizes Ability::Action::RESOURCE_INTEGRATIONS, read: %i[index], update: %i[sync]
+  authorizes Ability::Action::RESOURCE_MAP, read: %i[index]
+  authorizes Ability::Action::RESOURCE_INTEGRATIONS, update: %i[sync]
   authorizes Ability::Action::RESOURCE_CATALOG,
     update: %i[create_link destroy_link confirm_link dismiss_link link_entry unlink_entry]
 
   def index
-    view = ResourceMap::View.new(current_workspace)
+    view = ResourceMap::View.new(current_workspace, current_membership)
 
     render inertia: "map/index", props: {
       resources: ResourceMapResourceSerializer.many(view.rows),
       links: ResourceMapLinkSerializer.many(view.links),
       connections: ResourceMapConnectionSerializer.many(view.connections),
       changes: ResourceMapChangeSerializer.many(view.changes),
+      readsIn: view.environments && current_workspace.environment_entries.where(id: view.environments).pluck(:name),
       catalogEntries: ResourceMapEntrySerializer.many(current_workspace.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).order(:name))
     }
   end
@@ -63,14 +65,17 @@ class ResourceMapController < InertiaController
   end
 
   def unlink_entry
-    link = ResourceMap::EntryLink.where(workspace: current_workspace).find_by!(resource_id: params[:id], catalog_entry_id: params[:entry_id])
+    link = ResourceMap::EntryLink.where(workspace: current_workspace, resource_id: visible.select(:id)).find_by!(resource_id: params[:id], catalog_entry_id: params[:entry_id])
     link.destroy!
     redirect_to resource_map_path, notice: "#{link.resource.name} no longer runs #{link.catalog_entry.name}."
   end
 
   private
 
-  def resource(id) = ResourceMap::Resource.present.where(workspace: current_workspace).find(id)
+  # A write finds only what the person reads on the map, so a resource outside their environments answers as missing.
+  def visible = ResourceMap::Resource.visible_to(current_membership, current_workspace)
 
-  def links = ResourceMap::Link.where(workspace: current_workspace)
+  def resource(id) = visible.present.find(id)
+
+  def links = ResourceMap::Link.where(workspace: current_workspace, from_resource_id: visible.select(:id), to_resource_id: visible.select(:id))
 end

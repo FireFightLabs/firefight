@@ -13,7 +13,7 @@ class Integrations::Capabilities::TursoTest < ActiveSupport::TestCase
   end
 
   test "status names the database by the parameter the connected tool reports" do
-    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "shop")
+    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "shop" }, principal: map_reader)
 
     assert_equal [ @row, "get_database", { "database" => "shop" } ], [ call.environment_row, call.tool.name, call.arguments ]
     assert_equal [ Integrations::Capabilities::STATUS ], Integrations::Capabilities::Turso.capabilities
@@ -22,7 +22,7 @@ class Integrations::Capabilities::TursoTest < ActiveSupport::TestCase
   test "a tool that takes the database some other way is refused in words, and its own tool stays offered" do
     @tool.update!(params_schema: { "type" => "object", "properties" => { "target" => {} } })
 
-    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "shop") }
+    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "shop" }, principal: map_reader) }
     assert_match "ask it with Turso's own tool", error.message
     assert_not Integrations::Capabilities::Turso.wraps?("get_database")
   end

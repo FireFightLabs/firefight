@@ -186,7 +186,7 @@ class Conversation::Runner
   # What the workspace learned about what this chat touches, so it starts from what is known. Each counts as used once
   # for the whole chat.
   def memories_line
-    memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident))
+    memories = Chat::Memory.starting_with(@conversation.workspace, Chat::Memory.subjects_for(@conversation.incident), principal: @turn.asker)
     return nil if memories.empty?
 
     Chat::Memory.handed_to!(memories, @conversation) if @turn.changes_memory?

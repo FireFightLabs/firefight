@@ -37,7 +37,7 @@ module Mcp
       given = args.except(APPROVAL_ID_ARG).transform_keys(&:to_s)
       return everywhere(key, server_context, args, given) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
-      call = Integrations::Capabilities.resolve(workspace, key, given, callable(key, server_context))
+      call = Integrations::Capabilities.resolve(workspace, key, given, callable(key, server_context), principal: server_context[:principal])
       response = invoke_call(call, server_context, approval_id: args[APPROVAL_ID_ARG])
       answer = { content: response.content, structuredContent: response.structured_content, isError: response.error? }
       return response if call.fallback.nil? || response.is_a?(Waiting) || Integrations::Capabilities.definitive?(answer)
@@ -55,7 +55,8 @@ module Mcp
     # An approval belongs to one call, so one that waits is asked again alone once approved. It fails only when every
     # connection did, and each one's structured answer is kept under its connection.
     def self.everywhere(key, server_context, args, given)
-      results = Integrations::Capabilities.resolve_all(server_context[:workspace], key, given, callable(key, server_context)).map do |found|
+      results = Integrations::Capabilities.resolve_all(server_context[:workspace], key, given, callable(key, server_context),
+                                                       principal: server_context[:principal]).map do |found|
         next [ found.environment_row, ToolDispatcher.error_response(found.reason) ] if found.is_a?(Integrations::Capabilities::Refused)
 
         [ found.environment_row, invoke_call(found, server_context, approval_id: nil, alone: false) ]

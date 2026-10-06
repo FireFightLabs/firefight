@@ -37,5 +37,5 @@ class Integrations::Capabilities::NetlifyTest < ActiveSupport::TestCase
 
   private
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 end

@@ -70,7 +70,7 @@ class ResourceMap::MatcherTest < ActiveSupport::TestCase
     ResourceMap::Matcher.new(@workspace).run!
     link("web").confirm!(by: nil)
 
-    row = ResourceMap::View.new(@workspace).rows.find { |each| each.resource.external_id == "firefight-prod/main" }
+    row = ResourceMap::View.new(@workspace, map_reader).rows.find { |each| each.resource.external_id == "firefight-prod/main" }
 
     assert_equal [ resource("web").id ], row.dependent_ids
     assert_equal [ resource("job").id ], row.suggested_dependent_ids

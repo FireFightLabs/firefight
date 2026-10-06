@@ -35,6 +35,8 @@ module Ability
     RESOURCE_CHATS = "chats"
     # What Halon remembers. Adding a fact is create, confirming, correcting, rejecting or disputing one is update.
     RESOURCE_MEMORY = "memory"
+    # Reading the resource map. Only read, since curating it is catalog: update and syncing it integrations: update.
+    RESOURCE_MAP = "map"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -46,7 +48,7 @@ module Ability
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
-      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY
+      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -72,6 +74,7 @@ module Ability
       RESOURCE_INVESTIGATIONS => "Investigations",
       RESOURCE_CHATS => "Chats",
       RESOURCE_MEMORY => "Memory",
+      RESOURCE_MAP => "Resource Map",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
@@ -85,6 +88,24 @@ module Ability
     ACTION_DELETE = "delete"
 
     ACTIONS = [ ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE ].freeze
+    # A resource that only offers some of the actions. Everything else offers all four.
+    RESOURCE_ACTIONS = { RESOURCE_MAP => [ ACTION_READ ].freeze }.freeze
+
+    MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
+    # Reads whose environment scope narrows what comes back rather than whether the call runs. A call that names no
+    # environment is admitted when the principal holds the action in any environment, and the reader keeps to
+    # AbilityGateway.reach (ResourceMap::Resource.visible_to for the map).
+    FILTERED_KEYS = [ MAP_READ ].freeze
+
+    # What the Permissions screen says about an action beyond its key. Only actions whose key does not say enough have one.
+    DESCRIPTIONS = {
+      MAP_READ => {
+        title: "Read the resource map",
+        description: "See what runs where on the resource map, how its resources depend on each other, and each one's fact sheet. " \
+                     "Members hold it in every environment without a grant. Granting it to a member, alone or in a set, " \
+                     "limits them to the environments ticked here, and an expired grant leaves them none."
+      }.freeze
+    }.freeze
 
     WEB_READ = "#{RESOURCE_WEB}.#{ACTION_READ}".freeze
     OPEN_KEYS = [ WEB_READ ].freeze
@@ -133,17 +154,25 @@ module Ability
       "#{resource}.#{action}"
     end
 
+    def self.actions_for(resource) = RESOURCE_ACTIONS.fetch(resource, ACTIONS)
+
+    def self.keys_for(resources) = resources.flat_map { |resource| actions_for(resource).map { |action| system_key(resource, action) } }.freeze
+
     def self.managed_keys
-      @managed_keys ||= RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+      @managed_keys ||= keys_for(RESOURCES)
     end
 
     def self.grantable_keys
-      @grantable_keys ||= GRANTABLE_RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+      @grantable_keys ||= keys_for(GRANTABLE_RESOURCES)
     end
 
     def self.admin_only_keys
-      @admin_only_keys ||= ADMIN_ONLY_RESOURCES.product(ACTIONS).map { |resource, action| system_key(resource, action) }.freeze
+      @admin_only_keys ||= keys_for(ADMIN_ONLY_RESOURCES)
     end
+
+    def self.filtered?(key) = FILTERED_KEYS.include?(key.to_s)
+
+    def self.described(key) = DESCRIPTIONS[key.to_s]
 
     def self.resource_of(key)
       key.to_s.split(".").first
@@ -178,11 +207,7 @@ module Ability
     end
 
     def self.sync_system_actions!
-      RESOURCES.each do |resource|
-        ACTIONS.each do |action|
-          system!(system_key(resource, action))
-        end
-      end
+      managed_keys.each { |key| system!(key) }
     end
 
     def system?

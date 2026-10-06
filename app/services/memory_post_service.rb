@@ -41,7 +41,7 @@ class MemoryPostService
   # before posts were kept. Returns false when the memory is not one the message shows.
   def decide!(reference:, memory_id:, member:, confirmed:, channel_id:, message_id:)
     post = post_for(reference, channel_id: channel_id, message_id: message_id)
-    memory = post && post.memories.find { |each| each.id == memory_id }
+    memory = post && visible(post, member).find { |each| each.id == memory_id }
     return false unless memory
 
     if confirmed
@@ -63,7 +63,7 @@ class MemoryPostService
   # Someone writing what is right instead. Returns why it was refused, or nil once the correction replaced it.
   def correct!(post_id:, memory_id:, member:, correction:, reason:)
     post = Chat::MemoryPost.find_by(workspace: @workspace, id: post_id)
-    memory = post&.memories&.find { |each| each.id == memory_id }
+    memory = post && visible(post, member).find { |each| each.id == memory_id }
     return "That memory is gone. Close this and look on the Memory page." unless memory
     return "Write what is right instead." if correction.blank?
 
@@ -86,6 +86,12 @@ class MemoryPostService
   end
 
   private
+
+  # A memory about a resource outside the person's map reach answers as one the message does not show.
+  def visible(post, member)
+    allowed = Chat::Memory.visible_to(member, @workspace).where(id: post.memory_ids).pluck(:id).to_set
+    post.memories.select { |memory| allowed.include?(memory.id) }
+  end
 
   def adapter = @adapter ||= @workspace.adapter
 

@@ -73,12 +73,18 @@ class Chat::Memory < ApplicationRecord
   Change = Data.define(:key, :mark, :note)
 
   scope :in_use, -> { where(state: USED_STATES) }
+  # Every memory in workspace except those about a resource outside principal's map reach, which reads as never there.
+  scope :visible_to, ->(principal, workspace) {
+    where(workspace: workspace).where("chat_memories.subject_type IS DISTINCT FROM ?", ResourceMap::Resource.name)
+      .or(where(workspace: workspace, subject_type: ResourceMap::Resource.name,
+                subject_id: ResourceMap::Resource.visible_to(principal, workspace).select(:id)))
+  }
   scope :most_trusted_first, -> { order(Arel.sql(sanitize_sql_array([ "CASE state WHEN ? THEN 0 ELSE 1 END", STATE_CONFIRMED ])), created_at: :desc) }
 
   # The memories a chat or a run starts with: those about what it touches, then the workspace wide ones.
-  def self.starting_with(workspace, subjects)
+  def self.starting_with(workspace, subjects, principal:)
     about = subjects.compact.group_by { |subject| subject.class.name }.map { |type, found| where(subject_type: type, subject_id: found.map(&:id)) }
-    scope = where(workspace: workspace).in_use
+    scope = visible_to(principal, workspace).in_use
     relevant = about.inject(scope.where(subject_id: nil)) { |union, part| union.or(scope.merge(part)) }
     relevant.includes(:subject, :confirmed_by).most_trusted_first.limit(STARTING_LIMIT).to_a
   end
@@ -95,12 +101,14 @@ class Chat::Memory < ApplicationRecord
   # What a memory is about, named the way a person or Halon would. A resource on the map by its name, provider id or
   # Firefight id, or a catalog entry by its name, slug or id. A name nothing has, or one several things share, is
   # refused with a sentence, never guessed. removed also looks among resources gone from the map, when none present has it.
-  def self.subject_named(workspace, name, removed: false)
+  # Only resources principal may read count, so one outside its reach is refused as a name nothing has.
+  def self.subject_named(workspace, name, principal:, removed: false)
     wanted = name.to_s.strip
     return Named.new(subject: nil, refusal: nil) if wanted.empty?
 
-    found = named_candidates(workspace, wanted, removed: false)
-    found = named_candidates(workspace, wanted, removed: true) if found.empty? && removed
+    visible = ResourceMap::Resource.visible_to(principal, workspace)
+    found = named_candidates(workspace, visible, wanted, removed: false)
+    found = named_candidates(workspace, visible, wanted, removed: true) if found.empty? && removed
     return Named.new(subject: found.sole, refusal: nil) if found.one?
     return Named.new(subject: nil, refusal: "Nothing called #{wanted} is on the map or in the catalog.") if found.empty?
 
@@ -108,9 +116,8 @@ class Chat::Memory < ApplicationRecord
     Named.new(subject: nil, refusal: "More than one thing is called #{wanted}: #{choices}. Name it by its id.")
   end
 
-  def self.named_candidates(workspace, wanted, removed:)
-    resources = ResourceMap::Resource.where(workspace: workspace).where(removed_at: nil)
-    resources = ResourceMap::Resource.where(workspace: workspace).where.not(removed_at: nil) if removed
+  def self.named_candidates(workspace, visible, wanted, removed:)
+    resources = removed ? visible.where.not(removed_at: nil) : visible.where(removed_at: nil)
     entries = removed ? CatalogEntry.none : workspace.catalog_entries.active
     lowered = wanted.downcase
     by_id = wanted.match?(CatalogEntry::ReferenceManagement::UUID_FORMAT)
@@ -131,14 +138,15 @@ class Chat::Memory < ApplicationRecord
   # A subject as the dashboard names it, its type and id, such as "CatalogEntry:<id>". Instructions use the same keys.
   def self.subject_key(subject) = subject && "#{subject.class.name}:#{subject.id}"
 
-  # The subject a key names in this workspace, nil for a blank key. Raises RecordNotFound for anything else.
-  def self.subject_for_key(workspace, key)
+  # The subject a key names in this workspace, nil for a blank key. Raises RecordNotFound for anything else, a resource
+  # outside principal's reach included.
+  def self.subject_for_key(workspace, key, principal:)
     type, id = key.to_s.split(":", 2)
     return nil if type.blank?
 
     case type
     when CatalogEntry.name then workspace.catalog_entries.active.find(id)
-    when ResourceMap::Resource.name then ResourceMap::Resource.present.where(workspace: workspace).find(id)
+    when ResourceMap::Resource.name then ResourceMap::Resource.visible_to(principal, workspace).present.find(id)
     else raise ActiveRecord::RecordNotFound, "No subject of type #{type}"
     end
   end
@@ -180,8 +188,8 @@ class Chat::Memory < ApplicationRecord
 
   # The workspace's memories in use about a subject, or matching the words asked. The best come first, ranked by how many
   # of the words they hold and how rare each is with a boost for the whole phrase, then confirmed first, then newest.
-  def self.recall(workspace, subject: nil, query: nil)
-    found = where(workspace: workspace).in_use.includes(:subject, :confirmed_by)
+  def self.recall(workspace, principal:, subject: nil, query: nil)
+    found = visible_to(principal, workspace).in_use.includes(:subject, :confirmed_by)
     found = found.where(subject: subject) if subject
     found = found.to_a
     asked = Chat::Memory::Words.stems(query)

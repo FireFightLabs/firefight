@@ -197,11 +197,12 @@ module Integrations
     # Finds the resource, the connection that can answer for it, and the provider call to make. Raises Unroutable with
     # words an agent can act on when there is none, or more than one and the request did not say which.
     # tools are the ones the caller may run, every switched on tool when not given. An observability tool is asked only
-    # through one of them, so connecting one never takes away a read the platform answers today.
-    def self.resolve(workspace, key, given, tools = nil)
+    # through one of them, so connecting one never takes away a read the platform answers today. The resource is found
+    # among those principal may read on the map, so one outside its environments reads as not on the map.
+    def self.resolve(workspace, key, given, tools = nil, principal:)
       tools ||= Integration::Tool.in_workspace(workspace).to_a
       spec = spec(key)
-      candidates, reference = candidates_for(workspace, spec, given, tools)
+      candidates, reference = candidates_for(workspace, spec, given, tools, principal)
       chosen = choose(candidates, given, reference, spec)
       call = call_for(workspace, spec, chosen, given, tools)
       return call unless chosen.observer && given[CONNECTION_ARG].blank?
@@ -254,12 +255,12 @@ module Integrations
 
     # Every connection that can answer for the resource, for connection: all, as a Call or a Refused for each. A change
     # is never made everywhere at once.
-    def self.resolve_all(workspace, key, given, tools = nil)
+    def self.resolve_all(workspace, key, given, tools = nil, principal:)
       tools ||= Integration::Tool.in_workspace(workspace).to_a
       spec = spec(key)
       raise Unroutable, "#{ALL} is only for reading, so a change names one connection." if spec.writes
 
-      candidates, reference = candidates_for(workspace, spec, given, tools)
+      candidates, reference = candidates_for(workspace, spec, given, tools, principal)
       one_resource!(candidates, reference)
       candidates.uniq { |candidate| candidate.row.id }.map do |candidate|
         call_for(workspace, spec, candidate, given, tools)
@@ -271,14 +272,15 @@ module Integrations
     # One connection's answer under connection: all, headed with where it came from.
     def self.headed(environment_row, text) = "From #{connection_label(environment_row)}:\n#{text}"
 
-    def self.candidates_for(workspace, spec, given, tools)
+    def self.candidates_for(workspace, spec, given, tools, principal)
       reference = given[RESOURCE_ARG].to_s.strip
       raise Unroutable, "Say which resource, by its name or id on the resource map." if reference.empty?
 
-      named = ResourceMap::Resource.named(workspace, reference).present.to_a
+      visible = ResourceMap::Resource.visible_to(principal, workspace)
+      named = visible.named(workspace, reference).present.to_a
       raise Unroutable, "Nothing on the resource map is called #{reference}. get_resource_map lists what is there." if named.empty?
 
-      candidates = holders(named, spec)
+      candidates = holders(named, spec, visible)
       candidates += observers(workspace, candidates, named, spec, tools)
       raise Unroutable, "#{reference} is on the map, but no connection offers #{spec.what} for it." if candidates.empty?
 
@@ -316,8 +318,9 @@ module Integrations
     end
 
     # Every resource of that name with a connection that holds it and can answer. A hostname is answered by what serves
-    # it, one link away, by a link that is a fact, never a suggestion no one confirmed.
-    def self.holders(resources, spec, follow: true)
+    # it, one link away, by a link that is a fact, never a suggestion no one confirmed, and only when the caller may read
+    # what serves it.
+    def self.holders(resources, spec, visible, follow: true)
       found = resources.flat_map do |resource|
         resource.holders.filter_map do |row|
           adapter = adapter_for(row.integration.provider)
@@ -326,9 +329,9 @@ module Integrations
       end
       return found if found.any? || !follow
 
-      served = ResourceMap::Link.facts.where(from_resource: resources, relation: ResourceMap::RELATION_SERVED_BY).includes(:to_resource)
-                                .map(&:to_resource).select { |resource| resource.removed_at.nil? }
-      holders(served.uniq, spec, follow: false)
+      served = ResourceMap::Link.facts.where(from_resource: resources, relation: ResourceMap::RELATION_SERVED_BY, to_resource_id: visible.select(:id))
+                                .includes(:to_resource).map(&:to_resource).select { |resource| resource.removed_at.nil? }
+      holders(served.uniq, spec, visible, follow: false)
     end
 
     # The observability tools connected to the workspace, which answer for a resource they watch though another

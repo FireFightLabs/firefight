@@ -32,7 +32,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
     given = arguments.transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG)
     return everywhere(given, tool_call) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
-    found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given, @callable)
+    found = Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, given, @callable, principal: @agent_run.acting_principal)
     return ask(found, tool_call) unless found.fallback
 
     asked = connection(found)
@@ -56,7 +56,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
   # own step in the ledger, as the provider's own action. The card reads failed only when none of them answered.
   def everywhere(given, tool_call)
     answered = false
-    answers = Integrations::Capabilities.resolve_all(@agent_run.workspace, @spec.key, given, @callable).map do |found|
+    answers = Integrations::Capabilities.resolve_all(@agent_run.workspace, @spec.key, given, @callable, principal: @agent_run.acting_principal).map do |found|
       next Integrations::Capabilities.headed(found.environment_row, found.reason) if found.is_a?(Integrations::Capabilities::Refused)
 
       asked = connection(found)

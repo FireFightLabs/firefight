@@ -313,6 +313,7 @@ export const ABILITY_RESOURCES = [
   "investigations",
   "chats",
   "memory",
+  "map",
   "integrations",
   "api_keys",
   "permissions",
@@ -337,7 +338,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "incident_transcripts",
   "investigations",
   "chats",
-  "memory"
+  "memory",
+  "map"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -358,6 +360,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "investigations": "Investigations",
   "chats": "Chats",
   "memory": "Memory",
+  "map": "Resource Map",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -372,6 +375,114 @@ export const ABILITY_ACTIONS = [
   "delete"
 ] as const
 export type AbilityAction = (typeof ABILITY_ACTIONS)[number]
+
+export const ABILITY_RESOURCE_ACTIONS = {
+  "incidents": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "severities": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "statuses": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "incident_types": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "custom_fields": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "forms": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "catalog": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "alerts": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "policies": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "runbooks": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "approvals": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "incident_roles": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "webhooks": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "incident_transcripts": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "investigations": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "chats": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "memory": [
+    "read",
+    "create",
+    "update",
+    "delete"
+  ],
+  "map": [
+    "read"
+  ]
+} as const
 
 export const WEBHOOK_EVENTS = [
   "incident.created",

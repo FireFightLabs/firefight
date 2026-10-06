@@ -8,7 +8,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
   end
 
   test "a resource is found by its name on the map and answered by the connection that holds it, as that provider's own call" do
-    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web", "text" => "timeout", "stream" => "requests")
+    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web", "text" => "timeout", "stream" => "requests" }, principal: map_reader)
 
     assert_equal "northflank.search_logs", call.tool.action_key
     assert_equal({ "resource" => "web-id", "type" => "ingress", "text" => "timeout" }, call.arguments)
@@ -17,25 +17,25 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
 
   test "nothing of that name, nothing that can answer, and a switched off tool each say what to do" do
     assert_match "Nothing on the resource map is called checkout",
-                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "checkout") }.message
+                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "checkout" }, principal: map_reader) }.message
 
     resource!(@northflank_row, "northflank", ResourceMap::KIND_JOB, "nightly-id", "nightly")
     assert_match "no connection offers deploys",
-                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::DEPLOYS, "resource" => "nightly") }.message
+                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::DEPLOYS, { "resource" => "nightly" }, principal: map_reader) }.message
 
     @northflank.tools.find_by!(name: "list_deployments").update!(enabled: false)
     assert_match "list_deployments tool, which is switched off",
-                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::DEPLOYS, "resource" => "web") }.message
+                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::DEPLOYS, { "resource" => "web" }, principal: map_reader) }.message
   end
 
   test "a resource two connections hold asks which one, and the choice picks it" do
     _second, second_row = connect("northflank", "Northflank staging", %w[search_logs], slug: "northflank_staging", entry: catalog_entries(:development_env))
     resource!(second_row, "northflank", ResourceMap::KIND_SERVICE, "web-staging", "web", account: "team/staging")
 
-    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web") }
+    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web" }, principal: map_reader) }
     assert_match "choose connection from: northflank, northflank_staging", error.message
 
-    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web", "connection" => "northflank_staging")
+    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web", "connection" => "northflank_staging" }, principal: map_reader)
     assert_equal "web-staging", call.arguments["resource"]
   end
 
@@ -45,24 +45,24 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     ResourceMap::Link.create!(workspace: @workspace, from_resource: host, to_resource: @web, relation: ResourceMap::RELATION_SERVED_BY,
                               integration_environment: @northflank_row, origin: ResourceMap::ORIGIN_DECLARED, last_seen_at: Time.current)
 
-    assert_equal "web-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "app.example.com").arguments["resource"]
+    assert_equal "web-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "app.example.com" }, principal: map_reader).arguments["resource"]
   end
 
   test "Northflank maps metrics to its own names, refuses one it does not keep, and makes a change through its API" do
-    metrics = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => %w[http_5xx disk], "minutes" => 30)
+    metrics = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::METRICS, { "resource" => "web", "metrics" => %w[http_5xx disk], "minutes" => 30 }, principal: map_reader)
     assert_equal({ "resource" => "web-id", "metrics" => %w[http5xxResponses diskUsage], "minutes" => 30 }, metrics.arguments)
     assert_match "Northflank does not keep cpu_time",
-                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "cpu_time" ]) }.message
+                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::METRICS, { "resource" => "web", "metrics" => [ "cpu_time" ] }, principal: map_reader) }.message
 
     builder = resource!(@northflank_row, "northflank", ResourceMap::KIND_BUILD_SERVICE, "builder-id", "builder")
     ResourceMap::Link.create!(workspace: @workspace, from_resource: @web, to_resource: builder, relation: ResourceMap::RELATION_RUNS_BUILDS_OF,
                               integration_environment: @northflank_row, origin: ResourceMap::ORIGIN_DECLARED, last_seen_at: Time.current)
-    rollback = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::ROLLBACK, "resource" => "web", "to" => "build-7")
+    rollback = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::ROLLBACK, { "resource" => "web", "to" => "build-7" }, principal: map_reader)
     assert_equal({ "method" => "POST", "path" => "services/web-id/deployment", "body" => { "internal" => { "id" => "builder-id", "buildId" => "build-7" } } },
                  rollback.arguments)
     assert_equal({ "method" => "POST", "path" => "services/web-id/scale", "body" => { "instances" => 3 } },
-                 Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::SCALE, "resource" => "web", "instances" => "3").arguments)
-    assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::SCALE, "resource" => "web", "instances" => "lots") }
+                 Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::SCALE, { "resource" => "web", "instances" => "3" }, principal: map_reader).arguments)
+    assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::SCALE, { "resource" => "web", "instances" => "lots" }, principal: map_reader) }
   end
 
   test "the capabilities offered are the ones a connected provider's switched on tools can answer, and their duplicates are known" do
@@ -77,28 +77,28 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
   test "two resources of one name are told apart by id, never picked for the agent" do
     resource!(@northflank_row, "northflank", ResourceMap::KIND_DATABASE, "web-db-id", "web")
 
-    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "web") }
+    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "web" }, principal: map_reader) }
     assert_match "More than one resource is called web", error.message
     assert_match(/northflank\) and (service|database) web \(id /, error.message)
     assert_no_match(/;/, error.message)
-    assert_equal "web-db-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, "resource" => "web-db-id").arguments["resource"]
+    assert_equal "web-db-id", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::STATUS, { "resource" => "web-db-id" }, principal: map_reader).arguments["resource"]
   end
 
   test "a connection wired to two environments is chosen with its environment" do
     staging_row = @northflank.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id, credentials: { token: "y" }.to_json)
     @web.update!(sightings: { staging_row.id.to_s => {} })
 
-    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web") }
+    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web" }, principal: map_reader) }
     labels = [ "northflank/#{catalog_entries(:production_env).slug}", "northflank/#{catalog_entries(:development_env).slug}" ]
     assert_match "Choose connection from: #{labels.join(', ')}", error.message
-    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web", "connection" => labels.last)
+    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web", "connection" => labels.last }, principal: map_reader)
     assert_equal staging_row, call.environment_row
   end
 
   test "a resource reaches only enabled connections of its own workspace" do
     @northflank.update!(disabled_at: Time.current)
     assert_match "no connection offers",
-                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "web") }.message
+                 assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "web" }, principal: map_reader) }.message
 
     other = workspaces(:slack_workspace_two).integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Theirs", slug: "theirs")
     @web.update!(integration_environment: other.integration_environments.create!(credentials: { token: "z" }.to_json))
@@ -108,7 +108,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
   test "a build service's logs are its builds' unless asked otherwise" do
     resource!(@northflank_row, "northflank", ResourceMap::KIND_BUILD_SERVICE, "builder-id", "builder")
 
-    assert_equal "build", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, "resource" => "builder").arguments["type"]
+    assert_equal "build", Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::LOGS, { "resource" => "builder" }, principal: map_reader).arguments["type"]
   end
 
   test "a provider's details say what Halon can do through it, in the capabilities' order, and one with no adapter is used through its tools" do
@@ -167,11 +167,11 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     resource!(row, "acme", ResourceMap::KIND_VIRTUAL_MACHINE, "vm-1", "box")
     resource!(row, "acme", ResourceMap::KIND_SERVICE, "app-1", "storefront")
 
-    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::RESTART, { "resource" => "box" })
+    call = Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::RESTART, { "resource" => "box" }, principal: map_reader)
     assert_equal [ "reboot_machine", { "id" => "vm-1" } ], [ call.tool.name, call.arguments ]
     assert_includes Integrations::Capabilities.offered(@workspace).map { |spec, _tools| spec.key }, Integrations::Capabilities::RESTART
 
-    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::RESTART, { "resource" => "storefront" }) }
+    error = assert_raises(Integrations::Capabilities::Unroutable) { Integrations::Capabilities.resolve(@workspace, Integrations::Capabilities::RESTART, { "resource" => "storefront" }, principal: map_reader) }
     assert_match "would answer this with its restart_app tool, which is switched off", error.message
   end
 

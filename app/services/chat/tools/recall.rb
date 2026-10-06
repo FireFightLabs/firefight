@@ -26,11 +26,11 @@ class Chat::Tools::Recall < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
-    named = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], removed: true)
+    named = Chat::Memory.subject_named(@agent_run.workspace, asked["about"], principal: @agent_run.acting_principal, removed: true)
     return named.refusal if named.refusal
 
     subject = named.subject
-    found = Chat::Memory.recall(@agent_run.workspace, subject: subject, query: asked["words"])
+    found = Chat::Memory.recall(@agent_run.workspace, principal: @agent_run.acting_principal, subject: subject, query: asked["words"])
     gone = "#{subject.name} is no longer on the map. It was last seen #{subject.removed_at.to_date.iso8601}, so check before relying on any of this." if subject.is_a?(ResourceMap::Resource) && subject.removed_at
     return [ gone, "Nothing is remembered about that yet." ].compact.join("\n") if found.memories.empty?
 

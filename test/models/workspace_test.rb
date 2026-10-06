@@ -51,6 +51,14 @@ class WorkspaceTest < ActiveSupport::TestCase
                  workspace.incident_types.pluck(:slug).sort
   end
 
+  test "a new workspace grants Firefight's investigator the map in every environment, as an ordinary grant" do
+    workspace = Workspace.process_slack_installation(mock_slack_auth_hash)[:workspace]
+
+    grant = workspace.ability_grants.find_by!(principal: SystemAgent.investigator)
+    assert_equal [ Ability::Action::MAP_READ, {} ], [ grant.action.key, grant.scope ]
+    assert_equal({}, AbilityGateway.reach(principal: SystemAgent.investigator, action_key: Ability::Action::MAP_READ, workspace: workspace))
+  end
+
   test "the first joiner owns the workspace and the next one does not" do
     team_id = "T#{SecureRandom.hex(8)}"
     first = Workspace.process_slack_installation(auth_hash_for(team_id))

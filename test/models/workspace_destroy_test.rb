@@ -89,8 +89,8 @@ class WorkspaceDestroyTest < ActiveSupport::TestCase
     assert_not Doorkeeper::AccessToken.where(resource_owner_id: membership_ids).exists?
     assert SystemAgent.exists?(SystemAgent.investigator.id),
            "a global agent is not one workspace's to delete"
-    assert_not Ability::Grant.where(principal: SystemAgent.investigator).exists?,
-               "but the grant it held in that workspace is gone"
+    assert_not Ability::Grant.where(principal: SystemAgent.investigator, workspace_id: workspace_id).exists?,
+               "but the grants it held in that workspace are gone"
   end
 
   test "destroying one workspace leaves the others and global actions untouched" do

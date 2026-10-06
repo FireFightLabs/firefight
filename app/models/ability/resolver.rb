@@ -2,10 +2,12 @@ module Ability
   # Cached per principal and busted on any grant or role write, so a revoke
   # takes effect on the next call. The TTL is only a safety net.
   class Resolver
-    CACHE_PREFIX = "ability/resolved/v1/"
+    CACHE_PREFIX = "ability/resolved/v2/"
     CACHE_TTL = 1.hour
 
-    ResolvedGrants = Data.define(:by_key) do
+    # by_key holds live grants only. ever_granted also names the keys of expired ones, since a grant that narrows a
+    # default keeps narrowing once it lapses rather than handing the default back.
+    ResolvedGrants = Data.define(:by_key, :ever_granted) do
       def covers?(action_key, requested_scope = {})
         scopes = by_key[action_key]
         return false unless scopes
@@ -16,6 +18,20 @@ module Ability
       def action_keys
         by_key.keys
       end
+
+      def granted_ever?(action_key) = ever_granted.include?(action_key)
+
+      # Where the live grants for action_key reach, as a scope: {} for every environment, the environments they name, or
+      # nil when none is live. A grant that names no environment reaches every one.
+      def reach(action_key)
+        scopes = by_key[action_key]
+        return nil if scopes.blank?
+
+        environments = scopes.map { |scope| scope[Ability::Scope::DIMENSION_ENVIRONMENT] || scope[Ability::Scope::DIMENSION_ENVIRONMENT.to_sym] }
+        return {} if environments.any?(&:nil?)
+
+        { Ability::Scope::DIMENSION_ENVIRONMENT => environments.flatten.uniq }
+      end
     end
 
     # Workspace is required rather than read off the principal, because a principal
@@ -25,14 +41,14 @@ module Ability
     def self.resolve(principal, workspace)
       workspace_id = workspace.is_a?(Workspace) ? workspace.id : workspace
       key = cache_key(principal.class.polymorphic_name, principal.id, workspace_id)
-      by_key = Rails.cache.read(key)
+      resolved = Rails.cache.read(key)
 
-      if by_key.nil?
-        by_key = compute(principal, workspace_id)
-        Rails.cache.write(key, by_key, expires_in: cache_ttl_for(principal, workspace_id))
+      if resolved.nil?
+        resolved = { by_key: compute(principal, workspace_id), ever_granted: ever_granted(principal, workspace_id) }
+        Rails.cache.write(key, resolved, expires_in: cache_ttl_for(principal, workspace_id))
       end
 
-      ResolvedGrants.new(by_key: by_key)
+      ResolvedGrants.new(by_key: resolved[:by_key], ever_granted: resolved[:ever_granted])
     end
 
     def self.cache_ttl_for(principal, workspace_id)
@@ -68,6 +84,14 @@ module Ability
       end
 
       by_key
+    end
+
+    # Every key a grant names, live or expired, directly or through a set.
+    def self.ever_granted(principal, workspace_id)
+      grants = Grant.where(principal: principal, workspace_id: workspace_id)
+      direct = Action.where(id: grants.select(:action_id)).pluck(:key)
+      through_sets = Action.joins(:role_actions).where(ability_role_actions: { role_id: grants.select(:role_id) }).pluck(:key)
+      (direct + through_sets).uniq
     end
 
     def self.cache_key(principal_type, principal_id, workspace_id)

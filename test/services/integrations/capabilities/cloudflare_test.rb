@@ -88,7 +88,7 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
 
   private
 
-  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given)
+  def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   # The request inside the script Firefight wrote, read back out of its JSON literal.
   def request_of(call)

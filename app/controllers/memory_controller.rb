@@ -14,7 +14,7 @@ class MemoryController < InertiaController
   before_action :require_agent!
 
   def index
-    memories = Chat::Memory.where(workspace: current_workspace).includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
+    memories = self.memories.includes(:subject, :source, :added_by, :confirmed_by, :rejected_by).order(updated_at: :desc)
 
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
@@ -94,17 +94,19 @@ class MemoryController < InertiaController
 
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
 
-  def memories = Chat::Memory.where(workspace: current_workspace)
+  # A memory about a resource outside the person's map reach is not on their page, and deciding on one finds nothing.
+  def memories = Chat::Memory.visible_to(current_membership, current_workspace)
 
   def instructions = Chat::Instruction.where(workspace: current_workspace)
 
-  def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject])
+  def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject], principal: current_membership)
 
   def subject_options
     entries = current_workspace.catalog_entries.active.includes(:catalog_type).order(:name).map do |entry|
       { value: Chat::Memory.subject_key(entry), label: "#{entry.name} · #{entry.catalog_type.name}" }
     end
-    resources = ResourceMap::Resource.present.where(workspace: current_workspace).order(:name).map do |resource|
+    # Only what the person reads on the map, so the picker never names a resource outside their environments.
+    resources = ResourceMap::Resource.visible_to(current_membership, current_workspace).present.order(:name).map do |resource|
       { value: Chat::Memory.subject_key(resource), label: "#{resource.name} · #{ResourceMap.provider_name(resource.provider)}" }
     end
     entries + resources
