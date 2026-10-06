@@ -74,7 +74,13 @@ class Conversation::LiveDelivery
 
   private
 
+  # Action Cable hands broadcasts to a pool of threads, so they can reach the page out of order. Each says when it was
+  # sent, in microseconds and never twice the same, and the page places it by that.
   def broadcast(payload)
-    ConversationChannel.broadcast_to(@conversation, payload)
+    ConversationChannel.broadcast_to(@conversation, payload.merge(seq: next_seq))
+  end
+
+  def next_seq
+    @seq = [ Process.clock_gettime(Process::CLOCK_REALTIME, :microsecond), (@seq || 0) + 1 ].max
   end
 end
