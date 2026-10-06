@@ -34,7 +34,10 @@ module Integrations
           "network_in" => Metric.new(type: "run.googleapis.com/container/network/received_bytes_count", aligner: "ALIGN_RATE", reducer: "REDUCE_SUM",
                                      unit: BYTES_PER_SECOND, title: "Network in"),
           "network_out" => Metric.new(type: "run.googleapis.com/container/network/sent_bytes_count", aligner: "ALIGN_RATE", reducer: "REDUCE_SUM",
-                                      unit: BYTES_PER_SECOND, title: "Network out")
+                                      unit: BYTES_PER_SECOND, title: "Network out"),
+          # request_latencies is a distribution in ms, so its 95th percentile is read per revision and the slowest kept.
+          "latency_p95" => Metric.new(type: "run.googleapis.com/request_latencies", aligner: "ALIGN_PERCENTILE_95", reducer: "REDUCE_MAX",
+                                      unit: "ms", title: "Latency, 95th percentile")
         }.freeze
         # network/connections is kept only for MySQL and SQL Server, and num_backends is PostgreSQL's, one series a database.
         SQL_CONNECTIONS = Metric.new(type: "cloudsql.googleapis.com/database/network/connections", aligner: "ALIGN_MEAN", unit: COUNT, title: "Connections")
@@ -61,7 +64,7 @@ module Integrations
         BY_TYPE = { TYPE_RUN => RUN, TYPE_SQL => SQL, TYPE_MACHINE => MACHINE }.freeze
         DEFAULTS = { TYPE_RUN => %w[requests http_5xx cpu memory], TYPE_SQL => %w[cpu memory disk tcp_connections], TYPE_MACHINE => %w[cpu network_in network_out] }.freeze
         # What a baseline reads for each kind, once a day over a week.
-        BASELINES = { TYPE_RUN => %w[requests http_5xx cpu memory], TYPE_SQL => %w[cpu memory disk], TYPE_MACHINE => %w[cpu] }.freeze
+        BASELINES = { TYPE_RUN => %w[requests http_5xx cpu memory latency_p95], TYPE_SQL => %w[cpu memory disk], TYPE_MACHINE => %w[cpu] }.freeze
         # Cloud Monitoring aligns no finer than a minute.
         MIN_ALIGNMENT = 60
         POINTS = 60

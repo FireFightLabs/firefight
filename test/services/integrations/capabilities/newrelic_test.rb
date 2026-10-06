@@ -69,6 +69,12 @@ class Integrations::Capabilities::NewrelicTest < ActiveSupport::TestCase
     assert_match "does not keep cpu", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "cpu" ], "connection" => "newrelic")
   end
 
+  test "requests compare with the throughput New Relic's baselines keep, and errors, kept there as a share, with nothing" do
+    assert_equal "throughput", Integrations::Capabilities.baseline_metric(@newrelic_row, "requests", ResourceMap::KIND_SERVICE)
+    assert_nil Integrations::Capabilities.baseline_metric(@newrelic_row, "errors", ResourceMap::KIND_SERVICE)
+    assert Integrations::BaselineReaders::Newrelic::METRICS.key?("throughput")
+  end
+
   test "a metrics answer becomes a chart per metric, and one with no transactions says so and lets the platform answer" do
     travel_to Time.utc(2026, 9, 1, 12) do
       metrics = resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "requests" ], "minutes" => 2)

@@ -43,6 +43,22 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
     assert_match "AWS does not keep http_5xx for this resource. It keeps cpu, memory", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "http_5xx" ])
   end
 
+  test "a function's invocations, duration and throttles and a database's memory and disk are the CloudWatch metrics AWS keeps, compared with their baselines" do
+    function = resolve(Integrations::Capabilities::METRICS, "resource" => "checkout", "metrics" => %w[invocations duration throttles])
+    assert_equal %w[Invocations Duration Throttles], function.arguments["metrics"]
+    assert_equal %w[FreeableMemory FreeStorageSpace], resolve(Integrations::Capabilities::METRICS, "resource" => "orders", "metrics" => %w[memory disk]).arguments["metrics"]
+    assert_match "AWS does not keep latency_p95", unroutable(Integrations::Capabilities::METRICS, "resource" => "checkout", "metrics" => [ "latency_p95" ])
+
+    assert_equal "Throttles", Integrations::Capabilities.baseline_metric(@row, "throttles", ResourceMap::KIND_FUNCTION)
+    assert_equal "FreeStorageSpace", Integrations::Capabilities.baseline_metric(@row, "disk", ResourceMap::KIND_DATABASE)
+    assert_nil Integrations::Capabilities.baseline_metric(@row, "disk", ResourceMap::KIND_SERVICE)
+    assert_includes Integrations::Packs::Aws::BASELINE_METRICS.fetch(ResourceMap::KIND_DATABASE), "FreeStorageSpace"
+    Integrations::Capabilities::Aws::METRIC_MAP.each_value do |mapping|
+      assert_empty mapping.keys - Integrations::Capabilities::METRIC_NAMES
+      assert_empty mapping.values - Integrations::Packs::Aws::METRIC_NAMES
+    end
+  end
+
   test "a change runs the pack's tool for that change, with what it takes" do
     rollback = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "web", "to" => "web:41")
     assert_equal [ "rollback_deployment", { "resource" => SERVICE_ARN, "to" => "web:41" } ], [ rollback.tool.name, rollback.arguments ]
