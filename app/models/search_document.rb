@@ -40,6 +40,11 @@ class SearchDocument < ApplicationRecord
       .where("document @@ phraseto_tsquery('simple', :name) OR facets -> 'environments' ? :name", name: name.to_s)
   end
 
+  # What principal can find for query, a page at a time. See SearchDocument::Search.
+  def self.search(workspace, query, principal:, types: nil, filters: {}, limit: Search::DEFAULT_LIMIT, cursor: nil, meaning: nil)
+    Search.new(workspace, query, principal: principal, types: types, filters: filters, meaning: meaning).page(limit: limit, cursor: cursor)
+  end
+
   def self.index_later(klass, ids)
     ids = Array(ids).compact.uniq
     SearchDocumentIndexJob.perform_later(klass.name, ids) if ids.any?

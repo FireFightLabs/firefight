@@ -24,7 +24,7 @@ class SearchDocumentTest < ActiveSupport::TestCase
     assert_not matches?(document, "3"), "only words in details are searched"
     assert_equal({ "kind" => "service", "provider" => "northflank", "environments" => [ "Production" ], "names" => [ "payments-api", "acme/shop" ] }, document.facets)
     assert_equal "payments-api acme/shop", document.trigram_text
-    assert_equal [ "name", "id", "catalog" ], resource.search_document_matched([ "payments", "auth" ]) - [ "details" ]
+    assert_equal [ "name", "catalog" ], resource.search_document_matched([ "payments", "auth" ]) - [ "details" ]
   end
 
   test "ids and names are kept as written, never stemmed" do

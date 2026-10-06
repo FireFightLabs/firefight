@@ -25,4 +25,13 @@ class SearchEmbeddingService
     vector = FirefightAi.embed(query, workspace: @workspace).vectors
     SearchEmbedding.nearest(vector, workspace: @workspace, limit: limit, types: types)
   end
+
+  QUERY_CACHE = 10.minutes
+
+  # The vector of what someone typed. A search box asks again as each word is typed, so the same words within a few
+  # minutes reuse the vector rather than paying for it twice.
+  def query_vector(query)
+    key = [ "search_query_vector", @workspace.id, FirefightAi.embedding_model, Digest::SHA256.hexdigest(query.to_s.squish.downcase) ]
+    Rails.cache.fetch(key, expires_in: QUERY_CACHE) { FirefightAi.embed(query, workspace: @workspace).vectors }
+  end
 end

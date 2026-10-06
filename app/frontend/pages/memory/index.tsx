@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCan } from "@/lib/permissions"
 import { InstructionsTab } from "@/pages/memory/components/instructions-tab"
 import { MemoriesTab } from "@/pages/memory/components/memories-tab"
-import { MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS } from "@/lib/generated/constants"
+import { MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS, MEMORY_QUERY_PARAM } from "@/lib/generated/constants"
 import type { MemoryPageProps, MemoryTab } from "@/pages/memory/types"
 
 function tabFromUrl(): MemoryTab {
@@ -14,11 +14,16 @@ function tabFromUrl(): MemoryTab {
   return Object.values(MEMORY_PAGE_TABS).find((tab) => tab === requested) ?? MEMORY_PAGE_TABS.MEMORIES
 }
 
+function memoryFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get(MEMORY_QUERY_PARAM)
+}
+
 export default function MemoryPage() {
   const { memories, instructions, subjects } = usePage<MemoryPageProps>().props
   const canDecide = useCan("memory")
   const canInstruct = useCan("catalog")
   const [ tab, setTab ] = useState(tabFromUrl)
+  const [ focusedId ] = useState(memoryFromUrl)
   // An expired memory was set aside already, so it no longer waits on anyone.
   const toReview = memories.filter((memory) => !memory.confirmBlockedReason && memory.state !== "expired").length
 
@@ -51,7 +56,7 @@ export default function MemoryPage() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value={MEMORY_PAGE_TABS.MEMORIES}>
-          <MemoriesTab memories={memories} subjects={subjects} canCurate={canDecide} />
+          <MemoriesTab memories={memories} subjects={subjects} canCurate={canDecide} focusedId={focusedId} />
         </TabsContent>
         <TabsContent value={MEMORY_PAGE_TABS.INSTRUCTIONS}>
           <InstructionsTab instructions={instructions} subjects={subjects} canCurate={canInstruct} />

@@ -3,7 +3,7 @@ import { useState } from "react"
 import PromptBar, { type PromptAttachment } from "@/components/agent-ui/prompt-bar"
 import { agentChatsIncidentsPath } from "@/lib/routes"
 import { UPLOAD_STATES, type ComposerAttachment, useAttachmentUploads } from "@/pages/agent/hooks/use-attachment-uploads"
-import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
+import { useRemoteSearch } from "@/hooks/use-remote-search"
 import { ask, stopChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatAttachmentRules, AgentChatIncident } from "@/types/serializers"
 

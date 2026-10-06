@@ -1,8 +1,12 @@
 import { useEffect } from "react"
 
 // Ignored inside an open dialog, so search never opens on top of another dialog.
-export function useSearchShortcut(openSearch: () => void) {
+export function useSearchShortcut(openSearch: () => void, enabled = true) {
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
     function onKey(event: KeyboardEvent) {
       if (event.key !== "k" || !(event.metaKey || event.ctrlKey)) {
         return
@@ -18,5 +22,5 @@ export function useSearchShortcut(openSearch: () => void) {
     window.addEventListener("keydown", onKey)
 
     return () => window.removeEventListener("keydown", onKey)
-  }, [ openSearch ])
+  }, [ openSearch, enabled ])
 }

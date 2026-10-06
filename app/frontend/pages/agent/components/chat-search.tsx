@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { agentChatsSearchPath } from "@/lib/routes"
-import { useRemoteSearch } from "@/pages/agent/hooks/use-remote-search"
+import { useRemoteSearch } from "@/hooks/use-remote-search"
 import { openChat } from "@/pages/agent/lib/chat-updates"
 import type { AgentChat } from "@/types/serializers"
 

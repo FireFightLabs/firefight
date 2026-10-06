@@ -1,5 +1,5 @@
 import type { SharedProps } from "@/types"
-import type { ResourceMapKind } from "@/lib/generated/constants"
+import { RESOURCE_MAP_PAGE_QUERY, RESOURCE_MAP_VIEWS, type ResourceMapKind } from "@/lib/generated/constants"
 import type {
   ResourceMapChange,
   ResourceMapConnection,
@@ -19,11 +19,11 @@ export interface MapPageProps extends SharedProps {
   readsIn: string[] | null
 }
 
-export const MAP_VIEWS = { MAP: "map", FOCUS: "focus", TABLE: "table" } as const
+export const MAP_VIEWS = RESOURCE_MAP_VIEWS
 export type MapView = (typeof MAP_VIEWS)[keyof typeof MAP_VIEWS]
 
-// The view and the focused resource live in the address, so a link from a chat or a teammate opens the same place.
-export const MAP_QUERY = { VIEW: "view", RESOURCE: "resource" } as const
+// The view and the focused resource live in the address, so a link from search, a chat or a teammate opens the same place.
+export const MAP_QUERY = RESOURCE_MAP_PAGE_QUERY
 
 // A link reads "from depends on to", so what a resource needs lies along its links out, and what needs it along its links in.
 export const DIRECTIONS = { BOTH: "both", NEEDS: "needs", NEEDED_BY: "needed_by" } as const

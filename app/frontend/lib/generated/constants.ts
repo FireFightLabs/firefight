@@ -134,6 +134,34 @@ export const MEMORY_PAGE_TABS = {
 
 export const MEMORY_PAGE_TAB_QUERY = "tab" as const
 
+export const MEMORY_QUERY_PARAM = "memory" as const
+
+export const CATALOG_ENTRY_QUERY_PARAM = "entry" as const
+
+export const RESOURCE_MAP_PAGE_QUERY = {
+  "VIEW": "view",
+  "RESOURCE": "resource"
+} as const
+
+export const RESOURCE_MAP_VIEWS = {
+  "MAP": "map",
+  "FOCUS": "focus",
+  "TABLE": "table"
+} as const
+
+export const MAP_SEARCH_TYPES = [
+  "resource",
+  "catalog_entry",
+  "memory"
+] as const
+export type MapSearchType = (typeof MAP_SEARCH_TYPES)[number]
+
+export const MAP_SEARCH_TYPE = {
+  "RESOURCE": "resource",
+  "CATALOG_ENTRY": "catalog_entry",
+  "MEMORY": "memory"
+} as const
+
 export const RESOURCE_MAP_RELATIONS = [
   "runs_builds_of",
   "built_from",

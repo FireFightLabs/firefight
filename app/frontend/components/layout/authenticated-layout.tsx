@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useState } from "react";
 import { usePage } from "@inertiajs/react";
 import { IconPlugConnectedX } from "@tabler/icons-react";
 
@@ -7,7 +7,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { onboardingReinstallPath } from "@/lib/routes";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
+import { SearchPalette } from "@/components/navigation/search-palette";
 import { SiteHeader } from "@/components/navigation/site-header";
+import { useSearchShortcut } from "@/hooks/use-search-shortcut";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TOAST_OPTIONS } from "@/lib/toast-options";
@@ -18,6 +20,8 @@ interface AuthenticatedLayoutProps {
   title?: string;
   actions?: ReactNode;
   sidebarCollapsed?: boolean;
+  // A page that answers Cmd or Ctrl K with a search of its own keeps it, and the search stays a click away in the header.
+  ownsSearchShortcut?: boolean;
 }
 
 // Slack said the install is gone. Recorded data stays readable, so the page
@@ -86,8 +90,12 @@ export function AuthenticatedLayout({
   title = "Dashboard",
   actions,
   sidebarCollapsed = false,
+  ownsSearchShortcut = false,
 }: AuthenticatedLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen(sidebarCollapsed);
+  const [searching, setSearching] = useState(false);
+  const openSearch = useCallback(() => setSearching(true), []);
+  useSearchShortcut(openSearch, !ownsSearchShortcut);
 
   return (
     <TooltipProvider>
@@ -103,7 +111,7 @@ export function AuthenticatedLayout({
       >
         <AppSidebar />
         <SidebarInset>
-          <SiteHeader title={title} actions={actions} />
+          <SiteHeader title={title} actions={actions} onSearch={openSearch} searchShortcut={!ownsSearchShortcut} />
           <DisconnectedBanner />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2 pt-6">
@@ -111,6 +119,7 @@ export function AuthenticatedLayout({
             </div>
           </div>
         </SidebarInset>
+        <SearchPalette open={searching} onOpenChange={setSearching} />
         <Toaster toastOptions={TOAST_OPTIONS} />
         <FlashToaster />
       </SidebarProvider>

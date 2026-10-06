@@ -1,6 +1,6 @@
 import { Link, router } from "@inertiajs/react"
 import { IconPlus, IconSearch } from "@tabler/icons-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
@@ -30,10 +30,16 @@ interface MemoriesTabProps {
   memories: ChatMemory[]
   subjects: SubjectOption[]
   canCurate: boolean
+  // A memory a link points at, such as a search result, shown under the filter that holds it and marked.
+  focusedId: string | null
 }
 
-export function MemoriesTab({ memories, subjects, canCurate }: MemoriesTabProps) {
-  const [ filter, setFilter ] = useState<MemoryFilter>(MEMORY_FILTERS.IN_USE)
+function filterHolding(memory: ChatMemory | undefined): MemoryFilter {
+  return (memory && Object.values(MEMORY_FILTERS).find((each) => inFilter(memory, each))) ?? MEMORY_FILTERS.IN_USE
+}
+
+export function MemoriesTab({ memories, subjects, canCurate, focusedId }: MemoriesTabProps) {
+  const [ filter, setFilter ] = useState<MemoryFilter>(() => filterHolding(memories.find((memory) => memory.id === focusedId)))
   const [ query, setQuery ] = useState("")
   const [ adding, setAdding ] = useState(false)
   const [ deciding, setDeciding ] = useState<{ memory: ChatMemory; decision: Decision } | null>(null)
@@ -117,7 +123,7 @@ export function MemoriesTab({ memories, subjects, canCurate }: MemoriesTabProps)
             </TableHeader>
             <TableBody>
               {shown.map((memory) => (
-                <MemoryRow key={memory.id} memory={memory} canCurate={canCurate} onDecide={setDeciding} onDelete={setDeleting} />
+                <MemoryRow key={memory.id} memory={memory} focused={memory.id === focusedId} canCurate={canCurate} onDecide={setDeciding} onDelete={setDeleting} />
               ))}
             </TableBody>
           </Table>
@@ -143,13 +149,21 @@ export function MemoriesTab({ memories, subjects, canCurate }: MemoriesTabProps)
 
 interface MemoryRowProps {
   memory: ChatMemory
+  focused: boolean
   canCurate: boolean
   onDecide: (choice: { memory: ChatMemory; decision: Decision }) => void
   onDelete: (memory: ChatMemory) => void
 }
 
-function MemoryRow({ memory, canCurate, onDecide, onDelete }: MemoryRowProps) {
+function MemoryRow({ memory, focused, canCurate, onDecide, onDelete }: MemoryRowProps) {
+  const row = useRef<HTMLTableRowElement>(null)
   const decidable = !memory.rejectBlockedReason
+
+  useEffect(() => {
+    if (focused) {
+      row.current?.scrollIntoView({ block: "center" })
+    }
+  }, [ focused ])
   const confirmable = !memory.confirmBlockedReason
 
   function confirm() {
@@ -169,7 +183,7 @@ function MemoryRow({ memory, canCurate, onDecide, onDelete }: MemoryRowProps) {
   }
 
   return (
-    <TableRow className="align-top">
+    <TableRow ref={row} data-focused={focused || undefined} className="align-top data-[focused]:bg-brand-tint">
       <TableCell className="max-w-xl min-w-64 pl-6 whitespace-normal">
         <div className="flex flex-col gap-1.5 py-1">
           <div className="flex flex-wrap items-center gap-2">

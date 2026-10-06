@@ -59,6 +59,13 @@ module ResourceMap
     RELATION_PROTECTED_BY => "is protected by", RELATION_MANAGED_BY => "is managed in"
   }.freeze
 
+  # The map page's address, so a link from search, a chat or a teammate opens the same view on the same resource.
+  PAGE_VIEW_PARAM = "view".freeze
+  PAGE_RESOURCE_PARAM = "resource".freeze
+  VIEW_MAP = "map".freeze
+  VIEW_FOCUS = "focus".freeze
+  VIEW_TABLE = "table".freeze
+
   # Providers that put things on the map without being a connection of their own, such as a domain a service serves.
   DOMAINS = "dns".freeze
   PROVIDER_NAMES = { DOMAINS => "Domains" }.freeze
