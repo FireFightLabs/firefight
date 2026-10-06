@@ -414,7 +414,8 @@ module Integrations
       def item(resource, type, status, hosts: [], details: {})
         target = Target.parse(resource["id"])
         { type: type, id: resource["id"], name: resource["name"], group: target&.group, location: resource["location"], status: status.to_s.downcase.presence || "unknown",
-          hosts: hosts, details: { TYPE => type, "resource_group" => target&.group, "region" => resource["location"] }.merge(details).compact }
+          hosts: hosts, details: { TYPE => type, "resource_group" => target&.group, "region" => resource["location"],
+                                   ResourceMap::TAGS => resource["tags"].presence }.merge(details).compact }
       end
 
       def site_item(site)

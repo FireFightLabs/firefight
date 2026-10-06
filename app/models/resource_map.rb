@@ -182,6 +182,9 @@ module ResourceMap
 
   # A new commit on a service is a deploy, since a sweep only sees the commit that is running.
   DEPLOYED_COMMIT = "deployed_commit".freeze
+  # The provider's own tags or labels on a resource, a hash of key to value. Never shown under DETAIL_LABELS, since
+  # they are the provider's words rather than facts a person reads at a glance, and kept for finding resources by.
+  TAGS = "tags".freeze
   # A database branch that serves production, which is the one a service connects to.
   PRODUCTION = "production".freeze
   SHORT_COMMIT = 7

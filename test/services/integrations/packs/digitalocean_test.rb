@@ -170,6 +170,16 @@ module Integrations
         assert_includes relations, [ APP_ID, ResourceMap::RELATION_BUILT_FROM, "acme/shop" ]
       end
 
+      test "a Droplet's and a database's tags are kept as keys alone, since DigitalOcean's tags carry no value" do
+        DigitaloceanApi.any_instance.stubs(:droplets).returns(Pages::Read.new(items: [ { "id" => 1, "name" => "one", "tags" => %w[web prod] } ], complete: true))
+        DigitaloceanApi.any_instance.stubs(:databases).returns(Pages::Read.new(items: [ { "id" => "db-2", "name" => "orders", "engine" => "pg" } ], complete: true))
+
+        found = @pack.map_of(@row).resources.index_by(&:external_id)
+
+        assert_equal({ "web" => nil, "prod" => nil }, found["1"].details[ResourceMap::TAGS])
+        assert_not found["db-2"].details.key?(ResourceMap::TAGS)
+      end
+
       test "a list read only in part is a gap, and the kinds it holds are not taken as gone" do
         DigitaloceanApi.any_instance.stubs(:droplets).returns(Pages::Read.new(items: [ { "id" => 1, "name" => "one" } ], complete: false))
 

@@ -385,13 +385,17 @@ module Integrations
         when KIND_APP then map_app(environment_row, row, account, resources, links)
         when KIND_DROPLET
           resources << found(environment_row, kind, row["id"], row["name"], account, status: row["status"],
-                             details: { "size" => row["size_slug"], "region" => row.dig("region", "slug"), "image" => row.dig("image", "distribution") }.compact)
+                             details: { "size" => row["size_slug"], "region" => row.dig("region", "slug"), "image" => row.dig("image", "distribution"),
+                                        ResourceMap::TAGS => tags_of(row) }.compact)
         else
           resources << found(environment_row, kind, row["id"], row["name"], account, status: row["status"],
                              details: { "engine" => row["engine"], "version" => row["version"], "nodes" => row["num_nodes"],
-                                        "size" => row["size"], "region" => row["region"] }.compact)
+                                        "size" => row["size"], "region" => row["region"], ResourceMap::TAGS => tags_of(row) }.compact)
         end
       end
+
+      # DigitalOcean's tags are plain words with no value, so each is kept as a key alone.
+      def tags_of(row) = Array(row["tags"]).to_h { |tag| [ tag.to_s, nil ] }.presence
 
       def map_app(environment_row, app, account, resources, links)
         spec = app["spec"].to_h
