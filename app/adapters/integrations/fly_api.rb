@@ -7,11 +7,14 @@ module Integrations
     class Error < Integrations::Error; end
     # The machine changed since it was read, so an update guarded by its version was refused (spec, UpdateMachineRequest).
     class Conflict < Error; end
+    # Fly has no such app or machine (spec, 404 on GET /v1/apps/{app_name}).
+    class NotFound < Error; end
 
     MACHINES_ROOT = "https://api.machines.dev/v1".freeze
     API_ROOT = "https://api.fly.io".freeze
     PROVIDER = "Fly".freeze
     CONFLICT = 409
+    REFINED = { CONFLICT => Conflict, 404 => NotFound }.freeze
     # A token from fly tokens create holds macaroons, which flyctl sends under the FlyV1 scheme, and anything else under
     # Bearer (superfly/fly-go, tokens/tokens.go).
     MACAROON = /(?:\A|,)\s*(?:fm1r|fm1a|fm2)_/
@@ -141,7 +144,7 @@ module Integrations
       request["Authorization"] = authorization
       request["Accept"] = "application/json"
       Http.json(uri, request, error_class: Error, provider_name: PROVIDER, read_timeout: read_timeout,
-                              refine: ->(code, _reason) { Conflict if code == CONFLICT })
+                              refine: ->(code, _reason) { REFINED[code] })
     end
 
     def segment(value) = Http.segment(value)

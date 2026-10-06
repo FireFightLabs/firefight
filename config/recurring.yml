@@ -26,9 +26,9 @@ development:
     queue: background
     schedule: every hour
   resource_map_event_poll:
-    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one, so the map follows it between sweeps
+    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
-    schedule: every 5 minutes
+    schedule: every minute
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background
@@ -102,9 +102,9 @@ staging:
     queue: background
     schedule: every hour
   resource_map_event_poll:
-    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one, so the map follows it between sweeps
+    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
-    schedule: every 5 minutes
+    schedule: every minute
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background
@@ -200,9 +200,9 @@ production:
     queue: background
     schedule: every hour
   resource_map_event_poll:
-    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one, so the map follows it between sweeps
+    class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
-    schedule: every 5 minutes
+    schedule: every minute
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background

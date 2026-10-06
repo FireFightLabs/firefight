@@ -17,6 +17,8 @@ module IntegrationEnvironment::LiveUpdates
   WEBHOOK_REMOVE = "remove".freeze
   # A registration the provider refused for its plan or a limit waits this long before Firefight tries on its own again.
   MAP_EVENTS_REFUSED_RETRY = 1.day
+  # A change log read due within this is read now, since polls are queued once a minute.
+  MAP_EVENTS_POLL_SLACK = 30.seconds
 
   included do
     encrypts :map_events_secret
@@ -98,6 +100,16 @@ module IntegrationEnvironment::LiveUpdates
 
   def live_updates_turn_off_words
     "Firefight removes its webhook from #{integration.name}, which frees it for one of your own. The map then updates at each hourly sweep."
+  end
+
+  # Whether the provider's change log is read now. Each is read as often as its source says, and one the provider refused
+  # for what the connection may read waits a day.
+  def map_events_poll_due?(at: Time.current)
+    source = map_event_source
+    return false unless source&.polls?
+    return false if map_events_refused_at && map_events_refused_at > at - MAP_EVENTS_REFUSED_RETRY
+
+    map_events_polled_at.nil? || map_events_polled_at <= at - source.poll_every + MAP_EVENTS_POLL_SLACK
   end
 
   # Gives the row its address once. The update names the empty token, so two sweeps at once give it one.

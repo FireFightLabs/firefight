@@ -18,12 +18,15 @@ module Integrations
       assert_equal [ "new" ], ResourceMap::ReceivedEvent.where(integration_environment: row).pluck(:provider_event_id)
     end
 
-    test "the schedule queues a read of each connection whose provider keeps a change log, and none for others" do
+    test "the schedule queues a read of each connection whose provider keeps a change log when it is due, and none for others" do
       polled = connect_live!(@workspace, provider: "livepoll", name: "Live poll")
       connect_live!(@workspace)
 
       assert_enqueued_with(job: MapEventPollJob, args: [ polled ]) { MapEventPollJob.perform_now }
       assert_enqueued_jobs 1, only: MapEventPollJob
+
+      polled.update!(map_events_polled_at: 1.minute.ago)
+      assert_no_enqueued_jobs(only: MapEventPollJob) { MapEventPollJob.perform_now }
     end
 
     test "every job is on the schedule" do

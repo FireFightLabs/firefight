@@ -73,6 +73,24 @@ module Integrations
         }
       JS
 
+      # How many pages of an account's audit log one read of its changes takes, and how many entries a page holds.
+      AUDIT_PAGES = 4
+      AUDIT_PAGE = 500
+      # The requests that change something. A read is in the audit log too, and changes nothing on the map.
+      WRITES = %w[POST PUT PATCH DELETE].freeze
+      # What a change to one of these kinds is read again by. A hostname is read with its zone, and every other kind by
+      # the list that holds it.
+      NARROWS = [
+        ResourceMap::KIND_ZONE, ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE, ResourceMap::KIND_BUCKET, ResourceMap::KIND_DATABASE,
+        ResourceMap::KIND_KV_NAMESPACE, ResourceMap::KIND_QUEUE, ResourceMap::KIND_TUNNEL, ResourceMap::KIND_ORIGIN_POOL, ResourceMap::KIND_DATABASE_PROXY
+      ].freeze
+      ZONE_ONLY = "Only the zone that changed was read, so links its hostnames have elsewhere are kept until the next full read.".freeze
+
+      # What one read of the accounts' audit logs found: the writes (Cloudflare's own entries, cut to the fields read),
+      # the accounts whose log Cloudflare refused with its words, and whether some were left unread, by the page limit or
+      # the server cutting the answer short.
+      Changes = Data.define(:entries, :refused, :unread)
+
       Stop = Class.new(StandardError)
 
       def initialize(...)
@@ -84,7 +102,11 @@ module Integrations
         @switched_off = []
       end
 
-      def map
+      # Everything the connection reaches, or with scope only what a change named (MapEventSources::Cloudflare), read
+      # again by the list that holds it. nil for a scope it cannot narrow to, which a sweep reads.
+      def map(scope: nil)
+        return narrowed(scope) if scope
+
         begin
           listed = pages("accounts", "/accounts", {}, %w[id name], per_page: ZONES_PER_PAGE, kinds: ResourceMap::KINDS)
           if @switched_off.include?(EXECUTE)
@@ -102,7 +124,78 @@ module Integrations
         ResourceMap::Snapshot.new(resources: resources, links: @links.uniq, gaps: gaps)
       end
 
+      # Every write in each account's audit log from since to before (Audit Logs v2, GET /accounts/{account_id}/logs/audit,
+      # developers.cloudflare.com/api/resources/accounts/subresources/logs/subresources/audit/methods/list), in one script.
+      # Reading it needs Account Settings Read. Raises Integrations::Error when execute is switched off, RateLimited when
+      # Cloudflare asks to slow down and Refused with its words when it refuses the script.
+      def changes(since:, before:)
+        result = call(EXECUTE, { "code" => changes_script(since, before) }, "audit log changes since #{since.utc.iso8601}")
+        raise Integrations::Error, "execute is switched off for Cloudflare, and following its changes reads its audit log through it" if result.nil?
+
+        text = Array(result["content"]).filter_map { |part| part["text"] }.join
+        if result["isError"]
+          raise Integrations::Error.new("Cloudflare asked Firefight to slow down.").extend(RateLimited) if text.match?(RATE_LIMITED)
+
+          raise Refused, Sentence.join("Cloudflare refused to read its audit log", text.truncate(300))
+        end
+        parsed = JSON.parse(text)
+        read = without_markers(parsed)
+        unread = Array(read["unread"]) + (text.include?(TRUNCATED) ? Array(read["accounts"]) : [])
+        Changes.new(entries: Array(read["entries"]).select { |entry| entry.is_a?(Hash) }, refused: Array(read["refused"]), unread: unread.uniq)
+      rescue JSON::ParserError
+        raise Integrations::Error, "Cloudflare answered its audit log with something that is not JSON"
+      end
+
       private
+
+      # Only the resource a change named, by the list that holds it. Nothing else is added, so the links hostnames have
+      # elsewhere stay as they are. Gone when the whole list was read without it.
+      def narrowed(scope)
+        return unless NARROWS.include?(scope.kind) && scope.account
+
+        begin
+          listed = pages("accounts", "/accounts", {}, %w[id name], per_page: ZONES_PER_PAGE, kinds: [ scope.kind ])
+          return if @switched_off.include?(EXECUTE)
+
+          @account = listed.find { |account| account["name"] == scope.account }
+          return unless @account
+
+          read_kind(scope.kind, scope.external_id)
+        rescue Stop
+          raise Integrations::Error.new("Cloudflare asked Firefight to slow down.").extend(RateLimited)
+        end
+        wanted = scope.external_id && key(scope.kind, scope.external_id)
+        gone = wanted && @resources.none? { |found| found.key == wanted } && gaps.none? { |gap| gap.kinds.include?(scope.kind) } ? [ wanted ] : []
+        ResourceMap::Snapshot.new(resources: @resources.uniq(&:key), links: @links.uniq, gaps: gaps, gone: gone)
+      end
+
+      def read_kind(kind, id)
+        case kind
+        when ResourceMap::KIND_ZONE then read_one_zone(id)
+        when ResourceMap::KIND_WORKER then read_workers(only: id)
+        when ResourceMap::KIND_SITE then read_pages
+        when ResourceMap::KIND_BUCKET then read_buckets
+        when ResourceMap::KIND_DATABASE then read_d1
+        when ResourceMap::KIND_KV_NAMESPACE then read_kv
+        when ResourceMap::KIND_QUEUE then read_queues
+        when ResourceMap::KIND_TUNNEL then read_tunnels
+        when ResourceMap::KIND_ORIGIN_POOL then read_pools
+        when ResourceMap::KIND_DATABASE_PROXY then read_hyperdrive
+        end
+      end
+
+      # One zone with its settings, hostnames, Worker routes and load balancers. Its hostnames may be served by what
+      # other lists name, so this read adds links and takes none away.
+      def read_one_zone(id)
+        zones = pages("zones", "/zones", { "account.id" => @account["id"] }, %w[id name status plan.name], per_page: ZONES_PER_PAGE, kinds: [ ResourceMap::KIND_ZONE ])
+        zone = zones.find { |each| each["id"] == id }
+        return unless zone
+
+        about = Array(run("settings, Worker routes and load balancers of #{zone['name']}", zones_script([ id ]),
+                          kinds: [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_LOAD_BALANCER ])).find { |each| each["id"] == id }
+        read_zone(zone, about || {})
+        gap(ZONE_ONLY, kinds: [ ResourceMap::KIND_DOMAIN ])
+      end
 
       # A hostname only served, with no DNS record of its own in these zones, is still added, with nothing else known.
       def resources
@@ -158,12 +251,16 @@ module Integrations
         end
       end
 
-      def read_workers
+      # Every Worker with its bindings and the hostnames it serves, or with only, that one Worker and its bindings.
+      def read_workers(only: nil)
         workers = Array(run("Workers", list_script("/accounts/#{@account['id']}/workers/scripts", {}, %w[id]), kinds: [ ResourceMap::KIND_WORKER ])&.dig("items"))
+        workers = workers.select { |worker| worker["id"] == only } if only
         workers.each { |worker| add(ResourceMap::KIND_WORKER, worker["id"], worker["id"], url: dashboard("workers-and-pages")) }
         workers.map { |worker| worker["id"] }.each_slice(CHUNK) do |names|
           Array(run("Worker bindings", bindings_script(names), kinds: [ ResourceMap::KIND_WORKER ])).each { |settings| bindings(settings) }
         end
+        return if only
+
         domains = pages("Worker custom domains", "/accounts/#{@account['id']}/workers/domains", {}, %w[hostname service], kinds: [ ResourceMap::KIND_DOMAIN ])
         domains.each { |domain| serve(domain["hostname"], key(ResourceMap::KIND_WORKER, domain["service"])) if domain["service"] }
       end
@@ -196,12 +293,28 @@ module Integrations
       end
 
       def read_storage
+        read_buckets
+        read_d1
+        read_kv
+        read_queues
+      end
+
+      def read_buckets
         buckets = pages("R2 buckets", "/accounts/#{@account['id']}/r2/buckets", {}, %w[name location], items: "buckets", kinds: [ ResourceMap::KIND_BUCKET ])
         buckets.each { |bucket| add(ResourceMap::KIND_BUCKET, bucket["name"], bucket["name"], url: dashboard("r2/overview"), details: { "region" => bucket["location"] }.compact) }
+      end
+
+      def read_d1
         databases = pages("D1 databases", "/accounts/#{@account['id']}/d1/database", {}, %w[uuid name], kinds: [ ResourceMap::KIND_DATABASE ])
         databases.each { |database| add(ResourceMap::KIND_DATABASE, database["uuid"], database["name"], url: dashboard("workers/d1"), details: { "engine" => "D1" }) }
+      end
+
+      def read_kv
         namespaces = pages("KV namespaces", "/accounts/#{@account['id']}/storage/kv/namespaces", {}, %w[id title], kinds: [ ResourceMap::KIND_KV_NAMESPACE ])
         namespaces.each { |namespace| add(ResourceMap::KIND_KV_NAMESPACE, namespace["id"], namespace["title"], url: dashboard("workers/kv/namespaces")) }
+      end
+
+      def read_queues
         queues = pages("Queues", "/accounts/#{@account['id']}/queues", {}, %w[queue_name consumers], kinds: [ ResourceMap::KIND_QUEUE ])
         queues.each do |queue|
           found = add(ResourceMap::KIND_QUEUE, queue["queue_name"], queue["queue_name"], url: dashboard("workers/queues"))
@@ -400,6 +513,47 @@ module Integrations
               }
             }
             return out;
+          }
+        JS
+      end
+
+      # The writes in every account's audit log between since and before, oldest first, a page at a time from the cursor
+      # Cloudflare answers. An account whose log is refused is named with Cloudflare's words, and one with more pages
+      # than are read is named as unread. A rate limit stops the script.
+      def changes_script(since, before)
+        query = { since: since.utc.iso8601, before: before.utc.iso8601, limit: AUDIT_PAGE, direction: "asc" }
+        <<~JS
+          async () => {
+            #{PICK}
+            const entries = [], refused = [], unread = [], accounts = [];
+            for (let page = 1; page <= #{MAX_PAGES}; page++) {
+              const r = await cloudflare.request({ method: "GET", path: "/accounts", query: { page, per_page: #{ZONES_PER_PAGE} } });
+              accounts.push(...(r.result || []).map((a) => ({ id: a.id, name: a.name })));
+              if (!r.result_info || page >= (r.result_info.total_pages || 1)) break;
+            }
+            for (const account of accounts) {
+              let cursor = null, pages = 0;
+              try {
+                do {
+                  const query = Object.assign({}, #{JSON.generate(query)}, cursor ? { cursor } : {});
+                  const r = await cloudflare.request({ method: "GET", path: "/accounts/" + account.id + "/logs/audit", query });
+                  for (const e of r.result || []) {
+                    const method = String((e.raw || {}).method || "").toUpperCase();
+                    const failed = String((e.action || {}).result || "").toLowerCase() === "failure" || Number((e.raw || {}).status_code) >= 400;
+                    if (#{JSON.generate(WRITES)}.includes(method) && !failed) {
+                      entries.push(Object.assign({ account: account.name }, pick(e, ["id", "action.time", "raw.method", "raw.uri", "zone.id", "resource.product", "resource.id"])));
+                    }
+                  }
+                  cursor = (r.result_info || {}).cursor || null;
+                  pages += 1;
+                } while (cursor && pages < #{AUDIT_PAGES});
+                if (cursor) unread.push(account.name);
+              } catch (e) {
+                #{RETHROW}
+                refused.push({ account: account.name, error: String(e.message).slice(0, 200) });
+              }
+            }
+            return { entries, refused, unread, accounts: accounts.map((a) => a.name) };
           }
         JS
       end

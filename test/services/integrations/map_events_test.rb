@@ -132,6 +132,40 @@ module Integrations
       LiveTestPoll.log = []
     end
 
+    test "a change log the provider refuses for what the connection may read is read again a day later, or at once on a connection change" do
+      row = connect_live!(@workspace, provider: "livepoll", name: "Live poll")
+      LiveTestPoll.refusal = "Live poll refused the audit log: forbidden."
+
+      MapEvents.poll!(row)
+      row.reload
+      assert_equal [ "Live poll refused the audit log: forbidden.", false ], [ row.map_events_error, row.live_updates.on ]
+      assert_match "Firefight tries again tomorrow.", row.live_updates.reason
+      assert_not row.map_events_poll_due?
+      assert row.map_events_poll_due?(at: 1.day.from_now)
+
+      MapEvents.prepare!(row, now: true)
+      assert row.reload.map_events_poll_due?
+      LiveTestPoll.refusal = nil
+      MapEvents.poll!(row)
+      assert_equal [ nil, nil, true ], [ row.reload.map_events_error, row.map_events_refused_at, row.live_updates.on ]
+    ensure
+      LiveTestPoll.refusal = nil
+      LiveTestPoll.log = []
+    end
+
+    test "a change log is read as often as its provider says" do
+      row = connect_live!(@workspace, provider: "livepoll", name: "Live poll")
+      assert row.map_events_poll_due?
+
+      MapEvents.poll!(row)
+      assert_not row.reload.map_events_poll_due?
+      assert_not row.map_events_poll_due?(at: 4.minutes.from_now)
+      assert row.map_events_poll_due?(at: 5.minutes.from_now - 20.seconds), "a read due within the minute goes now"
+      assert_not @row.map_events_poll_due?, "a provider that keeps no change log is never read"
+    ensure
+      LiveTestPoll.log = []
+    end
+
     test "an event read both by polling and by a delivery is read again once" do
       row = connect_live!(@workspace, provider: "livepoll", name: "Live poll")
       LiveTestPoll.log = [ [ "c1", event("same", at: 1.minute.ago) ] ]
