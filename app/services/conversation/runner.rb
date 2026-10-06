@@ -137,7 +137,7 @@ class Conversation::Runner
   # A connected system is what an answer's claims about a cause rest on, so reading one is what owes the answer a check.
   def report_step(step)
     if step.tool.present?
-      seen[step.key] = Chat::Tools.step(step.tool, step.arguments)
+      seen[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @conversation.workspace)
       kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace)
       @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s)
     end

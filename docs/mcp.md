@@ -92,7 +92,8 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | `revoke_grant` | Revoke a grant by id |
 | `upsert_approval_rule` | Create (no id) or update (id) an approval rule. Only the keys given change |
 | `delete_approval_rule` | Delete a rule by id |
-| `search_activity` | The invocation ledger, filtered by decision and ability key |
+| `search_activity` | The invocation ledger, filtered by decision and ability key. A tool's row names the connection it ran through as a person tells it apart (`connection`, such as "Faylee (Northflank)") and its `provider` |
+| `search_approvals` | Approvals by status, each with its ability key and, for a tool, the connection it runs through (`connection`) and its `provider`, so a pending request says which account it would reach |
 
 ## Incident-write tools
 
