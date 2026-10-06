@@ -45,19 +45,23 @@ class Chat::MemoryReachTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_CONFIRMED, @hidden.reload.state
   end
 
-  test "remembering a fact about a hidden resource saves it for the whole workspace, as for a name not on the map" do
-    Chat::Tools::Remember.new(turn).call(fact: "secret-db is in Frankfurt", about: "secret-db")
+  test "remembering a fact about a hidden resource is refused as for a name not on the map, and nothing is saved" do
+    remember_tool = Chat::Tools::Remember.new(turn)
 
-    saved = Chat::Memory.where(workspace: @workspace).to_a.find { |memory| memory.text == "secret-db is in Frankfurt" }
-    assert_nil saved.subject
+    assert_equal remember_tool.call(fact: "It is in Frankfurt", about: "nothing-here").sub("nothing-here", "secret-db"),
+                 remember_tool.call(fact: "It is in Frankfurt", about: "secret-db")
+    assert_not(Chat::Memory.where(workspace: @workspace).to_a.any? { |memory| memory.text == "It is in Frankfurt" })
   end
 
-  test "a lesson button in Slack finds nothing when its memory is about a resource the presser cannot see" do
+  test "a lesson button or correction in Slack finds nothing when its memory is about a resource the presser cannot see" do
     incident = incidents(:active_critical_ws1)
-    @hidden.update!(source: incident)
+    post = Chat::MemoryPost.create!(workspace: @workspace, incident: incident, kind: Chat::MemoryPost::KIND_INCIDENT, channel_id: incident.channel_id,
+                                    memory_ids: [ @hidden.id ])
+    service = MemoryPostService.new(@workspace)
 
-    assert_not IncidentLearningService.new(@workspace).decide!(incident_id: incident.id, memory_id: @hidden.id, member: @member, confirmed: false,
-                                                               channel_id: "C1", message_id: "1")
+    assert_not service.decide!(reference: post.id, memory_id: @hidden.id, member: @member, confirmed: false, channel_id: "C1", message_id: "1")
+    assert_equal "That memory is gone. Close this and look on the Memory page.",
+                 service.correct!(post_id: post.id, memory_id: @hidden.id, member: @member, correction: "It holds nothing", reason: nil)
     assert_equal Chat::Memory::STATE_CONFIRMED, @hidden.reload.state
   end
 
