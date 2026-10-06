@@ -225,12 +225,39 @@ module Integrations
       end
 
       test "a resource's labels are kept in its details for finding it by, and one with none leaves the key out" do
-        reading = Kubernetes::MapReading.new("cluster.example.com")
+        reading = Kubernetes::MapReading.new("cluster.example.com", @workspace)
         reading.add(Kubernetes::WORKLOADS.fetch(Kubernetes::DEPLOYMENT), deployment.deep_merge("metadata" => { "labels" => { "app" => "web", "team" => "payments" } }))
         reading.add(Kubernetes::WORKLOADS.fetch(Kubernetes::DEPLOYMENT), deployment.deep_merge("metadata" => { "name" => "worker" }))
 
         assert_equal({ "app" => "web", "team" => "payments" }, reading.resources.first.details[ResourceMap::TAGS])
         assert_not reading.resources.last.details.key?(ResourceMap::TAGS)
+      end
+
+      test "a workload's settings are read in memory, a Secret's or ConfigMap's value by name only, and a service answers on its names in the cluster" do
+        web = deployment.deep_dup
+        web["spec"]["template"]["spec"]["containers"].first["env"] = [
+          { "name" => "DATABASE_URL", "value" => "postgres://app:k8s-secret-pw@postgres.production.svc.cluster.local:5432/shop" },
+          { "name" => "REDIS_URL", "valueFrom" => { "secretKeyRef" => { "name" => "redis", "key" => "url" } } },
+          { "name" => "DB_HOST", "valueFrom" => { "configMapKeyRef" => { "name" => "db", "key" => "host" } } }
+        ]
+        stub_list("/apis/apps/v1/namespaces/production/deployments", [ web ])
+        stub_list("/api/v1/namespaces/production/services", [
+          { "metadata" => { "name" => "postgres", "namespace" => "production" }, "spec" => { "selector" => { "app" => "postgres" }, "ports" => [ { "port" => 5432 } ] } }
+        ])
+        KubernetesApi.any_instance.stubs(:list).with { |asked, *| asked.exclude?("/deployments") && asked.exclude?("/services") }
+                     .returns(Pages::Read.new(items: [], complete: true))
+
+        snapshot = @pack.map_of(@row)
+
+        assert_equal [ [ "DATABASE_URL", true ], [ "DB_HOST", false ], [ "REDIS_URL", false ] ], snapshot.uses.map { |found| [ found.variable, found.address? ] }.sort
+        assert_equal 4, snapshot.endpoints.size, "postgres, postgres.production, postgres.production.svc and the full name"
+        assert_no_setting_values(snapshot, "k8s-secret-pw", "postgres://app:k8s-secret-pw@postgres.production.svc.cluster.local:5432/shop")
+
+        ResourceMap.record!(@row, snapshot)
+        ResourceMap::Matcher.new(@workspace).run!
+        link = ResourceMap::Link.find_by!(workspace: @workspace, origin: ResourceMap::ORIGIN_MATCHED)
+        assert_equal [ "web", "postgres", [ "DATABASE_URL" ] ], [ link.from_resource.name, link.to_resource.name, link.variables ]
+        assert_no_setting_values(snapshot, "k8s-secret-pw")
       end
 
       test "the map holds the workloads, services and ingresses with what serves what, and a list it may not read is a gap" do

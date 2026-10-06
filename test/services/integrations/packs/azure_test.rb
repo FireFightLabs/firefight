@@ -44,6 +44,7 @@ module Integrations
         AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns(pages([
           { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "sku" => { "name" => "Standard_D2ds_v4" }, "properties" => { "state" => "Ready", "version" => "16" } }
         ]))
+        AzureApi.any_instance.stubs(:post).with { |path, *| path.end_with?("/config/appsettings/list", "/config/connectionstrings/list") }.returns({ "properties" => {} })
         AzureApi.any_instance.stubs(:get).with(WEB_ID, Azure::WEB_VERSION).returns(SITE)
         AzureApi.any_instance.stubs(:get).with(FUNCTION_ID, Azure::WEB_VERSION).returns(FUNCTION)
         AzureApi.any_instance.stubs(:get).with(APP_ID, Azure::APP_VERSION).returns(APP)
@@ -242,6 +243,52 @@ module Integrations
         assert_equal %w[api.happy.westeurope.azurecontainerapps.io shop.example.com storefront.azurewebsites.net], snapshot.links.map { |link| link.from.last }.sort
         assert_equal [ ResourceMap::KIND_DATABASE ], snapshot.unread_kinds
         assert_match "Azure SQL databases could not be read", snapshot.gap_texts.first
+      end
+
+      test "apps' settings are read in memory, a Key Vault reference or a secret by name only, and each database reports its server's address" do
+        sql_url = "Server=tcp:shop-sql.database.windows.net,1433;Initial Catalog=orders;User ID=app;Password=azure-sql-pw"
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.Sql/servers") }
+                .returns(pages([ { "id" => "#{GROUP}/Microsoft.Sql/servers/shop-sql", "name" => "shop-sql",
+                                   "properties" => { "fullyQualifiedDomainName" => "shop-sql.database.windows.net" } } ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/flexibleServers") }.returns(pages([
+          { "id" => PG_ID, "name" => "catalog", "location" => "westeurope", "properties" => { "state" => "Ready", "fullyQualifiedDomainName" => "catalog.postgres.database.azure.com" } }
+        ]))
+        AzureApi.any_instance.stubs(:post).with { |path, *| path == "#{WEB_ID}/config/appsettings/list" }
+                .returns({ "properties" => { "REDIS_URL" => "@Microsoft.KeyVault(SecretUri=https://shop.vault.azure.net/secrets/redis)", "THEME" => "dark" } })
+        AzureApi.any_instance.stubs(:post).with { |path, *| path == "#{WEB_ID}/config/connectionstrings/list" }
+                .returns({ "properties" => { "Orders" => { "value" => sql_url, "type" => "SQLAzure" } } })
+        api = APP.deep_dup
+        api["properties"]["template"]["containers"].first["env"] = [ { "name" => "DATABASE_URL", "value" => "postgres://app:pg-pw@catalog.postgres.database.azure.com:6432/catalog" },
+                                                                      { "name" => "SECRET_DATABASE_URL", "secretRef" => "db-url" } ]
+        AzureApi.any_instance.stubs(:list).with { |path, *| path.end_with?("/Microsoft.App/containerApps") }.returns(pages([ api ]))
+
+        snapshot = @pack.map_of(@row)
+
+        uses = snapshot.uses.map { |found| [ found.from.last, found.variable, found.address? ] }.sort
+        assert_equal [ [ APP_ID, "DATABASE_URL", true ], [ APP_ID, "SECRET_DATABASE_URL", false ], [ WEB_ID, "Orders", true ], [ WEB_ID, "REDIS_URL", false ] ], uses
+        assert_equal [ [ PG_ID, 5432 ], [ PG_ID, 6432 ], [ SQL_ID, 1433 ] ], snapshot.endpoints.map { |found| [ found.resource.last, found.port ] }.sort
+        assert_no_setting_values(snapshot, sql_url, "azure-sql-pw", "pg-pw", "shop.vault.azure.net", "dark", "shop-sql.database.windows.net",
+                                 "catalog.postgres.database.azure.com")
+
+        ResourceMap.record!(@row, snapshot)
+        ResourceMap::Matcher.new(@workspace).run!
+        matched = ResourceMap::Link.where(workspace: @workspace, origin: ResourceMap::ORIGIN_MATCHED).includes(:from_resource, :to_resource)
+                                   .map { |link| [ link.from_resource.name, link.to_resource.name, link.variables ] }.sort
+        assert_equal [ [ "api", "catalog", [ "DATABASE_URL" ] ], [ "storefront", "orders", [ "Orders" ] ] ], matched
+        assert_no_setting_values(snapshot, sql_url, "azure-sql-pw", "pg-pw")
+      end
+
+      test "app settings Reader may not list are one gap, and the other apps are not asked" do
+        AzureApi.any_instance.expects(:post).with { |path, *| path.end_with?("/config/appsettings/list") }.once
+                .raises(AzureApi::Forbidden, "Azure answered 403: AuthorizationFailed")
+
+        snapshot = @pack.map_of(@row)
+
+        gap = snapshot.gaps.select(&:settings).sole
+        assert_match "Reading them needs Microsoft.Web/sites/config/list/action, which the Reader role does not include", gap.text
+        assert_empty gap.kinds
+        assert snapshot.complete?
+        assert_not snapshot.settings_complete?
       end
 
       test "a resource's tags are kept in its details for finding it by, and one with none leaves the key out" do
