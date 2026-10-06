@@ -34,6 +34,10 @@ class ResourceMapLinkSerializer < BaseSerializer
   type "string[]"
   def clues = link.clues
 
+  # The settings it was found in, such as DATABASE_URL, by name only.
+  type "string[]"
+  def variables = link.variables
+
   type :string, optional: true
   def removal_blocked_reason = link.removal_blocked_reason
 end

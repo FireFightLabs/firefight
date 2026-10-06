@@ -5,7 +5,7 @@ import { IconExternalLink, IconX } from "@tabler/icons-react"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/formatters"
-import { PAST_INCIDENT_DAYS } from "@/lib/generated/constants"
+import { PAST_INCIDENT_DAYS, RESOURCE_MAP_ORIGIN } from "@/lib/generated/constants"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { SearchableSelect } from "@/components/searchable-select"
 import {
@@ -53,6 +53,7 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
   const maybe = resource.suggestedDependentIds.flatMap((id) => byId.get(id) ?? [])
   const recent = changes.filter((change) => change.resourceId === resource.id)
   const history = recent.length > 0 ? recent : resource.lastChange ? [ resource.lastChange ] : []
+  const pointing = settingsPointingAt(resource, own, byId)
 
   return (
     <aside className="flex flex-col gap-6 overflow-y-auto border-t border-border bg-card/40 p-5 lg:border-t-0 lg:border-l" aria-label={`About ${resource.name}`}>
@@ -101,6 +102,12 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
         </Section>
       )}
 
+      {pointing.length > 0 && (
+        <Section title="Settings that point here">
+          <PointingSettings settings={pointing} onPick={onPick} />
+        </Section>
+      )}
+
       <Section title="Links and how they were found">
         {own.length === 0 && <p className="text-sm text-muted-foreground">No links yet. Nothing on the map is known to depend on it, or it on anything.</p>}
         {own.map((link) => (
@@ -141,6 +148,51 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
         ))}
       </Section>
     </aside>
+  )
+}
+
+// One line per setting of a service that names this resource, from the links into it that are facts and carry setting
+// names. A suggestion's setting only hints at the store, so it stays with the suggestion's clues.
+interface PointingSetting {
+  key: string
+  variable: string
+  from: ResourceMapResource
+}
+
+function settingsPointingAt(resource: ResourceMapResource, links: ResourceMapLink[], byId: Map<string, ResourceMapResource>): PointingSetting[] {
+  return links
+    .filter((link) => link.toId === resource.id && !link.unconfirmed)
+    .flatMap((link) => {
+      const from = byId.get(link.fromId)
+      if (!from) {
+        return []
+      }
+      return link.variables.map((variable) => ({ key: `${link.id}:${variable}`, variable, from }))
+    })
+}
+
+function PointingSettings({ settings, onPick }: { settings: PointingSetting[]; onPick: (resourceId: string) => void }) {
+  return (
+    <ul className="flex flex-col gap-1 text-sm">
+      {settings.map((setting) => (
+        <PointingSettingRow key={setting.key} setting={setting} onPick={onPick} />
+      ))}
+    </ul>
+  )
+}
+
+function PointingSettingRow({ setting, onPick }: { setting: PointingSetting; onPick: (resourceId: string) => void }) {
+  function pickService() {
+    onPick(setting.from.id)
+  }
+
+  return (
+    <li>
+      <code className="font-mono text-xs">{setting.variable}</code> from{" "}
+      <button type="button" onClick={pickService} className="font-semibold hover:underline">
+        {setting.from.name}
+      </button>
+    </li>
   )
 }
 
@@ -280,6 +332,8 @@ function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
   const from = byId.get(link.fromId)
   const to = byId.get(link.toId)
   const other = link.fromId === focusId ? to : from
+  // A suggestion shows what it rests on, and so does a match from a setting, since its clue names the setting.
+  const showsClues = (link.unconfirmed || link.origin === RESOURCE_MAP_ORIGIN.MATCHED) && link.clues.length > 0
 
   function confirm() {
     router.post(confirmResourceMapLinkPath(link.id), {}, VISIT)
@@ -318,7 +372,7 @@ function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
         </button>
       </span>
       <span className="text-xs text-muted-foreground">{howFound(link)}{link.note ? `: ${link.note}` : ""}</span>
-      {link.unconfirmed && link.clues.length > 0 && <Clues clues={link.clues} />}
+      {showsClues && <Clues clues={link.clues} />}
       {canCurate && link.unconfirmed && (
         <div className="flex gap-2 pt-1">
           <Button type="button" size="sm" onClick={confirm}>
