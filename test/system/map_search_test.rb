@@ -20,6 +20,8 @@ class MapSearchTest < ApplicationSystemTestCase
       assert_text "orders-db"
       assert_text "Database · Northflank · acme/shop · Production"
       assert_text "Matches its name."
+      edges = evaluate_script("(() => { const style = getComputedStyle(document.activeElement); return [style.outlineStyle, style.borderTopWidth, style.boxShadow] })()")
+      assert_equal [ "none", "0px", "none" ], edges
       page.save_screenshot(Rails.root.join("tmp/screenshots/map-search-palette.png"))
       find("input").send_keys(:enter)
     end
