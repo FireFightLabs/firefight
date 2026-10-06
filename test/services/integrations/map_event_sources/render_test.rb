@@ -89,9 +89,26 @@ module Integrations
         RenderApi.any_instance.stubs(:create_webhook).raises(RenderApi::Refused, "Render answered 400: webhook limit reached")
         RenderApi.any_instance.expects(:enable_webhook).never
 
-        refusal = assert_raises(Integrations::Error) { Render.register(@row, url: URL) }
+        refusal = assert_raises(MapEventSource::Refused) { Render.register(@row, url: URL) }
 
         assert_equal "Render answered 400: webhook limit reached. #{Render::PLAN_NOTE}.", refusal.message
+      end
+
+      test "a person decides when Firefight's webhook could be the workspace's only one or its last, from how many it has" do
+        theirs = ->(count) { Pages::Read.new(items: Array.new(count) { |index| webhook("whk-#{index}", "https://example.com/#{index}") }, complete: true) }
+
+        RenderApi.any_instance.stubs(:webhooks).with("tea-1").returns(theirs.call(0))
+        assert_equal Render::ONLY_WEBHOOK, Render.confirmation_for(@row, url: URL)
+        RenderApi.any_instance.stubs(:webhooks).with("tea-1").returns(theirs.call(1))
+        assert_nil Render.confirmation_for(@row, url: URL), "a second webhook means room to spare, or a refusal Render gives for Pro"
+        RenderApi.any_instance.stubs(:webhooks).with("tea-1").returns(theirs.call(99))
+        assert_equal "This Render workspace has 99 webhooks and Render allows 100, so Firefight's would be the last one the workspace can add.",
+                     Render.confirmation_for(@row, url: URL)
+        RenderApi.any_instance.stubs(:webhooks).with("tea-1").returns(Pages::Read.new(items: [ webhook("whk-ours", URL) ], complete: true))
+        assert_nil Render.confirmation_for(@row, url: URL), "Firefight's own from before costs nothing"
+
+        RenderApi.any_instance.stubs(:webhooks).raises(RenderApi::Refused, "Render answered 403: upgrade to use webhooks")
+        assert_raises(MapEventSource::Refused) { Render.confirmation_for(@row, url: URL) }
       end
 
       test "removing takes back Firefight's webhook, and one Render no longer has is done" do

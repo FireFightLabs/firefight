@@ -5,7 +5,8 @@ import { IconCheck, IconCopy } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { mapEventsSecretIntegrationPath } from "@/lib/routes"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
+import { liveUpdatesIntegrationPath, mapEventsSecretIntegrationPath } from "@/lib/routes"
 import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
 import type { Integration } from "@/types/serializers"
 
@@ -26,6 +27,7 @@ export function LiveUpdates({
 }) {
   const [secret, setSecret] = useState("")
   const [copied, setCopied] = useState(false)
+  const [confirming, setConfirming] = useState<"on" | "off" | null>(null)
   const setup = state.setup
   const secretId = `map-events-secret-${rowId}`
 
@@ -46,6 +48,26 @@ export function LiveUpdates({
     )
   }
 
+  function askTurnOn() {
+    setConfirming("on")
+  }
+
+  function askTurnOff() {
+    setConfirming("off")
+  }
+
+  function stopConfirming() {
+    setConfirming(null)
+  }
+
+  function confirmTurn() {
+    router.patch(
+      liveUpdatesIntegrationPath(integrationId),
+      { environment_row_id: rowId, on: confirming === "on" },
+      { preserveScroll: true, preserveState: true, onFinish: stopConfirming },
+    )
+  }
+
   function markCopied() {
     setCopied(true)
   }
@@ -62,6 +84,37 @@ export function LiveUpdates({
         <span className={state.on ? "font-medium" : "font-medium text-muted-foreground"}>{liveUpdatesLine(state)}</span>
       </p>
       {state.reason && <p className="text-muted-foreground text-xs">{state.reason}</p>}
+      {canManage && (state.turnOn || state.turnOff) && (
+        <div className="pt-1">
+          {state.turnOn && (
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={askTurnOn}>
+              Turn on
+            </Button>
+          )}
+          {state.turnOff && (
+            <Button type="button" size="sm" variant="outline" className="h-8" onClick={askTurnOff}>
+              Turn off
+            </Button>
+          )}
+        </div>
+      )}
+      <ConfirmDeleteDialog
+        open={confirming === "on"}
+        title="Turn on live updates?"
+        description={state.turnOn ?? ""}
+        confirmLabel="Turn on"
+        confirmVariant="default"
+        onConfirm={confirmTurn}
+        onCancel={stopConfirming}
+      />
+      <ConfirmDeleteDialog
+        open={confirming === "off"}
+        title="Turn off live updates?"
+        description={state.turnOff ?? ""}
+        confirmLabel="Turn off"
+        onConfirm={confirmTurn}
+        onCancel={stopConfirming}
+      />
       {setup && canManage && (
         <div className="flex flex-col gap-2 pt-1">
           {setup.address ? (

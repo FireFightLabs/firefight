@@ -58,7 +58,7 @@ module Integrations
           created = api.create_webhook(url: url, events: EVENTS)
           MapEventSource::Webhook.new(id: created["id"], secret: created["secret"])
         rescue VercelApi::Refused, VercelApi::PlanLimited => error
-          raise Integrations::Error, Sentence.all(error, PLAN_NOTE)
+          raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
 
         # A webhook already gone from Vercel is taken back all the same.

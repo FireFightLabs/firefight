@@ -65,4 +65,34 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     assert_text "Firefight could not follow Vercel's changes: Vercel answered 403: Webhooks are not available on the Hobby plan."
     page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-vercel-refused.png"))
   end
+
+  test "a Render workspace where Firefight's webhook would be the only one waits for an admin to turn live updates on, and off again" do
+    render = connect_live!(@workspace, provider: "render", name: "Render")
+    Integrations::Packs::Render.store_credentials!(render, Integrations::Packs::Render::API_KEY => "rnd_key")
+    render.store_fields!(Integrations::Packs::Render::WORKSPACE => "tea-1")
+    Integrations::RenderApi.any_instance.stubs(:webhooks).returns(Integrations::Pages::Read.new(items: [], complete: true))
+    Integrations::RenderApi.any_instance.stubs(:create_webhook).returns("id" => "whk-1", "secret" => "whsec_c2VjcmV0")
+    Integrations::RenderApi.any_instance.stubs(:delete_webhook).returns({})
+    Integrations::MapEvents.prepare!(render)
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)
+    assert_text "Live updates: off"
+    assert_text "Firefight asks before adding its webhook to Render."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-turn-on.png"))
+
+    click_button "Turn on"
+    within(find("[role='dialog']", text: "Turn on live updates?")) do
+      assert_text Integrations::MapEventSources::Render::ONLY_WEBHOOK
+      page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-render-confirm.png"))
+      click_button "Turn on"
+    end
+    assert_text "Live updates are on. Changes Render sends now reach the map."
+    assert_text "Live updates: on, no change received yet"
+    assert_equal "whk-1", render.reload.map_events_webhook_id
+
+    click_button "Turn off"
+    within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
+    assert_text "Live updates are off. Firefight removed its webhook from Render."
+    assert_text "Live updates were turned off, so the map updates at each sweep."
+  end
 end

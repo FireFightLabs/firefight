@@ -6,10 +6,10 @@ class IntegrationsController < InertiaController
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
     create: %i[create oauth_start oauth_callback],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret live_updates],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :destroy ]
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :live_updates, :destroy ]
 
   def index
     render inertia: "integrations/index", props: {
@@ -122,6 +122,16 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, notice: "Signing secret saved. Changes #{@integration.name} sends now reach the map."
   end
 
+  # Turns live updates on or off for one connection, once the person confirmed what it does to the provider's account.
+  def live_updates
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    on = ActiveModel::Type::Boolean.new.cast(params[:on])
+    blocked = on ? row.live_updates_turn_on_blocked_reason : row.live_updates_turn_off_blocked_reason
+    return redirect_to integrations_path, alert: blocked if blocked
+
+    on ? turn_live_updates_on(row) : turn_live_updates_off(row)
+  end
+
   # A full-page navigation to the provider. Nothing is persisted until the customer
   # returns authorized, so abandoning it leaves no half-connected row.
   def oauth_start
@@ -194,6 +204,21 @@ class IntegrationsController < InertiaController
   end
 
   private
+
+  def turn_live_updates_on(row)
+    Integrations::MapEvents.turn_on!(row)
+    state = row.reload.live_updates
+    return redirect_to integrations_path, notice: "Live updates are on. Changes #{@integration.name} sends now reach the map." if state.on
+
+    redirect_to integrations_path, alert: state.reason
+  end
+
+  def turn_live_updates_off(row)
+    Integrations::MapEvents.turn_off!(row)
+    redirect_to integrations_path, notice: "Live updates are off. Firefight removed its webhook from #{@integration.name}."
+  rescue Integrations::Error => error
+    redirect_to integrations_path, alert: Integrations::Sentence.join("Firefight could not remove its webhook from #{@integration.name}", error)
+  end
 
   # The same name connects another environment, or replaces the URL of one already connected. The URL is checked before
   # anything is saved, so a mistyped or private address is said on the form.

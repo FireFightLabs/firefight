@@ -15,6 +15,8 @@ module IntegrationEnvironment::LiveUpdates
   WEBHOOK_REGISTER = "register".freeze
   WEBHOOK_REFRESH = "refresh".freeze
   WEBHOOK_REMOVE = "remove".freeze
+  # A registration the provider refused for its plan or a limit waits this long before Firefight tries on its own again.
+  MAP_EVENTS_REFUSED_RETRY = 1.day
 
   included do
     encrypts :map_events_secret
@@ -62,6 +64,42 @@ module IntegrationEnvironment::LiveUpdates
     raise
   end
 
+  # Whether Firefight registers the provider's webhook now on its own. Not while one is registered, a person turned live
+  # updates off, or a person is to decide what it costs. A registration the provider refused for its plan or a limit is
+  # tried again a day later, so the activity log holds one try a day. now is a connection change, which tries at once.
+  def map_events_registration_due?(now: false)
+    return false if map_events_webhook_id.present? || map_events_turned_off_at.present?
+    return now if map_events_confirmation.present?
+
+    now || map_events_refused_at.nil? || map_events_refused_at <= MAP_EVENTS_REFUSED_RETRY.ago
+  end
+
+  # Why a person cannot turn live updates on for this connection, or nil.
+  def live_updates_turn_on_blocked_reason
+    source = map_event_source
+    return "#{integration.name} cannot register for its changes." unless source&.registers?
+    return "#{integration.name} is switched off. Switch it on first." unless integration.operational? && enabled?
+
+    "Live updates are already on for #{integration.name}." if map_events_webhook_id.present?
+  end
+
+  # Why a person cannot turn live updates off, or nil. Only a connection a person decided on can be turned off, since
+  # anywhere else Firefight's webhook costs the account nothing.
+  def live_updates_turn_off_blocked_reason
+    return "Live updates are already off for #{integration.name}." if map_events_webhook_id.blank?
+
+    "Firefight's webhook costs #{integration.name} nothing, so live updates stay on while it is connected." if map_events_confirmation.blank?
+  end
+
+  # What turning live updates on does, for the person about to, said before they confirm.
+  def live_updates_turn_on_words
+    map_events_confirmation.presence || "Firefight adds a webhook to #{integration.name}, so its changes reach the map within about a minute."
+  end
+
+  def live_updates_turn_off_words
+    "Firefight removes its webhook from #{integration.name}, which frees it for one of your own. The map then updates at each hourly sweep."
+  end
+
   # Gives the row its address once. The update names the empty token, so two sweeps at once give it one.
   def give_map_events_token!
     return if map_events_token.present?
@@ -84,8 +122,13 @@ module IntegrationEnvironment::LiveUpdates
   def live_updates_off_reason(source)
     name = integration.name
     return "#{name} is switched off, so changes there do not reach the map." unless integration.operational? && enabled?
+    return "Live updates were turned off, so the map updates at each sweep." if source.registers? && map_events_turned_off_at.present?
     if map_events_error.present?
-      return Integrations::Sentence.join("Firefight could not follow #{name}'s changes", map_events_error, after: "The map still updates at each sweep.")
+      after = map_events_refused_at ? "Firefight tries again tomorrow. The map still updates at each sweep." : "The map still updates at each sweep."
+      return Integrations::Sentence.join("Firefight could not follow #{name}'s changes", map_events_error, after: after)
+    end
+    if source.registers? && map_events_webhook_id.blank? && map_events_confirmation.present?
+      return "Firefight asks before adding its webhook to #{name}. #{map_events_confirmation}"
     end
     return if source.polls?
 

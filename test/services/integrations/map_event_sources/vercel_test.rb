@@ -66,7 +66,7 @@ module Integrations
         VercelApi.any_instance.expects(:delete_webhook).never
         VercelApi.any_instance.stubs(:create_webhook).raises(VercelApi::Refused, "Vercel answered 403: Webhooks are not available on the Hobby plan")
 
-        refusal = assert_raises(Integrations::Error) { Vercel.register(@row, url: URL) }
+        refusal = assert_raises(MapEventSource::Refused) { Vercel.register(@row, url: URL) }
 
         assert_equal "Vercel answered 403: Webhooks are not available on the Hobby plan. #{Vercel::PLAN_NOTE}.", refusal.message
       end

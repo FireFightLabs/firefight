@@ -31,8 +31,9 @@ class IntegrationSerializer < BaseSerializer
   # chosen, or null.
   # liveUpdates says whether the provider's changes reach the map between sweeps, null for a provider that cannot say
   # what changed. setup is there for a provider an admin sends them from by hand: the connection's own address (null
-  # while Firefight's own address is not set), the steps, and whether a signing secret is saved.
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean } | null } | null".freeze
+  # while Firefight's own address is not set), the steps, and whether a signing secret is saved. turnOn and turnOff are
+  # what a person confirms before turning live updates on or off, null where they cannot.
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean } | null; turnOn: string | null; turnOff: string | null } | null".freeze
 
   type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: #{LIVE_UPDATES_TYPE} }[]"
   def environments
@@ -69,7 +70,9 @@ class IntegrationSerializer < BaseSerializer
     return unless state
 
     setup = ({ address: Integrations::MapEvents.url_for(row), steps: row.map_event_source.setup_steps, secretSet: row.map_events_secret_set? } if row.map_events_set_up_by_hand?)
-    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup }
+    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup,
+      turnOn: (row.live_updates_turn_on_words unless row.live_updates_turn_on_blocked_reason),
+      turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason) }
   end
 
   # Only a real choice is offered, two or more learned options. With one there is nothing to choose.

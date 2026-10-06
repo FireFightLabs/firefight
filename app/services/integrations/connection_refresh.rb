@@ -6,7 +6,7 @@ module Integrations
       DiscoveryService.sync!(integration)
       environments(integration).each do |row|
         HealthCheckService.check!(row)
-        MapEvents.prepare!(row)
+        MapEvents.prepare!(row, now: true)
         MapSweepJob.perform_later(row)
       end
       true

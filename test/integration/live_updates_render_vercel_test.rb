@@ -15,7 +15,8 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
 
   test "Render: a signed deploy event re-reads the service it names, a stale or forged one is refused, and a deleted service goes" do
     row = render_row
-    Integrations::RenderApi.any_instance.stubs(:webhooks).returns(Integrations::Pages::Read.new(items: [], complete: true))
+    # A workspace that already has a webhook of its own has room for Firefight's without a person deciding.
+    Integrations::RenderApi.any_instance.stubs(:webhooks).returns(Integrations::Pages::Read.new(items: [ { "id" => "whk-theirs", "url" => "https://example.com" } ], complete: true))
     Integrations::RenderApi.any_instance.expects(:create_webhook).with("tea-1", has_entries(events: Integrations::MapEventSources::Render::EVENTS))
                            .returns("id" => "whk-1", "secret" => RENDER_SECRET)
     with_app_host { Integrations::MapEvents.prepare!(row) }
@@ -58,7 +59,7 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
     state = row.reload.live_updates
     assert_not state.on
     assert_equal "Firefight could not follow Render's changes: Render answered 400: webhook limit reached. " \
-                 "#{Integrations::MapEventSources::Render::PLAN_NOTE}. The map still updates at each sweep.", state.reason
+                 "#{Integrations::MapEventSources::Render::PLAN_NOTE}. Firefight tries again tomorrow. The map still updates at each sweep.", state.reason
     Integrations::MapEvents.connection_removed(row.integration)
 
     row.update!(map_events_webhook_id: "whk-1", map_events_secret: RENDER_SECRET, map_events_error: nil)
@@ -67,6 +68,25 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
     Integrations::MapEvents.connection_removed(row.integration)
     assert_nil row.reload.map_events_webhook_id
     assert_equal "remove", Ability::Invocation.where(workspace: @workspace, source: AbilityGateway::SOURCE_MAP_SWEEP).order(:created_at).last.params["webhook"]
+  end
+
+  test "Render: a workspace with no webhooks waits for a person, since Firefight's could be its only one" do
+    row = render_row
+    Integrations::RenderApi.any_instance.stubs(:webhooks).returns(Integrations::Pages::Read.new(items: [], complete: true))
+    Integrations::RenderApi.any_instance.expects(:create_webhook).once.returns("id" => "whk-1", "secret" => RENDER_SECRET)
+    Integrations::RenderApi.any_instance.expects(:delete_webhook).with("whk-1").returns({})
+
+    with_app_host do
+      Integrations::MapEvents.prepare!(row)
+      Integrations::MapEvents.prepare!(row)
+      assert_equal "Firefight asks before adding its webhook to Render. #{Integrations::MapEventSources::Render::ONLY_WEBHOOK}", row.reload.live_updates.reason
+
+      Integrations::MapEvents.turn_on!(row)
+      assert row.reload.live_updates.on
+      assert_equal Integrations::MapEventSources::Render::ONLY_WEBHOOK, row.map_events_confirmation, "the person who turned it on can turn it off"
+      Integrations::MapEvents.turn_off!(row)
+    end
+    assert_not row.reload.live_updates.on
   end
 
   test "Vercel: a signed production deployment re-reads its project, a forged one is refused, and a removed project goes" do

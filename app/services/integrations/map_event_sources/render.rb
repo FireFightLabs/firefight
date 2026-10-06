@@ -35,6 +35,14 @@ module Integrations
       PLAN_NOTE = "Render sends changes to webhooks on Pro workspaces and higher, and a Pro workspace has room for one, " \
                   "which Firefight leaves as it is".freeze
 
+      # The most webhooks Render lets a Scale or Enterprise workspace have.
+      MOST_WEBHOOKS = 100
+      ONLY_WEBHOOK = "This Render workspace has no webhooks yet. On Render's Pro plan a workspace has room for one, so Firefight's " \
+                     "would be its only webhook and the workspace could not add one of its own. Scale and Enterprise workspaces " \
+                     "have room for 100.".freeze
+      LAST_WEBHOOK = "This Render workspace has %<have>d webhooks and Render allows %<most>d, so Firefight's would be the last one " \
+                     "the workspace can add.".freeze
+
       class << self
         def verify(raw_body:, headers:, secret:)
           id = headers[ID_HEADER].to_s
@@ -73,7 +81,25 @@ module Integrations
           own ||= api.create_webhook(owner, name: WEBHOOK_NAME, url: url, events: EVENTS)
           MapEventSource::Webhook.new(id: own["id"], secret: own["secret"])
         rescue RenderApi::Refused => error
-          raise Integrations::Error, Sentence.all(error, PLAN_NOTE)
+          raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
+        end
+
+        # Render's API says nothing of a workspace's plan or how many webhooks it may have (spec, owner has no plan field,
+        # and nothing else names one), so this goes by how many webhooks the workspace has and the documented limits,
+        # one on Pro and 100 on Scale and Enterprise (render.com/docs/webhooks). A workspace with none may be on Pro,
+        # where Firefight's would be its only one, and one with 99 would give Firefight its last, so a person decides.
+        # With one to 98 of its own there is room to spare, or Render refuses for Pro, and Firefight's from before at
+        # this address costs nothing.
+        def confirmation_for(row, url:)
+          webhooks = api(row).webhooks(workspace_of(row)).items
+          return if webhooks.any? { |webhook| webhook["url"] == url }
+
+          case webhooks.size
+          when 0 then ONLY_WEBHOOK
+          when MOST_WEBHOOKS - 1 then format(LAST_WEBHOOK, most: MOST_WEBHOOKS, have: webhooks.size)
+          end
+        rescue RenderApi::Refused => error
+          raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
 
         # A webhook already gone from Render is taken back all the same.

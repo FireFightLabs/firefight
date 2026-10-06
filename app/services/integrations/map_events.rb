@@ -101,26 +101,58 @@ module Integrations
     end
 
     # Gives a connection whose provider sends changes its own address, and registers the provider's webhook when
-    # Firefight can. Run on connecting and with each hourly sweep, so a registration that failed is tried again.
-    def prepare!(environment_row)
+    # Firefight can. Run on connecting and with each hourly sweep, so a registration that failed is tried again, one the
+    # provider refused for its plan or a limit a day later (IntegrationEnvironment#map_events_registration_due?). now is a
+    # connection change, which tries at once and asks again whether a person should decide first.
+    def prepare!(environment_row, now: false)
       source = source_of(environment_row.integration.provider)
       return unless source
 
       environment_row.give_map_events_token!
-      register!(environment_row, source) if source.registers? && environment_row.map_events_webhook_id.blank?
+      register!(environment_row, source) if source.registers? && environment_row.map_events_registration_due?(now: now)
     end
 
-    def register!(environment_row, source)
+    # A person turned live updates on, having read what it costs when the source asked first. Tried at once.
+    def turn_on!(environment_row)
+      source = source_of(environment_row.integration.provider)
+      environment_row.update!(map_events_turned_off_at: nil)
+      environment_row.give_map_events_token!
+      register!(environment_row, source, decided: true)
+    end
+
+    # A person turned live updates off, which takes Firefight's webhook back. Firefight does not register again on its
+    # own until someone turns them on. Raises when the provider could not be reached, leaving them on.
+    def turn_off!(environment_row)
+      source = source_of(environment_row.integration.provider)
+      remove!(environment_row, source) if environment_row.map_events_webhook_id.present?
+      environment_row.update!(map_events_turned_off_at: Time.current, map_events_error: nil, map_events_refused_at: nil)
+    end
+
+    # Registers the webhook, unless the source says what it would cost the account and nobody decided yet, in which case
+    # the connection waits for a person (map_events_confirmation). What it cost stays with the row, so the person who
+    # turned it on can turn it off.
+    def register!(environment_row, source, decided: false)
       url = url_for(environment_row)
       return environment_row.update!(map_events_error: "Firefight's own address is not set, so there is nowhere to send changes.") unless url
 
+      asked = source.asks_first? ? source.confirmation_for(environment_row, url: url) : nil
+      return environment_row.update!(map_events_confirmation: asked, map_events_error: nil, map_events_refused_at: nil) if asked && !decided
+
       webhook = environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REGISTER) { source.register(environment_row, url: url) }
       environment_row.update!(map_events_webhook_id: webhook.id, map_events_secret: webhook.secret, map_events_expires_at: webhook.expires_at,
-                              map_events_error: nil)
+                              map_events_confirmation: asked,
+                              map_events_error: nil, map_events_refused_at: nil)
     rescue RateLimited
       environment_row.update!(map_events_error: format(SLOWED_REGISTERING, name: environment_row.integration.name))
+    rescue MapEventSource::Refused => error
+      environment_row.update!(map_events_error: error.message, map_events_refused_at: Time.current)
     rescue Integrations::Error => error
       environment_row.update!(map_events_error: error.message)
+    end
+
+    def remove!(environment_row, source)
+      environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REMOVE) { source.remove(environment_row, environment_row.map_events_webhook_id) }
+      environment_row.update!(map_events_webhook_id: nil, map_events_expires_at: nil)
     end
 
     # Extends a registered webhook before it lapses.
@@ -140,8 +172,7 @@ module Integrations
       return unless source&.respond_to?(:remove)
 
       integration.integration_environments.where.not(map_events_webhook_id: nil).find_each do |row|
-        row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REMOVE) { source.remove(row, row.map_events_webhook_id) }
-        row.update!(map_events_webhook_id: nil, map_events_expires_at: nil)
+        remove!(row, source)
       rescue Integrations::Error => error
         Rails.logger.warn({ event: "map_events.webhook_remove_failed", integration_environment_id: row.id, error: error.message.truncate(200) }.to_json)
       end
