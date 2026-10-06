@@ -1,42 +1,26 @@
 import { createConsumer } from "@rails/actioncable"
 import { useEffect, useRef, useState } from "react"
 
-import { AGENT_CARD_KINDS, AGENT_CHANNEL, AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
+import { AGENT_CARD_KINDS, AGENT_CHANNEL, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import { refreshCharts, refreshOpenChat, refreshRuns } from "@/pages/agent/lib/chat-updates"
-import { roomStep } from "@/pages/agent/lib/group-turns"
-import type { AgentCard, AgentStep, AgentStream, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
+import { NOTHING_STREAMED, type StreamEvent, streamedSteps, streamedText, withEvent } from "@/pages/agent/lib/stream-order"
+import type { AgentStream } from "@/pages/agent/types"
 
 // If the socket drops mid turn, the answer is fetched once instead of waited for.
 const RECOVERY_MS = 4000
-
-interface StreamEvent {
-  type: StreamEventType
-  text?: string
-  key?: string
-  title?: string
-  headline?: string
-  asked?: [ string, string ][]
-  status?: StepStatus
-  kind?: StepKind
-  seconds?: number
-  card?: AgentCard | null
-  at?: string
-}
 
 // The server says whether an answer is owed. The page never guesses it from the last message, which the empty reply
 // saved before the model answers would flip within milliseconds of the question.
 export function useAgentStream(conversationId: string | null, owed: boolean): AgentStream {
   const [ ended, setEnded ] = useState(false)
-  const [ text, setText ] = useState("")
-  const [ steps, setSteps ] = useState<AgentStep[]>([])
+  const [ streamed, setStreamed ] = useState(NOTHING_STREAMED)
   const working = useRef(false)
   const recovery = useRef<number | undefined>(undefined)
   const busy = owed && !ended
 
   useEffect(() => {
     setEnded(false)
-    setText("")
-    setSteps([])
+    setStreamed(NOTHING_STREAMED)
   }, [ conversationId, owed ])
 
   useEffect(() => {
@@ -61,29 +45,15 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           stopRecovery()
           if (event.type === AGENT_STREAM_EVENTS.THINKING) {
             setEnded(false)
-            setText("")
-            setSteps([])
-            return
-          }
-          if (event.type === AGENT_STREAM_EVENTS.CHUNK) {
-            setText((written) => written + (event.text ?? ""))
-            return
           }
           if (event.type === AGENT_STREAM_EVENTS.INVESTIGATION) {
             refreshRuns()
             return
           }
-          if (event.type === AGENT_STREAM_EVENTS.MADE_ROOM) {
-            setSteps((shown) => withRoomMade(shown, event))
-            return
+          if (event.type === AGENT_STREAM_EVENTS.STEP && event.card?.kind === AGENT_CARD_KINDS.CHART) {
+            refreshCharts()
           }
-          if (event.type === AGENT_STREAM_EVENTS.STEP) {
-            setSteps((shown) => withStep(shown, event))
-            if (event.card?.kind === AGENT_CARD_KINDS.CHART) {
-              refreshCharts()
-            }
-            return
-          }
+          setStreamed((shown) => withEvent(shown, event))
           if (
             event.type === AGENT_STREAM_EVENTS.ANSWERED ||
             event.type === AGENT_STREAM_EVENTS.FAILED ||
@@ -111,34 +81,5 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
   }, [ conversationId ])
 
   // The streamed copy is shown only while the server owes an answer, so it hides in the same render the saved reply appears.
-  return { busy, owed, text: owed ? text : "", steps: owed ? steps : [] }
-}
-
-function withStep(shown: AgentStep[], event: StreamEvent): AgentStep[] {
-  const step = {
-    key: event.key ?? "",
-    title: event.title ?? "",
-    headline: event.headline ?? "",
-    asked: event.asked ?? [],
-    status: event.status ?? AGENT_STEP_STATUSES.RUNNING,
-    kind: event.kind ?? AGENT_STEP_KINDS.ACT,
-    seconds: event.seconds ?? 0,
-    card: event.card ?? null,
-  }
-  const already = shown.findIndex((candidate) => candidate.key === step.key)
-  if (already < 0) {
-    return [ ...shown, step ]
-  }
-
-  return shown.map((candidate) => (candidate.key === step.key ? { ...candidate, ...step } : candidate))
-}
-
-// Room is made once, so the line is only ever added, in the order it happened among the steps.
-function withRoomMade(shown: AgentStep[], event: StreamEvent): AgentStep[] {
-  const key = event.key ?? ""
-  if (shown.some((candidate) => candidate.key === key)) {
-    return shown
-  }
-
-  return [ ...shown, roomStep({ key, title: event.title ?? "", at: event.at ?? new Date().toISOString() }) ]
+  return { busy, owed, text: owed ? streamedText(streamed) : "", steps: owed ? streamedSteps(streamed) : [] }
 }

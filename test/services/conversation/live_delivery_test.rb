@@ -12,9 +12,9 @@ class Conversation::LiveDeliveryTest < ActiveSupport::TestCase
   end
 
   test "the page hears that a turn has started" do
-    assert_broadcast_on(stream, { "type" => Conversation::LiveDelivery::EVENT_THINKING }) do
-      @delivery.thinking!
-    end
+    @delivery.thinking!
+
+    assert_equal [ { "type" => Conversation::LiveDelivery::EVENT_THINKING } ], sent_without_order
   end
 
   test "text is held for a moment and sent in pieces rather than token by token" do
@@ -23,9 +23,9 @@ class Conversation::LiveDeliveryTest < ActiveSupport::TestCase
       @delivery.chunk("deploy")
     end
 
-    assert_broadcast_on(stream, { "type" => Conversation::LiveDelivery::EVENT_CHUNK, "text" => "The 14:02 deploy" }) do
-      @delivery.answered!("The 14:02 deploy")
-    end
+    @delivery.answered!("The 14:02 deploy")
+
+    assert_equal({ "type" => Conversation::LiveDelivery::EVENT_CHUNK, "text" => "The 14:02 deploy" }, sent_without_order.first)
   end
 
   test "making room lands where it happened, after the text before it, with its time and never the agent's note" do
@@ -35,7 +35,7 @@ class Conversation::LiveDeliveryTest < ActiveSupport::TestCase
 
     @delivery.made_room(compaction)
 
-    sent = broadcasts(stream).map { |message| JSON.parse(message) }
+    sent = sent_without_order
     assert_equal [ Conversation::LiveDelivery::EVENT_CHUNK, Conversation::LiveDelivery::EVENT_MADE_ROOM ], sent.map { |event| event["type"] }
     assert_equal({ "type" => Conversation::LiveDelivery::EVENT_MADE_ROOM, "key" => compaction.step_key, "title" => Chat::Compaction::SHOWN_AS,
                    "at" => compaction.created_at.utc.iso8601(3) }, sent.last)
@@ -53,12 +53,23 @@ class Conversation::LiveDeliveryTest < ActiveSupport::TestCase
   end
 
   test "a turn that died says so, so the page stops waiting" do
-    assert_broadcast_on(stream, { "type" => Conversation::LiveDelivery::EVENT_FAILED }) do
-      @delivery.failed!
-    end
+    @delivery.failed!
+
+    assert_equal [ { "type" => Conversation::LiveDelivery::EVENT_FAILED } ], sent_without_order
+  end
+
+  test "every event says when it was sent, never twice the same, so the page can place one that arrives late" do
+    Process.stubs(:clock_gettime).returns(1_000)
+    @delivery.thinking!
+    @delivery.step(key: "call_1", step: Chat::Tools.step("search_incidents", { "query" => "checkout" }), status: :running)
+    @delivery.failed!
+
+    assert_equal [ 1_000, 1_001, 1_002 ], broadcasts(stream).map { |message| JSON.parse(message)["seq"] }
   end
 
   private
 
   def stream = ConversationChannel.broadcasting_for(@conversation)
+
+  def sent_without_order = broadcasts(stream).map { |message| JSON.parse(message).except("seq") }
 end
