@@ -22,6 +22,9 @@ class IntegrationEnvironment < ApplicationRecord
   validates :health_status, inclusion: { in: HEALTH_STATUSES }
   validates :catalog_entry_id, uniqueness: { scope: :integration_id }
 
+  # The resources it reports are found by the environment it is wired to.
+  after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
+
   scope :enabled, -> { where(enabled: true) }
   # Rows that reach something: enabled, of a connection that is switched on and not removed, and not wired to an
   # environment that was deleted.
@@ -99,5 +102,12 @@ class IntegrationEnvironment < ApplicationRecord
   def record_health!(healthy, error: nil)
     update!(health_status: healthy ? HEALTH_HEALTHY : HEALTH_FAILING,
             health_error: healthy ? nil : error, health_checked_at: Time.current)
+  end
+
+  private
+
+  def index_reported_resources
+    reported = ResourceMap::Resource.where(integration_environment_id: id).or(ResourceMap::Resource.where("sightings ? :row", row: id.to_s))
+    SearchDocument.index_later(ResourceMap::Resource, reported.pluck(:id))
   end
 end

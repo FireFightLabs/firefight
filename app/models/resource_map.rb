@@ -155,16 +155,17 @@ module ResourceMap
   # Writes a sweep. Everything the connection reported is upserted and seen now. After a complete read, what it reported
   # before and no longer does is marked removed and its declared and matched links are replaced. A read with a gap that
   # held back any kind removes nothing, since a list it missed may hold what it no longer sees. A person's links and
-  # Halon's suggestions stay.
+  # Halon's suggestions stay. Returns the ids of the resources whose words changed, for search to index in one go.
   def self.record!(environment_row, snapshot, at: Time.current)
     workspace_id = environment_row.integration.workspace_id
+    changed = Set.new
 
     ActiveRecord::Base.transaction do
       # One sweep of a connection at a time, so the hourly run and a Sync now cannot interleave their writes.
       environment_row.lock!
-      ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at) ] }
+      ids = snapshot.resources.uniq(&:key).to_h { |found| [ found.key, upsert_resource(workspace_id, environment_row, found, at, changed) ] }
       if snapshot.complete?
-        forget(workspace_id, environment_row, ids.values, at)
+        forget(workspace_id, environment_row, ids.values, at, changed)
         Link.where(integration_environment_id: environment_row.id, origin: SWEPT_ORIGINS).delete_all
       end
       # A link may end at something another connection reported, such as the hostname a DNS record points at.
@@ -178,6 +179,7 @@ module ResourceMap
       end
       environment_row.update!(map_swept_at: at, map_error: nil, map_gaps: snapshot.gap_texts)
     end
+    changed.to_a
   end
 
   # A new commit on a service is a deploy, since a sweep only sees the commit that is running.
@@ -215,7 +217,10 @@ module ResourceMap
     end
   end
 
-  def self.upsert_resource(workspace_id, environment_row, found, at)
+  # What a resource is found by in search. A sweep that changes none of them leaves its search row alone.
+  SEARCHED_COLUMNS = %w[name details sightings integration_environment_id removed_at].freeze
+
+  def self.upsert_resource(workspace_id, environment_row, found, at, changed)
     identity = { workspace_id: workspace_id, provider: found.provider, account: found.account, kind: found.kind, external_id: found.external_id }
     # Two connections can report the same repository at once, so creating it tolerates losing that race.
     resource = Resource.find_by(identity) || Resource.create_or_find_by!(identity) do |fresh|
@@ -228,6 +233,7 @@ module ResourceMap
     came_back = resource.removed_at.present?
     resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
                      details: reported.details, sightings: sightings, last_seen_at: at, removed_at: nil)
+    changed << resource.id if resource.previously_new_record? || resource.saved_changes.keys.intersect?(SEARCHED_COLUMNS)
     changes.each do |kind, from, to, detail|
       resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: at)
     end
@@ -240,11 +246,12 @@ module ResourceMap
 
   # What this connection used to report and no longer does. A resource another connection still reports stays, with
   # what that connection said, and one nobody reports any more is marked removed.
-  def self.forget(workspace_id, environment_row, seen_ids, at)
+  def self.forget(workspace_id, environment_row, seen_ids, at, changed)
     row = environment_row.id.to_s
     unseen = Resource.present.where(workspace_id: workspace_id).where.not(id: seen_ids)
                      .where("resource_map_resources.integration_environment_id = :id OR resource_map_resources.sightings ? :key", id: environment_row.id, key: row)
     unseen.each do |resource|
+      changed << resource.id
       others = resource.sightings.except(row)
       if others.any?
         resource.update!(sightings: others, details: others.values.reduce({}, :merge), integration_environment_id: others.keys.first)
