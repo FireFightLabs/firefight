@@ -158,6 +158,32 @@ module Integrations
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
+      test "a deploy notification reads its site again, with its domains, repository and settings, and nothing else" do
+        NetlifyApi.any_instance.expects(:sites).never
+        NetlifyApi.any_instance.expects(:site).with("site-1").returns(SITE.merge("published_deploy" => SITE["published_deploy"].merge("id" => "d3", "commit_ref" => "fedcba987654")))
+        NetlifyApi.any_instance.stubs(:env_vars).with("acc-1", "site-1").returns([ { "key" => "DATABASE_URL", "values" => [ { "context" => "production", "value" => "postgres://u:p@db.acme.dev/shop" } ] } ])
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SITE, external_id: "site-1"))
+
+        site = snapshot.resources.find { |found| found.external_id == "site-1" }
+        assert_equal [ "acme", "d3", "fedcba987654" ], [ site.account, site.details["deploy"], site.details[ResourceMap::DEPLOYED_COMMIT] ]
+        assert_equal %w[acme/shop shop.example.com site-1 www.shop.example.com], snapshot.resources.map(&:external_id).sort
+        assert_equal [ "DATABASE_URL" ], snapshot.uses.map(&:variable)
+        assert_empty snapshot.gone
+      end
+
+      test "a site Netlify answers not found for is gone under the team the map has it in, and one the map never had is left to the sweep" do
+        ResourceMap.record!(@row, @pack.map_of(@row))
+        NetlifyApi.any_instance.stubs(:site).raises(NetlifyApi::NotFound, "Netlify answered 404: Not Found")
+
+        assert_equal [ [ "netlify", "acme", ResourceMap::KIND_SITE, "site-1" ] ], @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SITE, external_id: "site-1")).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SITE, external_id: "site-9"))
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.everything)
+
+        NetlifyApi.any_instance.stubs(:site).raises(NetlifyApi::Error, "Netlify answered 500: oops")
+        assert_raises(NetlifyApi::Error) { @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SITE, external_id: "site-1")) }
+      end
+
       private
 
       def call(tool, arguments = {})

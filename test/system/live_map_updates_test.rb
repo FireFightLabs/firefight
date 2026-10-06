@@ -6,7 +6,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     sign_in(users(:alice), @workspace)
-    # Northflank sends no changes yet, so the test gives it the test provider's, set up by hand.
+    # Northflank stands in for a provider set up by hand, with the test provider's changes.
     Integrations::Providers::Northflank.stubs(:map_events).returns(LiveTestEvents)
     @row = connect_live!(@workspace, provider: "northflank", name: "Northflank")
     @row.give_map_events_token!
