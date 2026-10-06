@@ -15,7 +15,7 @@ export function RowActions({
   onDelete,
   deleteDisabledReason,
 }: {
-  onEdit: () => void
+  onEdit?: () => void
   onDelete: () => void
   deleteDisabledReason?: string
 }) {
@@ -28,8 +28,12 @@ export function RowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-32">
-        <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {onEdit && (
+          <>
+            <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {deleteDisabledReason ? (
           <Tooltip>
             <TooltipTrigger asChild>

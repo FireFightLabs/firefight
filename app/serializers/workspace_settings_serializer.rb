@@ -10,6 +10,12 @@ class WorkspaceSettingsSerializer < BaseSerializer
     workspace.transcript_retention_days
   end
 
+  # Days an unconfirmed memory waits for a person before Halon stops using it, or null to use it until someone decides.
+  type :number, optional: true
+  def memory_expiry_days
+    workspace.memory_expiry_days
+  end
+
   type :string
   def archive_channel_delay
     workspace.archive_channel_delay
