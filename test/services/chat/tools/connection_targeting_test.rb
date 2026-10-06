@@ -25,7 +25,7 @@ class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
   end
 
   test "a connection with every tool off is named when its group is opened, though the other connection's tools are on" do
-    open = Chat::Tools::Open.new(@turn, offer: ->(_tools) {}, skills: true)
+    open = Chat::Tools::Open.new(@turn, offer: ->(_tools) { }, skills: true)
 
     opened = open.call(group: cloud_group)
 
@@ -35,12 +35,12 @@ class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
   end
 
   test "loading a provider's skill names the connection that has the skill's tools switched off" do
-    loaded = Chat::Tools::UseSkill.new(@turn, offer: ->(_tools) {}).call(skill: "northflank_fixes")
+    loaded = Chat::Tools::UseSkill.new(@turn, offer: ->(_tools) { }).call(skill: "northflank_fixes")
 
     assert_match "Faylee (Northflank) is connected, but none of its tools are switched on, so no step reaches project faylee.", loaded
 
     @faylee.tools.find_by!(name: "list_resources").update!(enabled: true)
-    loaded = Chat::Tools::UseSkill.new(@turn, offer: ->(_tools) {}).call(skill: "northflank_fixes")
+    loaded = Chat::Tools::UseSkill.new(@turn, offer: ->(_tools) { }).call(skill: "northflank_fixes")
     assert_match "Faylee (Northflank) has api_request switched off, so a step that needs it cannot reach project faylee through it.", loaded
   end
 
