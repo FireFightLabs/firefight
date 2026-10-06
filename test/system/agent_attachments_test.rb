@@ -27,7 +27,9 @@ class AgentAttachmentsTest < ApplicationSystemTestCase
     prompt.send_keys("What broke?", :enter)
 
     assert_selector "section.agent-thread-open"
-    assert_selector "button[aria-label='Open halon_graph.png'] img"
+    # The message shows at once with the browser's own copy of the image, so the test waits for the server's message,
+    # which replaces it, before it reads what was saved or opens the image.
+    assert_selector "button[aria-label='Open halon_graph.png'] img:not([src^='blob:'])"
     assert_link File.basename(log)
     message = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER)
     assert_equal [ "halon_graph.png", File.basename(log) ], message.attached_files.map(&:filename)

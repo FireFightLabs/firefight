@@ -3,7 +3,7 @@ module Workspace::Settings
   extend ActiveSupport::Concern
 
   KEYS = %i[transcript_access_enabled transcript_retention_days archive_channel_delay web_search_enabled halon_regression_enabled
-            code_fix_agent issue_tracker issue_creation issue_tracker_target issue_webhook_secret].freeze
+            memory_expiry_days code_fix_agent issue_tracker issue_creation issue_tracker_target issue_webhook_secret].freeze
   # Taken, never shown again, so what is read back says only whether one is saved.
   WRITE_ONLY = %i[issue_webhook_secret].freeze
   # What a form may send, a hash where the setting holds one.

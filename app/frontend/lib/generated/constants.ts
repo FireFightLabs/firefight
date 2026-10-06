@@ -111,11 +111,19 @@ export const CHAT_MEMORY_STATES = [
   "confirmed",
   "disputed",
   "outdated",
-  "rejected"
+  "rejected",
+  "expired"
 ] as const
 export type ChatMemoryState = (typeof CHAT_MEMORY_STATES)[number]
 
 export const CHAT_MEMORY_TEXT_LIMIT = 500 as const
+
+export const MEMORY_EXPIRY_DAY_CHOICES = [
+  30,
+  60,
+  90,
+  180
+] as const
 
 export const CHAT_INSTRUCTION_TEXT_LIMIT = 2000 as const
 

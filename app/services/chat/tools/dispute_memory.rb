@@ -32,6 +32,7 @@ class Chat::Tools::DisputeMemory < RubyLLM::Tool
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
       next "It is #{memory.state} already, so it is not in use." unless memory.dispute!(asked["reason"].to_s.strip)
 
+      Chat::Tools.tell_incident(@agent_run, memory, Chat::MemoryPost::KIND_DISPUTED)
       "Disputed. It is not used again until a person confirms or rejects it."
     end
   end

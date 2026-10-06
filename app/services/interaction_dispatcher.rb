@@ -17,7 +17,8 @@ class InteractionDispatcher
     Identifiers::ATTACH_RUNBOOK_MODAL => Interactions::AttachRunbookHandler,
     Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler,
     Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
-    Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler
+    Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler,
+    Identifiers::MEMORY_CORRECT_MODAL => Interactions::CorrectMemoryHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -76,7 +77,8 @@ class InteractionDispatcher
     Identifiers::AGENT_CANCEL => Interactions::AgentConfirmationHandler,
     Identifiers::AGENT_ALLOW_FOR_CHAT => Interactions::AgentConfirmationHandler,
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
-    Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler
+    Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
+    Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

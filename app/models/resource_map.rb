@@ -222,13 +222,15 @@ module ResourceMap
     sightings = resource.sightings.merge(environment_row.id.to_s => found.details)
     reported = found.with(details: sightings.values.reduce({}, :merge))
     changes = resource.previously_new_record? ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, reported)
+    came_back = resource.removed_at.present?
     resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
                      details: reported.details, sightings: sightings, last_seen_at: at, removed_at: nil)
     changes.each do |kind, from, to, detail|
       resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: at)
     end
     renamed = changes.find { |kind, _, _| kind == Change::KIND_RENAMED }
-    Chat::Memory.flag_outdated!(resource, "#{renamed[1]} was renamed #{renamed[2]}") if renamed
+    Chat::Memory.flag_outdated!(resource, "#{renamed[1]} was renamed #{renamed[2]}", cause: Chat::Memory::OUTDATED_RENAMED) if renamed
+    Chat::Memory.clear_outdated!(resource, cause: Chat::Memory::OUTDATED_REMOVED) if came_back
     resource.id
   end
   private_class_method :upsert_resource
@@ -245,7 +247,7 @@ module ResourceMap
         resource.update!(sightings: others, details: others.values.reduce({}, :merge), integration_environment_id: others.keys.first)
       else
         resource.changes_seen.create!(workspace_id: workspace_id, kind: Change::KIND_REMOVED, happened_at: at)
-        Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection")
+        Chat::Memory.flag_outdated!(resource, "#{resource.name} is no longer reported by its connection", cause: Chat::Memory::OUTDATED_REMOVED)
         resource.update!(sightings: {}, removed_at: at)
       end
     end
