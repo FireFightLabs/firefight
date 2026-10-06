@@ -71,7 +71,7 @@ module Integrations
       }.freeze
       BASELINE_METRICS = {
         SERVICE => %w[CPUUtilization MemoryUtilization], FUNCTION => %w[Invocations Errors Duration Throttles],
-        INSTANCE => %w[CPUUtilization NetworkIn NetworkOut], DATABASE => %w[CPUUtilization DatabaseConnections FreeableMemory ReadLatency WriteLatency]
+        INSTANCE => %w[CPUUtilization NetworkIn NetworkOut], DATABASE => %w[CPUUtilization DatabaseConnections FreeableMemory FreeStorageSpace ReadLatency WriteLatency]
       }.freeze
       # A week read for a baseline comes back an hour a point, well inside GetMetricData's limit on points.
       BASELINE_PERIOD = 3600

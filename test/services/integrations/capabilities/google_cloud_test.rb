@@ -39,6 +39,15 @@ class Integrations::Capabilities::GoogleCloudTest < ActiveSupport::TestCase
     assert_match "Google Cloud does not keep disk for this resource", unroutable(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "disk" ])
   end
 
+  test "a Cloud Run service's latency is the 95th percentile of its request latencies, kept as a baseline too" do
+    assert_equal [ "latency_p95" ], resolve(Integrations::Capabilities::METRICS, "resource" => "web", "metrics" => [ "latency_p95" ]).arguments["metrics"]
+    latency = Integrations::Packs::GoogleCloud::Metrics::RUN.fetch("latency_p95")
+    assert_equal [ "run.googleapis.com/request_latencies", "ALIGN_PERCENTILE_95", "ms" ], [ latency.type, latency.aligner, latency.unit ]
+    assert_includes Integrations::Packs::GoogleCloud::Metrics::BASELINES.fetch(Integrations::Packs::GoogleCloud::TYPE_RUN), "latency_p95"
+    assert_match "does not keep latency_p95", unroutable(Integrations::Capabilities::METRICS, "resource" => "orders", "metrics" => [ "latency_p95" ])
+    assert_equal "latency_p95", Integrations::Capabilities.baseline_metric(@row, "latency_p95", ResourceMap::KIND_SERVICE)
+  end
+
   test "what Google Cloud does not offer for a kind finds no connection, and every tool is wrapped, and the details say what a restart reaches" do
     assert_match "no connection offers a restart for it", unroutable(Integrations::Capabilities::RESTART, "resource" => "web")
     assert_match "no connection offers deploys for it", unroutable(Integrations::Capabilities::DEPLOYS, "resource" => "orders")

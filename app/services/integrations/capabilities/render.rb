@@ -20,7 +20,7 @@ module Integrations
       WRAPPED = TOOLS.values.freeze
       STREAMS = { STREAM_APP => "app", "build" => "build", "requests" => "request" }.freeze
       METRIC_MAP = { "cpu" => "cpu", "memory" => "memory", "requests" => "requests", "http_4xx" => "http_4xx", "http_5xx" => "http_5xx",
-                     "tcp_connections" => "active_connections" }.freeze
+                     "tcp_connections" => "active_connections", "latency_p95" => "latency_p95", "disk" => "disk" }.freeze
 
       def self.route(key, resource, given, tool: nil, settings: nil)
         id = resource.external_id

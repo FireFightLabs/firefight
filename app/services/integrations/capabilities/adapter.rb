@@ -78,6 +78,17 @@ module Integrations
         count
       end
 
+      # The metric this provider's baselines keep for a capability metric name on a kind of resource, so a live reading is
+      # compared with the normal the same connection read. It is the provider's own name the adapter maps it to, or the
+      # name itself for an adapter that takes the names as they are. nil when its baselines keep nothing comparable.
+      def baseline_metric(name, kind)
+        return name unless const_defined?(:METRIC_MAP, false)
+
+        mapping = self::METRIC_MAP
+        mapping = mapping.fetch(kind, {}) if mapping.values.first.is_a?(Hash)
+        mapping[name]
+      end
+
       def metric_names(given, mapping, provider)
         asked = Array(given["metrics"]).map(&:to_s).uniq
         missing = asked - mapping.keys
