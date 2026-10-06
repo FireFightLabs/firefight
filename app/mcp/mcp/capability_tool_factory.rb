@@ -60,12 +60,6 @@ module Mcp
       found.is_a?(String) ? ToolDispatcher.error_response(found) : found
     end
 
-    # One resource the principal reads, or the response saying it is not on the map or which ones share the name.
-    def self.locate(server_context, reference)
-      found = ResourceMap::Resource.locate(server_context[:workspace], server_context[:principal], reference)
-      found.is_a?(String) ? ToolDispatcher.error_response(found) : found
-    end
-
     # run_key_query, for anything on the map: one of the resource's key checks through the capability it names, each
     # call authorized as that capability's would be, the answer led by how it compares with normal.
     def self.key_query_tool
