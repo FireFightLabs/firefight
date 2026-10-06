@@ -52,12 +52,14 @@ module Integrations
 
     # A change, such as running or retrying a pipeline, with its attributes as a JSON body, which the API takes as it
     # takes them in the query (doc/api/rest, request payload).
-    def post(path, body = {})
+    def post(path, body = {}) = changing(Net::HTTP::Post, path, body)
+
+    def put(path, body = {}) = changing(Net::HTTP::Put, path, body)
+
+    # An answer with no body, as deleting a webhook's 204, reads as {}.
+    def delete(path)
       uri = api_uri(path, {})
-      request = Net::HTTP::Post.new(uri)
-      request["Content-Type"] = "application/json"
-      request.body = body.to_json
-      call(uri, request: request)
+      call(uri, request: Net::HTTP::Delete.new(uri))
     end
 
     # Every page of a list, up to pages of PAGE_SIZE, following GitLab's x-next-page header. Returns the items and
@@ -88,6 +90,14 @@ module Integrations
     end
 
     private
+
+    def changing(method, path, body)
+      uri = api_uri(path, {})
+      request = method.new(uri)
+      request["Content-Type"] = "application/json"
+      request.body = body.to_json
+      call(uri, request: request)
+    end
 
     def api_uri(path, query)
       uri = URI.parse("#{@base_url}#{API_PATH}#{path}")

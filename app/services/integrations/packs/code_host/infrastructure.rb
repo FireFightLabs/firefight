@@ -48,6 +48,20 @@ module Integrations
         MAX_REPOSITORIES = 200
         MAX_FILES = 500
         MAX_FILE_BYTES = 200_000
+        # A changed path that may be an infrastructure file, judged from the path alone, as a push names it. A chart's YAML
+        # counts under a charts or helm directory, and a Pulumi or CDK program's files under a directory named for
+        # infrastructure, since without the repository's listing nothing else says which directory is a project.
+        CHANGED_CHART = %r{(\A|/)(charts?|helm)/.+\.ya?ml\z}
+        CHANGED_PROGRAM = %r{(\A|/)(infra|infrastructure|stacks|cdk|pulumi)/.+\.(ts|js|py|go|cs|java)\z}
+
+        # Whether a change to path may change what the files say, so a push that changes one is read again.
+        def self.defines?(path)
+          path = path.to_s
+          return false if path.match?(SKIPPED) || path.match?(STACK_CONFIG)
+
+          BY_NAME.keys.any? { |pattern| path.match?(pattern) } || PROJECT_MARKERS.key?(::File.basename(path)) ||
+            (path.match?(/\.ya?ml\z/) && path.match?(MANIFEST_DIRECTORIES)) || path.match?(CHANGED_CHART) || path.match?(CHANGED_PROGRAM)
+        end
 
         attr_reader :gaps, :read_in_full
 

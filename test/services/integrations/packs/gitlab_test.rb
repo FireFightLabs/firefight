@@ -298,6 +298,29 @@ module Integrations
         assert_empty snapshot.code_read, "a repository with a file left unread is not read in full"
       end
 
+      test "a change re-reads one project with its infrastructure files, and only GitLab's not found takes it away" do
+        project = { "id" => 1, "path_with_namespace" => "acme/platform/infra", "default_branch" => "main", "web_url" => "https://gitlab.com/acme/platform/infra",
+                    "namespace" => { "full_path" => "acme/platform" } }
+        GitlabApi.any_instance.stubs(:get).with("/projects/acme%2Fplatform%2Finfra").returns(project)
+        GitlabApi.any_instance.stubs(:list).with("/projects/acme%2Fplatform%2Finfra/repository/tree", { "recursive" => true, "ref" => "main" }, pages: 50)
+                 .returns([ [ { "type" => "blob", "path" => "dns.tf", "id" => "1" } ], false ])
+        GitlabApi.any_instance.stubs(:head).returns(Http::Answer.new(status: 200, body: {}, headers: { "x-gitlab-size" => "40" }))
+        GitlabApi.any_instance.stubs(:text).with("/projects/acme%2Fplatform%2Finfra/repository/files/dns.tf/raw", { "ref" => "main" }).returns(%(resource "cloudflare_record" "app" {}))
+        scope = ResourceMap::Scope.new(account: "acme/platform", kind: ResourceMap::KIND_REPOSITORY, external_id: "acme/platform/infra")
+
+        snapshot = @pack.map_refresh(@row, scope)
+
+        assert_equal [ [ "gitlab", "acme/platform", ResourceMap::KIND_REPOSITORY, "acme/platform/infra" ] ], snapshot.resources.map(&:key)
+        assert_equal [ "dns.tf" ], snapshot.code_files.map(&:path)
+        assert_equal [ "acme/platform/infra" ], snapshot.code_read
+
+        GitlabApi.any_instance.stubs(:get).with("/projects/acme%2Fgone").raises(GitlabApi::NotFound, "GitLab answered 404: 404 Project Not Found")
+        assert_equal [ [ "gitlab", "acme", ResourceMap::KIND_REPOSITORY, "acme/gone" ] ], @pack.map_refresh(@row, scope.with(account: "acme", external_id: "acme/gone")).gone
+        GitlabApi.any_instance.stubs(:get).with("/projects/acme%2Fodd").raises(GitlabApi::Refused, "GitLab answered 403: 403 Forbidden")
+        assert_raises(GitlabApi::Refused) { @pack.map_refresh(@row, scope.with(external_id: "acme/odd")) }
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(account: "acme")), "a namespace is read by a sweep"
+      end
+
       test "a project list cut short at its cap is a gap that holds the repositories back, so none is taken as gone" do
         GitlabApi.any_instance.stubs(:list).with("/projects", { "membership" => true, "order_by" => "id", "sort" => "asc" }, pages: 10)
                  .returns([ [ { "id" => 1, "path_with_namespace" => "acme/web", "default_branch" => nil, "web_url" => "u", "namespace" => { "full_path" => "acme" } } ], true ])
