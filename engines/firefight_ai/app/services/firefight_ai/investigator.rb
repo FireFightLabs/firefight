@@ -35,7 +35,7 @@ module FirefightAi
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
-          on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, take_messages: take_messages
+          on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages
         ).run(&on_turn)
       end
     end
@@ -91,6 +91,8 @@ module FirefightAi
     end
 
     private
+
+    def output_cap = FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: ai_model.model)
 
     def system_prompt = self.class.system_prompt
 

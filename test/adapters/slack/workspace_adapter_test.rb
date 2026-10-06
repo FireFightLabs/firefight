@@ -171,4 +171,15 @@ class Slack::WorkspaceAdapterTest < ActiveSupport::TestCase
       @adapter.get_user_info(user_id: "U_MISSING")
     end
   end
+
+  test "a postmortem that failed for a reason people should read says it in place of the cause" do
+    incident = incidents(:active_critical_ws1)
+    note = "Halon cannot write this postmortem right now because the AI account behind this workspace is out of credit. Firefight's team has been told."
+    Slack::Client.expects(:post_ephemeral).with do |**args|
+      args[:text] == ":warning: Postmortem generation for #{incident.identifier} failed. #{note}" && args[:user] == "U87654321"
+    end.returns({ ok: true })
+
+    @adapter.post_postmortem_generation_failed(channel_id: "C12345678", user_id: "U87654321", incident: incident,
+                                               reason: "OutOfCredit", retrying: false, note: note)
+  end
 end

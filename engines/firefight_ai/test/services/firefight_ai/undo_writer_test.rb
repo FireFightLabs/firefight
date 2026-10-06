@@ -9,6 +9,7 @@ class FirefightAi::UndoWriterTest < ActiveSupport::TestCase
   test "the model is told what each step did, and its answer comes back as a fix the app can check" do
     asked = nil
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:with_schema).returns(chat)
     chat.stubs(:ask).with { |text| asked = text }.returns(llm_reply(content: {

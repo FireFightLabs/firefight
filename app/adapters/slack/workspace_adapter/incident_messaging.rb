@@ -609,8 +609,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     Rails.logger.info("slack.agent_session.clear_failed error=#{error.class.name} message=#{error.message}")
   end
 
-  def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:)
-    text = if retrying
+  def post_postmortem_generation_failed(channel_id:, user_id:, incident:, reason:, retrying:, note: nil)
+    text = if note
+      ":warning: Postmortem generation for #{incident.identifier} failed. #{note}"
+    elsif retrying
       ":warning: Postmortem generation for #{incident.identifier} failed after retries (reason: #{reason}). Try again from the incident page or with `/ff #{Identifiers::SUBCOMMAND_POSTMORTEM}`."
     else
       ":warning: Postmortem generation for #{incident.identifier} failed (reason: #{reason}) and won't retry automatically. Try again from the incident page or with `/ff #{Identifiers::SUBCOMMAND_POSTMORTEM}`."

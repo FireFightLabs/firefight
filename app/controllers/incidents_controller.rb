@@ -154,6 +154,8 @@ class IncidentsController < InertiaController
       .rewrite(incident, selected_html: selected_html, instruction: instruction)
 
     render json: { rewritten_html: rewritten }
+  rescue FirefightAi::OutOfCredit
+    render json: { error: AiCredit.cannot(current_workspace, "rewrite this section") }, status: :service_unavailable
   end
 
   private

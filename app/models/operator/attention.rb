@@ -14,10 +14,12 @@ module Operator
     KIND_HALON_NOT_POSTED = "halon_not_posted".freeze
     KIND_HALON_STUCK = "halon_stuck".freeze
     KIND_SKILL_BROKEN = "skill_broken".freeze
+    KIND_AI_OUT_OF_CREDIT = "ai_out_of_credit".freeze
+    KIND_AI_SHORT_OF_CREDIT = "ai_short_of_credit".freeze
     KINDS = [
       KIND_WORKFLOW_FAILED, KIND_WORKFLOW_STUCK, KIND_WEBHOOK_FAILING, KIND_PLATFORM_FAILED, KIND_ALERT_STUCK,
       KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK,
-      KIND_SKILL_BROKEN
+      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT
     ].freeze
 
     # The page an item opens.
@@ -49,7 +51,7 @@ module Operator
 
     def items
       @items ||= [
-        *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items
+        *credit_items, *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items
       ].sort_by { |item| [ item.tone == IncidentProcess::TONE_BAD ? 0 : 1, -item.at.to_f ] }
     end
 
@@ -164,6 +166,34 @@ module Operator
              detail: "#{problem.missing_tools.to_sentence} gone since #{problem.created_at.to_date.iso8601}, so the steps that need them fail",
              at: problem.checked_at, target: nil)
       end
+    end
+
+    # The AI accounts are the deployment's, one per provider and shared by every workspace, so they show only when no
+    # workspace is selected. AiAccount says which is out of credit and since when, until a call answers or its balance
+    # shows credit. One that was refused in the window and has credit now is short, a warning.
+    def credit_items
+      return [] if @filter.workspace
+
+      out = AiAccount.out_of_credit.order(:out_of_credit_since).to_a
+      short = credit_refusals.where(created_at: @filter.range).where.not(provider: out.map(&:provider)).distinct.pluck(:provider)
+      out.map { |account| out_of_credit_item(account) } + short.sort.map { |provider| short_of_credit_item(provider) }
+    end
+
+    def credit_refusals = Inference.where(error_kind: Inference::ERROR_OUT_OF_CREDIT)
+
+    def out_of_credit_item(account)
+      since = account.out_of_credit_since
+      refused = credit_refusals.where(provider: account.provider, created_at: since..).count
+      item(key: "credit-#{account.provider}", kind: KIND_AI_OUT_OF_CREDIT, title: "AI account out of credit", subject: account.provider,
+           detail: "#{refused} #{'call'.pluralize(refused)} refused since #{since.utc.iso8601}, nothing answered since",
+           at: since, target: nil)
+    end
+
+    def short_of_credit_item(provider)
+      refusals = credit_refusals.where(provider: provider, created_at: @filter.range)
+      item(key: "credit-#{provider}", kind: KIND_AI_SHORT_OF_CREDIT, tone: IncidentProcess::TONE_WARN, title: "AI account running short of credit",
+           subject: provider, detail: "#{refusals.count} #{'call'.pluralize(refusals.count)} refused for credit, answering again since",
+           at: refusals.maximum(:created_at), target: nil)
     end
 
     def run_label(run)

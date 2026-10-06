@@ -61,7 +61,8 @@ class PostmortemGenerationJob < ApplicationJob
       user_id: author.platform_user_id,
       incident: incident,
       reason: failure_reason(error),
-      retrying: !terminal
+      retrying: !terminal,
+      note: (AiCredit.cannot(incident.workspace, "write this postmortem") if AiCredit.out?(error))
     )
   rescue StandardError => e
     Rails.logger.error({

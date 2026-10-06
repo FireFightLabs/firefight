@@ -150,6 +150,7 @@ class FirefightAi::PostmortemGeneratorTest < ActiveSupport::TestCase
     mock_response = llm_reply(content: ai_result)
 
     mock_chat = mock("chat")
+    mock_chat.stubs(:with_max_output_tokens).returns(mock_chat)
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.stubs(:with_schema).returns(mock_chat)
     mock_chat.stubs(:ask).returns(mock_response)

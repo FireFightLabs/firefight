@@ -32,6 +32,8 @@ class Investigation::UndoWriter
     publish(undo)
   rescue Investigation::RemediationPlan::Refused => refused
     @plan.undo_failed!("#{COULD_NOT}. #{refused.message}")
+  rescue FirefightAi::OutOfCredit
+    @plan.undo_failed!(AiCredit.cannot(@plan.finding.investigation.workspace, "write the undo for this fix"))
   rescue FirefightAi::Error => error
     Rails.logger.warn({ event: "fix.undo_not_written", plan_id: @plan.id, error: error.class.name }.to_json)
     @plan.undo_failed!(NO_ANSWER)

@@ -51,6 +51,16 @@ module FirefightAi
       assert_equal [ 7, 2 ], [ usage.input, usage.output ]
     end
 
+    test "a refusal for credit is kept so it can be read as one" do
+      body = { "type" => "error", "error" => { "type" => "invalid_request_error", "message" => "Your credit balance is too low to access the Anthropic API." } }
+      answer(FakeResponse.new("400", "application/json", [ body.to_json ])) { |_| nil }
+
+      proxy = ModelProxy.new("anthropic")
+      proxy.forward(path: "messages", body: "{}", model: "claude-sonnet-4-5") { |*| nil }
+
+      assert proxy.refusal.out_of_credit?
+    end
+
     test "a provider's own tools never travel, and a broken stream keeps what it used" do
       Net::HTTP.stubs(:start).raises(Errno::ECONNRESET)
       proxy = ModelProxy.new("anthropic")

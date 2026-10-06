@@ -97,6 +97,11 @@ class Postmortem < ApplicationRecord
     update!(generation_state: GENERATION_FAILED, generation_error: reason)
   end
 
+  # A failure people are told about in words, rather than by its cause. Nil for the rest.
+  def generation_failure_note
+    AiCredit.cannot(incident.workspace, "write this postmortem") if generation_failed? && AiCredit.recorded?(generation_error)
+  end
+
   def self.complete_generation!(incident, draft, generated_by:)
     html = SECTION_KEYS.map do |key|
       "<h2>#{SECTION_HEADINGS[key]}</h2>\n#{section_html(incident, draft, key)}"

@@ -55,6 +55,36 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     ConversationReplyJob.perform_now(conversation.id)
   end
 
+  OUT_OF_CREDIT = "Halon cannot answer right now because the AI account behind this Firefight is out of credit. " \
+                  "Whoever runs Firefight needs to add credit.".freeze
+
+  test "a dashboard chat whose AI account ran out of credit says so, without naming the provider" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("what changed today")
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::OutOfCredit, "OpenRouter: can only afford 60329")
+
+    ConversationReplyJob.perform_now(conversation.id)
+
+    sent = broadcasts(ConversationChannel.broadcasting_for(conversation)).map { |message| JSON.parse(message)["type"] }
+    assert_includes sent, Conversation::LiveDelivery::EVENT_FAILED
+    said = conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
+    assert_equal OUT_OF_CREDIT, said
+    assert_no_match(/openrouter/i, said)
+    assert_not conversation.answer_owed?
+  end
+
+  test "a Slack thread whose AI account ran out of credit is told the same" do
+    conversation = @workspace.conversations.create!(
+      kind: Conversation::KIND_CHANNEL, channel_id: "C_INCIDENT", thread_id: "1700000000.000100",
+      started_by: @member, max_turns: 10, max_spend_cents: 40
+    )
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::OutOfCredit, "out")
+    stub_agent_session
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:text] == OUT_OF_CREDIT }.returns({ ok: true, ts: "1" })
+
+    ConversationReplyJob.perform_now(conversation.id)
+  end
+
   test "one chat takes one turn at a time, and another chat is not held up by it" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     other = Conversation.start_personal!(workspace: @workspace, member: @member)

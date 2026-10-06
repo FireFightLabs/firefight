@@ -55,6 +55,7 @@ class FirefightAi::LessonExtractorTest < ActiveSupport::TestCase
 
   def stub_model(lessons: [], verdicts: [])
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:with_schema).returns(chat)
     chat.stubs(:ask).returns(llm_reply(content: { "lessons" => lessons, "verdicts" => verdicts }, input: 100, output: 50, cost: 0.0001))

@@ -21,6 +21,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     mock_response = llm_reply(content: "summary")
 
     mock_chat = mock("chat")
+    mock_chat.stubs(:with_max_output_tokens).returns(mock_chat)
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
@@ -39,6 +40,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     captured_prompt = nil
     mock_response = llm_reply(content: "answer")
     mock_chat = mock("chat")
+    mock_chat.stubs(:with_max_output_tokens).returns(mock_chat)
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
@@ -69,6 +71,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     captured_prompt = nil
     mock_response = llm_reply(content: "thread summary")
     mock_chat = mock("chat")
+    mock_chat.stubs(:with_max_output_tokens).returns(mock_chat)
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
@@ -108,6 +111,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     captured_prompt = nil
     mock_response = llm_reply(content: "answer")
     mock_chat = mock("chat")
+    mock_chat.stubs(:with_max_output_tokens).returns(mock_chat)
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.expects(:ask).with { |prompt| captured_prompt = prompt; true }.returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)
@@ -125,6 +129,7 @@ class FirefightAi::IncidentResponderTest < ActiveSupport::TestCase
     mock_response = llm_reply(content: text)
 
     mock_chat = mock("chat")
+    mock_chat.stubs(:with_max_output_tokens).returns(mock_chat)
     mock_chat.stubs(:with_instructions).returns(mock_chat)
     mock_chat.stubs(:ask).returns(mock_response)
     RubyLLM.stubs(:chat).returns(mock_chat)

@@ -98,6 +98,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     add_message(message_id: "1.001", content: "first")
 
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).raises(StandardError, "kaboom")
     RubyLLM.stubs(:chat).returns(chat)
@@ -116,6 +117,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     add_message(message_id: "1.002", content: "new context")
 
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).raises(StandardError, "kaboom")
     RubyLLM.stubs(:chat).returns(chat)
@@ -153,6 +155,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
     response = llm_reply(content: text, input: 100, output: 50, cost: 0.001)
 
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).returns(response)
     RubyLLM.stubs(:chat).returns(chat)
@@ -161,6 +164,7 @@ class FirefightAi::IncidentSummaryServiceTest < ActiveSupport::TestCase
   def stub_llm_capturing_prompt
     response = llm_reply(content: "stub")
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:ask).with do |prompt|
       yield prompt

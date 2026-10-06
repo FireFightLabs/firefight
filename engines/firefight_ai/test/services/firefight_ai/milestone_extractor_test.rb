@@ -131,6 +131,7 @@ class FirefightAi::MilestoneExtractorTest < ActiveSupport::TestCase
     response = llm_reply(content: { "milestones" => rows }, input: 100, output: 50, cost: 0.0001)
 
     chat = mock("chat")
+    chat.stubs(:with_max_output_tokens).returns(chat)
     chat.stubs(:with_instructions).returns(chat)
     chat.stubs(:with_schema).returns(chat)
     if capture

@@ -22,6 +22,18 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal message, response.parsed_body["error"]
   end
 
+  test "ai_rewrite_postmortem says in plain words when the AI account is out of credit" do
+    incident = incidents(:resolved_minor_ws1)
+    FirefightAi::PostmortemSectionRewriter.any_instance.stubs(:rewrite).raises(FirefightAi::OutOfCredit.new("OpenRouter refused"))
+
+    post incident_postmortem_ai_rewrite_path(incident_id: incident.id),
+      params: { selected_html: "<p>x</p>", instruction: "tighten" }, as: :json
+
+    assert_response :service_unavailable
+    assert_equal "Halon cannot rewrite this section right now because the AI account behind this Firefight is out of credit. " \
+                 "Whoever runs Firefight needs to add credit.", response.parsed_body["error"]
+  end
+
   test "generate_postmortem redirects with the denial message and enqueues no job when blocked" do
     message = deny_entitlements!("Your trial has ended — upgrade to keep using AI.")
     incident = Incident.create!(

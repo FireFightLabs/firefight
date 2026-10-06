@@ -71,22 +71,19 @@ module FirefightAi
     end
 
     def call_ai(incident, prompt_text)
-      response, @last_inference = FirefightAi.translating_errors do
-        Inference.track(
-          workspace: @workspace,
-          feature:   FEATURE,
-          provider:  model_choice.provider_name,
-          model:     model_choice.model,
-          inferable: incident,
-          prompt_template: FEATURE,
-          prompt_version: Prompt.version(system_prompt),
-          prompt_text: system_prompt
-        ) do
-          chat = FirefightAi.chat(model_choice)
-          chat.with_instructions(system_prompt)
-          chat.with_schema(Schemas::Milestones)
-          chat.ask(prompt_text)
-        end
+      response, @last_inference = FirefightAi.generate(model_choice, purpose: AiPurpose::MILESTONES, inference: {
+        workspace: @workspace,
+        feature:   FEATURE,
+        provider:  model_choice.provider_name,
+        model:     model_choice.model,
+        inferable: incident,
+        prompt_template: FEATURE,
+        prompt_version: Prompt.version(system_prompt),
+        prompt_text: system_prompt
+      }) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::Milestones)
+        chat.ask(prompt_text)
       end
       response
     end

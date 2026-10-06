@@ -44,16 +44,13 @@ module FirefightAi
 
     def call_ai(prompt_text, inferable)
       choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
-      response, = FirefightAi.translating_errors do
-        Inference.track(
-          workspace: @workspace, feature: FEATURE, provider: choice.provider_name, model: choice.model, inferable: inferable,
-          prompt_template: FEATURE, prompt_version: Prompt.version(system_prompt), prompt_text: system_prompt
-        ) do
-          chat = FirefightAi.chat(choice)
-          chat.with_instructions(system_prompt)
-          chat.with_schema(Schemas::UndoPlan)
-          chat.ask(prompt_text)
-        end
+      response, = FirefightAi.generate(choice, purpose: AiPurpose::INVESTIGATION, inference: {
+        workspace: @workspace, feature: FEATURE, provider: choice.provider_name, model: choice.model, inferable: inferable,
+        prompt_template: FEATURE, prompt_version: Prompt.version(system_prompt), prompt_text: system_prompt
+      }) do |chat|
+        chat.with_instructions(system_prompt)
+        chat.with_schema(Schemas::UndoPlan)
+        chat.ask(prompt_text)
       end
       response
     end

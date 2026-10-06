@@ -36,6 +36,7 @@ gpt_35_turbo:
   model_id: gpt-3.5-turbo
   context_window: 16000
   name: GPT-3.5 Turbo
+  max_output_tokens: 4096
   provider: openai
   capabilities: ["function_calling"]
   modalities: {"input": ["text"], "output": ["text"]}

@@ -84,4 +84,15 @@ class InferenceTest < ActiveSupport::TestCase
     bad = @context.merge(garbage: "ignored", another: 42)
     assert_nothing_raised { Inference.track(bad) { llm_reply } }
   end
+
+  test "a refusal for credit is recorded as such, with the output it reserved, and other errors are not" do
+    refused = RubyLLM::PaymentRequiredError.new("can only afford 900", response: Struct.new(:status, :body).new(402, {}))
+
+    assert_raises(RubyLLM::PaymentRequiredError) { Inference.track(@context.merge(max_output_tokens: 4_000)) { raise refused } }
+    assert_raises(RubyLLM::ServerError) { Inference.track(@context) { raise RubyLLM::ServerError, "down" } }
+
+    out, down = Inference.where(workspace: @workspace, feature: "catchup").order(:created_at).to_a
+    assert_equal [ Inference::ERROR_OUT_OF_CREDIT, 4_000 ], [ out.error_kind, out.max_output_tokens ]
+    assert_nil down.error_kind
+  end
 end
