@@ -202,6 +202,39 @@ module Integrations
         assert_match "Compute Engine instances could not be read", snapshot.gap_texts.first
       end
 
+      test "a service's settings are read in memory, the Cloud SQL instances it mounts are its declared links, and an instance reports where it is reached" do
+        url = "postgres://app:gcp-secret-pw@10.20.0.3:5432/orders"
+        service = SERVICE.merge("template" => {
+                                  "containers" => [ { "image" => "us-docker.pkg.dev/acme/web:v2",
+                                                      "env" => [ { "name" => "DATABASE_URL", "value" => url },
+                                                                 { "name" => "REDIS_URL", "valueSource" => { "secretKeyRef" => { "secret" => "redis", "version" => "latest" } } } ] } ],
+                                  "volumes" => [ { "name" => "cloudsql", "cloudSqlInstance" => { "instances" => [ SQL_ID ] } } ]
+                                })
+        GoogleCloudApi.any_instance.stubs(:run_services).returns(pages([ service ]))
+        GoogleCloudApi.any_instance.stubs(:sql_instances).returns(pages([
+          { "name" => "orders", "connectionName" => SQL_ID, "region" => "us-central1", "state" => "RUNNABLE", "databaseVersion" => "POSTGRES_16",
+            "ipAddresses" => [ { "type" => "PRIVATE", "ipAddress" => "10.20.0.3" }, { "type" => "OUTGOING", "ipAddress" => "34.1.2.3" } ],
+            "dnsName" => "abc.us-central1.sql.goog.", "settings" => {} }
+        ]))
+
+        snapshot = @pack.map_of(@row)
+
+        web = [ "google_cloud", "acme-prod", ResourceMap::KIND_SERVICE, RUN_ID ]
+        orders = [ "google_cloud", "acme-prod", ResourceMap::KIND_DATABASE, SQL_ID ]
+        assert_equal [ [ "DATABASE_URL", true ], [ "REDIS_URL", false ] ], snapshot.uses.map { |found| [ found.variable, found.address? ] }.sort
+        assert_includes snapshot.links, ResourceMap::FoundLink.new(from: web, to: orders, relation: ResourceMap::RELATION_USES)
+        assert_equal 2, snapshot.endpoints.size, "the private address and the DNS name, never the outgoing one"
+        assert_no_setting_values(snapshot, url, "gcp-secret-pw", "10.20.0.3", "abc.us-central1.sql.goog")
+
+        ResourceMap.record!(@row, snapshot)
+        ResourceMap::Matcher.new(@workspace).run!
+        # The mount already declares the link, so the matching address adds no second one.
+        uses = ResourceMap::Link.where(workspace: @workspace, relation: ResourceMap::RELATION_USES).includes(:from_resource, :to_resource)
+        assert_equal [ [ "web", "orders", ResourceMap::ORIGIN_DECLARED ] ], uses.map { |link| [ link.from_resource.name, link.to_resource.name, link.origin ] }
+        assert ResourceMap::Use.exists?(workspace: @workspace, variable: "DATABASE_URL")
+        assert_no_setting_values(snapshot, url, "gcp-secret-pw", "10.20.0.3", "abc.us-central1.sql.goog")
+      end
+
       test "each kind's labels are kept in its details from where Google's API puts them, and none leaves the key out" do
         labels = { "team" => "payments" }
         assert_equal labels, @pack.send(:run_item, SERVICE.merge("labels" => labels))[:details][ResourceMap::TAGS]

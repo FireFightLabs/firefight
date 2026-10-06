@@ -36,6 +36,11 @@ module Integrations
       APP_VERSION = "2025-01-01".freeze
       SQL_VERSION = "2023-08-01".freeze
       POSTGRES_VERSION = "2024-08-01".freeze
+      SQL_PORT = 1433
+      POSTGRES_PORTS = [ 5432, 6432 ].freeze
+      KEY_VAULT = "@Microsoft.KeyVault(".freeze
+      # What a connection string's type says its value is for, as the parser names it.
+      CONNECTION_SCHEMES = { "sqlazure" => "sqlserver", "sqlserver" => "sqlserver", "postgresql" => "postgresql", "mysql" => "mysql" }.freeze
       # Azure's clouds by the key of the region the connection was made in, the first being where one with none is.
       CLOUDS = { "global" => AzureApi::GLOBAL, "us_government" => AzureApi::US_GOVERNMENT, "china" => AzureApi::CHINA }.freeze
       PORTAL_PAGE = '%<portal>s/#@%<tenant>s/resource%<id>s/overview'.freeze
@@ -324,12 +329,16 @@ module Integrations
 
       # The subscription on the resource map: its App Service and Function apps and Container Apps with the hostnames they
       # serve, its Azure SQL databases and PostgreSQL flexible servers. A list the principal may not read is a gap, and
-      # nothing of its kind is taken as gone.
+      # nothing of its kind is taken as gone. Each app's settings are read in memory and each database reports the
+      # address it is reached at, so the map links an app to the database its settings name.
       def map_of(environment_row)
         subscription = subscription_of(environment_row)
         listing = catalog(environment_row)
+        reading = SettingsReading.new(workspace: environment_row.integration.workspace, gaps: [], stopped: [])
         resources = []
         links = []
+        uses = []
+        endpoints = []
         listing.items.each do |item|
           found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: subscription, kind: KINDS.fetch(item[:type]), external_id: item[:id], name: item[:name],
                                          status: item[:status], url: portal_link(environment_row, item[:id]).url, details: item[:details])
@@ -339,8 +348,13 @@ module Integrations
             resources << domain
             links << ResourceMap::FoundLink.new(from: domain.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
           end
+          case item[:type]
+          when TYPE_WEB, TYPE_FUNCTION then uses.concat(site_settings(environment_row, found.key, item, reading))
+          when TYPE_CONTAINER then uses.concat(container_settings(found.key, item[:source], reading))
+          when TYPE_SQL, TYPE_POSTGRES then endpoints.concat(database_endpoints(found.key, item, reading))
+          end
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps)
+        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: listing.gaps + reading.gaps, uses: uses, endpoints: endpoints)
       end
 
       # What normal looks like for each app and database, read an hour at a time over the window. A resource Azure will
@@ -367,6 +381,9 @@ module Integrations
       end
 
       Listing = Data.define(:items, :gaps)
+      # What one map read needs to turn settings into uses, what it could not read, and whether it stopped reading app
+      # settings (after Azure refused them or asked to slow down).
+      SettingsReading = Data.define(:workspace, :gaps, :stopped)
 
       private
 
@@ -431,6 +448,63 @@ module Integrations
         hosts = [ ingress["fqdn"], *Array(ingress["customDomains"]).filter_map { |domain| domain["name"] } ].compact
         item(app, TYPE_CONTAINER, properties["runningStatus"] || properties["provisioningState"], hosts: hosts,
              details: { "revision_mode" => properties.dig("configuration", "activeRevisionsMode"), "latest_revision" => properties["latestReadyRevisionName"] })
+          .merge(source: app)
+      end
+
+      # An App Service or Function app's settings and connection strings, read in memory through the two list actions
+      # (https://learn.microsoft.com/en-us/rest/api/appservice/web-apps/list-application-settings and
+      # /list-connection-strings). Both need Microsoft.Web/sites/config/list/action, which Reader does not hold, so the
+      # first refusal is one gap and the rest of the apps are not asked. A Key Vault reference is named only
+      # (https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references). A connection string's type
+      # says what its value is for, such as SQLAzure or PostgreSQL.
+      def site_settings(environment_row, key, item, reading)
+        return [] if reading.stopped.any?
+
+        settings = api(environment_row).post("#{item[:id]}/config/appsettings/list", WEB_VERSION).dig("properties").to_h
+        strings = api(environment_row).post("#{item[:id]}/config/connectionstrings/list", WEB_VERSION).dig("properties").to_h
+        vault, values = settings.partition { |_, value| value.to_s.start_with?(KEY_VAULT) }
+        uses = ResourceMap::Use.read(from: key, workspace: reading.workspace, values: values.to_h, names: vault.map(&:first))
+        uses + strings.filter_map do |name, string|
+          value = string.to_h["value"].to_s
+          next ResourceMap::Use.named(key, name) if value.start_with?(KEY_VAULT)
+
+          ResourceMap::Use.of(key, name, value, reading.workspace, scheme: CONNECTION_SCHEMES[string.to_h["type"].to_s.downcase])
+        end
+      rescue Integrations::RateLimited => error
+        reading.stopped << error
+        reading.gaps << ResourceMap::Gap.new(text: Sentence.join("Azure asked to slow down while reading app settings, so the rest were not read", error), kinds: [], settings: true)
+        []
+      rescue AzureApi::Forbidden => error
+        reading.stopped << error
+        reading.gaps << ResourceMap::Gap.new(text: Sentence.join("App settings could not be read. Reading them needs Microsoft.Web/sites/config/list/action, " \
+                                                                 "which the Reader role does not include", error), kinds: [], settings: true)
+        []
+      rescue AzureApi::Error => error
+        reading.gaps << ResourceMap::Gap.new(text: Sentence.join("The settings of #{item[:name]} could not be read", error), kinds: [], settings: true)
+        []
+      end
+
+      # A Container App's variables are in the app it lists (Container.env, each a value or a secretRef,
+      # https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/container-apps/get). A secret is named
+      # only, and its value is never asked for.
+      def container_settings(key, app, reading)
+        env = Array(app.dig("properties", "template", "containers")).flat_map { |container| Array(container["env"]) }
+        values, secrets = env.partition { |variable| variable.key?("value") }
+        ResourceMap::Use.read(from: key, workspace: reading.workspace, values: values.to_h { |variable| [ variable["name"].to_s, variable["value"].to_s ] },
+                              names: secrets.map { |variable| variable["name"] })
+      end
+
+      # A database's server name (fullyQualifiedDomainName on an Azure SQL server and a PostgreSQL flexible server). An
+      # Azure SQL server holds several databases, so each is told apart by its name. A flexible server also answers
+      # through PgBouncer on 6432 when it is on (https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-pgbouncer).
+      def database_endpoints(key, item, reading)
+        host = item[:server_host]
+        found = if item[:type] == TYPE_SQL
+          [ ResourceMap::Endpoint.at(resource: key, host: host, port: SQL_PORT, workspace: reading.workspace, database: item[:name]) ]
+        else
+          POSTGRES_PORTS.map { |port| ResourceMap::Endpoint.at(resource: key, host: host, port: port, workspace: reading.workspace) }
+        end
+        found.compact
       end
 
       # A list's resources as items, and whether the list was read in full.
@@ -445,6 +519,7 @@ module Integrations
           databases.items.reject { |database| database["name"] == MASTER }.map do |database|
             item(database, TYPE_SQL, database.dig("properties", "status"),
                  details: { "server" => server["name"], "sku" => database.dig("sku", "name"), "objective" => database.dig("properties", "currentServiceObjectiveName") })
+              .merge(server_host: server.dig("properties", "fullyQualifiedDomainName"))
           end
         end
         [ found, complete ]
@@ -454,6 +529,7 @@ module Integrations
         properties = server["properties"].to_h
         item(server, TYPE_POSTGRES, properties["state"],
              details: { "version" => properties["version"], "sku" => server.dig("sku", "name"), "storage_gb" => properties.dig("storage", "storageSizeGB") })
+          .merge(server_host: properties["fullyQualifiedDomainName"])
       end
 
       def function?(site) = site["kind"].to_s.split(",").map(&:strip).include?(FUNCTION_KIND)
