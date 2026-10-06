@@ -54,6 +54,7 @@ module Mcp
         {
           sentence: link.sentence, relation: link.relation, origin: link.origin, how: GetResourceMap.how_found(link),
           confirmed: (link.confirmed_at.present? if link.suggested?), certainty: link.certainty, clues: link.clues.presence,
+          settings: link.variables.presence,
           note: link.note.presence, other: { id: other.id, name: other.name, kind: other.kind, provider: other.provider,
                                              gone_since: other.removed_at&.iso8601 }.compact
         }.compact

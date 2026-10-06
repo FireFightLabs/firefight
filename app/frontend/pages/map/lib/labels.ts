@@ -67,7 +67,7 @@ function certaintyOf(link: ResourceMapLink): string {
 
 const HOW_FOUND: Record<ResourceMapOrigin, (link: ResourceMapLink) => string> = {
   declared: (link) => `Declared by ${link.foundBy ?? "a connection"}`,
-  matched: (link) => `Matched from what ${link.foundBy ?? "a connection"} reports`,
+  matched: (link) => (link.foundBy ? `Matched from what ${link.foundBy} reports` : "Matched from a setting that names its address"),
   person: () => "Added by a person",
   suggested: (link) => (link.unconfirmed ? "Suggested by Halon, not confirmed yet" : "Suggested by Halon, confirmed"),
   inferred: (link) => (link.unconfirmed ? `Suggested by Firefight${certaintyOf(link)}, not confirmed yet` : "Suggested by Firefight, confirmed"),

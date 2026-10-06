@@ -19,7 +19,9 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_MAP
       description "The links into and out of one resource on the resource map, a page at a time. A link reads as a " \
                   "sentence, from depends on to, such as \"web uses orders-db\", with how it was found: declared by a " \
-                  "provider, matched, added by a person, or a suggestion with its certainty and clues. A suggestion is " \
+                  "provider, matched from a setting that names the store's address, added by a person, or a suggestion " \
+                  "with its certainty and clues. settings names the service's settings a link was found in, such as " \
+                  "DATABASE_URL, never their values. A suggestion is " \
                   "not a fact until a person confirms it, so never state one as fact. Links to resources in environments " \
                   "the caller cannot read are left out and counted. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
