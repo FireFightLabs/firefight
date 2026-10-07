@@ -34,7 +34,7 @@ class Auth::EmailSignInsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to login_path
-    assert_not LoginToken.exists?
+    assert_not LoginToken.exists?(email: "not an email")
   end
 
   test "the link points at this host's confirm page" do

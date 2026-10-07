@@ -18,7 +18,10 @@ module Slack
     # actor, such as a workflow reading both from its context. bold also
     # bolds a real mention, for lines that always show the person in bold.
     def self.person(platform_user_id, name, bold: false)
-      return(bold ? "*<@#{platform_user_id}>*" : "<@#{platform_user_id}>") if platform_user_id.present?
+      if platform_user_id.present?
+        mention = "<@#{platform_user_id}>"
+        return bold ? "*#{mention}*" : mention
+      end
       return "*#{escape(name)}*" if name.present?
 
       "someone"
