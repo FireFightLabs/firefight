@@ -9,6 +9,10 @@ module Integrations
   # and may answer:
   #   setup_steps                             sentences saying how an admin sends the provider's changes to the
   #                                           connection's address, for a provider Firefight cannot register with
+  #   by_hand_note                            a sentence said beside those steps while no secret is saved, such as what the
+  #                                           provider asks of an account before it sends anything
+  #   many_secrets?                           true when an admin adds a webhook at each of several places, such as each
+  #                                           database, and each signs with a secret of its own, so every one saved counts
   #   register(row, url:)                     registers a webhook itself, answering a Webhook, and raises Refused when
   #                                           the provider turns it down for its plan or a limit
   #   confirmation_for(row, url:)             a sentence saying what registering would cost the account, such as its
@@ -21,7 +25,9 @@ module Integrations
   #   refresh(row, webhook_id)                extends one that lapses, answering when it now does
   #   remove(row, webhook_id)                 takes it back while the connection's credentials still reach the provider
   #   poll(row, since:)                       reads the provider's change log after the cursor since (nil the first time,
-  #                                           when it starts from now), answering a Polled
+  #                                           when it starts from now), answering a Polled. It raises Refused when the
+  #                                           provider turns the read down for the connection's access, which is tried
+  #                                           again a day later, and answers poll_every, how often it is read
   #   limits                                  a sentence saying what live updates do not follow, such as a resource
   #                                           added or its settings changing, which the hourly sweep reads, shown on
   #                                           the connection while they are on
@@ -47,9 +53,12 @@ module Integrations
       def initialize(id:, secret: nil, expires_at: nil) = super
     end
 
-    # The provider turned a registration down for the account's plan or a limit, which a retry within the day would not
-    # change.
+    # The provider turned a registration or a read of its change log down for the account's plan, a limit or what the
+    # connection may read, which a retry within the day would not change.
     class Refused < Integrations::Error; end
+
+    # How often a change log is read unless the source says otherwise.
+    POLL_EVERY = 5.minutes
 
     # What one read of a change log found, and where the next read starts.
     Polled = Data.define(:events, :cursor)
@@ -71,6 +80,10 @@ module Integrations
 
       def setup_steps = []
 
+      def by_hand_note = nil
+
+      def many_secrets? = false
+
       def limits = nil
 
       def registers? = respond_to?(:register)
@@ -78,6 +91,8 @@ module Integrations
       def asks_first? = respond_to?(:confirmation_for)
 
       def polls? = respond_to?(:poll)
+
+      def poll_every = POLL_EVERY
 
       def app_wide? = respond_to?(:installation_of)
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_201000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1124,6 +1124,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_201000) do
     t.datetime "map_events_turned_off_at"
     t.datetime "map_events_refused_at"
     t.jsonb "map_events_sent_from", default: {}, null: false
+    t.datetime "map_events_polled_at"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
     t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true

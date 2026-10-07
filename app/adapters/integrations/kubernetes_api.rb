@@ -9,6 +9,8 @@ module Integrations
     class Forbidden < Error; end
     class NotFound < Error; end
     class Unauthorized < Error; end
+    # The version a watch started from is older than the API server keeps, so the list has to be read again in full.
+    class Gone < Error; end
 
     PROVIDER_KEY = "kubernetes".freeze
     PATCH_JSON = "application/json-patch+json".freeze
@@ -21,7 +23,11 @@ module Integrations
     CERTIFICATE = /-----BEGIN CERTIFICATE-----(.+?)-----END CERTIFICATE-----/m
     PROVIDER_NAME = "The API server".freeze
     # The API server answers a failure as a Status object, whose message says what was refused and why.
-    REFINED = { 401 => Unauthorized, 403 => Forbidden, 404 => NotFound }.freeze
+    REFINED = { 401 => Unauthorized, 403 => Forbidden, 404 => NotFound, 410 => Gone }.freeze
+    # A watch the API server ends after this many seconds, with the time a quiet stream may be silent beyond it.
+    WATCH_SECONDS = 50
+    WATCH_MARGIN = 15
+    WATCH_ERROR = "ERROR".freeze
 
     # Why a server address and CA cannot be used, or nil. Read before anything is saved, so it is said on the form.
     def self.refusal(server, ca)
@@ -66,6 +72,23 @@ module Integrations
 
     # What an endpoint answers as plain text, such as a container's log. A failure still comes back as a Status object.
     def text(path, query = {}) = json(Net::HTTP::Get, path, query, as: :text)
+
+    # Follows a list from resource_version for at most timeout seconds, handing each event to the block as the API server
+    # sends it: ADDED, MODIFIED, DELETED and BOOKMARK, each with the object and its resourceVersion. Bookmarks keep a
+    # quiet list's version current, and the server sends one before the watch ends. A version older than the server
+    # keeps raises Gone, said as a 410 answer or an ERROR event holding a Status with code 410. (Kubernetes API concepts,
+    # Efficient detection of changes, Watch bookmarks and 410 Gone responses,
+    # https://kubernetes.io/docs/reference/using-api/api-concepts/#efficient-detection-of-changes)
+    def watch(path, resource_version:, timeout: WATCH_SECONDS, &)
+      query = { "watch" => "true", "resourceVersion" => resource_version, "allowWatchBookmarks" => "true", "timeoutSeconds" => timeout }
+      uri, request = request_for(Net::HTTP::Get, path, query)
+      reaching do
+        Http.request(uri, request, error_class: Error, read_timeout: timeout + WATCH_MARGIN, ipaddr: @ipaddr, cert_store: @store) do |response|
+          refused!(response) unless response.code.to_i.between?(200, 299)
+          stream(response, &)
+        end
+      end
+    end
 
     def patch(path, body, type)
       raise ArgumentError, "Unknown patch type #{type}" unless PATCH_TYPES.include?(type)
@@ -113,6 +136,45 @@ module Integrations
         request.body = body
       end
       [ uri, request ]
+    end
+
+    # Each line of a watch is one event as JSON.
+    def stream(response)
+      buffer = +""
+      handle = lambda do |line|
+        next if line.strip.empty?
+
+        event = JSON.parse(line)
+        raise_status(event["object"].to_h) if event["type"] == WATCH_ERROR
+        yield event
+      end
+      response.read_body do |chunk|
+        buffer << chunk
+        while (line = buffer.slice!(/\A[^\n]*\n/))
+          handle.call(line)
+        end
+      end
+      handle.call(buffer)
+    rescue JSON::ParserError
+      raise Error, "#{PROVIDER_NAME} sent a change that is not JSON."
+    end
+
+    def refused!(response)
+      status = begin
+        JSON.parse(response.body.to_s)
+      rescue JSON::ParserError
+        {}
+      end
+      raise_status(status.is_a?(Hash) ? status.merge("code" => response.code.to_i) : { "code" => response.code.to_i })
+    end
+
+    def raise_status(status)
+      code = status["code"].to_i
+      said = Http.words(status["message"]) || "no reason given"
+      message = "#{PROVIDER_NAME} answered #{code}: #{said}"
+      raise Error.new(message).extend(RateLimited) if code == Http::TOO_MANY_REQUESTS
+
+      raise REFINED.fetch(code, Error), message
     end
 
     # A refused token and a certificate that does not match say what to check, since the API server's own words do not.

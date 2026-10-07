@@ -3,7 +3,7 @@ module Integrations
     # A project's status as Supabase's Management API names it, and a branch's as supabase-mcp's branch schema does.
     Supabase = Provider.new(
       key: "supabase", adapter: "Integrations::Capabilities::Supabase", map_reader: "Integrations::MapReaders::Supabase",
-      source_links: "Integrations::SourceLinks::Supabase",
+      source_links: "Integrations::SourceLinks::Supabase", map_events: "Integrations::MapEventSources::Supabase",
       status_words: {
         "active_healthy" => "healthy", "active_unhealthy" => "unhealthy", "coming_up" => "starting", "restarting" => "starting",
         "creating_project" => "starting", "restoring" => "pending", "running_migrations" => "pending", "upgrading" => "pending",
