@@ -95,6 +95,34 @@ module Integrations
       assert_equal "https://github.com/acme/api/pull/7", opened["html_url"]
     end
 
+    test "a commit pushed to an existing branch moves it without forcing, so a branch that moved since is refused" do
+      GithubApp.stubs(:get).with("/repos/acme/api/git/commits/head-sha", token: "t").returns("tree" => { "sha" => "head-tree" })
+      GithubApp.stubs(:post).with("/repos/acme/api/git/blobs", { content: "cG9vbA==", encoding: "base64" }, token: "t").returns("sha" => "blob-1")
+      GithubApp.stubs(:post).with("/repos/acme/api/git/trees", { base_tree: "head-tree", tree: [ { path: "a.rb", mode: "100644", type: "blob", sha: "blob-1" } ] }, token: "t")
+               .returns("sha" => "tree-1")
+      GithubApp.expects(:post).with("/repos/acme/api/git/commits", { message: "Raise", tree: "tree-1", parents: [ "head-sha" ] }, token: "t").returns("sha" => "commit-2")
+      GithubApp.expects(:write).with(:patch, "/repos/acme/api/git/refs/heads/team/fix%20pool", { sha: "commit-2", force: false }, token: "t").returns({})
+      GithubApp.expects(:post).with { |path, *| path.end_with?("/pulls") }.never
+
+      assert_equal "commit-2", GithubApp.push_commit("acme/api", branch: "team/fix pool", base_sha: "head-sha", message: "Raise",
+                                                                 files: { "a.rb" => { mode: "100644", content: "cG9vbA==" } }, token: "t")
+    end
+
+    test "a change by any verb sends its body, reads GitHub's validation errors, and tells a missing thing from a refusal" do
+      sent = []
+      Http.stubs(:request).with { |_uri, request, **| sent << [ request.method, request.body ] }.returns(answer("204", {}))
+      assert_equal({}, GithubApp.write(:delete, "/repos/acme/web/issues/5/labels/bug", token: "ghs_token"))
+      assert_equal({}, GithubApp.write(:patch, "/repos/acme/web/pulls/5", { state: "closed" }, token: "ghs_token"))
+      assert_equal [ [ "DELETE", nil ], [ "PATCH", { state: "closed" }.to_json ] ], sent
+
+      Http.stubs(:request).returns(answer("422", message: "Validation Failed", errors: [ { message: "Reviews may only be requested from collaborators" } ]))
+      assert_equal "GitHub answered 422: Validation Failed: Reviews may only be requested from collaborators",
+                   assert_raises(GithubApp::Error) { GithubApp.write(:post, "/repos/acme/web/pulls/5/requested_reviewers", { reviewers: [ "x" ] }, token: "ghs_token") }.message
+
+      Http.stubs(:request).returns(answer("404", message: "Not Found"))
+      assert_raises(GithubApp::NotFound) { GithubApp.write(:put, "/repos/acme/web/pulls/5/merge", {}, token: "ghs_token") }
+    end
+
     test "a job's log is fetched from the signed address GitHub redirects to, without the token, and only on a public host" do
       redirect = Net::HTTPFound.new("1.1", "302", "Found")
       redirect["location"] = "https://pipelines.actions.githubusercontent.com/logs/9?sig=1"

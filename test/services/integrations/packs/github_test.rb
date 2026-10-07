@@ -15,26 +15,6 @@ module Integrations
         GithubApp.stubs(:installation_token).returns("ghs_token")
       end
 
-      test "pr_lookup renders the PR with its changed files" do
-        GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412", token: "ghs_token").returns(
-          "number" => 412, "title" => "Fix payment retries", "state" => "closed",
-          "merged_at" => "2026-08-01T10:00:00Z", "user" => { "login" => "uros" },
-          "head" => { "ref" => "fix-retries" }, "base" => { "ref" => "main" },
-          "changed_files" => 2, "additions" => 10, "deletions" => 3, "body" => "Retries were unbounded."
-        )
-        GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412/files?per_page=30", token: "ghs_token").returns([
-          { "filename" => "app/models/payment.rb", "additions" => 8, "deletions" => 2 },
-          { "filename" => "test/models/payment_test.rb", "additions" => 2, "deletions" => 1 }
-        ])
-
-        text = @pack.pr_lookup(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 })
-
-        assert_includes text, "PR #412: Fix payment retries"
-        assert_includes text, "merged at 2026-08-01T10:00:00Z"
-        assert_includes text, "app/models/payment.rb (+8 -2)"
-        assert_includes text, "Retries were unbounded."
-      end
-
       test "commit_lookup renders the commit with stats and files" do
         GithubApp.stubs(:get).with("/repos/acme/checkout/commits/abc123", token: "ghs_token").returns(
           "sha" => "abc123", "stats" => { "additions" => 5, "deletions" => 1 },

@@ -201,6 +201,33 @@ module Integrations
                        assert_raises(NativePack::Error) { @pack.cancel_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 42 }) }.message
         end
 
+        test "a repository's workflows are listed with the file name the other tools take" do
+          GithubApp.expects(:get).with("/repos/acme/web/actions/workflows?per_page=100", token: "ghs_token").returns("workflows" => [
+            { "id" => 7, "name" => "Deploy", "path" => ".github/workflows/deploy.yml", "state" => "disabled_manually", "html_url" => "https://github.com/acme/web/actions/workflows/deploy.yml" }
+          ])
+
+          text = text_of(@pack.list_workflows(environment_row: @row, arguments: { "repo" => "acme/web" }))
+
+          assert_includes text, "Workflows in acme/web:\n  Deploy  .github/workflows/deploy.yml  disabled manually  id 7  https://github.com/acme/web/actions/workflows/deploy.yml"
+          assert text.end_with?("https://github.com/acme/web/actions")
+        end
+
+        test "a job's log is scrubbed of anything like a credential before anyone reads it" do
+          tool = @integration.tools.create!(name: "job_log", read_only: true, enabled: true)
+          GithubApp.stubs(:get).with("/repos/acme/web/actions/jobs/9", token: "ghs_token").returns(job(9, "failure"))
+          GithubApp.stubs(:download).with("/repos/acme/web/actions/jobs/9/logs", token: "ghs_token")
+                   .returns("2026-10-01T09:00:01Z git clone https://x-access-token:ghs_#{'a' * 36}@github.com/acme/web\n" \
+                            "2026-10-01T09:00:02Z Using key AKIAIOSFODNN7EXAMPLE and token ghp_#{'b' * 36}\n")
+
+          result = NativeExecutor.call(tool: tool, environment_row: @row, arguments: { "repo" => "acme/web", "job_id" => 9 })
+          text = text_of(result)
+
+          assert_not result["isError"]
+          assert_includes text, "git clone [REDACTED:credential_url]github.com/acme/web"
+          assert_includes text, "Using key [REDACTED:aws_key] and token [REDACTED:github_token]"
+          assert_not_includes text, "a" * 36
+        end
+
         private
 
         DISPATCHABLE = <<~YAML.freeze
