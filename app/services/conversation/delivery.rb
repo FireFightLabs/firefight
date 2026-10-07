@@ -34,13 +34,15 @@ class Conversation::Delivery
   end
 
   # Text written so far lands before the step card, which shows the tool by name and not its query.
-  # A thread shows every step the same way, so what kind it is and how long it took are the dashboard's alone.
-  def step(key:, step:, status:, kind: nil, seconds: nil, failed: false)
-    cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && !failed
+  # A thread shows every step the same way, so what kind it is and how long it took are the dashboard's alone. How a
+  # finished step went is said in a word.
+  def step(key:, step:, status:, kind: nil, seconds: nil, outcome: nil)
+    answered = outcome.nil? || outcome.kind == Chat::StepOutcome::KIND_ANSWERED
+    cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && answered
     charted << key if step.card&.kind == Chat::Tools::CARD_CHART
     @text.flush!
     adapter.report_agent_step(
-      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind
     )
   end
 

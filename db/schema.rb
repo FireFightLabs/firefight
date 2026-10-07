@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_210300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1126,6 +1126,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.jsonb "map_events_sent_from", default: {}, null: false
     t.datetime "map_events_polled_at"
     t.string "log_patterns_error"
+    t.string "installation_state"
+    t.datetime "installation_state_at"
+    t.jsonb "installation_details", default: {}, null: false
+    t.jsonb "map_events_scopes"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
     t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true
@@ -1323,6 +1327,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.string "status", default: "pending", null: false
     t.string "tool_name"
     t.datetime "updated_at", null: false
+    t.string "failure_kind"
     t.index ["hypothesis_id"], name: "index_investigation_steps_on_hypothesis_id"
     t.index ["investigation_id", "created_at"], name: "index_investigation_steps_on_investigation_id_and_created_at"
     t.index ["investigation_id", "position"], name: "index_investigation_steps_on_investigation_id_and_position", unique: true, where: "(\"position\" IS NOT NULL)"
@@ -1752,6 +1757,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.text "thought_signature"
     t.string "tool_call_id", null: false
     t.datetime "updated_at", null: false
+    t.string "failure_kind"
     t.index ["message_type", "message_id", "tool_call_id"], name: "index_ruby_llm_tool_calls_on_message_and_tool_call_id", unique: true
     t.index ["name"], name: "index_ruby_llm_tool_calls_on_name"
     t.index ["result_type", "result_id"], name: "index_ruby_llm_tool_calls_on_result_type_and_result_id"

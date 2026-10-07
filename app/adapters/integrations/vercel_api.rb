@@ -7,7 +7,9 @@ module Integrations
     # Refused by the plan, such as a rollback past the previous production deployment on Hobby (spec, requestRollback 402).
     class PlanLimited < Error; end
     # Vercel answered that the project or webhook is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Vercel turned the request down as it stands, such as a webhook on a plan without them or past the team's limit
     # (spec, createWebhook 400 and 403).
     class Refused < Error; end

@@ -122,6 +122,36 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     assert_includes @offered.flatten.map(&:name), Mcp::Tools::GET_RESOURCE_MAP
   end
 
+  test "a run holds use_skill and reads a provider's skill and guides as the investigator, offering only what it was granted" do
+    connect_northflank(%w[list_resources search_logs])
+    tool = Investigation::Tools.for(@investigation, offer: ->(tools) { @offered << tools }).find { |each| each.name == Chat::Tools::UseSkill.tool_name }
+
+    steps = tool.call("skill" => "northflank_errors")
+    guide = tool.call("skill" => "northflank_fixes", "reference" => "api/project/services.md")
+
+    assert_includes steps, "`search_logs`"
+    assert_equal %w[search_logs], @offered.flatten.map(&:name)
+    assert guide.start_with?(Chat::Tools::UseSkill::GUIDE_NOTE)
+    assert_includes guide, "### GET services\n"
+  end
+
+  test "a rehearsal reads skills and guides and changes nothing" do
+    rehearsal = @workspace.investigations.create!(
+      subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true, max_turns: 10, max_spend_cents: 400
+    )
+    connect_northflank(%w[api_request list_resources])
+    tools = Investigation::Tools.for(rehearsal, offer: ->(offered) { @offered << offered })
+    tool = tools.find { |each| each.name == Chat::Tools::UseSkill.tool_name }
+
+    assert_equal [ "recall" ], tools.map(&:name) & %w[remember recall dispute_memory]
+    assert_no_difference -> { Chat::Memory.count } do
+      assert_no_difference -> { Ability::Invocation.count } do
+        assert_includes tool.call("skill" => "northflank_fixes"), "Guides you can read when you need the detail"
+        assert tool.call("skill" => "northflank_fixes", "reference" => "api/index.md").start_with?(Chat::Tools::UseSkill::GUIDE_NOTE)
+      end
+    end
+  end
+
   private
 
   def connect_northflank(tools)

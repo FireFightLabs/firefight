@@ -112,7 +112,7 @@ module Chat::Tools
 
     asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG))
     Step.new(
-      title: title_for(tool_name, workspace), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
+      title: title_for(tool_name, workspace, arguments.to_h.stringify_keys), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
       card: card_for(tool_name, arguments)
     )
   end
@@ -182,11 +182,15 @@ module Chat::Tools
   # What the tool does, by its own name rather than the connection's, such as "Api request".
   # A connection tool reads as "Api request · Faylee (Northflank)", never as its connection's slug made into words, which
   # reads like the provider's name. Anything else is its own name made into words.
-  def self.title_for(tool_name, workspace)
+  # A call that names one project or workspace of a connection that reaches several reads with it, as "Api request ·
+  # Faylee (Northflank), project acme".
+  def self.title_for(tool_name, workspace, arguments = {})
     tool = workspace && Target.connection_tool(workspace, tool_name)
     return tool_name.to_s.tr("_", " ").humanize unless tool
 
-    "#{tool.name.tr('_.', '  ').humanize} · #{tool.integration.display_name}"
+    key = IntegrationProvider.find(tool.integration.provider)&.scope_field&.key
+    scope = key && arguments[key].presence
+    "#{tool.name.tr('_.', '  ').humanize} · #{scope.is_a?(String) ? tool.integration.target_label(scope: scope) : tool.integration.display_name}"
   end
 
   def self.call_title(tool_call)
@@ -227,10 +231,11 @@ module Chat::Tools
     waiting_for_approval(Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action))
   end
 
-  def self.mark_failed(agent_run, tool_call_id)
+  # kind says whether the provider answered that what was asked about is not there (Chat::StepOutcome).
+  def self.mark_failed(agent_run, tool_call_id, kind: Chat::StepOutcome::FAILURE_ERROR)
     return if tool_call_id.blank?
 
-    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id)
+    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id, kind: kind)
   end
 
   # What a step is called wherever it is cited later, such as "Get form declare".
@@ -294,7 +299,7 @@ module Chat::Tools
       writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
-        name: tool.model_facing_name, description: clean(tool.description, ONE_LINE),
+        name: tool.model_facing_name, description: clean(tool.described_for_agents, ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name

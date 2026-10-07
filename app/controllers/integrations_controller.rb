@@ -5,11 +5,13 @@ class IntegrationsController < InertiaController
 
   authorizes Ability::Action::RESOURCE_INTEGRATIONS,
     read: :index,
-    create: %i[create oauth_start oauth_callback],
-    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose map_events_secret forget_map_events_secrets live_updates live_updates_setup],
+    create: %i[create oauth_start oauth_callback list_scopes],
+    update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose scope_options scopes map_events_secret forget_map_events_secrets live_updates
+               live_updates_setup],
     delete: :destroy
   before_action :set_integration,
-                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :map_events_secret, :forget_map_events_secrets,
+                only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :scope_options, :scopes, :map_events_secret,
+                      :forget_map_events_secrets,
                       :live_updates, :live_updates_setup, :destroy ]
 
   def index
@@ -111,6 +113,38 @@ class IntegrationsController < InertiaController
     return redirect_to integrations_path, alert: refusal if refusal
 
     redirect_to integrations_path, notice: "#{@integration.name} now uses #{field.shown(row.fields[field.key], choices: field.options_from(row.learned))} for #{field.label.downcase_first}."
+  end
+
+  # What the credentials typed on the connect form can read, such as a Northflank token's projects, listed before
+  # anything is saved so the form offers them. The credentials go no further than the provider.
+  def list_scopes
+    provider = IntegrationProvider.find(params[:provider].to_s)
+    return render(json: { options: [], error: "#{params[:provider]} chooses nothing to read." }, status: :unprocessable_entity) unless provider&.scope_field
+
+    values = params.fetch(:credentials, {}).permit(*Integrations::Credentials.fields_for(provider.key).map(&:key)).to_h
+    fields = provider.connect_values(fields_param(provider), provider.environment_fields.reject(&:scope))
+    render json: scope_listing { Integrations::Credentials.scope_options(provider.key, values, region: provider.region(params[:region].presence), fields: fields) }
+  end
+
+  # What a connection's credentials can read now, for choosing again what it reads.
+  def scope_options
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    render json: scope_listing { Integrations::ConnectionSettings.of(row).scope_options }
+  end
+
+  # Chooses again what a connection reads at its provider, such as which projects, and reads it again at once.
+  def scopes
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    field = IntegrationProvider.find(@integration.provider)&.scope_field
+    return redirect_to integrations_path, alert: "#{@integration.name} chooses nothing to read." unless field
+
+    refusal = row.choose_scopes!(field, params[:values])
+    return redirect_to integrations_path, alert: refusal if refusal
+
+    Integrations::ConnectionRefresh.run!(@integration)
+    settings = Integrations::ConnectionSettings.of(row.reload)
+    named = settings.all_scopes? ? settings.chosen_scopes : settings.chosen_scopes.map { |id| settings.scope_name(id) }
+    redirect_to integrations_path, notice: "#{@integration.name} now reads #{field.reach_words(named)}."
   end
 
   # The signing secret an admin pasted from a provider set up by hand to send its changes to the connection's address.
@@ -222,15 +256,21 @@ class IntegrationsController < InertiaController
 
   # Removing the workspace's issue tracker, or a connection Firefight registered for map changes, takes back the webhook
   # Firefight registered while its credentials still reach the provider. What a person set up to send changes stays at
-  # the provider, so the toast says how to remove it.
+  # the provider, so the toast says how to remove it. A connection made through an app installed at the provider also
+  # removes the app from each account the person ticked, and the toast links to the app's settings for one left there.
   def destroy
     IssueSyncService.new(current_workspace).connection_removed(@integration, by: current_membership)
     removal = @integration.integration_environments.filter_map(&:live_updates_removal_words).uniq
     Integrations::MapEvents.connection_removed(@integration)
+    installations = Integrations::Installations.disconnected!(@integration, uninstall: params[:uninstall], by: current_membership)
     @integration.update!(deleted_at: Time.current)
-    return redirect_to integrations_path if removal.empty?
+    return redirect_to integrations_path if removal.empty? && installations.empty?
 
-    redirect_to integrations_path, notice: "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends. #{removal.join(' ')}"
+    lead = removal.any? ? "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends." : "#{@integration.name} is disconnected."
+    failed, done = installations.partition(&:error)
+    flash.inertia[:links] = installations.filter_map(&:link)
+    flash[:alert] = failed.map(&:words).join(" ") if failed.any?
+    redirect_to integrations_path, notice: [ lead, *removal, *done.map(&:words) ].join(" ")
   end
 
   private
@@ -328,7 +368,7 @@ class IntegrationsController < InertiaController
     end
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"])
-    environment_row.store_installation!(params[:installation_id])
+    Integrations::Installations.connected!(environment_row, params[:installation_id])
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
@@ -390,6 +430,13 @@ class IntegrationsController < InertiaController
     return {} unless provider
 
     params.fetch(:fields, {}).permit(*provider.connect_fields.map { |field| field.multiple ? { field.key => [] } : field.key }).to_h
+  end
+
+  # A listing as the form reads it, or the provider's words when it would not list.
+  def scope_listing
+    { options: yield.map(&:to_h), error: nil }
+  rescue Integrations::Error => error
+    { options: [], error: error.message }
   end
 
   def set_integration

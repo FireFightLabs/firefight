@@ -67,6 +67,24 @@ module Integrations
         raise NotImplementedError, "#{name} does not connect with credentials"
       end
 
+      # A pack whose connect form chooses what the connection reads (a scope field, such as Northflank's projects) lists
+      # what its credentials can read, as IntegrationProvider::ConnectOptions of an id and a name, and raises its
+      # provider's refusal in words. values, region and fields are what the connect form gave.
+      def scope_options(_values, region: nil, fields: {})
+        raise NotImplementedError, "#{name} does not list what its credentials can read"
+      end
+
+      # The same for a connection already made, from what it stored and what its form asked.
+      def scope_options_of(settings)
+        values = credential_fields.to_h { |field| [ field.key, settings.credential(field.key) ] }
+        fields = IntegrationProvider.find(settings.provider_key).connect_fields.reject(&:scope).to_h { |field| [ field.key, settings.field(field.key) ] }
+        scope_options(values, region: settings.region, fields: fields.compact)
+      end
+
+      # The arguments that name a resource the pack's tools act on, which say which scope a call reaches when the
+      # connection reaches several (Integrations::Scopes). A pack whose tools name one another way answers them too.
+      def scope_references(arguments) = [ arguments["resource"] ]
+
       def tool(name, description:, params_schema:, read_only:)
         name = name.to_s
         unless name.match?(/\A[a-z0-9_]+\z/)
@@ -98,11 +116,81 @@ module Integrations
       self.class.tool_definitions
     end
 
+    # The scope a call reaches when given one (Integrations::Scopes.resolved names it in the arguments), read by scope!.
     def call(tool_name, environment_row:, arguments:)
       definition = tool_definitions.find { |candidate| candidate.name == tool_name }
       fail! "Unknown tool '#{tool_name}' for #{self.class.name}" unless definition
 
+      key = environment_row && ConnectionSettings.of(environment_row).scope_field&.key
+      @scope = arguments[key].to_s.strip.presence if key && @scope.nil?
       public_send(definition.name, environment_row: environment_row, arguments: arguments)
+    end
+
+    # The scope this pack reads, such as one Northflank project, for a connection that may reach several, or nil while it
+    # was told none.
+    attr_reader :scope
+
+    # The same pack reading only scope, holding nothing another scope's reads cached.
+    def scoped(scope)
+      self.class.new(integration, box_key: box_key, progress: @progress).tap { |pack| pack.instance_variable_set(:@scope, scope.to_s) }
+    end
+
+    # The one scope a call reaches, the one it was given or the connection's only one. A connection that reaches several
+    # and was not told which refuses with the ones to choose from, so a call never lands in one picked for it.
+    def scope!(environment_row)
+      return @scope if @scope
+
+      settings = ConnectionSettings.of(environment_row)
+      field = settings.scope_field || fail!("#{settings.display_name} names nothing it reads.")
+      return settings.chosen_scopes.first if settings.chosen_scopes.one? && !settings.all_scopes?
+
+      reached = settings.scopes
+      return reached.first if reached.one?
+      fail!("#{settings.display_name} reaches no #{field.one} yet. Choose one on the Integrations page.") if reached.empty?
+
+      fail!("#{settings.display_name} reaches more than one #{field.one}: #{reached.to_sentence}. Name the #{field.one} with #{field.key}.")
+    end
+
+    # Whether the call reads every scope the connection reaches at once, as a listing does when it was named none.
+    def every_scope?(environment_row) = @scope.nil? && ConnectionSettings.of(environment_row).several_scopes?
+
+    # What each scope the connection reaches holds, read one scope at a time by the block on a pack of its own, as one
+    # snapshot. With several, each of the provider's own resources is marked with its scope (ResourceMap::SCOPE), and a
+    # scope that cannot be read is a gap naming kinds, so nothing it held is taken as gone while the others are still
+    # read. A connection whose every scope fails, or that reaches one, fails the sweep as before.
+    def map_of_scopes(environment_row, kinds:)
+      settings = ConnectionSettings.of(environment_row)
+      return yield(scoped(scope!(environment_row))) unless settings.several_scopes?
+
+      failures = []
+      learn_scope_names(settings)
+      snapshots = settings.scopes.map do |each|
+        Scopes.marked(yield(scoped(each)), settings, each)
+      rescue Integrations::RateLimited
+        raise
+      rescue Integrations::Error => error
+        failures << error
+        ResourceMap::Snapshot.new(resources: [], gaps: [ ResourceMap::Gap.new(text: Sentence.join("#{settings.scope_field.one.upcase_first} #{settings.scope_name(each)} could not be read", error), kinds: kinds) ])
+      end
+      raise failures.first if failures.any? && failures.size == snapshots.size
+
+      ResourceMap::Snapshot.merged(snapshots)
+    end
+
+    # Lists the scopes again for their names, which mark what the sweep reads. A listing the token may not make leaves
+    # them named by their ids.
+    def learn_scope_names(settings)
+      settings.scope_options
+    rescue Integrations::RateLimited
+      raise
+    rescue Integrations::Error, NotImplementedError
+      nil
+    end
+    private :learn_scope_names
+
+    # What the block answers for each scope the resources live in, on a pack of that scope's own, as one list.
+    def by_scope(environment_row, resources, &)
+      Scopes.grouped(ConnectionSettings.of(environment_row), resources).flat_map { |each, group| yield(scoped(each), group) }
     end
 
     # Inside a pack file a bare Error resolves to Integrations::Error, not this class.

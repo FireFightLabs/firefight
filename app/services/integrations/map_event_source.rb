@@ -35,6 +35,8 @@ module Integrations
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with
   #                                           the app's secret, INTEGRATION_<KEY>_WEBHOOK_SECRET.
+  #   installation_change(payload, headers:)  for such a provider, what a delivery says changed about the installation
+  #                                           itself (Installations::CHANGE_*), such as removed or suspended, or nil
   #   offers(row)                             for a provider a person sets up to send changes, from a template Firefight
   #                                           made, the places they may set it up in (Offer), such as a cloud's regions,
   #                                           with offer_words (what setting it up does), offer_action (the button),
@@ -48,9 +50,11 @@ module Integrations
   # so it is read again once.
   class MapEventSource
     # A webhook Firefight registered. secret is what it signs with, nil when the provider signs another way, and
-    # expires_at when it lapses unless refreshed.
-    Webhook = Data.define(:id, :secret, :expires_at) do
-      def initialize(id:, secret: nil, expires_at: nil) = super
+    # expires_at when it lapses unless refreshed. scopes are what it covers for a connection that reaches several of what
+    # its provider names a scope, such as Northflank projects (Integrations::Scopes), so it is registered again once the
+    # connection reaches others. A secret per scope, for a provider that makes one each, is one a line.
+    Webhook = Data.define(:id, :secret, :expires_at, :scopes) do
+      def initialize(id:, secret: nil, expires_at: nil, scopes: nil) = super
     end
 
     # The provider turned a registration or a read of its change log down for the account's plan, a limit or what the

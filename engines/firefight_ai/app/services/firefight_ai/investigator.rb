@@ -64,6 +64,7 @@ module FirefightAi
         - #{MAP_START}
         - A responder may add something while you work. Their newest message decides what you check next.
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
+        - Before reading a connected provider, load the skill that fits what you are checking with use_skill. It says the steps, makes the tools it needs callable, and names the provider's guides, such as its API reference, which use_skill reads with reference.
         - Before saying you could not check something, read the groups again. They also say when tools exist but this workspace has not granted them, or when nothing is connected, and that is worth saying in your answer.
         - State nothing a tool result or the facts below do not support. No guesses, no filler.
         - Every tool result carries a step number. That number is how you point at what you saw.

@@ -7,7 +7,9 @@ module Integrations
   class KubernetesApi
     class Error < Integrations::Error; end
     class Forbidden < Error; end
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     class Unauthorized < Error; end
     # The version a watch started from is older than the API server keeps, so the list has to be read again in full.
     class Gone < Error; end

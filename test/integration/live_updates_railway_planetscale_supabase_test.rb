@@ -18,7 +18,7 @@ class LiveUpdatesRailwayPlanetscaleSupabaseTest < ActionDispatch::IntegrationTes
                             .returns("id" => "rule-1")
     with_app_host { Integrations::MapEvents.prepare!(row) }
     row.reload
-    assert_equal [ "rule-1", true ], [ row.map_events_webhook_id, row.live_updates.on ]
+    assert_equal [ { "prj-1" => "rule-1" }, [ "prj-1" ], true ], [ JSON.parse(row.map_events_webhook_id), row.map_events_scopes, row.live_updates.on ]
     secret = row.map_events_secret
     assert_equal 64, secret.size
 

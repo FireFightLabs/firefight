@@ -398,9 +398,10 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
-  # One step the agent took, status is :running or :done.
+  # One step the agent took, status is :running or :done. outcome is how a finished step went, a Chat::StepOutcome kind,
+  # or nil when it is not known.
   # @return [Hash] { success: true }
-  def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
+  def report_agent_step(channel_id:, answer_id:, key:, title:, status:, outcome: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

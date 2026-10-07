@@ -119,7 +119,7 @@ class ResourceMap::LogTemplate < ApplicationRecord
 
   # What new_log_patterns answers, in words Halon and an outside agent read.
   def self.report(resource, comparison, from:, minutes:)
-    head = "Read #{comparison.lines_read} log #{'line'.pluralize(comparison.lines_read)} of #{resource.name} from #{from} over the last #{minutes} minutes."
+    head = "Read #{comparison.lines_read} log #{'line'.pluralize(comparison.lines_read)} of #{resource.scoped_name} from #{from} over the last #{minutes} minutes."
     return "#{head} None came back, so there is nothing to compare." if comparison.lines_read.zero?
 
     known = if comparison.usual.zero?

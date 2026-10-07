@@ -19,5 +19,18 @@ module Integrations
 
       result.merge("content" => Array(result["content"]) + [ { "type" => "text", "text" => Telemetry.link_line(link) } ])
     end
+
+    # The line a result names its page on, as a pack or a builder wrote it, with the provider and the address, or nil.
+    # Only an https address counts, since it is shown as a link.
+    CITED = %r{\AOpen this in (?<provider>[^,]+), .*give the person this link with what you found: (?<url>https://\S+)\z}
+    Cited = Data.define(:line, :provider, :url)
+
+    def self.cited_in(text)
+      text.to_s.lines.map(&:strip).reverse_each do |line|
+        found = line.match(CITED)
+        return Cited.new(line: line, provider: found[:provider], url: found[:url]) if found
+      end
+      nil
+    end
   end
 end
