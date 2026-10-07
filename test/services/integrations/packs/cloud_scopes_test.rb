@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261007210300_keep_google_cloud_projects_and_azure_subscriptions_as_lists")
+require Rails.root.join("db/migrate/20261007210400_keep_google_cloud_projects_and_azure_subscriptions_as_lists")
 
 module Integrations
   module Packs
