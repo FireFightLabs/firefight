@@ -4,7 +4,8 @@ module Integrations
     Planetscale = Provider.new(
       key: "planetscale", adapter: "Integrations::Capabilities::Planetscale", map_reader: "Integrations::MapReaders::Planetscale",
       source_links: "Integrations::SourceLinks::Planetscale", map_events: "Integrations::MapEventSources::Planetscale",
-      status_words: { "importing" => "pending", "import_ready" => "ready", "sleep_in_progress" => "pending", "awakening" => "starting" }
+      status_words: { "importing" => "pending", "import_ready" => "ready", "sleep_in_progress" => "pending", "awakening" => "starting" },
+      error_reader: "Integrations::ErrorReaders::Planetscale"
     )
   end
 end
