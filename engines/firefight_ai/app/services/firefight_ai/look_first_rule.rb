@@ -34,8 +34,8 @@ module FirefightAi
     # own endpoint list was a skill away. These two hold in a chat and a run.
     API_GUIDE_RULE = "Before searching the web for how a provider's API works, which calls it offers, their paths or the " \
                      "body each takes, read what Firefight holds for that provider first: the provider's skill and the " \
-                     "guides it lists, through use_skill where you hold it, and its tools' own descriptions. Search the " \
-                     "web only when they do not answer.".freeze
+                     "guides it lists, through use_skill, and its tools' own descriptions. Search the web only when " \
+                     "they do not answer.".freeze
 
     GUESSED_CALL_RULE = "When a provider answers 404 or 405 to a call whose path you wrote yourself, the call may not " \
                         "exist. Check the provider's API reference before trying again, never send the same call again, " \

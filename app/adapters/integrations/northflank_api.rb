@@ -107,9 +107,10 @@ module Integrations
 
     def delete_notification(notification_id) = changing(Net::HTTP::Delete, "/integrations/notifications/#{segment(notification_id)}")
 
-    # Any call inside a project, as the api_request tool asks for it. The body goes as JSON.
-    def request(verb, project_id, path, body = nil)
+    # Any call inside a project, as the api_request tool asks for it. The body goes as JSON and the query options encoded.
+    def request(verb, project_id, path, body = nil, query = {})
       uri = URI.parse("#{API_ROOT}/projects/#{segment(project_id)}/#{path}")
+      uri.query = encode(query) if query.any?
       request = VERBS.fetch(verb).new(uri)
       if body
         request["Content-Type"] = "application/json"
