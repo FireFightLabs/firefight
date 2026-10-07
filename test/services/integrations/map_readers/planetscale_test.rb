@@ -95,6 +95,45 @@ module Integrations
         assert_equal [ true, 3306, ResourceMap::Fingerprint.of_name("shop", workspace) ], [ endpoint.shared_host, endpoint.port, endpoint.database_fingerprint ]
       end
 
+      test "a re-read of one branch reads it and its database with the tools for each, and finds it gone only when PlanetScale says not found" do
+        tools = { Planetscale::GET_DATABASE => true, Planetscale::GET_BRANCH => true, Planetscale::LIST_BRANCHES => true }
+        asked = []
+        reader = Planetscale.new(nil, tools) do |tool, arguments|
+          asked << [ tool, arguments["pathParameters"] ]
+          tool == Planetscale::GET_BRANCH ? result(BRANCHES["data"].first.merge("state" => "sleeping")) : result(DATABASES["data"].first)
+        end
+        snapshot = reader.map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_BRANCH, external_id: "shop/main"))
+
+        assert_equal [ [ Planetscale::GET_DATABASE, { "organization" => "acme", "database" => "shop" } ],
+                       [ Planetscale::GET_BRANCH, { "organization" => "acme", "database" => "shop", "branch" => "main" } ] ], asked
+        database, branch = snapshot.resources
+        assert_equal [ [ "planetscale", "acme", ResourceMap::KIND_DATABASE, "shop" ], [ "planetscale", "acme", ResourceMap::KIND_BRANCH, "shop/main" ] ], [ database.key, branch.key ]
+        assert_equal "sleeping", branch.status
+        assert_equal [ [ branch.key, database.key ] ], snapshot.links.map { |link| [ link.from, link.to ] }
+
+        not_found = { "content" => [ { "type" => "text", "text" => { "code" => "not_found", "message" => "Not Found" }.to_json } ], "isError" => true }
+        gone = Planetscale.new(nil, tools) { |tool, _arguments| tool == Planetscale::GET_BRANCH ? not_found : result(DATABASES["data"].first) }
+                          .map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_BRANCH, external_id: "shop/dev"))
+        assert_equal [ [ "planetscale", "acme", ResourceMap::KIND_BRANCH, "shop/dev" ] ], gone.gone
+
+        refused = { "content" => [ { "type" => "text", "text" => { "code" => "forbidden", "message" => "Forbidden" }.to_json } ], "isError" => true }
+        error = assert_raises(Integrations::Error) do
+          Planetscale.new(nil, tools) { |_tool, _arguments| refused }.map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "shop"))
+        end
+        assert_match "PlanetScale refused to read the database shop", error.message
+      end
+
+      test "a re-read of a database reads its branches as the sweep does, and a scope it cannot narrow to, or a tool switched off, is left to a sweep" do
+        tools = { Planetscale::GET_DATABASE => true, Planetscale::LIST_BRANCHES => true }
+        snapshot = Planetscale.new(nil, tools) { |tool, _arguments| tool == Planetscale::GET_DATABASE ? result(DATABASES["data"].first) : answer(tool) }
+                              .map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_DATABASE, external_id: "shop"))
+        assert_equal %w[shop shop/main], snapshot.resources.map(&:external_id)
+
+        assert_nil Planetscale.new(nil, tools) { |tool, _arguments| answer(tool) }.map(scope: ResourceMap::Scope.new(account: "acme"))
+        assert_nil Planetscale.new(nil, tools) { |tool, _arguments| answer(tool) }
+                              .map(scope: ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_BRANCH, external_id: "shop/main"))
+      end
+
       private
 
       def answer(tool) = result({ Planetscale::LIST_ORGANIZATIONS => ORGS, Planetscale::LIST_DATABASES => DATABASES, Planetscale::LIST_BRANCHES => BRANCHES }.fetch(tool))

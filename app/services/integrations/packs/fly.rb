@@ -283,69 +283,100 @@ module Integrations
       def map_of(environment_row)
         api = api(environment_row)
         organization = organization_of(environment_row)
-        resources = []
-        links = []
-        gaps = []
-        uses = []
-        secrets_read = true
+        reading = MapReading.new
         listed = api.app_list(organization)
         apps = listed.items
         if listed.incomplete?
-          gaps << ResourceMap::Gap.new(text: "Only the first #{apps.size} apps were read.",
-                                       kinds: [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ])
+          reading.gaps << ResourceMap::Gap.new(text: "Only the first #{apps.size} apps were read.", kinds: [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DOMAIN ])
         end
-        apps.each do |app|
-          name = app["name"]
-          machines = begin
-            api.machines(name).select { |machine| app_machine?(machine) }
-          rescue Integrations::RateLimited
-            raise
-          rescue FlyApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("The machines of #{name} could not be read", error), kinds: [])
-            nil
-          end
-          found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_SERVICE, external_id: name, name: name,
-                                         status: app["status"].presence, url: page(environment_row, name), details: app_details(machines))
-          resources << found
-          names, secrets_read = secret_names(api, name, gaps, secrets_read)
-          uses.concat(ResourceMap::Use.read(from: found.key, workspace: environment_row.integration.workspace, values: machine_env(machines), names: names))
-          begin
-            certificates = api.certificates(name)
-            certificates.items.each do |certificate|
-              host = ResourceMap.domain(certificate["hostname"])
-              resources << host
-              links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
-            end
-            if certificates.incomplete?
-              gaps << ResourceMap::Gap.new(text: "Only the first #{certificates.items.size} certificates of #{name} were read.", kinds: [ ResourceMap::KIND_DOMAIN ])
-            end
-          rescue Integrations::RateLimited
-            raise
-          rescue FlyApi::Error => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("The certificates of #{name} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
-          end
-        end
-        begin
-          api.postgres_clusters(organization).each do |cluster|
-            found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_DATABASE, external_id: cluster["id"].to_s,
-                                           name: cluster["name"].presence || cluster["id"].to_s, status: cluster["status"],
-                                           url: cluster_page(environment_row, organization, cluster["id"]),
-                                           details: { "type" => "Managed Postgres", "plan" => cluster["plan"], "region" => cluster["region"] }.compact)
-            resources << found
-            Array(cluster["attached_apps"]).each do |attached|
-              next unless apps.any? { |app| app["name"] == attached["name"] }
+        apps.each { |app| read_app(environment_row, api, organization, app, reading) }
+        read_clusters(environment_row, api, organization, apps.map { |app| app["name"] }, reading)
+        reading.snapshot
+      end
 
-              links << ResourceMap::FoundLink.new(from: [ PROVIDER_KEY, organization, ResourceMap::KIND_SERVICE, attached["name"] ], to: found.key,
-                                                  relation: ResourceMap::RELATION_USES)
-            end
+      # Only the app a change named (MapEventSources::Fly), read again as the sweep reads it, with its machines, settings,
+      # certificates and the clusters it is attached to. Gone only when Fly answers not found for it. nil for anything
+      # but an app, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        return unless scope.kind == ResourceMap::KIND_SERVICE && scope.external_id.to_s.match?(APP_NAME)
+
+        api = api(environment_row)
+        organization = organization_of(environment_row)
+        app = begin
+          api.app(scope.external_id)
+        rescue FlyApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ [ PROVIDER_KEY, organization, ResourceMap::KIND_SERVICE, scope.external_id ] ])
+        end
+        reading = MapReading.new
+        read_app(environment_row, api, organization, app, reading)
+        read_clusters(environment_row, api, organization, [ app["name"] ], reading, only_links: true)
+        reading.snapshot
+      end
+
+      # What a read of the organization found so far, and whether the apps' secret names are still being read.
+      MapReading = Struct.new(:resources, :links, :gaps, :uses, :secrets_read) do
+        def initialize = super([], [], [], [], true)
+
+        def snapshot = ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
+      end
+
+      # One app with its machines, settings and the hostnames its certificates cover, onto the reading.
+      def read_app(environment_row, api, organization, app, reading)
+        name = app["name"]
+        machines = begin
+          api.machines(name).select { |machine| app_machine?(machine) }
+        rescue Integrations::RateLimited
+          raise
+        rescue FlyApi::Error => error
+          reading.gaps << ResourceMap::Gap.new(text: Sentence.join("The machines of #{name} could not be read", error), kinds: [])
+          nil
+        end
+        found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_SERVICE, external_id: name, name: name,
+                                       status: app["status"].presence, url: page(environment_row, name), details: app_details(machines))
+        reading.resources << found
+        names, reading.secrets_read = secret_names(api, name, reading.gaps, reading.secrets_read)
+        reading.uses.concat(ResourceMap::Use.read(from: found.key, workspace: environment_row.integration.workspace, values: machine_env(machines), names: names))
+        begin
+          certificates = api.certificates(name)
+          certificates.items.each do |certificate|
+            host = ResourceMap.domain(certificate["hostname"])
+            reading.resources << host
+            reading.links << ResourceMap::FoundLink.new(from: host.key, to: found.key, relation: ResourceMap::RELATION_SERVED_BY)
+          end
+          if certificates.incomplete?
+            reading.gaps << ResourceMap::Gap.new(text: "Only the first #{certificates.items.size} certificates of #{name} were read.", kinds: [ ResourceMap::KIND_DOMAIN ])
           end
         rescue Integrations::RateLimited
           raise
         rescue FlyApi::Error => error
-          gaps << ResourceMap::Gap.new(text: Sentence.join("Managed Postgres clusters could not be read", error), kinds: [ ResourceMap::KIND_DATABASE ])
+          reading.gaps << ResourceMap::Gap.new(text: Sentence.join("The certificates of #{name} could not be read", error), kinds: [ ResourceMap::KIND_DOMAIN ])
         end
-        ResourceMap::Snapshot.new(resources: resources, links: links, gaps: gaps, uses: uses)
       end
+      private :read_app
+
+      # The Managed Postgres clusters, each linked from the apps among app_names attached to it. only_links reads them
+      # for an app's links alone and does not write them, and a cluster list it could not read keeps the app's links.
+      def read_clusters(environment_row, api, organization, app_names, reading, only_links: false)
+        api.postgres_clusters(organization).each do |cluster|
+          found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: organization, kind: ResourceMap::KIND_DATABASE, external_id: cluster["id"].to_s,
+                                         name: cluster["name"].presence || cluster["id"].to_s, status: cluster["status"],
+                                         url: cluster_page(environment_row, organization, cluster["id"]),
+                                         details: { "type" => "Managed Postgres", "plan" => cluster["plan"], "region" => cluster["region"] }.compact)
+          reading.resources << found unless only_links
+          Array(cluster["attached_apps"]).each do |attached|
+            next unless app_names.include?(attached["name"])
+
+            reading.links << ResourceMap::FoundLink.new(from: [ PROVIDER_KEY, organization, ResourceMap::KIND_SERVICE, attached["name"] ], to: found.key,
+                                                        relation: ResourceMap::RELATION_USES)
+          end
+        end
+      rescue Integrations::RateLimited
+        raise
+      rescue FlyApi::Error => error
+        kinds = only_links ? [ ResourceMap::KIND_SERVICE ] : [ ResourceMap::KIND_DATABASE ]
+        reading.gaps << ResourceMap::Gap.new(text: Sentence.join("Managed Postgres clusters could not be read", error), kinds: kinds)
+      end
+      private :read_clusters
 
       # What normal looks like for each app: a week of CPU, memory, requests per minute and latency, one reading an hour, for the
       # whole app. An app Fly cannot read keeps yesterday's baselines, and being asked to slow down stops the whole read.
@@ -370,6 +401,24 @@ module Integrations
         end
       end
 
+      # Fly's client and organization for a connection, for live updates (MapEventSources::Fly) as for the pack's own reads.
+      def self.client_for(environment_row)
+        token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
+        raise FlyApi::Error, "This environment has no Fly.io token. Reconnect it on the Integrations page." if token.blank?
+
+        FlyApi.new(token)
+      end
+
+      def self.organization_for(environment_row)
+        ConnectionSettings.of(environment_row).field(ORGANIZATION) || raise(FlyApi::Error, "This environment has no Fly.io organization. Reconnect it.")
+      end
+
+      def self.app_machine?(machine)
+        metadata = machine.dig("config", "metadata") || {}
+        GONE.exclude?(machine["state"]) && OTHER_GROUPS.exclude?(metadata[PROCESS_GROUP]) &&
+          (metadata[PLATFORM_VERSION].nil? || metadata[PLATFORM_VERSION] == "v2")
+      end
+
       def check_health!(environment_row)
         api(environment_row).apps(organization_of(environment_row), limit: 1)
       rescue FlyApi::Error => error
@@ -379,13 +428,16 @@ module Integrations
       private
 
       def api(environment_row)
-        token = ConnectionSettings.of(environment_row).credential(API_TOKEN)
-        fail! "This environment has no Fly.io token. Reconnect it on the Integrations page." if token.blank?
-
-        FlyApi.new(token)
+        self.class.client_for(environment_row)
+      rescue FlyApi::Error => error
+        fail! error.message
       end
 
-      def organization_of(environment_row) = ConnectionSettings.of(environment_row).field(ORGANIZATION) || fail!("This environment has no Fly.io organization. Reconnect it.")
+      def organization_of(environment_row)
+        self.class.organization_for(environment_row)
+      rescue FlyApi::Error => error
+        fail! error.message
+      end
 
       def resources(environment_row)
         @resources ||= begin
@@ -433,11 +485,7 @@ module Integrations
         Telemetry::Link.new(provider: PROVIDER, url: url)
       end
 
-      def app_machine?(machine)
-        metadata = machine.dig("config", "metadata") || {}
-        GONE.exclude?(machine["state"]) && OTHER_GROUPS.exclude?(metadata[PROCESS_GROUP]) &&
-          (metadata[PLATFORM_VERSION].nil? || metadata[PLATFORM_VERSION] == "v2")
-      end
+      def app_machine?(machine) = self.class.app_machine?(machine)
 
       def app_details(machines)
         return {} unless machines

@@ -441,6 +441,50 @@ module Integrations
         assert_raises(KubernetesApi::Error) { @pack.map_of(@row) }
       end
 
+      test "a change re-reads only the object it names, a service linked to the workloads it picks, and one the cluster no longer has goes" do
+        service = { "metadata" => { "name" => "web", "namespace" => "production" }, "spec" => { "selector" => { "app" => "web" }, "ports" => [ { "port" => 80 } ] } }
+        stub_get("/api/v1/namespaces/production/services/web", service)
+        stub_list(DEPLOYMENTS, [ deployment ])
+        scope = ResourceMap::Scope.new(account: "cluster.example.com/production", kind: ResourceMap::KIND_LOAD_BALANCER, external_id: "production/service/web")
+
+        snapshot = @pack.map_refresh(@row, scope)
+
+        assert_equal [ "production/service/web" ], snapshot.resources.map(&:external_id), "the workloads it picks are read for its links, not written"
+        assert_equal [ [ "production/service/web", "production/deployment/web" ] ], snapshot.links.map { |link| [ link.from.last, link.to.last ] }
+        assert_equal 4, snapshot.endpoints.size
+
+        refreshed = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "production/deployment/web"))
+        assert_equal [ [ "production/deployment/web", "progressing" ] ], refreshed.resources.map { |found| [ found.external_id, found.status ] }
+
+        gone = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "production/deployment/old"))
+        assert_equal [ [ "kubernetes", "cluster.example.com/production", ResourceMap::KIND_SERVICE, "production/deployment/old" ] ], gone.gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(account: "cluster.example.com/production")), "a scope naming no one object is swept"
+      end
+
+      test "an ingress re-read links to the services it routes to, and one its CronJob made is not on the map" do
+        stub_get("/apis/networking.k8s.io/v1/namespaces/production/ingresses/web", {
+          "metadata" => { "name" => "web", "namespace" => "production" },
+          "spec" => { "rules" => [ { "host" => "shop.example.com", "http" => { "paths" => [ { "backend" => { "service" => { "name" => "web" } } } ] } } ] }
+        })
+        stub_list("/api/v1/namespaces/production/services", [ { "metadata" => { "name" => "web", "namespace" => "production" }, "spec" => {} } ])
+        stub_get("/apis/batch/v1/namespaces/production/jobs/nightly-1", { "metadata" => { "name" => "nightly-1", "namespace" => "production", "ownerReferences" => [ { "kind" => "CronJob" } ] } })
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "production/ingress/web"))
+
+        assert_equal %w[production/ingress/web shop.example.com], snapshot.resources.map(&:external_id)
+        assert_includes snapshot.links.map { |link| [ link.from.last, link.to.last ] }, [ "production/ingress/web", "production/service/web" ]
+        assert_empty @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "production/job/nightly-1")).resources
+      end
+
+      test "a service whose workloads could not be listed keeps its links, since the read is not complete" do
+        stub_get("/api/v1/namespaces/production/services/web", { "metadata" => { "name" => "web", "namespace" => "production" }, "spec" => { "selector" => { "app" => "web" } } })
+        KubernetesApi.any_instance.stubs(:list).with(DEPLOYMENTS).raises(KubernetesApi::Forbidden, "The API server answered 403: forbidden")
+
+        snapshot = @pack.map_refresh(@row, ResourceMap::Scope.new(external_id: "production/service/web"))
+
+        assert_equal [ ResourceMap::KIND_LOAD_BALANCER ], snapshot.unread_kinds
+      end
+
       private
 
       def call(tool, arguments = {})

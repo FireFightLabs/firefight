@@ -102,6 +102,45 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     assert_text "Live updates were turned off, so the map updates at each sweep."
   end
 
+  test "an admin adds each PlanetScale database's signing secret, and can forget them all to start over" do
+    planetscale = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", slug: "planetscale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    row = planetscale.integration_environments.create!
+    row.give_map_events_token!
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => planetscale.id)
+    assert_text "Live updates: off"
+    assert_text Integrations::MapEventSources::Planetscale.setup_steps.first
+    assert_button "Forget secrets", disabled: true
+    page.scroll_to(find("#map-events-secret-#{row.id}"), align: :center)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-planetscale-setup.png"))
+
+    fill_in "map-events-secret-#{row.id}", with: "first-database-secret"
+    click_button "Add secret"
+    assert_text "Signing secret added. PlanetScale now has 1 signing secret saved, and a change signed with any one reaches the map."
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => planetscale.id)
+    fill_in "map-events-secret-#{row.id}", with: "second-database-secret"
+    click_button "Add secret"
+    assert_text "Signing secret added. PlanetScale now has 2 signing secrets saved, and a change signed with any one reaches the map."
+    assert_text "Live updates: on, no change received yet"
+    assert_selector "#map-events-secret-#{row.id}[placeholder='2 saved. Paste another to add it']"
+    page.scroll_to(find("#map-events-secret-#{row.id}"), align: :center)
+    page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-planetscale-saved.png"))
+
+    visit integrations_path(Integration::DETAILS_QUERY_PARAM => planetscale.id)
+    click_button "Forget secrets"
+    within(find("[role='dialog']", text: "Forget signing secrets?")) do
+      assert_text "Firefight forgets the 2 signing secrets saved for PlanetScale."
+      page.save_screenshot(Rails.root.join("tmp/screenshots/live-updates-planetscale-forget.png"))
+      click_button "Forget secrets"
+    end
+    # The toast is hidden from view until the dialog has closed.
+    assert_no_selector "[role='dialog']", text: "Forget signing secrets?"
+    assert_text "Signing secrets forgotten. Changes PlanetScale sends no longer reach the map until you add a secret again."
+    assert_text "Live updates: off"
+    assert_empty row.reload.map_events_secrets
+  end
+
   test "an AWS connection offers each region's stack to get changes instantly, and shows the region that sends them" do
     Integrations::AwsApi.any_instance.stubs(:identity).returns(account: "123456789012")
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "aws", name: "AWS", slug: "aws")

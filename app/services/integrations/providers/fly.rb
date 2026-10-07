@@ -6,6 +6,7 @@ module Integrations
       key: "fly",
       pack: "Integrations::Packs::Fly",
       adapter: "Integrations::Capabilities::Fly",
+      map_events: "Integrations::MapEventSources::Fly",
       status_words: {
         "suspended" => "stopped",
         "creating" => "pending", "initializing" => "starting", "deleting" => "pending", "deleted" => "stopped"

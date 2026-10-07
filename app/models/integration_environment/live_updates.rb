@@ -23,6 +23,8 @@ module IntegrationEnvironment::LiveUpdates
   WEBHOOK_REMOVE = "remove".freeze
   # A registration the provider refused for its plan or a limit waits this long before Firefight tries on its own again.
   MAP_EVENTS_REFUSED_RETRY = 1.day
+  # A change log read due within this is read now, since polls are queued once a minute.
+  MAP_EVENTS_POLL_SLACK = 30.seconds
 
   included do
     encrypts :map_events_secret
@@ -99,9 +101,35 @@ module IntegrationEnvironment::LiveUpdates
 
   def map_events_secret_set? = map_events_secret.present?
 
-  # The secret an admin pasted from the provider. Saving it again replaces it.
+  # Every secret a delivery may be signed with. A provider whose webhooks each sign with their own (many_secrets?) keeps
+  # one a line, which no secret holds.
+  def map_events_secrets = map_events_secret.to_s.split("\n").compact_blank
+
+  # The secret an admin pasted from the provider. Saving it again replaces it, or joins the others when each of the
+  # provider's webhooks has its own.
   def save_map_events_secret!(secret)
+    secret = secret.to_s.strip
+    secret = (map_events_secrets + [ secret ]).uniq.join("\n") if map_event_source&.many_secrets?
     update!(map_events_secret: secret, map_events_error: nil)
+  end
+
+  # Drops every saved secret, so nothing the provider sends counts until an admin saves one again.
+  def forget_map_events_secrets!
+    update!(map_events_secret: nil)
+  end
+
+  # Why a person cannot forget the saved secrets, or nil. Only a provider whose webhooks each sign with their own keeps
+  # several, and anywhere else saving a new secret replaces the one there is.
+  def forget_map_events_secrets_blocked_reason
+    return "#{integration.name} keeps one signing secret, which saving a new one replaces." unless map_events_set_up_by_hand? && map_event_source.many_secrets?
+
+    "No signing secret is saved for #{integration.name}." unless map_events_secret_set?
+  end
+
+  def forget_map_events_secrets_words
+    count = map_events_secrets.size
+    "Firefight forgets the #{count} signing #{'secret'.pluralize(count)} saved for #{integration.name}. Changes it sends no longer reach the map " \
+      "until you add a secret again, and the map updates at each hourly sweep."
   end
 
   # Firefight registers, extends and removes the provider's webhook with the connection's own credentials, and no person
@@ -160,6 +188,16 @@ module IntegrationEnvironment::LiveUpdates
     "Firefight removes its webhook from #{integration.name}, which frees it for one of your own. The map then updates at each hourly sweep."
   end
 
+  # Whether the provider's change log is read now. Each is read as often as its source says, and one the provider refused
+  # for what the connection may read waits a day.
+  def map_events_poll_due?(at: Time.current)
+    source = map_event_source
+    return false unless source&.polls?
+    return false if map_events_refused_at && map_events_refused_at > at - MAP_EVENTS_REFUSED_RETRY
+
+    map_events_polled_at.nil? || map_events_polled_at <= at - source.poll_every + MAP_EVENTS_POLL_SLACK
+  end
+
   # Gives the row its address once. The update names the empty token, so two sweeps at once give it one.
   def give_map_events_token!
     return if map_events_token.present?
@@ -206,7 +244,9 @@ module IntegrationEnvironment::LiveUpdates
     return "#{name}'s registration for changes lapsed. Firefight registers again at the next sweep." if source.registers? && map_events_lapsed?
     return "Firefight registers for #{name}'s changes at the next sweep." if source.registers? && map_events_webhook_id.blank?
 
-    "Send #{name}'s changes to Firefight and save the signing secret under Integrations to turn them on." if !source.registers? && !map_events_secret_set?
+    return if source.registers? || map_events_secret_set?
+
+    Integrations::Sentence.all("Send #{name}'s changes to Firefight and save the signing secret under Integrations to turn them on", source.by_hand_note)
   end
 
   def map_events_lapsed? = map_events_expires_at.present? && map_events_expires_at <= Time.current
