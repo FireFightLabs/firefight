@@ -25,7 +25,7 @@ class PrincipalSerializer < BaseSerializer
   type "{ id: string; kind: string; targetId: string; label: string; title: string | null; description: string | null; " \
        "riskLevel: string | null; actionCount: number; environmentIds: string[]; expiresAt: string | null; expired: boolean }[]"
   def grants
-    principal.ability_grants.filter_map do |grant|
+    principal.ability_grants.reject(&:no_access?).filter_map do |grant|
       environment_ids = Array(grant.scope[Ability::Scope::DIMENSION_ENVIRONMENT])
       timing = { expiresAt: grant.expires_at&.utc&.iso8601, expired: grant.expired? }
 
@@ -38,5 +38,16 @@ class PrincipalSerializer < BaseSerializer
           riskLevel: nil, actionCount: grant.role.role_actions.size, environmentIds: environment_ids, **timing }
       end
     end.sort_by { |grant| [ grant[:kind], grant[:label] ] }
+  end
+
+  # What a member holds without a grant, and whether a grant narrowed it or an admin took it away. Empty for anyone else.
+  # grantId is the no access grant, so its presence is what Restore removes.
+  type "{ actionId: string; actionKey: string; title: string; note: string; grantId: string | null }[]"
+  def default_access
+    principal.default_access.map do |access|
+      { actionId: access.action.id, actionKey: access.action.key,
+        title: Ability::Action.described(access.action.key)&.fetch(:title) || access.action.key,
+        note: access.note, grantId: access.grant&.id }
+    end
   end
 end

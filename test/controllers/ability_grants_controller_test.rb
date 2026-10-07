@@ -124,6 +124,56 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "environment" => [ @development.id ] }, grant.reload.scope)
   end
 
+  test "no access takes a member's default away at once, says so, and restoring gives it back with a toast too" do
+    halon = Ability::Action.system!(Ability::Action::INVESTIGATIONS_CREATE)
+
+    post withhold_ability_grants_url, params: { principal_kind: "user", principal_id: @member.id, action_id: halon.id }
+
+    assert_equal "Bob Jones can no longer ask Halon and start investigations. Restore it to give it back.", flash[:notice]
+    assert_not @member.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, @workspace)
+    grant = @member.ability_grants.find_by!(action: halon)
+    assert grant.no_access?
+
+    delete ability_grant_url(grant)
+
+    assert_equal "Bob Jones can ask Halon and start investigations again.", flash[:notice]
+    assert @member.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, @workspace)
+  end
+
+  test "no access is refused for an ability members do not hold by default, and for an admin, with why" do
+    post withhold_ability_grants_url, params: { principal_kind: "user", principal_id: @member.id, action_id: @action.id }
+    assert_equal Ability::Grant::NO_ACCESS_ONLY_FOR_DEFAULTS, flash[:alert]
+
+    map = Ability::Action.system!(Ability::Action::MAP_READ)
+    post withhold_ability_grants_url, params: { principal_kind: "user", principal_id: workspace_memberships(:alice_workspace_one).id, action_id: map.id }
+    assert_equal Ability::Grant::NO_ACCESS_NOT_FOR_ADMINS, flash[:alert]
+
+    assert_empty Ability::Grant.where(workspace: @workspace).select(&:no_access?)
+  end
+
+  test "a no access row offers no environments or expiry to change" do
+    grant = Ability::Grant.withhold!(workspace: @workspace, principal: @member, action: Ability::Action.system!(Ability::Action::MAP_READ))
+
+    patch ability_grant_url(grant), params: { environment_ids: [ @production.id ] }
+
+    assert_equal Ability::Grant::NO_ACCESS_HAS_NO_REACH, flash[:alert]
+    assert grant.reload.no_access?
+  end
+
+  test "the page lists what a member holds without a grant, and a no access row only there" do
+    Ability::Grant.withhold!(workspace: @workspace, principal: @member, action: Ability::Action.system!(Ability::Action::MAP_READ))
+
+    get gateway_permissions_url, headers: inertia_headers
+
+    bob = inertia_props["principals"].find { |principal| principal["id"] == @member.id }
+    assert_equal [ [ Ability::Action::MAP_READ, WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_NO_ACCESS] ],
+                   [ Ability::Action::INVESTIGATIONS_CREATE, WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_HELD] ] ],
+                 bob["defaultAccess"].map { |access| access.values_at("actionKey", "note") }
+    assert_empty bob["grants"]
+    alice = inertia_props["principals"].find { |principal| principal["id"] == workspace_memberships(:alice_workspace_one).id }
+    assert_empty alice["defaultAccess"]
+  end
+
   test "members cannot manage grants" do
     sign_in(users(:bob), @workspace)
 

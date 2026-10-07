@@ -47,6 +47,19 @@ class WorkspaceMembership < ApplicationRecord
   # grants decide where, so a grant narrows the default rather than adding to it, and one that expires narrows to nothing.
   NARROWABLE_KEYS = [ Ability::Action::MAP_READ, Ability::Action::INVESTIGATIONS_CREATE ].freeze
 
+  # Where one of those defaults stands for a member: held, narrowed by a grant, or taken away by an admin.
+  DEFAULT_HELD = "held"
+  DEFAULT_NARROWED = "narrowed"
+  DEFAULT_NO_ACCESS = "no_access"
+  DEFAULT_NOTES = {
+    DEFAULT_HELD => "Every member has this without a grant.",
+    DEFAULT_NARROWED => "A grant below decides where they have it.",
+    DEFAULT_NO_ACCESS => "No access. Restore it to give them the default back."
+  }.freeze
+  DefaultAccess = Data.define(:action, :state, :grant) do
+    def note = DEFAULT_NOTES.fetch(state)
+  end
+
   # Admins hold every catalogued ability including integration tools, since enabling one on a
   # connection is already the deliberate step. For members anything reaching another system stays an explicit grant.
   def implicitly_allowed?(action)
@@ -71,6 +84,21 @@ class WorkspaceMembership < ApplicationRecord
 
   def implicit_authority
     admin_access? ? :admin : :member
+  end
+
+  # Where each default stands for this member, which the Permissions screen shows and lets an admin take away.
+  def default_access
+    return [] if admin_access?
+
+    resolved = Ability::Resolver.resolve(self, workspace_id)
+    withheld = ability_grants.where(workspace_id: workspace_id).includes(:action).select(&:no_access?).index_by { |grant| grant.action.key }
+    NARROWABLE_KEYS.map do |key|
+      state = if withheld.key?(key) then DEFAULT_NO_ACCESS
+              elsif resolved.granted_ever?(key) then DEFAULT_NARROWED
+              else DEFAULT_HELD
+              end
+      DefaultAccess.new(action: Ability::Action.system!(key), state: state, grant: withheld[key])
+    end
   end
 
   scope :by_role, ->(role) { where(role: role) }

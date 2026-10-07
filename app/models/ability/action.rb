@@ -105,13 +105,13 @@ module Ability
         title: "Read the resource map",
         description: "See what runs where on the resource map, how its resources depend on each other, and each one's fact sheet. " \
                      "Members hold it in every environment without a grant. Granting it to a member, alone or in a set, " \
-                     "limits them to the environments ticked here, and an expired grant leaves them none."
+                     "limits them to the environments ticked here, and an expired grant leaves them none. No access takes it away at once."
       }.freeze,
       INVESTIGATIONS_CREATE => {
         title: "Ask Halon and start investigations",
         description: "Ask Halon in a chat, in Slack or over MCP, start an investigation, add to a running one and apply its fix. " \
                      "Members hold it without a grant. Granting it to a member, alone or in a set, means the grant decides, " \
-                     "so an expired grant leaves them none."
+                     "so an expired grant leaves them none. No access takes it away at once."
       }.freeze
     }.freeze
 

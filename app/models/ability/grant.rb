@@ -15,6 +15,11 @@ module Ability
     validate :action_grantable
     validate :scope_well_formed
     validate :expiry_in_the_future, if: -> { expires_at_changed? && expires_at.present? }
+    validate :no_access_only_for_a_member_default, if: :no_access?
+
+    NO_ACCESS_ONLY_FOR_DEFAULTS = "No access applies only to what members hold without a grant.".freeze
+    NO_ACCESS_NOT_FOR_ADMINS = "Admins hold every ability, so they cannot be given no access.".freeze
+    NO_ACCESS_HAS_NO_REACH = "No access has no environments or expiry. Restore the default first, then grant it.".freeze
 
     # Expired grants are kept so the screen can say the access lapsed.
     scope :live, -> { where(expires_at: nil).or(where(expires_at: Time.current..)) }
@@ -40,6 +45,13 @@ module Ability
       grant.scope = Ability::Scope.for_environments(workspace, environment_ids)
       grant.expires_at = parse_expiry(grant, expires_at)
       grant.save!
+      grant
+    end
+
+    # Takes a member's default away at once, replacing any grant of the same ability. Revoking it gives the default back.
+    def self.withhold!(workspace:, principal:, action:)
+      grant = workspace.ability_grants.find_or_initialize_by(principal: principal, action: action)
+      grant.update!(scope: Ability::Scope::NO_ACCESS, expires_at: nil)
       grant
     end
 
@@ -81,6 +93,8 @@ module Ability
       end
     end
 
+    def no_access? = Ability::Scope.no_access?(scope)
+
     def expired?
       expires_at.present? && expires_at <= Time.current
     end
@@ -95,6 +109,8 @@ module Ability
 
     # Environments and expiry are separate controls, so an absent expiry means leave it alone.
     def rescope!(environment_ids:, expires_at: :unchanged)
+      raise ActiveRecord::RecordInvalid.new(tap { errors.add(:base, NO_ACCESS_HAS_NO_REACH) }) if no_access?
+
       attrs = { scope: Ability::Scope.for_environments(workspace, environment_ids) }
       attrs[:expires_at] = self.class.parse_expiry(self, expires_at) unless expires_at == :unchanged
       update!(attrs)
@@ -104,6 +120,13 @@ module Ability
 
     def expiry_in_the_future
       errors.add(:expires_at, "must be in the future") if expires_at <= Time.current
+    end
+
+    def no_access_only_for_a_member_default
+      return errors.add(:base, NO_ACCESS_ONLY_FOR_DEFAULTS) unless principal.is_a?(WorkspaceMembership) && action &&
+                                                                   WorkspaceMembership::NARROWABLE_KEYS.include?(action.key)
+
+      errors.add(:base, NO_ACCESS_NOT_FOR_ADMINS) if principal.admin_access?
     end
 
     def exactly_one_target
