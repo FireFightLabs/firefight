@@ -108,3 +108,26 @@ function mergeSteps(saved: AgentStep[], live: AgentStep[]): AgentStep[] {
   const unseen = live.filter((step) => !saved.some((candidate) => candidate.key === step.key))
   return [ ...merged, ...unseen ]
 }
+
+// Something placed in the chat by when it happened rather than by a message, such as a held call once it was decided.
+export interface Placed {
+  at: string
+}
+
+export const BEFORE_ALL_TURNS = "start"
+
+// Each placed thing goes after the last turn that started before it, keyed by that turn's id, or before every turn.
+export function placeAfterTurns<T extends Placed>(turns: ChatTurn[], messages: AgentChatMessage[], placed: T[]): Map<string, T[]> {
+  const startedAt = new Map(messages.map((message) => [ message.id, Date.parse(message.createdAt) ]))
+  const starts = turns.flatMap((turn) => {
+    const at = startedAt.get(turn.id)
+    return at === undefined ? [] : [ { id: turn.id, at } ]
+  })
+  const placedAfter = new Map<string, T[]>()
+  placed.forEach((item) => {
+    const at = Date.parse(item.at)
+    const after = starts.filter((start) => start.at <= at).pop()?.id ?? BEFORE_ALL_TURNS
+    placedAfter.set(after, [ ...(placedAfter.get(after) ?? []), item ])
+  })
+  return placedAfter
+}

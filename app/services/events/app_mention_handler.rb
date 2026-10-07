@@ -76,12 +76,16 @@ module Events
     private_class_method :add_note
 
     def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
-      conversation = Conversation::Opener.call(
-        workspace: workspace, incident: incident, channel_id: channel_id,
-        thread_id: thread_id, platform_user_id: event["user"]
-      )
       asker = Conversation::Opener.member(workspace, event["user"])
-      Conversation::Asking.ask(conversation, user_text, asker: asker, files: shared_files(workspace, event, asker))
+      Conversation.ask_from_thread!(asker: asker, workspace: workspace, incident: incident, source: AbilityGateway::SOURCE_SLACK) do
+        conversation = Conversation::Opener.call(
+          workspace: workspace, incident: incident, channel_id: channel_id,
+          thread_id: thread_id, platform_user_id: event["user"]
+        )
+        Conversation::Asking.ask(conversation, user_text, asker: asker, files: shared_files(workspace, event, asker))
+      end
+    rescue AbilityGateway::Denied => e
+      notify_blocked(workspace, channel_id, event["user"], AuthorizedDispatch.denied_message(e))
     end
     private_class_method :answer_as_agent
 

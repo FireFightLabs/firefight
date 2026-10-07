@@ -152,6 +152,14 @@ module Identifiers
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"
   AGENT_CANCEL = "agent_cancel"
+  # A call held for approval in a chat, once approved: run it, dismiss it, or ask again once the approval expired.
+  HELD_CALL_RUN = "held_call_run"
+  HELD_CALL_DISMISS = "held_call_dismiss"
+  HELD_CALL_ASK_AGAIN = "held_call_ask_again"
+  # The same for an approved step of a fix.
+  FIX_STEP_RUN = "fix_step_run"
+  FIX_STEP_DISMISS = "fix_step_dismiss"
+  FIX_STEP_ASK_AGAIN = "fix_step_ask_again"
   # Approves the call and stops the same tool asking again for the rest of the chat.
   AGENT_ALLOW_FOR_CHAT = "agent_allow_for_chat"
   MEMORY_CONFIRM = "memory_confirm"

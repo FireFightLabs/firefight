@@ -69,7 +69,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
   test "a Render workspace where Firefight's webhook would be the only one waits for an admin to turn live updates on, and off again" do
     render = connect_live!(@workspace, provider: "render", name: "Render")
     Integrations::Packs::Render.store_credentials!(render, Integrations::Packs::Render::API_KEY => "rnd_key")
-    render.store_fields!(Integrations::Packs::Render::WORKSPACE => "tea-1")
+    render.store_fields!(Integrations::Packs::Render::WORKSPACE => [ "tea-1" ])
     Integrations::RenderApi.any_instance.stubs(:webhooks).returns(Integrations::Pages::Read.new(items: [], complete: true))
     Integrations::RenderApi.any_instance.stubs(:create_webhook).returns("id" => "whk-1", "secret" => "whsec_c2VjcmV0")
     Integrations::RenderApi.any_instance.stubs(:delete_webhook).returns({})
@@ -90,7 +90,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     assert_no_selector "[role='dialog']", text: "Turn on live updates?"
     assert_text "Live updates are on. Changes Render sends now reach the map."
     assert_text "Live updates: on, no change received yet"
-    assert_equal "whk-1", render.reload.map_events_webhook_id
+    assert_equal({ "tea-1" => "whk-1" }, JSON.parse(render.reload.map_events_webhook_id))
 
     # A fresh page, so the turn on toast is gone before the turn off one shows.
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => render.integration_id)

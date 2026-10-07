@@ -5,6 +5,10 @@ module Ability
     DIMENSION_ENVIRONMENT = "environment"
     DIMENSION_SERVICE = "service"
     DIMENSIONS = [ DIMENSION_ENVIRONMENT, DIMENSION_SERVICE ].freeze
+    # Reaches nothing anywhere. Only a member's default (WorkspaceMembership::NARROWABLE_KEYS) is held this way, so an
+    # admin can take it away at once. It is its own key rather than an empty dimension, which a form could read as all.
+    NO_ACCESS_KEY = "no_access"
+    NO_ACCESS = { NO_ACCESS_KEY => true }.freeze
 
     # Unrestricted is spelled as the dimension being absent. Ids outside the
     # workspace's own environments are dropped.
@@ -12,6 +16,8 @@ module Ability
       ids = workspace.environment_entries.where(id: Array(environment_ids).map(&:to_s).reject(&:blank?)).pluck(:id)
       ids.any? ? { DIMENSION_ENVIRONMENT => ids } : {}
     end
+
+    def self.no_access?(scope) = scope.is_a?(Hash) && (scope[NO_ACCESS_KEY] || scope[NO_ACCESS_KEY.to_sym]) == true
 
     def self.covers?(grant_scope, requested)
       grant_scope.all? do |dimension, allowed|
@@ -22,6 +28,7 @@ module Ability
 
     def self.validate(scope, errors, attribute: :scope)
       return errors.add(attribute, "must be a hash") unless scope.is_a?(Hash)
+      return if scope.stringify_keys == NO_ACCESS
 
       scope.each do |dimension, values|
         unless DIMENSIONS.include?(dimension.to_s)

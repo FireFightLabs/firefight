@@ -6,6 +6,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApprovalRulesEditor } from "@/pages/settings/components/permissions/approval-rules-editor"
+import { DefaultAccessList } from "@/pages/settings/components/permissions/default-access-list"
 import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialog"
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
 import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
@@ -205,6 +206,8 @@ export default function Permissions() {
                     {authorityNote}
                   </div>
                 )}
+
+                <DefaultAccessList principal={selected} canManage={canManage} />
 
                 {selected.grants.length === 0 ? (
                   <p className="text-muted-foreground py-6 text-center text-sm">

@@ -12,6 +12,10 @@ module Slack
       build(:investigation_url, id: investigation.id)
     end
 
+    def self.agent_chat(conversation_id)
+      build(:agent_chat_url, id: conversation_id)
+    end
+
     # The integrations page with one provider's connect dialog already open.
     def self.connect_integration(provider_key)
       build(:integrations_url, Integration::CONNECT_QUERY_PARAM => provider_key)

@@ -5,9 +5,11 @@ class Conversation::Runner
   # What the model is told for a tool it asked for and never got, so the chat stays one a provider accepts.
   STOPPED_BEFORE_RUNNING = "Not run. The person stopped this answer first.".freeze
 
-  def initialize(conversation, asker:)
+  # held_call is an approved call someone pressed Run on, which this turn runs first.
+  def initialize(conversation, asker:, held_call: nil)
     @conversation = conversation
     @turn = Conversation::Turn.new(conversation, asker: asker)
+    @held_call = held_call
   end
 
   def run
@@ -15,6 +17,7 @@ class Conversation::Runner
     chat = @conversation.chat_record
     chat.discard_interrupted_reply!
     take_queued(chat)
+    run_held_call(chat) if @held_call
     # The turn before this one already answered what this job was queued for.
     if answered_already?(chat)
       @conversation.reply_delivered!
@@ -27,6 +30,7 @@ class Conversation::Runner
     return stopped!(chat) if chat.stop_requested?
 
     delivery.thinking!
+    tell_held_outcomes(chat)
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
 
@@ -96,6 +100,28 @@ class Conversation::Runner
     delivery.answered!(STOPPED)
     FirefightAi::AgentLoop::Outcome.new(status: FirefightAi::AgentLoop::STATUS_CANCELED, turns_used: 0, spent_micros: 0)
   end
+
+  # The call runs once, as whoever it was approved for, and Halon reads what it answered before it says how it went.
+  def run_held_call(chat)
+    return unless @held_call.status == Chat::HeldCall::STATUS_RUNNING
+
+    said = Conversation::HeldCalls.execute!(@held_call)
+    return unless room_for_a_note?(chat)
+
+    chat.nudge!(Conversation::HeldCalls.ran_note(@held_call.reload, said))
+    @held_call.update_columns(told_at: Time.current)
+  end
+
+  # Held calls that ended since Halon last looked, so it never says one is still waiting, or that one ran when it did not.
+  def tell_held_outcomes(chat)
+    return unless room_for_a_note?(chat)
+
+    note = Conversation::HeldCalls.untold_note(chat)
+    chat.nudge!(note) if note
+  end
+
+  # A provider refuses anything between a call and its result, so nothing is said while a call waits for the person.
+  def room_for_a_note?(chat) = chat.calls_in_play.where(result_id: nil).none?
 
   # Only the asker's own messages, since the turn acts with their permissions.
   def take_queued(chat)

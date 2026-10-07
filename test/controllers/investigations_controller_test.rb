@@ -107,6 +107,23 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil shown["takenAt"]
   end
 
+  test "a member steers a run without any grant, and one an admin took it away from is refused with the usual sentence" do
+    bob = workspace_memberships(:bob_workspace_one)
+    sign_in(users(:bob), @workspace)
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+
+    post investigation_notes_url(investigation), params: { note: "look at 5xx on web" }
+    assert_equal bob, investigation.notes.sole.sender
+
+    take_halon_from(@workspace, bob)
+    post investigation_notes_url(investigation), params: { note: "and the queue" }
+    post investigation_stop_url(investigation)
+
+    assert_equal WebAuthorization.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE)), flash[:alert]
+    assert_equal 1, investigation.notes.count
+    assert_not investigation.reload.cancel_requested?
+  end
+
   test "a finished run takes no note, and says why" do
     investigation = investigation_run
 
@@ -166,6 +183,30 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
 
     post investigation_fix_step_done_url(investigation, plan.steps.first)
     assert_equal "Firefight runs step 1 itself once the fix is applied.", flash[:alert]
+  end
+
+  test "an approved step is run from the run page once, with what the page shows about it, and a second press is refused" do
+    plan = build_fix_plan(@workspace)
+    alice = workspace_memberships(:alice_workspace_one)
+    plan.apply!(by: alice, from: AbilityGateway::SOURCE_WEB)
+    investigation = plan.finding.investigation
+    approval = @workspace.ability_approvals.create!(principal: alice, principal_label: "user:Alice Smith", action_key: "cloudflare.execute",
+                                                    request_digest: "d", required_role: "admin", status: Ability::Approval::STATUS_APPROVED,
+                                                    approver: alice, held_for_run: true, run_expires_at: 52.minutes.from_now)
+    step = plan.steps.first
+    step.update_columns(status: Investigation::RemediationStep::STATUS_APPROVED, approval_id: approval.id, checked_state: "The rule is still there.",
+                        state_change: Chat::CurrentState::UNCHANGED, state_checked_at: Time.current)
+
+    Current.principal = workspace_memberships(:bob_workspace_one)
+    shown = InvestigationRemediationStepSerializer.one_as_hash(step.reload).stringify_keys
+    assert_equal [ "Alice Smith", "The rule is still there.", [ "run", "dismiss" ] ], shown.values_at("approvedBy", "state", "offers")
+    assert_match "Only Alice Smith or someone who may run cloudflare_execute", shown["runBlockedReason"]
+    Current.reset
+
+    assert_enqueued_with(job: InvestigationFixJob, args: [ plan.id, step.id, approval.id ]) { post investigation_fix_step_run_url(investigation, step) }
+    assert_equal "Running the step now.", flash[:notice]
+    post investigation_fix_step_run_url(investigation, step)
+    assert_equal "Step 1 is running.", flash[:alert]
   end
 
   test "an applied fix's undo is asked for from the run page, shown under the fix, and applied by its own address" do

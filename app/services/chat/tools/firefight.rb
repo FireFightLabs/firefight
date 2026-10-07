@@ -29,6 +29,11 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     invoke(arguments.symbolize_keys.except(Chat::Tools::INTENT_ARG.to_sym), tool_call_id: tool_call&.id)
   end
 
+  # Runs a call an approval rule held, once it was approved and the person pressed Run, exactly as it was asked.
+  def run_approved(action_key, arguments, approval_id:)
+    attempt(action_key, arguments.to_h.symbolize_keys, tool_call_id: nil, approval_id: approval_id)
+  end
+
   private
 
   # The action comes from the arguments, since an upsert is a create or an update depending on its target.
@@ -70,7 +75,8 @@ class Chat::Tools::Firefight < RubyLLM::Tool
       return attempt(action_key, arguments, tool_call_id: tool_call_id, approval_id: pending.approval.id)
     end
 
-    Chat::Tools.waiting_for_approval(action_key)
+    held = approval_id.nil? && @agent_run.hold!(pending.approval, tool_name: name, tool_call_id: tool_call_id)
+    Chat::Tools.waiting_for_approval(action_key, held: held)
   rescue *Mcp::ToolDispatcher::TOOL_ERRORS => error
     failed(tool_call_id, text_of(Mcp::ToolDispatcher.tool_error_response(error)))
   end

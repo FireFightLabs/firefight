@@ -22,8 +22,9 @@ class ApprovalResumption
     approval.update!(resume_payload: WebRequestReplay.payload_for(request, membership).merge(kind: KIND_WEB))
   end
 
+  # A fix's step is run by a person once approved, never the moment it is, so its approval waits for them.
   def self.park_fix_step!(approval, step)
-    approval.update!(resume_payload: { kind: KIND_FIX_STEP, step_id: step.id })
+    approval.update!(resume_payload: { kind: KIND_FIX_STEP, step_id: step.id }, held_for_run: true)
   end
 
   # An approval admits one execution. Re-entering the gateway on a consumed
@@ -32,6 +33,7 @@ class ApprovalResumption
     payload = approval.resume_payload
     return if payload.blank? || approval.consumed_at.present?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
+    return Conversation::HeldCalls.approved!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
     return resume_web!(approval, payload) if payload["kind"] == KIND_WEB
 
@@ -65,8 +67,18 @@ class ApprovalResumption
     return if payload.blank?
     return Investigation::FixRunner.resume!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
     return IssueSyncService.new(approval.workspace).decided(approval, payload) if payload["kind"] == KIND_ISSUE_SYNC
+    return Conversation::HeldCalls.denied!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
 
     notify(approval, payload, "#{approver_name(approval)} declined your request. Nothing has changed.")
+  end
+
+  # An approved call that waited for a person to run it, and nobody did within its window.
+  def self.lapsed!(approval)
+    payload = approval.resume_payload
+    return if payload.blank?
+    return Investigation::FixRunner.lapsed!(approval, payload["step_id"]) if payload["kind"] == KIND_FIX_STEP
+
+    Conversation::HeldCalls.expired!(approval) if payload["kind"] == Chat::HeldCall::RESUME_KIND
   end
 
   def self.rebuild(approval, payload)

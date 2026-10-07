@@ -3,7 +3,7 @@
 class InvestigationsController < InertiaController
   PROP_INVESTIGATION = "investigation"
 
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show], create: %i[add_note stop apply_fix mark_fix_step_done undo_fix cancel_fix run_fix_step dismiss_fix_step ask_fix_step_again]
 
   def show
     investigation = current_workspace.investigations.seen.find(params[:id])
@@ -80,7 +80,30 @@ class InvestigationsController < InertiaController
     redirect_back_or_to investigation_path(investigation), notice: Investigation::FixRunner::MARKED_DONE
   end
 
+  # Approving a step never ran it. Only this runs it, once, as whoever applied the fix.
+  def run_fix_step
+    decide_fix_step("Running the step now.") { |step| Investigation::FixRunner.run_approved!(step, by: current_membership) }
+  end
+
+  def dismiss_fix_step
+    decide_fix_step("Dismissed. The step will not run.") { |step| Investigation::FixRunner.dismiss_approved!(step, by: current_membership) }
+  end
+
+  def ask_fix_step_again
+    decide_fix_step("Asked for approval again.") { |step| Investigation::FixRunner.ask_again!(step, by: current_membership) }
+  end
+
   private
+
+  def decide_fix_step(done)
+    investigation = current_workspace.investigations.seen.find(params[:id])
+    step = Investigation::RemediationStep.find_by!(id: params[:step_id], plan_id: plans_of(investigation).map(&:id))
+
+    blocked = yield step
+    return redirect_back_or_to(investigation_path(investigation), alert: blocked) if blocked
+
+    redirect_back_or_to investigation_path(investigation), notice: done
+  end
 
   # The run's fix, or its undo when the address names it.
   def plan_of(investigation)

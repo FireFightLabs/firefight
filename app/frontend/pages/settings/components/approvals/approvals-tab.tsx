@@ -28,6 +28,7 @@ const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "
   denied: "destructive",
   pending: "secondary",
   expired: "outline",
+  dismissed: "outline",
 }
 
 // A dashboard request is bound to its route, which reads better than the digest.
@@ -59,7 +60,8 @@ export function ApprovalsTab({
           <CardDescription className="mt-1">
             Requests parked behind an approval policy. Approving admits exactly the parked request, once.
             A request from the dashboard or Slack then runs on its own, and an API or agent caller
-            retries with the approval id.
+            retries with the approval id. A call Halon made in a chat, or a step of a fix, never runs on
+            approval. The person who asked runs it, within an hour.
           </CardDescription>
         </CardHeader>
         {pendingApprovals.length > 0 ? (

@@ -1,6 +1,6 @@
 module Integrations
   module MapEventSources
-    # Azure's changes, read every five minutes from the subscription's activity log with the connection's own service
+    # Azure's changes, read every five minutes from each subscription's activity log with the connection's own service
     # principal (Activity Logs, List, Microsoft.Insights 2015-04-01, learn.microsoft.com/rest/api/monitor/activity-logs/list),
     # which the Reader role may read. Sending them instead would need an Event Grid system topic and subscription made in
     # the subscription, which Reader cannot make and which needs Firefight's address to answer Event Grid's validation, so
@@ -26,23 +26,27 @@ module Integrations
 
         def events(_payload, headers:) = []
 
-        # The events since the last read, as events about the app or database each names. A change to something an app
-        # holds, such as a slot or its configuration, is about the app. The first read starts from now.
+        # Each subscription's events since its own last read, as events about the app or database each names. A change to
+        # something an app holds, such as a slot or its configuration, is about the app. A subscription's first read starts
+        # from now.
         def poll(row, since:)
-          now = Time.current
-          return MapEventSource::Polled.new(events: [], cursor: now.utc.iso8601(6)) if since.blank?
-
-          subscription = subscription_of(row)
           known = ResourceMap::Resource.present.where(integration_environment: row, provider: Packs::Azure::PROVIDER_KEY).pluck(:external_id).index_by(&:downcase)
-          read = api(row).activity_log(Time.iso8601(since) - LAG, now)
-          events = read.items.filter_map { |entry| event_of(subscription, entry, known) }
-          MapEventSource::Polled.new(events: events, cursor: now.utc.iso8601(6))
+          poll_each_scope(row, since: since) { |subscription, cursor| poll_subscription(row, subscription, cursor, known) }
         end
 
         def limits = "Firefight reads Azure's activity log every 5 minutes, and Azure takes 3 to 20 minutes to add a change to it, " \
                      "so a change reaches the map within about 25 minutes."
 
         private
+
+        def poll_subscription(row, subscription, since, known)
+          now = Time.current
+          return MapEventSource::Polled.new(events: [], cursor: now.utc.iso8601(6)) if since.blank?
+
+          read = api(row, subscription).activity_log(Time.iso8601(since) - LAG, now)
+          events = read.items.filter_map { |entry| event_of(subscription, entry, known) }
+          MapEventSource::Polled.new(events: events, cursor: now.utc.iso8601(6))
+        end
 
         def event_of(subscription, entry, known)
           return unless ENDED.include?(entry.dig("status", "value"))
@@ -79,18 +83,14 @@ module Integrations
           Time.current
         end
 
-        def api(row)
+        def api(row, subscription)
           settings = ConnectionSettings.of(row)
-          tenant, client, subscription = settings.field(Packs::Azure::TENANT), settings.field(Packs::Azure::CLIENT), settings.field(Packs::Azure::SUBSCRIPTION)
+          tenant, client = settings.field(Packs::Azure::TENANT), settings.field(Packs::Azure::CLIENT)
           secret = settings.credential(Packs::Azure::SECRET)
           raise Integrations::Error, "This connection has no Azure service principal. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
 
           AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription,
                        cloud: Packs::Azure.cloud_of(settings.region), token_cache: settings)
-        end
-
-        def subscription_of(row)
-          ConnectionSettings.of(row).field(Packs::Azure::SUBSCRIPTION) || raise(Integrations::Error, "This connection has no Azure subscription. Reconnect it.")
         end
       end
     end

@@ -333,4 +333,21 @@ class AbilityGatewayTest < ActiveSupport::TestCase
     assert_equal :ran, AbilityGateway.authorize!(principal: @membership, action_key: "permissions.delete", workspace: @workspace) { :ran }
     assert_equal :ran, AbilityGateway.authorize!(principal: @membership, action_key: "approvals.update", workspace: @workspace) { :ran }
   end
+
+  test "asking for an approval again never runs the call, says when no rule holds it, and refuses whoever may no longer make it" do
+    key = api_keys(:full_access_key)
+
+    assert_nil AbilityGateway.request_approval!(principal: key, action_key: "catalog.delete", workspace: @workspace)
+
+    create_approval_policy
+    approval = assert_raises(AbilityGateway::PendingApproval) do
+      AbilityGateway.request_approval!(principal: key, action_key: "catalog.delete", workspace: @workspace, context: { approval_id: "old" })
+    end.approval
+    assert approval.pending?
+    assert_not Ability::Invocation.exists?(approval_id: approval.id, decision: Ability::Invocation::DECISION_ALLOW)
+
+    assert_raises(AbilityGateway::Denied) do
+      AbilityGateway.request_approval!(principal: workspace_memberships(:bob_workspace_one), action_key: "catalog.delete", workspace: @workspace)
+    end
+  end
 end

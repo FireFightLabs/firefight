@@ -1,6 +1,8 @@
 module Integrations
   module Packs
-    # Bitbucket Cloud for one workspace, read with a token through Bitbucket's REST API (2.0, its OpenAPI description at
+    # Bitbucket Cloud for the workspaces a connection reads, one, several or every one its token can read (the workspace
+    # connect field, a scope). A repository names its workspace, so a call about one reaches only that workspace, and a
+    # listing named none lists every workspace. Read with a token through Bitbucket's REST API (2.0, its OpenAPI description at
     # api.bitbucket.org/swagger.json): pull requests, commits, deployments, pipelines and their steps, and files.
     # Bitbucket has no blame in its API, so blame runs git in the run's sandbox, where reading code by search, definition,
     # history and language server happens too (CodeHost::Code). The pipelines tools live in Bitbucket::Pipelines. Every
@@ -128,22 +130,34 @@ module Integrations
         [
           CredentialField.new(key: TOKEN, label: "Token", secret: true, placeholder: "ATATT...",
                               hint: "An API token, or a workspace access token, that can read repositories, pull requests and pipelines " \
-                                    "(read:repository:bitbucket, read:pullrequest:bitbucket and read:pipeline:bitbucket). Running, rerunning or stopping a " \
+                                    "(read:repository:bitbucket, read:pullrequest:bitbucket and read:pipeline:bitbucket). Listing its workspaces to choose " \
+                                    "from, or reading every one, needs read:workspace:bitbucket. Running, rerunning or stopping a " \
                                     "pipeline also needs write:pipeline:bitbucket. Following changes live " \
                                     "needs a workspace owner's token with read:webhook:bitbucket, write:webhook:bitbucket and delete:webhook:bitbucket.")
         ]
       end
 
-      # Lists a repository of the workspace (the workspace connect field) with the token, so a wrong workspace or token is
-      # said on the form before anything is saved.
+      # Lists a repository of each workspace chosen (the workspace connect field) with the token, or lists the workspaces
+      # for every one it can read, so a wrong workspace or token is said on the form before anything is saved.
       def self.credential_refusal(values, region: nil, fields: {})
         token = values[TOKEN].to_s.strip
-        workspace = fields.to_h[WORKSPACE].to_s.strip
+        workspaces = Array(fields.to_h[WORKSPACE]).map { |each| each.to_s.strip }.compact_blank
         return "Paste a token." if token.empty?
-        return "Enter the workspace's id, such as acme." unless workspace.match?(WORKSPACE_FORMAT)
+        return "Choose at least one workspace, or all the token can read." if workspaces.empty?
+        if workspaces == [ IntegrationProvider::ConnectField::ALL ]
+          return scope_options(values).empty? ? "This token can read no Bitbucket workspaces." : nil
+        end
 
-        BitbucketApi.new(token).get("/repositories/#{Http.segment(workspace)}", "pagelen" => 1)
+        workspace = workspaces.find { |each| !each.match?(WORKSPACE_FORMAT) }
+        return "Enter each workspace's id, such as acme." if workspace
+
+        workspaces.each do |each|
+          workspace = each
+          BitbucketApi.new(token).get("/repositories/#{Http.segment(each)}", "pagelen" => 1)
+        end
         nil
+      rescue NativePack::Error => error
+        error.message
       rescue BitbucketApi::Refused => error
         Sentence.join("Bitbucket refused this token", error, after: "Check it can read repositories in #{workspace}")
       rescue BitbucketApi::NotFound
@@ -152,11 +166,34 @@ module Integrations
         Sentence.join("Bitbucket could not be reached with this token", error)
       end
 
+      # The workspaces the token can read, by their ids (GET /2.0/user/workspaces, "List workspaces for the current user",
+      # which answers each workspace's slug and uuid but no name, in Bitbucket's OpenAPI description at
+      # dac-static.atlassian.com/cloud/bitbucket/swagger.v3.json). It needs read:workspace:bitbucket. The older
+      # GET /2.0/workspaces no longer answers (community.developer.atlassian.com/t/99972).
+      def self.scope_options(values, region: nil, fields: {})
+        token = values.to_h.stringify_keys[TOKEN].to_s.strip
+        raise NativePack::Error, "Paste a token first." if token.empty?
+
+        listed, = BitbucketApi.new(token).list("/user/workspaces", {}, pages: MAX_REPOSITORY_PAGES)
+        listed.filter_map { |access| access.dig("workspace", "slug").presence }.uniq.map { |slug| IntegrationProvider::ConnectOption.new(value: slug, label: slug) }
+      rescue BitbucketApi::Refused => error
+        raise NativePack::Error, Sentence.join("Bitbucket did not list this token's workspaces", error, after: "Listing them needs read:workspace:bitbucket")
+      rescue BitbucketApi::Error => error
+        raise NativePack::Error, Sentence.join("Bitbucket did not list this token's workspaces", error)
+      end
+
+      # A tool names the repository it acts on, which lives in one workspace.
+      def self.scope_references(arguments) = [ arguments["repo"], *Array(arguments["repos"]) ]
+
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(TOKEN, values[TOKEN].to_s.strip)
       end
 
       def list_repositories(environment_row:, arguments:)
+        if every_scope?(environment_row)
+          return ConnectionSettings.of(environment_row).scopes.map { |each| "Workspace #{each}:\n#{scoped(each).list_repositories(environment_row: environment_row, arguments: arguments)}" }.join("\n\n")
+        end
+
         workspace = workspace_of(environment_row)
         repositories, more = api(environment_row).list("/repositories/#{Http.segment(workspace)}", "sort" => "-updated_on")
         return "Workspace #{workspace} has no repositories this token can see." if repositories.empty?
@@ -293,6 +330,10 @@ module Integrations
       EVERY = 1.day
 
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: [ ResourceMap::KIND_REPOSITORY ]) { |pack| pack.map_of_workspace(environment_row) }
+      end
+
+      def map_of_workspace(environment_row)
         bitbucket = api(environment_row)
         workspace = workspace_of(environment_row)
         listed, more = bitbucket.list("/repositories/#{Http.segment(workspace)}", {}, pages: MAX_REPOSITORY_PAGES)
@@ -306,6 +347,12 @@ module Integrations
       # narrow to, which a sweep reads.
       def map_refresh(environment_row, scope)
         return unless scope.external_id
+
+        if every_scope?(environment_row)
+          # A repository or branch names its workspace first, and a change in one the connection does not read changes nothing here.
+          workspace = scope.external_id.split("/").first
+          return ConnectionSettings.of(environment_row).scopes.include?(workspace) ? scoped(workspace).map_refresh(environment_row, scope) : ResourceMap::Snapshot.new(resources: [])
+        end
 
         case scope.kind
         when nil, ResourceMap::KIND_REPOSITORY then refreshed_repository(environment_row, scope.external_id)
@@ -359,8 +406,10 @@ module Integrations
       end
       private :repositories_snapshot
 
+      # Lists a repository of each workspace the connection reaches, so one the token can no longer read is said on the
+      # connection.
       def check_health!(environment_row)
-        api(environment_row).get("/repositories/#{Http.segment(workspace_of(environment_row))}", "pagelen" => 1)
+        ConnectionSettings.of(environment_row).scopes.each { |workspace| api(environment_row).get("/repositories/#{Http.segment(workspace)}", "pagelen" => 1) }
       rescue BitbucketApi::Error => error
         fail! error.message
       end
@@ -377,9 +426,11 @@ module Integrations
         BitbucketApi.new(token)
       end
 
-      def workspace_of(environment_row) = ConnectionSettings.of(environment_row).field(WORKSPACE) || fail!("This environment has no Bitbucket workspace. Reconnect it.")
+      def workspace_of(environment_row) = scope!(environment_row)
 
       def visible_repositories(environment_row)
+        return ConnectionSettings.of(environment_row).scopes.flat_map { |each| scoped(each).send(:visible_repositories, environment_row) } if every_scope?(environment_row)
+
         api(environment_row).list("/repositories/#{Http.segment(workspace_of(environment_row))}", "sort" => "-updated_on").first.map { |repository| repository["full_name"] }
       end
 
