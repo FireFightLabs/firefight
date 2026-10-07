@@ -490,6 +490,31 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A call the agent made in a chat that an approval rule held, once someone decided on it, in the chat's thread, with
+  # Run and Dismiss while it waits for the person who asked. held_call is a Conversation::HeldCalls::Shown.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_held_call(channel_id:, thread_id:, held_call:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same, to whoever asked, for a chat that lives on the dashboard, with a way to open it there.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_held_call_to_user(user_id:, held_call:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws either as the call moves on. direct is the message to whoever asked rather than the one in the thread.
+  # @return [Hash] { success: true }
+  def update_held_call(channel_id:, message_id:, held_call:, direct: false)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A fix's step that was approved, declined or expired, to whoever applied the fix when the fix has no thread to follow.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_fix_step_to_user(user_id:, step:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # One category of integrations under an agent's answer, each with a way to connect it on the dashboard.
   # @param card [IntegrationProvider::Card]
   # @return [Hash] { message_id:, channel_id: }

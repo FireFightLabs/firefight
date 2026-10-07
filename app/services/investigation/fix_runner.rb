@@ -1,6 +1,6 @@
 # Applies a run's fix as the person who applied it. Each step that runs a tool goes through the gateway as them, in the
-# order the fix gives, once the steps it waits on are done. A step an approval rule holds waits for its approver and
-# carries on when approved. A step that fails, or is declined, stops the steps that wait on it, and the rest stand. The
+# order the fix gives, once the steps it waits on are done. A step an approval rule holds waits for its approver, and once
+# approved for someone to run it, after Halon reads how things stand now. Approving a step never runs it. A step that fails, or is declined, stops the steps that wait on it, and the rest stand. The
 # run's thread carries one message that follows along, and the run page reads the same rows.
 class Investigation::FixRunner
   ALREADY_APPLIED = "Someone else applied this fix a moment ago.".freeze
@@ -48,13 +48,17 @@ class Investigation::FixRunner
     nil
   end
 
-  # A step of a cancelled fix that had not run never will, and an approval it waited on is withdrawn.
+  # A step of a cancelled fix that had not run never will, and an approval it waited on, or that waited for it, is withdrawn.
   def self.stop(step)
-    waiting = step.status == Investigation::RemediationStep::STATUS_WAITING_APPROVAL
+    was = step.status
     who = step.plan.cancelled_by&.display_name || "someone"
-    stopped = step.move!(from: [ Investigation::RemediationStep::STATUS_PROPOSED, Investigation::RemediationStep::STATUS_WAITING_APPROVAL ],
+    stopped = step.move!(from: [ Investigation::RemediationStep::STATUS_PROPOSED, Investigation::RemediationStep::STATUS_WAITING_APPROVAL,
+                                 Investigation::RemediationStep::STATUS_APPROVED ],
                          to: Investigation::RemediationStep::STATUS_SKIPPED, result: "Cancelled by #{who} before it ran.")
-    withdraw(step.approval) if stopped && waiting
+    return unless stopped
+
+    withdraw(step.approval) if was == Investigation::RemediationStep::STATUS_WAITING_APPROVAL
+    step.approval&.dismiss! if was == Investigation::RemediationStep::STATUS_APPROVED
   end
 
   def self.withdraw(approval)
@@ -65,13 +69,81 @@ class Investigation::FixRunner
   end
   private_class_method :withdraw
 
-  # From ApprovalResumption, once the approver of a step held by a rule decided.
+  # From ApprovalResumption, once the approver of a step held by a rule decided. A denial ends the step. An approval
+  # leaves it for someone to run, once Halon has read how things stand now, and tells whoever applied the fix.
   def self.resume!(approval, step_id)
     step = Investigation::RemediationStep.find_by(id: step_id, approval_id: approval.id)
     return unless step
+    return InvestigationFixJob.perform_later(step.plan_id, step.id, approval.id) unless approval.approved?
+    return unless step.move!(from: Investigation::RemediationStep::STATUS_WAITING_APPROVAL, to: Investigation::RemediationStep::STATUS_APPROVED)
 
-    InvestigationFixJob.perform_later(step.plan_id, step.id, approval.id)
+    ApprovedCallExpiryJob.set(wait_until: approval.run_expires_at).perform_later(approval.id) if approval.run_expires_at
+    FixStepCheckJob.perform_later(step.id)
+    new(step.plan).told!(step)
   end
+
+  # Halon reads how things stand now, as whoever applied the fix and only through reads.
+  def self.check!(step)
+    return unless step.checking?
+
+    report = Chat::StateCheck.run(
+      owner: step, workspace: step.plan.finding.investigation.workspace, principal: step.plan.approved_by,
+      source: AbilityGateway::SOURCE_INVESTIGATION,
+      call: Chat::StateCheck::Call.new(named: "Step #{step.position} of a fix: #{step.description} (#{step.tool_name})",
+                                       asked: Chat::Tools.shown_arguments(step.arguments), approved_by: approver_name(step.approval))
+    )
+    new(step.plan).publish! if step.checked!(report)
+  end
+
+  # Someone pressed Run on an approved step. It runs once, as whoever applied the fix, with its approval. Returns why not,
+  # or nil.
+  def self.run_approved!(step, by:)
+    blocked = step.run_blocked_reason(by)
+    return blocked if blocked
+    return step.reload.run_blocked_reason(by) || "Step #{step.position} is no longer waiting to be run." unless
+      step.claim!(from: Investigation::RemediationStep::STATUS_APPROVED, started_at: Time.current, done_by_id: by.id)
+
+    InvestigationFixJob.set(wait: step.stale_after + 1.minute).perform_later(step.plan_id)
+    InvestigationFixJob.perform_later(step.plan_id, step.id, step.approval_id)
+    nil
+  end
+
+  # Someone chose not to run an approved step. It is skipped like a step that did not go through, so what waits on it
+  # never runs, and its approval can no longer be used.
+  def self.dismiss_approved!(step, by:)
+    blocked = step.dismiss_blocked_reason(by)
+    return blocked if blocked
+    dismissed = step.move!(from: Investigation::RemediationStep::STATUS_APPROVED, to: Investigation::RemediationStep::STATUS_SKIPPED,
+                           result: "Dismissed by #{by.display_name} after it was approved. It did not run.", finished_at: Time.current)
+    return "Step #{step.position} is no longer waiting to be run." unless dismissed
+
+    step.approval&.dismiss!
+    InvestigationFixJob.perform_later(step.plan_id)
+    nil
+  end
+
+  # An approval that expired is asked for again, for exactly the same call. Nothing runs.
+  def self.ask_again!(step, by:)
+    blocked = step.ask_again_blocked_reason(by)
+    return blocked if blocked
+
+    approval = step.request_approval_again!
+    return "No approval rule holds this step any more. Cancel the fix and apply it again to run it." unless approval
+
+    ApprovalResumption.park_fix_step!(approval, step)
+    new(step.plan).publish!
+    nil
+  rescue AbilityGateway::Denied
+    "#{step.plan.approved_by&.display_name || 'Whoever applied the fix'} may no longer run #{step.tool_name}, so it cannot be asked for again."
+  end
+
+  # Nobody ran an approved step within its window. It stays, saying so, until someone asks again, dismisses it or cancels.
+  def self.lapsed!(approval, step_id)
+    step = Investigation::RemediationStep.find_by(id: step_id, approval_id: approval.id)
+    new(step.plan).told!(step) if step&.approved?
+  end
+
+  def self.approver_name(approval) = approval&.approver&.actor_display_name || "An approver"
 
   def initialize(plan)
     @plan = plan
@@ -112,11 +184,14 @@ class Investigation::FixRunner
     end
   end
 
+  # A denial ends the step and tells whoever applied the fix. A step someone pressed Run on was claimed already, and runs
+  # here once, while its approval is still unused.
   def resume(step, approval_id)
     approval = workspace.ability_approvals.find_by(id: approval_id)
     if approval&.denied?
-      step.finish!(Investigation::RemediationStep::STATUS_DECLINED, result: "#{approval.approver&.actor_display_name || 'The approver'} declined it.")
-    elsif step.claim!(from: Investigation::RemediationStep::STATUS_WAITING_APPROVAL)
+      told!(step) if step.finish!(Investigation::RemediationStep::STATUS_DECLINED,
+                                  result: "#{approval.approver&.actor_display_name || 'The approver'} declined it.")
+    elsif step.status == Investigation::RemediationStep::STATUS_RUNNING && approval&.usable?
       call(step, approval_id: approval_id)
     elsif @plan.reload.cancelled?
       self.class.stop(step)
@@ -195,6 +270,8 @@ class Investigation::FixRunner
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: COULD_NOT_FINISH, invocation_id: authorization.invocation_id)
   end
 
+  public
+
   # One message in the run's thread, posted when the fix is applied and redrawn after, and the answer redrawn once
   # without its Apply fix. A fix nobody applied has no message, its steps are marked done on the run page.
   def publish!
@@ -213,6 +290,20 @@ class Investigation::FixRunner
   rescue AdapterError => error
     Rails.logger.warn({ event: "fix.progress_not_posted", plan_id: @plan.id, error: error.class.name }.to_json)
   end
+
+  # The thread follows the fix when it has one. A fix applied where there is no thread tells whoever applied it directly,
+  # since nobody is watching the run page.
+  def told!(step)
+    publish!
+    applier = @plan.reload.approved_by
+    return if @plan.finding.investigation.thread_id.present? || applier&.platform_user_id.blank?
+
+    WorkspaceAdapter.for(workspace).post_fix_step_to_user(user_id: applier.platform_user_id, step: step.reload)
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "fix.step_untold", step_id: step.id, error: error.class.name }.to_json)
+  end
+
+  private
 
   def redraw_answer(adapter, investigation)
     return if investigation.answer_message_id.blank?

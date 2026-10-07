@@ -8,7 +8,13 @@ module Ability
     STATUS_APPROVED = "approved"
     STATUS_DENIED = "denied"
     STATUS_EXPIRED = "expired"
-    STATUSES = [ STATUS_PENDING, STATUS_APPROVED, STATUS_DENIED, STATUS_EXPIRED ].freeze
+    # Approved, then the person who asked chose not to run it.
+    STATUS_DISMISSED = "dismissed"
+    STATUSES = [ STATUS_PENDING, STATUS_APPROVED, STATUS_DENIED, STATUS_EXPIRED, STATUS_DISMISSED ].freeze
+
+    # An approved call a person runs by hand, such as one Halon asked for in a chat, waits this long for them. After it,
+    # what was approved may no longer be what is there, so it has to be asked for again.
+    RUN_WINDOW = 1.hour
 
     class NotAllowed < StandardError; end
 
@@ -65,6 +71,28 @@ module Ability
       resolve!(STATUS_DENIED, by)
     end
 
+    # A call a person runs once it is approved, rather than one replayed the moment it is. Its approval lasts RUN_WINDOW.
+    def hold_for_run!
+      update!(held_for_run: true)
+    end
+
+    # An approved call nobody ran in time expires, in one statement, so a run claiming it at the same moment stands.
+    def lapse_run!
+      now = Time.current
+      lapsed = self.class.where(id: id, status: STATUS_APPROVED, consumed_at: nil).where(run_expires_at: ..now)
+                         .update_all(status: STATUS_EXPIRED, updated_at: now)
+      reload
+      lapsed == 1
+    end
+
+    # The person who asked chose not to run what was approved. Only while it is unused, in one statement.
+    def dismiss!
+      now = Time.current
+      dismissed = self.class.where(id: id, status: STATUS_APPROVED, consumed_at: nil).update_all(status: STATUS_DISMISSED, updated_at: now)
+      reload
+      dismissed == 1
+    end
+
     # Only from pending, in one statement, so an approval given at the same moment stands.
     def expire!
       now = Time.current
@@ -91,7 +119,10 @@ module Ability
     def pending? = status == STATUS_PENDING
     def approved? = status == STATUS_APPROVED
     def denied? = status == STATUS_DENIED
-    def usable? = approved? && consumed_at.nil?
+    def expired? = status == STATUS_EXPIRED
+    def dismissed? = status == STATUS_DISMISSED
+    def run_lapsed? = run_expires_at.present? && run_expires_at <= Time.current
+    def usable? = approved? && consumed_at.nil? && !run_lapsed?
 
     def matches_request?(action_key, params, scope)
       request_digest == self.class.digest(action_key, params, scope)
@@ -187,7 +218,9 @@ module Ability
         raise NotAllowed, "this policy requires approval by someone other than the requester"
       end
 
-      update!(status: new_status, approver: principal, resolved_at: Time.current)
+      now = Time.current
+      run_by = (now + RUN_WINDOW if held_for_run? && new_status == STATUS_APPROVED)
+      update!(status: new_status, approver: principal, resolved_at: now, run_expires_at: run_by)
       resume_parked_request
     end
   end

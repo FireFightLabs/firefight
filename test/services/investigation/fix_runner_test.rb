@@ -96,15 +96,24 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     assert_equal Ability::Invocation::OUTCOME_ERROR, @plan.steps.first.invocation.outcome
   end
 
-  test "a step an approval rule holds waits, runs once approved, and a declined one stops what waits on it" do
+  test "a step an approval rule holds waits, is only unlocked by the approval, runs once someone presses Run, and a declined one stops what waits on it" do
     @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
-    Integrations::McpExecutor.stubs(:call).returns("content" => [])
+    Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => "delete" } }.once.returns("content" => [])
+    Chat::StateCheck.stubs(:run).returns(Chat::CurrentState::Report.new(state: "The rule still blocks /checkout.", change: Chat::CurrentState::UNCHANGED))
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
 
     delete, = @plan.steps.reload.to_a
     assert_equal Investigation::RemediationStep::STATUS_WAITING_APPROVAL, delete.status
-    perform_enqueued_jobs(only: [ AbilityApprovalResumptionJob, InvestigationFixJob ], at: Time.current) { delete.approval.approve!(by: @alice) }
+    perform_enqueued_jobs(only: [ AbilityApprovalResumptionJob, InvestigationFixJob, FixStepCheckJob ], at: Time.current) { delete.approval.approve!(by: @alice) }
+    assert_equal [ Investigation::RemediationStep::STATUS_APPROVED, "The rule still blocks /checkout." ], [ delete.reload.status, delete.checked_state ]
+    assert_in_delta Ability::Approval::RUN_WINDOW.from_now, delete.approval.run_expires_at, 5.seconds
+    assert_enqueued_with(job: ApprovedCallExpiryJob, args: [ delete.approval.id ])
+
+    assert_match "Only Alice Smith or someone who may run cloudflare_execute", Investigation::FixRunner.run_approved!(delete, by: @bob)
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { assert_nil Investigation::FixRunner.run_approved!(delete, by: @alice) }
     assert_equal "done", delete.reload.status
+    assert_equal [ delete.approval_id, @alice ], [ delete.invocation.approval_id, delete.invocation.principal ]
+    assert_match "Step 1 is done", Investigation::FixRunner.run_approved!(delete, by: @alice)
 
     log = @plan.steps.reload.fourth
     perform_enqueued_jobs(only: [ AbilityApprovalResumptionJob, InvestigationFixJob ], at: Time.current) { log.approval.deny!(by: @alice) }

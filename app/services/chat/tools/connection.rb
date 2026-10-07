@@ -90,7 +90,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # call runs through here too, so it is authorized, approved, ledgered and replayed exactly like the tool itself.
   # shown_as is the name the agent called, present reads the provider's answer back into the capability's shapes.
   # alone is false when this is one of several answers to one call, so a failure here leaves the card to the caller.
-  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true)
+  # target is what the call reaches as a person reads it, the resource and connection for a capability, and the
+  # connection alone otherwise.
+  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil)
     @alone = alone
     @failed = false
     @waiting = false
@@ -128,11 +130,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)
       return run(arguments, environment_entry: environment_entry, tool_call_id: tool_call_id, shown_as: shown_as, present: present,
-                            approval_id: pending.approval.id, alone: alone)
+                            approval_id: pending.approval.id, alone: alone, target: target)
     end
 
     @waiting = true
-    Chat::Tools.waiting_for_approval(@tool.action_key)
+    held = approval_id.nil? &&
+           @agent_run.hold!(pending.approval, tool_name: shown_as, tool_call_id: tool_call_id, target: target || target_of(environment_entry))
+    Chat::Tools.waiting_for_approval(@tool.action_key, held: held)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.
     failed(tool_call_id, FirefightAi::Evidence.frame(shown_as, "#{@tool.action_key} failed: #{error.message}"),
@@ -162,6 +166,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)
+
+  def target_of(environment_entry)
+    integration = @tool.integration
+    integration.target_label(integration.resolve_environment(environment_entry&.id))
+  rescue Integration::UnknownEnvironment
+    integration.target_label
+  end
 
   # A chart is for the person, so it is kept with the chat and never handed to the model.
   def keep_charts(tool_call_id, result, step_position)

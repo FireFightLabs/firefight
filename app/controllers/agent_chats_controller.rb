@@ -21,13 +21,15 @@ class AgentChatsController < InertiaController
   PROP_ATTACHMENT_RULES = "attachmentRules"
   # Each time the open chat made room in the model's window, placed among the steps by when it happened.
   PROP_COMPACTIONS = "compactions"
+  # Calls an approval rule held in the open chat, from waiting for an approver to how they ended.
+  PROP_HELD_CALLS = "heldCalls"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
-    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS
+    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -36,7 +38,7 @@ class AgentChatsController < InertiaController
 
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search], update: %i[update], delete: %i[destroy]
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
@@ -45,7 +47,8 @@ class AgentChatsController < InertiaController
   def index
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
-      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => []
+      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
+      PROP_HELD_CALLS => []
     )
   end
 
@@ -59,7 +62,8 @@ class AgentChatsController < InertiaController
       PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
       PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
       PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat),
-      PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || [])
+      PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
+      PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership)
     )
   end
 
@@ -110,6 +114,19 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation)
   end
 
+  # Approval unlocked the call, and only this runs it, once, as whoever asked. Halon then says how it went.
+  def run_held_call
+    decide_held_call("Running it now.") { |held| Conversation::HeldCalls.run!(held, by: current_membership) }
+  end
+
+  def dismiss_held_call
+    decide_held_call("Dismissed. It will not run.") { |held| Conversation::HeldCalls.dismiss!(held, by: current_membership) }
+  end
+
+  def ask_held_call_again
+    decide_held_call("Asked for approval again.") { |held| Conversation::HeldCalls.ask_again!(held, by: current_membership) }
+  end
+
   def update
     return rename if params.key?(:title)
     return pin if params.key?(:pinned)
@@ -128,6 +145,22 @@ class AgentChatsController < InertiaController
   end
 
   private
+
+  # One that was asked for again is shown as the new request, never twice.
+  def held_calls_shown
+    chat = conversation.chat
+    chat ? chat.held_calls.where.not(status: Chat::HeldCall::STATUS_ASKED_AGAIN).includes(:decided_by, approval: :approver) : []
+  end
+
+  def decide_held_call(done)
+    held = conversation.chat&.held_calls&.find_by(id: params[:held_call_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That call is no longer in this chat.") unless held
+
+    blocked = yield held
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    redirect_to agent_chat_path(conversation), notice: done
+  end
 
   def started_investigations
     conversation.investigations.seen.includes(:subject, :finding).order(:created_at)

@@ -162,8 +162,13 @@ module Chat::Tools
     false
   end
 
-  def self.waiting_for_approval(action_key)
-    "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check."
+  # held is whether the person is asked to run it once approved, which only a chat does.
+  def self.waiting_for_approval(action_key, held: false)
+    return "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check." unless held
+
+    "Needs an approval and was not run: #{action_key}. Whoever can approve it has been asked. Once someone approves it, the " \
+      "person is asked in this chat whether to run it, so never call it again yourself. Tell them it is waiting for approval, " \
+      "and carry on with what you can reach."
   end
 
   # A call with a target is asked about what it reaches, the call itself and the agent's words coming after, since the

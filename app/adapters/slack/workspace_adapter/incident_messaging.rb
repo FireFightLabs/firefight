@@ -569,6 +569,31 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_held_call(channel_id:, thread_id:, held_call:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::HeldCall.fallback(held_call), blocks: Slack::Messages::HeldCall.build(held_call)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
+  def post_held_call_to_user(user_id:, held_call:)
+    post_message(channel_id: user_id, text: Slack::Messages::HeldCall.fallback(held_call),
+                 blocks: Slack::Messages::HeldCall.build(held_call, direct: true))
+  end
+
+  def update_held_call(channel_id:, message_id:, held_call:, direct: false)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::HeldCall.fallback(held_call),
+                   blocks: Slack::Messages::HeldCall.build(held_call, direct: direct))
+    { success: true }
+  end
+
+  def post_fix_step_to_user(user_id:, step:)
+    post_message(channel_id: user_id, text: Slack::Messages::FixProgress.step_news_fallback(step), blocks: Slack::Messages::FixProgress.step_news(step))
+  end
+
   # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
   def post_integration_card(channel_id:, thread_id:, card:)
     translate_errors do

@@ -140,6 +140,18 @@ class AbilityGateway
     end
   end
 
+  # Asks for a fresh approval of a call without ever running it, as when an approved call expired before anyone ran it.
+  # Raises Denied when the principal may no longer make the call and PendingApproval with the new request. Returns nil
+  # when no rule holds the call any more, so the caller says so rather than running it.
+  def self.request_approval!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
+    action = Ability::Action.lookup(action_key, workspace)
+    raise Denied.new(action_key) unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
+    return nil unless approval_requirement(workspace, action, action_key, scope, context)
+
+    approval_gate!(principal: principal, action: action, action_key: action_key, workspace: workspace, scope: scope, params: params,
+                   context: context.except(:approval_id))
+  end
+
   def self.permitted?(principal, action, action_key, workspace, scope)
     return false unless action
     return true if Ability::Action.open?(action_key)
