@@ -25,6 +25,24 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
     assert_equal WorkspaceOnboarding::NO_WORKING_ACCOUNT, props["aiChoices"][WorkspaceOnboarding::AI_ACCOUNT]
   end
 
+  class StaysOpenController < InertiaController
+    skip_before_action :block_inaccessible_workspace
+
+    def show = head(:ok)
+  end
+
+  test "a page that stays open while the workspace is closed, such as where credits are bought, is not turned around" do
+    sign_in(@owner.user, @workspace)
+
+    with_routing do |routes|
+      routes.draw { get "/stays-open", to: "setup_controller_test/stays_open#show" }
+
+      get "/stays-open"
+    end
+
+    assert_response :success
+  end
+
   test "the flash a redirected page carried reaches setup" do
     sign_in(@owner.user, @workspace)
 
@@ -93,7 +111,8 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "Not now on Slack, the last step left, finishes setup and opens the dashboard" do
-    @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current, permissions_reviewed_at: Time.current)
+    @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current, permissions_reviewed_at: Time.current,
+                        halon_answered_at: Time.current)
     sign_in(@owner.user, @workspace)
 
     post onboarding_checklist_skip_slack_path
@@ -108,7 +127,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
 
   test "a page visit after the last step finished elsewhere opens normally" do
     @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current,
-                        permissions_reviewed_at: Time.current, slack_skipped_at: Time.current)
+                        permissions_reviewed_at: Time.current, halon_answered_at: Time.current, slack_skipped_at: Time.current)
     sign_in(@owner.user, @workspace)
 
     get settings_workspace_path

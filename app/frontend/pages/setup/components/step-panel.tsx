@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import { SETUP_STEPS, SETUP_STEP_STATES } from "@/lib/generated/constants"
+import { SETUP_STEPS } from "@/lib/generated/constants"
 import { AccountStep } from "@/pages/setup/components/account-step"
 import { AiStep } from "@/pages/setup/components/ai-step"
 import { HalonStep } from "@/pages/setup/components/halon-step"
@@ -32,9 +32,6 @@ export function StepPanel({ step, position, total }: { step: OnboardingStep; pos
         <h1 id="setup-step-title" className="text-2xl font-semibold tracking-tight text-fg-headline">
           {STEP_TITLES[step.key]}
         </h1>
-        {step.state === SETUP_STEP_STATES.UNAVAILABLE && step.note && (
-          <p className="text-sm text-fg-secondary">{step.note}</p>
-        )}
       </div>
       {BODIES[step.key](step)}
     </section>

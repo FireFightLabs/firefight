@@ -693,7 +693,6 @@ export const SETUP_STEPS = {
 export const SETUP_STEP_STATES = {
   "DONE": "done",
   "SKIPPED": "skipped",
-  "UNAVAILABLE": "unavailable",
   "CURRENT": "current",
   "WAITING": "waiting"
 } as const

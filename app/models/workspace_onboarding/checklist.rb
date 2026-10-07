@@ -13,14 +13,13 @@ module WorkspaceOnboarding::Checklist
   STEP_TEST_INCIDENT = "test_incident".freeze
   CHECKLIST_STEPS = [ STEP_ACCOUNT, STEP_AI, STEP_STACK, STEP_PERMISSIONS, STEP_HALON, STEP_SLACK, STEP_TEST_INCIDENT ].freeze
 
-  # done and skipped count as finished, and so does unavailable, a step this workspace cannot take, which says why.
+  # done and skipped count as finished. A step up next or waiting may carry a note saying what holds it.
   STATE_DONE = "done".freeze
   STATE_SKIPPED = "skipped".freeze
-  STATE_UNAVAILABLE = "unavailable".freeze
   STATE_CURRENT = "current".freeze
   STATE_WAITING = "waiting".freeze
-  STATES = [ STATE_DONE, STATE_SKIPPED, STATE_UNAVAILABLE, STATE_CURRENT, STATE_WAITING ].freeze
-  FINISHED_STATES = [ STATE_DONE, STATE_SKIPPED, STATE_UNAVAILABLE ].freeze
+  STATES = [ STATE_DONE, STATE_SKIPPED, STATE_CURRENT, STATE_WAITING ].freeze
+  FINISHED_STATES = [ STATE_DONE, STATE_SKIPPED ].freeze
 
   # Who pays for what Halon writes: the workspace's own key, its Firefight credits, or the keys the deployment runs on.
   AI_ACCOUNT = "account".freeze
@@ -35,6 +34,7 @@ module WorkspaceOnboarding::Checklist
 
   NO_WORKING_ACCOUNT = "Add an AI account whose check passes first.".freeze
   NO_CREDITS = "Firefight credits are not offered here.".freeze
+  NO_CREDIT_BALANCE = "Buy Firefight credits first.".freeze
   NO_HOUSE = "This Firefight has no AI keys of its own to use.".freeze
   NOTHING_CONNECTED = "Connect one of these first.".freeze
   CHECK_FAILING = "The check on that connection did not pass yet. Fix it, or connect another.".freeze
@@ -76,7 +76,7 @@ module WorkspaceOnboarding::Checklist
       state, note = finished_state(key)
       unless state
         state = current_found ? STATE_WAITING : STATE_CURRENT
-        note = waiting_note(key) if current_found
+        note = current_found ? waiting_note(key) : current_note(key)
         current_found = true
       end
       Step.new(key: key, state: state, note: note)
@@ -104,7 +104,7 @@ module WorkspaceOnboarding::Checklist
   def ai_choice_blocked_reason(choice)
     case choice
     when AI_ACCOUNT then NO_WORKING_ACCOUNT unless workspace.workspace_ai_accounts.usable.where.not(verified_at: nil).exists?
-    when AI_CREDITS then NO_CREDITS unless Entitlements.ai_credit(workspace)
+    when AI_CREDITS then credits_blocked_reason
     when AI_HOUSE then NO_HOUSE unless house_ai?
     else raise ArgumentError, "Unknown AI choice #{choice.inspect}"
     end
@@ -139,8 +139,6 @@ module WorkspaceOnboarding::Checklist
     self.class.where(id: id, halon_answered_at: nil).update_all(halon_answered_at: Time.current, updated_at: Time.current)
   end
 
-  def halon_unavailable_reason = Investigation.unavailable_reason(workspace)
-
   # The question the chat suggests first, naming what was connected where the stack runs: its hosts and its databases.
   def first_question
     names = stack_cards.select { |card| QUESTION_CATEGORIES.include?(card.category.slug) && stack_answers[card.category.slug] == ANSWER_CONNECTED }
@@ -165,18 +163,24 @@ module WorkspaceOnboarding::Checklist
     when STEP_AI then ai_chosen_at && [ STATE_DONE, nil ]
     when STEP_STACK then stack_done_at && [ STATE_DONE, nil ]
     when STEP_PERMISSIONS then permissions_reviewed_at && [ STATE_DONE, nil ]
-    when STEP_HALON then halon_state
+    when STEP_HALON then halon_answered_at && [ STATE_DONE, nil ]
     when STEP_SLACK then slack_state
     when STEP_TEST_INCIDENT then test_incident_state
     end
   end
 
-  # A workspace where Halon cannot run says why, and setup goes on without it.
-  def halon_state
-    return [ STATE_DONE, nil ] if halon_answered_at
+  # Meeting Halon is required, so a Halon that cannot answer yet holds the step and says why, such as a model it does not
+  # know. The way on is back to the AI step.
+  def current_note(key)
+    Investigation.unavailable_reason(workspace) if key == STEP_HALON
+  end
 
-    reason = halon_unavailable_reason
-    reason && [ STATE_UNAVAILABLE, reason ]
+  # Credits are a choice only once there is a balance to spend, since Halon's first answer comes straight after.
+  def credits_blocked_reason
+    credit = Entitlements.ai_credit(workspace)
+    return NO_CREDITS unless credit
+
+    NO_CREDIT_BALANCE unless credit.spendable?
   end
 
   def slack_state

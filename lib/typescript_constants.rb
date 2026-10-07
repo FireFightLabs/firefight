@@ -147,8 +147,7 @@ module TypescriptConstants
       }, nil),
       Export.new("SETUP_STEP_STATES", {
         "DONE" => WorkspaceOnboarding::STATE_DONE, "SKIPPED" => WorkspaceOnboarding::STATE_SKIPPED,
-        "UNAVAILABLE" => WorkspaceOnboarding::STATE_UNAVAILABLE, "CURRENT" => WorkspaceOnboarding::STATE_CURRENT,
-        "WAITING" => WorkspaceOnboarding::STATE_WAITING
+        "CURRENT" => WorkspaceOnboarding::STATE_CURRENT, "WAITING" => WorkspaceOnboarding::STATE_WAITING
       }, nil),
       Export.new("SETUP_AI_CHOICES", {
         "ACCOUNT" => WorkspaceOnboarding::AI_ACCOUNT, "CREDITS" => WorkspaceOnboarding::AI_CREDITS, "HOUSE" => WorkspaceOnboarding::AI_HOUSE

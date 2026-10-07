@@ -99,7 +99,7 @@ export function AiStep({ step }: { step: OnboardingStep }) {
 
       {choice === SETUP_AI_CHOICES.CREDITS && aiCredits && (
         <div className="border-border overflow-hidden rounded-lg border [&>div]:border-t-0">
-          <AiCreditsRow credits={aiCredits} />
+          <AiCreditsRow credits={aiCredits} canManage={canManageAccounts} />
         </div>
       )}
 

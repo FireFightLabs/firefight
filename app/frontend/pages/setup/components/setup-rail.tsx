@@ -10,7 +10,6 @@ type StepState = OnboardingStep["state"]
 const STATE_WORDS: Record<StepState, string> = {
   [SETUP_STEP_STATES.DONE]: "Done",
   [SETUP_STEP_STATES.SKIPPED]: "Not now",
-  [SETUP_STEP_STATES.UNAVAILABLE]: "Not available here",
   [SETUP_STEP_STATES.CURRENT]: "Up next",
   [SETUP_STEP_STATES.WAITING]: "Waiting",
 }
@@ -18,7 +17,6 @@ const STATE_WORDS: Record<StepState, string> = {
 const SEGMENT_TONES: Record<StepState, string> = {
   [SETUP_STEP_STATES.DONE]: "bg-brand",
   [SETUP_STEP_STATES.SKIPPED]: "bg-brand",
-  [SETUP_STEP_STATES.UNAVAILABLE]: "bg-border-strong",
   [SETUP_STEP_STATES.CURRENT]: "bg-fg-secondary",
   [SETUP_STEP_STATES.WAITING]: "bg-border-strong",
 }
@@ -34,14 +32,12 @@ export function SetupRail({
   openKey: SetupStepKey
   onOpen: (key: SetupStepKey) => void
 }) {
-  // A step this workspace cannot take is left out of the count rather than counted as done.
-  const counted = steps.filter((step) => step.state !== SETUP_STEP_STATES.UNAVAILABLE)
-  const done = counted.filter(isFinished).length
+  const done = steps.filter(isFinished).length
 
   return (
     <nav aria-label="Setup steps" className="flex flex-col gap-3 md:sticky md:top-8 md:self-start">
       <p className="text-xs font-medium text-fg-muted">
-        {done} of {counted.length} done
+        {done} of {steps.length} done
       </p>
 
       <ol className="flex gap-1.5 md:hidden">
@@ -127,7 +123,7 @@ function StepMarker({ state, number }: { state: StepState; number: number }) {
       </span>
     )
   }
-  if (state === SETUP_STEP_STATES.SKIPPED || state === SETUP_STEP_STATES.UNAVAILABLE) {
+  if (state === SETUP_STEP_STATES.SKIPPED) {
     return (
       <span className={cn(base, "border border-border-strong text-fg-muted")}>
         <IconMinus className="size-3.5" />

@@ -25,7 +25,7 @@ class SetupChecklistTest < ApplicationSystemTestCase
     click_on "Continue to Nova Labs"
 
     assert_text "Choose Halon's AI"
-    assert_text "1 of 6 done"
+    assert_text "1 of 7 done"
     screenshot("ai")
     phone_screenshot("ai")
 
@@ -150,10 +150,9 @@ class SetupChecklistTest < ApplicationSystemTestCase
     visit settings_members_path
 
     assert_text "Connect your stack"
-    assert_text "2 of 6 done"
+    assert_text "2 of 7 done"
     assert_text "1 of #{IntegrationProvider.category_list.size} answered"
     assert_selector "section[aria-label='#{second.name}']"
-    assert_text "Not available here"
     screenshot("resume")
 
     find("button", text: first.name).click
@@ -195,7 +194,7 @@ class SetupChecklistTest < ApplicationSystemTestCase
     workspace.update!(platform: Platforms::SLACK, platform_id: "T#{SecureRandom.hex(5)}", access_token: "xoxb-test", installed_at: Time.current,
                       incidents_channel_id: "C_INCIDENTS")
     workspace.onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current,
-                                 permissions_reviewed_at: Time.current)
+                                 permissions_reviewed_at: Time.current, halon_answered_at: Time.current)
     sign_in(owner.user, workspace)
 
     visit onboarding_checklist_path
@@ -225,6 +224,39 @@ class SetupChecklistTest < ApplicationSystemTestCase
 
     assert_selector "nav[aria-label='Setup steps'] button[disabled]", text: "Run a test incident"
     assert_selector "nav[aria-label='Setup steps'] button[disabled]", text: "Connect Slack"
+  end
+
+  test "someone who joins while an admin is still setting up goes to the dashboard and never sees setup" do
+    owner = signed_up_owner
+    member = owner.workspace.workspace_memberships.create!(user: User.create!(email: "mid-#{SecureRandom.hex(3)}@example.com", name: "Mira Member"),
+                                                           role: :member, joined_at: Time.current)
+    sign_in(member.user, owner.workspace)
+
+    visit dashboard_path
+    assert_no_text "Choose Halon's AI"
+    assert_text "Connect Slack to run incidents"
+
+    visit onboarding_checklist_path
+    assert_current_path dashboard_path
+    assert_no_selector "nav[aria-label='Setup steps']"
+    screenshot("member")
+    phone_screenshot("member")
+  end
+
+  test "Meet Halon waits, and says why, while Halon cannot answer yet" do
+    owner = signed_up_owner
+    owner.workspace.onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current,
+                                       permissions_reviewed_at: Time.current)
+    Investigation.stubs(:unavailable_reason).returns("The AI model is not fully set up yet. An admin needs to finish setting it up.")
+    sign_in(owner.user, owner.workspace)
+
+    visit onboarding_checklist_path
+
+    assert_selector "h1", text: "Meet Halon"
+    assert_text "The AI model is not fully set up yet. An admin needs to finish setting it up. Change it under Choose Halon's AI."
+    assert_button "Ask Halon", disabled: true
+    assert_selector "nav[aria-label='Setup steps'] button[disabled]", text: "Connect Slack"
+    screenshot("halon-held")
   end
 
   private

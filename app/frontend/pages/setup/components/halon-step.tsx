@@ -1,5 +1,5 @@
 import { Link, usePage } from "@inertiajs/react"
-import { IconMessageCircle } from "@tabler/icons-react"
+import { IconAlertTriangle, IconMessageCircle } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { SETUP_STEP_STATES } from "@/lib/generated/constants"
@@ -8,15 +8,11 @@ import type { SetupPageProps } from "@/pages/setup/types"
 import type { OnboardingStep } from "@/types/serializers"
 
 // The first chat happens in the real chat, which starts with this question in the box. The step is done once Halon
-// has answered, and the chat offers the way back here.
+// has answered, and the chat offers the way back here. While Halon cannot answer yet, the step says why and waits.
 export function HalonStep({ step }: { step: OnboardingStep }) {
   const { firstQuestion } = usePage<SetupPageProps>().props
-
-  if (step.state === SETUP_STEP_STATES.UNAVAILABLE) {
-    return <p className="max-w-prose text-sm leading-relaxed text-fg-body">Setup goes on without it. Halon is ready to meet once it is turned on.</p>
-  }
-
   const answered = step.state === SETUP_STEP_STATES.DONE
+  const holdingReason = answered ? null : step.note
 
   return (
     <div className="flex flex-col gap-6">
@@ -33,10 +29,21 @@ export function HalonStep({ step }: { step: OnboardingStep }) {
         </blockquote>
       )}
 
+      {holdingReason && (
+        <p className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-tint px-4 py-3 text-sm text-fg-primary">
+          <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+          <span>{holdingReason} Change it under Choose Halon&apos;s AI.</span>
+        </p>
+      )}
+
       <div className="flex justify-end border-t border-border pt-5">
-        <Button asChild variant={answered ? "outline" : "default"}>
-          <Link href={agentChatsPath()}>{answered ? "Open Chat" : "Ask Halon"}</Link>
-        </Button>
+        {holdingReason ? (
+          <Button disabled>Ask Halon</Button>
+        ) : (
+          <Button asChild variant={answered ? "outline" : "default"}>
+            <Link href={agentChatsPath()}>{answered ? "Open Chat" : "Ask Halon"}</Link>
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -56,6 +56,13 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
     assert_nil @onboarding.ai_choice_blocked_reason(WorkspaceOnboarding::AI_CREDITS)
   end
 
+  test "credits can be chosen only once there is a balance to spend" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(false, false))
+
+    assert_includes @onboarding.ai_choices, WorkspaceOnboarding::AI_CREDITS
+    assert_equal WorkspaceOnboarding::NO_CREDIT_BALANCE, @onboarding.ai_choice_blocked_reason(WorkspaceOnboarding::AI_CREDITS)
+  end
+
   test "an install someone runs offers the AI keys it runs on" do
     assert_includes @onboarding.ai_choices, WorkspaceOnboarding::AI_HOUSE
     assert_nil @onboarding.ai_choice_blocked_reason(WorkspaceOnboarding::AI_HOUSE)
@@ -118,11 +125,17 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
     assert_equal "What runs where in my stack across Northflank?", @onboarding.first_question
   end
 
-  test "Halon that cannot run here does not hold setup up" do
-    step = @onboarding.steps.find { |candidate| candidate.key == WorkspaceOnboarding::STEP_HALON }
+  test "meeting Halon is required, so a Halon that cannot answer yet holds setup and says why" do
+    finish_stack!
+    Investigation.stubs(:unavailable_reason).returns("The AI model is not fully set up yet. An admin needs to finish setting it up.")
 
-    assert_equal WorkspaceOnboarding::STATE_UNAVAILABLE, step.state
-    assert_equal Investigation.unavailable_reason(@workspace), step.note
+    step = @onboarding.current_step
+    assert_equal WorkspaceOnboarding::STEP_HALON, step.key
+    assert_equal "The AI model is not fully set up yet. An admin needs to finish setting it up.", step.note
+    assert_not @onboarding.done?
+
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    assert_nil @onboarding.current_step.note
   end
 
   test "Halon's answer in an admin's own chat finishes Meet Halon, and a member's does not" do
@@ -177,7 +190,12 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
     IntegrationProvider.card_for(@workspace, IntegrationProvider.category_for!(slug))
   end
 
-  def finish_through_halon!
+  def finish_stack!
     @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current, permissions_reviewed_at: Time.current)
+  end
+
+  def finish_through_halon!
+    finish_stack!
+    @onboarding.update!(halon_answered_at: Time.current)
   end
 end
