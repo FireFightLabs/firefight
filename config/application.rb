@@ -14,5 +14,9 @@ module Firefight
 
     # Rails renders its own debug pages where they apply, this covers the rest.
     config.exceptions_app = routes
+
+    # Faylee bug reports, off unless a deployment sets both. A blank value counts as unset.
+    config.x.faylee_verification_token = ENV["FAYLEE_VERIFICATION_TOKEN"].presence
+    config.x.faylee_site_id = ENV["FAYLEE_SITE_ID"].presence
   end
 end

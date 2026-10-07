@@ -1,11 +1,9 @@
-class FayleeController < ActionController::Base
+# Serves the token Faylee reads to confirm this deployment owns its domain.
+class FayleeController < ActionController::API
   def verification
-    token = ENV["FAYLEE_VERIFICATION_TOKEN"]
+    token = Rails.configuration.x.faylee_verification_token
+    return head(:not_found) unless token
 
-    if token
-      render plain: token
-    else
-      head :not_found
-    end
+    render plain: token
   end
 end

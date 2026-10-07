@@ -1,29 +1,22 @@
 require "test_helper"
-require "open3"
 
 class FayleeControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @previous_token = ENV["FAYLEE_VERIFICATION_TOKEN"]
-    @previous_site_id = ENV["FAYLEE_SITE_ID"]
+    @workspace = workspaces(:slack_workspace_one)
   end
 
-  teardown do
-    ENV["FAYLEE_VERIFICATION_TOKEN"] = @previous_token
-    ENV["FAYLEE_SITE_ID"] = @previous_site_id
-  end
-
-  test "verification returns the configured token without authentication" do
-    ENV["FAYLEE_VERIFICATION_TOKEN"] = "test-verification-token"
+  test "verification returns the configured token without signing in" do
+    Rails.configuration.x.stubs(:faylee_verification_token).returns("test-verification-token")
 
     get "/.well-known/faylee-verification.txt"
 
     assert_response :success
     assert_equal "test-verification-token", response.body
-    assert_equal "text/plain; charset=utf-8", response.media_type
+    assert_equal "text/plain", response.media_type
   end
 
   test "verification is not found when no token is configured" do
-    ENV["FAYLEE_VERIFICATION_TOKEN"] = nil
+    Rails.configuration.x.stubs(:faylee_verification_token).returns(nil)
 
     get "/.well-known/faylee-verification.txt"
 
@@ -31,50 +24,45 @@ class FayleeControllerTest < ActionDispatch::IntegrationTest
     assert_nil response.headers["Location"]
   end
 
-  test "the widget is absent when no site is configured" do
-    ENV["FAYLEE_SITE_ID"] = nil
+  test "the widget and its policy load inside a workspace" do
+    Rails.configuration.x.stubs(:faylee_site_id).returns("test-site-id")
+    sign_in(users(:alice), @workspace)
+
+    get dashboard_path
+
+    assert_response :success
+    nonce = response.body[%r{<script[^>]+src="https://app\.faylee\.app/widget\.js"[^>]+data-site="test-site-id"[^>]+nonce="([^"]+)"}, 1]
+    assert_not_nil nonce
+    assert_equal response.body[/<meta name="csp-nonce" content="([^"]+)"/, 1], nonce
+    assert_match(%r{script-src[^;]*https://app\.faylee\.app}, policy_header)
+    assert_match(%r{connect-src[^;]*https://app\.faylee\.app}, policy_header)
+    assert_match(%r{frame-src[^;]*https://app\.faylee\.app}, policy_header)
+  end
+
+  test "sign-in pages never load the widget or open the policy to it" do
+    Rails.configuration.x.stubs(:faylee_site_id).returns("test-site-id")
 
     get login_path
 
     assert_response :success
-    assert_not_includes response.body, "https://app.faylee.app/widget.js"
+    assert_not_includes response.body, "app.faylee.app"
+    assert_not_includes policy_header, "app.faylee.app"
   end
 
-  test "the widget includes the configured site and CSP nonce" do
-    ENV["FAYLEE_SITE_ID"] = "test-site-id"
+  test "nothing loads inside a workspace when no site is configured" do
+    Rails.configuration.x.stubs(:faylee_site_id).returns(nil)
+    sign_in(users(:alice), @workspace)
 
-    get login_path
+    get dashboard_path
 
     assert_response :success
-    assert_match(%r{<script[^>]+src="https://app\.faylee\.app/widget\.js"[^>]+data-site="test-site-id"[^>]+async[^>]+nonce="([^"]+)"[^>]*></script>}, response.body)
-    assert_equal Regexp.last_match(1), response.body[/<meta name="csp-nonce" content="([^"]+)"/, 1]
-  end
-
-  test "CSP does not allow Faylee when the widget is disabled" do
-    output = content_security_policy_for(site_id: nil)
-
-    assert_includes output, "script-src 'self'"
-    assert_not_includes output, "https://app.faylee.app"
-  end
-
-  test "CSP allows Faylee sources when the widget is enabled" do
-    output = content_security_policy_for(site_id: "test-site-id")
-
-    assert_match(/script-src[^;]*https:\/\/app\.faylee\.app/, output)
-    assert_match(/connect-src[^;]*https:\/\/app\.faylee\.app/, output)
-    assert_match(/frame-src[^;]*https:\/\/app\.faylee\.app/, output)
+    assert_not_includes response.body, "app.faylee.app"
+    assert_not_includes policy_header, "app.faylee.app"
   end
 
   private
 
-  def content_security_policy_for(site_id:)
-    environment = { "FAYLEE_SITE_ID" => site_id, "SLACK_SIGNING_SECRET" => "test-secret" }
-    command = <<~RUBY
-      require "./config/environment"
-      puts Rails.application.config.content_security_policy.build(nil)
-    RUBY
-    output, status = Open3.capture2e(environment, RbConfig.ruby, "-e", command)
-    assert_predicate status, :success?, output
-    output
+  def policy_header
+    response.headers["Content-Security-Policy-Report-Only"] || response.headers["Content-Security-Policy"]
   end
 end

@@ -40,8 +40,8 @@
 
   <body>
     <%= yield %>
-    <% if ENV["FAYLEE_SITE_ID"] %>
-      <%= tag.script src: "https://app.faylee.app/widget.js", data: { site: ENV["FAYLEE_SITE_ID"] }, async: true, nonce: content_security_policy_nonce %>
+    <% if faylee_site_id %>
+      <%= tag.script src: "#{ApplicationController::FAYLEE_ORIGIN}/widget.js", data: { site: faylee_site_id }, async: true, nonce: content_security_policy_nonce %>
     <% end %>
   </body>
 </html>

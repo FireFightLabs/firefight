@@ -1,5 +1,14 @@
 class ApplicationController < ActionController::Base
-  helper_method :current_user, :current_workspace, :user_signed_in?
+  helper_method :current_user, :current_workspace, :user_signed_in?, :faylee_site_id
+
+  # The widget loads only inside a workspace, so the policy opens to it only there.
+  content_security_policy do |policy|
+    next unless faylee_site_id
+
+    policy.script_src(*policy.script_src, FAYLEE_ORIGIN)
+    policy.connect_src(*policy.connect_src, FAYLEE_ORIGIN)
+    policy.frame_src(:self, FAYLEE_ORIGIN)
+  end
 
   before_action { Current.trace_id = request.request_id }
 
@@ -10,7 +19,13 @@ class ApplicationController < ActionController::Base
     logger.tagged(payload) { action.call }
   end
 
+  FAYLEE_ORIGIN = "https://app.faylee.app".freeze
+
   private
+
+  def faylee_site_id
+    Rails.configuration.x.faylee_site_id if current_workspace
+  end
 
   def current_user
     return @current_user if defined?(@current_user)

@@ -9,12 +9,6 @@ Rails.application.configure do
     policy.object_src  :none
     policy.frame_ancestors :none
 
-    if ENV["FAYLEE_SITE_ID"]
-      policy.script_src  *policy.script_src, "https://app.faylee.app"
-      policy.connect_src *policy.connect_src, "https://app.faylee.app"
-      policy.frame_src   :self, "https://app.faylee.app"
-    end
-
     if Rails.env.development?
       policy.script_src *policy.script_src, :unsafe_eval, "http://#{ViteRuby.config.host_with_port}"
       policy.connect_src *policy.connect_src, "ws://#{ViteRuby.config.host_with_port}"
