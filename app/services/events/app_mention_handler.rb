@@ -8,47 +8,28 @@ module Events
 
       incident = workspace.incidents.active.in_channel(channel_id).first
       user_text = strip_mention(event["text"])
-      # Files alone are a question only for the agent, which reads them.
-      return if user_text.blank? && (event["files"].blank? || !agent?(workspace))
+      # Files alone are a question, since Halon reads them.
+      return if user_text.blank? && event["files"].blank?
       return unless defined?(FirefightAi)
-      # Outside an incident's channel the agent only takes an investigation, which answers in that channel.
-      return unless incident || (agent?(workspace) && investigate?(user_text))
+      # Outside an incident's channel Halon only takes an investigation, which answers in that channel.
+      return unless incident || investigate?(user_text)
 
       gate = Entitlements.check(workspace, Entitlements::AI)
       return notify_blocked(workspace, channel_id, event["user"], gate.message) if gate.blocked?
 
-      unready = agent?(workspace) && Investigation.unknown_window_reason(workspace)
+      unready = Investigation.unknown_window_reason(workspace)
       return notify_blocked(workspace, channel_id, event["user"], unready) if unready
 
       acknowledge(workspace, channel_id, event["ts"])
+      return investigate(workspace, channel_id, event, user_text) if investigate?(user_text)
 
+      # In a live run's thread a mention is added to the run, which reads it at its next step.
       parent_thread_ts = event["thread_ts"]
-      reply_thread_ts = parent_thread_ts || event["ts"]
+      run = parent_thread_ts && Investigation.live_in_thread(workspace, parent_thread_ts)
+      return add_note(workspace, run, channel_id, event, user_text) if run
 
-      if agent?(workspace)
-        return investigate(workspace, channel_id, event, user_text) if investigate?(user_text)
-
-        # In a live run's thread a mention is added to the run, which reads it at its next step.
-        run = parent_thread_ts && Investigation.live_in_thread(workspace, parent_thread_ts)
-        return add_note(workspace, run, channel_id, event, user_text) if run
-
-        return answer_as_agent(workspace, incident, channel_id, reply_thread_ts, event, user_text)
-      end
-
-      IncidentAiResponseJob.perform_later(
-        incident.id,
-        channel_id,
-        reply_thread_ts,
-        user_text,
-        parent_thread_ts
-      )
+      answer(workspace, incident, channel_id, parent_thread_ts || event["ts"], event, user_text)
     end
-
-    # The agent answers with tools and remembers the thread. Without the flag, the old reply stands.
-    def self.agent?(workspace)
-      FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)
-    end
-    private_class_method :agent?
 
     # Only as the first word, so a question that mentions investigating is still a question.
     def self.investigate?(user_text) = user_text.split(/\s+/, 2).first.to_s.casecmp?(Identifiers::SUBCOMMAND_INVESTIGATE)
@@ -75,7 +56,7 @@ module Events
     end
     private_class_method :add_note
 
-    def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
+    def self.answer(workspace, incident, channel_id, thread_id, event, user_text)
       asker = Conversation::Opener.member(workspace, event["user"])
       Conversation.ask_from_thread!(asker: asker, workspace: workspace, incident: incident, source: AbilityGateway::SOURCE_SLACK) do
         conversation = Conversation::Opener.call(
@@ -87,7 +68,7 @@ module Events
     rescue AbilityGateway::Denied => e
       notify_blocked(workspace, channel_id, event["user"], AuthorizedDispatch.denied_message(e))
     end
-    private_class_method :answer_as_agent
+    private_class_method :answer
 
     # Taken the same way whatever the mention does, with the same limits and refusals.
     def self.shared_files(workspace, event, sender)

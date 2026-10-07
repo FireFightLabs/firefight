@@ -6,7 +6,6 @@ module Integrations
       class FixingTest < ActiveSupport::TestCase
         setup do
           @workspace = workspaces(:slack_workspace_one)
-          FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
           @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
           @row = @integration.integration_environments.create!(base_config: { "installation_id" => "12345" })
           @pack = Github.new(@integration, box_key: "investigation-1")

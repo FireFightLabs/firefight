@@ -99,7 +99,6 @@ class SetupChecklistTest < ApplicationSystemTestCase
     assert_text "Everyone reads every connected tool. Changes need a pack."
     screenshot("permissions")
     phone_screenshot("permissions")
-    FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
     Investigation.stubs(:unavailable_reason).returns(nil)
     click_button "Continue"
 

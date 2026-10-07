@@ -421,11 +421,6 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: answer, blocks: blocks)
   end
 
-  def post_ai_response_threaded(channel_id:, parent_message_id:, incident:, answer:)
-    blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
-    post_threaded_message(channel_id: channel_id, parent_message_id: parent_message_id, text: answer, blocks: blocks)
-  end
-
   STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze
   # A finished step that failed is an error, and one whose provider found nothing is complete, an answer to the check.
   # Either says how it went in a word under its title.

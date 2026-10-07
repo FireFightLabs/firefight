@@ -6,7 +6,6 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), @workspace)
   end
@@ -166,7 +165,7 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_not @incident.investigations.exists?
 
     sign_in(users(:alice), @workspace)
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+    deny_entitlements!
     get incident_url(@incident), headers: inertia_headers
     assert_nil inertia_props[IncidentsController::PROP_INVESTIGATION_START]
   end

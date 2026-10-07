@@ -19,12 +19,7 @@ module Commands
 
       return Command.ephemeral("This command must be run from an active incident channel.") unless command.incident
 
-      IncidentAiResponseJob.perform_later(
-        command.incident.id,
-        command.channel_id,
-        nil,
-        CATCHUP_QUESTION
-      )
+      IncidentAiResponseJob.perform_later(command.incident.id, command.channel_id, CATCHUP_QUESTION)
       Command.ephemeral("Generating catchup for #{command.incident.identifier}...")
     end
   end

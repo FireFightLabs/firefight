@@ -4,7 +4,6 @@ class Mcp::Tools::AskHalonTest < ActiveSupport::TestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     FirefightAi.stubs(:context_window).returns(200_000)
   end
@@ -90,13 +89,13 @@ class Mcp::Tools::AskHalonTest < ActiveSupport::TestCase
     assert response.error?
   end
 
-  test "a workspace without the agent says why" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+  test "a workspace whose plan does not include AI says why" do
+    message = deny_entitlements!
 
     response = Mcp::Tools::AskHalon.perform_with_principal(workspace: @workspace, principal: @member, args: { question: "hi" })
 
     assert response.error?
-    assert_match "not turned on", response.content.first[:text]
+    assert_match message, response.content.first[:text]
   end
 
   private

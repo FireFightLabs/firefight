@@ -95,17 +95,7 @@ module Integrations
           assert_equal "1 results in acme/app at c4e4267d46e6\napp/controllers/application_controller.rb:62", text
         end
 
-        test "commands wait for the workspace's AI SRE switch" do
-          CodeReading.any_instance.expects(:exec).never
-
-          error = assert_raises(NativePack::Error) do
-            @pack.run_shell(environment_row: @row, arguments: { "repo" => "acme/app", "command" => "ls" })
-          end
-          assert_match "not switched on", error.message
-        end
-
         test "tests install what the repository asks for first, and say what failed" do
-          FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
           CodeReading.any_instance.expects(:prepare).with("acme/app", ref: nil).returns(
             "already" => false, "prepared" => [ { "file" => "Gemfile.lock", "command" => "bundle install", "exit_code" => 0, "output" => "" } ]
           )
@@ -121,7 +111,6 @@ module Integrations
         end
 
         test "a service that does not exist is refused before anything starts" do
-          FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
           CodeReading.any_instance.expects(:prepare).never
 
           assert_raises(NativePack::Error) do

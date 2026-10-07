@@ -200,28 +200,19 @@ class InvestigationTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) { investigation.finish!(status: Investigation::STATUS_RUNNING) }
   end
 
-  test "a workspace without the flag cannot investigate" do
-    assert_not Investigation.available_for?(@workspace)
-    assert_match "not turned on", Investigation.unavailable_reason(@workspace)
-  end
-
-  test "a workspace with the flag can investigate" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
-
+  test "every workspace can investigate, with no switch to turn on" do
     assert Investigation.available_for?(@workspace)
     assert_nil Investigation.unavailable_reason(@workspace)
   end
 
   test "a model whose window is not known cannot run, since nothing about it is assumed" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     FirefightAi.stubs(:context_window).returns(nil)
     Rails.logger.expects(:warn).with { |line| JSON.parse(line)["event"] == "ai.model_without_context_window" }
 
     assert_match "not fully set up", Investigation.unavailable_reason(@workspace)
   end
 
-  test "entitlements still decide, flag or no flag" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
+  test "entitlements still decide" do
     message = deny_entitlements!
 
     assert_equal message, Investigation.unavailable_reason(@workspace)

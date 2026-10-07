@@ -7,7 +7,6 @@ module Mcp
         @workspace = workspaces(:slack_workspace_one)
         @admin = workspace_memberships(:alice_workspace_one)
         @member = workspace_memberships(:bob_workspace_one)
-        FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
         build_two_environment_map(@workspace)
         ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: catalog_entries(:auth_service), resource: map_resource(@workspace, "web"))
         SearchDocument.index!(ResourceMap::Resource, ResourceMap::Resource.where(workspace: @workspace).pluck(:id))

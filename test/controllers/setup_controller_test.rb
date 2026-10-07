@@ -127,7 +127,6 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the chat Halon is met in stays open during setup and carries the guide" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Investigation.stubs(:unavailable_reason).returns(nil)
     @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current, permissions_reviewed_at: Time.current)
     sign_in(@owner.user, @workspace)

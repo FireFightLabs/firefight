@@ -248,7 +248,7 @@ capitalized. That is the accepted trade-off, not an oversight.
 
 ## The agent chat
 
-`pages/agent/` is the dashboard side of the AI SRE agent, behind the `ai_sre` flag. `/agent` and `/agent/:id` both render `agent/index.tsx`, because the list and the open chat are one master-detail screen rather than two pages.
+`pages/agent/` is the dashboard side of the AI SRE agent, shown whenever the shared `agentAvailable` prop is true (AI is allowed for the workspace and the person may ask Halon). `/agent` and `/agent/:id` both render `agent/index.tsx`, because the list and the open chat are one master-detail screen rather than two pages.
 
 - **The agent components are vendored, not written here.** `components/agent-ui/` holds files taken from Beautiful UI's shadcn registry (`npx shadcn add https://www.beautifului.dev/r/<name>.json`), kept close to source so an update is a re-pull. `components/agent-ui/README.md` lists every edit we made and why. Like `components/ui/`, the directory is outside eslint: these files are not ours to reformat.
 - **Their tokens are scoped, not global.** `app/frontend/styles/agent-ui.css` carries their foundation with our palette behind it, under `.agent-ui` rather than `:root`. The page's outer div carries that class. Scoping matters: `--accent` means shadcn's hover grey app-wide and their blue inside the chat, and an unscoped block would have silently broken one of them.

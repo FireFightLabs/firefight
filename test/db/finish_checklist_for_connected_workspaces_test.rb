@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261007234100_finish_checklist_for_connected_workspaces")
+require Rails.root.join("db/migrate/20261008090100_finish_checklist_for_connected_workspaces")
 
 class FinishChecklistForConnectedWorkspacesTest < ActiveSupport::TestCase
   test "a workspace that went through the old onboarding is done, and one started without Slack still has setup to do" do

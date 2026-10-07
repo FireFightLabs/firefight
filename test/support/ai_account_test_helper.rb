@@ -11,7 +11,8 @@ module AiAccountTestHelper
   Credit = Struct.new(:spendable, :used) do
     def spendable? = spendable
     def used? = used
-    def summary = { title: "Firefight credits", detail: "$12.40 left" }
+    def summary = { title: "Firefight credits", detail: "$12.40 left", action: { label: "Buy credits", href: "/app/settings/billing#credits" } }
+    def top_up = "An admin can buy more under Settings, Billing"
   end
 
   # Models the test registry holds, since the recommended ones are newer than its few rows.

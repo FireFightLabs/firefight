@@ -8,7 +8,6 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
     @member = workspace_memberships(:alice_workspace_one)
     stub_post_message
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
   end
 
   test "a responder in an incident channel starts a run" do
@@ -27,16 +26,6 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     brief = @incident.investigations.sole.brief
     assert_equal "checkout 500s since 2pm", brief[Investigation::Brief::KEY_SYMPTOM]
     assert_equal Investigation::Brief::SOURCE_COMMAND, brief[Investigation::Brief::KEY_SOURCE]
-  end
-
-  test "a workspace without the flag is told the feature is not on" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
-
-    result = nil
-    assert_no_enqueued_jobs(only: InvestigationJob) { result = Commands::StartInvestigation.execute(build_command) }
-
-    assert_equal Command::EPHEMERAL, result[:response_type]
-    assert_match "not turned on", result[:text]
   end
 
   test "a blocked entitlement stops the run with its own sentence" do
@@ -58,12 +47,12 @@ class Commands::StartInvestigationTest < ActiveSupport::TestCase
     assert_equal "checkout is slow", investigation.question
   end
 
-  test "with AI SRE off, outside an incident channel it says the feature is off before asking anything" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+  test "with AI blocked, outside an incident channel it says why before asking anything" do
+    message = deny_entitlements!
 
     result = Commands::StartInvestigation.execute(build_command(channel_id: "C00000000"))
 
-    assert_match "not turned on", result[:text]
+    assert_equal message, result[:text]
   end
 
   test "outside an incident channel, with nothing said, it asks what is wrong" do

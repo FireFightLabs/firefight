@@ -5,7 +5,6 @@ class SearchDocument::SearchTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank search", slug: "northflank_search")
     @row = integration.integration_environments.create!(environment: catalog_entries(:production_env))
   end

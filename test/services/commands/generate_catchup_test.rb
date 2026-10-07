@@ -21,13 +21,10 @@ class Commands::GenerateCatchupTest < ActiveSupport::TestCase
     end
   end
 
-  test "enqueues job with nil thread_ts for channel message" do
-    Commands::GenerateCatchup.execute(
-      build_command(channel_id: @incident.channel_id)
-    )
-
-    job = enqueued_jobs.find { |j| j["job_class"] == "IncidentAiResponseJob" }
-    assert_nil job["arguments"][2]
+  test "enqueues the catchup question for the incident's channel" do
+    assert_enqueued_with(job: IncidentAiResponseJob, args: [ @incident.id, @incident.channel_id, Commands::GenerateCatchup::CATCHUP_QUESTION ]) do
+      Commands::GenerateCatchup.execute(build_command(channel_id: @incident.channel_id))
+    end
   end
 
   test "returns error when not in incident channel" do
