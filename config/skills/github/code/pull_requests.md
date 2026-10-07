@@ -1,0 +1,15 @@
+---
+name: github_pull_requests
+when: Reading, commenting on, reviewing, labelling, closing, reopening or merging a GitHub pull request, or adding a code change to one
+tools: [list_pull_requests, pr_lookup, pull_request_diff, ref_checks, comment_on_pull_request, reply_to_review_comment, review_pull_request, update_pull_request, request_reviewers, label_pull_request, close_pull_request, reopen_pull_request, merge_pull_request, update_pull_request_branch, fix_code]
+references: [pull_requests/merging-a-pull-request.md, pull_requests/keeping-in-sync-with-the-base-branch.md, pull_requests/commenting-on-a-pull-request.md, pull_requests/approving-with-required-reviews.md]
+---
+1. Find the pull request with `list_pull_requests`, by `state`, `base`, `head`, `author`, `label` or `text`, and read it with `pr_lookup` by its `number`. It says whether GitHub can merge it and why not, its reviews and review comments with their ids, the checks and statuses on its head, and for a Dependabot update the advisories it fixes. `pull_request_diff` reads its changes, narrowed with `path`.
+2. Doing something to a pull request is a call to its tool, never a code change. Closing is `close_pull_request`, commenting is `comment_on_pull_request`, answering a review comment is `reply_to_review_comment` with its `comment_id`, and a title, description or base is `update_pull_request`. Never use `fix_code` for these.
+3. Every one of these changes GitHub, so none is done while investigating. Say what it does and call it in a chat once the person agrees. It runs as them, and an approval rule can hold it.
+4. A review is `review_pull_request` with `event` approve, request_changes or comment. Requesting changes or commenting needs a `body`, and `comments` put notes on lines of the diff, each by its file path and line. Approve only when the person asks you to, after reading the diff and the checks.
+5. Merge with `merge_pull_request` only when the person asks. Read it first with `pr_lookup` and say what will merge, into which branch, and how the checks stand. It merges only what GitHub says can merge, at the head you read. When its branch is behind, `update_pull_request_branch` brings it up to date first. Choose `method` merge, squash or rebase as the repository usually does, or ask.
+6. Ask for reviews with `request_reviewers` by login or team slug. Labels go on with `label_pull_request`, which adds only labels the repository already has and names them when one is missing.
+7. To change the code of an open pull request, call `fix_code` with its `pull_request` number. The change becomes a new commit on its branch and a comment on it says what changed. Firefight never pushes to a fork's branch, the default branch or a protected one.
+8. When GitHub refuses for a missing permission, the answer names the permission. Tell the person an owner of the GitHub account grants it, and do not try again until they have.
+9. Give the person the link each answer carries.

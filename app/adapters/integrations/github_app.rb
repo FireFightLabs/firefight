@@ -30,7 +30,13 @@ module Integrations
     NOT_PERMITTED = /not accessible by integration/i
     NOT_FOUND = 404
     UNAUTHORIZED = 401
-    REFINE = ->(code, said) { (NotPermitted if code == 403 && said.match?(NOT_PERMITTED)) || (Unauthorized if code == UNAUTHORIZED) }
+    REFINE = lambda do |code, said|
+      (NotPermitted if code == 403 && said.match?(NOT_PERMITTED)) || (Unauthorized if code == UNAUTHORIZED) || (NotFound if code == NOT_FOUND)
+    end
+    # GitHub says why it refused in message, and a 422 lists what failed validation in errors (docs.github.com, REST API,
+    # Troubleshooting, Validation failed), such as "Reviews may only be requested from collaborators".
+    REASON = ->(body) { [ Http.words(body["message"]), Http.words(body["errors"]) ].compact.uniq.join(": ").presence }
+    WRITES = { post: Net::HTTP::Post, patch: Net::HTTP::Patch, put: Net::HTTP::Put, delete: Net::HTTP::Delete }.freeze
 
     # An installation token with the connection it was minted for. GitHub fixes a token's permissions when it is minted
     # (docs.github.com, Generating an installation access token for a GitHub App), so once an owner accepts new
@@ -172,17 +178,22 @@ module Integrations
 
       # A change that answers 201, 202 or 204, often with no body, such as rerunning or canceling a workflow run. Read with
       # Http.json, so an empty answer counts as done and reads as {}, and a missing permission raises NotPermitted.
-      def act(path, body = nil, token:)
+      def act(path, body = nil, token:) = write(:post, path, body, token: token)
+
+      # A change by verb (post, patch, put or delete) that may answer with no body, such as a 204 for a removed label.
+      # Read with Http.json, so an empty answer counts as done and reads as {}, a missing permission raises NotPermitted
+      # and a 404 NotFound.
+      def write(verb, path, body = nil, token:)
         uri = URI.parse("#{API_ROOT}#{path}")
         refreshing(token) do |value|
-          request = Net::HTTP::Post.new(uri)
+          request = WRITES.fetch(verb).new(uri)
           request["Authorization"] = "Bearer #{value}"
           apply_api_headers(request)
           unless body.nil?
             request["Content-Type"] = "application/json"
             request.body = body.to_json
           end
-          Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: REFINE, rate_limited: RateLimited)
+          Http.json(uri, request, error_class: Error, provider_name: PROVIDER, reason: REASON, refine: REFINE, rate_limited: RateLimited)
         end
       end
 
@@ -191,18 +202,18 @@ module Integrations
       # what reached base since. files maps a path to its new content as base64 with its mode, or to nil when the change
       # deletes it. Returns the pull request as GitHub gives it.
       def open_pull_request(repo, base:, base_sha:, branch:, title:, body:, message:, files:, token:)
-        head = base_sha
-        base_tree = get("/repos/#{repo}/git/commits/#{head}", token: token).dig("tree", "sha")
-        entries = files.map do |path, file|
-          next { path: path, mode: "100644", type: "blob", sha: nil } if file.nil?
-
-          blob = post("/repos/#{repo}/git/blobs", { content: file[:content], encoding: "base64" }, token: token)
-          { path: path, mode: file[:mode], type: "blob", sha: blob["sha"] }
-        end
-        tree = post("/repos/#{repo}/git/trees", { base_tree: base_tree, tree: entries }, token: token)
-        commit = post("/repos/#{repo}/git/commits", { message: message, tree: tree["sha"], parents: [ head ] }, token: token)
-        post("/repos/#{repo}/git/refs", { ref: "refs/heads/#{branch}", sha: commit["sha"] }, token: token)
+        commit = commit_files(repo, base_sha: base_sha, message: message, files: files, token: token)
+        post("/repos/#{repo}/git/refs", { ref: "refs/heads/#{branch}", sha: commit }, token: token)
         post("/repos/#{repo}/pulls", { title: title, head: branch, base: base, body: body, draft: false }, token: token)
+      end
+
+      # One commit holding every changed file on top of base_sha, the branch's head the change was written against, and
+      # the branch moved to it. The move is never forced (git/update-ref with force false), so a branch that moved
+      # since is refused rather than overwritten. Returns the new commit's SHA.
+      def push_commit(repo, branch:, base_sha:, message:, files:, token:)
+        commit = commit_files(repo, base_sha: base_sha, message: message, files: files, token: token)
+        write(:patch, "/repos/#{repo}/git/refs/heads/#{branch.split('/').map { |part| Http.segment(part) }.join('/')}", { sha: commit, force: false }, token: token)
+        commit
       end
 
       # A file GitHub answers with a redirect to a short-lived signed address, such as a job's log. The address is fetched
@@ -254,6 +265,18 @@ module Integrations
       end
 
       private
+
+      def commit_files(repo, base_sha:, message:, files:, token:)
+        base_tree = get("/repos/#{repo}/git/commits/#{base_sha}", token: token).dig("tree", "sha")
+        entries = files.map do |path, file|
+          next { path: path, mode: "100644", type: "blob", sha: nil } if file.nil?
+
+          blob = post("/repos/#{repo}/git/blobs", { content: file[:content], encoding: "base64" }, token: token)
+          { path: path, mode: file[:mode], type: "blob", sha: blob["sha"] }
+        end
+        tree = post("/repos/#{repo}/git/trees", { base_tree: base_tree, tree: entries }, token: token)
+        post("/repos/#{repo}/git/commits", { message: message, tree: tree["sha"], parents: [ base_sha ] }, token: token)["sha"]
+      end
 
       # Runs the call with the token, and once more with a fresh one when GitHub refused a token minted before the
       # installation changed (InstallationToken#refresh!). A plain string, such as the App's own JWT, is never refreshed.

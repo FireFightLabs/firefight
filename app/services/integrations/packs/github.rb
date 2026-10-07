@@ -9,6 +9,13 @@ module Integrations
       include Fixing
       include Libraries
       include Actions
+      include Asking
+      include PullRequests
+      include RepositoryIssues
+      include Checks
+      include Releases
+      include Branches
+      include Security
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       FILE_LIMIT = 30
@@ -26,18 +33,6 @@ module Integrations
       PULL_LOOKUP_LIMIT = 25
       CODEOWNERS_PATHS = [ ".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS" ].freeze
       PRODUCTION = /\Aprod/i
-
-      tool :pr_lookup,
-           description: "Fetch a pull request: title, state, author, merge status, and changed files",
-           params_schema: {
-             "type" => "object",
-             "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
-               "number" => { "type" => "integer", "description" => "Pull request number" }
-             },
-             "required" => [ "repo", "number" ]
-           },
-           read_only: true
 
       tool :commit_lookup,
            description: "Fetch a commit: message, author, stats, and changed files",
@@ -179,14 +174,22 @@ module Integrations
       # A permission held at a level covers every lower one.
       LEVELS = { READ => 1, WRITE => 2, "admin" => 3 }.freeze
       # The permissions as GitHub's App settings name them, by the key an installation's permissions use.
-      PERMISSION_NAMES = { "actions" => "Actions", "contents" => "Contents", "deployments" => "Deployments", "pull_requests" => "Pull requests" }.freeze
+      PERMISSION_NAMES = {
+        "actions" => "Actions", "administration" => "Administration", "checks" => "Checks", "contents" => "Contents", "deployments" => "Deployments",
+        "issues" => "Issues", "pull_requests" => "Pull requests", "statuses" => "Commit statuses", "vulnerability_alerts" => "Dependabot alerts",
+        "security_events" => "Code scanning alerts", "secret_scanning_alerts" => "Secret scanning alerts", "workflows" => "Workflows"
+      }.freeze
       # The permissions each tool cannot answer without, from GitHub's list of the permission every REST endpoint needs
       # (docs.github.com, REST API, Permissions required for GitHub Apps). A tool that reads a further endpoint only to
       # add to its answer, and says so when GitHub refuses it, names only what it cannot do without. Code is read by
       # cloning, which needs Contents read, and blame is GraphQL over the repository's contents. list_repositories reads
       # /installation/repositories and library_source reads public package sources, so neither needs one. fix_code
       # commits through the Git database (blobs, trees, commits, refs) and opens a pull request, and GitHub asks for
-      # Workflows write besides when the change touches a workflow file, which only the change itself shows.
+      # Workflows write besides when the change touches a workflow file, which only the change itself shows. A pull request
+      # is an issue to GitHub, so its comments and labels go through issues/{number}, which takes Pull requests write for
+      # one. Merging (PUT pulls/{number}/merge) and draft releases (POST releases) are Contents write, and a branch's
+      # rules (rules/branches/{branch}) and tags are Metadata, which every App holds. pr_lookup, branch_protection and
+      # ref_checks read checks, statuses, Dependabot alerts and branch protection only to add to their answer.
       NEEDS = {
         "pr_lookup" => { "pull_requests" => READ },
         "commit_lookup" => { "contents" => READ },
@@ -198,6 +201,7 @@ module Integrations
         "merged_pull_requests" => { "pull_requests" => READ },
         "fetch_file" => { "contents" => READ },
         "blame" => { "contents" => READ },
+        "list_workflows" => { "actions" => READ },
         "workflow_runs" => { "actions" => READ },
         "workflow_jobs" => { "actions" => READ },
         "job_log" => { "actions" => READ },
@@ -206,6 +210,44 @@ module Integrations
         "run_workflow" => { "actions" => WRITE, "contents" => READ },
         "cancel_workflow" => { "actions" => WRITE },
         "fix_code" => { "contents" => WRITE, "pull_requests" => WRITE },
+        "list_pull_requests" => { "pull_requests" => READ },
+        "pull_request_diff" => { "pull_requests" => READ },
+        "comment_on_pull_request" => { "pull_requests" => WRITE },
+        "reply_to_review_comment" => { "pull_requests" => WRITE },
+        "review_pull_request" => { "pull_requests" => WRITE },
+        "update_pull_request" => { "pull_requests" => WRITE },
+        "request_reviewers" => { "pull_requests" => WRITE },
+        "label_pull_request" => { "pull_requests" => WRITE },
+        "close_pull_request" => { "pull_requests" => WRITE },
+        "reopen_pull_request" => { "pull_requests" => WRITE },
+        "merge_pull_request" => { "contents" => WRITE, "pull_requests" => READ },
+        "update_pull_request_branch" => { "pull_requests" => WRITE },
+        "list_issues" => { "issues" => READ },
+        "issue_lookup" => { "issues" => READ },
+        "create_issue" => { "issues" => WRITE },
+        "comment_on_issue" => { "issues" => WRITE },
+        "update_issue" => { "issues" => WRITE },
+        "label_issue" => { "issues" => WRITE },
+        "assign_issue" => { "issues" => WRITE },
+        "close_issue" => { "issues" => WRITE },
+        "reopen_issue" => { "issues" => WRITE },
+        "ref_checks" => { "checks" => READ },
+        "list_releases" => { "contents" => READ },
+        "release_lookup" => { "contents" => READ },
+        "list_tags" => {},
+        "create_draft_release" => { "contents" => WRITE },
+        "list_branches" => { "contents" => READ },
+        "branch_protection" => { "contents" => READ },
+        "create_branch" => { "contents" => WRITE },
+        "delete_branch" => { "contents" => WRITE, "pull_requests" => READ },
+        "dependabot_alerts" => { "vulnerability_alerts" => READ },
+        "dependabot_alert" => { "vulnerability_alerts" => READ },
+        "dismiss_dependabot_alert" => { "vulnerability_alerts" => WRITE },
+        "reopen_dependabot_alert" => { "vulnerability_alerts" => WRITE },
+        "code_scanning_alerts" => { "security_events" => READ },
+        "code_scanning_alert" => { "security_events" => READ },
+        "secret_scanning_alerts" => { "secret_scanning_alerts" => READ },
+        "secret_scanning_alert" => { "secret_scanning_alerts" => READ },
         "library_source" => {},
         "list_files" => { "contents" => READ },
         "code_search" => { "contents" => READ },
@@ -247,28 +289,15 @@ module Integrations
         return [] unless granted.is_a?(Hash)
 
         NEEDS.fetch(tool_name.to_s, {}).reject { |permission, level| LEVELS.fetch(granted[permission].to_s, 0) >= LEVELS.fetch(level) }
-             .map { |permission, level| "#{PERMISSION_NAMES.fetch(permission)} #{level == WRITE ? 'read and write' : 'read'}" }
+             .map { |permission, level| permission_words(permission, level) }
       end
 
-      def pr_lookup(environment_row:, arguments:)
-        repo = repo_argument(arguments)
-        number = Integer(arguments["number"].to_s, exception: false)
-        fail! "number must be an integer" unless number
+      def self.permission_words(permission, level) = "#{PERMISSION_NAMES.fetch(permission)} #{level == WRITE ? 'read and write' : 'read'}"
 
-        token = GithubApp.installation_token(environment_row)
-        pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
-        files = GithubApp.get("/repos/#{repo}/pulls/#{number}/files?per_page=#{FILE_LIMIT}", token: token)
-
-        <<~TEXT
-          PR ##{pull['number']}: #{pull['title']}
-          State: #{pull['merged_at'] ? "merged at #{pull['merged_at']}" : pull['state']}
-          Author: #{pull.dig('user', 'login')}
-          Branch: #{pull.dig('head', 'ref')} -> #{pull.dig('base', 'ref')}
-          Changes: #{pull['changed_files']} files, +#{pull['additions']} -#{pull['deletions']}
-
-          #{file_lines(files, pull['changed_files'])}
-          #{pull['body'].presence || '(no description)'}
-        TEXT
+      # What a tool needs, said as the App's settings name it, for a refusal GitHub gave before the stored access knew.
+      def self.needs_sentence(tool_name)
+        needed = NEEDS.fetch(tool_name.to_s, {}).map { |permission, level| permission_words(permission, level) }
+        "Firefight's GitHub App needs #{needed.any? ? needed.to_sentence : 'a permission it was not given'} on this installation for that."
       end
 
       def commit_lookup(environment_row:, arguments:)

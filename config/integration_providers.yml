@@ -53,7 +53,7 @@ providers:
     category: Code
     mark: GH
     color: "#24292f"
-    description: Correlate incidents with recent pull requests, commits and GitHub Actions runs from your repositories, and rerun, start or cancel a workflow when you allow it.
+    description: Correlate incidents with recent pull requests, commits and GitHub Actions runs from your repositories, read issues, releases, checks and security alerts, and when you allow it, comment on, review, close or merge pull requests, work on issues, and rerun, start or cancel a workflow.
     server_url: ""
     kind: native
     site: https://github.com

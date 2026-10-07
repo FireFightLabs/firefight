@@ -52,13 +52,18 @@ module Integrations
         def self.included(pack)
           pack.tool :fix_code,
                     description: "Write a code change with a coding agent in the sandbox and open it as a pull request, ready for " \
-                                 "review. Give the repository, what to change and why, and a title. Merging stays a person's",
+                                 "review, or add it as a commit to an open pull request's branch when pull_request or branch is given. " \
+                                 "Give the repository, what to change and why, and a title. Only for changing code: closing, merging, " \
+                                 "reviewing, labelling or commenting on a pull request, and anything else on GitHub that is not a " \
+                                 "code change, is a call to the GitHub tool for it, never a code fix",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
                       "brief" => { "type" => "string", "description" => "What to change and why, with the evidence, as the agent's brief" },
-                      "title" => { "type" => "string", "description" => "The pull request's title" },
-                      "summary" => { "type" => "string", "description" => "What the pull request says it does and why, for its readers (optional, the title)" },
+                      "title" => { "type" => "string", "description" => "The pull request's title, or the commit's message when it adds to one" },
+                      "summary" => { "type" => "string", "description" => "What the change does and why, for the pull request's readers (optional, the title)" },
                       "base" => { "type" => "string", "description" => "The branch to open it against (optional, the default branch)" },
+                      "pull_request" => { "type" => "integer", "description" => "An open pull request in the same repository whose branch the change is added to, instead of opening one (optional)" },
+                      "branch" => { "type" => "string", "description" => "A branch in the same repository the change is added to, instead of opening a pull request (optional)" },
                       "context" => { "type" => "string", "description" => "What other changes in the same fix did, such as pull requests opened in other repositories (optional)" }
                     }, %w[repo brief title]),
                     read_only: false
@@ -76,6 +81,8 @@ module Integrations
           fail! "Firefight cannot price #{choice.model}, so a code fix cannot be given a budget with it." unless FirefightAi.priced?(choice.model)
 
           token = GithubApp.installation_token(environment_row)
+          return add_to_branch(environment_row, repo, title, brief, choice, arguments, token) if arguments["pull_request"].present? || arguments["branch"].present?
+
           base = arguments["base"].presence || GithubApp.get("/repos/#{repo}", token: token)["default_branch"]
           change = write_change(environment_row, repo, base, choice, agent_brief(brief, arguments["context"]))
           fail! "The coding agent changed nothing in #{repo}.\n#{change.log}" if change.files.empty?
@@ -88,6 +95,69 @@ module Integrations
         end
 
         private
+
+        # The change written on the branch's head and pushed to it as one commit, and the pull request it belongs to told
+        # what changed. Only a branch in this repository is pushed to (a fork's needs its owner's leave), never the default
+        # branch, a protected one or one a ruleset keeps pushes off, and never forced, so a branch that moved while the
+        # agent worked is refused rather than overwritten.
+        def add_to_branch(environment_row, repo, title, brief, choice, arguments, token)
+          target = branch_target(repo, arguments, token)
+          change = write_change(environment_row, repo, target.sha, choice, agent_brief(brief, arguments["context"]))
+          fail! "The coding agent changed nothing in #{repo}.\n#{change.log}" if change.files.empty?
+
+          pushed = begin
+            GithubApp.push_commit(repo, branch: target.branch, base_sha: change.base, message: title, files: change.files, token: token)
+          rescue GithubApp::Error => error
+            raise unless error.message.match?(/answered 422/)
+
+            fail! Sentence.join("GitHub did not move #{target.branch} to the new commit", error,
+                                after: "Someone may have pushed to it while the agent worked, so nothing was overwritten. Ask again to write it on the new head")
+          end
+          said = target.pull && comment_on_change(repo, target.pull, pushed, arguments["summary"].presence || title, change.stat, token)
+          "Pushed #{pushed[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}\n#{change.stat}"
+        end
+
+        BranchTarget = Data.define(:branch, :sha, :pull)
+
+        def branch_target(repo, arguments, token)
+          number = number_argument(arguments, "pull_request") if arguments["pull_request"].present?
+          branch = ref_argument(arguments, "branch")
+          asked = number ? "pull request #{number}" : "branch #{branch}"
+          pull = number ? GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token) : nil
+          if pull
+            name = "PR ##{pull['number']} in #{repo}"
+            fail! "#{name} is #{pull['merged_at'] ? 'merged' : 'closed'}, so nothing is added to it." unless pull["state"] == "open"
+            fail! "#{name} comes from #{pull.dig('head', 'repo', 'full_name') || 'a fork that is gone'}, and Firefight adds only to a branch in #{repo} itself." unless pull.dig("head", "repo", "full_name") == repo
+            fail! "#{name} comes from #{pull.dig('head', 'ref')}, not #{branch}." if branch && branch != pull.dig("head", "ref")
+
+            branch = pull.dig("head", "ref")
+          else
+            owner = repo.split("/").first
+            pull = Array(GithubApp.get("/repos/#{repo}/pulls?#{{ 'state' => 'open', 'head' => "#{owner}:#{branch}", 'per_page' => 1 }.to_query}", token: token)).first
+          end
+          pushable!(repo, branch, token)
+          sha = pull&.dig("head", "sha") || GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token).dig("commit", "sha")
+          BranchTarget.new(branch: branch, sha: sha, pull: pull)
+        rescue GithubApp::NotFound
+          fail! Sentence.all("GitHub has no #{asked} in #{repo}, or no branch it names.", Asking::NOT_GIVEN)
+        end
+
+        def pushable!(repo, branch, token)
+          fail! "#{branch} is the default branch of #{repo}, and a code change reaches it only through a pull request." if branch == default_branch(repo, token)
+          fail! "#{branch} in #{repo} is protected, so Firefight does not push to it." if GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token)["protected"]
+
+          rules = Array(GithubApp.get("/repos/#{repo}/rules/branches/#{Http.segment(branch)}?per_page=100", token: token))
+          fail! "A ruleset in #{repo} keeps pushes off #{branch}, so Firefight does not push to it." if rules.any? { |rule| Branches::PUSH_RULES.include?(rule["type"]) }
+        end
+
+        def comment_on_change(repo, pull, sha, summary, stat, token)
+          body = Chat::SecretFree.redacted([ "Firefight's coding agent added #{sha[0, 12]} to this pull request.", summary, ("```\n#{stat}\n```" if stat.present?),
+                                             "Review it like any other change before merging." ].compact.join("\n\n"))
+          GithubApp.write(:post, "/repos/#{repo}/issues/#{pull['number']}/comments", { body: body }, token: token)
+          " Said so on the pull request."
+        rescue GithubApp::Error => error
+          " #{Sentence.join('The commit is there, but a comment saying so could not be added', error)}"
+        end
 
         # The first payer in the workspace's order whose model a coding agent can reach through the proxy.
         def code_fix_choice

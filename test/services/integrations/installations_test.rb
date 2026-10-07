@@ -41,6 +41,20 @@ module Integrations
       assert_nil @tool.reload.access_missing_reason, "write covers read"
     end
 
+    test "a pull request change the installation was not granted is answered without calling GitHub" do
+      tool = @row.integration.tools.create!(name: "close_pull_request", read_only: false, enabled: true)
+      Packs::Github.any_instance.expects(:close_pull_request).never
+      GithubApp.stubs(:installation).returns(found)
+      GithubApp.stubs(:installation_token).returns("ghs_token")
+      GithubApp.stubs(:get).returns("total_count" => 1)
+
+      travel 2.minutes do
+        result = NativeExecutor.call(tool: tool, environment_row: @row, arguments: { "repo" => "acme/web", "number" => 4 })
+        assert result["isError"]
+        assert_match "github_close_pull_request was not run. It needs Pull requests read and write in the GitHub App", result["content"].first["text"]
+      end
+    end
+
     test "a refusal read a while ago is read again first, so a permission an owner just accepted runs the tool" do
       GithubApp.expects(:installation).returns(found(access: { "actions" => "read", "contents" => "read" }))
       GithubApp.stubs(:installation_token).returns("ghs_token")
@@ -56,6 +70,10 @@ module Integrations
       assert_equal Packs::Github.tool_definitions.map(&:name).sort, Packs::Github::NEEDS.keys.sort
       assert_equal [ "Actions read and write" ], Packs::Github.missing_access(@row, "rerun_workflow")
       assert_equal [], Packs::Github.missing_access(@row, "fetch_file")
+      assert_equal [ "Contents read and write", "Pull requests read" ], Packs::Github.missing_access(@row, "merge_pull_request")
+      assert_equal [ "Dependabot alerts read and write" ], Packs::Github.missing_access(@row, "dismiss_dependabot_alert")
+      assert_equal [ "Secret scanning alerts read" ], Packs::Github.missing_access(@row, "secret_scanning_alerts")
+      assert_equal [ "Issues read and write" ], Packs::Github.missing_access(@row, "close_issue")
     end
 
     test "reading the installation marks it removed, suspended or sharing nothing, and back once it works again" do

@@ -489,3 +489,15 @@ github:
     deployments/deployment-environments.md: actions/concepts/workflows-and-actions/deployment-environments
     deployments/deployments-and-environments.md: actions/reference/workflows-and-actions/deployments-and-environments
     deployments/view-deployment-history.md: actions/how-tos/deploy/configure-and-manage-deployments/view-deployment-history
+    pull_requests/merging-a-pull-request.md: pull-requests/how-tos/merge-and-close-pull-requests/merging-a-pull-request
+    pull_requests/keeping-in-sync-with-the-base-branch.md: pull-requests/how-tos/create-pull-requests/keeping-your-pull-request-in-sync-with-the-base-branch
+    pull_requests/commenting-on-a-pull-request.md: pull-requests/how-tos/review-pull-requests/commenting-on-a-pull-request
+    pull_requests/approving-with-required-reviews.md: pull-requests/how-tos/review-pull-requests/approving-a-pull-request-with-required-reviews
+    branches/about-protected-branches.md: repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+    branches/about-rulesets.md: repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
+    security/dependabot-alerts.md: code-security/concepts/supply-chain-security/dependabot-alerts
+    security/view-dependabot-alerts.md: code-security/how-tos/manage-security-alerts/manage-dependabot-alerts/view-dependabot-alerts
+    security/code-scanning-alerts.md: code-security/concepts/code-scanning/code-scanning-alerts
+    security/secret-scanning-alerts.md: code-security/concepts/secret-security/about-alerts
+    issues/closing-an-issue.md: issues/tracking-your-work-with-issues/administering-issues/closing-an-issue
+    releases/managing-releases.md: repositories/releasing-projects-on-github/managing-releases-in-a-repository

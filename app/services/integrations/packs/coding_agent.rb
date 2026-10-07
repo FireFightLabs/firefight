@@ -51,7 +51,8 @@ module Integrations
         tool :fix_code,
              description: "Hand a code change to #{self::NAME}, which writes it in its own environment and opens it as a pull request, " \
                           "ready for review. Give the repository, what to change and why with the evidence, and a title. Firefight " \
-                          "follows the session for up to #{TIME_LIMIT.in_minutes.to_i} minutes and answers with the pull request. Merging stays a person's",
+                          "follows the session for up to #{TIME_LIMIT.in_minutes.to_i} minutes and answers with the pull request. Merging stays a person's. " \
+                          "Only for changing code: closing, merging, reviewing or commenting on a pull request is a call to the code host's tool for it",
              params_schema: {
                "type" => "object",
                "properties" => {
