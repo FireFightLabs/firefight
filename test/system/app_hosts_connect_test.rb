@@ -39,21 +39,32 @@ class AppHostsConnectTest < ApplicationSystemTestCase
     assert_nil row.credentials_hash["project"]
   end
 
-  test "Render refuses a workspace that is not a workspace id, and Vercel's team may be left empty" do
+  test "Render lists the key's workspaces, refuses a typed id that is not one, and Vercel lists teams that may be left empty" do
+    Integrations::RenderApi.any_instance.stubs(:owners).returns(Integrations::Pages::Read.new(items: [
+      { "id" => "tea-a", "name" => "Acme", "type" => "team" }, { "id" => "tea-b", "name" => "Billing", "type" => "team" }
+    ], complete: true))
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => Integrations::Packs::Render::PROVIDER_KEY)
 
     within("[role=dialog]") do
       fill_in "API key", with: "rnd_key"
-      fill_in "Workspace", with: "my-team"
+      click_button "Choose workspaces"
+    end
+    assert_selector "[role=option]", text: IntegrationProvider::ConnectField::ALL_LABEL
+    find("[role=option]", text: "Billing").click
+    page.save_screenshot(Rails.root.join("tmp/screenshots/render-connect-workspaces.png"))
+    find("[cmdk-input]").send_keys("my-team")
+    find("[role=option]", text: "Add").click
+    find("body").send_keys(:escape)
+    within("[role=dialog]") do
       click_button "Connect"
-      assert_text "Workspace can hold only tea- followed by lowercase letters and numbers."
+      assert_text "Workspaces can hold only tea- followed by lowercase letters and numbers, and my-team does not."
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/render-connect.png"))
 
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => Integrations::Packs::Vercel::PROVIDER_KEY)
     within("[role=dialog]") do
-      assert_text "Leave it empty for a personal account"
-      assert_text "Team"
+      assert_text "Leave it empty for a token made for one team"
+      assert_text "Teams (optional)"
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/vercel-connect.png"))
   end

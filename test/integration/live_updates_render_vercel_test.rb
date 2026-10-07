@@ -20,7 +20,7 @@ class LiveUpdatesRenderVercelTest < ActionDispatch::IntegrationTest
     Integrations::RenderApi.any_instance.expects(:create_webhook).with("tea-1", has_entries(events: Integrations::MapEventSources::Render::EVENTS))
                            .returns("id" => "whk-1", "secret" => RENDER_SECRET)
     with_app_host { Integrations::MapEvents.prepare!(row) }
-    assert_equal [ "whk-1", true ], [ row.reload.map_events_webhook_id, row.live_updates.on ]
+    assert_equal [ { "tea-1" => "whk-1" }, true ], [ JSON.parse(row.reload.map_events_webhook_id), row.live_updates.on ]
     assert_equal Integrations::MapEventSources::Render.limits, row.live_updates.reason, "while on, the connection says what Render does not send"
 
     ResourceMap.record!(row, ResourceMap::Snapshot.new(resources: [ render_service("live"), render_service("live", id: "srv-old", name: "old") ]))

@@ -1,6 +1,6 @@
 module Integrations
   module MapEventSources
-    # Vercel's changes, sent to a webhook Firefight registers for the whole team with the connection's access token (spec,
+    # Vercel's changes, sent to a webhook Firefight registers for the whole of each team the connection reaches with the connection's access token (spec,
     # createWebhook, openapi.vercel.sh). Vercel signs each delivery with an HMAC-SHA1 of the raw body in x-vercel-signature,
     # keyed by the secret it answers when the webhook is made (vercel.com/docs/webhooks/webhooks-api, Securing webhooks).
     # Each event names the project it is about, which the map reads again. Account webhooks are for Pro and Enterprise
@@ -50,24 +50,31 @@ module Integrations
           [ event(payload, at, action_of(type), scope) ]
         end
 
-        # Registers the team's webhook. One at this connection's own address is Firefight's from before, whose secret
-        # Vercel never shows again, so it is deleted first. A webhook at any other address is never touched.
+        # Registers a webhook in each team the connection reaches, or in the token's own account when it names none. One
+        # at this connection's own address is Firefight's from before, whose secret Vercel never shows again, so it is
+        # deleted first. Vercel makes each webhook's secret, so they are kept one a line and a delivery signed with any
+        # counts. A team the connection no longer reaches loses the webhook Firefight registered there. A webhook at any
+        # other address is never touched.
         def register(row, url:)
-          api = api(row)
-          api.webhooks.select { |webhook| webhook["url"] == url }.each { |webhook| api.delete_webhook(webhook["id"]) }
-          created = api.create_webhook(url: url, events: EVENTS)
-          MapEventSource::Webhook.new(id: created["id"], secret: created["secret"])
+          settings = ConnectionSettings.of(row)
+          teams = settings.scopes
+          return registered_in(row, nil, url) if teams.empty?
+
+          registrations(row.map_events_webhook_id, settings).except(*teams).each { |team, webhook| forget(api(row, team), webhook) }
+          made = teams.to_h { |team| [ team, registered_in(row, team, url) ] }
+          MapEventSource::Webhook.new(id: made.transform_values(&:id).to_json, secret: made.values.filter_map(&:secret).uniq.join("\n").presence, scopes: teams)
         rescue VercelApi::Refused, VercelApi::PlanLimited => error
           raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
 
         def limits = "Vercel's preview deployments are not on the map, so they bring no update. Everything else on the map follows Vercel's changes within about a minute."
 
-        # A webhook already gone from Vercel is taken back all the same.
+        # Every team's webhook. One already gone from Vercel is taken back all the same.
         def remove(row, webhook_id)
-          api(row).delete_webhook(webhook_id)
-        rescue VercelApi::NotFound
-          nil
+          settings = ConnectionSettings.of(row)
+          return forget(api(row, nil), webhook_id) if settings.chosen_scopes.empty?
+
+          registrations(webhook_id, settings).each { |team, webhook| forget(api(row, team), webhook) }
         end
 
         private
@@ -83,12 +90,24 @@ module Integrations
           end
         end
 
-        def api(row)
-          settings = ConnectionSettings.of(row)
-          token = settings.credential(Packs::Vercel::API_TOKEN)
+        def registered_in(row, team, url)
+          api = api(row, team)
+          api.webhooks.select { |webhook| webhook["url"] == url }.each { |webhook| api.delete_webhook(webhook["id"]) }
+          created = api.create_webhook(url: url, events: EVENTS)
+          MapEventSource::Webhook.new(id: created["id"], secret: created["secret"])
+        end
+
+        def forget(api, webhook)
+          api.delete_webhook(webhook)
+        rescue VercelApi::NotFound
+          nil
+        end
+
+        def api(row, team)
+          token = ConnectionSettings.of(row).credential(Packs::Vercel::API_TOKEN)
           raise Integrations::Error, "This connection has no Vercel access token. Reconnect it on the Integrations page." if token.blank?
 
-          VercelApi.new(token, settings.field(Packs::Vercel::TEAM))
+          VercelApi.new(token, team)
         end
       end
     end
