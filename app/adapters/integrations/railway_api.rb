@@ -7,7 +7,9 @@ module Integrations
     class Error < Integrations::Error; end
     # Railway answered that what was asked for is not there, the one answer a re-read takes as gone. Railway words it in
     # its errors list, such as "Project not found" or "ServiceInstance not found", with HTTP 200.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Railway turned the request down as it stands, such as a token without the right to change the project's webhooks
     # ("Not Authorized"), as opposed to a token it does not accept at all.
     class Refused < Error; end

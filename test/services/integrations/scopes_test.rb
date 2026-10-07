@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261007210100_keep_northflank_and_railway_projects_as_lists")
+require Rails.root.join("db/migrate/20261007210300_keep_northflank_and_railway_projects_as_lists")
 
 # What a connection reaching several of what its provider names a scope (Northflank projects here) says to a person and
 # to Halon, and how a project kept from before reads.

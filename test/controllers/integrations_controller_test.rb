@@ -480,6 +480,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   test "the install callback stores the installation id and discovers the pack's tools" do
     IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
     Integrations::GithubApp.stubs(:installation_token).returns("ghs_token")
+    Integrations::GithubApp.stubs(:installation).returns(
+      "account" => { "login" => "acme" }, "html_url" => "https://github.com/organizations/acme/settings/installations/98765",
+      "permissions" => { "contents" => "read", "metadata" => "read" }, "suspended_at" => nil
+    )
+    Integrations::GithubApp.stubs(:get).with("/installation/repositories?per_page=1", token: "ghs_token").returns("total_count" => 3)
     get oauth_start_integrations_url(provider: "github")
     state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
 
@@ -493,6 +498,8 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     row = integration.integration_environments.sole
     assert_equal "98765", row.base_config["installation_id"]
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
+    assert_equal [ "acme", "https://github.com/organizations/acme/settings/installations/98765", "read" ],
+                 [ row.installation_account, row.installation_page, row.installation_access["contents"] ], "connecting reads the installation's account, page and permissions"
     assert integration.tools.exists?(name: "pr_lookup")
     assert_not integration.tools.find_by!(name: "pr_lookup").enabled?,
                "pack tools arrive disabled like discovered ones"

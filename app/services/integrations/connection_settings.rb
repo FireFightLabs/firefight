@@ -55,8 +55,17 @@ module Integrations
     # or the ledger.
     def credential(key) = @row.credentials_hash[key.to_s].presence
 
+    # Drops a value cached with the credentials, so the next call makes a new one.
+    def forget_credential!(key) = @row.update!(credentials: @row.credentials_hash.except(key.to_s).to_json)
+
     # The app installation the connection was made through, such as a GitHub App's, or nil.
     def installation_id = @row.installation_id
+
+    # What the installation was granted, as the pack stored it with store_installation_access!, or nil while unknown.
+    # Not a secret, so it may be shown.
+    def installation_access = @row.installation_access
+
+    def store_installation_access!(access) = @row.store_installation_access!(access)
 
     # What the provider's health check learned about this environment, as the probe wrote it.
     def learned = @row.learned

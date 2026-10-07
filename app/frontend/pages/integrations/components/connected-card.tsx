@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { router } from "@inertiajs/react";
 
 import type { EnvironmentOption, Integration } from "@/types/serializers";
 import type { IntegrationProvider } from "@/types/serializers";
 import { INTEGRATION_KINDS } from "@/lib/constants";
+import { INSTALLATION_STATES } from "@/lib/generated/constants";
 import {
   chooseIntegrationPath,
-  integrationPath,
+  oauthStartIntegrationsPath,
   retargetEnvironmentIntegrationPath,
   setAllToolsIntegrationPath,
   syncIntegrationPath,
@@ -27,12 +29,80 @@ import {
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
 import { ProviderMark } from "@/components/integrations/provider-mark";
+import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
 import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
-type HealthStatus = Integration["environments"][number]["healthStatus"];
-type EnvironmentSettings = Integration["environments"][number]["settings"];
+type Environment = Integration["environments"][number];
+type HealthStatus = Environment["healthStatus"];
+type EnvironmentSettings = Environment["settings"];
+
+// Installing the provider's app again for this environment comes back to the same connection, since it keeps its name.
+function reconnectHref(integration: Integration, environment: Environment) {
+  const params = new URLSearchParams({ provider: integration.provider, name: integration.name });
+  if (environment.environmentId) {
+    params.set("environment_id", environment.environmentId);
+  }
+  return `${oauthStartIntegrationsPath()}?${params.toString()}`;
+}
+
+function lackingWords(count: number, appName: string, providerName: string) {
+  const owner = `An owner of the account grants them in the app's settings on ${providerName}.`;
+  if (count === 1) {
+    return `1 switched-on tool needs a permission the ${appName} was not granted, so it says so instead of running. ${owner}`;
+  }
+  return `${count} switched-on tools need permissions the ${appName} was not granted, so they say so instead of running. ${owner}`;
+}
+
+// What a person does about an installation the provider says stopped: install it again once it was removed, or fix it in
+// the app's settings at the provider.
+function InstallationStopped({
+  integration,
+  environment,
+  providerName,
+  canManage,
+}: {
+  integration: Integration;
+  environment: Environment;
+  providerName: string;
+  canManage: boolean;
+}) {
+  const installation = environment.installation;
+  if (!installation) {
+    return null;
+  }
+  const removed = installation.state === INSTALLATION_STATES.REMOVED;
+
+  return (
+    <div className="flex flex-col gap-1.5 px-3 pb-2.5">
+      <Badge variant="destructive" className="w-fit">
+        {installation.label}
+      </Badge>
+      <p className="text-muted-foreground text-xs">{installation.reason}</p>
+      {canManage && removed && (
+        <Button asChild size="sm" variant="outline" className="h-8 w-fit">
+          <a href={reconnectHref(integration, environment)}>Reconnect</a>
+        </Button>
+      )}
+      {canManage && !removed && installation.page && (
+        <Button asChild size="sm" variant="outline" className="h-8 w-fit">
+          <a href={installation.page} target="_blank" rel="noopener noreferrer">
+            Open {providerName}
+          </a>
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// The settings pages of the installations a switched-on tool lacks permissions on, one each.
+function permissionPages(integration: Integration) {
+  const pages = integration.environments
+    .map((environment) => environment.installation?.page)
+    .filter((page): page is string => Boolean(page));
+  return [...new Set(pages)];
+}
 
 // What the connection was set up with beside its credentials, such as its region and the account an environment reads.
 function settingsText(settings: EnvironmentSettings) {
@@ -69,6 +139,7 @@ export function ConnectedCard({
   canManage: boolean;
   onAddConnection?: () => void;
 }) {
+  const [disconnecting, setDisconnecting] = useState(false);
   const healthErrors = integration.environments
     .map((environment) => environment.healthError)
     .filter((message): message is string => Boolean(message));
@@ -83,6 +154,22 @@ export function ConnectedCard({
   const readsOnlyAlreadySet =
     writeEnabledCount === 0 &&
     availableTools.every((tool) => !tool.readOnly || tool.enabled);
+  const lackingCount = availableTools.filter(
+    (tool) => tool.enabled && tool.accessMissing,
+  ).length;
+  const pages = permissionPages(integration);
+  const providerName = provider?.name ?? integration.provider;
+  const appName =
+    integration.environments.find((environment) => environment.installation)?.installation?.app ??
+    `${providerName} app`;
+
+  function askDisconnect() {
+    setDisconnecting(true);
+  }
+
+  function stopDisconnecting() {
+    setDisconnecting(false);
+  }
 
   function setAllTools(enabled: boolean, readsOnly = false) {
     router.patch(
@@ -197,6 +284,14 @@ export function ConnectedCard({
                       canManage={canManage}
                     />
                   )}
+                  {environment.installation?.state && (
+                    <InstallationStopped
+                      integration={integration}
+                      environment={environment}
+                      providerName={providerName}
+                      canManage={canManage}
+                    />
+                  )}
                   {environment.liveUpdates && (
                     <LiveUpdates
                       integrationId={integration.id}
@@ -218,6 +313,23 @@ export function ConnectedCard({
         {healthErrors.length > 0 && (
           <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-xs">
             {healthErrors[0]}
+          </div>
+        )}
+
+        {lackingCount > 0 && (
+          <div className="flex flex-col gap-1.5 border-warning-border bg-warning-tint rounded-md border px-3 py-2 text-xs">
+            <p>{lackingWords(lackingCount, appName, providerName)}</p>
+            {pages.map((page) => (
+              <a
+                key={page}
+                href={page}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-fit font-medium underline underline-offset-2"
+              >
+                Review permissions on {providerName}
+              </a>
+            ))}
           </div>
         )}
 
@@ -292,6 +404,11 @@ export function ConnectedCard({
                     {tool.description ??
                       "No description offered by the server."}
                   </p>
+                  {tool.accessMissing && (
+                    <p className="text-warning mt-0.5 text-xs">
+                      {tool.accessMissing}
+                    </p>
+                  )}
                   {tool.enabled && (
                     <code className="text-fg-muted mt-1 block truncate text-[11px]">
                       {tool.actionKey}
@@ -329,11 +446,14 @@ export function ConnectedCard({
               size="sm"
               variant="ghost"
               className="text-destructive"
-              onClick={() => router.delete(integrationPath(integration.id))}
+              onClick={askDisconnect}
             >
               Disconnect
             </Button>
           </div>
+        )}
+        {disconnecting && (
+          <DisconnectDialog integration={integration} open onClose={stopDisconnecting} />
         )}
       </CardContent>
     </Card>

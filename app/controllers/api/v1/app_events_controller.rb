@@ -1,7 +1,7 @@
 # Where a provider that sends every connection's changes to one address for its app, such as an app installed on many
 # accounts, tells Firefight something changed. A delivery counts only when signed with the app's own secret, and its
-# events reach each connection made through the installation it names. Like MapEventsController, it only queues
-# re-reads and never names a provider. The address carries the provider's key, and its definition answers the rest.
+# events reach each connection made through the installation it names, as does what it says of the installation itself.
+# Like MapEventsController, it only queues re-reads and never names a provider. The address carries the provider's key, and its definition answers the rest.
 class Api::V1::AppEventsController < ActionController::API
   MAX_BYTES = 1.megabyte
 
@@ -22,6 +22,7 @@ class Api::V1::AppEventsController < ActionController::API
     end
 
     payload = JSON.parse(raw_body)
+    Integrations::Installations.delivered!(provider_key, source, payload, headers: request.headers)
     rows = Integrations::MapEvents.rows_for_installation(provider_key, source.installation_of(payload, headers: request.headers)).to_a
     events = rows.any? ? source.events(payload, headers: request.headers) : []
     rows.each { |row| Integrations::MapEvents.receive!(row, events) }

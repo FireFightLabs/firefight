@@ -26,7 +26,7 @@ module Integrations
       end
 
       test "a change goes to a path inside the project only, with its body, and links to what it changed" do
-        NorthflankApi.any_instance.expects(:request).with("POST", "firefight", "services/web/scale", { "instances" => 3 })
+        NorthflankApi.any_instance.expects(:request).with("POST", "firefight", "services/web/scale", { "instances" => 3 }, {})
                      .returns("data" => { "instances" => 3 })
 
         text = call(:api_request, "method" => "post", "path" => "/services/web/scale", "body" => { "instances" => 3 })
@@ -35,13 +35,13 @@ module Integrations
       end
 
       test "every method reaches the API, and what holds secrets comes back as names only, with anything credential-like redacted" do
-        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web/runtime-environment", nil)
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web/runtime-environment", nil, {})
                      .returns("data" => { "runtimeEnvironment" => { "DATABASE_URL" => "postgres://app:hunter2@db/prod", "PORT" => "3000" } })
-        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "secrets", nil)
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "secrets", nil, {})
                      .returns("data" => { "secrets" => [ { "id" => "app-env", "name" => "App env", "data" => { "KEY" => "value" } } ] })
-        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web", nil)
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web", nil, {})
                      .returns("data" => { "id" => "web", "note" => "token ghp_#{'a' * 36}", "runtimeEnvironment" => { "API_KEY" => "abc123" } })
-        NorthflankApi.any_instance.stubs(:request).with("DELETE", "firefight", "jobs/nightly", nil).returns({})
+        NorthflankApi.any_instance.stubs(:request).with("DELETE", "firefight", "jobs/nightly", nil, {}).returns({})
 
         environment = call(:api_request, "method" => "GET", "path" => "services/web/runtime-environment")
         assert_match "\"DATABASE_URL\":\"[hidden]\"", environment
@@ -50,7 +50,7 @@ module Integrations
         service = call(:api_request, "method" => "GET", "path" => "services/web")
         assert_match "token [REDACTED:github_token]", service
         assert_match "\"runtimeEnvironment\":{\"API_KEY\":\"[hidden]\"}", service
-        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "addons/db/credentials-details", nil)
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "addons/db/credentials-details", nil, {})
                      .returns("data" => { "envs" => { "PASSWORD" => "s3cret" }, "hosts" => [ "db.internal" ] })
         assert_no_match "s3cret", call(:api_request, "method" => "GET", "path" => "addons/db/credentials-details")
         assert call(:api_request, "method" => "DELETE", "path" => "jobs/nightly").start_with?("Northflank answered DELETE jobs/nightly.\n")
@@ -67,6 +67,40 @@ module Integrations
           { "method" => "POST", "path" => "services/web/runtime-environment", "body" => { "DATABASE_URL" => "postgres://app:hunter2@db/prod" } } ].each do |arguments|
           assert_raises(Integrations::Error) { call(:api_request, arguments) }
         end
+      end
+
+      test "a list is paged and filtered with the query options the API reference lists for the call, and its next page is said first" do
+        page = { "data" => { "services" => [ { "id" => "web" } ] * 400 }, "pagination" => { "hasNextPage" => true, "cursor" => "next-1", "count" => 100 } }
+        NorthflankApi.any_instance.expects(:request).with("GET", "firefight", "services", nil, { "per_page" => "100", "cursor" => "abc" }).returns(page)
+
+        text = call(:api_request, "method" => "GET", "path" => "services", "query" => { "per_page" => 100, "cursor" => "abc" })
+
+        assert text.start_with?("Northflank answered GET services?per_page=100&cursor=abc.\n{\"pagination\":{\"hasNextPage\":true,\"cursor\":\"next-1\"")
+      end
+
+      test "a query option the reference does not list for the call, or one not shaped as a plain name and value, is refused before anything is sent" do
+        NorthflankApi.any_instance.expects(:request).never
+
+        unlisted = assert_raises(Integrations::Error) { call(:api_request, "method" => "GET", "path" => "services", "query" => { "limit" => 5 }) }
+        assert_match "GET services takes no query option limit. The API reference lists per_page, page, cursor for it.", unlisted.message
+        none = assert_raises(Integrations::Error) { call(:api_request, "method" => "GET", "path" => "services/web", "query" => { "per_page" => 5 }) }
+        assert_match "The API reference lists none for it.", none.message
+
+        [ { "method" => "GET", "path" => "services?per_page=100" }, { "method" => "GET", "path" => "services", "query" => "per_page=100" },
+          { "method" => "GET", "path" => "not-listed", "query" => { "../x" => "1" } }, { "method" => "GET", "path" => "not-listed", "query" => { "a&b" => "1" } },
+          { "method" => "GET", "path" => "services", "query" => { "cursor" => { "nested" => "1" } } },
+          { "method" => "GET", "path" => "services", "query" => { "cursor" => [ "a", "b" ] } },
+          { "method" => "GET", "path" => "services", "query" => { "cursor" => "a\nb" } },
+          { "method" => "GET", "path" => "services", "query" => { "cursor" => "a" * 501 } },
+          { "method" => "GET", "path" => "services", "query" => { "cursor" => "ghp_#{'a' * 36}" } } ].each do |arguments|
+          assert_raises(Integrations::Error) { call(:api_request, arguments) }
+        end
+      end
+
+      test "a call the reference does not list takes plain option names, encoded by the client" do
+        NorthflankApi.any_instance.expects(:request).with("GET", "firefight", "not-listed", nil, { "filter.name" => "web/../x?y", "deleted" => "false" }).returns({})
+
+        call(:api_request, "method" => "GET", "path" => "not-listed", "query" => { "filter.name" => "web/../x?y", "deleted" => false })
       end
 
       test "the link is found before the change, so a change that went through is never reported as failed for want of it" do

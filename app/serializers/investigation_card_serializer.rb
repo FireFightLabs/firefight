@@ -46,11 +46,12 @@ class InvestigationCardSerializer < BaseSerializer
     investigation.duration_seconds
   end
 
-  # What it looked at, as the chat shows its own lookups. The whole of each step is in the run's story.
-  type "{ position: number, label: string, status: string }[]"
+  # What it looked at, as the chat shows its own lookups, with how each went (Chat::StepOutcome) once it finished. The
+  # whole of each step is in the run's story.
+  type "{ position: number, label: string, status: string, outcome: string | null }[]"
   def steps
     investigation.steps.where.not(position: nil).map do |step|
-      { position: step.position, label: step.shown_label, status: step.status }
+      { position: step.position, label: step.shown_label, status: step.status, outcome: Chat::StepOutcome.kind_for_step(step) }
     end
   end
 

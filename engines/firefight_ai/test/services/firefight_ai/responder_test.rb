@@ -130,7 +130,8 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     guessed = FirefightAi::LookFirstRule::GUESSED_CALL_RULE
 
     assert_match "Before searching the web for how a provider's API works", guide
-    assert_match "the provider's skill and the guides it lists, through use_skill", guide
+    assert_match "the provider's skill and the guides it lists, through use_skill, and its tools' own descriptions", guide
+    assert_no_match "where you hold it", guide
     assert_match "Search the web only when they do not answer", guide
     assert_match "404 or 405", guessed
     assert_match "Check the provider's API reference before trying again, never send the same call again", guessed

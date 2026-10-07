@@ -2,6 +2,7 @@
 # gateway requires both.
 class IntegrationEnvironment < ApplicationRecord
   include IntegrationEnvironment::LiveUpdates
+  include IntegrationEnvironment::AppInstallation
 
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"
@@ -28,10 +29,10 @@ class IntegrationEnvironment < ApplicationRecord
   after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
 
   scope :enabled, -> { where(enabled: true) }
-  # Rows that reach something: enabled, of a connection that is switched on and not removed, and not wired to an
-  # environment that was deleted.
+  # Rows that reach something: enabled, of a connection that is switched on and not removed, not made through an app the
+  # provider says was removed, suspended or given nothing, and not wired to an environment that was deleted.
   scope :reachable, -> {
-    enabled.joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
+    enabled.where(installation_state: nil).joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
            .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
   }
 
@@ -60,9 +61,10 @@ class IntegrationEnvironment < ApplicationRecord
   end
 
   # The install-first path, such as a GitHub App. Only an installation id
-  # comes back, tokens are minted from it at call time.
+  # comes back, tokens are minted from it at call time. What was known of an installation from before is dropped.
   def store_installation!(installation_id)
-    update!(base_config: base_config.merge(INSTALLATION_KEY => installation_id.to_s))
+    update!(base_config: base_config.merge(INSTALLATION_KEY => installation_id.to_s), installation_details: {},
+            installation_state: nil, installation_state_at: nil)
   end
 
   def installation_id = base_config.to_h[INSTALLATION_KEY].presence

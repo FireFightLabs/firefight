@@ -103,7 +103,7 @@ module Integrations
 
       test "a change through the API reaches only the project its path's service is in" do
         mapped("web", "acme")
-        NorthflankApi.any_instance.expects(:request).with("POST", "acme", "services/web/restart", nil).returns({})
+        NorthflankApi.any_instance.expects(:request).with("POST", "acme", "services/web/restart", nil, {}).returns({})
 
         Integrations::NativeExecutor.call(tool: tool_named("api_request"), environment_row: @row, arguments: { "method" => "POST", "path" => "services/web/restart" })
       end

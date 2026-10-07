@@ -19,6 +19,17 @@ class AgentChatMessageSerializerTest < ActiveSupport::TestCase
     assert_equal Chat::Tools::CARD_CHART, tools.sole.dig("card", "kind")
   end
 
+  test "a finished step carries what it got back, and a call the provider answered not found shows as not found" do
+    assert_equal [ Conversation::LiveDelivery::STATUS_DONE, Chat::StepOutcome::KIND_ANSWERED, [ "web-1: max 42" ] ],
+                 [ tools.sole["status"], tools.sole.dig("outcome", "kind"), tools.sole.dig("outcome", "lines") ]
+
+    @chat.mark_failed!("call_7", kind: Chat::StepOutcome::FAILURE_NOT_FOUND)
+    assert_equal [ Conversation::LiveDelivery::STATUS_NOT_FOUND, "web-1: max 42" ], [ tools.sole["status"], tools.sole.dig("outcome", "said") ]
+
+    @chat.mark_failed!("call_7")
+    assert_equal [ Conversation::LiveDelivery::STATUS_FAILED, Chat::StepOutcome::KIND_FAILED ], [ tools.sole["status"], tools.sole.dig("outcome", "kind") ]
+  end
+
   test "an approved call waits while another asked with it is open, and runs once none is" do
     paused = @chat.add_message(role: :assistant, content: "")
     %w[call_8 call_9].each { |id| RubyLLM::ActiveRecord::ToolCall.create!(message: paused, tool_call_id: id, name: "delete_permission_set", arguments: {}) }

@@ -45,6 +45,8 @@ module Integrations
       SECRET_PATHS = /environment|argument|secret|credential|registr|key|token|password|connection/i
       API_RESULT_LIMIT = 6_000
       PROJECT_PATH = %r{\A[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\z}
+      QUERY_NAME = /\A[A-Za-z0-9_.]{1,64}\z/
+      QUERY_VALUE_LIMIT = 500
       # Seen in a real chat, Halon guessed a path to create a pipeline, which Northflank's API has no call for, three
       # times over. A path Northflank does not know, or a method it does not take there, sends it to the reference.
       MISSING_CALL = [ "Northflank answered 404", "Northflank answered 405" ].freeze
@@ -83,13 +85,20 @@ module Integrations
       tool :api_request,
            description: "Any call to Northflank's API inside the project: read or change services, databases, jobs, builds, " \
                         "deployments, volumes, secrets, release flows and the rest. The path is relative to the project, such as " \
-                        "services/web/restart. Load the northflank_fixes skill first. It lists common fixes, and its API reference " \
-                        "lists every call Northflank's API offers with the body each needs, so a call it does not list does not exist",
+                        "services/web/restart, and query options go in query, never in the path. A list answers one page. " \
+                        "Pass per_page, at most 100, and while the answer's pagination says hasNextPage, pass its cursor " \
+                        "for the next page. Load the northflank_fixes skill first. It lists common fixes, " \
+                        "and its API reference lists every call Northflank's API offers with the body and query options each " \
+                        "takes, so a call it does not list does not exist",
            params_schema: {
              "type" => "object",
              "properties" => {
                "method" => { "type" => "string", "enum" => API_METHODS },
                "path" => { "type" => "string", "description" => "Inside the project, such as services/web/scale" },
+               "query" => { "type" => "object",
+                            "description" => "Query options by name, each text, a number, true or false, such as {\"per_page\": 100, " \
+                                             "\"cursor\": \"<the cursor the last page gave>\"}. Only the names the API reference " \
+                                             "lists for this call (optional)" },
                "body" => { "type" => "object", "description" => "The JSON body Northflank's API takes for this call (optional)" }
              },
              "required" => %w[method path]
@@ -312,6 +321,7 @@ module Integrations
         fail!("method must be one of #{API_METHODS.join(', ')}.") unless API_METHODS.include?(verb)
         path = arguments["path"].to_s.strip.delete_prefix("/")
         fail!("path must be inside the project, such as services/web/restart.") unless path.match?(PROJECT_PATH)
+        query = query_of(verb, path, arguments["query"])
         body = arguments["body"]
         fail!("body must be an object.") unless body.nil? || body.is_a?(Hash)
         fail!("body holds what looks like a secret. Never send a credential through Northflank's API.") if secret?(body)
@@ -319,7 +329,7 @@ module Integrations
         # Worked out first, so a change that went through is never reported as failed for want of its link.
         link = change_link(environment_row, path)
         answer = begin
-          api(environment_row).request(verb, project_of(environment_row), path, body)
+          api(environment_row).request(verb, project_of(environment_row), path, body, query)
         rescue NorthflankApi::NotEnabled
           raise
         rescue NorthflankApi::Error => error
@@ -329,12 +339,42 @@ module Integrations
           fail!(Sentence.all(error, "The API token's role cannot make this change. In Northflank, give the role permission " \
                                    "to update services (Project, Services, General, Update), then run it again."))
         end
-        Telemetry.result("Northflank answered #{verb} #{path}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
+        asked = query.any? ? "#{path}?#{URI.encode_www_form(query)}" : path
+        Telemetry.result("Northflank answered #{verb} #{asked}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
+      end
+
+      # A call the API reference lists takes only the names it gives, and any other call takes plain names. A value is
+      # text, a number, true or false, and the client encodes it, so nothing in it can reach the path.
+      def query_of(verb, path, query)
+        return {} if query.nil?
+        fail!("query must be an object of option names to values, such as {\"per_page\": 100}.") unless query.is_a?(Hash)
+
+        listed = ApiReference.query_names(verb, path)
+        query.to_h do |name, value|
+          name = name.to_s
+          fail!("#{name.inspect} is not a query option name.") unless name.match?(QUERY_NAME)
+          if listed && !listed.include?(name)
+            fail!("#{verb} #{path} takes no query option #{name}. #{listed.any? ? "The API reference lists #{listed.join(', ')} for it." : 'The API reference lists none for it.'}")
+          end
+          [ name, query_value(name, value) ]
+        end.tap do |checked|
+          fail!("query holds what looks like a secret. Never send a credential through Northflank's API.") if secret?(checked)
+        end
+      end
+
+      def query_value(name, value)
+        fail!("The query option #{name} must be text, a number, true or false.") unless value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
+
+        text = value.to_s
+        fail!("The query option #{name} is too long or holds a control character.") if text.length > QUERY_VALUE_LIMIT || text.match?(/[[:cntrl:]]/)
+        text
       end
 
       # Northflank's answer, with anything that looks like a credential redacted, and only the names where the path is one
-      # that holds secrets, so no secret reaches the model, the chat or the ledger.
+      # that holds secrets, so no secret reaches the model, the chat or the ledger. Whether a list has another page comes
+      # first, since a long answer is cut short at its end.
       def answer_text(path, answer)
+        answer = answer.slice("pagination").merge(answer.except("pagination")) if answer.is_a?(Hash)
         shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer)
         Chat::SecretFree.redacted(shown.to_json)
                                          .truncate(API_RESULT_LIMIT)

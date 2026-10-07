@@ -256,15 +256,21 @@ class IntegrationsController < InertiaController
 
   # Removing the workspace's issue tracker, or a connection Firefight registered for map changes, takes back the webhook
   # Firefight registered while its credentials still reach the provider. What a person set up to send changes stays at
-  # the provider, so the toast says how to remove it.
+  # the provider, so the toast says how to remove it. A connection made through an app installed at the provider also
+  # removes the app from each account the person ticked, and the toast links to the app's settings for one left there.
   def destroy
     IssueSyncService.new(current_workspace).connection_removed(@integration, by: current_membership)
     removal = @integration.integration_environments.filter_map(&:live_updates_removal_words).uniq
     Integrations::MapEvents.connection_removed(@integration)
+    installations = Integrations::Installations.disconnected!(@integration, uninstall: params[:uninstall], by: current_membership)
     @integration.update!(deleted_at: Time.current)
-    return redirect_to integrations_path if removal.empty?
+    return redirect_to integrations_path if removal.empty? && installations.empty?
 
-    redirect_to integrations_path, notice: "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends. #{removal.join(' ')}"
+    lead = removal.any? ? "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends." : "#{@integration.name} is disconnected."
+    failed, done = installations.partition(&:error)
+    flash.inertia[:links] = installations.filter_map(&:link)
+    flash[:alert] = failed.map(&:words).join(" ") if failed.any?
+    redirect_to integrations_path, notice: [ lead, *removal, *done.map(&:words) ].join(" ")
   end
 
   private
@@ -362,7 +368,7 @@ class IntegrationsController < InertiaController
     end
 
     environment_row = connect!(provider, pending["name"], pending["environment_id"])
-    environment_row.store_installation!(params[:installation_id])
+    Integrations::Installations.connected!(environment_row, params[:installation_id])
     Integrations::ConnectionRefresh.run!(environment_row.integration)
 
     connected(environment_row.integration.name, safe_return_to(pending["return_to"]))

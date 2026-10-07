@@ -4,7 +4,9 @@ module Integrations
   # Bitbucket's OpenAPI description (api.bitbucket.org/swagger.json). A list is paged by following its next address.
   class BitbucketApi
     class Error < Integrations::Error; end
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # The token is not accepted, or may not do this.
     class Refused < Error; end
 

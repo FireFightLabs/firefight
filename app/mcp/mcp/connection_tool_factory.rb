@@ -94,7 +94,7 @@ module Mcp
     end
 
     def self.description_for(tool)
-      base = tool.description.presence || "#{tool.name} on #{tool.integration.name}"
+      base = tool.described_for_agents || "#{tool.name} on #{tool.integration.name}"
       "#{base} (via the #{tool.integration.name} connection; governed by the Ability Gateway)"
     end
 
