@@ -55,7 +55,8 @@ module Integrations
 
         webhook = Bitbucket.register(@row, url: URL)
 
-        assert_equal "{ours}", webhook.id
+        assert_equal({ "acme" => "{ours}" }, JSON.parse(webhook.id))
+        assert_equal [ "acme" ], webhook.scopes
         assert_match(/\A\h{64}\z/, webhook.secret)
       end
 
@@ -64,7 +65,7 @@ module Integrations
         BitbucketApi.any_instance.expects(:post).never
         BitbucketApi.any_instance.expects(:put).with("#{HOOKS}/%7Bours%7D", has_key("secret")).returns("uuid" => "{ours}")
 
-        assert_equal "{ours}", Bitbucket.register(@row, url: URL).id
+        assert_equal({ "acme" => "{ours}" }, JSON.parse(Bitbucket.register(@row, url: URL).id))
       end
 
       test "a token that is not a workspace owner's, or lacks the webhook scopes, is told why" do
@@ -81,7 +82,7 @@ module Integrations
         Bitbucket.remove(@row, "{ours}")
 
         BitbucketApi.any_instance.stubs(:delete).raises(BitbucketApi::NotFound, "Bitbucket answered 404: not found")
-        assert_nil Bitbucket.remove(@row, "{gone}")
+        assert_nothing_raised { Bitbucket.remove(@row, { "acme" => "{gone}" }.to_json) }
       end
 
       private

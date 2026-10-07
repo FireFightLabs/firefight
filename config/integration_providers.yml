@@ -20,7 +20,8 @@
 # server_url of its own, and the first region is the one a connection that names none reaches. The connect dialog offers
 # the choice when there is more than one, and the connection keeps it.
 # connect_fields are what the connect form asks for beside the credentials, each with a key, label, hint and placeholder,
-# and optionally numeric, optional, path, and pattern with allowed (the shape a value must have, and in words what that
+# and optionally numeric, optional, path, scope (what the connection reads, such as projects, which holds one, several or
+# all the credential can read, listed live from it), and pattern with allowed (the shape a value must have, and in words what that
 # allows, which the form says when a value does not fit). None is a secret. A path field is part of the server's
 # address, appended in the order listed, such as an organization and then a project, and belongs to the connection. A
 # path field without a pattern takes a slug's, so no value carries a slash, a query or a fragment into the address.
@@ -85,7 +86,7 @@ providers:
     category: Code
     mark: BB
     color: "#0052cc"
-    description: Pull requests, deployments, pipelines and code of the repositories in a Bitbucket workspace, and rerun, run or stop a pipeline when you allow it.
+    description: Pull requests, deployments, pipelines and code of the repositories in your Bitbucket workspaces, and rerun, run or stop a pipeline when you allow it.
     # Atlassian's MCP server reaches Bitbucket only for a workspace linked to an organization, and cannot fetch code.
     server_url: ""
     site: https://bitbucket.org
@@ -93,9 +94,10 @@ providers:
     connect_with: api_token
     connect_fields:
       - key: workspace
-        label: Workspace
-        hint: The workspace's id, as it appears after bitbucket.org/ in its repositories' addresses.
-        placeholder: acme
+        label: Workspaces
+        hint: The Bitbucket workspaces this connection reads, by the id after bitbucket.org/ in their repositories' addresses. Choose one or several, or all this token can read, which takes in a workspace added later at the next sweep.
+        placeholder: Choose workspaces
+        scope: true
     source_links: firefight
     map: firefight
   - key: circleci
@@ -156,16 +158,17 @@ providers:
     category: Cloud and hosting
     mark: NF
     color: "#0aa4d8"
-    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when you allow it.
+    description: Logs, metrics and builds of the services and databases in your Northflank projects, and fixes applied to them when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
     site: https://app.northflank.com
     connect_fields:
       - key: project
-        label: Project
-        hint: The id of the Northflank project this environment runs in, as it appears in the project's URL.
-        placeholder: my-project
+        label: Projects
+        hint: The Northflank projects this environment runs in. Choose one or several, or all this token can read, which takes in a project added later at the next sweep.
+        placeholder: Choose projects
+        scope: true
     source_links: firefight
     map: firefight
   - key: grafana
@@ -349,14 +352,14 @@ providers:
     category: Cloud and hosting
     mark: GC
     color: "#4285f4"
-    description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, and rollbacks, restarts and scaling when you allow it.
+    description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, across your projects, and rollbacks, restarts and scaling when you allow it.
     server_url: ""
     site: https://console.cloud.google.com
     kind: native
     connect_with: api_token
     # Google's rule for a project id (cloud.google.com/resource-manager/docs/creating-managing-projects).
     connect_fields:
-      - { key: project, label: Project, hint: "The id of the Google Cloud project this environment runs in, as the project picker shows it.", placeholder: my-project, pattern: "[a-z][a-z0-9-]{4,28}[a-z0-9]", allowed: "6 to 30 lowercase letters, numbers and dashes, starting with a letter and not ending with a dash" }
+      - { key: project, label: Projects, scope: true, hint: "The Google Cloud projects this environment runs in. Choose one or several, or all this key can read, which takes in a project added later at the next sweep.", placeholder: Choose projects, pattern: "[a-z][a-z0-9-]{4,28}[a-z0-9]", allowed: "6 to 30 lowercase letters, numbers and dashes, starting with a letter and not ending with a dash" }
     source_links: firefight
     map: firefight
   - key: azure
@@ -377,7 +380,7 @@ providers:
     connect_fields:
       - { key: tenant_id, label: Tenant, hint: "The Microsoft Entra tenant the service principal belongs to, by its id or domain, as its app registration's overview shows it.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+", allowed: "a GUID or a domain such as contoso.onmicrosoft.com" }
       - { key: client_id, label: Client ID, hint: "The service principal's application (client) id.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
-      - { key: subscription_id, label: Subscription ID, hint: "The Azure subscription this environment runs in. Halon reads every region in it.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
+      - { key: subscription_id, label: Subscriptions, scope: true, hint: "The Azure subscriptions this environment runs in. Choose one or several, or all this service principal can read, which takes in a subscription added later at the next sweep. Halon reads every region in each.", placeholder: Choose subscriptions, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
     source_links: firefight
     map: firefight
   - key: vercel
@@ -391,7 +394,7 @@ providers:
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: team, label: Team, placeholder: team_..., optional: true, hint: "The id or slug of the Vercel team this environment runs in. Leave it empty for a personal account, or for a token made for one team." }
+      - { key: team, label: Teams, placeholder: Choose teams, optional: true, scope: true, hint: "The Vercel teams this environment runs in. Choose one or several, or all this token can reach, which takes in a team joined later at the next sweep. Leave it empty for a token made for one team." }
     source_links: firefight
     map: firefight
   - key: render
@@ -399,12 +402,12 @@ providers:
     category: Cloud and hosting
     mark: RE
     color: "#000000"
-    description: Logs, metrics, deploys and events of the services and datastores in a Render workspace, and restarts, rollbacks and scaling when you allow it.
+    description: Logs, metrics, deploys and events of the services and datastores in your Render workspaces, and restarts, rollbacks and scaling when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: workspace, label: Workspace, placeholder: tea-..., pattern: "tea-[a-z0-9]+", allowed: "tea- followed by lowercase letters and numbers", hint: "The id of the Render workspace this environment runs in, shown on the workspace's Settings page." }
+      - { key: workspace, label: Workspaces, placeholder: Choose workspaces, scope: true, pattern: "tea-[a-z0-9]+", allowed: "tea- followed by lowercase letters and numbers", hint: "The Render workspaces this environment runs in. Choose one or several, or all this API key can read, which takes in a workspace added later at the next sweep." }
     source_links: firefight
     map: firefight
   - key: railway
@@ -412,14 +415,14 @@ providers:
     category: Cloud and hosting
     mark: RW
     color: "#0b0d0e"
-    description: Logs, metrics and deployments of the services in a Railway project, and restarts, rollbacks and scaling when you allow it.
+    description: Logs, metrics and deployments of the services in your Railway projects, and restarts, rollbacks and scaling when you allow it.
     server_url: ""
     site: https://railway.com
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: project, label: Project, placeholder: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, hint: "The id of the Railway project, shown in its Settings and in its URL after /project/." }
-      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads, by its name or id." }
+      - { key: project, label: Projects, placeholder: Choose projects, scope: true, hint: "The Railway projects this connection reads. Choose one or several, or all this token can read, which takes in a project added later at the next sweep." }
+      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads in each project, by its name, or by its id when it reads one project." }
     source_links: firefight
     map: firefight
   - key: fly

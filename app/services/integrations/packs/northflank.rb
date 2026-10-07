@@ -1,8 +1,10 @@
 module Integrations
   module Packs
-    # Northflank for one project per environment: what runs there, its logs, its metrics and its builds, read with the
-    # API token the workspace creates in Northflank. Every tool reads, except api_request, which reaches all of Northflank's
-    # API inside the project when the token's role allows it and an admin switched it on.
+    # Northflank for the projects an environment reads, one, several or every one its token can read (the project
+    # connect field, a scope). It reads what runs there, its logs, its metrics and its builds, with the API token the
+    # workspace creates in Northflank. Every tool reads, except api_request, which reaches all of Northflank's API inside
+    # one project when the token's role allows it and an admin switched it on. A call reaches one project, the one it
+    # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every project.
     class Northflank < NativePack
       # The environment row's credentials, which only this pack reads.
       API_TOKEN = "api_token".freeze
@@ -75,7 +77,8 @@ module Integrations
 
       tool :list_resources,
            description: "The services and databases (addons) in the Northflank project for this environment, with their type and " \
-                        "whether each is running, deploying or failed. Use it first to find the name to pass to the other tools",
+                        "whether each is running, deploying or failed, every project's when the connection reaches several and " \
+                        "none is named. Use it first to find the name to pass to the other tools",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
@@ -188,7 +191,8 @@ module Integrations
            read_only: true
 
       tool :list_jobs,
-           description: "The jobs in the project, cron and manual, with whether each is suspended. Use job_runs for how a job's runs went",
+           description: "The jobs in the project, cron and manual, with whether each is suspended, every project's when the " \
+                        "connection reaches several and none is named. Use job_runs for how a job's runs went",
            params_schema: { "type" => "object", "properties" => {} },
            read_only: true
 
@@ -227,21 +231,50 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "nf-...",
-                              hint: "A Northflank API token whose role can read the project, its services, databases and jobs, and view observability. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
+                              hint: "A Northflank API token whose role can list and read the projects, their services, databases and jobs, and view observability. To link services to the databases their secret groups hold, its role can also read secret groups. For Halon to apply fixes, its role can also update services. To follow changes live, its role can also read, create and delete notification integrations.")
         ]
       end
 
-      # Reads the project with the token, so a wrong token or project is said on the form before anything is saved.
+      # Reads each project chosen with the token, or lists them for every one it can read, so a wrong token or project
+      # is said on the form before anything is saved.
       def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
-        project = fields.to_h.stringify_keys[PROJECT].to_s.strip
+        projects = Array(fields.to_h.stringify_keys[PROJECT]).map { |each| each.to_s.strip }.compact_blank
         return "Paste an API token." if token.empty?
-        return "Enter the project id." if project.empty?
+        return "Choose at least one project, or all the token can read." if projects.empty?
 
-        NorthflankApi.new(token).project(project)
+        api = NorthflankApi.new(token)
+        if projects == [ IntegrationProvider::ConnectField::ALL ]
+          return "This token can read no Northflank projects. Give its role Project, Projects, Read." if api.projects.items.empty?
+        else
+          projects.each do |project|
+            api.project(project)
+          rescue NorthflankApi::Error => error
+            return Sentence.all("Northflank refused this token or project #{project}.", error)
+          end
+        end
         nil
       rescue NorthflankApi::Error => error
         Sentence.all("Northflank refused this token or project.", error)
+      end
+
+      # The projects the token can read (GET /v1/projects, @northflank/js-client ListProjectsResult, each with its id and
+      # name), which needs the token's role to read projects.
+      def self.scope_options(values, region: nil, fields: {})
+        token = values.to_h.stringify_keys[API_TOKEN].to_s.strip
+        raise NativePack::Error, "Paste an API token first." if token.empty?
+
+        NorthflankApi.new(token).projects.items.map do |project|
+          IntegrationProvider::ConnectOption.new(value: project["id"].to_s, label: project["name"].presence || project["id"].to_s)
+        end
+      rescue NorthflankApi::Error => error
+        raise NativePack::Error, Sentence.all("Northflank did not list this token's projects.", error)
+      end
+
+      # A tool names what it acts on by resource or job, and api_request by the service, addon or job its path starts with.
+      def self.scope_references(arguments)
+        kind, id = arguments["path"].to_s.delete_prefix("/").split("/").first(2)
+        [ arguments["resource"], arguments["job"], (id if [ KIND_SERVICES, KIND_ADDONS, KIND_JOBS ].include?(kind)) ]
       end
 
       def self.store_credentials!(environment_row, values)
@@ -249,6 +282,8 @@ module Integrations
       end
 
       def list_resources(environment_row:, arguments:)
+        return every_project(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         project = project_of(environment_row)
         rows = resources(environment_row).map do |resource|
           "#{resource[:name]} (#{resource[:id]}), #{resource[:type]}, #{resource[:status]}"
@@ -433,6 +468,8 @@ module Integrations
       end
 
       def list_jobs(environment_row:, arguments:)
+        return every_project(environment_row) { |pack| pack.list_jobs(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         project = project_of(environment_row)
         rows = api(environment_row).jobs(project).items.map do |job|
           [ "#{job['name']} (#{job['id']})", "#{job['jobType']} job", ("suspended" if job["suspended"]) ].compact.join(", ")
@@ -484,6 +521,13 @@ module Integrations
       # from and the domains they serve, with the links Northflank declares between them. A list the token may not read,
       # or one cut short at NorthflankApi::MAX_PAGES, is a gap in the map, not a failed sweep.
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_project(environment_row) }
+      end
+
+      # What a sweep puts on the map for one project.
+      MAP_KINDS = [ *MAP_SERVICE_KINDS, ResourceMap::KIND_DATABASE, ResourceMap::KIND_JOB ].freeze
+
+      def map_of_project(environment_row)
         project = project_of(environment_row)
         api = api(environment_row)
         services = api.services(project)
@@ -517,6 +561,7 @@ module Integrations
       def map_refresh(environment_row, scope)
         reader = REFRESHERS[scope.kind]
         return unless scope.external_id && reader
+        return project_holding(environment_row, scope)&.map_refresh(environment_row, scope) if every_scope?(environment_row)
 
         project = project_of(environment_row)
         api = api(environment_row)
@@ -558,7 +603,10 @@ module Integrations
       private :service_uses
 
       def gone(environment_row, scope)
-        account = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY).pick(:account)
+        project = project_of(environment_row)
+        account = ResourceMap::Resource.present.where(integration_environment: environment_row, provider: PROVIDER_KEY)
+                                       .where("account = :project OR account LIKE :within", project: project, within: "%/#{ResourceMap::Resource.sanitize_sql_like(project)}")
+                                       .pick(:account)
         return unless account
 
         kinds = scope.kind ? [ scope.kind ] : [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_BUILD_SERVICE ]
@@ -623,6 +671,8 @@ module Integrations
       # fullest volume), and a count per step becomes a count per minute, which a live reading can be compared with. A
       # resource Northflank cannot read keeps yesterday's baselines, and being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
+        return by_scope(environment_row, resources) { |pack, group| pack.baselines_of(environment_row, group, window) } unless scope
+
         project = project_of(environment_row)
         api = api(environment_row)
         resources.flat_map do |resource|
@@ -725,8 +775,9 @@ module Integrations
         end
       end
 
+      # Reads each project the connection reaches, so one the token can no longer read is said on the connection.
       def check_health!(environment_row)
-        api(environment_row).project(project_of(environment_row))
+        ConnectionSettings.of(environment_row).scopes.each { |project| api(environment_row).project(project) }
       rescue NorthflankApi::Error => error
         fail! error.message
       end
@@ -746,7 +797,32 @@ module Integrations
         NorthflankApi.new(token)
       end
 
-      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Northflank project. Reconnect it.")
+      def project_of(environment_row) = scope!(environment_row)
+
+      # A listing of every project the connection reaches, each read by a pack of its own and headed with its project.
+      def every_project(environment_row)
+        settings = ConnectionSettings.of(environment_row)
+        texts = settings.scopes.map do |project|
+          Array(yield(scoped(project))["content"]).filter_map { |part| part["text"] }.join("\n")
+        end
+        Telemetry.result(texts.join("\n\n"), link: nil)
+      end
+
+      # The pack of the project a notification's service, addon or job is in, the one the map has it in, or else the first
+      # project that has it, for one added since the last sweep. nil when none does.
+      def project_holding(environment_row, scope)
+        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
+                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
+                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        return scoped(on_map) if on_map.present?
+
+        reader = REFRESHERS[scope.kind]
+        ConnectionSettings.of(environment_row).scopes.lazy.map { |project| scoped(project) }.find do |pack|
+          api(environment_row).public_send(reader, pack.scope, scope.external_id).present?
+        rescue NorthflankApi::NotFound
+          false
+        end
+      end
 
       def resources(environment_row)
         @resources ||= begin

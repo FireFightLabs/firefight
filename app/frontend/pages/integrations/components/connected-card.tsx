@@ -31,6 +31,7 @@ import {
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
+import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
 type Environment = Integration["environments"][number];
@@ -275,6 +276,14 @@ export function ConnectedCard({
                       </Select>
                     </div>
                   ))}
+                  {environment.scopes && (
+                    <ScopeChoice
+                      integrationId={integration.id}
+                      rowId={environment.id}
+                      scopes={environment.scopes}
+                      canManage={canManage}
+                    />
+                  )}
                   {environment.installation?.state && (
                     <InstallationStopped
                       integration={integration}

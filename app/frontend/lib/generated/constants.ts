@@ -29,6 +29,11 @@ export const INTEGRATION_KINDS = {
 
 export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
+export const CONNECT_SCOPE_ALL = {
+  "VALUE": "*",
+  "LABEL": "All this token can read"
+} as const
+
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
 export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const

@@ -40,6 +40,11 @@ class IntegrationSerializer < BaseSerializer
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
   LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlocked: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null } | null".freeze
 
+  # scopes is what the connection reads at its provider for a provider that names it by a scope field, such as
+  # Northflank's projects. It holds the field, the values chosen (one value, the field's all, for every one the credentials can
+  # read) and the names they were last listed with. null for any other provider.
+  SCOPES_TYPE = "{ key: string; label: string; hint: string; values: string[]; options: { value: string; label: string }[] } | null".freeze
+
   # installation is there for a connection made through an app installed at the provider: what the provider calls the
   # app, the account it is on, the
   # address of its settings there, and while the provider says it was removed, suspended or given nothing, the state with
@@ -47,12 +52,12 @@ class IntegrationSerializer < BaseSerializer
   INSTALLATION_STATE_UNION = Integrations::Installations::STATES.map(&:inspect).join(" | ")
   INSTALLATION_TYPE = "{ app: string; account: string | null; page: string | null; state: #{INSTALLATION_STATE_UNION} | null; label: string | null; reason: string | null } | null".freeze
 
-  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: #{LIVE_UPDATES_TYPE}; installation: #{INSTALLATION_TYPE} }[]"
+  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; scopes: #{SCOPES_TYPE}; liveUpdates: #{LIVE_UPDATES_TYPE}; installation: #{INSTALLATION_TYPE} }[]"
   def environments
     integration.integration_environments.map do |row|
       { id: row.id, environmentId: row.catalog_entry_id, environmentName: row.environment&.name,
         enabled: row.enabled, healthStatus: row.health_status, healthError: row.health_error, settings: settings_of(row),
-        choices: choices_of(row), liveUpdates: live_updates_of(row), installation: installation_of(row) }
+        choices: choices_of(row), scopes: scopes_of(row), liveUpdates: live_updates_of(row), installation: installation_of(row) }
     end
   end
 
@@ -86,7 +91,8 @@ class IntegrationSerializer < BaseSerializer
 
     region = ({ label: "Region", value: integration.region.label } if entry.regional? && integration.region)
     values = row.fields.merge(integration.address_fields)
-    fields = entry.connect_fields.reject(&:learned).filter_map { |field| { label: field.label, value: field.shown(values[field.key]) } if values[field.key].present? }
+    shown = integration.native? ? entry.connect_fields.reject { |field| field.learned || field.scope } : entry.connect_fields.reject(&:learned)
+    fields = shown.filter_map { |field| { label: field.label, value: field.shown(values[field.key]) } if values[field.key].present? }
     [ region, *fields ].compact
   end
 
@@ -114,6 +120,16 @@ class IntegrationSerializer < BaseSerializer
     { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup, offer: offer,
       turnOn: (row.live_updates_turn_on_words unless row.live_updates_turn_on_blocked_reason),
       turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason) }
+  end
+
+  def scopes_of(row)
+    settings = Integrations::ConnectionSettings.of(row)
+    field = settings.scope_field
+    return unless field && integration.native?
+
+    named = settings.chosen_scopes.map { |id| { value: id, label: settings.scope_name(id) } }
+    learned = settings.known_scopes.map { |id| { value: id, label: settings.scope_name(id) } }
+    { key: field.key, label: field.label, hint: field.hint, values: settings.chosen_scopes, options: (named + learned).uniq { |option| option[:value] } }
   end
 
   # Only a real choice is offered, two or more learned options. With one there is nothing to choose.

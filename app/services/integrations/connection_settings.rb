@@ -22,6 +22,9 @@ module Integrations
     # The connection's name as a person gave it, such as "Datadog EU".
     def name = @integration.name
 
+    # How a person tells the connection apart from another to the same provider, such as "Faylee (Northflank)".
+    def display_name = @integration.display_name
+
     # The MCP server the connection reaches, nil for a native pack.
     def server_url = @integration.server_url
 
@@ -66,6 +69,46 @@ module Integrations
 
     # What the provider's health check learned about this environment, as the probe wrote it.
     def learned = @row.learned
+
+    # The connect field that names what the connection reads at the provider, such as Northflank's projects, or nil for
+    # a provider that names none (IntegrationProvider::ConnectField, scope).
+    def scope_field = IntegrationProvider.find(provider_key)&.scope_field
+
+    # What the connect form chose for it, the scopes by their ids, or ConnectField::ALL alone for every one the
+    # credential can read. A value kept as one string from before reads as a list of it.
+    def chosen_scopes = scope_field ? Array(field(scope_field.key)).map(&:to_s).compact_blank : []
+
+    def all_scopes? = chosen_scopes == [ IntegrationProvider::ConnectField::ALL ]
+
+    # Whether the connection may reach more than one scope, read without asking the provider.
+    def several_scopes? = all_scopes? || chosen_scopes.size > 1
+
+    # Every scope the connection reaches, by its id. ALL is listed from the credential now, so a project added since is
+    # read at the next sweep. Raises the provider's error when it cannot be listed.
+    def scopes
+      @scopes ||= all_scopes? ? scope_options.map(&:value) : chosen_scopes
+    end
+
+    # The scopes the credential can read, listed from the provider now, each with its id and its name
+    # (IntegrationProvider::ConnectOption). Kept with what the connection learned, so a tool's parameters and a person
+    # reading the connection name them without asking the provider again.
+    def scope_options
+      @scope_options ||= Credentials.scope_options_of(self).tap do |options|
+        listed = options.map(&:to_h).map(&:stringify_keys)
+        @row.store_learned!(learned.merge(SCOPES_LEARNED => listed)) unless learned[SCOPES_LEARNED] == listed
+      end
+    end
+
+    SCOPES_LEARNED = "scopes".freeze
+
+    # The scopes the connection reaches as last listed, without asking the provider. That is what was chosen, or for ALL what
+    # the last listing found.
+    def known_scopes = all_scopes? ? Array(learned[SCOPES_LEARNED]).filter_map { |option| option["value"].presence if option.is_a?(Hash) } : chosen_scopes
+
+    # A scope's name as the provider gives it, or its id when no listing named it.
+    def scope_name(id)
+      Array(learned[SCOPES_LEARNED]).find { |option| option.is_a?(Hash) && option["value"] == id.to_s }&.dig("label").presence || id.to_s
+    end
 
     def environment_id = @row.catalog_entry_id
   end

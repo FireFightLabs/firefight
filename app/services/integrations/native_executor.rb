@@ -9,6 +9,7 @@ module Integrations
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
 
       pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress)
+      arguments = Scopes.resolved(environment_row, arguments.to_h)
       result = ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
       Redactions.apply(result, fields: Provider.for(tool.integration.provider).redacted_fields)
     end
