@@ -18,6 +18,8 @@ class Workspace < ApplicationRecord
   has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
   has_many :ability_grants, class_name: "Ability::Grant", dependent: :destroy
   has_many :ai_model_overrides, dependent: :destroy
+  # Its own model keys, tried in order before whatever the deployment pays with.
+  has_many :workspace_ai_accounts, -> { order(:position) }, dependent: :destroy, inverse_of: :workspace
   has_many :ability_roles, class_name: "Ability::Role", dependent: :destroy
   has_many :webhooks, dependent: :destroy
   has_many :alerts, dependent: :destroy

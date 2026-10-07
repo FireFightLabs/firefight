@@ -9,7 +9,8 @@ module FirefightAi
     end
 
     setup do
-      FirefightAi.configuration.stubs(:provider_settings).returns(anthropic_api_key: "sk-firefight", openai_api_key: "sk-openai")
+      RubyLLM.config.stubs(:anthropic_api_key).returns("sk-firefight")
+      RubyLLM.config.stubs(:openai_api_key).returns("sk-openai")
     end
 
     test "a streamed Anthropic answer passes through as it comes, with Firefight's key, and its usage is read off it" do
@@ -76,19 +77,36 @@ module FirefightAi
 
       assert_raises(ModelProxy::Refused) { ModelProxy.new("anthropic").forward(path: "models", body: "{}", model: "x") { |*| nil } }
       assert_raises(ModelProxy::Refused) { ModelProxy.new("gemini") }
-      FirefightAi.configuration.stubs(:provider_settings).returns({})
+      RubyLLM.config.stubs(:anthropic_api_key).returns(nil)
       assert_raises(ModelProxy::Refused) { ModelProxy.new("anthropic") }
+    end
+
+    test "a workspace's own account forwards with its own key and address, never Firefight's" do
+      config = RubyLLM.context do |own|
+        own.anthropic_api_key = "sk-workspace"
+        own.anthropic_api_base = "https://llm.example.com/v1"
+      end.config
+      sent = nil
+      Net::HTTP.expects(:start).with("llm.example.com", 443, has_entries(use_ssl: true)).yields(fake_http { |request| sent = request })
+
+      ModelProxy.new("anthropic", config: config).forward(path: "messages", body: "{}", model: "claude-sonnet-4-5") { |*| nil }
+
+      assert_equal [ "sk-workspace", "/v1/messages" ], [ sent["x-api-key"], sent.path ]
     end
 
     private
 
     def answer(response, &seen)
+      Net::HTTP.stubs(:start).yields(fake_http(response, &seen))
+    end
+
+    def fake_http(response = FakeResponse.new("200", "application/json", [ "{}" ]), &seen)
       http = Object.new
       http.define_singleton_method(:request) do |request, &block|
         seen.call(request)
         block.call(response)
       end
-      Net::HTTP.stubs(:start).yields(http)
+      http
     end
   end
 end

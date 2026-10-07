@@ -216,6 +216,8 @@ controller actually enforces, which is exactly what these replaced.
 model whose blocking association is not `incidents` overrides `usage_association`
 (roles block on `incident_role_assignments`).
 
+**A list with its own form reuses the table, not the dialog.** Settings, Workspace, AI accounts (`pages/settings/components/workspace/ai-accounts-card.tsx`) is positioned and switchable like these, so it renders `OptionsTable` with reorder through `useOptimisticOrder`, `RowActions` and `ConfirmDeleteDialog`, but its fields come from the provider, so it has its own dialog in the shape of `OptionDialog`. A secret field is a password input that starts empty and keeps the stored value when left empty, with the account's `keySummary` under it.
+
 **Colour and default are capabilities, not flags.** A list without a `color`
 column gets no colour field; a model that omits `DefaultableOption` gets no
 Default column and no radio group.

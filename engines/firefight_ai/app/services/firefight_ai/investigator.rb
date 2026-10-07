@@ -27,6 +27,7 @@ module FirefightAi
     def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, memory: nil,
             take_messages: nil, &on_turn)
       FirefightAi.translating_errors do
+        FirefightAi.bind(chat, ai_model)
         chat.with_instructions(system_prompt)
         chat.with_tools(*tools)
         # One agent resends everything it has read on every turn, so the provider is asked to cache it.
@@ -35,7 +36,8 @@ module FirefightAi
 
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
-          on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages
+          on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages,
+          choice: ai_model, purpose: AiPurpose::INVESTIGATION
         ).run(&on_turn)
       end
     end

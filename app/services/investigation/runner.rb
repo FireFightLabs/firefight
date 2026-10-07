@@ -104,7 +104,7 @@ class Investigation::Runner
 
   def investigator
     @investigator ||= FirefightAi::Investigator.new(
-      @investigation.workspace, inferable: @investigation, member: member, model: @investigation.model_choice
+      @investigation.workspace, inferable: @investigation, member: member, model: @investigation.ai_model
     )
   end
 

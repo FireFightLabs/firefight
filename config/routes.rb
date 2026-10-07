@@ -407,6 +407,18 @@ Rails.application.routes.draw do
     # The gateway and developer screens used to live under /settings, the redirects keep old links working.
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace
     patch "/settings/workspace", to: "workspace_settings#update"
+    resources :ai_accounts, only: [ :create, :update, :destroy ], path: "settings/workspace/ai-accounts" do
+      collection do
+        patch :reorder
+        get "sign-in", action: :sign_in, as: :sign_in
+        get "sign-in/callback", action: :sign_in_callback, as: :sign_in_callback
+      end
+      member do
+        post :check
+        patch :disable
+        patch :enable
+      end
+    end
     get "/settings/permissions", to: redirect("/app/gateway/permissions")
     get "/settings/activity", to: redirect("/app/gateway/activity")
     get "/settings/approvals", to: redirect("/app/gateway/approvals")
