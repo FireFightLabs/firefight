@@ -25,6 +25,8 @@ class AgentChatPackRefusalsTest < ActionDispatch::IntegrationTest
 
     post agent_chat_pack_refusal_ask_url(@conversation, @refusal)
     assert_equal "Asked Alice Smith for Faylee (Northflank): changes.", flash[:notice]
+    get agent_chat_url(@conversation), headers: inertia_headers
+    assert_equal 0, inertia_props["waitingPackRequestsCount"], "only an admin is shown the count"
 
     @adapter.expects(:post_pack_request_to_user).never
     post agent_chat_pack_refusal_ask_url(@conversation, @refusal)

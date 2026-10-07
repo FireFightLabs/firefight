@@ -67,10 +67,15 @@ module Ability
       reload
     end
 
+    # True only for the press that dismissed it, so the member is told once.
     def dismiss!(by:)
-      self.class.where(id: id, given_at: nil, dismissed_at: nil).update_all(dismissed_at: Time.current, given_by_id: by.id, updated_at: Time.current)
+      won = self.class.where(id: id, given_at: nil, dismissed_at: nil).update_all(dismissed_at: Time.current, given_by_id: by.id, updated_at: Time.current)
       reload
+      won == 1
     end
+
+    # Who answered, by name, or "An admin" when the pack was granted on the Permissions screen rather than from the request.
+    def answered_by_name = given_by&.display_name || "An admin"
 
     def waiting? = requested_at.present? && given_at.nil? && dismissed_at.nil?
 

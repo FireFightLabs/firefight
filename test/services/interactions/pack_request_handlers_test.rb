@@ -9,7 +9,7 @@ class Interactions::PackRequestHandlersTest < ActiveSupport::TestCase
     northflank.tools.create!(name: "restart_service", read_only: false, enabled: true)
     @request = Ability::PackRequest.for!(@bob, northflank.permission_packs.find_by!(pack: Ability::Role::PACK_CHANGES))
     @adapter = stub(post_pack_request_to_user: { channel_id: "D1", message_id: "1.1" }, update_pack_request: { success: true },
-                    update_pack_refusal: { success: true })
+                    update_pack_refusal: { success: true }, post_pack_answer_to_user: { channel_id: "D2", message_id: "2.1" })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
     ConversationChannel.stubs(:broadcast_to)
   end

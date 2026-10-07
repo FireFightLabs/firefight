@@ -23,6 +23,13 @@ class Chat::PackRefusal < ApplicationRecord
 
   def body = [ "It needs the #{role.name} pack.", Ability::PackRequest.admins_sentence(workspace) ].compact.join(" ")
 
-  # Said once the admins were asked, until a day has passed.
-  def asked_line = ("Asked the admins at #{pack_request.requested_at.utc.strftime('%H:%M UTC')}." if pack_request.waiting?)
+  # Said once the admins were asked, and then how they answered.
+  def asked_line
+    request = pack_request
+    return "#{request.answered_by_name} gave #{requester.display_name} this pack. Ask Halon again." if request.given_at
+    return "#{request.answered_by_name} dismissed the request." if request.dismissed_at
+    return "Asked the admins at #{request.requested_at.utc.strftime('%H:%M UTC')}." if request.waiting?
+
+    nil
+  end
 end

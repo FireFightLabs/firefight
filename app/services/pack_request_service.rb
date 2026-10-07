@@ -38,24 +38,52 @@ class PackRequestService
     end
 
     request.give!(by: by)
-    redraw_requests(request)
-    redraw_refusals(request)
+    answered!(request)
     Result.new(ok: true, words: "#{request.requester.display_name} was given #{request.role.name}.")
   end
 
   def self.dismiss!(request, by:)
-    request.dismiss!(by: by)
-    redraw_requests(request)
+    return Result.new(ok: false, words: "This request was already answered.") unless request.dismiss!(by: by)
+
+    answered!(request)
     Result.new(ok: true, words: "#{request.requester.display_name}'s request for #{request.role.name} was dismissed.")
   end
 
   Result = Data.define(:ok, :words)
 
   # A pack given on the Permissions screen rather than from the request still settles it where it was shown.
-  def self.settled!(request)
+  def self.settled!(request) = answered!(request)
+
+  # An admin gave the pack or dismissed the request. The admins' messages and the refusals are redrawn, the member is
+  # told by direct message, and each Slack thread the refusal was in gets a short note.
+  def self.answered!(request)
     redraw_requests(request)
     redraw_refusals(request)
+    adapter = WorkspaceAdapter.for(request.workspace)
+    tell_requester(adapter, request)
+    note_in_threads(adapter, request)
   end
+
+  def self.tell_requester(adapter, request)
+    return if request.requester.platform_user_id.blank?
+
+    adapter.post_pack_answer_to_user(user_id: request.requester.platform_user_id, pack_request: request)
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "pack_request.answer_undelivered", pack_request_id: request.id, error: error.class.name }.to_json)
+  end
+  private_class_method :tell_requester
+
+  def self.note_in_threads(adapter, request)
+    request.refusals.includes(chat: :owner).find_each do |refusal|
+      conversation = refusal.conversation
+      next if conversation.thread_id.blank?
+
+      adapter.post_pack_answer(channel_id: conversation.channel_id, thread_id: conversation.thread_id, pack_request: request)
+    rescue AdapterError => error
+      Rails.logger.warn({ event: "pack_request.note_undelivered", pack_refusal_id: refusal.id, error: error.class.name }.to_json)
+    end
+  end
+  private_class_method :note_in_threads
 
   # True when at least one admin was sent the request.
   def self.notify_admins(request)

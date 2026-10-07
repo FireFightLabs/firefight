@@ -606,6 +606,21 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_pack_answer_to_user(user_id:, pack_request:)
+    post_message(channel_id: user_id, text: Slack::Messages::PackAnswer.fallback(pack_request, direct: true),
+                 blocks: Slack::Messages::PackAnswer.build(pack_request, direct: true))
+  end
+
+  def post_pack_answer(channel_id:, thread_id:, pack_request:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::PackAnswer.fallback(pack_request), blocks: Slack::Messages::PackAnswer.build(pack_request)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
   def post_pack_request_to_user(user_id:, pack_request:)
     post_message(channel_id: user_id, text: Slack::Messages::PackRequest.fallback(pack_request), blocks: Slack::Messages::PackRequest.build(pack_request))
   end

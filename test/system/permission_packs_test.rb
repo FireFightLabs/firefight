@@ -30,6 +30,23 @@ class PermissionPacksTest < ApplicationSystemTestCase
     assert @bob.permitted_to?(@restart.ability_action, @workspace)
   end
 
+  test "an admin sees how many packs wait on the Permissions link, and the request at the top of the page" do
+    WorkspaceAdapter.stubs(:for).returns(stub_everything(post_pack_request_to_user: { channel_id: "D1", message_id: "1.1" }))
+    PackRequestService.ask!(Ability::PackRequest.for!(@bob, @changes), by: @bob)
+
+    visit gateway_permissions_path
+
+    within("[data-sidebar=menu-item]", text: "Permissions") { assert_text "1" }
+    assert_text "Waiting for a pack"
+    assert_text "Bob Jones asks for Faylee (Northflank): changes"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/permission-packs-waiting-badge.png"))
+    click_button "Give pack", match: :first
+
+    assert_text "Bob Jones was given Faylee (Northflank): changes."
+    assert_no_text "Waiting for a pack"
+    within("[data-sidebar=menu-item]", text: "Permissions") { assert_no_selector "[data-sidebar=menu-badge]" }
+  end
+
   test "built-in packs are listed in their own group, read only, and a member's reads of a connection can be taken away" do
     visit gateway_permissions_path
 

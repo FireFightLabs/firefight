@@ -15,7 +15,8 @@ class PackRequestServiceTest < ActiveSupport::TestCase
     @conversation = @workspace.conversations.create!(kind: Conversation::KIND_CHANNEL, started_by: @bob, channel_id: "C9", thread_id: "5.5",
                                                      max_turns: 5, max_spend_cents: 100)
     @conversation.chat_record
-    @adapter = stub(update_pack_refusal: { success: true }, update_pack_request: { success: true })
+    @adapter = stub(update_pack_refusal: { success: true }, update_pack_request: { success: true },
+                    post_pack_answer_to_user: { channel_id: "D2", message_id: "2.1" }, post_pack_answer: { channel_id: "C9", message_id: "5.7" })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
     ConversationChannel.stubs(:broadcast_to)
   end
@@ -89,11 +90,41 @@ class PackRequestServiceTest < ActiveSupport::TestCase
     @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")
     PackRequestService.ask!(request, by: @bob)
     @adapter.expects(:update_pack_request).once
+    @adapter.expects(:post_pack_answer_to_user).once.with { |pack_request:, **| pack_request.answered_by_name == "An admin" }.returns(channel_id: "D2", message_id: "2.1")
 
     perform_enqueued_jobs { Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: @changes }) }
 
     assert_not request.reload.waiting?
     assert_empty @workspace.ability_pack_requests.waiting
+  end
+
+  test "giving tells the member by direct message and notes it in the thread the change was refused in" do
+    request = Ability::PackRequest.for!(@bob, @changes)
+    Chat::PackRefusal.create!(chat: @conversation.chat, pack_request: request, message_channel_id: "C9", message_id: "5.6")
+    @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")
+    PackRequestService.ask!(request, by: @bob)
+    @adapter.expects(:post_pack_answer_to_user).once.with do |user_id:, pack_request:|
+      user_id == @bob.platform_user_id && Slack::Messages::PackAnswer.fallback(pack_request, direct: true) ==
+        "Alice Smith gave you Faylee (Northflank): changes. You can ask Halon again."
+    end.returns(channel_id: "D2", message_id: "2.1")
+    @adapter.expects(:post_pack_answer).once.with { |channel_id:, thread_id:, **| channel_id == "C9" && thread_id == "5.5" }.returns(channel_id: "C9", message_id: "5.7")
+
+    PackRequestService.give!(request.reload, by: @alice)
+
+    assert_equal "Alice Smith gave Bob Jones this pack. Ask Halon again.", request.refusals.sole.asked_line
+  end
+
+  test "a dismissed request tells the member plainly, once" do
+    request = Ability::PackRequest.for!(@bob, @changes)
+    @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")
+    PackRequestService.ask!(request, by: @bob)
+    @adapter.expects(:post_pack_answer_to_user).once.with do |pack_request:, **|
+      Slack::Messages::PackAnswer.fallback(pack_request, direct: true) == "Alice Smith did not give you Faylee (Northflank): changes. The request was " \
+                                                                       "dismissed, so the change still cannot be made. Ask Alice Smith directly if it is still needed."
+    end.returns(channel_id: "D2", message_id: "2.1")
+
+    assert PackRequestService.dismiss!(request.reload, by: @alice).ok
+    assert_not PackRequestService.dismiss!(request.reload, by: @alice).ok
   end
 
   test "an admin, a read and a run are never offered a pack" do
