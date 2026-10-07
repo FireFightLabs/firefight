@@ -11,6 +11,8 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
     @owner = User.create!(email: "owner@example.com", name: "Olive Owner")
     @membership = Workspace.sign_up!(name: "Olive Co", user: @owner)
     @workspace = @membership.workspace
+    # What these cover comes after setup, which has its own tests.
+    @workspace.onboarding.update!(checklist_completed_at: Time.current)
     sign_in_by_email(@owner)
   end
 

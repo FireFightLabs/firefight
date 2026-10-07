@@ -1,5 +1,8 @@
-# Progress is read off the first test incident, never stored.
+# The first test incident's walkthrough, whose progress is read off that incident and never stored, and the setup
+# checklist (WorkspaceOnboarding::Checklist).
 class WorkspaceOnboarding < ApplicationRecord
+  include Checklist
+
   # Shared by the Slack welcome message and the dashboard dialog.
   STEPS = [
     { title: "Declare an incident.", detail: "Firefight opens a channel for it and announces it in #incidents" },

@@ -2,6 +2,7 @@ class SessionsController < InertiaController
   # Login and logout must work for a suspended workspace's users.
   skip_before_action :block_inaccessible_workspace
   skip_before_action :require_authentication
+  skip_before_action :continue_setup
   def new
     if user_signed_in?
       redirect_to dashboard_path

@@ -6,6 +6,13 @@ import type {
   IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
+// Setup's Meet Halon step, sent only while an admin is on it.
+export interface SetupGuide {
+  question: string
+  answered: boolean
+  setupPath: string
+}
+
 // Every prop is always sent, so a partial visit can rely on the rest staying.
 export interface AgentPageProps extends SharedProps {
   conversations: AgentChat[]
@@ -24,6 +31,7 @@ export interface AgentPageProps extends SharedProps {
   compactions: ChatCompaction[]
   heldCalls: AgentChatHeldCall[]
   packRefusals: AgentChatPackRefusal[]
+  setupGuide: SetupGuide | null
 }
 
 export type AgentStep = AgentChatMessage["tools"][number]

@@ -13,6 +13,8 @@ class IntegrationsController < InertiaController
                 only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :scope_options, :scopes, :map_events_secret,
                       :forget_map_events_secrets,
                       :live_updates, :live_updates_setup, :destroy ]
+  # Connecting leaves for the provider and comes back here, setup or not.
+  skip_before_action :continue_setup, only: %i[oauth_start oauth_callback]
 
   def index
     render inertia: "integrations/index", props: {
@@ -383,13 +385,15 @@ class IntegrationsController < InertiaController
 
   def return_to_param = safe_return_to(params[:return_to])
 
-  # Only a chat on this dashboard, so a crafted link cannot send someone elsewhere after they connect.
+  # Only a chat on this dashboard or the setup checklist, so a crafted link cannot send someone elsewhere after they connect.
   def safe_return_to(path)
     path = path.to_s
     return nil unless path.start_with?("/") && !path.start_with?("//")
 
     route = Rails.application.routes.recognize_path(path)
-    path if route[:controller] == AgentChatsController.controller_path && %w[index show].include?(route[:action])
+    chat = route[:controller] == AgentChatsController.controller_path && %w[index show].include?(route[:action])
+    setup = route[:controller] == SetupController.controller_path && route[:action] == "show"
+    path if chat || setup
   rescue ActionController::RoutingError
     nil
   end

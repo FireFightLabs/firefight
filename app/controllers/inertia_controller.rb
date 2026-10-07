@@ -5,6 +5,7 @@ class InertiaController < ApplicationController
   before_action :block_inaccessible_workspace
   before_action :require_authentication
   before_action :authorize_web_action!
+  include ContinuesSetup
 
   inertia_share do
     {

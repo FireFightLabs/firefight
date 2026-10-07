@@ -92,6 +92,17 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     assert_equal "ci", IntegrationProvider.category_slug(IntegrationProvider.find("circleci").category)
   end
 
+  test "every category says what Halon does with it, and setup requires code, hosting and observability" do
+    IntegrationProvider.category_list.each do |category|
+      assert category.halon.present?, "#{category.name} says what Halon can do with it"
+      assert_no_match(/[—;]/, category.halon, "#{category.name}'s sentence is user copy")
+    end
+
+    assert_equal [ "Cloud and hosting", "Observability", "Code" ], IntegrationProvider.category_list.select(&:required).map(&:name)
+    assert_equal [ "Cloud and hosting", "Databases" ], IntegrationProvider.category_list.select(&:in_first_question).map(&:name)
+    assert_equal IntegrationProvider.category_list.to_h { |category| [ category.name, category.tagline ] }, IntegrationProvider.categories
+  end
+
   private
 
   def connect!(key)

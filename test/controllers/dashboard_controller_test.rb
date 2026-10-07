@@ -15,8 +15,8 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, inertia_props["agentAvailable"]
   end
 
-  test "the installer sees the first-run dialog until they close it" do
-    @workspace.create_onboarding!(installer: @installer)
+  test "the installer sees the first-run dialog until they close it, once setup is done" do
+    @workspace.create_onboarding!(installer: @installer, checklist_completed_at: Time.current)
     sign_in(@installer.user, @workspace)
 
     get dashboard_path, headers: inertia_headers
@@ -28,6 +28,15 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     @workspace.onboarding.dismiss_dialog!
     get dashboard_path, headers: inertia_headers
     assert_equal false, inertia_props.dig("onboarding", "dialogPending")
+  end
+
+  test "an installer with setup still to do is sent to it" do
+    @workspace.create_onboarding!(installer: @installer)
+    sign_in(@installer.user, @workspace)
+
+    get dashboard_path
+
+    assert_redirected_to onboarding_checklist_path
   end
 
   test "another member never sees the dialog" do

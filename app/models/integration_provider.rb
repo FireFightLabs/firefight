@@ -326,17 +326,24 @@ class IntegrationProvider
   # A code host's pack writes a change in Firefight's sandbox for the repositories its connection sees.
   def self.code_hosts = all.select { |entry| entry.code_fix_tool && !entry.code_agent }
 
-  # Registry data, so a provider in a new category needs no code change. A category no provider is in yet is left out,
-  # so neither the gallery nor Halon's tool groups show it empty.
+  # Each category's tagline by its name. Registry data, so a provider in a new category needs no code change. A category
+  # no provider is in yet is left out, so neither the gallery nor Halon's tool groups show it empty.
   def self.categories
-    @categories ||= registry.fetch("categories", {}).select { |name, _tagline| all.any? { |entry| entry.category == name } }.freeze
+    @categories ||= category_list.to_h { |category| [ category.name, category.tagline ] }.freeze
   end
 
-  Category = Data.define(:slug, :name, :tagline)
+  # halon is what Halon can do with a tool from the category, required says setup asks for one connected in it, and
+  # in_first_question says setup's first question to Halon names the tools connected in it.
+  Category = Data.define(:slug, :name, :tagline, :halon, :required, :in_first_question)
 
   # A category as something a person or a model can name, by its slug or its name.
   def self.category_list
-    @category_list ||= categories.map { |name, tagline| Category.new(slug: category_slug(name), name: name, tagline: tagline) }.freeze
+    @category_list ||= registry.fetch("categories", {}).filter_map do |name, entry|
+      next unless all.any? { |provider| provider.category == name }
+
+      Category.new(slug: category_slug(name), name: name, tagline: entry.fetch("tagline"), halon: entry.fetch("halon"),
+                   required: entry.fetch("required", false), in_first_question: entry.fetch("in_first_question", false))
+    end.freeze
   end
 
   # What a category is called wherever it is a key: the agent's tool groups, a card, a tool parameter.

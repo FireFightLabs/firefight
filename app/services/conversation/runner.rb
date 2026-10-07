@@ -60,6 +60,8 @@ class Conversation::Runner
     @conversation.reply_delivered!
     # A stop pressed as the answer finished has nothing left to stop, and must not stop the next question.
     chat.clear_stop!
+    # Before the page is told, so the setup guide it reloads already says Halon answered.
+    @conversation.workspace.onboarding&.halon_answered!(@conversation) if answered?(outcome)
     delivery.answered!(@reply)
     outcome
   rescue FirefightAi::Canceled

@@ -150,6 +150,11 @@ Rails.application.routes.draw do
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
     patch "/onboarding/dialog", to: "workspace_onboardings#dismiss_dialog", as: :dismiss_onboarding_dialog
+    get "/setup", to: "setup#show", as: :onboarding_checklist
+    post "/setup/ai", to: "setup#choose_ai", as: :onboarding_checklist_ai
+    post "/setup/stack/:category", to: "setup#answer_category", as: :onboarding_checklist_category
+    post "/setup/permissions", to: "setup#review_permissions", as: :onboarding_checklist_permissions
+    post "/setup/slack/skip", to: "setup#skip_slack", as: :onboarding_checklist_skip_slack
     post "/workspace-switch", to: "workspace_switches#create", as: :workspace_switch
     get "/profile", to: "profiles#show", as: :profile
     delete "/profile/sign-in-methods/:id", to: "user_identities#destroy", as: :sign_in_method
