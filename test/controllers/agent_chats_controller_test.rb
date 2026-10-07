@@ -6,12 +6,11 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), @workspace)
   end
 
-  test "the page is reachable once the agent is turned on" do
+  test "the page is reachable in every workspace" do
     get agent_chats_url, headers: inertia_headers
 
     assert_response :success
@@ -105,8 +104,8 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "What changed today?" ], inertia_props["messages"].map { |message| message["body"] }
   end
 
-  test "a workspace without the agent is sent back with the reason" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+  test "a workspace whose plan does not include AI is sent back with the reason" do
+    deny_entitlements!
 
     get agent_chats_url
 

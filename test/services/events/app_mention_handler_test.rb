@@ -10,21 +10,13 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
     @member = workspace_memberships(:alice_workspace_one)
   end
 
-  test "enqueues AI response job for valid mention" do
+  test "a mention opens Halon's conversation in the mention's thread" do
     stub_add_reaction
 
-    assert_enqueued_with(job: IncidentAiResponseJob) do
+    assert_enqueued_with(job: ConversationReplyJob) do
       Events::AppMentionHandler.execute(@workspace, payload)
     end
-  end
-
-  test "passes thread_ts as the mention message ts" do
-    stub_add_reaction
-
-    Events::AppMentionHandler.execute(@workspace, payload)
-
-    job = enqueued_jobs.find { |j| j["job_class"] == "IncidentAiResponseJob" }
-    assert_equal "1234567890.123456", job["arguments"][2]
+    assert_equal "1234567890.123456", @workspace.conversations.sole.thread_id
   end
 
   test "strips bot mention from text" do
@@ -32,8 +24,8 @@ class Events::AppMentionHandlerTest < ActiveSupport::TestCase
 
     Events::AppMentionHandler.execute(@workspace, payload(text: "<@U99999999> what's going on?"))
 
-    job = enqueued_jobs.find { |j| j["job_class"] == "IncidentAiResponseJob" }
-    assert_equal "what's going on?", job["arguments"][3]
+    asked = @workspace.conversations.sole.chat.messages.find_by!(role: Chat::Message::ROLE_USER)
+    assert_equal "what's going on?", asked.content
   end
 
   test "reacts with eyes emoji on the message" do

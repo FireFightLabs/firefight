@@ -3,7 +3,6 @@ require "test_helper"
 class HalonPerformanceControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     run = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10,
                                             max_spend_cents: 400, status: Investigation::STATUS_SUCCEEDED, started_at: 1.hour.ago, completed_at: 55.minutes.ago)

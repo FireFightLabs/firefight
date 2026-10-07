@@ -11,7 +11,6 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
       thread_id: "1700000000.000100", started_by: workspace_memberships(:alice_workspace_one),
       max_turns: 40, max_spend_cents: 50
     )
-    FeatureFlags.stubs(:enabled?).returns(true)
     Entitlements.stubs(:allows?).returns(true)
     Ability::Grant.create!(
       workspace: @workspace, principal: workspace_memberships(:alice_workspace_one),

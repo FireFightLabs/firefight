@@ -32,7 +32,6 @@ class Investigation::CancelFixTest < ActiveSupport::TestCase
     first.finish!(Investigation::RemediationStep::STATUS_DONE, result: "Rule deleted")
     @plan.settle!
     assert_equal Investigation::RemediationPlan::STATUS_CANCELLED, @plan.reload.status, "a finished step never reopens a cancelled fix"
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:check).returns(stub(blocked?: false))
     FirefightAi.stubs(:context_window).returns(200_000)
     assert_nil @plan.undo_blocked_reason

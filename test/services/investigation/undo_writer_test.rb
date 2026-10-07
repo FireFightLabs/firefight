@@ -12,7 +12,6 @@ class Investigation::UndoWriterTest < ActiveSupport::TestCase
     @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_DONE, result: "Rule 4f2 deleted")
     @plan.steps.where.not(position: 1).update_all(status: Investigation::RemediationStep::STATUS_DONE)
     @plan.settle!
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:check).returns(stub(blocked?: false))
     FirefightAi.stubs(:context_window).returns(200_000)
   end
@@ -36,7 +35,7 @@ class Investigation::UndoWriterTest < ActiveSupport::TestCase
     assert_nil undo.apply_blocked_reason(@alice)
   end
 
-  test "a writing whose worker was lost can be asked again, nothing that went through needs no undo, and Halon has to be on" do
+  test "a writing whose worker was lost can be asked again, nothing that went through needs no undo, and Halon has to be ready" do
     @plan.update_columns(undo_requested_at: 11.minutes.ago)
     assert_nil @plan.reload.undo_blocked_reason
     assert @plan.request_undo!(by: @alice)
@@ -46,8 +45,8 @@ class Investigation::UndoWriterTest < ActiveSupport::TestCase
     assert_equal "Nothing in this fix went through, so there is nothing to undo.", @plan.reload.undo_blocked_reason
 
     @plan.steps.update_all(status: Investigation::RemediationStep::STATUS_DONE)
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
-    assert_equal "Investigations are not turned on for this workspace.", @plan.reload.undo_blocked_reason
+    FirefightAi.stubs(:context_window).returns(nil)
+    assert_match "not fully set up", @plan.reload.undo_blocked_reason
   end
 
   test "only an applied fix is undone, once, and an undo the plan's check refuses says why and can be asked again" do

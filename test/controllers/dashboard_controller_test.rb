@@ -7,6 +7,14 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     @installer = workspace_memberships(:alice_workspace_one)
   end
 
+  test "every workspace has Halon in the navigation, with no switch to turn on" do
+    sign_in(users(:bob), @workspace)
+
+    get dashboard_path, headers: inertia_headers
+
+    assert_equal true, inertia_props["agentAvailable"]
+  end
+
   test "the installer sees the first-run dialog until they close it" do
     @workspace.create_onboarding!(installer: @installer)
     sign_in(@installer.user, @workspace)

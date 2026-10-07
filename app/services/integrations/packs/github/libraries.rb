@@ -62,7 +62,6 @@ module Integrations
         end
 
         def library_source(environment_row:, arguments:)
-          running_commands!
           repo = repo_argument(arguments)
           ref = ref_argument(arguments)
           library = required_text(arguments, "library")

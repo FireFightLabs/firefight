@@ -49,10 +49,8 @@ module Ability
       memberships.to_a + agents.to_a + keys.to_a + system_agents(workspace)
     end
 
-    # Each is told which workspace's grants to show, and hidden unless it has the feature.
+    # Each is told which workspace's grants to show.
     def self.system_agents(workspace)
-      return [] unless FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)
-
       SystemAgent.order(:name).map do |agent|
         agent.listing_workspace_id = workspace.id
         agent

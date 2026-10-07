@@ -12,35 +12,35 @@ class FeatureFlagsRakeTest < ActiveSupport::TestCase
 
   test "enable turns the flag on for the workspace" do
     output, = capture_io do
-      Rake::Task["feature_flags:enable"].invoke(FeatureFlags::AI_SRE.to_s, @workspace.id)
+      Rake::Task["feature_flags:enable"].invoke(FeatureFlags::CHATGPT_SIGN_IN.to_s, @workspace.id)
     end
 
-    assert FeatureFlags.enabled?(@workspace, FeatureFlags::AI_SRE)
+    assert FeatureFlags.enabled?(@workspace, FeatureFlags::CHATGPT_SIGN_IN)
     assert_match @workspace.name, output
   end
 
   test "disable turns the flag off for the workspace" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
+    FeatureFlags.enable!(@workspace, FeatureFlags::CHATGPT_SIGN_IN)
 
     capture_io do
-      Rake::Task["feature_flags:disable"].invoke(FeatureFlags::AI_SRE.to_s, @workspace.id)
+      Rake::Task["feature_flags:disable"].invoke(FeatureFlags::CHATGPT_SIGN_IN.to_s, @workspace.id)
     end
 
-    assert_not FeatureFlags.enabled?(@workspace, FeatureFlags::AI_SRE)
+    assert_not FeatureFlags.enabled?(@workspace, FeatureFlags::CHATGPT_SIGN_IN)
   end
 
   test "list names the workspaces each flag is on for" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
+    FeatureFlags.enable!(@workspace, FeatureFlags::CHATGPT_SIGN_IN)
 
     output, = capture_io { Rake::Task["feature_flags:list"].invoke }
 
-    assert_match "#{FeatureFlags::AI_SRE}: #{@workspace.name}", output
+    assert_match "#{FeatureFlags::CHATGPT_SIGN_IN}: #{@workspace.name}", output
   end
 
   test "list says when a flag is off for every workspace" do
     output, = capture_io { Rake::Task["feature_flags:list"].invoke }
 
-    assert_match "#{FeatureFlags::AI_SRE}: off for every workspace", output
+    assert_match "#{FeatureFlags::CHATGPT_SIGN_IN}: off for every workspace", output
   end
 
   test "enable stops on a flag that is not declared" do
@@ -54,7 +54,7 @@ class FeatureFlagsRakeTest < ActiveSupport::TestCase
   test "enable stops on a workspace that does not exist" do
     _, error = capture_io do
       assert_raises(SystemExit) do
-        Rake::Task["feature_flags:enable"].invoke(FeatureFlags::AI_SRE.to_s, SecureRandom.uuid)
+        Rake::Task["feature_flags:enable"].invoke(FeatureFlags::CHATGPT_SIGN_IN.to_s, SecureRandom.uuid)
       end
     end
 
@@ -80,7 +80,7 @@ class FeatureFlagsRakeTest < ActiveSupport::TestCase
 
   test "enable_globally stops on a flag that is set per workspace" do
     _, error = capture_io do
-      assert_raises(SystemExit) { Rake::Task["feature_flags:enable_globally"].invoke(FeatureFlags::AI_SRE.to_s) }
+      assert_raises(SystemExit) { Rake::Task["feature_flags:enable_globally"].invoke(FeatureFlags::CHATGPT_SIGN_IN.to_s) }
     end
 
     assert_match "set per workspace", error

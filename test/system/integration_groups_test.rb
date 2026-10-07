@@ -7,7 +7,6 @@ class IntegrationGroupsTest < ApplicationSystemTestCase
   end
 
   test "providers sit in the groups in the registry's order, and a card's info button says what it is and what Halon can do with it" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
 
     visit integrations_path
@@ -30,7 +29,8 @@ class IntegrationGroupsTest < ApplicationSystemTestCase
     end
   end
 
-  test "without Halon a provider's details say nothing about it" do
+  test "when the plan does not include AI a provider's details say nothing about Halon" do
+    deny_entitlements!
     visit integrations_path
 
     find("button[aria-label='About Northflank']").click

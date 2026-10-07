@@ -5,17 +5,10 @@ module FirefightAi
       @output_style = output_style
     end
 
-    def answer_question(incident, question:, scope_thread_ts: nil)
-      if scope_thread_ts
-        thread_messages = thread_messages_for(incident, scope_thread_ts)
-        return "I don't see any messages in this thread yet to summarize." if thread_messages.empty?
-
-        call_ai(incident, build_thread_prompt(incident, thread_messages, question), feature: "thread_catchup")
-      else
-        context = incident.to_full_context(workspace: @workspace)
-        summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
-        call_ai(incident, build_incident_prompt(context, summary, question), feature: "incident_catchup")
-      end
+    def answer_question(incident, question:)
+      context = incident.to_full_context(workspace: @workspace)
+      summary = IncidentSummaryService.new(@workspace).fetch_or_refresh(incident)
+      call_ai(incident, build_incident_prompt(context, summary, question), feature: "incident_catchup")
     end
 
     private
@@ -35,13 +28,6 @@ module FirefightAi
         chat.ask(prompt_text)
       end
       response.content
-    end
-
-    def thread_messages_for(incident, parent_ts)
-      incident.incident_transcript_messages.kept
-        .where("message_id = ? OR thread_id = ?", parent_ts, parent_ts)
-        .order(:posted_at)
-        .to_a
     end
 
     DEFAULT_OUTPUT_STYLE = <<~STYLE
@@ -67,22 +53,6 @@ module FirefightAi
         last fact, not on conversational closers like "let me know if you have
         questions" or "feel free to reach out".
       PROMPT
-    end
-
-    def build_thread_prompt(incident, messages, question)
-      parts = []
-      parts << "You are answering about a single thread in incident #{incident.identifier} — #{incident.name}."
-      parts << "Only the messages in this thread are provided. Do not invent context from outside the thread."
-      parts << ""
-      parts << "## Thread Messages"
-      messages.each do |m|
-        author = m.workspace_membership&.user&.name || m.platform_user_id
-        parts << "- [#{m.posted_at.iso8601}] #{author}: #{m.content}"
-      end
-      parts << ""
-      parts << "## Question"
-      parts << question
-      parts.join("\n")
     end
 
     def build_incident_prompt(context, summary, question)

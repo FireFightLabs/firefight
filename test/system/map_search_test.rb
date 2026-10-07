@@ -3,7 +3,6 @@ require "application_system_test_case"
 class MapSearchTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     build_two_environment_map(@workspace)
     SearchDocument.index!(ResourceMap::Resource, ResourceMap::Resource.where(workspace: @workspace).pluck(:id))
