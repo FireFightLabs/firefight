@@ -140,8 +140,8 @@ class Integrations::Capabilities::NewrelicTest < ActiveSupport::TestCase
 
   test "Halon is told what it can ask New Relic, and its query tool stays offered" do
     assert_equal "Halon can read its logs, read its metrics, see what was deployed, read its errors, and read its traces for the services on " \
-                 "the map that New Relic watches, by their name in New Relic, through the tools you switch on. It also uses New Relic's other " \
-                 "tools that you switch on.", Integrations::Capabilities.halon_sentence("newrelic", "New Relic")
+                 "the map that New Relic watches, by their name in New Relic, through the tools that are switched on. It also uses New Relic's other " \
+                 "tools that are switched on.", Integrations::Capabilities.halon_sentence("newrelic", "New Relic")
     assert_not Integrations::Capabilities.wrapped?(@nrql)
   end
 

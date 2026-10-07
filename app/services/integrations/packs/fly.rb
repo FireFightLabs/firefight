@@ -2,7 +2,7 @@ module Integrations
   module Packs
     # Fly.io for one organization per environment: its apps and Managed Postgres clusters, their machines, logs,
     # metrics and releases, read with a token the workspace creates with fly tokens create. Every tool reads, except
-    # the restart and rollback an admin switches on for Halon to apply fixes. Sources are cited where each is used:
+    # the restart and rollback Halon uses to apply fixes. Sources are cited where each is used:
     # the Machines API spec (docs.fly.io/api/machines/openapi.json), superfly/flyctl, superfly/fly-go and superfly/docs.
     class Fly < NativePack
       # The environment row's credentials, which only this pack reads.

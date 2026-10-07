@@ -10,6 +10,7 @@ class Chat::Tools::LogPatternsTest < ActiveSupport::TestCase
     @logs = northflank.tools.create!(name: "search_logs", description: "Logs", read_only: true, enabled: true, params_schema: { "type" => "object" })
     @web = ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/prod", kind: ResourceMap::KIND_SERVICE,
                                          external_id: "web-id", name: "web", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+    revoke_investigator_packs!(@workspace)
   end
 
   test "Halon is offered new_log_patterns beside search_logs once it may read logs" do

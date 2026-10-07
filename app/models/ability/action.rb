@@ -37,11 +37,13 @@ module Ability
     RESOURCE_MEMORY = "memory"
     # Reading the resource map. Only read, since curating it is catalog: update and syncing it integrations: update.
     RESOURCE_MAP = "map"
+    # The workspace's own model keys Halon runs on. Admins only, and only from the dashboard.
+    RESOURCE_AI_ACCOUNTS = "ai_accounts"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
     ADMIN_ONLY_RESOURCES = [
-      RESOURCE_INTEGRATIONS, RESOURCE_API_KEYS, RESOURCE_PERMISSIONS, RESOURCE_WORKSPACE
+      RESOURCE_INTEGRATIONS, RESOURCE_API_KEYS, RESOURCE_PERMISSIONS, RESOURCE_WORKSPACE, RESOURCE_AI_ACCOUNTS
     ].freeze
 
     GRANTABLE_RESOURCES = [
@@ -79,7 +81,8 @@ module Ability
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
       RESOURCE_PERMISSIONS => "Permissions",
-      RESOURCE_WORKSPACE => "Workspace"
+      RESOURCE_WORKSPACE => "Workspace",
+      RESOURCE_AI_ACCOUNTS => "AI Accounts"
     }.freeze
 
     ACTION_READ = "read"
@@ -221,6 +224,10 @@ module Ability
     def system?
       kind == KIND_SYSTEM
     end
+
+    def tool? = kind == KIND_TOOL
+
+    def read? = risk_level == RISK_READ
 
     def admin_only?
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))

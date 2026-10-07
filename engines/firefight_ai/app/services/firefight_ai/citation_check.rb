@@ -9,10 +9,12 @@ module FirefightAi
     Source = Data.define(:step, :tool, :text)
     Verdict = Data.define(:number, :shown, :reason)
 
-    def initialize(workspace, inferable:, member: nil)
+    # model is a ModelChoice for a check told what to run on, such as a rehearsal's. nil means the workspace's.
+    def initialize(workspace, inferable:, member: nil, model: nil)
       @workspace = workspace
       @inferable = inferable
       @member = member
+      @model_choice = model
     end
 
     # A claim the model leaves out is not judged, so it is kept rather than dropped on our failure.

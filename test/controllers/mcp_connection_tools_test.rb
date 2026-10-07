@@ -42,8 +42,10 @@ class McpConnectionToolsTest < ActiveSupport::TestCase
     assert_equal [ "datadog_logs_query" ], tools.map(&:name_value)
   end
 
-  test "a member's listing hides tools they hold no grant for" do
-    assert_empty Mcp::ConnectionToolFactory.tools_for(@workspace, workspace_memberships(:bob_workspace_one))
+  test "a member's listing carries every tool that reads and hides one that changes something they hold no grant for" do
+    @integration.tools.create!(name: "monitors_mute", read_only: false, enabled: true)
+
+    assert_equal [ "datadog_logs_query" ], Mcp::ConnectionToolFactory.tools_for(@workspace, workspace_memberships(:bob_workspace_one)).map(&:name_value)
   end
 
   test "a service key's listing carries only granted tools" do

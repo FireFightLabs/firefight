@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_231400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -74,6 +74,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.jsonb "scope", default: {}, null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "granted_by_type"
+    t.uuid "granted_by_id"
     t.index ["action_id"], name: "index_ability_grants_on_action_id"
     t.index ["expires_at"], name: "index_ability_grants_on_expires_at", where: "(expires_at IS NOT NULL)"
     t.index ["role_id"], name: "index_ability_grants_on_role_id"
@@ -108,6 +110,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.index ["workspace_id", "created_at"], name: "index_ability_invocations_on_workspace_id_and_created_at"
   end
 
+  create_table "ability_pack_requests", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "requester_id", null: false
+    t.uuid "role_id", null: false
+    t.datetime "requested_at"
+    t.datetime "given_at"
+    t.uuid "given_by_id"
+    t.datetime "dismissed_at"
+    t.jsonb "notifications", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["requester_id", "role_id"], name: "index_ability_pack_requests_on_requester_id_and_role_id", unique: true
+    t.index ["role_id"], name: "index_ability_pack_requests_on_role_id"
+    t.index ["workspace_id", "requested_at"], name: "index_ability_pack_requests_on_workspace_id_and_requested_at"
+  end
+
   create_table "ability_role_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "action_id", null: false
     t.datetime "created_at", null: false
@@ -124,6 +142,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.string "slug", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "pack"
+    t.uuid "integration_id"
+    t.index ["integration_id", "pack"], name: "index_ability_roles_one_pack_per_connection", unique: true, where: "(integration_id IS NOT NULL)"
+    t.index ["workspace_id", "pack"], name: "index_ability_roles_one_workspace_pack", unique: true, where: "((pack IS NOT NULL) AND (integration_id IS NULL))"
     t.index ["workspace_id", "slug"], name: "index_ability_roles_on_workspace_id_and_slug", unique: true
   end
 
@@ -509,6 +531,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
   end
 
+  create_table "chat_pack_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "pack_request_id", null: false
+    t.string "tool_call_id"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "pack_request_id"], name: "index_chat_pack_refusals_on_chat_id_and_pack_request_id", unique: true
+    t.index ["pack_request_id"], name: "index_chat_pack_refusals_on_pack_request_id"
+  end
+
   create_table "chat_queued_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "chat_id", null: false
     t.text "content", null: false
@@ -572,7 +606,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.datetime "updated_at", null: false
     t.integer "web_lookups", default: 0, null: false
     t.uuid "workspace_id", null: false
+    t.string "paid_by"
+    t.uuid "workspace_ai_account_id"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
+    t.index ["workspace_ai_account_id"], name: "index_code_agent_sessions_on_workspace_ai_account_id"
     t.index ["workspace_id"], name: "index_code_agent_sessions_on_workspace_id"
   end
 
@@ -1113,14 +1150,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.uuid "workspace_id", null: false
     t.integer "max_output_tokens"
     t.string "error_kind"
+    t.string "paid_by", null: false
+    t.uuid "workspace_ai_account_id"
+    t.bigint "billed_micros"
     t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
     t.index ["error_kind", "created_at"], name: "index_inferences_on_error_kind_and_created_at", where: "(error_kind IS NOT NULL)"
     t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
     t.index ["member_id"], name: "index_inferences_on_member_id"
     t.index ["provider", "status", "created_at"], name: "index_inferences_on_provider_and_status_and_created_at"
+    t.index ["workspace_ai_account_id"], name: "index_inferences_on_workspace_ai_account_id"
     t.index ["workspace_id", "created_at"], name: "index_inferences_on_workspace_id_and_created_at"
     t.index ["workspace_id", "feature", "created_at"], name: "index_inferences_on_workspace_id_and_feature_and_created_at"
     t.index ["workspace_id", "inferable_type", "inferable_id"], name: "idx_on_workspace_id_inferable_type_inferable_id_af35668ca4"
+    t.index ["workspace_id", "paid_by", "created_at"], name: "index_inferences_on_workspace_id_and_paid_by_and_created_at"
     t.index ["workspace_id"], name: "index_inferences_on_workspace_id"
   end
 
@@ -2051,6 +2093,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
     t.index ["workspace_id"], name: "index_webhooks_on_workspace_id"
   end
 
+  create_table "workspace_ai_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "kind", default: "api_key", null: false
+    t.string "provider", null: false
+    t.string "label", null: false
+    t.text "credentials"
+    t.string "credential_hint"
+    t.jsonb "settings", default: {}, null: false
+    t.jsonb "models", default: {}, null: false
+    t.integer "position", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "verified_at"
+    t.datetime "last_used_at"
+    t.datetime "out_of_credit_since"
+    t.datetime "failing_since"
+    t.string "last_error"
+    t.datetime "credentials_expire_at"
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_workspace_ai_accounts_on_created_by_id"
+    t.index ["workspace_id", "position"], name: "index_workspace_ai_accounts_on_workspace_id_and_position", unique: true
+  end
+
   create_table "workspace_invitations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
     t.string "email", null: false
@@ -2144,8 +2210,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"
   add_foreign_key "ability_grants", "workspaces"
   add_foreign_key "ability_invocations", "workspaces"
+  add_foreign_key "ability_pack_requests", "ability_roles", column: "role_id", on_delete: :cascade
+  add_foreign_key "ability_pack_requests", "workspace_memberships", column: "given_by_id", on_delete: :nullify
+  add_foreign_key "ability_pack_requests", "workspace_memberships", column: "requester_id", on_delete: :cascade
+  add_foreign_key "ability_pack_requests", "workspaces"
   add_foreign_key "ability_role_actions", "ability_actions", column: "action_id"
   add_foreign_key "ability_role_actions", "ability_roles", column: "role_id"
+  add_foreign_key "ability_roles", "integrations", on_delete: :cascade
   add_foreign_key "ability_roles", "workspaces"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
@@ -2195,11 +2266,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
   add_foreign_key "chat_memory_posts", "workspaces"
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chat_pack_refusals", "ability_pack_requests", column: "pack_request_id", on_delete: :cascade
+  add_foreign_key "chat_pack_refusals", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"
   add_foreign_key "conversations", "workspaces"
@@ -2258,6 +2332,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspaces"
   add_foreign_key "inferences", "api_keys"
+  add_foreign_key "inferences", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "inferences", "workspace_memberships", column: "member_id"
   add_foreign_key "inferences", "workspaces"
   add_foreign_key "integration_environments", "catalog_entries"
@@ -2343,6 +2418,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230900) do
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
   add_foreign_key "webhooks", "workspaces"
+  add_foreign_key "workspace_ai_accounts", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "workspace_ai_accounts", "workspaces"
   add_foreign_key "workspace_invitations", "workspace_memberships", column: "invited_by_id", on_delete: :nullify
   add_foreign_key "workspace_invitations", "workspace_memberships", column: "membership_id", on_delete: :nullify
   add_foreign_key "workspace_invitations", "workspaces", on_delete: :cascade

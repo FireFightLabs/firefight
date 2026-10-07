@@ -23,13 +23,16 @@ class AgentChatsController < InertiaController
   PROP_COMPACTIONS = "compactions"
   # Calls an approval rule held in the open chat, from waiting for an approver to how they ended.
   PROP_HELD_CALLS = "heldCalls"
+  # Changes Halon was refused in the open chat for want of a pack, each with Ask an admin.
+  PROP_PACK_REFUSALS = "packRefusals"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
-    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS
+    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
+    "PACK_REFUSALS" => PROP_PACK_REFUSALS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -39,7 +42,7 @@ class AgentChatsController < InertiaController
   include ServesChatAttachment
 
   # Asking spends money, so it needs the same permission as starting an investigation.
-  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file], update: %i[update], delete: %i[destroy]
+  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file], update: %i[update ask_pack], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
@@ -50,7 +53,7 @@ class AgentChatsController < InertiaController
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
-      PROP_HELD_CALLS => []
+      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => []
     )
   end
 
@@ -65,7 +68,8 @@ class AgentChatsController < InertiaController
       PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
       PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat),
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
-      PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership)
+      PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership),
+      PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership)
     )
   end
 
@@ -135,6 +139,15 @@ class AgentChatsController < InertiaController
     decide_held_call("Asked for approval again.") { |held| Conversation::HeldCalls.ask_again!(held, by: current_membership) }
   end
 
+  # Asks the workspace admins for the pack a change in this chat was refused for, at most once a day.
+  def ask_pack
+    refusal = conversation.chat&.pack_refusals&.find_by(id: params[:pack_refusal_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That refusal is no longer in this chat.") unless refusal
+
+    result = PackRequestService.ask!(refusal.pack_request, by: current_membership)
+    redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
+  end
+
   def update
     return rename if params.key?(:title)
     return pin if params.key?(:pinned)
@@ -158,6 +171,11 @@ class AgentChatsController < InertiaController
   def held_calls_shown
     chat = conversation.chat
     chat ? chat.held_calls.where.not(status: Chat::HeldCall::STATUS_ASKED_AGAIN).includes(:decided_by, approval: :approver) : []
+  end
+
+  def pack_refusals_shown
+    chat = conversation.chat
+    chat ? chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at) : []
   end
 
   def decide_held_call(done)

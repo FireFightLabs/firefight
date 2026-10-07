@@ -153,7 +153,7 @@ class Integrations::Capabilities::GrafanaTest < ActiveSupport::TestCase
 
   test "Halon is told what Grafana answers" do
     assert_equal "Halon can read its logs, read its metrics, and read its traces for the services on the map that Grafana watches, by their name in Grafana, " \
-                 "through the tools you switch on. It also uses Grafana's other tools that you switch on.",
+                 "through the tools that are switched on. It also uses Grafana's other tools that are switched on.",
                  Integrations::Capabilities.halon_sentence("grafana", "Grafana")
   end
 

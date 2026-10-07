@@ -58,8 +58,8 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
     assert Integrations::Capabilities.wrapped?(@workspace.integrations.find_by!(slug: "render").tools.find_by!(name: "scale_service"))
     assert_not Integrations::Capabilities.wrapped?(@workspace.integrations.find_by!(slug: "render").tools.find_by!(name: "list_events"))
     assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, roll a resource back, " \
-                 "restart a service, and scale a service for anything Render runs, through the tools you switch on. It also uses " \
-                 "Render's other tools that you switch on.", Integrations::Capabilities.halon_sentence("render", "Render")
+                 "restart a service, and scale a service for anything Render runs, through the tools that are switched on. It also uses " \
+                 "Render's other tools that are switched on.", Integrations::Capabilities.halon_sentence("render", "Render")
   end
 
   private

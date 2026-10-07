@@ -2,6 +2,7 @@ module Ability
   # A permission bundle, not to be confused with IncidentRole.
   class Role < ApplicationRecord
     include Sluggable
+    include Packs
 
     belongs_to :workspace
 
@@ -13,10 +14,14 @@ module Ability
     validates :slug, presence: true, uniqueness: { scope: :workspace_id },
                      format: { with: /\A[a-z0-9_]+\z/ }
 
-      after_commit :bust_holder_caches
+    after_commit :bust_holder_caches
 
-    # Scopes already pinned to a member action survive, they are the set's own overrides.
+    # Scopes already pinned to a member action survive, they are the set's own overrides. A built-in pack is kept in
+    # step by Firefight, so it refuses a hand edit.
     def sync_actions!(action_ids)
+      blocked = edit_blocked_reason
+      raise ActiveRecord::RecordInvalid.new(tap { errors.add(:base, blocked) }) if blocked
+
       transaction do
         role_actions.where.not(action_id: action_ids).destroy_all
         (action_ids - role_actions.reload.map(&:action_id)).each do |action_id|

@@ -1,7 +1,7 @@
 module Integrations
   module MapReaders
     # Puts Supabase on the resource map. Every project the connection reaches is a database, and each of its branches is
-    # a project ref of its own. It reads through Supabase's own server, with only the tools an admin switched on. The
+    # a project ref of its own. It reads through Supabase's own server, with only the tools that are switched on. The
     # tools and their answers are the ones supabase-community/supabase-mcp publishes in packages/mcp-server-supabase/src/tools,
     # account-tools.ts and branching-tools.ts. Each page address is the dashboard's, dashboard/project/<ref>, as Supabase's
     # documentation links it.

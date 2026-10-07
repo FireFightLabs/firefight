@@ -4,7 +4,7 @@ module Integrations
     # project connect field, a scope). It reads Cloud Run services with their revisions, logs, metrics and errors, Cloud
     # SQL instances, Compute Engine instances and GKE clusters. A call reaches one project, the one it names or the one
     # its resource is in. Three tools change something, each as Google's own API does it, and only when the service account's roles
-    # allow it and an admin switched the tool on: moving a Cloud Run service's traffic to a revision, setting its
+    # allow it and the tool is switched on: moving a Cloud Run service's traffic to a revision, setting its
     # instances, and restarting a Cloud SQL instance or resetting a Compute Engine instance.
     #
     # Every endpoint, parameter and field is from Google's REST references and discovery documents (Cloud Run Admin v1

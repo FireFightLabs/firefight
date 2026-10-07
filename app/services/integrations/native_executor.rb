@@ -22,7 +22,7 @@ module Integrations
       NativePack.fetch!(environment_row.integration).check_health!(environment_row)
     end
 
-    # A pack checks itself with its own API, never through the tools an admin switches on.
+    # A pack checks itself with its own API, never through its tools.
     def self.checks_through_tools?(_integration) = false
 
     def self.map_every(integration)

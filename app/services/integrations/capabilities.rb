@@ -148,13 +148,13 @@ module Integrations
       told = Provider.for(provider).pack&.halon_sentence(name)
       return told if told
 
-      own = "Halon uses #{name}'s own tools that you switch on, in chats and investigations."
+      own = "Halon uses #{name}'s own tools that are switched on, in chats and investigations."
       adapter = adapter_for(provider)
       keys = adapter&.capabilities.to_a
       return own if keys.empty?
 
-      "Halon can #{keys.map { |key| adapter.phrase(key) }.to_sentence} for #{adapter.subject(name)}, through the tools you switch on. " \
-        "It also uses #{name}'s other tools that you switch on."
+      "Halon can #{keys.map { |key| adapter.phrase(key) }.to_sentence} for #{adapter.subject(name)}, through the tools that are switched on. " \
+        "It also uses #{name}'s other tools that are switched on."
     end
 
     # The adapter a provider's definition names (Integrations::Provider), or nil.

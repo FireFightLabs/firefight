@@ -60,7 +60,7 @@ module Integrations
         assert_equal [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH ], bare.resources.map(&:kind)
       end
 
-      test "the sweep calls only the tools an admin switched on" do
+      test "the sweep calls only the tools that are switched on" do
         integration = workspaces(:slack_workspace_one).integrations.create!(
           kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", settings: { "server_url" => "https://mcp.example/mcp" }
         )

@@ -21,6 +21,8 @@ export type SharedProps = PageProps & {
   availableWorkspaces?: CurrentWorkspace[]
   currentUserIsAdmin?: boolean
   pendingApprovalsCount?: number
+  // Packs members asked for that wait on an admin, zero for anyone else.
+  waitingPackRequestsCount?: number
   agentAvailable?: boolean
   // One flag per Ability::Action resource, whether the viewer may change it.
   currentUserCan?: Record<string, boolean>

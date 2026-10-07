@@ -29,7 +29,7 @@ module Integrations
     def self.local_name(remote_name) = remote_name.to_s.downcase.gsub(/[^a-z0-9_.]/, "_")
 
     # A server that answers a ping may still not reach the account behind it, so a provider with a health probe is also
-    # asked through its own tools, only those an admin switched on, each call recorded under the health check. What the
+    # asked through its own tools, only those switched on, each call recorded under the health check. What the
     # probe learned is kept on the row, for the provider's adapter and links to read.
     def self.check_health!(environment_row)
       client = client_for(environment_row.integration, environment_row)
@@ -42,7 +42,7 @@ module Integrations
     def self.checks_through_tools?(integration) = Provider.for(integration.provider).health_probe.present?
 
     # A remote server lists tools, not what it reaches, so a provider goes on the map through the reader its definition
-    # names, which calls only the tools an admin switched on. Without a reader the connection puts nothing on the map.
+    # names, which calls only the tools that are switched on. Without a reader the connection puts nothing on the map.
     # How often a reader is swept on the hourly schedule, when it says. Sync now reads it at once whatever this says.
     DEFAULT_MAP_EVERY = 1.hour
 
@@ -70,7 +70,7 @@ module Integrations
     def self.narrows?(reader) = reader.present? && reader.instance_method(:map).parameters.any? { |_type, name| name == :scope }
 
     # What normal looks like, through the baseline reader the provider's definition names, with its own fixed reads and
-    # only the tools an admin switched on, each call recorded under the map sweep. Without one there are no baselines.
+    # only the tools that are switched on, each call recorded under the map sweep. Without one there are no baselines.
     def self.baselines_of(environment_row, resources, window)
       reader(environment_row, :baseline_reader, :swept!)&.baselines(resources, window)
     end

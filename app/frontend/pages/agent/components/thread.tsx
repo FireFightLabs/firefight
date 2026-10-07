@@ -4,13 +4,15 @@ import LoadingState from "@/components/agent-ui/loading-state"
 import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HeldCallCard } from "@/pages/agent/components/held-call-card"
+import { PackRefusalCard } from "@/pages/agent/components/pack-refusal-card"
 import { ImageDialog } from "@/components/image-dialog"
 import { Message } from "@/pages/agent/components/message"
 import { MessageAttachments } from "@/pages/agent/components/message-attachments"
 import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/pages/agent/lib/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
-  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatWaitingMessage, ChatCompaction,
+  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatWaitingMessage,
+  ChatCompaction,
 } from "@/types/serializers"
 
 interface ThreadProps {
@@ -19,16 +21,19 @@ interface ThreadProps {
   messages: AgentChatMessage[]
   compactions: ChatCompaction[]
   heldCalls: AgentChatHeldCall[]
+  packRefusals: AgentChatPackRefusal[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
-export function Thread({ conversationId, confirmations, messages, compactions, heldCalls, waiting, stream }: ThreadProps) {
+export function Thread({ conversationId, confirmations, messages, compactions, heldCalls, packRefusals, waiting, stream }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
   const live = liveTurn(stream, messages, compactions)
   // A held call sits where it last had news, so an approval that came in later shows where the person will look.
   const held = useMemo(() => placeAfterTurns(turns, messages, heldCalls), [ turns, messages, heldCalls ])
+  // A refusal sits after the turn it happened in.
+  const refused = useMemo(() => placeAfterTurns(turns, messages, packRefusals), [ turns, messages, packRefusals ])
   // Held by id rather than by the message, which the server's copy replaces once it answers.
   const [ openImageId, setOpenImageId ] = useState<string | null>(null)
   const openImage = sentAttachments(turns, waiting).find((attachment) => attachment.id === openImageId) ?? null
@@ -39,16 +44,18 @@ export function Thread({ conversationId, confirmations, messages, compactions, h
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
-  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length ])
+  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length ])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(BEFORE_ALL_TURNS)} />}
+        {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(BEFORE_ALL_TURNS)} />}
         {turns.map((turn) => (
           <Fragment key={turn.id}>
             <Message turn={turn} onOpenImage={setOpenImageId} />
             {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(turn.id)} />}
+            {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(turn.id)} />}
           </Fragment>
         ))}
         {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
@@ -68,6 +75,10 @@ export function Thread({ conversationId, confirmations, messages, compactions, h
 
 function HeldCalls({ conversationId, heldCalls }: { conversationId: string; heldCalls: AgentChatHeldCall[] | undefined }) {
   return heldCalls?.map((heldCall) => <HeldCallCard key={heldCall.id} conversationId={conversationId} heldCall={heldCall} />)
+}
+
+function PackRefusals({ conversationId, refusals }: { conversationId: string; refusals: AgentChatPackRefusal[] | undefined }) {
+  return refusals?.map((refusal) => <PackRefusalCard key={refusal.id} conversationId={conversationId} refusal={refusal} />)
 }
 
 function sentAttachments(turns: ChatTurn[], waiting: AgentChatWaitingMessage[]): AgentChatAttachment[] {

@@ -5,8 +5,8 @@ module FirefightAi
       openai_api_key openai_api_base openai_organization_id openai_project_id
       anthropic_api_key anthropic_api_base
       gemini_api_key gemini_api_base
-      vertexai_service_account_key vertexai_location vertexai_api_base
-      bedrock_region bedrock_api_base
+      vertexai_service_account_key vertexai_project_id vertexai_location vertexai_api_base
+      bedrock_api_key bedrock_secret_key bedrock_session_token bedrock_region bedrock_api_base
       azure_api_key azure_api_base azure_ai_auth_token
       deepseek_api_key deepseek_api_base
       mistral_api_key mistral_api_base

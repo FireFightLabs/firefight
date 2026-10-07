@@ -20,6 +20,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
       params_schema: { "type" => "object", "properties" => { "text" => { "type" => "string" } } }
     )
     Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
+    revoke_investigator_packs!(@workspace)
   end
 
   test "a connection tool is handed the run's box key, so every code read in the run shares one sandbox" do

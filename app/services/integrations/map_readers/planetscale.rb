@@ -1,7 +1,7 @@
 module Integrations
   module MapReaders
     # PlanetScale on the resource map: every organization the connection reaches, its databases and their branches. It
-    # reads through PlanetScale's own server, with only the tools an admin switched on, so the map never reaches past the
+    # reads through PlanetScale's own server, with only the tools that are switched on, so the map never reaches past the
     # allowlist. A tool that is off, or a list PlanetScale refuses, is a gap rather than a failed sweep.
     class Planetscale < RemoteReader
       PROVIDER = "planetscale".freeze

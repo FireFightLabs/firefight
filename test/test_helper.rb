@@ -34,5 +34,12 @@ module ActiveSupport
     include TwoEnvironmentMapHelper
     include SettingValuesHelper
     include HalonAccessHelper
+    include AiAccountTestHelper
+
+    # The investigator is given each connection's read pack when the connection is made. A test of what it reaches without
+    # a grant takes them back first.
+    def revoke_investigator_packs!(workspace)
+      workspace.ability_grants.where(principal: SystemAgent.investigator).where.not(role_id: nil).destroy_all
+    end
   end
 end

@@ -75,8 +75,8 @@ module Ability
 
       withheld = []
       grants.each do |grant|
-        if grant.action && grant.no_access?
-          withheld << grant.action.key
+        if grant.no_access?
+          withheld.concat(grant.action ? [ grant.action.key ] : grant.role.role_actions.map { |role_action| role_action.action.key })
         elsif grant.action
           (by_key[grant.action.key] ||= []) << grant.scope
         else

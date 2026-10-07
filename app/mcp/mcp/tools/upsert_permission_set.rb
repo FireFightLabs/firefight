@@ -6,7 +6,8 @@ module Mcp
       tool_name UPSERT_PERMISSION_SET
       description "Create or update a permission set, a named bundle of abilities granted as one. " \
                   "Pass slug to update an existing set; omit it to create one from the name. " \
-                  "abilities is the set's full contents, not a delta. Docs: #{Docs::PERMISSIONS}"
+                  "abilities is the set's full contents, not a delta. Built-in packs (built_in: true) are kept in step " \
+                  "with the connections by Firefight and cannot be changed. Docs: #{Docs::PERMISSIONS}"
       annotations(**WRITE)
       upserts Ability::Action::RESOURCE_PERMISSIONS, scope: ->(workspace) { workspace.ability_roles }
       input_schema(

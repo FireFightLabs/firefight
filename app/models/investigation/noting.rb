@@ -68,7 +68,13 @@ module Investigation::Noting
     reload_chat
   end
 
-  def ai_model = model_choice || FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+  # A rehearsal is Firefight measuring Halon, so it runs on the deployment's own account, never one the workspace pays for.
+  def ai_model
+    return model_choice if model_choice
+    return FirefightAi.deployment_model_for(AiPurpose::INVESTIGATION, workspace: workspace) if rehearsal?
+
+    FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+  end
 
   private
 

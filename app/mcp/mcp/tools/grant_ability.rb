@@ -23,13 +23,14 @@ module Mcp
         required: [ "principal_kind", "principal_id" ]
       )
 
-      def self.perform(workspace:, args:)
-        principal = Ability::Principal.find!(workspace, args[:principal_kind], args[:principal_id].to_s)
+      # The caller is kept on the grant, so a pack someone asked for names whoever gave it.
+      def self.perform_with_principal(workspace:, principal: nil, args:)
+        grantee = Ability::Principal.find!(workspace, args[:principal_kind], args[:principal_id].to_s)
         grant = Ability::Grant.grant!(
-          workspace: workspace, principal: principal,
+          workspace: workspace, principal: grantee,
           target: Ability::Grant.target_for!(workspace, ability: args[:ability], permission_set: args[:permission_set]),
           environment_ids: workspace.environment_ids_for(args[:environments]),
-          expires_at: args[:expires_at]
+          expires_at: args[:expires_at], granted_by: principal
         )
 
         respond(grant_payload(grant))

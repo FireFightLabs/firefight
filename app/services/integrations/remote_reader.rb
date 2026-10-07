@@ -1,7 +1,7 @@
 module Integrations
   # What Firefight reads through a remote server with its own fixed reads, never a script a model wrote. A provider's
   # map reader (map), baseline reader (baselines) and health probe (check!) are each one. A reader calls only the
-  # connection's tools an admin switched on, and McpExecutor records each call, under the map sweep for the map and
+  # connection's tools that are switched on, and McpExecutor records each call, under the map sweep for the map and
   # baselines and under the health check for a probe. A tool that is off answers nil and is never called, so what it
   # would have read is a gap.
   #

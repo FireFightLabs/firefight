@@ -4,7 +4,7 @@ module Integrations
     # connect field, a scope). It reads their services, Postgres databases and Key Value instances, and their logs,
     # metrics, deploys and events, with the API key a person creates in Render. A call reaches one workspace, the one it
     # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every workspace. Every tool reads,
-    # except the restart, rollback and scale an admin switches on for Halon to apply fixes. Paths, parameters and
+    # except the restart, rollback and scale Halon uses to apply fixes. Paths, parameters and
     # answers are the ones in Render's OpenAPI spec (api-docs.render.com/openapi/render-public-api-1.json).
     class Render < NativePack
       # The environment row's credentials, which only this pack reads.

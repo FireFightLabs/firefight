@@ -7,7 +7,8 @@ import { ActionLabel } from "@/pages/settings/components/permissions/action-labe
 
 type DefaultAccess = Principal["defaultAccess"][number]
 
-// What a member holds without a grant. No access takes one away at once, and Restore removes that again.
+// What a member holds without a grant, a connection's reads as one row. No access takes one away at once, and Restore
+// removes that again.
 export function DefaultAccessList({ principal, canManage }: { principal: Principal; canManage: boolean }) {
   if (principal.defaultAccess.length === 0) {
     return null
@@ -18,7 +19,7 @@ export function DefaultAccessList({ principal, canManage }: { principal: Princip
       <p className="text-xs font-medium">Held without a grant</p>
       <div className="border-border divide-border divide-y rounded-lg border">
         {principal.defaultAccess.map((access) => (
-          <DefaultAccessRow key={access.actionKey} principal={principal} access={access} canManage={canManage} />
+          <DefaultAccessRow key={access.targetId} principal={principal} access={access} canManage={canManage} />
         ))}
       </div>
     </div>
@@ -39,7 +40,11 @@ function DefaultAccessRow({
   function takeAway() {
     router.post(
       withholdAbilityGrantsPath(),
-      { principal_kind: principal.kind, principal_id: principal.id, action_id: access.actionId },
+      {
+        principal_kind: principal.kind,
+        principal_id: principal.id,
+        ...(access.kind === "set" ? { role_id: access.targetId } : { action_id: access.targetId }),
+      },
       { preserveScroll: true },
     )
   }

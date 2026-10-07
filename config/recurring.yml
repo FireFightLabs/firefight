@@ -18,6 +18,14 @@ development:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  workspace_ai_account_recheck:
+    class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
+    queue: background
+    schedule: every hour
+  workspace_ai_account_token_refresh:
+    class: WorkspaceAiAccountTokenRefreshJob # refreshes the tokens of AI accounts signed in through OAuth before they expire
+    queue: background
+    schedule: every 10 minutes
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
@@ -102,6 +110,14 @@ staging:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  workspace_ai_account_recheck:
+    class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
+    queue: background
+    schedule: every hour
+  workspace_ai_account_token_refresh:
+    class: WorkspaceAiAccountTokenRefreshJob # refreshes the tokens of AI accounts signed in through OAuth before they expire
+    queue: background
+    schedule: every 10 minutes
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
@@ -208,6 +224,14 @@ production:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  workspace_ai_account_recheck:
+    class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
+    queue: background
+    schedule: every hour
+  workspace_ai_account_token_refresh:
+    class: WorkspaceAiAccountTokenRefreshJob # refreshes the tokens of AI accounts signed in through OAuth before they expire
+    queue: background
+    schedule: every 10 minutes
   code_box_sweep:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background

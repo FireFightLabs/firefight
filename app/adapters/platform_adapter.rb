@@ -516,6 +516,43 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A change the agent was refused in a chat's thread for want of a pack, naming the pack and the admins, with Ask an
+  # admin. refusal is a Chat::PackRefusal.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_pack_refusal(channel_id:, thread_id:, refusal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once the admins were asked or the pack was given.
+  # @return [Hash] { success: true }
+  def update_pack_refusal(channel_id:, message_id:, refusal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # How an admin answered a member's request for a pack, to that member. pack_request is an Ability::PackRequest.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_pack_answer_to_user(user_id:, pack_request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same as a short note in the thread of a chat where the change was refused.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_pack_answer(channel_id:, thread_id:, pack_request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # A member's request for a pack, to one admin, with Give pack. pack_request is an Ability::PackRequest.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_pack_request_to_user(user_id:, pack_request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once the pack was given or the request dismissed.
+  # @return [Hash] { success: true }
+  def update_pack_request(channel_id:, message_id:, pack_request:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A fix's step that was approved, declined or expired, to whoever applied the fix when the fix has no thread to follow.
   # @return [Hash] { message_id:, channel_id: }
   def post_fix_step_to_user(user_id:, step:)

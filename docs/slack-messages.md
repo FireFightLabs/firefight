@@ -42,7 +42,7 @@ wrong more than once, most visibly on cancellation, where two lifecycle events
 in the same thread rendered at different weights.
 
 The only messages that skip it are the ones with nothing to separate: a title
-and a context line, no body. `Alert` and `LeadAssignment` are the whole list.
+and a context line, no body. `Alert`, `LeadAssignment` and `PackAnswer` are the whole list.
 
 ## Title: header block or bold section
 
@@ -230,6 +230,14 @@ incident earns it (declared, lead set, first message, resolved, postmortem),
 with the last posted step kept on the onboarding row so nothing posts twice. `Resolution` carries the postmortem button and a
 context line naming what the draft is built from, and drops both when the
 incident already has a write-up.
+
+## Asking for a pack
+
+`PackRefusal` is posted in a chat's thread when Halon was refused a change for want of a pack. It names the pack and
+the workspace admins and carries Ask an admin, which only the person refused can use, and once they ask it is redrawn
+to say when. `PackRequest` is the direct message each admin gets with Give pack and a link to the Permissions screen,
+redrawn to say who gave or dismissed it. `PackAnswer` tells the member how it was answered, by direct message and as a
+short note in each Slack thread the change was refused in. See docs/integrations.md, Asking an admin for a pack.
 
 ## Adding a message
 

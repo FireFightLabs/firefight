@@ -65,6 +65,22 @@ class Api::V1::GatewayApiTest < ActionDispatch::IntegrationTest
     assert_nil @workspace.ability_roles.find_by(slug: "runbook_editors")
   end
 
+  test "a built-in pack is listed as one, can be granted, and refuses a change or a delete with why" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank")
+    integration.tools.create!(name: "restart_service", read_only: false, enabled: true)
+
+    get api_v1_permission_sets_url, headers: api_headers(token: @admin_token)
+    listed = json_response["permission_sets"].find { |set| set["slug"] == "northflank_changes" }
+    assert_equal [ "Northflank: changes", true, [ "northflank.restart_service" ] ], listed.values_at("name", "built_in", "abilities")
+
+    patch_json api_v1_permission_set_url("northflank_changes"), { abilities: [] }
+    assert_response :unprocessable_entity
+    delete api_v1_permission_set_url("northflank_changes"), headers: api_headers(token: @admin_token)
+    assert_response :unprocessable_entity
+    assert_match "goes when Northflank is disconnected", response.body
+    assert_equal 1, integration.permission_packs.find_by!(pack: Ability::Role::PACK_CHANGES).actions.count
+  end
+
   test "grants attach an ability or a set to a principal, scoped by environment slug" do
     post_json api_v1_grants_url, {
       principal_kind: "user", principal_id: @bob.id, ability: "runbooks.update",

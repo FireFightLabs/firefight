@@ -230,6 +230,12 @@ Rails.application.routes.draw do
       post :withhold, on: :collection, path: "no-access"
     end
     resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
+    resources :pack_requests, only: [], path: "gateway/permissions/pack-requests" do
+      member do
+        post :give
+        post :dismiss
+      end
+    end
     resources :approval_rules, only: [ :create, :update, :destroy ], path: "gateway/permissions/approval-rules" do
       member do
         patch :move_up
@@ -358,6 +364,7 @@ Rails.application.routes.draw do
     post "/agent/:id/held_calls/:held_call_id/run", to: "agent_chats#run_held_call", as: :agent_chat_held_call_run
     post "/agent/:id/held_calls/:held_call_id/dismiss", to: "agent_chats#dismiss_held_call", as: :agent_chat_held_call_dismiss
     post "/agent/:id/held_calls/:held_call_id/ask_again", to: "agent_chats#ask_held_call_again", as: :agent_chat_held_call_ask_again
+    post "/agent/:id/pack_refusals/:pack_refusal_id/ask", to: "agent_chats#ask_pack", as: :agent_chat_pack_refusal_ask
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"
@@ -415,6 +422,18 @@ Rails.application.routes.draw do
     # The gateway and developer screens used to live under /settings, the redirects keep old links working.
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace
     patch "/settings/workspace", to: "workspace_settings#update"
+    resources :ai_accounts, only: [ :create, :update, :destroy ], path: "settings/workspace/ai-accounts" do
+      collection do
+        patch :reorder
+        get "sign-in", action: :sign_in, as: :sign_in
+        get "sign-in/callback", action: :sign_in_callback, as: :sign_in_callback
+      end
+      member do
+        post :check
+        patch :disable
+        patch :enable
+      end
+    end
     get "/settings/permissions", to: redirect("/app/gateway/permissions")
     get "/settings/activity", to: redirect("/app/gateway/activity")
     get "/settings/approvals", to: redirect("/app/gateway/approvals")

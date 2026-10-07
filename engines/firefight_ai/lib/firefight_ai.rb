@@ -19,12 +19,27 @@ module FirefightAi
     yield configuration
   end
 
-  # A provider only travels with a model the registry cannot place, Bedrock or Ollama.
-  ModelChoice = Data.define(:model, :provider) do
+  # A provider only travels with a model the registry cannot place, Bedrock or Ollama, or with a workspace's own account.
+  # context is the RubyLLM::Context holding that account's settings, nil for the deployment's own. payer is who pays
+  # (AiPayer), nil for a call made on the deployment's account with no workspace choosing, such as a rehearsal.
+  ModelChoice = Data.define(:model, :provider, :context, :payer) do
+    def initialize(model:, provider: nil, context: nil, payer: nil) = super
+
     def provider_name
       Inference.provider_for(model, provider: provider)
     end
+
+    # What the ledger records about who ran the call and who paid.
+    def ledger = { provider: provider_name, model: model, **(payer ? payer.ledger : {}) }
+
+    # Nobody can pay, so no call is made.
+    def unpaid? = payer.present? && payer.nobody?
+
+    def own_account? = payer.present? && payer.own_account?
   end
+
+  # Said for a call nobody can pay for, which every caller turns into AiCredit's words.
+  NO_PAYER = "No AI account can pay for this call.".freeze
 
   # Resolved at call time, this file loads before the autoloader knows AiPurpose.
   def env_prefix(purpose)
@@ -98,17 +113,27 @@ module FirefightAi
   # One model call for a purpose, in the ledger and capped at what the purpose writes. A provider that refuses for
   # credit and names an output it can still pay for is asked once more with that, when it still fits a useful answer.
   # The block gets a fresh chat each time. Returns the response and its ledger row, as Inference.track does.
+  # A workspace's own account that runs dry or refuses its key hands the call to the next one in its order, which is
+  # asked afresh.
   def generate(choice, purpose:, inference:)
-    cap = output_cap(purpose, model: choice.model)
     translating_errors do
+      ensure_paid!(choice)
+      cap = output_cap(purpose, model: choice.model)
       limit = cap.max
       retried = false
       begin
-        Inference.track(inference.merge(max_output_tokens: limit)) { yield chat(choice).with_max_output_tokens(limit) }
+        Inference.track(inference.merge(choice.ledger, max_output_tokens: limit)) { yield chat(choice).with_max_output_tokens(limit) }
       rescue RubyLLM::Error => e
         smaller = retried ? nil : cap.after_refusal(e, limit)
-        refused_for_good(inference[:provider], e) unless smaller
-        raise unless smaller
+        unless smaller
+          choice = take_over(choice, e, purpose: purpose, workspace: inference[:workspace])
+          raise unless choice
+
+          cap = output_cap(purpose, model: choice.model)
+          limit = cap.max
+          retried = false
+          retry
+        end
 
         note_short_of_credit(inference[:feature], limit, smaller)
         limit = smaller
@@ -118,18 +143,48 @@ module FirefightAi
     end
   end
 
-  # The account is out from this call on, which the app records once per account, however many calls are refused.
-  def refused_for_good(provider, error)
-    AiAccount.ran_out!(provider) if error.is_a?(RubyLLM::Error) && Credit.from(error).out_of_credit?
+  def ensure_paid!(choice)
+    raise OutOfCredit, NO_PAYER if choice.unpaid?
+  end
+
+  # The payer is out from this call on, which the app records once, however many calls are refused.
+  def refused_for_good(choice, error)
+    return unless error.is_a?(RubyLLM::Error)
+    return choice.payer.refused!(error) if choice.own_account?
+
+    AiAccount.ran_out!(choice.provider_name) if Credit.from(error).out_of_credit?
+  end
+
+  # A call refused for good is recorded against whoever paid. When the workspace's own account ran dry or refused its
+  # key, the next one in its order carries on, and the choice to carry on with is answered. Nil when the refusal is
+  # not one another account could help with. With nobody left the call is out of credit, which says where to fix it.
+  def take_over(choice, error, purpose:, workspace:)
+    refused_for_good(choice, error)
+    return nil unless choice.own_account? && AiPayer.gives_way?(error)
+
+    following = model_for(purpose, workspace: workspace)
+    raise OutOfCredit, error.message if following.unpaid? || following.payer == choice.payer
+
+    following
   end
 
   def note_short_of_credit(feature, asked, affordable)
     Rails.logger.warn({ event: "ai.short_of_credit", feature: feature, asked: asked, affordable: affordable }.to_json)
   end
 
-  # Most specific first, workspace override for the purpose, for any purpose, the
-  # purpose's env var, then the parent purpose's model when it has one, the deployment default, the fallback.
+  # The model and payer a call for the purpose runs on now: the workspace's first account that can pay (AiFunding).
+  # When nobody can, the deployment's model with nobody paying, so a caller can still read what the model is, and the
+  # call itself is refused as out of credit.
   def model_for(purpose, workspace: nil)
+    choices_for(purpose, workspace: workspace).first || deployment_model_for(purpose, workspace: workspace).with(payer: AiPayer::NOBODY)
+  end
+
+  # Every choice in the order they are tried.
+  def choices_for(purpose, workspace: nil) = AiFunding.for(workspace, purpose)
+
+  # The deployment's own model for the purpose, most specific first: workspace override for the purpose, for any
+  # purpose, the purpose's env var, then the parent purpose's model when it has one, the deployment default, the fallback.
+  def deployment_model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override
 
@@ -139,12 +194,21 @@ module FirefightAi
     end
 
     parent = AiPurpose::PARENTS[purpose]
-    return model_for(parent, workspace: workspace) if parent
+    return deployment_model_for(parent, workspace: workspace) if parent
     if configuration.default_model.present?
       return ModelChoice.new(model: configuration.default_model, provider: configuration.default_provider.presence)
     end
 
     ModelChoice.new(model: fallback_model(purpose), provider: nil)
+  end
+
+  # Points a saved chat at the choice, its model and the context holding its account's settings, so a chat resumed after
+  # the payer changed carries on with the new one. The context is never saved, so every job binds it after loading.
+  def bind(chat, choice)
+    chat.with_context(choice.context)
+    return chat if chat.model_id.to_s == choice.model && (choice.provider.blank? || chat.provider.to_s == choice.provider.to_s)
+
+    chat.with_model(choice.model, provider: choice.provider, assume_model_exists: choice.provider.present? && !registered?(choice.model))
   end
 
   # The models table is the registry once it holds a row, and only a refresh puts anything in it.
@@ -198,26 +262,27 @@ module FirefightAi
     []
   end
 
-  # A model the registry does not know needs its provider named. RubyLLM then trusts the id.
+  # A model the registry does not know needs its provider named. RubyLLM then trusts the id. A workspace's own account
+  # runs in its own context, so nothing of the deployment's configuration reaches it.
   def chat(choice)
-    return RubyLLM.chat(model: choice.model) if choice.provider.blank?
+    llm = choice.context || RubyLLM
+    return llm.chat(model: choice.model) if choice.provider.blank?
 
-    RubyLLM.chat(model: choice.model, provider: choice.provider, assume_model_exists: !registered?(choice.model))
+    llm.chat(model: choice.model, provider: choice.provider, assume_model_exists: !registered?(choice.model))
   end
 
   # One vector per call, tracked like every other model call. The dimensions are fixed by the
   # column, so a model that answers with a different width is a configuration error, not a result.
+  # Always the deployment's model and account, whoever pays for the rest, since every vector in a workspace has to come
+  # from the same model.
   def embed(text, workspace:, inferable: nil)
-    choice = model_for(AiPurpose::EMBEDDING)
+    choice = deployment_model_for(AiPurpose::EMBEDDING)
     embedding, = translating_errors do
-      Inference.track(
-        workspace: workspace, feature: "embedding", provider: choice.provider_name,
-        model: choice.model, inferable: inferable
-      ) do
+      Inference.track(workspace: workspace, feature: "embedding", inferable: inferable, **choice.ledger) do
         RubyLLM.embed(text, model: choice.model, provider: choice.provider&.to_sym)
       end
     rescue RubyLLM::Error => e
-      refused_for_good(choice.provider_name, e)
+      refused_for_good(choice, e)
       raise
     end
     embedding
@@ -225,7 +290,21 @@ module FirefightAi
 
   # Every vector in a workspace has to come from this one, so a search ignores rows written by
   # anything else.
-  def embedding_model = model_for(AiPurpose::EMBEDDING).model
+  def embedding_model = deployment_model_for(AiPurpose::EMBEDDING).model
+
+  ACCOUNT_CHECK = "ai_account_check".freeze
+  ACCOUNT_CHECK_PROMPT = "Reply with the word ready.".freeze
+  ACCOUNT_CHECK_TOKENS = 16
+
+  # One tiny call on the account's quick model, to show its key works before Halon relies on it. Ledgered like any other
+  # call. Raises what the provider answered, translated, so the app can say it in plain words.
+  def check_account(choice, workspace:)
+    translating_errors do
+      Inference.track(workspace: workspace, feature: ACCOUNT_CHECK, max_output_tokens: ACCOUNT_CHECK_TOKENS, **choice.ledger) do
+        chat(choice).with_max_output_tokens(ACCOUNT_CHECK_TOKENS).ask(ACCOUNT_CHECK_PROMPT)
+      end
+    end
+  end
 
   def registered?(model)
     RubyLLM.models.find(model)

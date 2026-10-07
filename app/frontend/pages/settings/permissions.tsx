@@ -1,12 +1,14 @@
 import { useState } from "react"
 import { Head, usePage } from "@inertiajs/react"
-import { IconKey, IconPlus, IconRobot, IconShieldCheck, IconStack2, IconUser } from "@tabler/icons-react"
+import { IconKey, IconPackage, IconPlus, IconRobot, IconShieldCheck, IconStack2, IconUser } from "@tabler/icons-react"
 
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
+import { WhoCanDoWhat } from "@/components/permissions/who-can-do-what"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApprovalRulesEditor } from "@/pages/settings/components/permissions/approval-rules-editor"
 import { DefaultAccessList } from "@/pages/settings/components/permissions/default-access-list"
+import { PackRequestsNotice } from "@/pages/settings/components/permissions/pack-requests-notice"
 import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialog"
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
 import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
@@ -17,6 +19,7 @@ import type {
   AbilityRole,
   ApprovalRule,
   EnvironmentOption,
+  PackRequest,
   Principal,
 } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -29,6 +32,7 @@ interface PermissionsPageProps extends SharedProps {
   sets: AbilityRole[]
   environments: EnvironmentOption[]
   approvalRules: ApprovalRule[]
+  packRequests: PackRequest[]
 }
 
 type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
@@ -46,7 +50,7 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments, approvalRules } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments, approvalRules, packRequests } = usePage<PermissionsPageProps>().props
   const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
@@ -58,6 +62,8 @@ export default function Permissions() {
   const selectedSet = selection.kind === "set"
     ? sets.find((set) => set.id === selection.id) ?? null
     : null
+  const handMade = sets.filter((set) => !set.builtIn)
+  const packs = sets.filter((set) => set.builtIn)
   const enabledRuleCount = approvalRules.filter((rule) => rule.enabled).length
   const authorityNote = selected ? IMPLICIT_AUTHORITY[selected.implicitAuthority] : null
 
@@ -74,6 +80,10 @@ export default function Permissions() {
           </p>
         </div>
 
+        <PackRequestsNotice requests={packRequests} canManage={canManage} />
+
+        <WhoCanDoWhat people={principals} packs={packs} canManage={canManage} />
+
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
@@ -88,13 +98,13 @@ export default function Permissions() {
                   </Button>
                 )}
               </div>
-              {sets.length === 0 ? (
+              {handMade.length === 0 ? (
                 <p className="text-muted-foreground border-border rounded-lg border border-dashed px-3 py-3 text-xs">
                   None yet. A set spares you granting fifteen tools one at a time.
                 </p>
               ) : (
                 <div className="border-border divide-border divide-y rounded-lg border">
-                  {sets.map((set) => (
+                  {handMade.map((set) => (
                     <button
                       key={set.id}
                       type="button"
@@ -111,6 +121,31 @@ export default function Permissions() {
                 </div>
               )}
             </div>
+
+            {packs.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <div>
+                  <p className="text-sm font-medium">Built-in packs</p>
+                  <p className="text-muted-foreground text-xs">Kept in step with your connections as tools come and go</p>
+                </div>
+                <div className="border-border divide-border divide-y rounded-lg border">
+                  {packs.map((pack) => (
+                    <button
+                      key={pack.id}
+                      type="button"
+                      onClick={() => setSelection({ kind: "set", id: pack.id })}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                        selection.kind === "set" && selection.id === pack.id ? "bg-accent" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <IconPackage className="text-muted-foreground size-4 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{pack.name}</span>
+                      <span className="text-muted-foreground shrink-0 text-xs">{pack.actionIds.length}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <div>

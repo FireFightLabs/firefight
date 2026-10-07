@@ -126,6 +126,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
     [ Chat::Tools.hand_over(@agent_run, shown_as, said), tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
+    @agent_run.pack_refused!(@tool.action_key, tool_call_id)
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)

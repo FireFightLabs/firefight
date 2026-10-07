@@ -32,6 +32,8 @@ The Slack adapter is the only place that knows Slack. A second platform is a sec
 - **No frontend guessing.** A page decides what to render from `currentUserCan` / `useCan(resource)`, never from `currentUserIsAdmin` (which only picks navigation and banners).
 - **Vocabulary, not strings.** Resources and actions come from `Ability::Action::RESOURCE_*` / `ACTION_*`. A new resource goes into `RESOURCES`, gets a label, and is either grantable or in `ADMIN_ONLY_RESOURCES`. A permission the matrix cannot show is a permission nobody can reason about.
 - **Machines never inherit.** A service key or `Agent` reaches only what it was granted. Anything that lets a machine read a human's authority is wrong.
+- **A member's default has one rule.** What a member holds without a grant is `WorkspaceMembership#implicitly_allowed?` (reads of Firefight's data, `NARROWABLE_KEYS`, every connected tool that only reads) and the screen explains it from the same place. A new default goes there and into `default_access`, so No access can take it away, never into a check of its own.
+- **Packs stay Firefight's.** A built-in permission pack changes only through `Ability::Role.keep_in_step!` or `file!`. A new path that switches a tool on or changes its read-only flag goes through `Integration::Tool#sync_ability_action!`, so the packs pick it up, and nothing edits a pack with `sync_actions!`.
 - **Ledger.** A write from a new surface arrives with a `source` and is ledgered unless it is human incident participation.
 
 ## Entry point thinness
@@ -50,6 +52,17 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 - **Constants live once.** No TypeScript mirror of a Ruby list. Add it to `lib/typescript_constants.rb` and run `bin/rails typescript:constants`. No raw strings for identifiers, event types, action names, or resources anywhere.
 - **AI records belong to the app.** `engines/firefight_ai` never names `Investigation`, `Chat` or anything nested under them: it returns a result, the app writes the row. A new AI SRE record is a nested `Investigation::*` model, or `Chat::*` when every agent run needs it, in `app/models`, not another generic name at the top level.
 - **Raced writes are one statement.** A status two workers could reach moves with a guarded `update_all` whose `WHERE` names the states it may leave, never a read followed by a write, and the row count is what says who won. A value that has to survive the race is computed in SQL, not read off a record that may be stale. A new `lock_version` column is a different answer to a solved problem.
+
+## Secrets
+
+A credential is stored in one of two places and travels by one road each. Every question here was a leak the AI accounts work had to close.
+
+- **Two stores.** Only `IntegrationEnvironment` and `WorkspaceAiAccount` hold secrets, in an encrypted column. A new token, key or password anywhere else (a jsonb `settings`, a plain column, `Rails.cache`, a job argument, the session) is a second store. The session carries at most an OAuth state and PKCE verifier for the length of a redirect.
+- **Never sent back.** No serializer, Inertia prop, MCP tool, API response, log line, ledger row or flash message carries a stored secret, even to the admin who entered it. The page gets a hint (`credential_summary`) and an empty field that keeps the stored value when left empty.
+- **One way to a model.** A workspace's AI key reaches a model only through `WorkspaceAiAccount#llm_context`. A `RubyLLM.context` built anywhere else copies the deployment's configuration, Firefight's own keys and Bedrock's credential provider included, which ArchSpec refuses (`ai.keys`). A new RubyLLM setting is emptied there for free, since the list comes from `RubyLLM::Configuration`.
+- **No ambient credentials.** A provider that falls back to credentials the server holds (Bedrock's credential provider, Vertex AI's application default credentials) must be made to need explicit ones for a workspace (`AiProviders::EXPLICIT_CREDENTIALS`).
+- **Who pays is recorded.** A model call is ledgered with `paid_by` and, for a workspace's own account, `workspace_ai_account_id`. A call that quietly falls back to the deployment's key for a workspace that was meant to pay is a billing leak as much as a security one.
+- **Addresses a workspace names.** A custom API base is checked as written and as it resolves where private networks are refused, when saved and again before every call, connecting to the address checked (`Integrations::ModelAddress`, like `Integrations::PublicAddress` for connections). A new way of calling a model with an account's settings goes through the same check.
 
 ## The operator console
 
@@ -91,7 +104,7 @@ ArchSpec proves no file outside the integrations layer names a provider's code, 
 ## The resource map
 
 - **Every cloud is on the map.** A new provider that runs or stores something (a host, an edge network, a database service) declares `map: firefight` and ships its reader in the same PR. `none` is only for a provider that holds no infrastructure, and its `map_note` says so.
-- **A reader only reads, with Firefight's own code.** A remote server's reader never runs a script a model wrote, calls only tools an admin switched on, and records each call under the map sweep. What it could not read is a gap in words, never a quiet omission.
+- **A reader only reads, with Firefight's own code.** A remote server's reader never runs a script a model wrote, calls only tools that are switched on, and records each call under the map sweep. What it could not read is a gap in words, never a quiet omission.
 
 ## Reach
 

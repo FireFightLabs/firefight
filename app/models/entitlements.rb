@@ -39,6 +39,36 @@ module Entitlements
     backend.try(:next_step_path, workspace)
   end
 
+  # Firefight's own workspaces run on Firefight's key and are never billed for it. Only a hosted build asks, and one
+  # that has not said keeps every workspace on Firefight's key, as before workspaces could bring their own.
+  def self.firefight_pays_for_ai?(workspace)
+    return false if ai_account(workspace) == AI_ACCOUNT_OPERATOR
+    return true unless backend.respond_to?(:firefight_pays_for_ai?)
+
+    backend.firefight_pays_for_ai?(workspace)
+  end
+
+  # The workspace's Firefight credit balance on a hosted build, responding to spendable? (it can pay for a call), used?
+  # (it held credit and has none left) and summary ({ title:, detail: } for the row under the workspace's own AI
+  # accounts). Nil where credits are not sold, which is every install someone runs themselves.
+  def self.ai_credit(workspace) = backend.try(:ai_credit, workspace)
+
+  # Whether an AI account may point at a private or loopback address, such as an Ollama on the same machine. An install
+  # someone runs themselves may, since the network is theirs. A hosted build may not unless its backend says so, since
+  # the address would be inside Firefight's network.
+  def self.private_ai_endpoints?(workspace)
+    return backend.private_ai_endpoints?(workspace) if backend.respond_to?(:private_ai_endpoints?)
+
+    ai_account(workspace) == AI_ACCOUNT_OPERATOR
+  end
+
+  # A model call paid with Firefight credits, for the backend to charge. Answers what it billed in micros, or nil when
+  # nothing is charged, which is every install someone runs themselves.
+  def self.charge_ai!(inference)
+    billed = backend.try(:charge_ai!, inference)
+    billed.is_a?(Integer) ? billed : nil
+  end
+
   # Run daily, for a backend that keeps time based state such as retention. The open-source backend has none.
   def self.sweep! = backend.try(:sweep!)
 

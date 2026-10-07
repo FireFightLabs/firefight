@@ -62,6 +62,14 @@ export function GrantDialog({
     () => sets.filter((set) => !held.has(set.id)),
     [sets, held],
   )
+  const setGroups = useMemo(
+    () =>
+      [
+        { title: "Your sets", entries: availableSets.filter((set) => !set.builtIn) },
+        { title: "Built-in packs", entries: availableSets.filter((set) => set.builtIn) },
+      ].filter((group) => group.entries.length > 0),
+    [availableSets],
+  )
 
   const grouped = useGroupedActions(actions, search, held)
 
@@ -131,20 +139,32 @@ export function GrantDialog({
                     : "This principal already holds every set."}
                 </p>
               ) : (
-                availableSets.map((set) => (
-                  <button
-                    key={set.id}
-                    type="button"
-                    onClick={() => setTargetId(set.id)}
-                    className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left ${
-                      targetId === set.id ? "bg-accent" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <span className="min-w-0 truncate text-sm">{set.name}</span>
-                    <span className="text-muted-foreground shrink-0 text-xs">
-                      {set.actionIds.length} {set.actionIds.length === 1 ? "ability" : "abilities"}
-                    </span>
-                  </button>
+                setGroups.map((group) => (
+                  <div key={group.title}>
+                    {setGroups.length > 1 && (
+                      <p className="bg-muted/50 text-muted-foreground px-3 py-1.5 text-xs font-medium">{group.title}</p>
+                    )}
+                    {group.entries.map((set) => (
+                      <button
+                        key={set.id}
+                        type="button"
+                        onClick={() => setTargetId(set.id)}
+                        className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left ${
+                          targetId === set.id ? "bg-accent" : "hover:bg-muted/50"
+                        }`}
+                      >
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="truncate text-sm">{set.name}</span>
+                          {set.description && (
+                            <span className="text-muted-foreground truncate text-xs">{set.description}</span>
+                          )}
+                        </span>
+                        <span className="text-muted-foreground shrink-0 text-xs">
+                          {set.actionIds.length} {set.actionIds.length === 1 ? "ability" : "abilities"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 ))
               )}
             </div>

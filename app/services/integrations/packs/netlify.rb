@@ -1,7 +1,7 @@
 module Integrations
   module Packs
     # Netlify for every site a personal access token reaches: how each stands, what it was deployed from, and putting it
-    # back on an earlier deploy when an admin switched that on. Paths, parameters and fields come from Netlify's OpenAPI
+    # back on an earlier deploy when that is switched on. Paths, parameters and fields come from Netlify's OpenAPI
     # document (netlify/open-api, swagger.yml), and the rollback from its Manage deploys guide. Netlify's REST API keeps
     # no function logs, build logs or traffic metrics, so this pack reads none, and with no metrics it has no baselines.
     class Netlify < NativePack
@@ -65,7 +65,7 @@ module Integrations
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "nfp_...",
                               hint: "A Netlify personal access token, from User settings, Applications. It reaches every site its user " \
-                                    "can. Halon only reads unless you switch on restore_deploy.")
+                                    "can. restore_deploy is its one tool that changes anything, and a member needs a grant to use it.")
         ]
       end
 
