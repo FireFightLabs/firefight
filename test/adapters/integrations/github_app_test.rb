@@ -127,5 +127,106 @@ module Integrations
       end.returns(stub(code: "201", body: ""))
       assert_equal({}, GithubApp.act("/repos/acme/web/actions/runs/43/rerun", {}, token: "ghs_token"))
     end
+
+    def cache_token(value)
+      @row.update!(credentials: { GithubApp::TOKEN_CACHE_KEY => { "token" => value, "expires_at" => 30.minutes.from_now.iso8601 } }.to_json)
+    end
+
+    def minted(value, permissions = { "contents" => "read", "actions" => "read" })
+      stub(code: "201", body: { token: value, expires_at: 1.hour.from_now.iso8601, permissions: permissions }.to_json)
+    end
+
+    def refused = answer("403", message: "Resource not accessible by integration")
+
+    # An answer with no rate limit headers, which a 403 is checked for first.
+    def answer(code, body) = stub(code: code, body: body.to_json).tap { |response| response.stubs(:[]).returns(nil) }
+
+    def answered(body) = stub(code: "200", body: body.to_json)
+
+    def authorized_with(sent) = ->(_uri, request, **) { sent << request["Authorization"] }
+
+    test "a cached token GitHub refuses for a permission mints a fresh one, keeps it and its permissions, and tries once more" do
+      cache_token("ghs_old")
+      sent = []
+      Http.stubs(:request).with { |uri, request, **| sent << [ uri.path, request["Authorization"] ] }
+          .returns(refused).then.returns(minted("ghs_new", "actions" => "write")).then.returns(answered("ok" => true))
+
+      assert_equal({ "ok" => true }, GithubApp.get("/repos/acme/web/actions/runs", token: GithubApp.installation_token(@row)))
+      assert_equal [ "/repos/acme/web/actions/runs", "/app/installations/12345/access_tokens", "/repos/acme/web/actions/runs" ], sent.map(&:first)
+      assert_equal [ "Bearer ghs_old", "Bearer ghs_new" ], [ sent.first.last, sent.last.last ]
+      assert_equal "ghs_new", @row.reload.credentials_hash[GithubApp::TOKEN_CACHE_KEY]["token"]
+      assert_equal({ "actions" => "write" }, @row.installation_access, "the fresh token's permissions are what the installation holds now")
+    end
+
+    test "a 401 on a cached token is tried once more with a fresh one, for a change too" do
+      cache_token("ghs_old")
+      Http.stubs(:request).returns(stub(code: "401", body: { message: "Bad credentials" }.to_json)).then.returns(minted("ghs_new"))
+          .then.returns(stub(code: "202", body: ""))
+
+      assert_equal({}, GithubApp.act("/repos/acme/web/actions/runs/41/cancel", token: GithubApp.installation_token(@row)))
+    end
+
+    test "a refusal after the fresh token is GitHub's answer, so nothing is minted a second time" do
+      cache_token("ghs_old")
+      Http.stubs(:request).returns(refused).then.returns(refused)
+      GithubApp.expects(:mint_token).once.with(@row).returns("ghs_new")
+
+      assert_raises(GithubApp::NotPermitted) { GithubApp.get("/repos/acme/web/actions/runs", token: GithubApp.installation_token(@row)) }
+    end
+
+    test "a token minted for this call is never minted again, and a plain token is never refreshed" do
+      Http.stubs(:request).returns(minted("ghs_new")).then.returns(refused)
+      token = GithubApp.installation_token(@row)
+      GithubApp.expects(:mint_token).never
+
+      assert_raises(GithubApp::NotPermitted) { GithubApp.get("/repos/acme/web/pulls", token: token) }
+      Http.stubs(:request).returns(refused)
+      assert_raises(GithubApp::NotPermitted) { GithubApp.get("/repos/acme/web/pulls", token: "ghs_plain") }
+    end
+
+    test "a GraphQL answer saying a permission is missing is refused as one, so it is tried once more with a fresh token" do
+      cache_token("ghs_old")
+      denied = answered(data: nil, errors: [ { message: "Resource not accessible by integration" } ])
+      Http.stubs(:request).returns(denied).then.returns(minted("ghs_new")).then.returns(answered(data: { "repository" => nil }))
+
+      assert_equal({ "repository" => nil }, GithubApp.graphql("query { x }", {}, token: GithubApp.installation_token(@row)))
+    end
+
+    test "the token never shows in what is printed of it" do
+      cache_token("ghs_secret")
+
+      assert_not_includes GithubApp.installation_token(@row).inspect, "ghs_secret"
+    end
+
+    test "forgetting the token drops only the cached token" do
+      cache_token("ghs_old")
+
+      GithubApp.forget_token!(@row)
+
+      assert_nil @row.reload.credentials_hash[GithubApp::TOKEN_CACHE_KEY]
+    end
+
+    test "uninstalling deletes the installation with the App's JWT, and one already gone counts as removed" do
+      sent = []
+      Http.stubs(:request).with { |uri, request, **| sent << [ request.method, uri.path, request["Authorization"].to_s.start_with?("Bearer ey") ] }
+          .returns(stub(code: "204", body: ""))
+
+      assert GithubApp.uninstall(@row)
+      assert_equal [ [ "DELETE", "/app/installations/12345", true ] ], sent
+
+      Http.stubs(:request).returns(stub(code: "404", body: { message: "Not Found" }.to_json))
+      assert GithubApp.uninstall(@row)
+
+      Http.stubs(:request).returns(answer("403", message: "Forbidden"))
+      assert_match "Forbidden", assert_raises(GithubApp::Error) { GithubApp.uninstall(@row) }.message
+    end
+
+    test "the installation is read with the App's JWT, and one GitHub no longer knows reads as gone" do
+      Http.stubs(:request).returns(answered("account" => { "login" => "acme" }, "suspended_at" => nil))
+      assert_equal "acme", GithubApp.installation(@row).dig("account", "login")
+
+      Http.stubs(:request).returns(stub(code: "404", body: { message: "Not Found" }.to_json))
+      assert_nil GithubApp.installation(@row)
+    end
   end
 end

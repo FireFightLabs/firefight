@@ -16,6 +16,14 @@ module Integrations
       REPOSITORY = "repository".freeze
       # Sent to every GitHub App without subscribing (docs.github.com, Webhook events and payloads, installation_repositories).
       INSTALLATION_REPOSITORIES = "installation_repositories".freeze
+      # Also sent to every GitHub App, for the installation itself (Webhook events and payloads, installation): deleted,
+      # suspend and unsuspend, new_permissions_accepted once an owner accepts permissions the App asked for, and created.
+      INSTALLATION = "installation".freeze
+      INSTALLATION_CHANGES = {
+        "deleted" => Installations::CHANGE_REMOVED, "suspend" => Installations::CHANGE_SUSPENDED,
+        "unsuspend" => Installations::CHANGE_RESTORED, "new_permissions_accepted" => Installations::CHANGE_ACCESS,
+        "created" => Installations::CHANGE_ACCESS
+      }.freeze
 
       # The repository event's actions that change what the map shows of a repository or which files it reads. Those
       # are its default branch (edited, changes.default_branch) and whether it is archived, which leaves its files
@@ -39,6 +47,15 @@ module Integrations
         end
 
         def installation_of(payload, headers:) = payload.dig("installation", "id")
+
+        # What a delivery says changed about the installation itself (Integrations::Installations), or nil. Repositories
+        # added or removed may leave it none, which only reading what it lists says.
+        def installation_change(payload, headers:)
+          case headers[EVENT_HEADER].to_s
+          when INSTALLATION then INSTALLATION_CHANGES[payload["action"].to_s]
+          when INSTALLATION_REPOSITORIES then Installations::CHANGE_REACH
+          end
+        end
 
         def events(payload, headers:)
           delivery = headers[DELIVERY_HEADER].presence

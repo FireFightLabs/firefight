@@ -16,7 +16,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   # Another system's words, so only text reaches the model and a runaway description is capped.
   def description
-    said = Chat::Tools.clean(@tool.description, Chat::Tools::FULL_DESCRIPTION)
+    said = Chat::Tools.clean(@tool.described_for_agents, Chat::Tools::FULL_DESCRIPTION)
     reading_schema ? "#{said} #{guard::DESCRIPTION}" : said
   end
 

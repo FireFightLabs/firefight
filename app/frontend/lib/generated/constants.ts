@@ -41,6 +41,12 @@ export const INTEGRATION_CARD_ACTIONS = {
   "MANAGE": "manage"
 } as const
 
+export const INSTALLATION_STATES = {
+  "REMOVED": "removed",
+  "SUSPENDED": "suspended",
+  "EMPTIED": "emptied"
+} as const
+
 export const INCIDENT_FORM_SLUGS = [
   "declare",
   "update",

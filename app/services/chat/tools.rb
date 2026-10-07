@@ -295,7 +295,7 @@ module Chat::Tools
       writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
-        name: tool.model_facing_name, description: clean(tool.description, ONE_LINE),
+        name: tool.model_facing_name, description: clean(tool.described_for_agents, ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name
