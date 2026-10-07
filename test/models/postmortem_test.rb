@@ -132,7 +132,7 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_equal "#{incident.identifier} Postmortem: #{incident.name}", placeholder.title
   end
 
-  test "start_blank! records its revision as a blank start by the person, never as AI generated" do
+  test "start_blank! records a blank start by the person, never an AI generation" do
     member = workspace_memberships(:alice_workspace_one)
     incident = Incident.create!(
       workspace: workspaces(:slack_workspace_one), declared_by: member,
@@ -146,7 +146,10 @@ class PostmortemTest < ActiveSupport::TestCase
     assert_equal PostmortemUpdate::STARTED, revision.update_type
     assert_equal "Started blank", revision.label
     assert_equal member, revision.edited_by
-    assert_equal IncidentEvent::POSTMORTEM_GENERATED, incident.incident_events.find_by!(eventable: revision).event_type
+    event = incident.incident_events.find_by!(eventable: revision)
+    assert_equal IncidentEvent::POSTMORTEM_STARTED, event.event_type
+    assert_equal "started the postmortem", event.description
+    assert_not incident.incident_events.exists?(event_type: IncidentEvent::POSTMORTEM_GENERATED)
   end
 
   test "complete_generation! lists the incident's follow-ups under Action items with their links, then the model's own" do

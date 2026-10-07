@@ -1,12 +1,16 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import type { AgentChatAttachment } from "@/types/serializers"
+// Anything with a name and an address it is served from, such as a chat's file or a run's note file.
+export interface ShownImage {
+  name: string
+  url: string
+}
 
 interface ImageDialogProps {
-  image: AgentChatAttachment | null
+  image: ShownImage | null
   onOpenChange: (open: boolean) => void
 }
 
-// An image someone sent, at full size over the chat, with a way to open the original on its own.
+// An image someone sent, at full size over the page, with a way to open the original on its own.
 export function ImageDialog({ image, onOpenChange }: ImageDialogProps) {
   return (
     <Dialog open={image !== null} onOpenChange={onOpenChange}>

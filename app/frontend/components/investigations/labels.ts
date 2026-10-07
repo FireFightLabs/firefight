@@ -58,6 +58,7 @@ export const TRIGGER_LABELS: Record<InvestigationTrigger, string> = {
   button: "Investigate button",
   conversation: "Chat",
   mcp: "Outside agent",
+  dashboard: "Incident page",
   rehearsal: "Rehearsal",
 }
 
@@ -76,6 +77,13 @@ export const SETTLED_LABELS: Record<HypothesisStatus, string> = {
 
 export const OUTCOME_LABELS: Record<FindingOutcome, string> = {
   confirmed: "Confirmed right",
+  partial: "Partly right",
+  wrong: "Wrong",
+}
+
+// What the rating buttons say, as Slack's do.
+export const RATING_LABELS: Record<FindingOutcome, string> = {
+  confirmed: "Right",
   partial: "Partly right",
   wrong: "Wrong",
 }

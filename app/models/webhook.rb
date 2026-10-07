@@ -23,6 +23,7 @@ class Webhook < ApplicationRecord
     IncidentEvent::ACTION_REASSIGNED => "webhooks/events/action_reassigned",
     IncidentEvent::RUNBOOK_ATTACHED => "webhooks/events/runbook_attached",
     IncidentEvent::POSTMORTEM_GENERATED => "webhooks/events/postmortem_generated",
+    IncidentEvent::POSTMORTEM_STARTED => "webhooks/events/postmortem_started",
     IncidentEvent::POSTMORTEM_EDITED => "webhooks/events/postmortem_edited",
     IncidentEvent::RELATIONSHIP_CREATED => "webhooks/events/relationship_created",
     IncidentEvent::MARKED_DUPLICATE => "webhooks/events/marked_duplicate",

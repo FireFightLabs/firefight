@@ -166,6 +166,32 @@ class IncidentLifecycleControllerTest < ActionDispatch::IntegrationTest
     assert_equal @workspace.default_live_status, @incident.reload.incident_status
   end
 
+  test "the reason given on the dashboard reaches the timeline and the channel's message, as Slack's does" do
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @member
+    )
+    IncidentReopenWorkflow.expects(:start!).with(@incident, context: has_entry(reason: "Errors are back on checkout"))
+
+    patch incident_reopen_path(@incident), params: { reason: "Errors are back on checkout" }
+
+    assert_equal "#{@incident.identifier} was reopened.", flash[:notice]
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_REOPENED)
+    assert_equal "Errors are back on checkout", event.metadata["reason"]
+    assert_equal "Errors are back on checkout", event.eventable.message
+  end
+
+  test "reopening without a reason, which Slack also allows, records none" do
+    IncidentLifecycleService.new(@workspace).change_status(
+      @incident, { incident_status: @workspace.incident_statuses.closed.active.first }, changed_by: @member
+    )
+
+    patch incident_reopen_path(@incident), params: { reason: "" }
+
+    event = @incident.incident_events.find_by!(event_type: IncidentEvent::INCIDENT_REOPENED)
+    assert_nil event.metadata.to_h["reason"]
+    assert_equal @workspace.default_live_status, @incident.reload.incident_status
+  end
+
   test "reopening a live incident says so instead of doing nothing" do
     patch incident_reopen_path(@incident)
 

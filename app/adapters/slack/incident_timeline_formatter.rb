@@ -18,6 +18,7 @@ module Slack
       IncidentEvent::ACTION_REOPENED => { emoji: ":leftwards_arrow_with_hook:", title: "Action reopened" },
       IncidentEvent::ACTION_UNASSIGNED => { emoji: ":bust_in_silhouette:", title: "Action unassigned" },
       IncidentEvent::POSTMORTEM_GENERATED => { emoji: ":scroll:", title: "Postmortem generated" },
+      IncidentEvent::POSTMORTEM_STARTED => { emoji: ":scroll:", title: "Postmortem started" },
       IncidentEvent::POSTMORTEM_EDITED => { emoji: ":pencil2:", title: "Postmortem edited" },
       IncidentEvent::MESSAGE_PINNED => { emoji: ":pushpin:", title: "Message pinned" },
       IncidentEvent::MESSAGE_UNPINNED => { emoji: ":round_pushpin:", title: "Message unpinned" },

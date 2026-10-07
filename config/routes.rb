@@ -310,9 +310,12 @@ Rails.application.routes.draw do
     patch "/incidents/:incident_id/postmortem/status", to: "incidents#update_postmortem_status", as: :incident_postmortem_status
     get "/incidents/:incident_id/postmortem/revisions", to: "incidents#postmortem_revisions", as: :incident_postmortem_revisions
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
+    post "/incidents/:incident_id/investigations", to: "investigations#start", as: :incident_investigations
     get "/investigations/:id", to: "investigations#show", as: :investigation
     post "/investigations/:id/notes", to: "investigations#add_note", as: :investigation_notes
+    get "/investigations/:id/files/:file_id", to: "investigations#file", as: :investigation_file
     post "/investigations/:id/stop", to: "investigations#stop", as: :investigation_stop
+    post "/investigations/:id/rating", to: "investigations#rate", as: :investigation_rating
     post "/investigations/:id/fix", to: "investigations#apply_fix", as: :investigation_fix
     post "/investigations/:id/fix/steps/:step_id/done", to: "investigations#mark_fix_step_done", as: :investigation_fix_step_done
     post "/investigations/:id/fix/steps/:step_id/run", to: "investigations#run_fix_step", as: :investigation_fix_step_run

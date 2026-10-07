@@ -138,7 +138,7 @@ class IncidentEventTest < ActiveSupport::TestCase
       "incident.created", "incident.updated", "incident.accepted", "lead.assigned",
       "role.assigned", "role.unassigned",
       "action.created", "action.picked_up", "action.completed", "action.reassigned", "action.renamed", "action.reopened", "action.unassigned",
-      "incident.escalated", "incident.resolved", "incident.reopened", "incident.canceled", "postmortem.generated", "postmortem.edited",
+      "incident.escalated", "incident.resolved", "incident.reopened", "incident.canceled", "postmortem.generated", "postmortem.started", "postmortem.edited",
       "relationship.created", "incident.marked_duplicate", "incident.merged_into",
       "message.pinned", "message.unpinned", "message.file_shared",
       "incident.escalation_acknowledged", "incident.escalation_nudged",

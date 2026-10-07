@@ -17,6 +17,7 @@ const EVENT_LABELS: Record<WebhookEvent, string> = {
   "action.reassigned": "Action reassigned",
   "runbook.attached": "Runbook attached",
   "postmortem.generated": "Postmortem generated",
+  "postmortem.started": "Postmortem started",
   "postmortem.edited": "Postmortem edited",
   "relationship.created": "Relationship created",
   "incident.marked_duplicate": "Incident marked duplicate",

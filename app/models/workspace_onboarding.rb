@@ -12,7 +12,8 @@ class WorkspaceOnboarding < ApplicationRecord
     IncidentEvent::LEAD_ASSIGNED,
     IncidentEvent::INCIDENT_RESOLVED,
     IncidentEvent::INCIDENT_CANCELED,
-    IncidentEvent::POSTMORTEM_GENERATED
+    IncidentEvent::POSTMORTEM_GENERATED,
+    IncidentEvent::POSTMORTEM_STARTED
   ].freeze
 
   STAGE_NONE = 0

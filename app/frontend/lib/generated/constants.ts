@@ -574,6 +574,7 @@ export const WEBHOOK_EVENTS = [
   "action.reassigned",
   "runbook.attached",
   "postmortem.generated",
+  "postmortem.started",
   "postmortem.edited",
   "relationship.created",
   "incident.marked_duplicate",
@@ -769,6 +770,10 @@ export const INVESTIGATION_PROP = "investigation" as const
 
 export const OPEN_INVESTIGATION_PROP = "openInvestigation" as const
 
+export const INVESTIGATION_START_PROP = "investigationStart" as const
+
+export const REOPEN_REASON_LIMIT = 3000 as const
+
 export const INVESTIGATION_STATUSES = [
   "pending",
   "running",
@@ -788,6 +793,7 @@ export const INVESTIGATION_TRIGGERS = [
   "button",
   "conversation",
   "mcp",
+  "dashboard",
   "rehearsal"
 ] as const
 export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]

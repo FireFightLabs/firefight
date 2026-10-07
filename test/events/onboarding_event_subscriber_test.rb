@@ -16,6 +16,14 @@ class Onboarding::EventSubscriberTest < ActiveSupport::TestCase
     end
   end
 
+  test "a blank postmortem moves the checklist like a generated one" do
+    [ IncidentEvent::POSTMORTEM_GENERATED, IncidentEvent::POSTMORTEM_STARTED ].each do |type|
+      assert_enqueued_with(job: WorkspaceOnboardingProgressJob, args: [ @onboarding.id ]) do
+        Onboarding::EventSubscriber.handle(event(type, @first))
+      end
+    end
+  end
+
   test "other incidents and other events are ignored" do
     assert_no_enqueued_jobs do
       Onboarding::EventSubscriber.handle(event(IncidentEvent::LEAD_ASSIGNED, incidents(:active_major_ws1)))

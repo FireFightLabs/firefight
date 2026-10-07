@@ -192,6 +192,23 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_equal({ ok: true }, Slack::Client.delete_original_response(response_url: "https://hooks.slack.com/actions/T1/2/abc"))
   end
 
+  test "respond_ephemerally answers only whoever pressed, and leaves the message they pressed" do
+    pool = mock_pool
+    pool.expects(:request).with do |uri, request|
+      uri.to_s == "https://hooks.slack.com/actions/T1/2/abc" && request["Authorization"].nil? &&
+        JSON.parse(request.body) == { "response_type" => "ephemeral", "replace_original" => false, "text" => "Thanks." }
+    end.returns(http_response(200, "ok", content_type: "text/plain"))
+
+    assert_equal({ ok: true }, Slack::Client.respond_ephemerally(response_url: "https://hooks.slack.com/actions/T1/2/abc", text: "Thanks."))
+  end
+
+  test "respond_ephemerally refuses a response_url off hooks.slack.com" do
+    Slack::Client.expects(:http_pool).never
+    assert_raises(AdapterError) do
+      Slack::Client.respond_ephemerally(response_url: "https://evil.example.com/actions/T1/2/abc", text: "Thanks.")
+    end
+  end
+
   test "delete_original_response refuses a response_url off hooks.slack.com" do
     Slack::Client.expects(:http_pool).never
     assert_raises(AdapterError) do

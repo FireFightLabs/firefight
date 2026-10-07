@@ -136,6 +136,8 @@ module TypescriptConstants
       Export.new("INVESTIGATION_EVENT_TYPES", IncidentEvent::INVESTIGATION_EVENTS, nil),
       Export.new("INVESTIGATION_PROP", InvestigationsController::PROP_INVESTIGATION, nil),
       Export.new("OPEN_INVESTIGATION_PROP", IncidentsController::PROP_OPEN_INVESTIGATION, nil),
+      Export.new("INVESTIGATION_START_PROP", IncidentsController::PROP_INVESTIGATION_START, nil),
+      Export.new("REOPEN_REASON_LIMIT", Incident::REOPEN_REASON_LIMIT, nil),
       Export.new("INVESTIGATION_STATUSES", Investigation::STATUSES, "InvestigationStatus"),
       Export.new("INVESTIGATION_LIVE_STATUSES", Investigation::LIVE_STATUSES, nil),
       Export.new("INVESTIGATION_TRIGGERS", Investigation::TRIGGER_SOURCES, "InvestigationTrigger"),

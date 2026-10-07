@@ -352,6 +352,15 @@ module Slack
     RESPONSE_URL_HOST = "hooks.slack.com"
 
     def self.delete_original_response(response_url:)
+      respond(response_url, { delete_original: true }, endpoint: "response_url.delete_original")
+    end
+
+    # Shown only to whoever pressed, in the thread or channel they pressed in, and the message they pressed stays.
+    def self.respond_ephemerally(response_url:, text:)
+      respond(response_url, { response_type: "ephemeral", replace_original: false, text: text }, endpoint: "response_url.ephemeral")
+    end
+
+    def self.respond(response_url, body, endpoint:)
       uri = URI(response_url)
       unless uri.scheme == "https" && uri.host.to_s.downcase == RESPONSE_URL_HOST
         raise AdapterError, "refusing to respond to a non-Slack response_url host=#{uri.host}"
@@ -359,14 +368,15 @@ module Slack
 
       request = Net::HTTP::Post.new(uri)
       request["Content-Type"] = "application/json"
-      request.body = { delete_original: true }.to_json
+      request.body = body.to_json
 
-      response = pool_request(uri, request, endpoint: "response_url.delete_original")
+      response = pool_request(uri, request, endpoint: endpoint)
       status = response.code.to_i
       raise AdapterError, "Slack response_url returned #{status}: #{response.body.to_s.truncate(200)}" unless status.between?(200, 299)
 
       { ok: true }
     end
+    private_class_method :respond
 
     # A file an event only names, with file_access check_file_info, is described in full here.
     def self.file_info(workspace:, file_id:)

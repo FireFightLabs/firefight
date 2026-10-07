@@ -73,6 +73,7 @@ const eventIcons: Record<EventType, typeof IconFlame> = {
   "action.reopened": IconArrowBackUp,
   "action.unassigned": IconUserX,
   "postmortem.generated": IconFileText,
+  "postmortem.started": IconFileText,
   "postmortem.edited": IconFileText,
   "relationship.created": IconLink,
   "incident.marked_duplicate": IconCopy,

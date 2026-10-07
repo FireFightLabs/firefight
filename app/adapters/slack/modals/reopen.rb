@@ -20,7 +20,7 @@ module Slack
                 action_id: "reason_input",
                 multiline: true,
                 placeholder: { type: "plain_text", text: "Why is this incident being reopened?" },
-                max_length: 3000
+                max_length: Incident::REOPEN_REASON_LIMIT
               },
               label: { type: "plain_text", text: "Reason for reopening" },
               optional: true
