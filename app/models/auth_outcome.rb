@@ -16,9 +16,15 @@ class AuthOutcome
     new(:invite_required, message: message)
   end
 
+  # The sign-in reached nobody it may sign in as, such as an account whose email the provider has not verified.
+  def self.refused(message:)
+    new(:refused, message: message)
+  end
+
   def signed_in?      = type == :signed_in
   def install_needed? = type == :install_needed
   def invite_required? = type == :invite_required
+  def refused?        = type == :refused
   def first_install?  = first_install
 
   private
