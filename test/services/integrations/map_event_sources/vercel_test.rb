@@ -58,7 +58,7 @@ module Integrations
         VercelApi.any_instance.expects(:delete_webhook).with("hook_theirs").never
         VercelApi.any_instance.expects(:create_webhook).with(url: URL, events: Vercel::EVENTS).returns("id" => "hook_new", "secret" => SECRET)
 
-        assert_equal MapEventSource::Webhook.new(id: "hook_new", secret: SECRET), Vercel.register(@row, url: URL)
+        assert_equal MapEventSource::Webhook.new(id: { "team_1" => "hook_new" }.to_json, secret: SECRET, scopes: [ "team_1" ]), Vercel.register(@row, url: URL)
       end
 
       test "a team whose plan cannot have webhooks, or has no room, is told why, and no webhook is touched" do
@@ -76,7 +76,7 @@ module Integrations
         Vercel.remove(@row, "hook_new")
 
         VercelApi.any_instance.stubs(:delete_webhook).raises(VercelApi::NotFound, "Vercel answered 404: not found")
-        assert_nil Vercel.remove(@row, "hook_gone")
+        assert_nothing_raised { Vercel.remove(@row, { "team_1" => "hook_gone" }.to_json) }
       end
 
       private

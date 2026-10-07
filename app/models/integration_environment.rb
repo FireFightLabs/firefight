@@ -86,6 +86,26 @@ class IntegrationEnvironment < ApplicationRecord
     nil
   end
 
+  # Sets what the connection reads at its provider, the scopes its connect form chose (IntegrationProvider::ConnectField,
+  # scope), one, several, or ConnectField::ALL. Each must be one the credential can read now. Answers why they cannot be
+  # chosen, or nil once they are kept.
+  def choose_scopes!(field, given)
+    values = field.value_of(given)
+    refusal = field.refusal(values)
+    return refusal if refusal
+
+    unless values == [ IntegrationProvider::ConnectField::ALL ]
+      listed = Integrations::ConnectionSettings.of(self).scope_options.map(&:value)
+      missing = values - listed
+      return "This token cannot read #{field.reach_words(missing)}. Choose from what it lists." if missing.any?
+    end
+
+    update!(base_config: base_config.to_h.merge(FIELDS_KEY => fields.merge(field.key => values)))
+    nil
+  rescue Integrations::Error => error
+    error.message
+  end
+
   def learned = base_config.to_h.fetch(LEARNED_KEY, {})
 
   # The probe owns the shape of what it learned, this row owns writing it.

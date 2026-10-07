@@ -67,18 +67,29 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
     found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(Chat::Tools::INTENT_ARG), @callable,
                                                  principal: @agent_run.acting_principal)
-    Chat::Tools::Target.misdirection(found.tool.integration, Chat::Tools.intent_of(asked), called: "#{name} of #{found.resource.name}") do |other|
+    intent = Chat::Tools.intent_of(asked)
+    called = "#{name} of #{found.resource.scoped_name}"
+    Chat::Tools::Target.misdirection(found.tool.integration, intent, called: called) do |other|
       label = Integrations::Capabilities.connections(other.tools.to_a).first || other.slug
       "To reach #{other.target_label}, name the resource by its id on the map there, or pass connection #{label}."
-    end
+    end || scope_misdirection(found, intent, called)
   rescue Integrations::Capabilities::Unroutable
     nil
+  end
+
+  # Words naming another scope of the same connection than the one the resource lives in, such as another project.
+  def scope_misdirection(found, intent, called)
+    scope = found.arguments[Integrations::ConnectionSettings.of(found.environment_row).scope_field&.key.to_s]
+    Chat::Tools::Target.scope_misdirection(found.environment_row, scope, intent, called: called) do |named, field|
+      "To reach one in #{field.one} #{named}, name it by its id on the map there."
+    end
   end
 
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
 
   def ask(found, tool_call, alone: true, asked: connection(found))
-    text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present, alone: alone)
+    text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present,
+                                      alone: alone, target: target_of(found))
     @answered = Answered.new(call: found, result: asked.last_result) unless asked.failed? || asked.waiting?
     text
   end
@@ -92,12 +103,19 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
       asked = connection(found)
       text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name,
-                                        present: found.present, alone: false)
+                                        present: found.present, alone: false, target: target_of(found))
       answered ||= !asked.failed?
       Integrations::Capabilities.headed(found.environment_row, text)
     end
     Chat::Tools.mark_failed(@agent_run, tool_call&.id) unless answered
     answers.join("\n\n")
+  end
+
+  # The resource and the connection it was routed to, as a person confirming the call reads it.
+  def target_of(found)
+    resource = found.resource
+    where = found.environment_row ? found.tool.integration.target_label(found.environment_row) : found.tool.integration.target_label
+    resource ? "#{resource.kind.humanize(capitalize: false)} #{resource.name} on #{where}" : where
   end
 
   def refused(tool_call, text)

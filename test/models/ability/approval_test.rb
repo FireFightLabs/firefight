@@ -164,5 +164,39 @@ module Ability
       assert_match "wants to run `faylee.api_request` through *Faylee (Northflank)*", Slack::Messages::Approval.summary_text(Ability::Approval.find(@approval.id))
       assert_equal [ "Faylee (Northflank)" ], Ability::Approval.with_connection_names([ Ability::Approval.find(@approval.id) ]).map(&:connection_name)
     end
+
+    test "an approval of a call a person runs lasts an hour from when it was approved, and one replayed at once never lapses" do
+      @approval.update!(held_for_run: true)
+      @approval.approve!(by: @admin)
+
+      assert_in_delta Ability::Approval::RUN_WINDOW.from_now, @approval.run_expires_at, 5.seconds
+      travel(Ability::Approval::RUN_WINDOW + 1.second) { assert_not @approval.usable? }
+
+      replayed = Ability::Approval.create!(workspace: @workspace, principal: @requester, principal_label: "key", action_key: "catalog.delete",
+                                           request_digest: "d", required_role: WorkspaceMembership.roles[:admin])
+      replayed.approve!(by: @admin)
+      assert_nil replayed.run_expires_at
+    end
+
+    test "a lapse is one statement that loses to a run claiming the approval, and only an unused approval lapses or is dismissed" do
+      @approval.update!(held_for_run: true)
+      @approval.approve!(by: @admin)
+
+      assert_not @approval.lapse_run!, "not yet past its window"
+      travel(Ability::Approval::RUN_WINDOW + 1.second) do
+        stale = Ability::Approval.find(@approval.id)
+        @approval.claim
+        assert_not stale.lapse_run!
+        assert_equal Ability::Approval::STATUS_APPROVED, stale.status
+      end
+
+      other = Ability::Approval.create!(workspace: @workspace, principal: @requester, principal_label: "key", action_key: "catalog.delete",
+                                        request_digest: "d", required_role: WorkspaceMembership.roles[:admin], held_for_run: true)
+      other.approve!(by: @admin)
+      assert other.dismiss!
+      assert_equal Ability::Approval::STATUS_DISMISSED, other.status
+      assert_not other.dismiss!
+      assert_not other.usable?
+    end
   end
 end

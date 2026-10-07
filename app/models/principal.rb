@@ -21,6 +21,9 @@ module Principal
     :none
   end
 
+  # Only a member holds defaults a grant can narrow.
+  def default_access = []
+
   def principal_label
     "#{actor_kind}:#{actor_display_name}"
   end

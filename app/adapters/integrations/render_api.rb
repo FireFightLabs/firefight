@@ -25,6 +25,10 @@ module Integrations
 
     def owner(owner_id) = get("/owners/#{segment(owner_id)}")
 
+    # The workspaces the key can read, as a Pages::Read of owners with their id and name (GET /v1/owners, "List
+    # workspaces", api-docs.render.com/reference/list-owners).
+    def owners = list("/owners", "owner")
+
     # Every service, Postgres database and Key Value instance in the workspace, each as a Pages::Read that says whether the
     # list was read to its end. ownerId is comma separated, as the spec's form style without explode asks.
     def services(owner_id) = list("/services", "service", "ownerId" => owner_id)

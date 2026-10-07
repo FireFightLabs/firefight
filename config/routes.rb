@@ -196,6 +196,8 @@ Rails.application.routes.draw do
         patch :toggle
         patch :retarget_environment
         patch :choose
+        get :scope_options
+        patch :scopes
         patch :map_events_secret
         delete :map_events_secrets, action: :forget_map_events_secrets
         patch :live_updates
@@ -204,10 +206,13 @@ Rails.application.routes.draw do
       collection do
         get :oauth_start
         get "oauth/callback", action: :oauth_callback, as: :oauth_callback
+        post :list_scopes
       end
     end
     get "/gateway/permissions", to: "settings#permissions", as: :gateway_permissions
-    resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants"
+    resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants" do
+      post :withhold, on: :collection, path: "no-access"
+    end
     resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
     resources :approval_rules, only: [ :create, :update, :destroy ], path: "gateway/permissions/approval-rules" do
       member do
@@ -310,6 +315,9 @@ Rails.application.routes.draw do
     post "/investigations/:id/stop", to: "investigations#stop", as: :investigation_stop
     post "/investigations/:id/fix", to: "investigations#apply_fix", as: :investigation_fix
     post "/investigations/:id/fix/steps/:step_id/done", to: "investigations#mark_fix_step_done", as: :investigation_fix_step_done
+    post "/investigations/:id/fix/steps/:step_id/run", to: "investigations#run_fix_step", as: :investigation_fix_step_run
+    post "/investigations/:id/fix/steps/:step_id/dismiss", to: "investigations#dismiss_fix_step", as: :investigation_fix_step_dismiss
+    post "/investigations/:id/fix/steps/:step_id/ask_again", to: "investigations#ask_fix_step_again", as: :investigation_fix_step_ask_again
     post "/investigations/:id/fix/undo", to: "investigations#undo_fix", as: :investigation_fix_undo
     post "/investigations/:id/fix/cancel", to: "investigations#cancel_fix", as: :investigation_fix_cancel
     get "/halon/performance", to: "halon_performance#show", as: :halon_performance
@@ -326,6 +334,9 @@ Rails.application.routes.draw do
     post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask
     post "/agent/:id/confirm", to: "agent_chats#confirm", as: :agent_chat_confirm
     post "/agent/:id/stop", to: "agent_chats#stop", as: :agent_chat_stop
+    post "/agent/:id/held_calls/:held_call_id/run", to: "agent_chats#run_held_call", as: :agent_chat_held_call_run
+    post "/agent/:id/held_calls/:held_call_id/dismiss", to: "agent_chats#dismiss_held_call", as: :agent_chat_held_call_dismiss
+    post "/agent/:id/held_calls/:held_call_id/ask_again", to: "agent_chats#ask_held_call_again", as: :agent_chat_held_call_ask_again
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

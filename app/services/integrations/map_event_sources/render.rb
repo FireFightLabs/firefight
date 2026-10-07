@@ -1,6 +1,6 @@
 module Integrations
   module MapEventSources
-    # Render's changes, sent to a webhook Firefight registers in the workspace with the connection's API key (spec, POST
+    # Render's changes, sent to a webhook Firefight registers in each of the connection's workspaces with the connection's API key (spec, POST
     # /webhooks, api-docs.render.com/openapi/render-public-api-1.json). Render signs each delivery as Standard Webhooks
     # specifies (render.com/docs/webhooks, Communication protocol). Its payload holds only the event's type, when it
     # happened and the id of the service or datastore it is about (render.com/docs/webhooks, Request body), so the map
@@ -71,15 +71,23 @@ module Integrations
                                    scope: ResourceMap::Scope.new(kind: kind, external_id: about)) ]
         end
 
-        # Registers the workspace's webhook, or takes back one Firefight registered before at this connection's own
-        # address, switching it on again if Render had switched it off. A webhook at any other address is never touched.
+        # Registers a webhook in each workspace the connection reaches, or takes back one Firefight registered before at
+        # this connection's own address, switching it on again if Render had switched it off. Render makes each webhook's
+        # secret, so they are kept one a line and a delivery signed with any counts. A workspace the connection no longer
+        # reaches loses the webhook Firefight registered there. A webhook at any other address is never touched.
         def register(row, url:)
           api = api(row)
-          owner = workspace_of(row)
-          own = api.webhooks(owner).items.find { |webhook| webhook["url"] == url }
-          own = api.enable_webhook(own["id"]) if own && !own["enabled"]
-          own ||= api.create_webhook(owner, name: WEBHOOK_NAME, url: url, events: EVENTS)
-          MapEventSource::Webhook.new(id: own["id"], secret: own["secret"])
+          settings = ConnectionSettings.of(row)
+          workspaces = workspaces_of(row)
+          registrations(row.map_events_webhook_id, settings).except(*workspaces).each_value { |webhook| forget(api, webhook) }
+          made = workspaces.to_h do |owner|
+            own = api.webhooks(owner).items.find { |webhook| webhook["url"] == url }
+            own = api.enable_webhook(own["id"]) if own && !own["enabled"]
+            own ||= api.create_webhook(owner, name: WEBHOOK_NAME, url: url, events: EVENTS)
+            [ owner, own ]
+          end
+          MapEventSource::Webhook.new(id: made.transform_values { |webhook| webhook["id"] }.to_json,
+                                      secret: made.values.filter_map { |webhook| webhook["secret"].presence }.uniq.join("\n").presence, scopes: workspaces)
         rescue RenderApi::Refused => error
           raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
         end
@@ -90,26 +98,39 @@ module Integrations
         # where Firefight's would be its only one, and one with 99 would give Firefight its last, so a person decides.
         # With one to 98 of its own there is room to spare, or Render refuses for Pro, and Firefight's from before at
         # this address costs nothing.
+        # A connection reaching several workspaces asks once, naming every workspace where Firefight's would be the only
+        # or the last webhook.
         def confirmation_for(row, url:)
-          webhooks = api(row).webhooks(workspace_of(row)).items
-          return if webhooks.any? { |webhook| webhook["url"] == url }
+          api = api(row)
+          settings = ConnectionSettings.of(row)
+          counts = workspaces_of(row).to_h { |owner| [ owner, api.webhooks(owner).items ] }
+                                     .reject { |_owner, webhooks| webhooks.any? { |webhook| webhook["url"] == url } }.transform_values(&:size)
+          return single_confirmation(counts.values.first) if workspaces_of(row).one?
 
-          case webhooks.size
-          when 0 then ONLY_WEBHOOK
-          when MOST_WEBHOOKS - 1 then format(LAST_WEBHOOK, most: MOST_WEBHOOKS, have: webhooks.size)
-          end
+          only = counts.select { |_owner, count| count.zero? }.keys.map { |owner| settings.scope_name(owner) }
+          last = counts.select { |_owner, count| count == MOST_WEBHOOKS - 1 }.keys.map { |owner| settings.scope_name(owner) }
+          words = []
+          words << ONLY_WEBHOOK.sub("This Render workspace has", "Render #{only.one? ? 'workspace' : 'workspaces'} #{only.to_sentence} #{only.one? ? 'has' : 'have'}") if only.any?
+          last.each { |name| words << format(LAST_WEBHOOK, most: MOST_WEBHOOKS, have: MOST_WEBHOOKS - 1).sub("This Render workspace", "Render workspace #{name}") }
+          words.join(" ").presence
         rescue RenderApi::Refused => error
           raise MapEventSource::Refused, Sentence.all(error, PLAN_NOTE)
+        end
+
+        def single_confirmation(count)
+          case count
+          when 0 then ONLY_WEBHOOK
+          when MOST_WEBHOOKS - 1 then format(LAST_WEBHOOK, most: MOST_WEBHOOKS, have: count)
+          end
         end
 
         def limits = "Render says when a service builds, deploys, is suspended or resumed, or scales, and when a datastore changes. " \
                      "A service created or deleted, and a change to its settings, reach the map at each hourly sweep."
 
-        # A webhook already gone from Render is taken back all the same.
+        # Every workspace's webhook. One already gone from Render is taken back all the same.
         def remove(row, webhook_id)
-          api(row).delete_webhook(webhook_id)
-        rescue RenderApi::NotFound
-          nil
+          api = api(row)
+          registrations(webhook_id, ConnectionSettings.of(row)).each_value { |webhook| forget(api, webhook) }
         end
 
         private
@@ -127,8 +148,14 @@ module Integrations
           RenderApi.new(key)
         end
 
-        def workspace_of(row)
-          ConnectionSettings.of(row).field(Packs::Render::WORKSPACE) || raise(Integrations::Error, "This connection has no Render workspace. Reconnect it.")
+        def workspaces_of(row)
+          ConnectionSettings.of(row).scopes.presence || raise(Integrations::Error, "This connection reaches no Render workspace. Choose one on the Integrations page.")
+        end
+
+        def forget(api, webhook)
+          api.delete_webhook(webhook)
+        rescue RenderApi::NotFound
+          nil
         end
       end
     end

@@ -131,9 +131,9 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
   end
 
   test "credentials a pack checks are checked in the chosen region" do
-    Integrations::Credentials.expects(:refusal).with("northflank", { "api_token" => "nf" }, region: nil, fields: { "project" => "shop" }).returns("Northflank refused this token.")
+    Integrations::Credentials.expects(:refusal).with("northflank", { "api_token" => "nf" }, region: nil, fields: { "project" => [ "shop" ] }).returns("Northflank refused this token.")
 
-    post integrations_url, params: { provider: "northflank", name: "Northflank", credentials: { api_token: "nf" }, fields: { project: "shop" } }
+    post integrations_url, params: { provider: "northflank", name: "Northflank", credentials: { api_token: "nf" }, fields: { project: [ "shop" ] } }
 
     assert_equal "Northflank refused this token.", session[:inertia_errors].to_h.with_indifferent_access[:connection]
   end
@@ -146,20 +146,20 @@ class IntegrationConnectSettingsTest < ActionDispatch::IntegrationTest
     entries = IntegrationProvider.all.map { |entry| entry.key == "northflank" ? northflank.with(connect_fields: northflank.connect_fields + [ regions ]) : entry }
     IntegrationProvider.stubs(:all).returns(entries)
     Integrations::Credentials.expects(:refusal).with("northflank", { "api_token" => "nf" }, region: nil,
-                                                                   fields: { "project" => "shop", "regions" => %w[us-east-1 eu-west-1] }).returns(nil)
+                                                                   fields: { "project" => [ "shop" ], "regions" => %w[us-east-1 eu-west-1] }).returns(nil)
     Integrations::Credentials.expects(:store!)
     Integrations::ConnectionRefresh.stubs(:run!)
 
     post integrations_url, params: { provider: "northflank", name: "Northflank", credentials: { api_token: "nf" },
-                                     fields: { project: "shop", regions: [ "us-east-1", " eu-west-1 ", "" ] } }
+                                     fields: { project: [ "shop" ], regions: [ "us-east-1", " eu-west-1 ", "" ] } }
 
     row = @workspace.integrations.find_by!(provider: "northflank").integration_environments.sole
     assert_equal %w[us-east-1 eu-west-1], Integrations::ConnectionSettings.of(row).field(:regions)
     get integrations_url, headers: inertia_headers
     shown = inertia_props["integrations"].find { |integration| integration["provider"] == "northflank" }["environments"].sole["settings"]
-    assert_equal [ { "label" => "Project", "value" => "shop" }, { "label" => "Regions", "value" => "US East (N. Virginia), Europe (Ireland)" } ], shown
+    assert_equal [ { "label" => "Regions", "value" => "US East (N. Virginia), Europe (Ireland)" } ], shown
 
-    post integrations_url, params: { provider: "northflank", name: "Northflank two", credentials: { api_token: "nf" }, fields: { project: "shop", regions: [ "mars-1" ] } }
+    post integrations_url, params: { provider: "northflank", name: "Northflank two", credentials: { api_token: "nf" }, fields: { project: [ "shop" ], regions: [ "mars-1" ] } }
     assert_equal "Regions can only be US East (N. Virginia) or Europe (Ireland).", session[:inertia_errors].to_h.with_indifferent_access[:connection]
   end
 

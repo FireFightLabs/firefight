@@ -52,7 +52,7 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) { key.replace_permissions!(Ability::Action::RESOURCE_MAP => [ Ability::Action::ACTION_UPDATE ]) }
   end
 
-  test "member personal tokens read everything, participate in incidents and their own chats, and configure nothing" do
+  test "member personal tokens read everything, participate in incidents and their own chats, ask Halon, and configure nothing" do
     membership = workspace_memberships(:bob_workspace_one)
     key, _ = ApiKey.create_with_token!(
       workspace: workspaces(:slack_workspace_one), created_by: membership,
@@ -74,10 +74,25 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert key.has_permission?(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_UPDATE)
     assert_not key.has_permission?(Ability::Action::RESOURCE_CHATS, Ability::Action::ACTION_CREATE)
 
-    (Ability::Action::RESOURCES - WorkspaceMembership::PARTICIPATION.keys).each do |resource|
+    assert key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
+    assert_not key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_UPDATE)
+
+    (Ability::Action::RESOURCES - WorkspaceMembership::PARTICIPATION.keys - [ Ability::Action::RESOURCE_INVESTIGATIONS ]).each do |resource|
       assert_not key.has_permission?(resource, Ability::Action::ACTION_CREATE)
       assert_not key.has_permission?(resource, Ability::Action::ACTION_UPDATE)
     end
+  end
+
+  test "a member's personal token loses asking Halon with the member, once an admin takes it away" do
+    membership = workspace_memberships(:bob_workspace_one)
+    key, _ = ApiKey.create_with_token!(
+      workspace: workspaces(:slack_workspace_one), created_by: membership,
+      on_behalf_of: membership, name: "Personal"
+    )
+    take_halon_from(workspaces(:slack_workspace_one), membership)
+
+    assert_not key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)
+    assert key.has_permission?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ)
   end
 
   test "admin personal tokens carry the admin's write authority" do

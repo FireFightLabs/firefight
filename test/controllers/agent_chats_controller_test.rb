@@ -283,13 +283,28 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_nil Conversation.find_by(id: conversation.id)
   end
 
-  test "asking the agent still needs the investigations grant" do
+  test "a member asks the agent without any grant, in a new chat and in one already open" do
     sign_in(users(:bob), @workspace)
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
 
+    assert_enqueued_jobs(2, only: ConversationReplyJob) do
+      post agent_chats_url, params: { question: "what changed today" }
+      post agent_chat_ask_url(conversation), params: { question: "and yesterday" }
+    end
+    assert_nil flash[:alert]
+  end
+
+  test "a member an admin took asking away from is refused with the sentence every refused page says" do
+    sign_in(users(:bob), @workspace)
+    bob = workspace_memberships(:bob_workspace_one)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: bob)
+    take_halon_from(@workspace, bob)
+
     assert_no_enqueued_jobs(only: ConversationReplyJob) do
+      post agent_chats_url, params: { question: "what changed today" }
       post agent_chat_ask_url(conversation), params: { question: "what changed today" }
     end
+    assert_equal WebAuthorization.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE)), flash[:alert]
   end
 
   test "someone else's chat cannot be renamed or deleted" do
@@ -442,7 +457,45 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_not conversation.chat.reload.stop_requested?
   end
 
+  test "an open chat arrives with each call an approval rule held, what Halon read, when it expires and what the viewer may do" do
+    conversation = start_chat
+    held = held_call_in(conversation, status: Chat::HeldCall::STATUS_READY)
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    shown = inertia_props[AgentChatsController::PROP_HELD_CALLS].sole
+    assert_equal [ held.id, "Bob Jones approved: Resolve incident. Run it now?", "This looks done already.", "INC-1 is already resolved." ],
+                 shown.values_at("id", "headline", "warning", "state")
+    assert_equal [ [ "run", "dismiss" ], nil ], shown.values_at("offers", "runBlockedReason")
+    assert shown["expiresAt"]
+  end
+
+  test "Run hands the approved call to the chat's next turn once, and Dismiss on a call that already ran is refused with why" do
+    conversation = start_chat
+    held = held_call_in(conversation, status: Chat::HeldCall::STATUS_READY)
+    ConversationChannel.stubs(:broadcast_to)
+
+    assert_enqueued_with(job: ConversationReplyJob, args: [ conversation.id, @member.id, held.id ]) do
+      post agent_chat_held_call_run_url(conversation, held)
+    end
+    assert_equal "Running it now.", flash[:notice]
+
+    post agent_chat_held_call_dismiss_url(conversation, held)
+    assert_equal "This is no longer waiting to be run.", flash[:alert]
+    assert_equal Chat::HeldCall::STATUS_RUNNING, held.reload.status
+  end
+
   private
+
+  def held_call_in(conversation, status:)
+    approval = @workspace.ability_approvals.create!(
+      principal: @member, principal_label: "user:Alice Smith", action_key: "incidents.update", request_digest: "d", required_role: "admin",
+      status: Ability::Approval::STATUS_APPROVED, approver: workspace_memberships(:bob_workspace_one), held_for_run: true,
+      run_expires_at: 52.minutes.from_now, resolved_at: Time.current
+    )
+    Chat::HeldCall.create!(chat: conversation.chat_record, approval: approval, tool_name: "resolve_incident", status: status,
+                           checked_state: "INC-1 is already resolved.", state_change: Chat::CurrentState::DONE_ALREADY, state_checked_at: Time.current)
+  end
 
   def start_chat
     Conversation.start_personal!(workspace: @workspace, member: @member)

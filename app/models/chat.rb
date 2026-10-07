@@ -14,6 +14,8 @@ class Chat < ApplicationRecord
   has_many :saved_results, -> { in_order }, class_name: "Chat::SavedResult", dependent: :destroy, inverse_of: :chat
   has_many :charts, -> { in_order }, class_name: "Chat::Chart", dependent: :delete_all, inverse_of: :chat
   has_many :queued_messages, class_name: "Chat::QueuedMessage", dependent: :delete_all, inverse_of: :chat
+  # Calls an approval rule held, waiting for an approver and then for the person who asked to run them.
+  has_many :held_calls, -> { order(:created_at) }, class_name: "Chat::HeldCall", dependent: :destroy, inverse_of: :chat
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 

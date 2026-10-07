@@ -112,7 +112,7 @@ module Chat::Tools
 
     asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG))
     Step.new(
-      title: title_for(tool_name, workspace), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
+      title: title_for(tool_name, workspace, arguments.to_h.stringify_keys), headline: intent_of(arguments) || headline_for(tool_name, asked), asked: asked,
       card: card_for(tool_name, arguments)
     )
   end
@@ -162,8 +162,13 @@ module Chat::Tools
     false
   end
 
-  def self.waiting_for_approval(action_key)
-    "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check."
+  # held is whether the person is asked to run it once approved, which only a chat does.
+  def self.waiting_for_approval(action_key, held: false)
+    return "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check." unless held
+
+    "Needs an approval and was not run: #{action_key}. Whoever can approve it has been asked. Once someone approves it, the " \
+      "person is asked in this chat whether to run it, so never call it again yourself. Tell them it is waiting for approval, " \
+      "and carry on with what you can reach."
   end
 
   # A call with a target is asked about what it reaches, the call itself and the agent's words coming after, since the
@@ -182,11 +187,15 @@ module Chat::Tools
   # What the tool does, by its own name rather than the connection's, such as "Api request".
   # A connection tool reads as "Api request · Faylee (Northflank)", never as its connection's slug made into words, which
   # reads like the provider's name. Anything else is its own name made into words.
-  def self.title_for(tool_name, workspace)
+  # A call that names one project or workspace of a connection that reaches several reads with it, as "Api request ·
+  # Faylee (Northflank), project acme".
+  def self.title_for(tool_name, workspace, arguments = {})
     tool = workspace && Target.connection_tool(workspace, tool_name)
     return tool_name.to_s.tr("_", " ").humanize unless tool
 
-    "#{tool.name.tr('_.', '  ').humanize} · #{tool.integration.display_name}"
+    key = IntegrationProvider.find(tool.integration.provider)&.scope_field&.key
+    scope = key && arguments[key].presence
+    "#{tool.name.tr('_.', '  ').humanize} · #{scope.is_a?(String) ? tool.integration.target_label(scope: scope) : tool.integration.display_name}"
   end
 
   def self.call_title(tool_call)

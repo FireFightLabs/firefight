@@ -38,6 +38,7 @@ export const FIX_STEP_STATUS_LABELS: Record<RemediationStepStatus, string | null
   proposed: null,
   running: "Running",
   waiting_approval: "Waiting for approval",
+  approved: "Approved, waiting for someone to run it",
   done: "Done",
   failed: "Failed",
   declined: "Declined",

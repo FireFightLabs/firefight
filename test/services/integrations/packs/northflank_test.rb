@@ -139,7 +139,7 @@ module Integrations
         assert_match "Northflank refused this token or project", refusal
         assert_match "401", refusal
         assert_equal "Paste an API token.", Northflank.credential_refusal({}, fields: { Northflank::PROJECT => "firefight" })
-        assert_equal "Enter the project id.", Northflank.credential_refusal({ Northflank::API_TOKEN => "nf" })
+        assert_equal "Choose at least one project, or all the token can read.", Northflank.credential_refusal({ Northflank::API_TOKEN => "nf" })
       end
 
       test "the project's services and databases are listed with their state" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_210050) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_213000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -58,6 +58,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_210050) do
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.boolean "held_for_run", default: false, null: false
+    t.datetime "run_expires_at"
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
     t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end
@@ -391,6 +393,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_210050) do
     t.integer "tokens_freed", default: 0, null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id"], name: "index_chat_compactions_on_chat_id"
+  end
+
+  create_table "chat_held_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "approval_id", null: false
+    t.string "tool_call_id"
+    t.string "tool_name", null: false
+    t.string "target"
+    t.string "status", default: "waiting", null: false
+    t.text "checked_state"
+    t.string "state_change"
+    t.datetime "state_checked_at"
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.text "result"
+    t.uuid "invocation_id"
+    t.datetime "told_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approval_id"], name: "index_chat_held_calls_on_approval_id", unique: true
+    t.index ["chat_id", "status"], name: "index_chat_held_calls_on_chat_id_and_status"
+    t.index ["decided_by_id"], name: "index_chat_held_calls_on_decided_by_id"
   end
 
   create_table "chat_instructions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1129,6 +1155,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_210050) do
     t.string "installation_state"
     t.datetime "installation_state_at"
     t.jsonb "installation_details", default: {}, null: false
+    t.jsonb "map_events_scopes"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
     t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true
@@ -1302,6 +1329,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_210050) do
     t.string "tool_name"
     t.text "undo"
     t.datetime "updated_at", null: false
+    t.text "checked_state"
+    t.string "state_change"
+    t.datetime "state_checked_at"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
     t.index ["invocation_id"], name: "index_investigation_remediation_steps_on_invocation_id"
@@ -2099,6 +2129,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_210050) do
   add_foreign_key "chat_attachments", "workspaces"
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
+  add_foreign_key "chat_held_calls", "ability_approvals", column: "approval_id"
+  add_foreign_key "chat_held_calls", "chats"
+  add_foreign_key "chat_held_calls", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspaces"

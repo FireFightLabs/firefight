@@ -156,6 +156,16 @@ module ResourceMap
     def settings_complete? = complete? && gaps.none?(&:settings)
 
     def gap_texts = gaps.map(&:text).uniq
+
+    # Several reads as one, such as each project a connection reaches read on its own. A resource two of them report,
+    # such as a repository both build from, is one.
+    def self.merged(snapshots)
+      return snapshots.first if snapshots.one?
+
+      new(resources: snapshots.flat_map(&:resources).reverse.uniq(&:key).reverse, links: snapshots.flat_map(&:links).uniq,
+          gaps: snapshots.flat_map(&:gaps), code_files: snapshots.flat_map(&:code_files), code_read: snapshots.flat_map(&:code_read).uniq,
+          gone: snapshots.flat_map(&:gone), uses: snapshots.flat_map(&:uses), endpoints: snapshots.flat_map(&:endpoints))
+    end
   end
 
   Found = Data.define(:provider, :account, :kind, :external_id, :name, :status, :url, :details) do
@@ -288,6 +298,11 @@ module ResourceMap
   TAGS = "tags".freeze
   # A database branch that serves production, which is the one a service connects to.
   PRODUCTION = "production".freeze
+  # The scope a resource lives in, by its id and its name, such as a Northflank project, kept only when the connection
+  # that reports it reaches several (Integrations::Scopes). It names the resource where its name alone could be another
+  # scope's, and says which scope a call about it reaches.
+  SCOPE = "scope".freeze
+  SCOPE_NAME = "scope_name".freeze
   SHORT_COMMIT = 7
 
   # What a provider reported about a resource, named for a person, in the order a person reads it. Other details stay

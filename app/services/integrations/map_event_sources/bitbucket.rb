@@ -55,26 +55,32 @@ module Integrations
           end
         end
 
-        # Registers the workspace's webhook, or takes back one Firefight registered before at this connection's own
-        # address, giving it a new secret, since Bitbucket never shows one again. A webhook at any other address is never
-        # touched.
+        # Registers a webhook in each workspace the connection reaches, every one with the same secret, or takes back one
+        # Firefight registered before at this connection's own address, giving it the new secret, since Bitbucket never
+        # shows one again. A workspace the connection no longer reaches loses the webhook Firefight registered there. A
+        # webhook at any other address is never touched. The id is each workspace's webhook, by workspace.
         def register(row, url:)
           api = api(row)
-          hooks = "/workspaces/#{Http.segment(workspace_of(row))}/hooks"
+          settings = ConnectionSettings.of(row)
+          workspaces = workspaces_of(row)
           secret = SecureRandom.hex(32)
+          registrations(row.map_events_webhook_id, settings).except(*workspaces).each { |workspace, hook| forget(api, workspace, hook) }
           body = { "description" => WEBHOOK_NAME, "url" => url, "active" => true, "secret" => secret, "events" => EVENTS }
-          own = api.list(hooks).first.find { |hook| hook["url"] == url }
-          hook = own ? api.put("#{hooks}/#{Http.segment(own['uuid'])}", body) : api.post(hooks, body)
-          MapEventSource::Webhook.new(id: hook["uuid"], secret: secret)
+          made = workspaces.to_h do |workspace|
+            hooks = "/workspaces/#{Http.segment(workspace)}/hooks"
+            own = api.list(hooks).first.find { |hook| hook["url"] == url }
+            hook = own ? api.put("#{hooks}/#{Http.segment(own['uuid'])}", body) : api.post(hooks, body)
+            [ workspace, hook["uuid"] ]
+          end
+          MapEventSource::Webhook.new(id: made.to_json, secret: secret, scopes: workspaces)
         rescue BitbucketApi::Refused, BitbucketApi::NotFound => error
           raise MapEventSource::Refused, Sentence.all(error, OWNER_NOTE)
         end
 
-        # A webhook already gone from Bitbucket is taken back all the same.
+        # Every workspace's webhook. One already gone from Bitbucket is taken back all the same.
         def remove(row, webhook_id)
-          api(row).delete("/workspaces/#{Http.segment(workspace_of(row))}/hooks/#{Http.segment(webhook_id)}")
-        rescue BitbucketApi::NotFound
-          nil
+          api = api(row)
+          registrations(webhook_id, ConnectionSettings.of(row)).each { |workspace, hook| forget(api, workspace, hook) }
         end
 
         private
@@ -102,8 +108,14 @@ module Integrations
           BitbucketApi.new(token)
         end
 
-        def workspace_of(row)
-          ConnectionSettings.of(row).field(Packs::Bitbucket::WORKSPACE) || raise(Integrations::Error, "This connection has no Bitbucket workspace. Reconnect it.")
+        def workspaces_of(row)
+          ConnectionSettings.of(row).scopes.presence || raise(Integrations::Error, "This connection reaches no Bitbucket workspace. Choose one on the Integrations page.")
+        end
+
+        def forget(api, workspace, hook)
+          api.delete("/workspaces/#{Http.segment(workspace)}/hooks/#{Http.segment(hook)}")
+        rescue BitbucketApi::NotFound
+          nil
         end
       end
     end

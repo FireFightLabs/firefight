@@ -70,12 +70,22 @@ class IntegrationProvider
   ConnectOption = Data.define(:value, :label)
   # options makes a field a choice from that list, and multiple lets it hold several, kept as a list, such as every
   # region an account runs in.
+  #
+  # A field marked scope names what a connection reads at the provider, such as Northflank's projects or Render's
+  # workspaces. It holds one, several or ALL, every one the credential can read, including ones made later. Its choices
+  # are listed live from the credential (Integrations::Credentials.scope_options), so it lists no options of its own, and
+  # its label names them in the plural.
   ConnectField = Data.define(:key, :label, :hint, :placeholder, :numeric, :optional, :path, :query, :pattern, :allowed, :options, :multiple,
-                             :default, :learned) do
+                             :default, :learned, :scope) do
     def initialize(placeholder: "", numeric: false, optional: false, path: false, query: nil, pattern: nil, allowed: nil, options: [],
-                   multiple: false, default: nil, learned: nil, **)
+                   multiple: false, default: nil, learned: nil, scope: false, **)
       raise ArgumentError, "connect field #{key} has a pattern without saying in allowed what it allows" if pattern.present? && allowed.blank?
-      raise ArgumentError, "connect field #{key} holds several values without a list to choose them from" if multiple && options.empty? && learned.blank?
+      if scope && (path || query.present? || learned.present? || options.any? || default.present?)
+        raise ArgumentError, "connect field #{key} names what a connection reads, listed from its credential, so it is not part of the address, learned, listed or defaulted"
+      end
+
+      multiple ||= scope
+      raise ArgumentError, "connect field #{key} holds several values without a list to choose them from" if multiple && options.empty? && learned.blank? && !scope
       raise ArgumentError, "connect field #{key} is part of the address, so it holds one value" if (path || query.present?) && multiple
       raise ArgumentError, "connect field #{key} is both part of the address's path and its query" if path && query.present?
       raise ArgumentError, "connect field #{key} is chosen after connecting, so it cannot be part of the address" if learned.present? && (path || query.present?)
@@ -87,16 +97,28 @@ class IntegrationProvider
       # A field that picks from a list shows its default by the option's label, any other by the value itself.
       placeholder = options.find { |option| option.value == default }&.label || default if placeholder.blank? && default.present?
       super(placeholder:, numeric:, optional:, path:, query: query.presence, pattern:, allowed:, options:, multiple:, default:,
-            learned: learned.presence, **)
+            learned: learned.presence, scope:, **)
     end
 
     def address? = path || query.present?
 
-    # A value as the form gave it, trimmed. A field that holds several gives a list, any other one string.
+    # A value as the form gave it, trimmed. A field that holds several gives a list, any other one string. A scope field
+    # that holds ALL holds nothing else.
     def value_of(given)
-      return Array(given).map { |each| each.to_s.strip }.compact_blank.uniq if multiple
+      return Array(given).map { |each| each.to_s.strip }.compact_blank.uniq.then { |values| scope && values.include?(ConnectField::ALL) ? [ ConnectField::ALL ] : values } if multiple
 
       given.to_s.strip
+    end
+
+    # One of what a scope field names, in words, such as "project".
+    def one = label.singularize.downcase_first
+
+    # What a scope field holds, in words, such as "every project the token can read" or "projects faylee and acme".
+    def reach_words(values)
+      values = Array(values)
+      return "every #{one} the token can read" if values == [ ConnectField::ALL ]
+
+      "#{values.one? ? one : label.downcase_first} #{values.to_sentence}"
     end
 
     # The choices a field offers. A field chosen after connecting offers the list its connection learned, any other its own.
@@ -111,19 +133,35 @@ class IntegrationProvider
     def refusal(given, choices: options)
       value = value_of(given)
       return if value.empty? && optional
+      return "Choose at least one #{one}, or all the token can read." if value.empty? && scope
       return "#{label} is required." if value.empty?
+      return scope_refusal(value) if scope
       return "#{label} can only be #{choices.map(&:label).to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')}." if (choices.any? || learned) && (Array(value) - choices.map(&:value)).any?
       return "#{label} must be a number." if numeric && !value.match?(/\A\d+\z/)
 
       "#{label} can hold only #{allowed}." if pattern && !value.match?(/\A(?:#{pattern})\z/)
     end
 
+    # A scope field's values are listed live, so only their shape is checked here, each on its own.
+    def scope_refusal(values)
+      odd = values.excluding(ConnectField::ALL).find { |each| pattern && !each.match?(/\A(?:#{pattern})\z/) }
+      "#{label} can hold only #{allowed}, and #{odd} does not." if odd
+    end
+
     # The value as given, or the field's default when it was left empty, as settings.field reads it.
     def value_or_default(given) = value_of(given).presence || default.to_s
 
     # How a value reads to a person, by its options' labels where it has them.
-    def shown(value, choices: options) = Array(value).map { |each| choices.find { |option| option.value == each }&.label || each }.join(", ")
+    def shown(value, choices: options)
+      return ConnectField::ALL_LABEL if scope && Array(value) == [ ConnectField::ALL ]
+
+      Array(value).map { |each| choices.find { |option| option.value == each }&.label || each }.join(", ")
+    end
   end
+
+  # What a scope field holds for every scope the credential can read, kept as the field's only value.
+  ConnectField::ALL = "*".freeze
+  ConnectField::ALL_LABEL = "All this token can read".freeze
 
   # site is the address of the provider's app, which links open, for a provider that runs in one place. A provider with
   # regions has a site per region instead.
@@ -175,6 +213,9 @@ class IntegrationProvider
 
     # The fields chosen after connecting, from what the connection learned.
     def learned_fields = connect_fields.select(&:learned)
+
+    # The field that names what a connection reads, which may hold several or all of them, or nil.
+    def scope_field = connect_fields.find(&:scope)
 
     # The fields a connect form asks, for a connection made the provider's own way or, reaching a native provider's MCP
     # server instead, none, since its fields are the native connection's.

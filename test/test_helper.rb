@@ -33,5 +33,6 @@ module ActiveSupport
     include MapReaderHelper
     include TwoEnvironmentMapHelper
     include SettingValuesHelper
+    include HalonAccessHelper
   end
 end

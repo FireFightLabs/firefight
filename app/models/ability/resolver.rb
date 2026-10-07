@@ -73,8 +73,11 @@ module Ability
       grants = Grant.where(principal: principal, workspace_id: workspace_id)
                     .live.includes(:action, role: { role_actions: :action })
 
+      withheld = []
       grants.each do |grant|
-        if grant.action
+        if grant.action && grant.no_access?
+          withheld << grant.action.key
+        elsif grant.action
           (by_key[grant.action.key] ||= []) << grant.scope
         else
           grant.role.role_actions.each do |role_action|
@@ -83,7 +86,8 @@ module Ability
         end
       end
 
-      by_key
+      # No access outranks any set that would otherwise reach the same ability.
+      by_key.except(*withheld)
     end
 
     # Every key a grant names, live or expired, directly or through a set.

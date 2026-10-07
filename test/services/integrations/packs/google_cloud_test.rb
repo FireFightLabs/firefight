@@ -48,9 +48,9 @@ module Integrations
       test "a key or project Google refuses is said before anything is saved" do
         GoogleCloudApi.any_instance.stubs(:project).raises(GoogleCloudApi::Error, "Google Cloud answered 403: The caller does not have permission")
 
-        assert_match "Google Cloud refused this key or project: Google Cloud answered 403", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY }, fields: { GoogleCloud::PROJECT => "acme-prod" })
+        assert_match "Google Cloud refused this key or project acme-prod: Google Cloud answered 403", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY }, fields: { GoogleCloud::PROJECT => "acme-prod" })
         assert_equal "Paste the service account's JSON key.", GoogleCloud.credential_refusal({}, fields: { GoogleCloud::PROJECT => "acme-prod" })
-        assert_equal "Enter the project id.", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY })
+        assert_equal "Choose at least one project, or all the key can read.", GoogleCloud.credential_refusal({ GoogleCloud::KEY => KEY })
         assert_match "not JSON", GoogleCloud.credential_refusal({ GoogleCloud::KEY => "nope" }, fields: { GoogleCloud::PROJECT => "acme-prod" })
       end
 

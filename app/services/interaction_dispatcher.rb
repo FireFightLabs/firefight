@@ -76,6 +76,12 @@ class InteractionDispatcher
     Identifiers::AGENT_CONFIRM => Interactions::AgentConfirmationHandler,
     Identifiers::AGENT_CANCEL => Interactions::AgentConfirmationHandler,
     Identifiers::AGENT_ALLOW_FOR_CHAT => Interactions::AgentConfirmationHandler,
+    Identifiers::HELD_CALL_RUN => Interactions::HeldCallHandler,
+    Identifiers::HELD_CALL_DISMISS => Interactions::HeldCallHandler,
+    Identifiers::HELD_CALL_ASK_AGAIN => Interactions::HeldCallHandler,
+    Identifiers::FIX_STEP_RUN => Interactions::FixStepDecisionHandler,
+    Identifiers::FIX_STEP_DISMISS => Interactions::FixStepDecisionHandler,
+    Identifiers::FIX_STEP_ASK_AGAIN => Interactions::FixStepDecisionHandler,
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler

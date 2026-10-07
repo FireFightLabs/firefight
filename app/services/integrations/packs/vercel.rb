@@ -1,7 +1,9 @@
 module Integrations
   module Packs
-    # Vercel for one team per environment: its projects, their deployments and their build and runtime logs, read with an
-    # access token the team creates in Vercel. Every tool reads, except the rollback and promotion an admin switches on
+    # Vercel for the teams an environment reads, one, several or every one its token can reach, or the token's own account
+    # when the team connect field (a scope) is left empty. A call reaches one team, the one it names or the one its
+    # project lives in (Integrations::Scopes), and a listing named none lists every team. It reads their projects, the
+    # projects' deployments and their build and runtime logs, with an access token a person creates in Vercel. Every tool reads, except the rollback and promotion an admin switches on
     # for Halon to apply fixes. Paths, parameters and answers are the ones in Vercel's OpenAPI spec (openapi.vercel.sh),
     # and how a rollback or promotion is asked follows Vercel's own CLI (vercel/vercel, packages/cli/src/commands).
     # Vercel's remote MCP server only accepts the AI clients Vercel has approved, so Firefight reaches its API directly.
@@ -115,15 +117,34 @@ module Integrations
         ]
       end
 
-      # Lists one project with the token, so a wrong token or team is said on the form before anything is saved.
+      # Lists one project with the token in each team chosen, or in its own account when none is, or lists the teams for
+      # every one it can read, so a wrong token or team is said on the form before anything is saved.
       def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
+        teams = Array(fields[TEAM]).map { |each| each.to_s.strip }.compact_blank
         return "Paste an access token." if token.empty?
+        return (VercelApi.new(token).teams.items.empty? ? "This token can reach no Vercel teams." : nil) if teams == [ IntegrationProvider::ConnectField::ALL ]
 
-        VercelApi.new(token, fields[TEAM]).check!
+        (teams.presence || [ nil ]).each do |team|
+          VercelApi.new(token, team).check!
+        rescue VercelApi::Error => error
+          return Sentence.join("Vercel refused this token or team#{" #{team}" if team}", error)
+        end
         nil
       rescue VercelApi::Error => error
-        Sentence.join("Vercel refused this token or team", error)
+        Sentence.join("Vercel refused this token", error)
+      end
+
+      # The teams the token can reach (VercelApi#teams), each by its id and name.
+      def self.scope_options(values, region: nil, fields: {})
+        token = values.to_h.stringify_keys[API_TOKEN].to_s.strip
+        raise NativePack::Error, "Paste an access token first." if token.empty?
+
+        VercelApi.new(token).teams.items.map do |team|
+          IntegrationProvider::ConnectOption.new(value: team["id"].to_s, label: team["name"].presence || team["slug"].presence || team["id"].to_s)
+        end
+      rescue VercelApi::Error => error
+        raise NativePack::Error, Sentence.join("Vercel did not list this token's teams", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -131,12 +152,16 @@ module Integrations
       end
 
       def list_resources(environment_row:, arguments:)
+        return every_team(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         rows = projects(environment_row).map do |project|
           production = project.dig("targets", PRODUCTION)
           state = production ? "production #{production['readyState'].to_s.downcase}" : "no production deployment"
           [ "#{project['name']} (#{project['id']})", project["framework"], state, ("paused" if project["paused"]) ].compact.join(", ")
         end
-        text = rows.empty? ? "This team has no projects." : "#{rows.size} projects.\n#{rows.join("\n")}"
+        team = team_of(environment_row)
+        named = team ? "Team #{ConnectionSettings.of(environment_row).scope_name(team)}" : "This team"
+        text = rows.empty? ? "#{named} has no projects." : "#{named}, #{rows.size} projects.\n#{rows.join("\n")}"
         Telemetry.result(text, link: nil)
       end
 
@@ -219,6 +244,13 @@ module Integrations
       # The team's projects on the resource map, each with the repository it builds from and the verified domains it
       # serves. What could not be read for one project is a gap, not a failed sweep.
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_team(environment_row) }
+      end
+
+      # What a sweep puts on the map for one team.
+      MAP_KINDS = [ ResourceMap::KIND_SITE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ].freeze
+
+      def map_of_team(environment_row)
         api = api(environment_row)
         reading = MapReading.new
         projects(environment_row).each { |project| read_project(environment_row, api, project, reading) }
@@ -233,6 +265,7 @@ module Integrations
       # only when Vercel answers not found for it. nil for a scope Vercel cannot narrow to, which a sweep reads.
       def map_refresh(environment_row, scope)
         return unless scope.external_id && [ nil, ResourceMap::KIND_SITE ].include?(scope.kind)
+        return team_holding(environment_row, scope)&.map_refresh(environment_row, scope) if every_scope?(environment_row)
 
         api = api(environment_row)
         project = begin
@@ -295,8 +328,11 @@ module Integrations
       PLAIN = "plain".freeze
       SECRET_VISIBILITY = "secret".freeze
 
+      # Lists a project in each team the connection reaches, or in the token's own account when it names none, so a team
+      # the token can no longer reach is said on the connection.
       def check_health!(environment_row)
-        api(environment_row).check!
+        teams = ConnectionSettings.of(environment_row).scopes
+        teams.empty? ? api(environment_row).check! : teams.each { |team| scoped(team).send(:api, environment_row).check! }
       rescue VercelApi::Error => error
         fail! error.message
       end
@@ -308,7 +344,30 @@ module Integrations
         token = settings.credential(API_TOKEN)
         fail! "This environment has no Vercel access token. Reconnect it on the Integrations page." if token.blank?
 
-        VercelApi.new(token, settings.field(TEAM))
+        VercelApi.new(token, team_of(environment_row))
+      end
+
+      # The team a call reaches, or nil for the token's own account when the connection names none.
+      def team_of(environment_row) = scope!(environment_row)
+
+      # A listing of every team the connection reaches, each read by a pack of its own and headed with its own.
+      def every_team(environment_row)
+        texts = ConnectionSettings.of(environment_row).scopes.map do |team|
+          Array(yield(scoped(team))["content"]).filter_map { |part| part["text"] }.join("\n")
+        end
+        Telemetry.result(texts.join("\n\n"), link: nil)
+      end
+
+      # The pack of the team a change is in, the team the event named or the one the map has the project in. nil, for a
+      # sweep to read, when neither is one the connection reaches.
+      def team_holding(environment_row, scope)
+        reached = ConnectionSettings.of(environment_row).scopes
+        return scoped(scope.account) if scope.account.present? && reached.include?(scope.account)
+
+        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
+                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
+                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        scoped(on_map) if on_map.present? && reached.include?(on_map)
       end
 
       def projects(environment_row) = project_list(environment_row).items
@@ -469,7 +528,7 @@ module Integrations
       def owner_slug(environment_row)
         return @owner_slug if defined?(@owner_slug)
 
-        team = ConnectionSettings.of(environment_row).field(TEAM).to_s.strip
+        team = team_of(environment_row).to_s.strip
         @owner_slug = if team.match?(VercelApi::TEAM_ID) then api(environment_row).team(team)["slug"].presence
         elsif team.present? then team
         else api(environment_row).user["username"].presence

@@ -85,5 +85,5 @@ class ResourceMap::Link < ApplicationRecord
     end
   end
 
-  def sentence = "#{from_resource.name} #{ResourceMap::RELATION_WORDS.fetch(relation)} #{to_resource.name}"
+  def sentence = "#{from_resource.scoped_name} #{ResourceMap::RELATION_WORDS.fetch(relation)} #{to_resource.scoped_name}"
 end

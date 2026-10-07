@@ -1,6 +1,7 @@
 module Integrations
   module Packs
-    # Azure for one subscription per environment, read with a service principal the workspace creates: App Service and
+    # Azure for the subscriptions an environment reads, one, several or every one its service principal can read (the
+    # subscription connect field, a scope), with a service principal the workspace creates. It reads App Service and
     # Functions apps with their deployments and slots, Container Apps with their revisions, Azure SQL databases and
     # PostgreSQL flexible servers, their metrics from Azure Monitor and their logs from Log Analytics. Three tools change
     # something, each as Azure's own API does it, and only when the principal's roles allow it and an admin switched the
@@ -174,25 +175,56 @@ module Integrations
         [
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
                               hint: "A client secret of the service principal's app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
-                                    "on the subscription. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
+                                    "on each subscription it reads. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
                                     "Optionally, to link App Service and Function apps to the databases their settings name, also give it a custom role " \
                                     "holding only Microsoft.Web/sites/config/list/action.")
         ]
       end
 
-      # Reads the subscription with the principal, so a wrong secret or subscription is said on the form before anything
-      # is saved. The tenant, client and subscription are connect fields, whose format the registry already checked.
+      # Reads each subscription chosen with the principal, or lists them for every one it can read, so a wrong secret or
+      # subscription is said on the form before anything is saved. The tenant, client and subscriptions are connect
+      # fields, whose format the registry already checked.
       def self.credential_refusal(values, region: nil, fields: {})
         secret = values[SECRET].to_s.strip
-        tenant, client, subscription = fields.values_at(TENANT, CLIENT, SUBSCRIPTION).map { |value| value.to_s.strip }
+        tenant, client = fields.values_at(TENANT, CLIENT).map { |value| value.to_s.strip }
+        subscriptions = Array(fields[SUBSCRIPTION]).map { |each| each.to_s.strip }.compact_blank
         return "Paste the client secret." if secret.empty?
-        return "Enter the tenant, client id and subscription id." if [ tenant, client, subscription ].any?(&:empty?)
+        return "Enter the tenant and client id." if [ tenant, client ].any?(&:empty?)
+        return "Choose at least one subscription, or all the service principal can read." if subscriptions.empty?
 
-        AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription, cloud: cloud_of(region)).subscription_details
+        if subscriptions == [ IntegrationProvider::ConnectField::ALL ]
+          return "This service principal can read no Azure subscription. Give it Reader on one." if scope_options(values, region: region, fields: fields).empty?
+
+          return nil
+        end
+        subscriptions.each do |subscription|
+          AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: subscription, cloud: cloud_of(region)).subscription_details
+        rescue AzureApi::Error => error
+          return Sentence.join("Azure refused this service principal or subscription #{subscription}", error)
+        end
         nil
-      rescue AzureApi::Error => error
+      rescue AzureApi::Error, NativePack::Error => error
         Sentence.join("Azure refused this service principal or subscription", error)
       end
+
+      # The subscriptions the principal can read that are not disabled or deleted (Integrations::AzureApi#subscriptions),
+      # each with its id and display name.
+      def self.scope_options(values, region: nil, fields: {})
+        secret = values.to_h.stringify_keys[SECRET].to_s.strip
+        tenant, client = fields.to_h.stringify_keys.values_at(TENANT, CLIENT).map { |value| value.to_s.strip }
+        raise NativePack::Error, "Paste the client secret, the tenant and the client id first." if [ secret, tenant, client ].any?(&:empty?)
+
+        api = AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: nil, cloud: cloud_of(region))
+        api.subscriptions.items.reject { |subscription| UNREADABLE.include?(subscription["state"].to_s) }.map do |subscription|
+          IntegrationProvider::ConnectOption.new(value: subscription["subscriptionId"].to_s,
+                                                 label: subscription["displayName"].presence || subscription["subscriptionId"].to_s)
+        end
+      rescue AzureApi::Error => error
+        raise NativePack::Error, Sentence.join("Azure did not list this service principal's subscriptions", error)
+      end
+
+      # A subscription in these states holds nothing to read (Subscription, SubscriptionState).
+      UNREADABLE = %w[Disabled Deleted].freeze
 
       def self.cloud_of(region) = CLOUDS.fetch(region&.key.to_s, AzureApi::GLOBAL)
 
@@ -204,6 +236,8 @@ module Integrations
       end
 
       def list_resources(environment_row:, arguments:)
+        return every_subscription(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         listing = catalog(environment_row)
         rows = listing.items.map { |item| "#{item[:name]} (#{item[:id]}), #{item[:type]} in #{item[:group]}, #{item[:location]}, #{item[:status]}" }
         gaps = listing.gaps.map { |gap| "Not listed: #{gap.text}" }
@@ -323,8 +357,9 @@ module Integrations
         Telemetry.result(text, link: portal_link(environment_row, target.id))
       end
 
+      # Reads each subscription the connection reaches, so one the principal can no longer read is said on the connection.
       def check_health!(environment_row)
-        api(environment_row).subscription_details
+        ConnectionSettings.of(environment_row).scopes.each { |subscription| scoped(subscription).send(:api, environment_row).subscription_details }
       rescue AzureApi::Error => error
         fail! error.message
       end
@@ -334,6 +369,13 @@ module Integrations
       # nothing of its kind is taken as gone. Each app's settings are read in memory and each database reports the
       # address it is reached at, so the map links an app to the database its settings name.
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_subscription(environment_row) }
+      end
+
+      # What a sweep puts on the map for one subscription.
+      MAP_KINDS = [ *KINDS.values.uniq, ResourceMap::KIND_DOMAIN ].freeze
+
+      def map_of_subscription(environment_row)
         subscription = subscription_of(environment_row)
         listing = catalog(environment_row)
         reading = MapReading.new(SettingsReading.new(workspace: environment_row.integration.workspace, gaps: [], stopped: []))
@@ -346,6 +388,10 @@ module Integrations
       # for a scope Azure cannot narrow to.
       def map_refresh(environment_row, scope)
         target = Target.parse(scope.external_id)
+        if every_scope?(environment_row)
+          reached = ConnectionSettings.of(environment_row).scopes.find { |each| target && each.casecmp?(target.subscription) }
+          return reached && scoped(reached).map_refresh(environment_row, scope)
+        end
         subscription = subscription_of(environment_row)
         return unless target && target.subscription.casecmp?(subscription) && target.name != MASTER
 
@@ -369,6 +415,8 @@ module Integrations
       # What normal looks like for each app and database, read an hour at a time over the window. A resource Azure will
       # not read keeps yesterday's baselines, and being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
+        return by_scope(environment_row, resources) { |pack, group| pack.baselines_of(environment_row, group, window) } unless scope
+
         resources.flat_map do |resource|
           target = Target.parse(resource.external_id)
           type = resource.details.to_h[TYPE]
@@ -398,7 +446,7 @@ module Integrations
 
       def api(environment_row)
         settings = ConnectionSettings.of(environment_row)
-        tenant, client, subscription = settings.field(TENANT), settings.field(CLIENT), settings.field(SUBSCRIPTION)
+        tenant, client, subscription = settings.field(TENANT), settings.field(CLIENT), subscription_of(environment_row)
         secret = settings.credential(SECRET)
         fail! "This environment has no Azure service principal. Reconnect it on the Integrations page." if [ tenant, client, secret, subscription ].any?(&:blank?)
 
@@ -406,7 +454,15 @@ module Integrations
                               cloud: self.class.cloud_of(settings.region), token_cache: settings)
       end
 
-      def subscription_of(environment_row) = ConnectionSettings.of(environment_row).field(SUBSCRIPTION) || fail!("This environment has no Azure subscription. Reconnect it.")
+      def subscription_of(environment_row) = scope!(environment_row)
+
+      # A listing of every subscription the connection reaches, each read by a pack of its own.
+      def every_subscription(environment_row)
+        texts = ConnectionSettings.of(environment_row).scopes.map do |subscription|
+          Array(yield(scoped(subscription))["content"]).filter_map { |part| part["text"] }.join("\n")
+        end
+        Telemetry.result(texts.join("\n\n"), link: nil)
+      end
 
       def catalog(environment_row)
         @catalog ||= begin
@@ -590,7 +646,7 @@ module Integrations
 
       # By its name on the map's last sweep, then in the live list. A name two resources share is refused with their ids.
       def named(environment_row, wanted)
-        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).pluck(:external_id, :name).map { |id, name| { id: id, name: name } }
+        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row, account: subscription_of(environment_row)).pluck(:external_id, :name).map { |id, name| { id: id, name: name } }
         found = Named.find(mapped, wanted, id: :id, name: :name, provider: PROVIDER, connection: environment_row) ||
                 Named.find(catalog(environment_row).items, wanted, id: :id, name: :name, provider: PROVIDER, connection: environment_row)
         found && Target.parse(found[:id])

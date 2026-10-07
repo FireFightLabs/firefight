@@ -99,14 +99,21 @@ class ResourceMap::Resource < ApplicationRecord
     return "Nothing on the resource map is called #{reference}. find_resources searches it." if found.empty?
     return found.first if found.one?
 
-    "More than one resource is called #{reference}: #{found.map { |each| "#{each.kind} #{each.name} (map id #{each.id})" }.to_sentence}. Name it by its map id."
+    "More than one resource is called #{reference}: #{found.map { |each| "#{each.kind} #{each.scoped_name} (map id #{each.id})" }.to_sentence}. Name it by its map id."
+  end
+
+  # Its name, with the scope it lives in when its connection reaches several (ResourceMap::SCOPE), such as "web in
+  # faylee", since another scope may hold one of the same name.
+  def scoped_name
+    scope = details.to_h[ResourceMap::SCOPE_NAME].presence || details.to_h[ResourceMap::SCOPE].presence
+    scope ? "#{name} in #{scope}" : name
   end
 
   # One line saying what it is and where it runs, for a reader that has no room for a fact sheet.
   def line
     environment = integration_environment&.environment&.name
     place = [ ResourceMap.provider_name(provider), account ].join(" ")
-    [ "#{kind.humanize(capitalize: false)} #{name} on #{place}", ("in #{environment}" if environment), (status_label&.downcase || "status unknown"),
+    [ "#{kind.humanize(capitalize: false)} #{scoped_name} on #{place}", ("in #{environment}" if environment), (status_label&.downcase || "status unknown"),
       ("gone since #{removed_at.to_date.iso8601}" if removed_at) ].compact.join(", ")
   end
 

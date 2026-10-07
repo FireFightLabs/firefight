@@ -21,7 +21,16 @@ module Ability
 
     attr_writer :tool_connection
 
-    def connection_name = tool_connection&.display_name
+    # With the one project or workspace a call named, for a connection that reaches several, such as "Faylee
+    # (Northflank), project acme".
+    def connection_name
+      connection = tool_connection
+      return unless connection
+
+      key = IntegrationProvider.find(connection.provider)&.scope_field&.key
+      scope = key && self[:params].to_h[key].presence
+      scope.is_a?(String) ? connection.target_label(scope: scope) : connection.display_name
+    end
 
     # The provider's key, such as northflank, for a caller that groups by provider.
     def connection_provider = tool_connection&.provider

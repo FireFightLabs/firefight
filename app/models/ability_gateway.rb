@@ -87,7 +87,8 @@ class AbilityGateway
 
   # Without a block, returns an Authorization the caller must finalize. With one, the block is handed it, so an answer
   # that says it failed can be ledgered as one. On PendingApproval, the retry passes context[:approval_id] once approved.
-  def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
+  # holdable: false is for a way in nothing could resume after an approval, which is ledgered but never held.
+  def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {}, holdable: true)
     action = Ability::Action.lookup(action_key, workspace)
 
     unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
@@ -97,8 +98,8 @@ class AbilityGateway
       raise Denied.new(action_key)
     end
 
-    approval = approval_gate!(principal: principal, action: action, action_key: action_key,
-                              workspace: workspace, scope: scope, params: params, context: context)
+    approval = holdable ? approval_gate!(principal: principal, action: action, action_key: action_key,
+                                         workspace: workspace, scope: scope, params: params, context: context) : nil
 
     invocation = nil
     claimed = true
@@ -137,6 +138,18 @@ class AbilityGateway
       authorization.finalize_error!(error)
       raise
     end
+  end
+
+  # Asks for a fresh approval of a call without ever running it, as when an approved call expired before anyone ran it.
+  # Raises Denied when the principal may no longer make the call and PendingApproval with the new request. Returns nil
+  # when no rule holds the call any more, so the caller says so rather than running it.
+  def self.request_approval!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
+    action = Ability::Action.lookup(action_key, workspace)
+    raise Denied.new(action_key) unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
+    return nil unless approval_requirement(workspace, action, action_key, scope, context)
+
+    approval_gate!(principal: principal, action: action, action_key: action_key, workspace: workspace, scope: scope, params: params,
+                   context: context.except(:approval_id))
   end
 
   def self.permitted?(principal, action, action_key, workspace, scope)

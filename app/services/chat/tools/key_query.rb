@@ -27,7 +27,7 @@ class Chat::Tools::KeyQuery < RubyLLM::Tool
     return refused(tool_call, ResourceMap::KeyQueries.unknown(resource, given["query"])) unless check
 
     spec, able, callable = @reads[check.capability]
-    return refused(tool_call, "No connection you may use offers #{Integrations::Capabilities.spec(check.capability).what} for #{resource.name}.") unless spec
+    return refused(tool_call, "No connection you may use offers #{Integrations::Capabilities.spec(check.capability).what} for #{resource.scoped_name}.") unless spec
 
     plan = ResourceMap::KeyQueries.plan(resource, check, principal: @agent_run.acting_principal, tools: callable)
     return refused(tool_call, plan.refusal) unless plan.available?
