@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1311,6 +1311,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "error_summary"
+    t.string "failure_kind"
     t.uuid "hypothesis_id"
     t.uuid "investigation_id", null: false
     t.uuid "invocation_id"
@@ -1742,6 +1743,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.jsonb "arguments", default: {}
     t.datetime "created_at", null: false
     t.boolean "failed", default: false, null: false
+    t.string "failure_kind"
     t.uuid "message_id", null: false
     t.string "message_type", null: false
     t.string "name", null: false

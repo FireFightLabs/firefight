@@ -7,12 +7,16 @@ module Integrations
     class Refused < StandardError; end
 
     # The guard for a tool that is not read only, or nil when nothing can tell its reads from its writes. A provider's
-    # definition names its guard (Integrations::Provider, read_guard), which answers guards?(tool_name), schema and
-    # reading(tool_name, arguments). A guard's schema, when it has one, is what a run that only reads is offered instead
-    # of the tool's own, with its description.
+    # definition names its guard (Integrations::Provider, read_guard), which answers guards?(tool_name), schema,
+    # reading(tool_name, arguments), and reads?(tool_name, arguments) for a call made without it. A guard's schema, when
+    # it has one, is what a run that only reads is offered instead of the tool's own, with its description.
     def self.for(tool)
       guard = Provider.for(tool.integration.provider).read_guard
       guard if guard&.guards?(tool.name)
     end
+
+    # Whether a call to a tool that can make both was shown to read, by its guard's reads?(tool_name, arguments). A call
+    # the guard cannot prove reads counts as a change.
+    def self.reads?(tool, arguments) = self.for(tool)&.reads?(tool.name, arguments.to_h.stringify_keys) == true
   end
 end

@@ -12,7 +12,9 @@ module Integrations
     class NotPermitted < Error; end
     # GitHub answered that the repository is not there, or not one the installation can see, the one answer a re-read
     # takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     API_ROOT = "https://api.github.com".freeze
     PROVIDER_KEY = "github".freeze

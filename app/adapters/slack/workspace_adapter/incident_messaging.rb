@@ -417,6 +417,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze
+  # A finished step that failed is an error, and one whose provider found nothing is complete, an answer to the check.
+  # Either says how it went in a word under its title.
+  STEP_ERROR = "error".freeze
+  STEP_OUTCOME_WORDS = { Chat::StepOutcome::KIND_FAILED => "Failed", Chat::StepOutcome::KIND_NOT_FOUND => "Not found" }.freeze
 
   # A bot posts to any public channel, but not to a private one it is not in. Posting to a person opens their DM with it.
   def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)
@@ -448,14 +452,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { answer_id: nil }
   end
 
-  def report_agent_step(channel_id:, answer_id:, key:, title:, status:)
+  def report_agent_step(channel_id:, answer_id:, key:, title:, status:, outcome: nil)
     return { success: true } if answer_id.blank?
 
+    shown = outcome == Chat::StepOutcome::KIND_FAILED ? STEP_ERROR : STEP_STATUSES.fetch(status)
+    task = { type: "task_update", id: key, title: title, status: shown, output: STEP_OUTCOME_WORDS[outcome] }.compact
     translate_errors do
-      Slack::Client.append_stream(
-        workspace: @workspace, channel: channel_id, ts: answer_id,
-        chunks: [ { type: "task_update", id: key, title: title, status: STEP_STATUSES.fetch(status) } ]
-      )
+      Slack::Client.append_stream(workspace: @workspace, channel: channel_id, ts: answer_id, chunks: [ task ])
       { success: true }
     end
   rescue AdapterError => error

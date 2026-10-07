@@ -96,7 +96,11 @@ module TypescriptConstants
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
         "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED,
-        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED
+        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED, "NOT_FOUND" => Conversation::LiveDelivery::STATUS_NOT_FOUND
+      }, nil),
+      Export.new("STEP_OUTCOME_KINDS", {
+        "ANSWERED" => Chat::StepOutcome::KIND_ANSWERED, "FAILED" => Chat::StepOutcome::KIND_FAILED,
+        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND

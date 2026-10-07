@@ -10,7 +10,7 @@ import DetailList, { type Detail } from "@/components/agent-ui/detail-list";
  * The trace runs while the agent works, settles, and remains expandable.
  * ───────────────────────────────────────────────────────── */
 
-export type ThinkingRowStatus = "running" | "done" | "failed" | "waiting" | "cancelled";
+export type ThinkingRowStatus = "running" | "done" | "failed" | "not_found" | "waiting" | "cancelled";
 
 export type ThinkingRow = {
   /** what tells two rows with the same words apart */
@@ -21,6 +21,8 @@ export type ThinkingRow = {
   status?: ThinkingRowStatus;
   /** what the step was given, shown under the row once it is opened */
   details?: Detail[];
+  /** what the step got back, shown under what it was given once it is opened */
+  outcome?: ReactNode;
   /** something that happened along the way rather than a step taken, drawn as a muted line with a dot for its mark */
   quiet?: boolean;
 };
@@ -33,6 +35,7 @@ function RowMark({ status }: { status: ThinkingRowStatus }) {
   const paths: Record<Exclude<ThinkingRowStatus, "running">, { path: ReactNode; stroke: string }> = {
     done: { path: <path d="M20 6L9 17l-5-5" />, stroke: "var(--ink-3)" },
     failed: { path: <path d="M18 6L6 18M6 6l12 12" />, stroke: "var(--red)" },
+    not_found: { path: <path d="M6 12h12" />, stroke: "var(--ink-3)" },
     waiting: { path: <path d="M9 6v12M15 6v12" />, stroke: "var(--orange)" },
     cancelled: { path: <><circle cx="12" cy="12" r="8" /><path d="M6.5 17.5l11-11" /></>, stroke: "var(--ink-3)" },
   };
@@ -45,7 +48,7 @@ function RowMark({ status }: { status: ThinkingRowStatus }) {
 }
 
 const STATUS_WORDS: Record<ThinkingRowStatus, string> = {
-  running: "Running", done: "Done", failed: "Failed", waiting: "Waiting for you", cancelled: "Cancelled",
+  running: "Running", done: "Done", failed: "Failed", not_found: "Not found", waiting: "Waiting for you", cancelled: "Cancelled",
 };
 
 export default function ThinkingState({
@@ -155,7 +158,7 @@ export default function ThinkingState({
             {rows.map((row, i) => {
               const status = row.status ?? (i < rows.length - 1 || !working ? "done" : "running");
               const opened = Boolean(openRows[row.id]);
-              const expandable = Boolean(row.details?.length);
+              const expandable = Boolean(row.details?.length) || Boolean(row.outcome);
               const entrance = firstRows.has(row.id) ? undefined : "fade-up 320ms cubic-bezier(0.23,1,0.32,1) both";
               const line = (
                 <>
@@ -168,7 +171,12 @@ export default function ThinkingState({
                     </>
                   )}
                   <span className={row.quiet ? "shrink-0 text-[12.5px] text-ink-3" : "shrink-0 text-[12.5px] font-medium text-ink"}>{row.primary}</span>
-                  {row.secondary && <span className="min-w-0 truncate text-[12px] text-ink-3" title={row.secondary}>{row.secondary}</span>}
+                  {/* opened, the step's sentence reads in full, so why it was taken is never cut off */}
+                  {row.secondary && (
+                    <span className={`min-w-0 text-[12px] text-ink-3 ${opened ? "py-0.5 leading-[18px]" : "truncate"}`} title={row.secondary}>
+                      {row.secondary}
+                    </span>
+                  )}
                   {expandable && (
                     <svg
                       width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
@@ -195,7 +203,8 @@ export default function ThinkingState({
                   ) : (
                     <div className="flex min-h-7 w-full min-w-0 items-center gap-2 rounded-[6px] px-1.5 py-0.5">{line}</div>
                   )}
-                  {expandable && opened && row.details && <DetailList details={row.details} className="mt-1 mb-1.5 ml-7" />}
+                  {expandable && opened && row.details && row.details.length > 0 && <DetailList details={row.details} className="mt-1 mb-1.5 ml-7" />}
+                  {expandable && opened && row.outcome && <div className="mt-1 mb-1.5 ml-7">{row.outcome}</div>}
                 </div>
               );
             })}

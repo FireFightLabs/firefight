@@ -15,6 +15,12 @@ class InvestigationStepSerializer < BaseSerializer
     step.error_summary
   end
 
+  # How the step went and what it got back, as a chat's step shows it, so a not found reads as an answer to the check.
+  type "#{AgentChatMessageSerializer::OUTCOME_TYPE} | null"
+  def outcome
+    Chat::StepOutcome.for_step(step)&.to_h
+  end
+
   # What the tool returned, cut short. The whole output stays encrypted on the step.
   type :string, optional: true
   def result
