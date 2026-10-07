@@ -4,7 +4,7 @@
 # (bin/sync-skill-references aws kubernetes) copies only theirs. Run by hand or by the daily workflow, which opens a pull
 # request when anything changed.
 #
-# A provider is one of two kinds of source.
+# A provider is one of three kinds of source.
 #
 # A git repository:
 #   repository  the address to clone
@@ -20,8 +20,19 @@
 #   pages       path => page, each fetched at page_url
 #   page_url    where a page's markdown is, as a format of site and page, %<site>s/%<page>s/index.md unless it says
 #
-# A path or page that is gone fails the run, so a moved guide is noticed.
+# An API client published on npm, whose endpoints are written out as guides, for a provider whose API reference has no
+# open license while its client does:
+#   package      the package's name
+#   license      the license file's path in the package, copied as LICENSE
+#   endpoints    the folder the guides go to, where index.md lists every endpoint and a file for each area the detail
+#   relative_to  the path the provider's tool writes paths after, such as /v1/projects/{projectId}/
+#   leave_out    path parameters whose variant of each path is left out, such as a team scoped copy (optional)
+# The client is loaded by script/skill_references/api_client_endpoints.mjs under Node's permission model, reading only
+# the folder it is installed in and writing only the guides, with no environment.
+#
+# A path or page that is gone, or a client that defines no endpoints, fails the run, so a moved guide is noticed.
 require "yaml"
+require "json"
 require "fileutils"
 require "tmpdir"
 require "net/http"
@@ -67,6 +78,23 @@ def copy_repository(source, checkout, staged)
   FileUtils.cp(File.join(checkout, source.fetch("notice")), File.join(staged, "NOTICE")) if source["notice"]
 end
 
+def copy_package(source, dir, staged, root)
+  package = source.fetch("package")
+  install = File.join(dir, "package")
+  FileUtils.mkdir_p(install)
+  system("npm", "install", "--prefix", install, "--ignore-scripts", "--no-save", "--no-package-lock", "--no-audit", "--no-fund",
+         "--silent", package, exception: true)
+  folder = File.join(install, "node_modules", package)
+  guides = File.join(staged, source.fetch("endpoints"))
+  FileUtils.mkdir_p(guides)
+  script = File.join(root, "script/skill_references")
+  system({ "PATH" => ENV.fetch("PATH") }, "node", "--permission", "--allow-fs-read=#{install}", "--allow-fs-read=#{script}",
+         "--allow-fs-write=#{guides}", File.join(script, "api_client_endpoints.mjs"), install, package, guides,
+         source.fetch("relative_to"), *source.fetch("leave_out", []), unsetenv_others: true, exception: true)
+  FileUtils.cp(File.join(folder, source.fetch("license")), File.join(staged, "LICENSE"))
+  JSON.parse(File.read(File.join(folder, "package.json"))).fetch("version")
+end
+
 sources.each do |provider, source|
   target = File.join(root, "config/skills", provider, "references")
   Dir.mktmpdir do |dir|
@@ -80,6 +108,10 @@ sources.each do |provider, source|
       copy_repository(source, checkout, staged)
       File.write(File.join(staged, "SOURCE"), "#{source.fetch('repository')}\n#{commit}\n")
       puts "#{provider}: #{source.fetch('repository')} at #{commit}"
+    elsif source["package"]
+      version = copy_package(source, dir, staged, root)
+      File.write(File.join(staged, "SOURCE"), "https://www.npmjs.com/package/#{source.fetch('package')}\n#{version}\n")
+      puts "#{provider}: #{source.fetch('package')} #{version}"
     else
       urls = source.fetch("pages").map do |path, page|
         url = format(source.fetch("page_url", DEFAULT_PAGE_URL), site: source.fetch("site"), page: page)

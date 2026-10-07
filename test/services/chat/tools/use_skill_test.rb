@@ -81,6 +81,32 @@ class Chat::Tools::UseSkillTest < ActiveSupport::TestCase
     assert_includes use_skill.call("skill" => "planetscale_connections", "reference" => "../../firefight/x.md"), "There is no guide called"
   end
 
+  # Seen in a real chat, asked to create a Northflank pipeline, Halon guessed POST pipelines three times and got 405 each
+  # time. Northflank's API only lists and reads pipelines, and its endpoint list now says so.
+  test "Northflank's fixes skill names its API reference, which lists every pipeline call and none that creates a pipeline" do
+    connect_northflank(%w[api_request list_resources])
+
+    steps = use_skill.call("skill" => "northflank_fixes")
+    index = use_skill.call("skill" => "northflank_fixes", "reference" => "api/index.md")
+    pipelines = use_skill.call("skill" => "northflank_fixes", "reference" => "api/project/pipelines.md")
+
+    assert_includes steps, "Guides you can read when you need the detail, with use_skill, this skill and reference: api/index.md"
+    assert index.start_with?(Chat::Tools::UseSkill::GUIDE_NOTE)
+    assert_includes index, "An operation that is not listed here is not in the API"
+    assert_includes index, "### pipelines (project/pipelines.md)"
+    [ "GET pipelines", "GET pipelines/{pipelineId}", "GET pipelines/{pipelineId}/release-flows/{stage}",
+      "POST pipelines/{pipelineId}/release-flows/{stage}", "POST pipelines/{pipelineId}/release-flows/{stage}/runs" ].each do |call|
+      assert_includes index.lines.map(&:strip), "- #{call}"
+      assert_includes pipelines, "### #{call}\n"
+    end
+    [ "POST pipelines", "PUT pipelines", "PATCH pipelines", "PATCH pipelines/{pipelineId}", "PUT pipelines/{pipelineId}" ].each do |call|
+      assert_not_includes index.lines.map(&:strip), "- #{call}", "Northflank's API has no #{call}"
+      assert_not_includes pipelines, "### #{call}\n"
+    end
+    assert_includes pipelines, "Body, required: apiVersion, spec."
+    assert_includes pipelines, "Permission: Project > Pipelines > General > Update."
+  end
+
   test "a provider's skill that names the map hands it over with the provider's own tools, to whoever may read the map" do
     asker = workspace_memberships(:alice_workspace_one)
     integration = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "cloudflare", name: "Cloudflare")

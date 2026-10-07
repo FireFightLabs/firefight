@@ -84,6 +84,19 @@ module Integrations
         assert_match "The API token's role cannot make this change", error.message
       end
 
+      # Seen in a real chat, Halon guessed POST pipelines three times, a call Northflank's API does not have.
+      test "a path Northflank does not know, or a method it does not take there, sends Halon to the API reference" do
+        [ "Northflank answered 405: Method Not Allowed", "Northflank answered 404: Not Found" ].each do |answer|
+          NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Error, answer)
+
+          error = assert_raises(Integrations::Error) { call(:api_request, "method" => "POST", "path" => "pipelines", "body" => { "name" => "faylee" }) }
+
+          assert_match answer, error.message
+          assert_match "Northflank's API may not offer this call", error.message
+          assert_match "never send the same call again", error.message
+        end
+      end
+
       test "a token or project Northflank refuses is said before anything is saved" do
         NorthflankApi.any_instance.stubs(:project).raises(NorthflankApi::Error, "Northflank answered 401: Unauthorized")
 
