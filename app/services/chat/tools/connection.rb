@@ -52,7 +52,18 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def misdirection(given)
     Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.intent_of(given), called: name) do |other|
       Chat::Tools::Target.reach_instead(other, @tool.name)
+    end || scope_misdirection(given)
+  end
+
+  # Words naming another scope of this same connection than the one the call reaches, such as another project.
+  def scope_misdirection(given)
+    environment_row = Chat::Tools::Target.environment_row_of(@tool, given)
+    scope = Integrations::Scopes.of_call(environment_row, given)
+    Chat::Tools::Target.scope_misdirection(environment_row, scope, Chat::Tools.intent_of(given), called: name) do |named, field|
+      "To reach #{field.one} #{named}, call #{name} again with #{field.key} #{named}."
     end
+  rescue Integration::UnknownEnvironment
+    nil
   end
 
   def tracks_issues? = @agent_run.incident.present? && Integrations::Issues.opens?(@tool)
@@ -85,6 +96,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @waiting = false
     @last_result = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
+    # The project or workspace a call reaches is named before it is authorized, so the step, the activity log and an
+    # approval say where it goes.
+    arguments = Integrations::Scopes.resolved(@tool.integration.resolve_environment(environment_entry&.id), arguments)
     result = nil
     environment_row = nil
     said = @agent_run.tool_call(
@@ -167,12 +181,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def guard = @guard ||= Integrations::ReadGuards.for(@tool)
 
-  # What the guard takes instead of the tool's own arguments, when it rewrites them, keeping the environment choice.
+  # What the guard takes instead of the tool's own arguments, when it rewrites them, keeping the choices every caller is
+  # offered beside them, the environment and the scope.
   def reading_schema
     schema = guarded? && guard&.schema
     return unless schema
 
-    environment = @tool.offered_schema.dig("properties", Integration::Tool::ENVIRONMENT_ARG)
-    environment ? schema.deep_merge("properties" => { Integration::Tool::ENVIRONMENT_ARG => environment }) : schema
+    offered = @tool.offered_schema["properties"].to_h.except(*@tool.params_schema.to_h.fetch("properties", {}).keys)
+    schema.deep_merge("properties" => offered)
   end
 end

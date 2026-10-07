@@ -22,6 +22,7 @@ module TypescriptConstants
         "MCP" => Integration::KIND_MCP, "HTTP" => Integration::KIND_HTTP, "NATIVE" => Integration::KIND_NATIVE
       }, nil),
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
+      Export.new("CONNECT_SCOPE_ALL", { "VALUE" => IntegrationProvider::ConnectField::ALL, "LABEL" => IntegrationProvider::ConnectField::ALL_LABEL }, nil),
       Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
       Export.new("INTEGRATION_DETAILS_QUERY_PARAM", Integration::DETAILS_QUERY_PARAM, nil),
       Export.new("INTEGRATION_CONNECT_QUERY_PARAM", Integration::CONNECT_QUERY_PARAM, nil),

@@ -48,9 +48,11 @@ module Integrations
   # so it is read again once.
   class MapEventSource
     # A webhook Firefight registered. secret is what it signs with, nil when the provider signs another way, and
-    # expires_at when it lapses unless refreshed.
-    Webhook = Data.define(:id, :secret, :expires_at) do
-      def initialize(id:, secret: nil, expires_at: nil) = super
+    # expires_at when it lapses unless refreshed. scopes are what it covers for a connection that reaches several of what
+    # its provider names a scope, such as Northflank projects (Integrations::Scopes), so it is registered again once the
+    # connection reaches others. A secret per scope, for a provider that makes one each, is one a line.
+    Webhook = Data.define(:id, :secret, :expires_at, :scopes) do
+      def initialize(id:, secret: nil, expires_at: nil, scopes: nil) = super
     end
 
     # The provider turned a registration or a read of its change log down for the account's plan, a limit or what the

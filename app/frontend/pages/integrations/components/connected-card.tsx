@@ -28,6 +28,7 @@ import {
 } from "@/components/integrations/environment-select";
 import { ProviderMark } from "@/components/integrations/provider-mark";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
+import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
 import { Blocked } from "@/pages/settings/components/blocked-tooltip";
 
 type HealthStatus = Integration["environments"][number]["healthStatus"];
@@ -188,6 +189,14 @@ export function ConnectedCard({
                       </Select>
                     </div>
                   ))}
+                  {environment.scopes && (
+                    <ScopeChoice
+                      integrationId={integration.id}
+                      rowId={environment.id}
+                      scopes={environment.scopes}
+                      canManage={canManage}
+                    />
+                  )}
                   {environment.liveUpdates && (
                     <LiveUpdates
                       integrationId={integration.id}

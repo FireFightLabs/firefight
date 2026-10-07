@@ -112,13 +112,17 @@ class Integration < ApplicationRecord
 
   # What the connection reaches, in words. That is its region and the connect fields that point it at an account, such as
   # "project faylee", or when it was asked none, the accounts its sweep put on the map. environment_row narrows it to one
-  # environment. nil when nothing says.
-  def reach(environment_row = nil)
+  # environment, and scope to the one scope a call reaches when the connection reaches several (Integrations::Scopes).
+  # nil when nothing says.
+  def reach(environment_row = nil, scope: nil)
     rows = environment_row ? [ environment_row ] : integration_environments.select(&:enabled)
     entry = IntegrationProvider.find(provider)
     fields = entry ? entry.address_fields + entry.environment_fields : []
     parts = fields.filter_map do |field|
       values = rows.flat_map { |row| Array(row.fields[field.key].presence || address_fields[field.key].presence) }.map(&:to_s).compact_blank.uniq
+      next field.reach_words([ scope ]) if field.scope && scope.present?
+      next field.reach_words(values) if field.scope && values.any?
+
       "#{field.label.sub(/\A[A-Z](?![A-Z])/, &:downcase)} #{values.to_sentence}" if values.any?
     end
     parts = mapped_accounts(rows) if parts.empty?
@@ -128,13 +132,14 @@ class Integration < ApplicationRecord
 
   # The connection and what it reaches, such as "Faylee (Northflank), project faylee", which is how a call through it is
   # put to a person.
-  def target_label(environment_row = nil) = [ display_name, reach(environment_row) ].compact.join(", ")
+  def target_label(environment_row = nil, scope: nil) = [ display_name, reach(environment_row, scope: scope) ].compact.join(", ")
 
   # Every word that names this connection or what it reaches, lowercased. These are its name and slug, its connect fields
   # and the accounts its sweep found. A word too short to tell connections apart is left out.
   def naming_terms
     rows = integration_environments.to_a
-    values = rows.flat_map { |row| row.fields.values } + address_fields.values
+    values = rows.flat_map { |row| row.fields.values + Integrations::ConnectionSettings.of(row).then { |settings| settings.known_scopes.map { |id| settings.scope_name(id) } } } +
+             address_fields.values
     accounts = ResourceMap::Resource.where(workspace_id: workspace_id, integration_environment_id: rows.map(&:id)).distinct.pluck(:account)
     [ name, slug, slug.tr("_", " "), *values.flatten, *accounts, *accounts.flat_map { |account| account.split("/") } ]
       .map { |term| term.to_s.strip.downcase }.select { |term| term.length >= MIN_TERM }.uniq

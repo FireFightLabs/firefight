@@ -21,6 +21,19 @@ module Integrations
     PAGE_SIZE = 100
     MAX_PAGES = 10
 
+    # The workspaces an account token reaches and the projects in each, as Railway's API docs list them
+    # (docs.railway.com/integrations/api/manage-projects, List projects in a workspace, and
+    # docs.railway.com/integrations/oauth/fetching-workspaces-or-projects), paged as the schema's QueryProjectsConnection.
+    # A workspace token answers projects without a workspace.
+    WORKSPACES = <<~GRAPHQL.freeze
+      query Workspaces { me { workspaces { id name } } }
+    GRAPHQL
+    PROJECTS = <<~GRAPHQL.freeze
+      query Projects($workspaceId: String, $first: Int, $after: String) {
+        projects(workspaceId: $workspaceId, first: $first, after: $after) { edges { node { id name } } pageInfo { hasNextPage endCursor } }
+      }
+    GRAPHQL
+
     PROJECT = <<~GRAPHQL.freeze
       query Project($id: String!) { project(id: $id) { id name workspaceId environments { edges { node { id name } } } } }
     GRAPHQL
@@ -150,6 +163,19 @@ module Integrations
     end
 
     def project(project_id) = query(PROJECT, "id" => project_id)["project"]
+
+    # The workspaces the token's account belongs to, each with its id and name. A workspace token has no account, and
+    # Railway refuses this for it.
+    def workspaces = Array(query(WORKSPACES, {}).dig("me", "workspaces"))
+
+    # The projects in a workspace, or the token's own without one, as a Pages::Read.
+    def projects(workspace_id = nil)
+      Pages.read(max_pages: MAX_PAGES) do |after|
+        connection = query(PROJECTS, "workspaceId" => workspace_id, "first" => PAGE_SIZE, "after" => after)["projects"] || {}
+        nodes = Array(connection["edges"]).filter_map { |edge| edge["node"] }
+        [ nodes, (connection.dig("pageInfo", "endCursor") if connection.dig("pageInfo", "hasNextPage")) ]
+      end
+    end
 
     # Every service instance in an environment, as a Pages::Read that says whether it was read to its end.
     def service_instances(project_id, environment_id)

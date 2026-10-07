@@ -23,6 +23,9 @@ interface SearchableMultiSelectProps {
   onOpen?: () => void
   renderBadge?: (option: SearchableMultiSelectOption) => ReactNode
   renderOption?: (option: SearchableMultiSelectOption) => ReactNode
+  // Offers what was typed as a value of its own when no option has it, such as an id a list could not show.
+  onAdd?: (typed: string) => void
+  disabled?: boolean
 }
 
 export function SearchableMultiSelect({
@@ -36,8 +39,18 @@ export function SearchableMultiSelect({
   onOpen,
   renderBadge,
   renderOption,
+  onAdd,
+  disabled = false,
 }: SearchableMultiSelectProps) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const typed = search.trim()
+  const offersTyped = Boolean(onAdd) && typed !== "" && !options.some((option) => option.value === typed) && !value.includes(typed)
+
+  function addTyped() {
+    onAdd?.(typed)
+    setSearch("")
+  }
 
   const toggle = (id: string) => {
     if (value.includes(id)) {
@@ -62,6 +75,8 @@ export function SearchableMultiSelect({
     setOpen(next)
     if (next) {
       onOpen?.()
+    } else {
+      setSearch("")
     }
   }
 
@@ -82,7 +97,9 @@ export function SearchableMultiSelect({
                 <button
                   type="button"
                   onClick={() => remove(id)}
-                  className="ml-0.5 rounded-sm hover:bg-surface-selected p-0.5"
+                  disabled={disabled}
+                  aria-label={`Remove ${option?.label ?? id}`}
+                  className="ml-0.5 rounded-sm hover:bg-surface-selected p-0.5 disabled:pointer-events-none disabled:opacity-40"
                 >
                   <IconX className="size-3" />
                 </button>
@@ -93,7 +110,7 @@ export function SearchableMultiSelect({
       )}
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+          <Button variant="outline" role="combobox" aria-expanded={open} disabled={disabled} className="w-full justify-between font-normal">
             <span className="text-muted-foreground">
               {value.length === 0 ? placeholder : addMoreText}
             </span>
@@ -102,10 +119,15 @@ export function SearchableMultiSelect({
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           <Command>
-            <CommandInput placeholder={searchPlaceholder} />
+            <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
             <CommandList>
               <CommandEmpty>{emptyText}</CommandEmpty>
               <CommandGroup>
+                {offersTyped && (
+                  <CommandItem value={typed} onSelect={addTyped}>
+                    Add &ldquo;{typed}&rdquo;
+                  </CommandItem>
+                )}
                 {options.map((option) => (
                   <CommandItem
                     key={option.value}

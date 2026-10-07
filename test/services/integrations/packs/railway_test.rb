@@ -35,7 +35,7 @@ module Integrations
 
       test "a wrong token, or an environment the project does not have, is said on the form before anything is saved" do
         assert_nil Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "env-prod" })
-        assert_equal "The project has no environment called staging. It has production.",
+        assert_equal "Project shop has no environment called staging. It has production.",
                      Railway.credential_refusal({ Railway::API_TOKEN => "t" }, fields: { Railway::PROJECT => "prj-1", Railway::ENVIRONMENT => "staging" })
         RailwayApi.any_instance.stubs(:project).raises(RailwayApi::Error, "Railway refused this: Not Authorized")
         assert_equal "Railway refused this token or project: Not Authorized.",

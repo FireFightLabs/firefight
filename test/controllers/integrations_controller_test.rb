@@ -70,13 +70,13 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     post integrations_path, params: {
       provider: "northflank", name: "Northflank",
-      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, fields: { Integrations::Packs::Northflank::PROJECT => "firefight" }
+      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, fields: { Integrations::Packs::Northflank::PROJECT => [ "firefight" ] }
     }
 
     integration = @workspace.integrations.find_by!(name: "Northflank")
     row = integration.integration_environments.sole
     assert_equal({ Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, row.credentials_hash)
-    assert_equal "firefight", Integrations::ConnectionSettings.of(row).field(Integrations::Packs::Northflank::PROJECT)
+    assert_equal [ "firefight" ], Integrations::ConnectionSettings.of(row).field(Integrations::Packs::Northflank::PROJECT)
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
     assert_equal Integrations::Packs::Northflank.tool_definitions.map(&:name).sort, integration.tools.pluck(:name).sort
 
@@ -85,8 +85,9 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     provider = inertia_props["providers"].find { |candidate| candidate["key"] == "northflank" }
     assert_equal [ Integrations::Packs::Northflank::API_TOKEN ], provider["credentialFields"].map { |field| field["key"] }
     assert_equal [ Integrations::Packs::Northflank::PROJECT ], provider["connectFields"].map { |field| field["key"] }
-    shown = inertia_props["integrations"].find { |each| each["provider"] == "northflank" }["environments"].sole["settings"]
-    assert_equal [ { "label" => "Project", "value" => "firefight" } ], shown
+    environment = inertia_props["integrations"].find { |each| each["provider"] == "northflank" }["environments"].sole
+    assert_empty environment["settings"], "the projects are shown as a choice of their own"
+    assert_equal [ "project", [ "firefight" ] ], environment["scopes"].values_at("key", "values")
   end
 
   test "GitLab connects with an access token and the address of a GitLab of its own, and discovers its tools" do

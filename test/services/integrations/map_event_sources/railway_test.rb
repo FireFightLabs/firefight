@@ -21,7 +21,7 @@ module Integrations
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "railway", name: "Railway")
         @row = @integration.integration_environments.create!
         Packs::Railway.store_credentials!(@row, Packs::Railway::API_TOKEN => "rw-token")
-        @row.store_fields!(Packs::Railway::PROJECT => "prj-1", Packs::Railway::ENVIRONMENT => "production")
+        @row.store_fields!(Packs::Railway::PROJECT => [ "prj-1" ], Packs::Railway::ENVIRONMENT => "production")
         RailwayApi.any_instance.stubs(:project).with("prj-1").returns("id" => "prj-1", "workspaceId" => "ws-1")
       end
 
@@ -56,7 +56,8 @@ module Integrations
         end.returns("id" => "rule-1")
 
         webhook = Railway.register(@row, url: URL)
-        assert_equal "rule-1", webhook.id
+        assert_equal({ "prj-1" => "rule-1" }, JSON.parse(webhook.id))
+        assert_equal [ "prj-1" ], webhook.scopes
         assert_equal 64, webhook.secret.size
 
         RailwayApi.any_instance.unstub(:create_webhook)
@@ -65,7 +66,7 @@ module Integrations
         RailwayApi.any_instance.expects(:create_webhook).never
         RailwayApi.any_instance.expects(:update_webhook).with("rule-1", has_entries(url: URL, events: Railway::EVENTS)).returns("id" => "rule-1")
         again = Railway.register(@row, url: URL)
-        assert_equal "rule-1", again.id
+        assert_equal({ "prj-1" => "rule-1" }, JSON.parse(again.id))
         assert_not_equal webhook.secret, again.secret
       end
 
@@ -79,7 +80,27 @@ module Integrations
         Railway.remove(@row, "rule-1")
         RailwayApi.any_instance.unstub(:delete_webhook)
         RailwayApi.any_instance.stubs(:delete_webhook).raises(RailwayApi::NotFound, "Railway refused this: NotificationRule not found")
-        assert_nil Railway.remove(@row, "rule-1")
+        assert_nothing_raised { Railway.remove(@row, { "prj-1" => "rule-1" }.to_json) }
+      end
+
+      test "a connection reading several projects has a webhook on each with one secret, and narrowing takes back the dropped one's" do
+        @row.store_fields!(Packs::Railway::PROJECT => %w[prj-1 prj-2], Packs::Railway::ENVIRONMENT => "production")
+        RailwayApi.any_instance.stubs(:project).with("prj-2").returns("id" => "prj-2", "workspaceId" => "ws-2")
+        RailwayApi.any_instance.stubs(:notification_rules).returns([])
+        RailwayApi.any_instance.expects(:create_webhook).with("ws-1", "prj-1", has_entries(url: URL)).returns("id" => "rule-1")
+        RailwayApi.any_instance.expects(:create_webhook).with("ws-2", "prj-2", has_entries(url: URL)).returns("id" => "rule-2")
+
+        webhook = Railway.register(@row, url: URL)
+        assert_equal({ "prj-1" => "rule-1", "prj-2" => "rule-2" }, JSON.parse(webhook.id))
+        assert_equal %w[prj-1 prj-2], webhook.scopes
+
+        @row.update!(map_events_webhook_id: webhook.id)
+        @row.store_fields!(Packs::Railway::PROJECT => %w[prj-2], Packs::Railway::ENVIRONMENT => "production")
+        RailwayApi.any_instance.unstub(:create_webhook)
+        RailwayApi.any_instance.expects(:delete_webhook).with("rule-1").returns(true)
+        RailwayApi.any_instance.expects(:create_webhook).with("ws-2", "prj-2", has_entries(url: URL)).returns("id" => "rule-2")
+        narrowed = Railway.register(@row.reload, url: URL)
+        assert_equal({ "prj-2" => "rule-2" }, JSON.parse(narrowed.id))
       end
     end
   end

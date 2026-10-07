@@ -41,6 +41,13 @@ module Mcp
 
       scope = environment_entry ? { "environment" => environment_entry.id } : {}
       arguments = args.except(ENVIRONMENT_ARG, APPROVAL_ID_ARG).transform_keys(&:to_s)
+      # The project or workspace the call reaches is named before it is authorized, so the activity log and an approval
+      # say where it goes.
+      begin
+        arguments = Integrations::Scopes.resolved(tool.integration.resolve_environment(environment_entry&.id), arguments)
+      rescue Integrations::Error => e
+        return ToolDispatcher.error_response(e.message)
+      end
 
       # Same telemetry as a static tool.
       OpenTelemetry::Trace.current_span.add_attributes({ "firefight.mcp.tool" => tool.action_key })

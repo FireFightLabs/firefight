@@ -41,7 +41,7 @@ module Mcp
         return found.first if found.one?
 
         named = found.map do |each|
-          "#{each.kind} #{each.name} (map id #{each.id}, on #{each.integration_environment&.integration&.display_name || each.provider}, its provider's id #{each.external_id})"
+          "#{each.kind} #{each.scoped_name} (map id #{each.id}, on #{each.integration_environment&.integration&.display_name || each.provider}, its provider's id #{each.external_id})"
         end
         respond(error: "More than one resource is called #{reference}: #{named.join(', ')}. Name one by its map id.")
       end

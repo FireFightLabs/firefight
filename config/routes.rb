@@ -196,6 +196,8 @@ Rails.application.routes.draw do
         patch :toggle
         patch :retarget_environment
         patch :choose
+        get :scope_options
+        patch :scopes
         patch :map_events_secret
         delete :map_events_secrets, action: :forget_map_events_secrets
         patch :live_updates
@@ -204,6 +206,7 @@ Rails.application.routes.draw do
       collection do
         get :oauth_start
         get "oauth/callback", action: :oauth_callback, as: :oauth_callback
+        post :list_scopes
       end
     end
     get "/gateway/permissions", to: "settings#permissions", as: :gateway_permissions

@@ -9,12 +9,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SearchableMultiSelect } from "@/components/searchable-multi-select"
+import { ScopeSelect, type ScopeListing } from "@/components/integrations/scope-select"
 
 type ConnectField = IntegrationProvider["connectFields"][number]
 
 // A field that holds several values keeps a list, every other field one string.
 export type ConnectValue = string | string[]
 export type ConnectValues = Record<string, ConnectValue>
+
+// How a form lists what its credentials can read for a scope field, and when that listing is stale, such as a token
+// typed again.
+export interface ScopeLister {
+  load: () => Promise<ScopeListing>
+  key: string
+}
 
 function fieldLabel(field: ConnectField) {
   return field.optional ? `${field.label} (optional)` : field.label
@@ -35,13 +43,27 @@ function FieldControl({
   field,
   value,
   compact,
+  scopes,
   onChange,
 }: {
   field: ConnectField
   value: ConnectValue | undefined
   compact: boolean
+  scopes?: ScopeLister
   onChange: (key: string, value: ConnectValue) => void
 }) {
+  if (field.scope && scopes) {
+    return (
+      <ScopeSelect
+        label={field.label}
+        placeholder={field.placeholder}
+        value={asList(value)}
+        listingKey={scopes.key}
+        load={scopes.load}
+        onChange={(chosen) => onChange(field.key, chosen)}
+      />
+    )
+  }
   if (field.multiple) {
     return (
       <SearchableMultiSelect
@@ -85,16 +107,19 @@ function FieldControl({
 
 // What a provider's connect form asks beside the credentials, such as the organization its server's address names, the
 // account an environment reads or the regions an account runs in. The fields come from the registry. compact lays each
-// out as a row of the one-click box, otherwise as a form field.
+// out as a row of the one-click box, otherwise as a form field. scopes lists what the credentials can read, for a field
+// that names it, such as projects.
 export function ConnectFields({
   fields,
   values,
   compact = false,
+  scopes,
   onChange,
 }: {
   fields: ConnectField[]
   values: ConnectValues
   compact?: boolean
+  scopes?: ScopeLister
   onChange: (key: string, value: ConnectValue) => void
 }) {
   return fields.map((field) =>
@@ -106,12 +131,12 @@ export function ConnectFields({
           </Label>
           <p className="text-muted-foreground text-xs">{field.hint}</p>
         </div>
-        <FieldControl field={field} value={values[field.key]} compact onChange={onChange} />
+        <FieldControl field={field} value={values[field.key]} compact scopes={scopes} onChange={onChange} />
       </div>
     ) : (
       <div key={field.key} className="flex flex-col gap-1.5">
         <Label htmlFor={`connect-${field.key}`}>{fieldLabel(field)}</Label>
-        <FieldControl field={field} value={values[field.key]} compact={false} onChange={onChange} />
+        <FieldControl field={field} value={values[field.key]} compact={false} scopes={scopes} onChange={onChange} />
         <p className="text-muted-foreground text-xs">{field.hint}</p>
       </div>
     ),
