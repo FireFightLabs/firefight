@@ -11,6 +11,8 @@ class Conversation::LiveDelivery
   EVENT_MADE_ROOM = "made_room"
   # A call held for approval in this chat moved on, so its card looks again.
   EVENT_HELD_CALL = "held_call"
+  # A change was refused for want of a pack, or the admins were asked for it, so its card looks again.
+  EVENT_PACK_REFUSAL = "pack_refusal"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -32,6 +34,10 @@ class Conversation::LiveDelivery
   # Said from outside a turn, so it carries no place among the turn's events.
   def self.held_call_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_HELD_CALL)
+  end
+
+  def self.pack_refused(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_PACK_REFUSAL)
   end
 
   def initialize(conversation)

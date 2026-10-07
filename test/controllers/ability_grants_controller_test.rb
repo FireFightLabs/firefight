@@ -166,8 +166,25 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
                              headers: { "Referer" => integrations_url }
 
     assert_redirected_to integrations_url
-    assert_equal "user:Bob Jones was granted PlanetScale: changes.", flash[:notice]
+    assert_equal "Bob Jones was granted PlanetScale: changes.", flash[:notice]
     assert_equal({}, @member.ability_grants.find_by!(role: pack).scope)
+  end
+
+  test "a pack a member asked for is listed for admins, and Give pack grants it with a toast" do
+    pack = @tool.integration.permission_packs.find_by!(pack: Ability::Role::PACK_CHANGES)
+    request = Ability::PackRequest.for!(@member, pack)
+    WorkspaceAdapter.stubs(:for).returns(stub(post_pack_request_to_user: { channel_id: "D1", message_id: "1.1" }, update_pack_request: { success: true }))
+    PackRequestService.ask!(request, by: @member)
+
+    get gateway_permissions_url, headers: inertia_headers
+    assert_equal [ [ "Bob Jones", "PlanetScale: changes" ] ], inertia_props["packRequests"].map { |each| each.values_at("requesterName", "packName") }
+
+    post give_pack_request_url(request)
+    assert_equal "Bob Jones was given PlanetScale: changes.", flash[:notice]
+    assert @member.permitted_to?(@action, @workspace)
+
+    get gateway_permissions_url, headers: inertia_headers
+    assert_empty inertia_props["packRequests"]
   end
 
   test "no access is refused for an ability members do not hold by default, and for an admin, with why" do

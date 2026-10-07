@@ -11,7 +11,7 @@ class AbilityGrantsController < InertiaController
 
     # Back to the page that asked, since the quick grant panel is not only on the Permissions screen.
     redirect_back fallback_location: gateway_permissions_path,
-                  notice: "#{principal.principal_label} was granted #{grant.label}#{expiry_suffix(grant)}."
+                  notice: "#{principal.actor_display_name} was granted #{grant.label}#{expiry_suffix(grant)}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end

@@ -82,8 +82,9 @@ class Ability::PermissionPacksTest < ActiveSupport::TestCase
     assert_raises(AbilityGateway::Denied) { authorize(@member, @restart.action_key) }
 
     turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @member), asker: @member)
-    assert_equal "Not allowed: Bob Jones cannot use faylee.restart_service in this workspace. Tell them, and that a workspace admin can give " \
-                 "them the Faylee (Northflank): changes pack.", turn.refusal(@restart.action_key)
+    assert_equal "Not allowed: Bob Jones cannot use faylee.restart_service in this workspace. Tell them they do not have permission for it and " \
+                 "that it needs the Faylee (Northflank): changes pack. The workspace admin is Alice Smith. A card in the chat lets them ask the " \
+                 "admins for it.", turn.refusal(@restart.action_key)
     assert_equal "Not allowed: Bob Jones cannot use faylee.list_services in this workspace. Tell them, and that a workspace admin can grant it.",
                  turn.refusal(@list.action_key)
   end
@@ -131,7 +132,19 @@ class Ability::PermissionPacksTest < ActiveSupport::TestCase
 
     assert authorize(key, @list.action_key)
     assert_raises(AbilityGateway::Denied) { authorize(key, @restart.action_key) }
-    assert_raises(AbilityGateway::Denied) { authorize(SystemAgent.investigator, @list.action_key) }
+  end
+
+  test "the investigator is given each connection's reads when it is connected, and an admin revoking them keeps them revoked" do
+    investigator = SystemAgent.investigator
+    assert authorize(investigator, @list.action_key)
+    assert_raises(AbilityGateway::Denied) { authorize(investigator, @restart.action_key) }
+
+    @workspace.ability_grants.find_by!(principal: investigator, role: pack(Ability::Role::PACK_READ)).destroy!
+    logs = @northflank.tools.create!(name: "search_logs", read_only: true, enabled: true)
+    @northflank.update!(name: "Faylee two")
+
+    assert_raises(AbilityGateway::Denied) { authorize(investigator, logs.action_key) }
+    assert_not @workspace.ability_grants.exists?(principal: investigator, role: pack(Ability::Role::PACK_READ))
   end
 
   private

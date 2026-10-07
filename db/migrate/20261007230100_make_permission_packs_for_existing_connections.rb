@@ -1,5 +1,6 @@
-# Every connection gets its read, changes and everything packs, and each workspace with a connection gets Changes
-# everywhere, filled with the tools already switched on. Tools keep their on or off choice. Safe to run again.
+# Every connection gets its read, changes and everything packs, with the read pack granted to the investigator, and
+# each workspace with a connection gets Changes everywhere, filled with the tools already switched on. Tools keep their
+# on or off choice. Safe to run again.
 class MakePermissionPacksForExistingConnections < ActiveRecord::Migration[8.1]
   def up
     Ability::Role.reset_column_information

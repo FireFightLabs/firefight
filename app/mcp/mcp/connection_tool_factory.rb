@@ -85,10 +85,10 @@ module Mcp
       ToolDispatcher.error_response("Upstream tool failed: #{e.message}")
     end
 
-    # A tool that changes something names the pack a workspace admin can give, so the person knows what to ask for.
+    # A tool that changes something names the pack and the admins who can give it, so the person knows whom to ask.
     def self.pack_hint(tool)
       pack = Ability::Role.to_ask_for(tool.ability_action)
-      pack ? " A workspace admin can give the #{pack.name} pack." : ""
+      pack ? " #{Ability::PackRequest.refusal_words(tool.integration.workspace, tool.action_key, pack)}" : ""
     end
 
     # A deny for a missing environment really means "pick one", so name them.

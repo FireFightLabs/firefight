@@ -12,6 +12,7 @@ class Chat::Tools::KeyQueryTest < ActiveSupport::TestCase
     end
     @web = ResourceMap::Resource.create!(workspace: @workspace, provider: "northflank", account: "team/prod", kind: ResourceMap::KIND_SERVICE,
                                          external_id: "web-id", name: "web", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+    revoke_investigator_packs!(@workspace)
   end
 
   test "Halon is offered run_key_query beside the capabilities, in the map's group, once it may run one they read through" do

@@ -25,6 +25,7 @@ module Ability
     scope :live, -> { where(expires_at: nil).or(where(expires_at: Time.current..)) }
 
     after_commit :bust_principal_cache
+    after_create_commit :settle_pack_requests, if: -> { role_id.present? && principal_type == WorkspaceMembership.name && !no_access? }
 
     def self.grantable_actions(workspace)
       Ability::Action.grantable_for(workspace).includes(source: :integration).order(:kind, :key)
@@ -140,6 +141,14 @@ module Ability
 
     def action_grantable
       errors.add(:action, "is admin-only and cannot be granted") if action&.admin_only?
+    end
+
+    # Granting a pack someone asked for answers their request, wherever it was granted from.
+    def settle_pack_requests
+      requests = Ability::PackRequest.waiting.where(requester_id: principal_id, role_id: role_id)
+      settled = requests.pluck(:id)
+      requests.update_all(given_at: Time.current, updated_at: Time.current)
+      settled.each { |id| PackRequestSettledJob.perform_later(id) }
     end
 
     def bust_principal_cache

@@ -17,7 +17,7 @@ class PermissionPacksTest < ApplicationSystemTestCase
     visit gateway_permissions_path
 
     assert_text "Who can do what"
-    assert_text "Everyone reads every connected tool. Changes need a pack or an approval."
+    assert_text "Everyone reads every connected tool. Changes need a pack."
     click_button "Pick a person"
     find("[role=option]", text: "Bob Jones").click
     click_button "Pick a pack"
@@ -26,7 +26,7 @@ class PermissionPacksTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/permission-packs-quick-grant.png"))
     click_button "Give pack"
 
-    assert_text "user:Bob Jones was granted Faylee (Northflank): changes."
+    assert_text "Bob Jones was granted Faylee (Northflank): changes."
     assert @bob.permitted_to?(@restart.ability_action, @workspace)
   end
 

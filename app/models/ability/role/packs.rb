@@ -79,10 +79,18 @@ module Ability::Role::Packs
       role = workspace.ability_roles.find_or_initialize_by(pack: pack, integration_id: integration&.id)
       role.slug ||= free_slug(workspace, integration ? "#{integration.slug}_#{pack}" : pack)
       role.assign_attributes(name: pack_name(pack, integration), description: pack_description(pack, integration))
+      made = role.new_record?
       role.keep_in_step { transaction(requires_new: true) { role.save! } } if role.changed?
+      grant_investigator(workspace, role) if made && pack == PACK_READ
       role
     rescue ActiveRecord::RecordNotUnique
       workspace.ability_roles.find_by!(pack: pack, integration_id: integration&.id)
+    end
+
+    # Investigations read what is connected, so the investigator is given each connection's reads the moment there are any.
+    # It is an ordinary grant an admin revokes per connection, and nothing gives it back.
+    def grant_investigator(workspace, role)
+      workspace.ability_grants.find_or_create_by!(principal: SystemAgent.investigator, role: role)
     end
 
     # A hand-made set may already be called what a pack would be, so the pack takes the next free slug instead.

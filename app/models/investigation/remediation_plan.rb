@@ -88,7 +88,7 @@ class Investigation::RemediationPlan < ApplicationRecord
         pack = Ability::Role.to_ask_for(tool.ability_action)
         return "Step #{step.position} runs #{step.tool_name}, which you have no access to. An admin can grant it under Permissions." unless pack
 
-        return "Step #{step.position} runs #{step.tool_name}, which you have no access to. Ask an admin for the #{pack.name} pack under Permissions."
+        return "Step #{step.position} runs #{step.tool_name}, which you have no access to. #{Ability::PackRequest.ask_words(workspace, pack)}"
       end
     end
     nil

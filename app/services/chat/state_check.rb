@@ -56,6 +56,9 @@ class Chat::StateCheck
     "Not allowed: whoever this is checked for cannot use #{action_key}. Read what you can with the other tools."
   end
 
+  # A check only reads, so nobody is offered a pack from it.
+  def pack_refused!(_action_key, _tool_call_id) = nil
+
   def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, **, &block)
     value = Chat::ToolCall.run!(
       workspace: @workspace, principal: @principal, action_key: action_key, params: params, scope: scope,

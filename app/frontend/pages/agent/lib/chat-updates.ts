@@ -13,10 +13,13 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.CONVERSATION, AGENT_CHAT_PROPS.MESSAGES, AGENT_CHAT_PROPS.CONFIRMATIONS,
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
   AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.HELD_CALLS,
+  AGENT_CHAT_PROPS.PACK_REFUSALS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
 const HELD_CALLS = [ AGENT_CHAT_PROPS.HELD_CALLS, AGENT_CHAT_PROPS.CONVERSATION ]
+// A refusal appears after Halon was refused a change, and says when the admins were asked once someone asks.
+const PACK_REFUSALS = [ AGENT_CHAT_PROPS.PACK_REFUSALS ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
@@ -109,6 +112,10 @@ export function refreshCharts() {
 
 export function refreshHeldCalls() {
   router.reload({ only: HELD_CALLS })
+}
+
+export function refreshPackRefusals() {
+  router.reload({ only: PACK_REFUSALS })
 }
 
 export function refreshOpenChat() {

@@ -106,7 +106,7 @@ module TypescriptConstants
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
         "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
-        "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL
+        "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,

@@ -161,6 +161,9 @@ module Identifiers
   HELD_CALL_RUN = "held_call_run"
   HELD_CALL_DISMISS = "held_call_dismiss"
   HELD_CALL_ASK_AGAIN = "held_call_ask_again"
+  # A change refused for want of a pack: the person refused asks the admins, and an admin gives it.
+  PACK_REQUEST_ASK = "pack_request_ask"
+  PACK_REQUEST_GIVE = "pack_request_give"
   # The same for an approved step of a fix.
   FIX_STEP_RUN = "fix_step_run"
   FIX_STEP_DISMISS = "fix_step_dismiss"

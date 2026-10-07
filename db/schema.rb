@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_230100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_230200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -106,6 +106,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230100) do
     t.index ["action_key"], name: "index_ability_invocations_on_action_key"
     t.index ["principal_type", "principal_id", "created_at"], name: "index_ability_invocations_on_principal"
     t.index ["workspace_id", "created_at"], name: "index_ability_invocations_on_workspace_id_and_created_at"
+  end
+
+  create_table "ability_pack_requests", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "dismissed_at"
+    t.datetime "given_at"
+    t.uuid "given_by_id"
+    t.jsonb "notifications", default: [], null: false
+    t.datetime "requested_at"
+    t.uuid "requester_id", null: false
+    t.uuid "role_id", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["requester_id", "role_id"], name: "index_ability_pack_requests_on_requester_id_and_role_id", unique: true
+    t.index ["role_id"], name: "index_ability_pack_requests_on_role_id"
+    t.index ["workspace_id", "requested_at"], name: "index_ability_pack_requests_on_workspace_id_and_requested_at"
   end
 
   create_table "ability_role_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -511,6 +527,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230100) do
     t.text "thinking_text"
     t.datetime "updated_at", null: false
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
+  end
+
+  create_table "chat_pack_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.datetime "created_at", null: false
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.uuid "pack_request_id", null: false
+    t.string "tool_call_id"
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "pack_request_id"], name: "index_chat_pack_refusals_on_chat_id_and_pack_request_id", unique: true
+    t.index ["pack_request_id"], name: "index_chat_pack_refusals_on_pack_request_id"
   end
 
   create_table "chat_queued_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2098,6 +2126,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230100) do
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"
   add_foreign_key "ability_grants", "workspaces"
   add_foreign_key "ability_invocations", "workspaces"
+  add_foreign_key "ability_pack_requests", "ability_roles", column: "role_id", on_delete: :cascade
+  add_foreign_key "ability_pack_requests", "workspace_memberships", column: "given_by_id", on_delete: :nullify
+  add_foreign_key "ability_pack_requests", "workspace_memberships", column: "requester_id", on_delete: :cascade
+  add_foreign_key "ability_pack_requests", "workspaces"
   add_foreign_key "ability_role_actions", "ability_actions", column: "action_id"
   add_foreign_key "ability_role_actions", "ability_roles", column: "role_id"
   add_foreign_key "ability_roles", "integrations", on_delete: :cascade
@@ -2150,6 +2182,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230100) do
   add_foreign_key "chat_memory_posts", "workspaces"
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chat_pack_refusals", "ability_pack_requests", column: "pack_request_id", on_delete: :cascade
+  add_foreign_key "chat_pack_refusals", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"

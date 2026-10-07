@@ -590,6 +590,32 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_pack_refusal(channel_id:, thread_id:, refusal:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::PackRefusal.fallback(refusal), blocks: Slack::Messages::PackRefusal.build(refusal)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
+  def update_pack_refusal(channel_id:, message_id:, refusal:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::PackRefusal.fallback(refusal),
+                   blocks: Slack::Messages::PackRefusal.build(refusal))
+    { success: true }
+  end
+
+  def post_pack_request_to_user(user_id:, pack_request:)
+    post_message(channel_id: user_id, text: Slack::Messages::PackRequest.fallback(pack_request), blocks: Slack::Messages::PackRequest.build(pack_request))
+  end
+
+  def update_pack_request(channel_id:, message_id:, pack_request:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::PackRequest.fallback(pack_request),
+                   blocks: Slack::Messages::PackRequest.build(pack_request))
+    { success: true }
+  end
+
   def post_fix_step_to_user(user_id:, step:)
     post_message(channel_id: user_id, text: Slack::Messages::FixProgress.step_news_fallback(step), blocks: Slack::Messages::FixProgress.step_news(step))
   end

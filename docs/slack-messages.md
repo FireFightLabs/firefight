@@ -220,6 +220,13 @@ with the last posted step kept on the onboarding row so nothing posts twice. `Re
 context line naming what the draft is built from, and drops both when the
 incident already has a write-up.
 
+## Asking for a pack
+
+`PackRefusal` is posted in a chat's thread when Halon was refused a change for want of a pack. It names the pack and
+the workspace admins and carries Ask an admin, which only the person refused can use, and once they ask it is redrawn
+to say when. `PackRequest` is the direct message each admin gets with Give pack and a link to the Permissions screen,
+redrawn to say who gave or dismissed it. See docs/integrations.md, Asking an admin for a pack.
+
 ## Adding a message
 
 1. New module in `app/adapters/slack/messages/`, one per concept, class methods

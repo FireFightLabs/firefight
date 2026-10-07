@@ -80,7 +80,7 @@ export function WhoCanDoWhat({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Who can do what</CardTitle>
-        <CardDescription>Everyone reads every connected tool. Changes need a pack or an approval.</CardDescription>
+        <CardDescription>Everyone reads every connected tool. Changes need a pack.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {unavailable ? (

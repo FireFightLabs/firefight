@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ApprovalRulesEditor } from "@/pages/settings/components/permissions/approval-rules-editor"
 import { DefaultAccessList } from "@/pages/settings/components/permissions/default-access-list"
+import { PackRequestsNotice } from "@/pages/settings/components/permissions/pack-requests-notice"
 import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialog"
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
 import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
@@ -18,6 +19,7 @@ import type {
   AbilityRole,
   ApprovalRule,
   EnvironmentOption,
+  PackRequest,
   Principal,
 } from "@/types/serializers"
 import type { SharedProps } from "@/types"
@@ -30,6 +32,7 @@ interface PermissionsPageProps extends SharedProps {
   sets: AbilityRole[]
   environments: EnvironmentOption[]
   approvalRules: ApprovalRule[]
+  packRequests: PackRequest[]
 }
 
 type Selection = { kind: "principal" | "set"; id: string } | { kind: "approvals" }
@@ -47,7 +50,7 @@ const SECTIONS: { kind: string; title: string; blurb: string }[] = [
 ]
 
 export default function Permissions() {
-  const { principals, actions, sets, environments, approvalRules } = usePage<PermissionsPageProps>().props
+  const { principals, actions, sets, environments, approvalRules, packRequests } = usePage<PermissionsPageProps>().props
   const canManage = useCan("permissions")
   const [selection, setSelection] = useState<Selection>({ kind: "principal", id: principals[0]?.id ?? "" })
   const [granting, setGranting] = useState<Principal | null>(null)
@@ -76,6 +79,8 @@ export default function Permissions() {
             environments say where.
           </p>
         </div>
+
+        <PackRequestsNotice requests={packRequests} canManage={canManage} />
 
         <WhoCanDoWhat people={principals} packs={packs} canManage={canManage} />
 

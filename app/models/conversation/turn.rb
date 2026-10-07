@@ -66,12 +66,24 @@ class Conversation::Turn
 
   def memory_teacher = asker
 
-  # A tool that changes something names the pack to ask for, so the person knows exactly what to request.
+  # A tool that changes something names the pack to ask for and the admins who can give it, so the person knows exactly
+  # what to request and from whom.
   def refusal(action_key)
     pack = Ability::Role.to_ask_for(Ability::Action.lookup(action_key, workspace))
     return "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it." unless pack
 
-    "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can give them the #{pack.name} pack."
+    [ "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them they do not have permission for it and that it " \
+      "needs the #{pack.name} pack.", Ability::PackRequest.admins_sentence(workspace), "A card in the chat lets them ask the admins for it." ].compact.join(" ")
+  end
+
+  # A change refused for want of a pack leaves a card in the chat with Ask an admin, and a message in its Slack thread
+  # when it has one. Once per chat and pack. Nobody is asked until the person presses it.
+  def pack_refused!(action_key, tool_call_id)
+    request = asker && Ability::PackRequest.for_refusal(asker, Ability::Action.lookup(action_key, workspace))
+    return unless request && chat
+
+    refusal, made = Chat::PackRefusal.record!(chat: chat, pack_request: request, tool_call_id: tool_call_id)
+    PackRefusalJob.perform_later(refusal.id) if made
   end
 
   # Starting a run spends money and posts in the channel, so it goes through the full gateway, approval rules included.
