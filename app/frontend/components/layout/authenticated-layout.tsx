@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
-import { IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-react";
+import { IconCreditCard, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-react";
 
 import { FlashToaster } from "@/components/flash-toaster";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -59,6 +59,35 @@ function DisconnectedBanner() {
           Ask a workspace admin to reconnect it.
         </span>
       )}
+    </Alert>
+  );
+}
+
+// Set by the cloud engine while a billing problem needs attention, absent on an install someone runs themselves.
+function CloudBanner() {
+  const { cloudBanner } = usePage().props;
+
+  if (!cloudBanner) {
+    return null;
+  }
+
+  return (
+    <Alert
+      variant="destructive"
+      className="mx-6 mt-6 w-auto flex flex-col items-start justify-between gap-3 border-border border-l-2 border-l-error bg-error-tint text-fg-primary sm:flex-row sm:items-center *:data-[slot=alert-description]:text-fg-body"
+    >
+      <div className="flex items-start gap-3">
+        <IconCreditCard className="mt-0.5 size-5 shrink-0 text-error" />
+        <div>
+          <AlertTitle>{cloudBanner.title}</AlertTitle>
+          <AlertDescription>{cloudBanner.detail}</AlertDescription>
+        </div>
+      </div>
+      {cloudBanner.action ? (
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <a href={cloudBanner.action.href}>{cloudBanner.action.label}</a>
+        </Button>
+      ) : null}
     </Alert>
   );
 }
@@ -152,6 +181,7 @@ export function AuthenticatedLayout({
         <SidebarInset>
           <SiteHeader title={title} actions={actions} onSearch={openSearch} searchShortcut={!ownsSearchShortcut} />
           <DisconnectedBanner />
+          <CloudBanner />
           <ConnectSlackBanner />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2 pt-6">

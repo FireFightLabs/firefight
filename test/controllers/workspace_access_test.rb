@@ -15,6 +15,16 @@ class WorkspaceAccessTest < ActionDispatch::IntegrationTest
     assert_nil Entitlements.next_step_path(@workspace)
   end
 
+  test "an install someone runs themselves shows no billing banner" do
+    Entitlements.reset_backend!
+    sign_in(users(:alice), @workspace)
+
+    get dashboard_url, headers: inertia_headers
+
+    assert_response :success
+    assert_not inertia_props.key?("cloudBanner")
+  end
+
   test "a suspension comes first, with its own message" do
     @workspace.update!(suspended_at: Time.current, suspended_reason: Workspace::Suspension::SUSPENSION_MISUSE)
 

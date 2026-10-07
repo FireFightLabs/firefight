@@ -26,6 +26,14 @@ export type SharedProps = PageProps & {
   currentUserCan?: Record<string, boolean>
   // Set by the cloud engine when loaded, absent on self-hosted builds.
   cloudBillingPath?: string
+  // A billing notice from the cloud engine, shown on every dashboard page while it applies.
+  cloudBanner?: CloudBanner
+}
+
+export interface CloudBanner {
+  title: string
+  detail: string
+  action?: { label: string; href: string }
 }
 
 export interface SlackChannel {

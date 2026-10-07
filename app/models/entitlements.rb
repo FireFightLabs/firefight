@@ -39,6 +39,9 @@ module Entitlements
     backend.try(:next_step_path, workspace)
   end
 
+  # Run daily, for a backend that keeps time based state such as retention. The open-source backend has none.
+  def self.sweep! = backend.try(:sweep!)
+
   def self.allow
     Result.new(true, nil, nil)
   end
