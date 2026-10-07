@@ -1,18 +1,15 @@
 # Transcript access is here rather than on Permissions on purpose. A grant says who
 # may ask, this says whether the conversation is readable at all.
 class WorkspaceSettingsController < InertiaController
+  include AiAccountProps
+
   authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: :update
 
   def show
-    sign_in = AiProviders.sign_in_for(current_workspace)
     render inertia: "settings/workspace", props: {
       settings: WorkspaceSettingsSerializer.one(current_workspace),
       issueWebhookUrl: current_workspace.issue_webhook_token && api_v1_issue_events_url(current_workspace.issue_webhook_token),
-      aiAccounts: WorkspaceAiAccountSerializer.many(current_workspace.workspace_ai_accounts),
-      aiProviders: AiProviderOptionSerializer.many(AiProviders.for_workspace(current_workspace)),
-      aiSignIn: sign_in && { label: sign_in.sign_in.label, path: sign_in_ai_accounts_path },
-      aiFallback: AiFunding.fallback_note(current_workspace),
-      aiCredits: Entitlements.ai_credit(current_workspace)&.summary
+      **ai_account_props
     }
   end
 

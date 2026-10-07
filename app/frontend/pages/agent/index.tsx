@@ -7,6 +7,7 @@ import { ChatList } from "@/pages/agent/components/chat-list"
 import { StartExamples, StartHeading } from "@/pages/agent/components/chat-start"
 import { Composer, type ComposerFill } from "@/pages/agent/components/composer"
 import { ListButton } from "@/pages/agent/components/list-button"
+import { SetupGuide } from "@/pages/agent/components/setup-guide"
 import { Thread } from "@/pages/agent/components/thread"
 import { useAgentStream } from "@/pages/agent/hooks/use-agent-stream"
 import { useChatListCollapsed } from "@/pages/agent/hooks/use-chat-list-collapsed"
@@ -22,13 +23,15 @@ const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control
 export default function AgentPage() {
   const {
     conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
-    compactions, heldCalls, packRefusals,
+    compactions, heldCalls, packRefusals, setupGuide,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
-  const [ fill, setFill ] = useState<ComposerFill | null>(null)
-  // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list.
-  const [ composing, setComposing ] = useState(false)
+  // Setup's first chat starts with its suggested question in the box.
+  const [ fill, setFill ] = useState<ComposerFill | null>(setupGuide && !setupGuide.answered && !conversation ? { draft: setupGuide.question, key: 1 } : null)
+  // Below 48rem the page is one panel at a time, and New chat has to show the start page rather than the list. Setup's
+  // first chat opens on the start page, where its question waits.
+  const [ composing, setComposing ] = useState(Boolean(setupGuide && !setupGuide.answered))
   const [ declaring, setDeclaring ] = useState(false)
   const chatList = useChatListCollapsed()
 
@@ -83,6 +86,7 @@ export default function AgentPage() {
             </div>
           )}
           <div className="flex min-h-0 flex-col">
+            {setupGuide && <SetupGuide guide={setupGuide} />}
             {conversation ? (
               <>
                 <Link href={agentChatsPath()} {...OPEN_CHAT_VISIT} onClick={backToList} className={BACK_LINK_CLASS}>

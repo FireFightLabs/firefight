@@ -6,6 +6,7 @@ class AgentChatAttachmentsController < InertiaController
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[show]
 
   before_action :require_agent!
+  skip_before_action :continue_setup
 
   include ServesChatAttachment
 

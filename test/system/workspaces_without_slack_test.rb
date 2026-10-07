@@ -23,6 +23,11 @@ class WorkspacesWithoutSlackTest < ApplicationSystemTestCase
     assert_text "You're in"
     click_on "Continue to Nova Labs"
 
+    # Setup comes next and has its own test. This one is about the dashboard after it, still without Slack.
+    assert_text "Choose Halon's AI"
+    Workspace.find_by!(name: "Nova Labs").onboarding.update!(checklist_completed_at: Time.current)
+    visit dashboard_path
+
     assert_text "Connect Slack to run incidents"
     assert_button "Connect Slack"
     declare = find_button("Declare incident", disabled: true)
@@ -66,6 +71,7 @@ class WorkspacesWithoutSlackTest < ApplicationSystemTestCase
   test "an admin invites teammates, sees them pending, and revokes one after confirming" do
     admin = User.create!(email: "ada@example.com", name: "Ada Admin")
     workspace = Workspace.sign_up!(name: "Invite Co", user: admin).workspace
+    workspace.onboarding.update!(checklist_completed_at: Time.current)
     sign_in(admin, workspace)
 
     visit settings_members_path

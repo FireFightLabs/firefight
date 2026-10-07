@@ -14,6 +14,8 @@ class AiAccountsController < InertiaController
              with: -> { redirect_to settings_workspace_path, alert: TOO_MANY }
 
   before_action :set_account, only: %i[update destroy check disable enable]
+  # The sign-in leaves for the provider and comes back here, setup or not.
+  skip_before_action :continue_setup, only: %i[sign_in sign_in_callback]
 
   def create
     result = service.create!(provider: params[:provider], label: params[:label], settings: settings_param, models: models_param)

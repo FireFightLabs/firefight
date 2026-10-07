@@ -84,6 +84,8 @@ class Investigation < ApplicationRecord
     )
   }
 
+  MODEL_NOT_SET_UP = "The AI model is not fully set up yet. An admin needs to finish setting it up.".freeze
+
   def self.unavailable_reason(workspace)
     return "AI features are not available." unless defined?(FirefightAi)
 
@@ -100,7 +102,7 @@ class Investigation < ApplicationRecord
     return nil if FirefightAi.context_window(model)
 
     Rails.logger.warn({ event: "ai.model_without_context_window", model: model, workspace_id: workspace.id }.to_json)
-    "The AI model is not fully set up yet. An admin needs to finish setting it up."
+    MODEL_NOT_SET_UP
   end
 
   def self.available_for?(workspace)

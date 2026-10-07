@@ -7,6 +7,7 @@ class OnboardingController < InertiaController
   # Onboarding runs before a workspace exists or targets a new one.
   skip_before_action :block_inaccessible_workspace
   skip_before_action :require_authentication, except: [ :welcome, :reinstall, :connect_slack ]
+  skip_before_action :continue_setup
   def invite_code
     return redirect_to(login_path) if session[:pending_team_id].blank?
     return redirect_to(onboarding_install_path) if !InviteCode.required? || claimed_invite_code.present?
