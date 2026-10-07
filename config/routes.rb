@@ -103,6 +103,7 @@ Rails.application.routes.draw do
   get "/.well-known/oauth-authorization-server", to: "oauth/metadata#authorization_server"
   get "/.well-known/oauth-protected-resource", to: "oauth/metadata#protected_resource"
   get "/.well-known/oauth-protected-resource/mcp", to: "oauth/metadata#protected_resource"
+  get "/.well-known/faylee-verification.txt", to: "faylee#verification"
 
   # Stateless Streamable HTTP, so only POST is served.
   post "/mcp", to: "mcp#create", as: :mcp
