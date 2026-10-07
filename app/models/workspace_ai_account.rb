@@ -14,6 +14,9 @@ class WorkspaceAiAccount < ApplicationRecord
   ERROR_LIMIT = 300
   HINT_LENGTH = 4
 
+  # The Faraday adapter registered for it in config/initializers/firefight_ai.rb.
+  PUBLIC_ADDRESS_ADAPTER = :firefight_public_address
+
   NOTICE_OUT_OF_CREDIT = "out_of_credit".freeze
   NOTICE_KEY_REFUSED = "key_refused".freeze
 
@@ -96,7 +99,14 @@ class WorkspaceAiAccount < ApplicationRecord
       AiProviders.every_provider_option.each { |option| config.public_send("#{option}=", nil) }
       definition&.fields&.each { |field| config.public_send("#{field.option}=", values[field.key]) }
       config.request_timeout = FirefightAi.configuration.request_timeout
+      config.faraday_adapter = PUBLIC_ADDRESS_ADAPTER if checks_address_on_each_call?
     end
+  end
+
+  # An address the workspace named is resolved and checked again before every call where private networks are refused,
+  # so a name that later resolves inside Firefight's network is never reached.
+  def checks_address_on_each_call?
+    settings.to_h[AiProviders::ADDRESS_SETTING].present? && !Entitlements.private_ai_endpoints?(workspace)
   end
 
   # The model and payer for a call with the purpose, on this account.

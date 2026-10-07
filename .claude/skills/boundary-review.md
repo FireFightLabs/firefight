@@ -60,7 +60,7 @@ A credential is stored in one of two places and travels by one road each. Every 
 - **One way to a model.** A workspace's AI key reaches a model only through `WorkspaceAiAccount#llm_context`. A `RubyLLM.context` built anywhere else copies the deployment's configuration, Firefight's own keys and Bedrock's credential provider included, which ArchSpec refuses (`ai.keys`). A new RubyLLM setting is emptied there for free, since the list comes from `RubyLLM::Configuration`.
 - **No ambient credentials.** A provider that falls back to credentials the server holds (Bedrock's credential provider, Vertex AI's application default credentials) must be made to need explicit ones for a workspace (`AiProviders::EXPLICIT_CREDENTIALS`).
 - **Who pays is recorded.** A model call is ledgered with `paid_by` and, for a workspace's own account, `workspace_ai_account_id`. A call that quietly falls back to the deployment's key for a workspace that was meant to pay is a billing leak as much as a security one.
-- **Addresses a workspace names.** A custom API base is checked as written and as it resolves where private networks are refused (`AiAccountAddress`, `WorkspaceAiAccountService`), like `Integrations::PublicAddress` for connections.
+- **Addresses a workspace names.** A custom API base is checked as written and as it resolves where private networks are refused, when saved and again before every call, connecting to the address checked (`Integrations::ModelAddress`, like `Integrations::PublicAddress` for connections). A new way of calling a model with an account's settings goes through the same check.
 
 ## The operator console
 

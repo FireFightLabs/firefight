@@ -16,12 +16,12 @@ class CodeAgent::RelayPayerTest < ActiveSupport::TestCase
     account = add_ai_account!(@workspace, key: "sk-ant-workspace")
     session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace), repository: "acme/api")
     keys = []
-    FirefightAi::ModelProxy.expects(:new).with { |provider, config:| keys << [ provider, config&.anthropic_api_key ] }
+    FirefightAi::ModelProxy.expects(:new).with { |provider, config:, connect_to:| keys << [ provider, config&.anthropic_api_key, connect_to ] }
                            .returns(FakeProxy.new(FirefightAi::ModelProxy::Usage.new(input: 10, output: 5, cache_read: 0, cache_write: 0), 200, nil))
 
     CodeAgent::Relay.new(session).forward(path: "messages", body: "{}", headers: {}) { |*| nil }
 
-    assert_equal [ [ "anthropic", "sk-ant-workspace" ] ], keys
+    assert_equal [ [ "anthropic", "sk-ant-workspace", nil ] ], keys
     inference = Inference.find_by!(inferable: session)
     assert_equal [ Inference::PAID_BY_ACCOUNT, account ], [ inference.paid_by, inference.workspace_ai_account ]
     assert_not_nil account.reload.last_used_at

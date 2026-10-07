@@ -11,3 +11,6 @@ FirefightAi.configure do |config|
   config.milestones_enabled = ENV["AI_MILESTONES_ENABLED"].blank? ||
     ActiveModel::Type::Boolean.new.cast(ENV["AI_MILESTONES_ENABLED"])
 end
+
+# A workspace's AI account with its own API base calls through this adapter where private networks are refused.
+Faraday::Adapter.register_middleware(firefight_public_address: -> { Integrations::PublicAddressAdapter })

@@ -10,7 +10,7 @@ class CodeAgent::Relay
   def forward(path:, body:, headers:, &)
     raise FirefightAi::ModelProxy::Refused, CodeAgentSession::OVER_BUDGET if @session.over_budget?
 
-    proxy = FirefightAi::ModelProxy.new(@session.provider, config: @session.llm_config)
+    proxy = FirefightAi::ModelProxy.new(@session.provider, config: @session.llm_config, connect_to: address_check)
     raise FirefightAi::ModelProxy::Refused, CodeAgentSession::TOO_MANY_AT_ONCE unless @session.begin_call!
 
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -23,6 +23,17 @@ class CodeAgent::Relay
   end
 
   private
+
+  # An address the paying account named is resolved and checked before every call where private networks are refused.
+  def address_check
+    return nil unless @session.workspace_ai_account&.checks_address_on_each_call?
+
+    lambda do |host|
+      Integrations::ModelAddress.ip_for!(host)
+    rescue Integrations::ModelAddress::Refused => e
+      raise FirefightAi::ModelProxy::Refused, e.message
+    end
+  end
 
   def record(proxy, started)
     usage = proxy.usage

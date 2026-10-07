@@ -41,9 +41,12 @@ module FirefightAi
     # The headers besides the key that the provider reads, which the caller passes through as the agent sent them.
     def self.passed_headers(provider) = providers[provider.to_s]&.headers || []
 
-    # config is the RubyLLM configuration the payer runs with, the deployment's own when nil.
-    def initialize(provider, config: nil)
+    # config is the RubyLLM configuration the payer runs with, the deployment's own when nil. connect_to, when given,
+    # takes the provider's host and answers the address to connect to, raising when it may not be reached, so an address
+    # a workspace named is checked again on every call.
+    def initialize(provider, config: nil, connect_to: nil)
       @name = provider.to_s
+      @connect_to = connect_to
       @provider = self.class.providers(config || RubyLLM.config)[@name] ||
                   raise(Refused, "Code fixes reach #{[ ANTHROPIC, OPENAI ].join(' or ')} models, not #{@name}.")
       raise Refused, "No #{@name} key is configured for this code change." if @provider.key.blank?
@@ -75,7 +78,8 @@ module FirefightAi
     def stream(uri, request)
       buffer = +""
       whole = +""
-      Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: READ_TIMEOUT) do |http|
+      options = { use_ssl: uri.scheme == "https", read_timeout: READ_TIMEOUT, ipaddr: @connect_to&.call(uri.host) }.compact
+      Net::HTTP.start(uri.host, uri.port, **options) do |http|
         http.request(request) do |response|
           @status = response.code.to_i
           json = response["Content-Type"].to_s.include?("json")
