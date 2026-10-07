@@ -76,14 +76,14 @@ class IntegrationDisconnectTest < ActionDispatch::IntegrationTest
     assert @integration.reload.deleted?
   end
 
-  test "a connection that was not made through an app disconnects as before, with no toast" do
+  test "a connection that was not made through an app says it is disconnected" do
     sentry = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry", settings: { "server_url" => "https://mcp.sentry.example/mcp" })
     sentry.integration_environments.create!
 
     delete integration_url(sentry)
 
     assert_redirected_to integrations_path
-    assert_nil flash[:notice]
+    assert_equal "Disconnected Sentry.", flash[:notice]
     assert sentry.reload.deleted?
   end
 end
