@@ -99,6 +99,7 @@ class IntegrationProviderTest < ActiveSupport::TestCase
     end
 
     assert_equal [ "Cloud and hosting", "Observability", "Code" ], IntegrationProvider.category_list.select(&:required).map(&:name)
+    assert_equal [ "Cloud and hosting", "Databases" ], IntegrationProvider.category_list.select(&:in_first_question).map(&:name)
     assert_equal IntegrationProvider.category_list.to_h { |category| [ category.name, category.tagline ] }, IntegrationProvider.categories
   end
 

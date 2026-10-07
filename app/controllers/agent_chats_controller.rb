@@ -256,15 +256,9 @@ class AgentChatsController < InertiaController
     }
   end
 
-  # Only while the Meet Halon step is the one to do, or has just been done and setup waits to go on.
   def setup_guide
-    onboarding = current_workspace.onboarding
-    return nil unless onboarding&.steers?(current_membership)
-
-    step = onboarding.steps.find { |candidate| candidate.key == WorkspaceOnboarding::STEP_HALON }
-    return nil unless [ WorkspaceOnboarding::STATE_CURRENT, WorkspaceOnboarding::STATE_DONE ].include?(step.state)
-
-    { question: onboarding.first_question, answered: step.state == WorkspaceOnboarding::STATE_DONE, setupPath: onboarding_checklist_path }
+    guide = current_workspace.onboarding&.halon_guide(current_membership)
+    guide && guide.merge(setupPath: onboarding_checklist_path)
   end
 
   def reads_integrations?

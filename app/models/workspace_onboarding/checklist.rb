@@ -42,9 +42,12 @@ module WorkspaceOnboarding::Checklist
   NOT_YET = "Finish the steps above first.".freeze
   # A suggested first question names at most this many tools, past which it reads like a list.
   QUESTION_NAMES = 3
-  QUESTION_CATEGORIES = [ IntegrationProvider.category_slug("Cloud and hosting"), IntegrationProvider.category_slug("Databases") ].freeze
+  # Said after a reason Halon cannot answer that the workspace fixes by choosing its AI again.
+  FIX_IN_AI_STEP = "Change it under Choose Halon's AI.".freeze
 
-  Step = Data.define(:key, :state, :note)
+  Step = Data.define(:key, :state, :note) do
+    def finished? = FINISHED_STATES.include?(state)
+  end
 
   included do
     validates :ai_choice, inclusion: { in: AI_CHOICES }, allow_nil: true
@@ -85,7 +88,7 @@ module WorkspaceOnboarding::Checklist
 
   def current_step = steps.find { |step| step.state == STATE_CURRENT }
 
-  def done? = steps.all? { |step| FINISHED_STATES.include?(step.state) }
+  def done? = steps.all?(&:finished?)
 
   # Stamped once, by whichever request sees the last step finish. Answers whether this call finished it.
   def finish_if_done!
@@ -111,7 +114,10 @@ module WorkspaceOnboarding::Checklist
   end
 
   def choose_ai!(choice)
-    update!(ai_choice: choice, ai_chosen_at: ai_chosen_at || Time.current)
+    raise ArgumentError, "Unknown AI choice #{choice.inspect}" unless AI_CHOICES.include?(choice)
+
+    self.class.where(id: id).update_all(ai_choice: choice, ai_chosen_at: Arel.sql("COALESCE(ai_chosen_at, now())"), updated_at: Time.current)
+    reload
   end
 
   # Every category on the gallery, in its order, with what this workspace has connected in it.
@@ -123,12 +129,10 @@ module WorkspaceOnboarding::Checklist
     self.class.where(id: id).update_all([ "stack_answers = stack_answers || jsonb_build_object(?::text, ?::text), updated_at = now()", category.slug, answer ])
     reload
     answered_all = IntegrationProvider.category_list.all? { |entry| stack_answers.key?(entry.slug) }
-    update!(stack_done_at: Time.current) if answered_all && stack_done_at.nil?
+    stamp_once!(:stack_done_at) if answered_all
   end
 
-  def review_permissions!
-    update!(permissions_reviewed_at: Time.current) if permissions_reviewed_at.nil?
-  end
+  def review_permissions! = stamp_once!(:permissions_reviewed_at)
 
   # Called when Halon finishes an answer in a chat someone started on the dashboard. Only an admin's chat counts, since
   # only an admin works through setup.
@@ -139,20 +143,36 @@ module WorkspaceOnboarding::Checklist
     self.class.where(id: id, halon_answered_at: nil).update_all(halon_answered_at: Time.current, updated_at: Time.current)
   end
 
-  # The question the chat suggests first, naming what was connected where the stack runs: its hosts and its databases.
+  # What the chat shows an admin while Meet Halon is the step to do, or has just been done: the question to start with
+  # and whether Halon answered. Nil once setup has moved past it or for anyone setup does not steer.
+  def halon_guide(membership)
+    return unless steers?(membership)
+
+    step = steps.find { |candidate| candidate.key == STEP_HALON }
+    return unless [ STATE_CURRENT, STATE_DONE ].include?(step.state)
+
+    { question: first_question, answered: step.state == STATE_DONE }
+  end
+
+  # The question the chat suggests first, naming what was connected in the categories the registry marks for it, such
+  # as where the stack runs and its databases.
   def first_question
-    names = stack_cards.select { |card| QUESTION_CATEGORIES.include?(card.category.slug) && stack_answers[card.category.slug] == ANSWER_CONNECTED }
+    names = stack_cards.select { |card| card.category.in_first_question && stack_answers[card.category.slug] == ANSWER_CONNECTED }
                        .flat_map { |card| card.rows.select { |row| row.state == IntegrationProvider::STATE_CONNECTED }.map { |row| row.provider.name } }
     return "What runs where in my stack?" if names.empty? || names.size > QUESTION_NAMES
 
     "What runs where in my stack across #{names.to_sentence(last_word_connector: ' and ')}?"
   end
 
-  def skip_slack!
-    update!(slack_skipped_at: Time.current) if slack_skipped_at.nil?
-  end
+  def skip_slack! = stamp_once!(:slack_skipped_at)
 
   private
+
+  # Two tabs answering at once keep the first time.
+  def stamp_once!(column)
+    self.class.where(id: id, column => nil).update_all(column => Time.current, updated_at: Time.current)
+    reload
+  end
 
   def house_ai? = HOUSE_PAYERS.include?(AiFunding.house_payer(workspace)&.paid_by)
 
@@ -169,10 +189,15 @@ module WorkspaceOnboarding::Checklist
     end
   end
 
-  # Meeting Halon is required, so a Halon that cannot answer yet holds the step and says why, such as a model it does not
-  # know. The way on is back to the AI step.
+  # Meeting Halon is required, so a Halon that cannot answer yet holds the step and says why. A model it does not know is
+  # fixed by choosing the AI again, so only that reason points back to the AI step.
   def current_note(key)
-    Investigation.unavailable_reason(workspace) if key == STEP_HALON
+    return unless key == STEP_HALON
+
+    reason = Investigation.unavailable_reason(workspace)
+    return reason unless reason == Investigation::MODEL_NOT_SET_UP
+
+    "#{reason} #{FIX_IN_AI_STEP}"
   end
 
   # Credits are a choice only once there is a balance to spend, since Halon's first answer comes straight after.

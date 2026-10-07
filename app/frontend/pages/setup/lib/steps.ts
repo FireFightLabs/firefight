@@ -14,11 +14,6 @@ export const STEP_TITLES: Record<SetupStepKey, string> = {
   [SETUP_STEPS.TEST_INCIDENT]: "Run a test incident",
 }
 
-// Finished steps no longer hold setup up, whether they were done, skipped for now or cannot run here.
-export function isFinished(step: OnboardingStep) {
-  return step.state !== SETUP_STEP_STATES.CURRENT && step.state !== SETUP_STEP_STATES.WAITING
-}
-
 // A step that is finished or up next can be opened. One further down waits for the ones above it.
 export function canOpen(step: OnboardingStep) {
   return step.state !== SETUP_STEP_STATES.WAITING

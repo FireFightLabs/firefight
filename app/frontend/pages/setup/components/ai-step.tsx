@@ -40,7 +40,7 @@ export function AiStep({ step }: { step: OnboardingStep }) {
   const { aiChoice, aiChoices, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits } = usePage<SetupPageProps>().props
   const canManageAccounts = useCan("ai_accounts")
   const offered = Object.keys(aiChoices).filter(isChoice)
-  const [ choice, setChoice ] = useState<AiChoice>(aiChoice && isChoice(aiChoice) ? aiChoice : SETUP_AI_CHOICES.ACCOUNT)
+  const [ choice, setChoice ] = useState<AiChoice>(aiChoice && isChoice(aiChoice) && offered.includes(aiChoice) ? aiChoice : SETUP_AI_CHOICES.ACCOUNT)
   const [ saving, setSaving ] = useState(false)
 
   function pick(value: string) {

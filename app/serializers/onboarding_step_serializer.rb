@@ -12,6 +12,12 @@ class OnboardingStepSerializer < BaseSerializer
     step.state
   end
 
+  # Done or skipped, so it no longer holds setup up.
+  type :boolean
+  def finished
+    step.finished?
+  end
+
   # Why a step cannot be taken yet, or why this workspace skips it.
   type :string, optional: true
   def note

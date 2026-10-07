@@ -332,8 +332,9 @@ class IntegrationProvider
     @categories ||= category_list.to_h { |category| [ category.name, category.tagline ] }.freeze
   end
 
-  # halon is what Halon can do with a tool from the category, and required says setup asks for one connected in it.
-  Category = Data.define(:slug, :name, :tagline, :halon, :required)
+  # halon is what Halon can do with a tool from the category, required says setup asks for one connected in it, and
+  # in_first_question says setup's first question to Halon names the tools connected in it.
+  Category = Data.define(:slug, :name, :tagline, :halon, :required, :in_first_question)
 
   # A category as something a person or a model can name, by its slug or its name.
   def self.category_list
@@ -341,7 +342,7 @@ class IntegrationProvider
       next unless all.any? { |provider| provider.category == name }
 
       Category.new(slug: category_slug(name), name: name, tagline: entry.fetch("tagline"), halon: entry.fetch("halon"),
-                   required: entry.fetch("required", false))
+                   required: entry.fetch("required", false), in_first_question: entry.fetch("in_first_question", false))
     end.freeze
   end
 

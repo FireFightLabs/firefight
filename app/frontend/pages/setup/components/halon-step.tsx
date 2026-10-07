@@ -32,7 +32,7 @@ export function HalonStep({ step }: { step: OnboardingStep }) {
       {holdingReason && (
         <p className="flex items-start gap-2.5 rounded-lg border border-warning-border bg-warning-tint px-4 py-3 text-sm text-fg-primary">
           <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-          <span>{holdingReason} Change it under Choose Halon&apos;s AI.</span>
+          <span>{holdingReason}</span>
         </p>
       )}
 

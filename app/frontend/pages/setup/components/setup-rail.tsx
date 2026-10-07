@@ -2,7 +2,7 @@ import { IconCheck, IconMinus } from "@tabler/icons-react"
 
 import { SETUP_STEP_STATES } from "@/lib/generated/constants"
 import { cn } from "@/lib/utils"
-import { STEP_TITLES, canOpen, isFinished, type SetupStepKey } from "@/pages/setup/lib/steps"
+import { STEP_TITLES, canOpen, type SetupStepKey } from "@/pages/setup/lib/steps"
 import type { OnboardingStep } from "@/types/serializers"
 
 type StepState = OnboardingStep["state"]
@@ -32,7 +32,7 @@ export function SetupRail({
   openKey: SetupStepKey
   onOpen: (key: SetupStepKey) => void
 }) {
-  const done = steps.filter(isFinished).length
+  const done = steps.filter((step) => step.finished).length
 
   return (
     <nav aria-label="Setup steps" className="flex flex-col gap-3 md:sticky md:top-8 md:self-start">

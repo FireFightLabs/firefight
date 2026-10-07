@@ -127,15 +127,45 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
 
   test "meeting Halon is required, so a Halon that cannot answer yet holds setup and says why" do
     finish_stack!
-    Investigation.stubs(:unavailable_reason).returns("The AI model is not fully set up yet. An admin needs to finish setting it up.")
+    Investigation.stubs(:unavailable_reason).returns(Investigation::MODEL_NOT_SET_UP)
 
     step = @onboarding.current_step
     assert_equal WorkspaceOnboarding::STEP_HALON, step.key
-    assert_equal "The AI model is not fully set up yet. An admin needs to finish setting it up.", step.note
+    assert_equal "#{Investigation::MODEL_NOT_SET_UP} Change it under Choose Halon's AI.", step.note
     assert_not @onboarding.done?
 
     Investigation.stubs(:unavailable_reason).returns(nil)
     assert_nil @onboarding.current_step.note
+  end
+
+  test "a reason the AI step cannot fix is said without pointing there" do
+    finish_stack!
+    Investigation.stubs(:unavailable_reason).returns("AI features are not available.")
+
+    assert_equal "AI features are not available.", @onboarding.current_step.note
+  end
+
+  test "the chat's guide shows while Meet Halon is up next or just done, and only to an admin" do
+    member = @workspace.workspace_memberships.create!(user: User.create!(email: "g-#{SecureRandom.hex(4)}@example.com", name: "Gale"), role: :member, joined_at: Time.current)
+    assert_nil @onboarding.halon_guide(@owner)
+
+    finish_stack!
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    assert_equal({ question: "What runs where in my stack?", answered: false }, @onboarding.halon_guide(@owner))
+    assert_nil @onboarding.halon_guide(member)
+
+    @onboarding.update!(halon_answered_at: Time.current)
+    assert_equal true, @onboarding.halon_guide(@owner)[:answered]
+  end
+
+  test "choosing the AI again keeps when it was first chosen" do
+    @onboarding.choose_ai!(WorkspaceOnboarding::AI_ACCOUNT)
+    first = @onboarding.ai_chosen_at
+    travel 1.minute
+    @onboarding.choose_ai!(WorkspaceOnboarding::AI_HOUSE)
+
+    assert_equal WorkspaceOnboarding::AI_HOUSE, @onboarding.ai_choice
+    assert_equal first, @onboarding.ai_chosen_at
   end
 
   test "Halon's answer in an admin's own chat finishes Meet Halon, and a member's does not" do

@@ -33,13 +33,14 @@
 # Section headings on the gallery, listed in the order the gallery shows them. A provider naming a category that is
 # not listed here still renders, it just shows no tagline, so adding a provider in a new category stays a registry edit
 # rather than a code change. Each has a tagline, halon (what Halon can do with a tool from it, in a sentence or two,
-# which setup shows as it walks through every category) and required (setup asks for a connection in it and offers no
-# "We don't use this").
+# which setup shows as it walks through every category), required (setup asks for a connection in it and offers no
+# "We don't use this") and in_first_question (setup's first question to Halon names the tools connected in it).
 categories:
   Cloud and hosting:
     tagline: Where your apps run, and what you can change there
     halon: Halon sees what runs where, what was deployed and how it is doing. When you allow it, it can make changes there too.
     required: true
+    in_first_question: true
   Observability:
     tagline: Logs, metrics, traces and errors for investigations
     halon: Halon searches your logs, metrics, traces and errors to find what broke and when it started.
@@ -53,6 +54,7 @@ categories:
   Databases:
     tagline: Your data and how it is set up
     halon: Halon reads how your databases are set up and how they are doing, such as slow queries and connections, to tell when data is the cause.
+    in_first_question: true
   Code:
     tagline: Correlate incidents with what shipped
     halon: Halon matches an incident to the commits, pull requests and deploys that shipped just before it. It can also write a fix and open a pull request when you ask.
