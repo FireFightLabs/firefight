@@ -57,8 +57,7 @@ class IncidentActionsController < InertiaController
   end
 
   # Opens the item's issue in the workspace's tracker, or tries again after it failed. The issue arrives in a job, and
-  # the item says it is being opened until its link is there. No notice, since Inertia keeps a page's flash across the
-  # reloads the page makes while it waits, which would toast it again each time.
+  # the item says it is being opened until its link is there.
   def create_issue
     incident = current_workspace.incidents.find(params[:incident_id])
     action = incident.incident_actions.active.find(params[:id])

@@ -441,6 +441,39 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal run.id, inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "id")
   end
 
+  test "a file on a run this chat started opens for whoever may read the chat, without investigations read" do
+    bob = workspace_memberships(:bob_workspace_one)
+    chat = Conversation.start_personal!(workspace: @workspace, member: bob)
+    run = chat_run(chat)
+    file = Chat::Attachment.take!(workspace: @workspace, uploaded_by: bob, filename: "a.log", bytes: "a")
+    run.add_note!("", by: bob, files: [ file ])
+    sign_in(users(:bob), @workspace)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(true)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ).returns(false)
+
+    get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
+    url = inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "notes").flat_map { |note| note["files"] }.sole["url"]
+    assert_equal agent_chat_investigation_file_path(chat, run, file), url
+
+    get url
+    assert_response :success
+    assert_equal "a", response.body
+  end
+
+  test "a file on a run opens under a chat only for the person whose chat started it" do
+    theirs = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
+    run = chat_run(theirs)
+    file = Chat::Attachment.take!(workspace: @workspace, uploaded_by: @member, filename: "a.log", bytes: "a")
+    run.add_note!("", by: @member, files: [ file ])
+    mine = start_chat
+
+    get agent_chat_investigation_file_url(theirs, run, file)
+    assert_response :not_found
+
+    get agent_chat_investigation_file_url(mine, run, file)
+    assert_response :not_found
+  end
+
   test "stopping an answer under way asks the worker to stop, and one with nothing running is refused" do
     conversation = start_chat
     conversation.ask!("anything in metrics?")
@@ -495,6 +528,14 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     )
     Chat::HeldCall.create!(chat: conversation.chat_record, approval: approval, tool_name: "resolve_incident", status: status,
                            checked_state: "INC-1 is already resolved.", state_change: Chat::CurrentState::DONE_ALREADY, state_checked_at: Time.current)
+  end
+
+  def chat_run(chat)
+    @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
+      conversation: chat, tool_call_id: "call_1", status: Investigation::STATUS_RUNNING,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
+    )
   end
 
   def start_chat

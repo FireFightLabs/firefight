@@ -5,8 +5,10 @@ class IncidentsController < InertiaController
   # Asked for again as a run closes, since the run may have ended meanwhile.
   PROP_INVESTIGATION_START = "investigationStart"
 
+  include ServesChatAttachment
+
   authorizes Ability::Action::RESOURCE_INCIDENTS,
-    read: %i[show postmortem postmortem_revisions],
+    read: %i[show postmortem postmortem_revisions investigation_file],
     update: %i[update_postmortem update_postmortem_status generate_postmortem start_blank_postmortem ai_rewrite_postmortem]
 
   def show
@@ -36,6 +38,13 @@ class IncidentsController < InertiaController
     }
   end
 
+  # A file that went with a note to a run drawn over this incident, for whoever may read the incident and so the run.
+  def investigation_file
+    incident = current_workspace.incidents.find(params[:incident_id])
+    investigation = incident.investigations.seen.find(params[:id])
+    send_chat_attachment(investigation.note_file(params[:file_id]))
+  end
+
   # The Investigate button, offered only where Halon is on and the person may start a run. Disabled with why when the
   # incident cannot take one, and pointing at the run already working on it.
   def investigation_start(incident)
@@ -54,7 +63,7 @@ class IncidentsController < InertiaController
   def open_investigation(incident)
     id = params[Investigation::QUERY_PARAM]
     investigation = id.presence && incident.investigations.seen.find_by(id: id)
-    investigation && InvestigationDetailSerializer.one(investigation)
+    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { incident_investigation_file_path(incident, investigation, file) })
   end
 
   # Capped, the picker searches rather than scrolls.

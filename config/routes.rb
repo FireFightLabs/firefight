@@ -311,6 +311,7 @@ Rails.application.routes.draw do
     get "/incidents/:incident_id/postmortem/revisions", to: "incidents#postmortem_revisions", as: :incident_postmortem_revisions
     post "/incidents/:incident_id/postmortem/ai_rewrite", to: "incidents#ai_rewrite_postmortem", as: :incident_postmortem_ai_rewrite
     post "/incidents/:incident_id/investigations", to: "investigations#start", as: :incident_investigations
+    get "/incidents/:incident_id/investigations/:id/files/:file_id", to: "incidents#investigation_file", as: :incident_investigation_file
     get "/investigations/:id", to: "investigations#show", as: :investigation
     post "/investigations/:id/notes", to: "investigations#add_note", as: :investigation_notes
     get "/investigations/:id/files/:file_id", to: "investigations#file", as: :investigation_file
@@ -332,6 +333,7 @@ Rails.application.routes.draw do
     get "/agent/attachments/:id", to: "agent_chat_attachments#show", as: :agent_chat_attachment
     delete "/agent/attachments/:id", to: "agent_chat_attachments#destroy"
     get "/agent/:id", to: "agent_chats#show", as: :agent_chat
+    get "/agent/:id/investigations/:investigation_id/files/:file_id", to: "agent_chats#investigation_file", as: :agent_chat_investigation_file
     patch "/agent/:id", to: "agent_chats#update"
     delete "/agent/:id", to: "agent_chats#destroy"
     post "/agent/:id/ask", to: "agent_chats#ask", as: :agent_chat_ask

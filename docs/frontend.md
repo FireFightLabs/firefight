@@ -69,6 +69,8 @@ Frontend    → useIncidentsTable(data, columns, filters, pagination) → router
 
 **Deferred props survive mutations only through partial reloads.** A mutation controller that redirects back to the page it came from produces a full Inertia visit, which replaces every prop. Deferred props are absent from that response, so the `Deferred` component falls back to its skeleton and re-fetches them, and the page looks like it reloaded. The incident page avoids this with `afterMutation(...props)` (`app/frontend/pages/incidents/lib/after-mutation.ts`): every mutation passes `only` naming the props it can change, so the redirect becomes a partial reload that merges into the props already on screen. Any new page that defers a prop and mutates in place needs the same treatment.
 
+**A flash belongs to the response that set it.** `redirect_to ..., notice:` (or `alert:`, or `flash.inertia[:key]`) reaches the page as `page.flash`, and `FlashToaster` toasts it once per response, keyed on the object rather than its text, so the same action done twice toasts twice. Partial reloads, polls and closing a panel replace the flash with whatever that response set, usually nothing, so they never toast it again. This relies on `@inertiajs/react` 3.0.1 or later, since 3.0.0 merged the previous flash into every partial reload.
+
 **Frontend filter navigation** (`useIncidentsTable` hook):
 - Filter/pagination changes call `router.get(dashboardPath(), params, { preserveState: true, preserveScroll: true, only: [...] })`
 - Search input debounced 300ms before triggering navigation

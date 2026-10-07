@@ -17,7 +17,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@inertiajs/react": "^3.0.0",
+    "@inertiajs/react": "^3.0.3",
     "@rails/actioncable": "^8.0.501",
     "@tabler/icons-react": "^3.40.0",
     "@tailwindcss/forms": "^0.5.10",

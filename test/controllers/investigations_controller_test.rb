@@ -211,7 +211,13 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
 
     get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
     shown = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]["notes"].flat_map { |note| note["files"] }
-    assert_equal [ investigation_file_path(investigation, image), investigation_file_path(investigation, log) ], shown.map { |file| file["url"] }
+    assert_equal [ incident_investigation_file_path(@incident, investigation, image), incident_investigation_file_path(@incident, investigation, log) ],
+                 shown.map { |file| file["url"] }
+
+    get incident_investigation_file_url(@incident, investigation, image)
+    assert_response :success
+    assert_equal file_fixture("halon_graph.png").binread, response.body
+    assert_match "sandbox", response.headers["Content-Security-Policy"]
 
     get investigation_file_url(investigation, image)
     assert_response :success
@@ -242,6 +248,48 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
 
     investigation.update_columns(rehearsal: true)
     get investigation_file_url(investigation, file)
+    assert_response :not_found
+  end
+
+  test "a file on a run drawn over its incident opens for whoever may read the incident, without investigations read" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+    file = note_file(investigation, "a.log", "a")
+    sign_in(users(:bob), @workspace)
+    withhold(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ)
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    url = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]["notes"].flat_map { |note| note["files"] }.sole["url"]
+
+    get url
+    assert_response :success
+    assert_equal "a", response.body
+
+    get investigation_file_url(investigation, file)
+    assert_redirected_to dashboard_path
+  end
+
+  test "a file on a run drawn over its incident is not served to someone who may not read the incident" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+    file = note_file(investigation, "a.log", "a")
+    sign_in(users(:bob), @workspace)
+    withhold(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
+
+    get incident_investigation_file_url(@incident, investigation, file)
+
+    assert_redirected_to dashboard_path
+    assert_equal WebAuthorization.denied_message(AbilityGateway::Denied.new(Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ))),
+                 flash[:alert]
+  end
+
+  test "a file opens under an incident only for a run drawn over that incident" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+    file = note_file(investigation, "a.log", "a")
+
+    get incident_investigation_file_url(incidents(:active_major_ws1), investigation, file)
+    assert_response :not_found
+
+    investigation.update_columns(rehearsal: true)
+    get incident_investigation_file_url(@incident, investigation, file)
     assert_response :not_found
   end
 
@@ -368,6 +416,12 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  # Holds every other ability, so the one withheld is the only thing a page could refuse.
+  def withhold(resource, verb)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(true)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(resource, verb).returns(false)
+  end
 
   def note_file(investigation, name, bytes)
     file = Chat::Attachment.take!(workspace: @workspace, uploaded_by: workspace_memberships(:alice_workspace_one), filename: name, bytes: bytes)
