@@ -28,6 +28,49 @@ module Integrations
         assert_equal "http://halon-box-1:8080", box.address
       end
 
+      test "an app in the boxes' own project reaches a box by its service id alone" do
+        ENV.stubs(:[]).with("NF_PROJECT_ID").returns("firefight")
+        Http.expects(:request).once.returns(response(201, { "data" => { "id" => "halon-box-1" } }))
+
+        assert_equal "http://halon-box-1:8080", Northflank.new.start(name: "halon-box-1").address
+      end
+
+      test "an app in another project reaches a box at the address for projects allowed in" do
+        ENV.stubs(:[]).with("NF_PROJECT_ID").returns("firefight-app")
+        paths = []
+        Http.expects(:request).twice.with { |uri, *| paths << uri.path }.returns(
+          response(200, { "data" => { "id" => "firefight", "networking" => { "allowedIngressProjects" => [ "firefight-app" ] },
+                                      "cluster" => { "namespace" => "ns-8zy2mcjh9zn2" } } }),
+          response(201, { "data" => { "id" => "halon-box-1" } })
+        )
+
+        box = Northflank.new.start(name: "halon-box-1")
+
+        assert_equal [ "/v1/projects/firefight", "/v1/projects/firefight/services/deployment" ], paths
+        assert_equal "http://halon-box-1.ns-8zy2mcjh9zn2:8080", box.address
+      end
+
+      test "a project that does not say who it lets in is still reached by its namespace" do
+        ENV.stubs(:[]).with("NF_PROJECT_ID").returns("firefight-app")
+        Http.stubs(:request).returns(
+          response(200, { "data" => { "id" => "firefight", "cluster" => { "namespace" => "ns-8zy2mcjh9zn2" } } }),
+          response(201, { "data" => { "id" => "halon-box-1" } })
+        )
+
+        assert_equal "http://halon-box-1.ns-8zy2mcjh9zn2:8080", Northflank.new.start(name: "halon-box-1").address
+      end
+
+      test "a boxes' project that does not let the app's project in is named before any box is made" do
+        ENV.stubs(:[]).with("NF_PROJECT_ID").returns("firefight-app")
+        Http.expects(:request).once.returns(response(200, { "data" => {
+          "id" => "firefight", "networking" => { "allowedIngressProjects" => [] }, "cluster" => { "namespace" => "ns-8zy2mcjh9zn2" }
+        } }))
+
+        error = assert_raises(Error) { Northflank.new.start(name: "halon-box-1") }
+        assert_equal "Northflank project firefight (NORTHFLANK_SANDBOX_PROJECT) does not allow ingress from firefight-app, " \
+                     "the app's project. Add firefight-app to its ingress projects in the project's networking settings.", error.message
+      end
+
       test "Northflank's own refusal is what the error says" do
         Http.stubs(:request).returns(response(409, { "error" => { "message" => "Storage class nvme doesn't support that" } }))
 

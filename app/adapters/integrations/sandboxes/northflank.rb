@@ -1,6 +1,8 @@
 module Integrations
   module Sandboxes
-    # Boxes as Northflank services in the app's own project, reached over its private network. Each is a microVM.
+    # Boxes as Northflank services, each a microVM, reached over Northflank's private network. In the app's own project a
+    # box is reached by its service id. In a project of their own, which allows ingress from the app's project, it is
+    # reached by its service id and that project's namespace.
     class Northflank
       API_ROOT = "https://api.northflank.com/v1".freeze
       PORT = 8080
@@ -9,6 +11,7 @@ module Integrations
       DEFAULT_STORAGE = 16_384
 
       def start(name:)
+        host_suffix = separate_project? ? ".#{ingress_namespace}" : ""
         key = SecureRandom.hex(32)
         created = request(Net::HTTP::Post, "/projects/#{project}/services/deployment", {
           name: name, description: "Firefight code sandbox",
@@ -23,7 +26,7 @@ module Integrations
         ref = created.dig("data", "id")
         raise Error, "Northflank created no service." if ref.blank?
 
-        Box.new(ref: ref, address: "http://#{ref}:#{PORT}", key: key)
+        Box.new(ref: ref, address: "http://#{ref}#{host_suffix}:#{PORT}", key: key)
       end
 
       def stop(ref)
@@ -44,6 +47,28 @@ module Integrations
       private
 
       def project = ENV["NORTHFLANK_SANDBOX_PROJECT"].presence || raise(Error, "NORTHFLANK_SANDBOX_PROJECT is not set.")
+
+      # Northflank sets NF_PROJECT_ID in every deployment it runs (docs/v1/application/secure/inject-secrets). An app
+      # that is not on Northflank has no project of its own, and keeps the address inside the boxes' project.
+      def app_project = ENV["NF_PROJECT_ID"].presence
+
+      def separate_project? = app_project.present? && app_project != project
+
+      # A port in a project that allows ingress from another gets an address for that traffic, shown as
+      # <service id>.<namespace>:<port> (docs/v1/application/network/enable-multi-project-networking). The namespace is
+      # the project's cluster.namespace (docs/v1/api/team/projects/get-project), known before any box exists, and
+      # reachability is waited for like any box's. Northflank documents networking.allowedIngressProjects on writing a
+      # project but not on reading one, so it is checked only when the answer carries it.
+      def ingress_namespace
+        details = request(Net::HTTP::Get, "/projects/#{project}")["data"].to_h
+        allowed = details.dig("networking", "allowedIngressProjects")
+        if allowed && !allowed.include?(app_project)
+          raise Error, "Northflank project #{project} (NORTHFLANK_SANDBOX_PROJECT) does not allow ingress from #{app_project}, " \
+                       "the app's project. Add #{app_project} to its ingress projects in the project's networking settings."
+        end
+
+        details.dig("cluster", "namespace").presence || raise(Error, "Northflank gave no namespace for project #{project}.")
+      end
 
       def token = ENV["NORTHFLANK_API_TOKEN"].presence || raise(Error, "NORTHFLANK_API_TOKEN is not set.")
 

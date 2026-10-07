@@ -12,7 +12,9 @@ module Integrations
     PROVIDERS = [ PROVIDER_DOCKER, PROVIDER_NORTHFLANK ].freeze
     # Every box's name starts with this, so a provider lists only the boxes it started for Firefight.
     NAME_PREFIX = "halon-box-".freeze
-    DEFAULT_IMAGE = "ghcr.io/firefightlabs/firefight-sandbox:latest".freeze
+    IMAGE_REPOSITORY = "ghcr.io/firefightlabs/firefight-sandbox".freeze
+    # Built from main whenever the box changes. An install that is not a release has no version tag to match.
+    EDGE_TAG = "edge".freeze
 
     def self.provider_key = ENV["SANDBOX_PROVIDER"].presence
 
@@ -26,7 +28,7 @@ module Integrations
       end
     end
 
-    def self.image = ENV["SANDBOX_IMAGE"].presence || DEFAULT_IMAGE
+    def self.image = ENV["SANDBOX_IMAGE"].presence || "#{IMAGE_REPOSITORY}:#{ENV['FIREFIGHT_RELEASE'].presence || EDGE_TAG}"
 
     def self.box_name = "#{NAME_PREFIX}#{SecureRandom.hex(6)}"
   end
