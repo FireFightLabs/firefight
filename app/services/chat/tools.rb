@@ -227,10 +227,11 @@ module Chat::Tools
     waiting_for_approval(Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action))
   end
 
-  def self.mark_failed(agent_run, tool_call_id)
+  # kind says whether the provider answered that what was asked about is not there (Chat::StepOutcome).
+  def self.mark_failed(agent_run, tool_call_id, kind: Chat::StepOutcome::FAILURE_ERROR)
     return if tool_call_id.blank?
 
-    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id)
+    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id, kind: kind)
   end
 
   # What a step is called wherever it is cited later, such as "Get form declare".

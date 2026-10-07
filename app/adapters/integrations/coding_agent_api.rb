@@ -5,7 +5,9 @@ module Integrations
     class Error < Integrations::Error; end
     class Unauthorized < Error; end
     class Forbidden < Error; end
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     REFUSALS = { 401 => Unauthorized, 403 => Forbidden, 404 => NotFound }.freeze
     VERBS = { get: Net::HTTP::Get, post: Net::HTTP::Post, delete: Net::HTTP::Delete }.freeze

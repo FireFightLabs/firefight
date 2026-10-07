@@ -22,9 +22,10 @@ class Investigation::Step < ApplicationRecord
   # What a reader sees for the step, such as "Get form declare", or the tool's name when it had no label.
   def shown_label = label.presence || tool_name.to_s.tr("_", " ").humanize
 
-  def succeed!(compacted_result:, raw_result: nil)
+  # failure_kind is set for a call that ran but whose answer said it failed, which a replay copies.
+  def succeed!(compacted_result:, raw_result: nil, failure_kind: nil)
     update!(
-      status: STATUS_SUCCEEDED, compacted_result: compacted_result, raw_result: raw_result,
+      status: STATUS_SUCCEEDED, compacted_result: compacted_result, raw_result: raw_result, failure_kind: failure_kind,
       completed_at: Time.current
     )
   end
@@ -32,9 +33,9 @@ class Investigation::Step < ApplicationRecord
   # The reason goes in its own column, so it is readable in a query and no branch
   # reads it back as something a tool returned.
   # An exception keeps its message too, since its class alone, such as Error, says nothing about what went wrong.
-  def fail!(reason)
+  def fail!(reason, kind: Chat::StepOutcome::FAILURE_ERROR)
     reason = failure_of(reason) unless reason.is_a?(String)
-    update!(status: STATUS_FAILED, error_summary: reason, completed_at: Time.current)
+    update!(status: STATUS_FAILED, error_summary: reason, failure_kind: kind, completed_at: Time.current)
   end
 
   FAILURE_LIMIT = 300

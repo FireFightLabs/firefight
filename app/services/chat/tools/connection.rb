@@ -84,6 +84,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @failed = false
     @waiting = false
     @last_result = nil
+    @answered_failure = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     result = nil
     environment_row = nil
@@ -98,9 +99,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
       @last_result = result
       next text_of(result) unless result["isError"] == true
 
-      provider_failed!(tool_call_id, authorization, text_of(result))
+      provider_failed!(tool_call_id, authorization, text_of(result), arguments)
       FirefightAi::Evidence.pointed(text_of(result))
     end
+    @agent_run.mark_step_failed!(said.step, @answered_failure) if @answered_failure && said.step
     keep_charts(tool_call_id, result, said.step)
     tracked = present.nil? && Chat::Tools::TrackedIssues.after(
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
@@ -119,25 +121,30 @@ class Chat::Tools::Connection < RubyLLM::Tool
     Chat::Tools.waiting_for_approval(@tool.action_key)
   rescue Integrations::Error => error
     # The provider's own words, so they are framed like anything else it said.
-    failed(tool_call_id, FirefightAi::Evidence.frame(shown_as, "#{@tool.action_key} failed: #{error.message}"))
+    failed(tool_call_id, FirefightAi::Evidence.frame(shown_as, "#{@tool.action_key} failed: #{error.message}"),
+           kind: failure_kind(Integrations::Outcomes.not_found?(@tool, arguments, error: error)))
   end
 
   private
 
   # The words still go to the model. The mark is for whoever reads the chat afterwards.
-  def failed(tool_call_id, text)
+  def failed(tool_call_id, text, kind: Chat::StepOutcome::FAILURE_ERROR)
     @failed = true
-    Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
+    Chat::Tools.mark_failed(@agent_run, tool_call_id, kind: kind) unless @alone == false
     text
   end
 
+  def failure_kind(not_found) = not_found ? Chat::StepOutcome::FAILURE_NOT_FOUND : Chat::StepOutcome::FAILURE_ERROR
+
   # A provider that answers its own failure, as a remote server does, still failed the call, and a capability's reading
   # of the answer keeps an error an error. Its words still reach the model, so only the ledger is marked here, and the
-  # card too unless this is one of several answers to one call.
-  def provider_failed!(tool_call_id, authorization, said)
+  # card too unless this is one of several answers to one call. A run's step is marked once it is numbered.
+  # The ledger records an error either way, and the kind only says how the step is shown.
+  def provider_failed!(tool_call_id, authorization, said, arguments)
     @failed = true
+    @answered_failure = failure_kind(Integrations::Outcomes.not_found?(@tool, arguments, said: said))
     authorization.answer_failed!(said)
-    Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
+    Chat::Tools.mark_failed(@agent_run, tool_call_id, kind: @answered_failure) unless @alone == false
   end
 
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)

@@ -7,7 +7,9 @@ module Integrations
     class Error < Integrations::Error; end
     class Forbidden < Error; end
     # Resource Manager answered that the resource is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     # Where one of Azure's clouds signs in, runs Resource Manager and answers Log Analytics queries. A token's scope is
     # its audience's host followed by /.default. The hosts are the ones Microsoft documents: sign-in on Microsoft Entra's

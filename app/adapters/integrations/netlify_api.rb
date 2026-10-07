@@ -4,7 +4,9 @@ module Integrations
   class NetlifyApi
     class Error < Integrations::Error; end
     # Netlify answered that the site or hook is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Netlify turned the request down as it stands, such as a hook its plan does not allow, as opposed to a token it does
     # not accept.
     class Refused < Error; end

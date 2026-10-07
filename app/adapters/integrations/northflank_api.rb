@@ -12,7 +12,9 @@ module Integrations
     class NotEnabled < Error; end
     NOT_ENABLED = /feature flag is not enabled/i
     # Northflank answered that the resource is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Northflank turned the request down as it stands, such as a token whose role may not add notification integrations.
     class Refused < Error; end
     REFINED = { 400 => Refused, 403 => Refused, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze
@@ -105,9 +107,10 @@ module Integrations
 
     def delete_notification(notification_id) = changing(Net::HTTP::Delete, "/integrations/notifications/#{segment(notification_id)}")
 
-    # Any call inside a project, as the api_request tool asks for it. The body goes as JSON.
-    def request(verb, project_id, path, body = nil)
+    # Any call inside a project, as the api_request tool asks for it. The body goes as JSON and the query options encoded.
+    def request(verb, project_id, path, body = nil, query = {})
       uri = URI.parse("#{API_ROOT}/projects/#{segment(project_id)}/#{path}")
+      uri.query = encode(query) if query.any?
       request = VERBS.fetch(verb).new(uri)
       if body
         request["Content-Type"] = "application/json"

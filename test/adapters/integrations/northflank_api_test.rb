@@ -64,6 +64,15 @@ module Integrations
       assert_equal({ "data" => {} }, @api.request("POST", "firefight", "services/web/scale", { "instances" => 2 }))
     end
 
+    test "query options are encoded after the project path, so a value never reaches the path" do
+      Http.expects(:request).with do |uri, request, **|
+        uri.path == "/v1/projects/firefight/services" && request.is_a?(Net::HTTP::Get) &&
+          uri.query == "per_page=100&cursor=a%2F..%2Fb%3Fc%3Dd%26e" && URI.decode_www_form(uri.query).to_h == { "per_page" => "100", "cursor" => "a/../b?c=d&e" }
+      end.returns(response(200, { data: {} }))
+
+      @api.request("GET", "firefight", "services", nil, { "per_page" => "100", "cursor" => "a/../b?c=d&e" })
+    end
+
     test "a change Northflank accepted stays accepted when what came back is not JSON" do
       Http.stubs(:request).returns(stub(code: "200", body: "OK"))
 

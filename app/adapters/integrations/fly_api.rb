@@ -8,7 +8,9 @@ module Integrations
     # The machine changed since it was read, so an update guarded by its version was refused (spec, UpdateMachineRequest).
     class Conflict < Error; end
     # Fly has no such app or machine (spec, 404 on GET /v1/apps/{app_name}).
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     MACHINES_ROOT = "https://api.machines.dev/v1".freeze
     API_ROOT = "https://api.fly.io".freeze

@@ -32,7 +32,43 @@ module Integrations
                     "a GraphQL Analytics query as POST #{GRAPHQL}, or a Workers log query as POST to " \
                     "/accounts/<account id>/workers/observability/telemetry/query. A change belongs in the fix.".freeze
 
+      # The script reading writes, with its options as one JSON value, and a script that makes one request, a GET, written
+      # the way a person or the agent writes one. Anything else may change something.
+      WRITTEN = /\Aasync \(\) => cloudflare\.request\((?<options>.*)\)\z/m
+      ONE_REQUEST = /\A\s*async\s*\(\s*\)\s*=>\s*(?:\{\s*return\s+)?(?:await\s+)?cloudflare\.request\(\s*(?<options>\{(?:[^{}()]|\{[^{}()]*\})*\})\s*\)\s*;?\s*\}?\s*\z/
+      GET_METHOD = /["']?\bmethod["']?\s*:\s*(["'`])GET\1/
+      ANY_METHOD = /\bmethod\b/
+      REQUEST = /cloudflare\.request\(/
+
       def self.guards?(tool_name) = tool_name == TOOL
+
+      # Whether a call to execute only reads. Firefight's own script is data, so it reads when its request is one reading
+      # accepts. A script someone wrote reads only when it is one request whose one method is a GET, since no other text
+      # can be shown to read.
+      def self.reads?(_tool_name, arguments)
+        code = arguments[CODE].to_s
+        written = code.match(WRITTEN)
+        return written_reads?(written[:options]) if written && json?(written[:options])
+
+        options = code.match(ONE_REQUEST)&.[](:options)
+        options.present? && code.scan(REQUEST).one? && options.match?(GET_METHOD) && options.scan(ANY_METHOD).one?
+      end
+
+      def self.json?(text)
+        JSON.parse(text).is_a?(Hash)
+      rescue JSON::ParserError
+        false
+      end
+
+      def self.written_reads?(text)
+        options = JSON.parse(text)
+        path = options["path"].to_s
+        case options["method"]
+        when GET then true
+        when POST then path == GRAPHQL ? !options.dig("body", "query").to_s.match?(MUTATION) : path.match?(LOG_QUERY)
+        else false
+        end
+      end
 
       def self.schema = SCHEMA
 

@@ -5,7 +5,9 @@ module Integrations
   class RenderApi
     class Error < Integrations::Error; end
     # Render answered that the resource is not there (spec, 404NotFound), the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Render turned the request down as it stands, such as a webhook on a plan without them (spec, 400BadRequest and the
     # like), as opposed to a key it does not accept.
     class Refused < Error; end

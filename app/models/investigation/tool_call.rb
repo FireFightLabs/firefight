@@ -29,8 +29,9 @@ class Investigation::ToolCall
         yield authorization
       end
     rescue StandardError => error
-      # A refusal is part of the run's record, so the step says so rather than staying open.
-      step.fail!(error)
+      # A refusal is part of the run's record, so the step says so rather than staying open. A run only reads, so a
+      # provider's not found is an answer to the check (Integrations::Outcomes).
+      step.fail!(error, kind: failure_kind(error))
       raise
     end
 
@@ -58,14 +59,19 @@ class Investigation::ToolCall
       step.fail!(NOT_RECORDED)
       NOT_RECORDED
     elsif recorded.status == Investigation::Step::STATUS_SUCCEEDED
-      step.succeed!(compacted_result: recorded.compacted_result, raw_result: recorded.raw_result)
+      step.succeed!(compacted_result: recorded.compacted_result, raw_result: recorded.raw_result, failure_kind: recorded.failure_kind)
       recorded.raw_result || recorded.compacted_result
     else
-      step.fail!(recorded.error_summary.to_s)
+      step.fail!(recorded.error_summary.to_s, kind: recorded.failure_kind)
       "#{action_key} failed: #{recorded.error_summary}"
     end
   end
   private_class_method :replayed
+
+  def self.failure_kind(error)
+    Integrations::Outcomes.not_found_error?(error) ? Chat::StepOutcome::FAILURE_NOT_FOUND : Chat::StepOutcome::FAILURE_ERROR
+  end
+  private_class_method :failure_kind
 
   # The number is read and then written, so two calls at once could pick the same one. The unique
   # index refuses the second, which takes the next number.
