@@ -20,9 +20,15 @@ class InvestigationFindingSerializer < BaseSerializer
     finding.remediation_plan
   end
 
-  # How each thumb was pressed, by outcome.
+  # How the team rated it, by outcome.
   type "Record<string, number>"
   def verdicts
     finding.tally
+  end
+
+  # How the person reading rated it, or nil before they did.
+  type :string, optional: true
+  def my_verdict
+    finding.verdict_of(Current.principal)
   end
 end

@@ -38,6 +38,16 @@ class PostmortemRevisionsTest < ApplicationSystemTestCase
       assert_no_page_scroll_sideways
       page.save_screenshot(Rails.root.join("tmp/screenshots/postmortem-revision-restore-#{width}.png"))
     end
+  ensure
+    page.current_window.resize_to(1400, 1400)
+  end
+
+  test "the timeline says the postmortem was started, never generated, for a blank start" do
+    visit incident_path(@incident)
+
+    assert_text "started the postmortem"
+    assert_no_text "generated the postmortem"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/postmortem-started-timeline.png"))
   end
 
   private

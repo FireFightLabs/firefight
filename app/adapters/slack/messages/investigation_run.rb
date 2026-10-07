@@ -48,7 +48,7 @@ module Slack
         blocks << gaps_block(finding) if finding.gaps.present?
         actions = action_block(finding)
         blocks << actions if actions
-        blocks << feedback_block(finding)
+        blocks.concat(feedback_blocks(finding))
         blocks
       end
 
@@ -193,27 +193,27 @@ module Slack
         }
       end
 
-      # Slack's own feedback element, so the buttons look and behave like every other agent's.
-      def self.feedback_block(finding)
-        {
-          type: "context_actions",
-          elements: [
-            {
-              type: "feedback_buttons",
-              action_id: Identifiers::INVESTIGATION_FEEDBACK,
-              positive_button: {
-                text: { type: "plain_text", text: "Right" },
-                value: "#{finding.id}:#{Investigation::Finding::OUTCOME_CONFIRMED}",
-                accessibility_label: "This answer was right"
-              },
-              negative_button: {
-                text: { type: "plain_text", text: "Wrong" },
-                value: "#{finding.id}:#{Investigation::Finding::OUTCOME_WRONG}",
-                accessibility_label: "This answer was wrong"
+      RATINGS = [
+        [ Identifiers::RATE_INVESTIGATION_RIGHT, Investigation::Finding::OUTCOME_CONFIRMED, "Right" ],
+        [ Identifiers::RATE_INVESTIGATION_PARTLY, Investigation::Finding::OUTCOME_PARTIAL, "Partly right" ],
+        [ Identifiers::RATE_INVESTIGATION_WRONG, Investigation::Finding::OUTCOME_WRONG, "Wrong" ]
+      ].freeze
+
+      # Three buttons, since Slack's own feedback element holds only two. Whoever presses one is told what they said.
+      def self.feedback_blocks(finding)
+        [
+          { type: "context", elements: [ { type: "mrkdwn", text: "Was this answer right?" } ] },
+          {
+            type: "actions",
+            elements: RATINGS.map do |action_id, outcome, label|
+              {
+                type: "button", action_id: action_id, value: "#{finding.id}:#{outcome}",
+                text: { type: "plain_text", text: label },
+                accessibility_label: "This answer was #{Investigation::Finding::OUTCOME_WORDS.fetch(outcome)}"
               }
-            }
-          ]
-        }
+            end
+          }
+        ]
       end
     end
   end

@@ -7,9 +7,9 @@ class AgentChatAttachmentsController < InertiaController
 
   before_action :require_agent!
 
+  include ServesChatAttachment
+
   NO_FILE = "Choose a file to attach.".freeze
-  # A file that can only be shown is never handed to the browser as something to run.
-  SHOWN_INLINE = Chat::Attachment::IMAGE_TYPES
 
   def create
     upload = params[:file]
@@ -26,13 +26,9 @@ class AgentChatAttachmentsController < InertiaController
 
   def show
     file = current_workspace.chat_attachments.find(params[:id])
-    raise ActiveRecord::RecordNotFound unless file.readable_by?(current_membership) && file.sealed.attached?
+    raise ActiveRecord::RecordNotFound unless file.readable_by?(current_membership)
 
-    inline = SHOWN_INLINE.include?(file.content_type)
-    response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Cache-Control"] = "private, no-store"
-    send_data file.bytes, filename: file.filename, type: file.content_type, disposition: inline ? "inline" : "attachment"
+    send_chat_attachment(file)
   end
 
   # Taking a file off before sending it deletes the upload.

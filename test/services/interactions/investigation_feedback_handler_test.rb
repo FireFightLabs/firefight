@@ -39,6 +39,40 @@ class Interactions::InvestigationFeedbackHandlerTest < ActiveSupport::TestCase
     assert_equal({ "confirmed" => 1, "wrong" => 1 }, @finding.tally)
   end
 
+  test "partly right is recorded like the others, and whoever pressed is told, where they pressed" do
+    Slack::WorkspaceAdapter.any_instance.expects(:answer_privately)
+      .with(prompt_handle: "https://hooks.slack.com/actions/T1/2/abc", text: "Thanks. You rated this answer partly right.")
+
+    Interactions::InvestigationFeedbackHandler.execute(
+      interaction(Investigation::Finding::OUTCOME_PARTIAL, action_id: Identifiers::RATE_INVESTIGATION_PARTLY,
+                                                           prompt_handle: "https://hooks.slack.com/actions/T1/2/abc")
+    )
+
+    assert_equal Investigation::Finding::OUTCOME_PARTIAL, @finding.verdicts.sole.outcome
+    assert_equal Investigation::Finding::OUTCOME_PARTIAL, @finding.reload.outcome
+  end
+
+  test "Slack's thumbs on an older answer still count, and say nothing since they show what was pressed" do
+    Slack::WorkspaceAdapter.any_instance.expects(:answer_privately).never
+
+    Interactions::InvestigationFeedbackHandler.execute(
+      interaction(Investigation::Finding::OUTCOME_WRONG, prompt_handle: "https://hooks.slack.com/actions/T1/2/abc")
+    )
+
+    assert_equal Investigation::Finding::OUTCOME_WRONG, @finding.verdicts.sole.outcome
+  end
+
+  test "a rating whose confirmation Slack refused is still kept" do
+    Slack::WorkspaceAdapter.any_instance.stubs(:answer_privately).raises(AdapterError, "expired_url")
+
+    Interactions::InvestigationFeedbackHandler.execute(
+      interaction(Investigation::Finding::OUTCOME_CONFIRMED, action_id: Identifiers::RATE_INVESTIGATION_RIGHT,
+                                                             prompt_handle: "https://hooks.slack.com/actions/T1/2/abc")
+    )
+
+    assert_equal Investigation::Finding::OUTCOME_CONFIRMED, @finding.verdicts.sole.outcome
+  end
+
   test "a finding from another workspace is not reachable" do
     other = workspaces(:slack_workspace_two).investigations.create!(
       subject: incidents(:active_p0_ws2), trigger_source: Investigation::TRIGGER_COMMAND,
@@ -55,11 +89,10 @@ class Interactions::InvestigationFeedbackHandlerTest < ActiveSupport::TestCase
 
   private
 
-  def interaction(outcome, finding_id: @finding.id, user_id: @member.platform_user_id)
+  def interaction(outcome, finding_id: @finding.id, user_id: @member.platform_user_id, action_id: Identifiers::INVESTIGATION_FEEDBACK, prompt_handle: nil)
     Interaction.new(
       type: Interaction::BLOCK_ACTIONS, platform: Platforms::SLACK, team_id: @workspace.platform_id,
-      user_id: user_id, action_id: Identifiers::INVESTIGATION_FEEDBACK,
-      action_value: "#{finding_id}:#{outcome}"
+      user_id: user_id, action_id: action_id, action_value: "#{finding_id}:#{outcome}", prompt_handle: prompt_handle
     )
   end
 end

@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { FixPlan } from "@/components/investigations/fix-plan"
+import { RateAnswer } from "@/components/investigations/rate-answer"
 import { StepLinks } from "@/components/investigations/step-links"
 import { OUTCOME_LABELS, labelFor } from "@/components/investigations/labels"
 import { isLive } from "@/components/investigations/use-live-investigation"
@@ -72,7 +73,6 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
   }
 
   const verdicts = Object.entries(finding.verdicts)
-  const hasParts = Boolean(finding.cause || finding.evidence.length > 0 || finding.fix || finding.gaps || finding.outcome || verdicts.length > 0)
 
   return (
     <section className={`${FRAME} ${FRAMES.answered}`}>
@@ -95,47 +95,48 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
         </div>
       )}
 
-      {hasParts && (
-        <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
-          {finding.cause && <Part label="Cause">{finding.cause}</Part>}
-          {finding.evidence.length > 0 && (
-            <Part label="Why it thinks so">
-              <ul className="flex flex-col gap-2.5">
-                {finding.evidence.map((item) => (
-                  <li key={item.id} className="flex flex-col gap-1">
-                    <span>{item.claim}</span>
-                    <StepLinks steps={item.steps} />
-                  </li>
-                ))}
-              </ul>
-            </Part>
-          )}
-          {finding.fix && (
-            <Part label="How to fix it">
-              <FixPlan investigationId={investigation.id} fix={finding.fix} />
-            </Part>
-          )}
-          {finding.fix?.undo && (
-            <Part label="How to undo it">
-              <FixPlan investigationId={investigation.id} fix={finding.fix.undo} />
-            </Part>
-          )}
-          {finding.gaps && (
-            <Part label="Could not check">
-              <span className="text-fg-secondary">{finding.gaps}</span>
-            </Part>
-          )}
-          {(finding.outcome || verdicts.length > 0) && (
-            <Part label="The team says">
-              <span className="text-fg-secondary">
-                {finding.outcome
-                  ? labelFor(OUTCOME_LABELS, finding.outcome)
-                  : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
-              </span>
-            </Part>
-          )}
-        </div>
-      )}
+      <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
+        {finding.cause && <Part label="Cause">{finding.cause}</Part>}
+        {finding.evidence.length > 0 && (
+          <Part label="Why it thinks so">
+            <ul className="flex flex-col gap-2.5">
+              {finding.evidence.map((item) => (
+                <li key={item.id} className="flex flex-col gap-1">
+                  <span>{item.claim}</span>
+                  <StepLinks steps={item.steps} />
+                </li>
+              ))}
+            </ul>
+          </Part>
+        )}
+        {finding.fix && (
+          <Part label="How to fix it">
+            <FixPlan investigationId={investigation.id} fix={finding.fix} />
+          </Part>
+        )}
+        {finding.fix?.undo && (
+          <Part label="How to undo it">
+            <FixPlan investigationId={investigation.id} fix={finding.fix.undo} />
+          </Part>
+        )}
+        {finding.gaps && (
+          <Part label="Could not check">
+            <span className="text-fg-secondary">{finding.gaps}</span>
+          </Part>
+        )}
+        {(finding.outcome || verdicts.length > 0) && (
+          <Part label="The team says">
+            <span className="text-fg-secondary">
+              {finding.outcome
+                ? labelFor(OUTCOME_LABELS, finding.outcome)
+                : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
+            </span>
+          </Part>
+        )}
+        <Part label="Was it right?">
+          <RateAnswer investigationId={investigation.id} mine={finding.myVerdict} />
+        </Part>
+      </div>
     </section>
   )
 }

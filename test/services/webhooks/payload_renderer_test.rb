@@ -71,6 +71,21 @@ class Webhooks::PayloadRendererTest < ActiveSupport::TestCase
     assert_equal "https://slack.test/p1", payload["data"]["note"]["permalink"]
   end
 
+  test "a blank start is sent as postmortem.started with the postmortem and who started it" do
+    incident = @event.incident
+    incident.postmortem&.destroy!
+    member = workspace_memberships(:alice_workspace_one)
+    postmortem = Postmortem.start_blank!(incident.reload, by: member)
+    event = incident.incident_events.find_by!(event_type: IncidentEvent::POSTMORTEM_STARTED)
+
+    payload = JSON.parse(Webhooks::PayloadRenderer.render(event, delivery_id: @delivery_id))
+
+    assert_equal "postmortem.started", payload["event_type"]
+    assert_equal postmortem.id, payload["data"]["postmortem"]["id"]
+    assert_equal Postmortem::STATUS_DRAFT, payload["data"]["postmortem"]["status"]
+    assert_equal member.actor_display_name, payload["data"]["actor"]["name"]
+  end
+
   test "template_for returns correct template for known event types" do
     assert_equal "webhooks/events/incident_created",
       Webhooks::PayloadRenderer.template_for(IncidentEvent::INCIDENT_CREATED)

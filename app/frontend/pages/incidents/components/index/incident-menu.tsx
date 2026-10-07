@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { router } from "@inertiajs/react"
 import { IconDotsVertical } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
@@ -25,8 +24,7 @@ import {
 import { EscalateDialog } from "@/pages/incidents/components/index/escalate-dialog"
 import { InviteDialog } from "@/pages/incidents/components/index/invite-dialog"
 import { ShoutoutDialog } from "@/pages/incidents/components/index/shoutout-dialog"
-import { incidentReopenPath } from "@/lib/routes"
-import { afterMutation } from "@/pages/incidents/lib/after-mutation"
+import { ReopenDialog } from "@/pages/incidents/components/index/reopen-dialog"
 import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
 // Only one is ever open, so one piece of state rather than three that could
@@ -37,6 +35,7 @@ type OpenDialog =
   | { kind: "escalate" }
   | { kind: "invite" }
   | { kind: "shoutout" }
+  | { kind: "reopen" }
 
 const UPDATE: OpenDialog = { kind: "lifecycle", form: "update" }
 const RESOLVE: OpenDialog = { kind: "lifecycle", form: "resolve" }
@@ -46,6 +45,7 @@ const DUPLICATE: OpenDialog = { kind: "link", relationship: INCIDENT_RELATIONSHI
 const ESCALATE: OpenDialog = { kind: "escalate" }
 const INVITE: OpenDialog = { kind: "invite" }
 const SHOUTOUT: OpenDialog = { kind: "shoutout" }
+const REOPEN: OpenDialog = { kind: "reopen" }
 
 // A control the model refused stays visible and says why, instead of vanishing.
 function MenuItem({
@@ -100,10 +100,6 @@ export function IncidentMenu({
     setDialog(null)
   }
 
-  function reopen() {
-    router.patch(incidentReopenPath(incident.id), {}, afterMutation("incident", "timelineEvents"))
-  }
-
   return (
     <>
       <DropdownMenu>
@@ -119,7 +115,7 @@ export function IncidentMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-56">
           {terminal ? (
-            <DropdownMenuItem onSelect={reopen}>Reopen incident</DropdownMenuItem>
+            <MenuItem label="Reopen incident" dialog={REOPEN} onOpen={setDialog} />
           ) : (
             <>
               <MenuItem label="Post an update" dialog={UPDATE} onOpen={setDialog} />
@@ -181,6 +177,8 @@ export function IncidentMenu({
       {dialog?.kind === "invite" && (
         <InviteDialog incidentId={incident.id} members={members} open onOpenChange={close} />
       )}
+
+      {dialog?.kind === "reopen" && <ReopenDialog incidentId={incident.id} open onOpenChange={close} />}
 
       {dialog?.kind === "shoutout" && (
         <ShoutoutDialog incidentId={incident.id} members={members} open onOpenChange={close} />

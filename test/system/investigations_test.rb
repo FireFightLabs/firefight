@@ -119,6 +119,52 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-note-files.png"))
   end
 
+  test "a note's image opens full size over the story and its log downloads, as a chat's files do" do
+    member = workspace_memberships(:alice_workspace_one)
+    image = Chat::Attachment.take!(workspace: @workspace, uploaded_by: member, filename: "halon_graph.png", bytes: file_fixture("halon_graph.png").binread)
+    log = Chat::Attachment.take!(workspace: @workspace, uploaded_by: member, filename: "checkout.log", bytes: "pool exhausted at 14:03")
+    @investigation.hand_over_files!([ image, log ], by: member)
+    @investigation.take_notes!
+    @investigation.notes.sole.update!(created_at: 130.seconds.ago, taken_at: 128.seconds.ago)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("ul[aria-label='Files added']") do
+      download = find("a[aria-label='Download checkout.log']")
+      assert_equal investigation_file_path(@investigation, log), URI(download[:href]).path
+      assert_equal "checkout.log", download[:download]
+      find("button[aria-label='Open halon_graph.png']").click
+    end
+
+    within("[role=dialog]", text: "The image at full size") do
+      shown = find("img[alt='halon_graph.png']")
+      assert_equal investigation_file_path(@investigation, image), URI(shown[:src]).path
+      assert shown.evaluate_script("this.complete && this.naturalWidth > 0"), "the image loads from the run's file address"
+      assert_link "Open the original"
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-note-image.png"))
+  end
+
+  test "anyone reading the answer rates it partly right, sees their choice and the team's count" do
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      within("[aria-label='Rate this answer']") do
+        assert_selector "button", text: "Right"
+        assert_selector "button", text: "Wrong"
+        click_button "Partly right"
+      end
+    end
+
+    assert_text "Thanks. You rated this answer partly right."
+    within("[role=dialog]") do
+      assert_selector "[aria-label='Rate this answer'] [data-state=on]", text: "Partly right"
+      assert_text "Partly right"
+    end
+    assert_equal Investigation::Finding::OUTCOME_PARTIAL, @investigation.finding.reload.outcome
+    page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-rated-partly-right.png"))
+  end
+
   private
 
   def step(position, label, result, seconds_ago)

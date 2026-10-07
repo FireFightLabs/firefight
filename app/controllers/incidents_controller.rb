@@ -2,6 +2,8 @@ class IncidentsController < InertiaController
   LINKABLE_LIMIT = 50
   # Asked for by name when a run opens or closes, so the rest of the page is not loaded again.
   PROP_OPEN_INVESTIGATION = "openInvestigation"
+  # Asked for again as a run closes, since the run may have ended meanwhile.
+  PROP_INVESTIGATION_START = "investigationStart"
 
   authorizes Ability::Action::RESOURCE_INCIDENTS,
     read: %i[show postmortem postmortem_revisions],
@@ -29,7 +31,21 @@ class IncidentsController < InertiaController
       hasPostmortem: incident.postmortem.present?,
       postmortemStatus: incident.postmortem&.status,
       postmortemGenerationState: incident.postmortem&.generation_state,
-      PROP_OPEN_INVESTIGATION => open_investigation(incident)
+      PROP_OPEN_INVESTIGATION => open_investigation(incident),
+      PROP_INVESTIGATION_START => investigation_start(incident)
+    }
+  end
+
+  # The Investigate button, offered only where Halon is on and the person may start a run. Disabled with why when the
+  # incident cannot take one, and pointing at the run already working on it.
+  def investigation_start(incident)
+    return nil unless Investigation.available_for?(current_workspace)
+    return nil unless current_membership.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, current_workspace)
+
+    running = incident.live_investigation
+    {
+      blockedReason: incident.investigation_start_blocked_reason,
+      runningHref: running && incident_path(incident, Investigation::QUERY_PARAM => running.id)
     }
   end
 

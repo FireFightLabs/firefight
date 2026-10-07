@@ -139,7 +139,12 @@ module Identifiers
   # A users_select carries no value, so block_id holds the id it acts on.
   ACTION_BLOCK_PREFIX = "action_block_"
   RUNBOOK_STEP_BLOCK_PREFIX = "runbook_step_block_"
+  # Slack's thumbs, on answers posted before partly right could be given. Still pressed on those.
   INVESTIGATION_FEEDBACK = "investigation_feedback"
+  # The three ratings an answer takes, each its own button since one block holds them.
+  RATE_INVESTIGATION_RIGHT = "rate_investigation_right"
+  RATE_INVESTIGATION_PARTLY = "rate_investigation_partly"
+  RATE_INVESTIGATION_WRONG = "rate_investigation_wrong"
   # On an answer whose fix runs through a connection. Its steps run as whoever clicked.
   APPLY_FIX = "apply_fix"
   # On a fix's progress, for a step a person does rather than Firefight.

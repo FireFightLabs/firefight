@@ -12,6 +12,8 @@ class Incident < ApplicationRecord
   SOURCE_MCP = "mcp"
 
   DEFAULT_PER_PAGE = 20
+  # The longest reopen reason, which Slack's input caps and the dashboard's matches.
+  REOPEN_REASON_LIMIT = 3000
   MAX_PER_PAGE = 50
 
   include Incident::Sequencing
@@ -273,6 +275,16 @@ class Incident < ApplicationRecord
   def investigation_blocked_reason
     terminal_blocked_reason("there is nothing left to investigate") ||
       channelless_blocked_reason("post what it finds")
+  end
+
+  # The run working on this incident now. A partial unique index keeps it to one.
+  def live_investigation
+    investigations.live.seen.first
+  end
+
+  # Why a person cannot start a run here now, including because one is already working on it.
+  def investigation_start_blocked_reason
+    investigation_blocked_reason || ("Halon is already investigating #{identifier}." if live_investigation)
   end
 
   # Messages Firefight pinned itself, which the timeline leaves out.

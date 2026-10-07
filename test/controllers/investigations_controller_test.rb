@@ -124,6 +124,127 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_not investigation.reload.cancel_requested?
   end
 
+  test "the Investigate button starts a run as the person, says so, and opens the run over the incident" do
+    sign_in(users(:bob), @workspace)
+
+    assert_enqueued_with(job: InvestigationJob) do
+      post incident_investigations_url(@incident)
+    end
+
+    started = @incident.investigations.sole
+    assert_equal [ Investigation::TRIGGER_DASHBOARD, workspace_memberships(:bob_workspace_one) ], [ started.trigger_source, started.triggered_by ]
+    assert_redirected_to incident_path(@incident, Investigation::QUERY_PARAM => started.id)
+    assert_equal "Halon is investigating #{@incident.identifier}.", flash[:notice]
+  end
+
+  test "the incident page offers the button, disabled and pointing at the run while one works" do
+    get incident_url(@incident), headers: inertia_headers
+    assert_equal({ "blockedReason" => nil, "runningHref" => nil }, inertia_props[IncidentsController::PROP_INVESTIGATION_START])
+
+    running = investigation_run(status: Investigation::STATUS_RUNNING)
+    get incident_url(@incident), headers: inertia_headers
+
+    assert_equal "Halon is already investigating #{@incident.identifier}.", inertia_props[IncidentsController::PROP_INVESTIGATION_START]["blockedReason"]
+    assert_equal incident_path(@incident, Investigation::QUERY_PARAM => running.id), inertia_props[IncidentsController::PROP_INVESTIGATION_START]["runningHref"]
+
+    assert_no_difference -> { @incident.investigations.count } do
+      post incident_investigations_url(@incident)
+    end
+    assert_equal "Halon is already investigating #{@incident.identifier}.", flash[:alert]
+  end
+
+  test "a closed incident's button says why, and a workspace without Halon or a member without the grant gets none" do
+    closed = incidents(:resolved_minor_ws1)
+    get incident_url(closed), headers: inertia_headers
+    assert_equal closed.investigation_blocked_reason, inertia_props[IncidentsController::PROP_INVESTIGATION_START]["blockedReason"]
+
+    take_halon_from(@workspace, workspace_memberships(:bob_workspace_one))
+    sign_in(users(:bob), @workspace)
+    get incident_url(@incident), headers: inertia_headers
+    assert_nil inertia_props[IncidentsController::PROP_INVESTIGATION_START]
+    post incident_investigations_url(@incident)
+    assert_not @incident.investigations.exists?
+
+    sign_in(users(:alice), @workspace)
+    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+    get incident_url(@incident), headers: inertia_headers
+    assert_nil inertia_props[IncidentsController::PROP_INVESTIGATION_START]
+  end
+
+  test "an answer is rated partly right from the run page, counted as Slack's rating is, and the page shows the person's own" do
+    investigation = investigation_run
+    finding = investigation.conclude!(summary: "The 14:02 deploy did it")
+    sign_in(users(:bob), @workspace)
+
+    post investigation_rating_url(investigation), params: { outcome: Investigation::Finding::OUTCOME_PARTIAL }
+
+    assert_equal "Thanks. You rated this answer partly right.", flash[:notice]
+    verdict = finding.verdicts.sole
+    assert_equal [ Investigation::Finding::OUTCOME_PARTIAL, workspace_memberships(:bob_workspace_one) ], [ verdict.outcome, verdict.member ]
+    assert_equal 1, Investigation::Performance.new(@workspace, days: 30).verdicts[Investigation::Finding::OUTCOME_PARTIAL]
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    assert_equal Investigation::Finding::OUTCOME_PARTIAL, inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION].dig("finding", "myVerdict")
+
+    sign_in(users(:alice), @workspace)
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    assert_nil inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION].dig("finding", "myVerdict")
+  end
+
+  test "a rating needs an answer and one of the three outcomes" do
+    investigation = investigation_run
+
+    post investigation_rating_url(investigation), params: { outcome: Investigation::Finding::OUTCOME_CONFIRMED }
+    assert_response :not_found
+
+    investigation.conclude!(summary: "The 14:02 deploy did it")
+    post investigation_rating_url(investigation), params: { outcome: "sort of" }
+    assert_response :not_found
+    assert_not Investigation::Verdict.exists?
+  end
+
+  test "a note's files open from the story for whoever reads the run, an image shown and any other file downloaded" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+    image = note_file(investigation, "halon_graph.png", file_fixture("halon_graph.png").binread)
+    log = note_file(investigation, "page.html", "<script>alert(1)</script>")
+    sign_in(users(:bob), @workspace)
+
+    get incident_url(@incident, Investigation::QUERY_PARAM => investigation.id), headers: inertia_headers
+    shown = inertia_props[IncidentsController::PROP_OPEN_INVESTIGATION]["notes"].flat_map { |note| note["files"] }
+    assert_equal [ investigation_file_path(investigation, image), investigation_file_path(investigation, log) ], shown.map { |file| file["url"] }
+
+    get investigation_file_url(investigation, image)
+    assert_response :success
+    assert_equal file_fixture("halon_graph.png").binread, response.body
+    assert_equal "image/png", response.media_type
+    assert_match "inline", response.headers["Content-Disposition"]
+    assert_match "sandbox", response.headers["Content-Security-Policy"]
+    assert_equal "nosniff", response.headers["X-Content-Type-Options"]
+
+    get investigation_file_url(investigation, log)
+    assert_equal "text/plain", response.media_type
+    assert_match "attachment", response.headers["Content-Disposition"]
+  end
+
+  test "a file opens only through the run it went with, and never for a rehearsal or a file Halon did not read" do
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+    other = investigation_run(subject: incidents(:active_major_ws1), status: Investigation::STATUS_RUNNING)
+    file = note_file(investigation, "a.log", "a")
+    unread = Chat::Attachment.unread!(workspace: @workspace, uploaded_by: workspace_memberships(:alice_workspace_one),
+                                      filename: "huge.bin", byte_size: 99, refusal: "Too large")
+    investigation.add_note!("", by: workspace_memberships(:alice_workspace_one), files: [ unread ])
+
+    get investigation_file_url(other, file)
+    assert_response :not_found
+
+    get investigation_file_url(investigation, unread)
+    assert_response :not_found
+
+    investigation.update_columns(rehearsal: true)
+    get investigation_file_url(investigation, file)
+    assert_response :not_found
+  end
+
   test "a finished run takes no note, and says why" do
     investigation = investigation_run
 
@@ -247,6 +368,12 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def note_file(investigation, name, bytes)
+    file = Chat::Attachment.take!(workspace: @workspace, uploaded_by: workspace_memberships(:alice_workspace_one), filename: name, bytes: bytes)
+    investigation.add_note!("", by: workspace_memberships(:alice_workspace_one), files: [ file ])
+    file
+  end
 
   def investigation_run(**attributes)
     @workspace.investigations.create!(

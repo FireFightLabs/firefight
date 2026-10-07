@@ -26,8 +26,7 @@ module Trackable
     end
   end
 
-  # update_type names the snapshot when the event alone does not say how the change came about.
-  def record_change!(event_type, by:, message: nil, metadata: nil, update_type: nil)
+  def record_change!(event_type, by:, message: nil, metadata: nil)
     before = tracked_snapshot
     yield if block_given?
     reload
@@ -37,7 +36,7 @@ module Trackable
     raise "#{self.class} did not declare `tracked_by`" unless recordable_class
 
     update_attrs = snapshot_attributes.merge(
-      update_type:    update_type || IncidentEvent.update_type_for(event_type),
+      update_type:    IncidentEvent.update_type_for(event_type),
       changed_fields: changed
     )
     update_attrs[recordable_class.recorder_attr] = by

@@ -24,6 +24,15 @@ export interface IncidentPageOwnProps {
   subscribed: boolean
   // The run the address asks for, drawn over the page.
   openInvestigation: InvestigationDetail | null
+  // The Investigate button, absent where Halon is off or the person may not start a run.
+  investigationStart: InvestigationStart | null
+}
+
+export interface InvestigationStart {
+  // Why a run cannot start now, from the model. Null when it can.
+  blockedReason: string | null
+  // Opens the run already working on the incident over this page, which the disabled button points at.
+  runningHref: string | null
 }
 
 export type IncidentPageProps = SharedProps & IncidentPageOwnProps

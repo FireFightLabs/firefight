@@ -42,9 +42,11 @@ class Investigation < ApplicationRecord
   TRIGGER_BUTTON = "button"
   TRIGGER_CONVERSATION = "conversation"
   TRIGGER_MCP = "mcp"
+  # The Investigate button on an incident's page.
+  TRIGGER_DASHBOARD = "dashboard"
   # Started to measure Halon, and seen by nobody in the workspace. See Investigation::Rehearsal.
   TRIGGER_REHEARSAL = "rehearsal"
-  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_REHEARSAL ].freeze
+  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL ].freeze
 
   belongs_to :workspace
   # What the run is about. None for a question asked before anyone declared an incident, which is answered where it

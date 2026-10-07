@@ -54,6 +54,13 @@ module Investigation::Noting
 
   def notes = chat ? chat.queued_messages.includes(:sender).order(:created_at, :id) : Chat::QueuedMessage.none
 
+  # A file that went with one of this run's notes, which whoever may read the run may open.
+  def note_file(id)
+    raise ActiveRecord::RecordNotFound unless chat
+
+    Chat::Attachment.where(queued_message_id: chat.queued_messages.select(:id)).find(id)
+  end
+
   # A note can arrive before the worker opens the chat, so either may open it. The worker names the model it runs on.
   def chat_record(model = ai_model)
     chat || Chat.open!(owner: self, workspace: workspace, model_choice: model).tap { |opened| self.chat = opened }

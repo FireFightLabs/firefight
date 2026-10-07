@@ -80,19 +80,20 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
     assert_match "Started by Alice", text
   end
 
-  test "an answer carries the evidence, the gaps and Slack's own feedback buttons" do
+  test "an answer carries the evidence, the gaps and a right, partly right or wrong rating" do
     blocks = Slack::Messages::InvestigationRun.finding(finding: @finding)
 
     assert_equal "*14:02 deploy* raised the pool size", blocks.first.dig(:text, :text).split("The ").last
     assert_match "• The commit raised the pool size _(Commit lookup abc123)_", blocks.second.dig(:text, :text)
     assert_match "production logs", blocks.third[:elements].sole[:text]
 
-    feedback = blocks.last[:elements].sole
-    assert_equal "context_actions", blocks.last[:type]
-    assert_equal "feedback_buttons", feedback[:type]
-    assert_equal Identifiers::INVESTIGATION_FEEDBACK, feedback[:action_id]
-    assert_equal "#{@finding.id}:#{Investigation::Finding::OUTCOME_CONFIRMED}", feedback[:positive_button][:value]
-    assert_equal "#{@finding.id}:#{Investigation::Finding::OUTCOME_WRONG}", feedback[:negative_button][:value]
+    assert_equal "Was this answer right?", blocks[-2][:elements].sole[:text]
+    buttons = blocks.last[:elements]
+    assert_equal "actions", blocks.last[:type]
+    assert_equal [ "Right", "Partly right", "Wrong" ], buttons.map { |button| button.dig(:text, :text) }
+    assert_equal [ Identifiers::RATE_INVESTIGATION_RIGHT, Identifiers::RATE_INVESTIGATION_PARTLY, Identifiers::RATE_INVESTIGATION_WRONG ],
+                 buttons.map { |button| button[:action_id] }
+    assert_equal Investigation::Finding::OUTCOMES.map { |outcome| "#{@finding.id}:#{outcome}" }, buttons.map { |button| button[:value] }
   end
 
   test "an answer with a fix lists its steps in order, saying how each gets done, and how to tell it worked" do
@@ -140,8 +141,8 @@ class Slack::Messages::InvestigationRunTest < ActiveSupport::TestCase
 
     blocks = Slack::Messages::InvestigationRun.finding(finding: finding)
 
-    assert_equal 2, blocks.size
-    assert_equal "context_actions", blocks.last[:type]
+    assert_equal [ "section", "context", "actions" ], blocks.map { |block| block[:type] }
+    assert_equal Identifiers::RATE_INVESTIGATION_RIGHT, blocks.last[:elements].first[:action_id]
   end
 
   test "an answer whose fix runs through a connection offers Apply fix, which asks first, and one already applied does not" do

@@ -10,6 +10,8 @@ class Investigation::Finding < ApplicationRecord
   OUTCOME_PARTIAL = "partial"
   OUTCOME_WRONG = "wrong"
   OUTCOMES = [ OUTCOME_CONFIRMED, OUTCOME_PARTIAL, OUTCOME_WRONG ].freeze
+  # How a person rating an answer reads each outcome.
+  OUTCOME_WORDS = { OUTCOME_CONFIRMED => "right", OUTCOME_PARTIAL => "partly right", OUTCOME_WRONG => "wrong" }.freeze
 
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
@@ -52,6 +54,16 @@ class Investigation::Finding < ApplicationRecord
       settle_outcome!
       verdict
     end
+  end
+
+  # What the person who rated it is told, wherever they rated it.
+  def self.verdict_recorded(outcome) = "Thanks. You rated this answer #{OUTCOME_WORDS.fetch(outcome)}."
+
+  # What a person said about this answer, or nil before they rated it.
+  def verdict_of(member)
+    return nil unless member.is_a?(WorkspaceMembership)
+
+    verdicts.find { |verdict| verdict.member_id == member.id }&.outcome
   end
 
   def add_evidence!(claim:, sources:, position:)

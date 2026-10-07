@@ -61,6 +61,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Answers whoever pressed a button, only to them and where they pressed it, a thread included. The handle is the
+  # token the platform attached to the press.
+  # @return [Hash] { ok: true }
+  def answer_privately(prompt_handle:, text:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Takes down an ephemeral prompt. The handle is the token the platform
   # attached to the button click, carried through the modal's metadata.
   # @return [Hash] { ok: true }

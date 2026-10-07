@@ -16,7 +16,7 @@ import { TimelineSkeleton } from "@/pages/incidents/components/index/timeline-sk
 import type { IncidentPageProps } from "@/pages/incidents/types";
 import { useCan } from "@/lib/permissions";
 import { dashboardPath, incidentPath } from "@/lib/routes";
-import { OPEN_INVESTIGATION_PROP } from "@/lib/generated/constants";
+import { INVESTIGATION_START_PROP, OPEN_INVESTIGATION_PROP } from "@/lib/generated/constants";
 
 export default function IncidentPage() {
   const {
@@ -32,12 +32,13 @@ export default function IncidentPage() {
     memberChoices,
     subscribed,
     openInvestigation,
+    investigationStart,
   } = usePage<IncidentPageProps>().props;
   const canEditIncident = useCan("incidents");
 
-  // Closing a run drops it from the address and loads nothing else.
+  // Closing a run drops it from the address and loads nothing else but the Investigate button, which the run may have freed.
   function closeInvestigation() {
-    router.get(incidentPath(incident.id), {}, { only: [OPEN_INVESTIGATION_PROP], preserveScroll: true, preserveState: true, replace: true });
+    router.get(incidentPath(incident.id), {}, { only: [OPEN_INVESTIGATION_PROP, INVESTIGATION_START_PROP], preserveScroll: true, preserveState: true, replace: true });
   }
   const rolesBlockedReason = canEditIncident
     ? incident.changeBlockedReason
@@ -69,6 +70,7 @@ export default function IncidentPage() {
           linkable={linkableIncidents}
           canEdit={canEditIncident}
           members={memberChoices}
+          investigationStart={investigationStart}
         />
 
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">

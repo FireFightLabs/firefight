@@ -293,6 +293,12 @@ module Slack
       end
     end
 
+    def answer_privately(prompt_handle:, text:)
+      translate_errors do
+        Slack::Client.respond_ephemerally(response_url: prompt_handle, text: text)
+      end
+    end
+
     def self.refresh_expiring_credentials(buffer:)
       Slack::TokenManager.new.refresh_all_expiring(buffer: buffer)
     end

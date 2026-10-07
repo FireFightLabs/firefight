@@ -20,6 +20,8 @@ class IncidentEvent < ApplicationRecord
   INCIDENT_REOPENED = "incident.reopened"
   INCIDENT_CANCELED = "incident.canceled"
   POSTMORTEM_GENERATED = "postmortem.generated"
+  # A person started from an empty document, with no AI draft.
+  POSTMORTEM_STARTED = "postmortem.started"
   POSTMORTEM_EDITED = "postmortem.edited"
   RELATIONSHIP_CREATED = "relationship.created"
   MARKED_DUPLICATE = "incident.marked_duplicate"
@@ -61,7 +63,7 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_CREATED, INCIDENT_UPDATED, INCIDENT_ACCEPTED, LEAD_ASSIGNED,
     ROLE_ASSIGNED, ROLE_UNASSIGNED,
     ACTION_CREATED, ACTION_PICKED_UP, ACTION_COMPLETED, ACTION_REASSIGNED, ACTION_RENAMED, ACTION_REOPENED, ACTION_UNASSIGNED,
-    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, INCIDENT_CANCELED, POSTMORTEM_GENERATED, POSTMORTEM_EDITED,
+    INCIDENT_ESCALATED, INCIDENT_RESOLVED, INCIDENT_REOPENED, INCIDENT_CANCELED, POSTMORTEM_GENERATED, POSTMORTEM_STARTED, POSTMORTEM_EDITED,
     RELATIONSHIP_CREATED, MARKED_DUPLICATE, MERGED_INTO,
     MESSAGE_PINNED, MESSAGE_UNPINNED, MESSAGE_FILE_SHARED,
     ESCALATION_ACKNOWLEDGED, ESCALATION_NUDGED,
@@ -90,6 +92,7 @@ class IncidentEvent < ApplicationRecord
     INCIDENT_REOPENED => "reopened the incident",
     INCIDENT_CANCELED => "canceled the incident",
     POSTMORTEM_GENERATED => "generated the postmortem",
+    POSTMORTEM_STARTED => "started the postmortem",
     POSTMORTEM_EDITED => "edited the postmortem",
     RELATIONSHIP_CREATED => "linked",
     MARKED_DUPLICATE => "marked the incident as a duplicate of",
@@ -128,6 +131,7 @@ class IncidentEvent < ApplicationRecord
     ACTION_REOPENED      => IncidentActionUpdate::REOPENED,
     ACTION_UNASSIGNED    => IncidentActionUpdate::UNASSIGNED,
     POSTMORTEM_GENERATED => PostmortemUpdate::GENERATED,
+    POSTMORTEM_STARTED   => PostmortemUpdate::STARTED,
     POSTMORTEM_EDITED    => PostmortemUpdate::EDITED
   }.freeze
 

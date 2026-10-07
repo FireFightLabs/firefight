@@ -4,7 +4,7 @@ import {
   IconExternalLink,
 } from "@tabler/icons-react"
 
-import type { Incident } from "@/pages/incidents/types"
+import type { Incident, InvestigationStart } from "@/pages/incidents/types"
 import { SeverityBadge } from "@/components/severity-badge"
 import { StatusBadge } from "@/components/status-badge"
 import { formatDuration } from "@/lib/formatters"
@@ -14,6 +14,7 @@ import { ActorChip } from "@/components/actor-chip"
 import { IncidentMenu } from "@/pages/incidents/components/index/incident-menu"
 import { InlineSelect } from "@/pages/incidents/components/index/inline-select"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { StartInvestigationButton } from "@/pages/incidents/components/index/start-investigation-button"
 import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { assignIncidentRolePath } from "@/lib/routes"
@@ -100,11 +101,14 @@ export function IncidentHeader({
   linkable,
   canEdit,
   members,
+  investigationStart,
 }: {
   incident: Incident
   channelUrl?: string | null
   linkable: LinkableIncident[]
   canEdit: boolean
+  // Null where Halon is off or the person may not start a run, and then there is no button.
+  investigationStart: InvestigationStart | null
   // Everyone in the workspace, the same list the lead picker and every
   // participation dialog offer.
   members: { value: string; label: string }[]
@@ -154,6 +158,7 @@ export function IncidentHeader({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {investigationStart && <StartInvestigationButton incidentId={incident.id} start={investigationStart} />}
           <ChannelLink url={channelUrl} label={incident.channelLabel} />
           {canEdit && <IncidentMenu incident={incident} linkable={linkable} members={members} />}
         </div>
