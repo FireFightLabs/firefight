@@ -1,0 +1,77 @@
+# The model providers a workspace can add as its own AI account, under Settings, Workspace. RubyLLM says what each one
+# needs (its configuration options and requirements), so this file only adds what RubyLLM cannot know: the name people
+# know the provider by, the models Firefight recommends for Halon's main work (investigations, chats, postmortems) and
+# its quick work (summaries, milestones, mention replies), and what each setting is called on the form. A provider that
+# is not listed here is not offered. A local provider (RubyLLM's local?) is offered only where Entitlements allows
+# private AI endpoints, which an install someone runs themselves does and Firefight's cloud does not.
+#
+# A recommended model must be one RubyLLM's catalog holds for the provider, with tool calling and a known size, which
+# test/models/ai_providers_test.rb checks. Providers whose models are named by whoever runs them (an Azure deployment, a
+# local Ollama or GPUStack) recommend none.
+anthropic:
+  name: Anthropic
+  main: claude-sonnet-5
+  fast: claude-haiku-4-5
+openai:
+  name: OpenAI
+  main: gpt-5.6
+  fast: gpt-5.4-mini
+  # Sign in with ChatGPT, behind FeatureFlags::CHATGPT_SIGN_IN. Every address comes from the environment, so nothing
+  # about the endpoint is assumed here.
+  sign_in:
+    label: Sign in with ChatGPT
+    client_id_env: CHATGPT_OAUTH_CLIENT_ID
+    authorize_url_env: CHATGPT_OAUTH_AUTHORIZE_URL
+    token_url_env: CHATGPT_OAUTH_TOKEN_URL
+    scopes_env: CHATGPT_OAUTH_SCOPES
+    api_base_env: CHATGPT_API_BASE
+gemini:
+  name: Google Gemini
+  main: gemini-3.1-pro-preview
+  fast: gemini-3.5-flash
+vertexai:
+  name: Google Vertex AI
+  main: gemini-3.1-pro-preview
+  fast: gemini-2.5-flash
+bedrock:
+  name: Amazon Bedrock
+  main: anthropic.claude-sonnet-5
+  fast: anthropic.claude-haiku-4-5-20251001-v1:0
+  labels:
+    api_key: Access key ID
+azure:
+  name: Azure AI Foundry
+openrouter:
+  name: OpenRouter
+  main: anthropic/claude-sonnet-5
+  fast: anthropic/claude-haiku-4.5
+deepseek:
+  name: DeepSeek
+  main: deepseek-v4-pro
+  fast: deepseek-v4-flash
+mistral:
+  name: Mistral
+  main: mistral-large-latest
+  fast: mistral-small-latest
+xai:
+  name: xAI
+  main: grok-4.6
+  fast: grok-4.20-0309-non-reasoning
+ollama:
+  name: Ollama
+gpustack:
+  name: GPUStack
+
+# What each setting is called on the form. A setting RubyLLM declares that is not here is not asked for, such as a
+# batch bucket or a guardrail, which Halon never uses.
+settings:
+  api_key: API key
+  secret_key: Secret access key
+  session_token: Session token
+  service_account_key: Service account key (JSON)
+  ai_auth_token: Entra ID token
+  api_base: API base URL
+  region: Region
+  location: Location
+  project_id: Project ID
+  organization_id: Organization ID

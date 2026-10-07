@@ -390,7 +390,8 @@ export const ABILITY_RESOURCES = [
   "integrations",
   "api_keys",
   "permissions",
-  "workspace"
+  "workspace",
+  "ai_accounts"
 ] as const
 export type AbilityResource = (typeof ABILITY_RESOURCES)[number]
 
@@ -438,7 +439,8 @@ export const ABILITY_RESOURCE_LABELS = {
   "integrations": "Integrations",
   "api_keys": "API Keys",
   "permissions": "Permissions",
-  "workspace": "Workspace"
+  "workspace": "Workspace",
+  "ai_accounts": "AI Accounts"
 } as const
 
 export const ABILITY_ACTIONS = [

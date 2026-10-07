@@ -41,7 +41,13 @@ class Investigation::Rereading
   def checker
     FirefightAi::CitationCheck.new(
       @investigation.workspace, inferable: @investigation,
-      member: (@investigation.triggered_by if @investigation.triggered_by.is_a?(WorkspaceMembership))
+      member: (@investigation.triggered_by if @investigation.triggered_by.is_a?(WorkspaceMembership)),
+      model: rehearsal_model
     )
+  end
+
+  # A rehearsal is Firefight's own measuring, so its check runs on the deployment's account like the rest of it.
+  def rehearsal_model
+    FirefightAi.deployment_model_for(AiPurpose::CITATION_CHECK, workspace: @investigation.workspace) if @investigation.rehearsal?
   end
 end

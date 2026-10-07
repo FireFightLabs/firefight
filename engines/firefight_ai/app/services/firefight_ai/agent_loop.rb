@@ -38,9 +38,14 @@ module FirefightAi
     # take_messages adds what a person sent while the agent worked to the chat and says whether there was any. It is
     # called only between a tool's result and the next model call, the one place a new message keeps the chat valid.
     # output is the FirefightAi::OutputCap a turn may write, nil to leave the provider's own.
+    # choice is the ModelChoice the chat runs on and purpose what it is for. When the workspace's own account runs dry or
+    # refuses its key, the next account in its order takes the run over at the same step.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
-                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil)
+                   reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil,
+                   choice: nil, purpose: AiPurpose::INVESTIGATION)
       @chat = chat
+      @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
+      @purpose = purpose
       @output = output
       @output_limit = output&.max
       @room = Room.new(chat, memory)
@@ -49,7 +54,7 @@ module FirefightAi
       @budget = budget
       @answered = answered
       @canceled = canceled
-      @inference = inference
+      @inference = inference.merge(@choice.ledger)
       @turns = budget.turns_used
       @spend_micros = budget.spent_micros
       @reminders = 0
@@ -78,6 +83,7 @@ module FirefightAi
     end
 
     def run(&on_turn)
+      FirefightAi.ensure_paid!(@choice)
       @on_turn = on_turn
       @chat.to_llm.with_max_output_tokens(@output_limit) if @output_limit
       loop do
@@ -142,8 +148,12 @@ module FirefightAi
         retry
       rescue RubyLLM::Error => e
         smaller = @output && !shortened ? @output.after_refusal(e, @output_limit) : nil
-        FirefightAi.refused_for_good(@inference[:provider], e) unless smaller
-        raise unless smaller
+        unless smaller
+          raise unless take_over(e)
+
+          shortened = false
+          retry
+        end
 
         FirefightAi.note_short_of_credit(@inference[:feature], @output_limit, smaller)
         shortened = true
@@ -151,6 +161,22 @@ module FirefightAi
         @chat.to_llm.with_max_output_tokens(smaller)
         retry
       end
+    end
+
+    # The next account carries on from the same step, on its own model and with its own cap. False when none can.
+    def take_over(error)
+      following = FirefightAi.take_over(@choice, error, purpose: @purpose, workspace: @inference[:workspace])
+      return false unless following
+
+      @choice = following
+      FirefightAi.bind(@chat, following)
+      @inference = @inference.merge(following.ledger)
+      if @output
+        @output = FirefightAi.output_cap(@purpose, model: following.model)
+        @output_limit = @output.max
+        @chat.to_llm.with_max_output_tokens(@output_limit)
+      end
+      true
     end
 
     def tracked = @output_limit ? @inference.merge(max_output_tokens: @output_limit) : @inference

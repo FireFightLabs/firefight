@@ -2,8 +2,10 @@ module FeatureFlags
   class UnknownFlag < ArgumentError; end
 
   AI_SRE = :ai_sre
+  # Sign in with ChatGPT as a workspace's AI account, until OpenAI approves its use here.
+  CHATGPT_SIGN_IN = :chatgpt_sign_in
 
-  ALL = [ AI_SRE ].freeze
+  ALL = [ AI_SRE, CHATGPT_SIGN_IN ].freeze
 
   def self.enabled?(workspace, flag)
     Flipper.enabled?(known!(flag), workspace)

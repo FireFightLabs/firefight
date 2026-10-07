@@ -6,16 +6,28 @@ class Inference < ApplicationRecord
   # then answered too, so a balance running low shows before calls start failing.
   ERROR_OUT_OF_CREDIT = "out_of_credit"
 
+  # Who paid for the call.
+  PAID_BY_ACCOUNT = "workspace_account"
+  PAID_BY_CREDITS = "firefight_credits"
+  PAID_BY_OPERATOR = "operator"
+  PAID_BY_FIREFIGHT = "firefight"
+  PAYERS = [ PAID_BY_ACCOUNT, PAID_BY_CREDITS, PAID_BY_OPERATOR, PAID_BY_FIREFIGHT ].freeze
+
   CONTEXT_KEYS = %i[
     workspace feature provider model inferable member api_key prompt_template prompt_version max_output_tokens
+    paid_by workspace_ai_account
   ].freeze
 
   belongs_to :workspace
+  belongs_to :workspace_ai_account, optional: true
   belongs_to :member, class_name: "WorkspaceMembership", optional: true
   belongs_to :api_key, optional: true
   belongs_to :inferable, polymorphic: true, optional: true
 
   validates :feature, :provider, :model, :status, presence: true
+  validates :paid_by, inclusion: { in: PAYERS }
+
+  before_validation :default_payer
 
   def self.track(context)
     attrs   = context.slice(*CONTEXT_KEYS)
@@ -39,7 +51,8 @@ class Inference < ApplicationRecord
         provider_request_id: provider_request_id(response),
         status:              STATUS_SUCCESS
       )
-      AiAccount.answered!(inference.provider)
+      inference.payer.answered!(inference.provider)
+      AiSpend.record!(inference)
       [ response, inference ]
     rescue StandardError => e
       create!(
@@ -52,6 +65,8 @@ class Inference < ApplicationRecord
       raise
     end
   end
+
+  def payer = AiPayer.new(paid_by: paid_by, account: workspace_ai_account)
 
   # An explicit provider wins, for a model the registry does not know.
   def self.provider_for(model, provider: nil)
@@ -84,4 +99,12 @@ class Inference < ApplicationRecord
     ((monotonic_now - started) * 1000).round
   end
   private_class_method :elapsed_ms_since
+
+  private
+
+  # A call no workspace chose a payer for runs on the deployment's own account, as every call did before workspaces
+  # could bring their own.
+  def default_payer
+    self.paid_by ||= AiPayer.deployment(workspace).paid_by if workspace
+  end
 end

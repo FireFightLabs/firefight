@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_230200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -572,7 +572,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
     t.datetime "updated_at", null: false
     t.integer "web_lookups", default: 0, null: false
     t.uuid "workspace_id", null: false
+    t.string "paid_by"
+    t.uuid "workspace_ai_account_id"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
+    t.index ["workspace_ai_account_id"], name: "index_code_agent_sessions_on_workspace_ai_account_id"
     t.index ["workspace_id"], name: "index_code_agent_sessions_on_workspace_id"
   end
 
@@ -1113,14 +1116,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
     t.uuid "workspace_id", null: false
     t.integer "max_output_tokens"
     t.string "error_kind"
+    t.string "paid_by", null: false
+    t.uuid "workspace_ai_account_id"
+    t.bigint "billed_micros"
     t.index ["api_key_id"], name: "index_inferences_on_api_key_id"
     t.index ["error_kind", "created_at"], name: "index_inferences_on_error_kind_and_created_at", where: "(error_kind IS NOT NULL)"
     t.index ["inferable_type", "inferable_id"], name: "index_inferences_on_inferable"
     t.index ["member_id"], name: "index_inferences_on_member_id"
     t.index ["provider", "status", "created_at"], name: "index_inferences_on_provider_and_status_and_created_at"
+    t.index ["workspace_ai_account_id"], name: "index_inferences_on_workspace_ai_account_id"
     t.index ["workspace_id", "created_at"], name: "index_inferences_on_workspace_id_and_created_at"
     t.index ["workspace_id", "feature", "created_at"], name: "index_inferences_on_workspace_id_and_feature_and_created_at"
     t.index ["workspace_id", "inferable_type", "inferable_id"], name: "idx_on_workspace_id_inferable_type_inferable_id_af35668ca4"
+    t.index ["workspace_id", "paid_by", "created_at"], name: "index_inferences_on_workspace_id_and_paid_by_and_created_at"
     t.index ["workspace_id"], name: "index_inferences_on_workspace_id"
   end
 
@@ -2020,6 +2028,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
     t.index ["workspace_id"], name: "index_webhooks_on_workspace_id"
   end
 
+  create_table "workspace_ai_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "kind", default: "api_key", null: false
+    t.string "provider", null: false
+    t.string "label", null: false
+    t.text "credentials"
+    t.string "credential_hint"
+    t.jsonb "settings", default: {}, null: false
+    t.jsonb "models", default: {}, null: false
+    t.integer "position", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "verified_at"
+    t.datetime "last_used_at"
+    t.datetime "out_of_credit_since"
+    t.datetime "failing_since"
+    t.string "last_error"
+    t.datetime "credentials_expire_at"
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_workspace_ai_accounts_on_created_by_id"
+    t.index ["workspace_id", "position"], name: "index_workspace_ai_accounts_on_workspace_id_and_position", unique: true
+  end
+
   create_table "workspace_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "joined_at", null: false
@@ -2150,6 +2182,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"
   add_foreign_key "conversations", "workspaces"
@@ -2208,6 +2241,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
   add_foreign_key "incidents", "incident_types"
   add_foreign_key "incidents", "workspaces"
   add_foreign_key "inferences", "api_keys"
+  add_foreign_key "inferences", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "inferences", "workspace_memberships", column: "member_id"
   add_foreign_key "inferences", "workspaces"
   add_foreign_key "integration_environments", "catalog_entries"
@@ -2291,6 +2325,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
   add_foreign_key "webhooks", "workspaces"
+  add_foreign_key "workspace_ai_accounts", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "workspace_ai_accounts", "workspaces"
   add_foreign_key "workspace_memberships", "users"
   add_foreign_key "workspace_memberships", "workspaces"
   add_foreign_key "workspace_onboardings", "workspace_memberships", column: "installer_id", on_delete: :nullify

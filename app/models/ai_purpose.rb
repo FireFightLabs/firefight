@@ -22,6 +22,12 @@ module AiPurpose
     POSTMORTEM => INVESTIGATION, CITATION_CHECK => INVESTIGATION, LESSONS => CITATION_CHECK, CODE_FIX => INVESTIGATION
   }.freeze
 
+  # What a workspace's own AI account runs on its quick model. Everything else, investigations and what grows from them,
+  # runs on its main model.
+  QUICK = [ SUMMARY, MILESTONES, INCIDENT_RESPONSE ].freeze
+
+  def self.quick?(purpose) = QUICK.include?(purpose)
+
   ANY = "any"
   OVERRIDABLE = (ALL + [ ANY ]).freeze
 end

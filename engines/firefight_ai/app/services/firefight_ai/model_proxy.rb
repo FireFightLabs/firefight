@@ -1,6 +1,7 @@
 module FirefightAi
-  # Forwards a coding agent's request to the model's provider with Firefight's own key, so no key ever reaches the
-  # sandbox the agent runs in. The request is pinned before it leaves: the model is the session's, the output is capped,
+  # Forwards a coding agent's request to the model's provider with the payer's key, so no key ever reaches the sandbox
+  # the agent runs in. The key and address come from the configuration the payer runs with: a workspace's own account's
+  # context, or the deployment's own. The request is pinned before it leaves: the model is the session's, the output is capped,
   # and only the agent's own tools travel, never a provider's server tools such as web search, which would reach the web
   # and be billed outside the tokens. The answer streams back as it arrives, and what the call used is read off it as it
   # goes, so a call that breaks halfway is still counted.
@@ -24,27 +25,28 @@ module FirefightAi
     # The provider's answer to a refused call, kept so the refusal can be read, such as for credit.
     attr_reader :refusal
 
-    def self.providers
-      settings = FirefightAi.configuration.provider_settings
+    def self.providers(config = RubyLLM.config)
       {
-        ANTHROPIC => Provider.new(base: settings[:anthropic_api_base].presence || "https://api.anthropic.com/v1", key: settings[:anthropic_api_key],
+        ANTHROPIC => Provider.new(base: config.anthropic_api_base.presence || "https://api.anthropic.com/v1", key: config.anthropic_api_key,
                                   paths: %w[messages], headers: %w[anthropic-version anthropic-beta], tool_types: [ nil, "custom" ],
                                   output_keys: %w[max_tokens]),
-        OPENAI => Provider.new(base: settings[:openai_api_base].presence || "https://api.openai.com/v1", key: settings[:openai_api_key],
+        OPENAI => Provider.new(base: config.openai_api_base.presence || "https://api.openai.com/v1", key: config.openai_api_key,
                                paths: [ CHAT_COMPLETIONS, "responses" ], headers: [], tool_types: [ "function" ],
                                output_keys: %w[max_tokens max_completion_tokens max_output_tokens])
       }
     end
 
-    def self.supported?(provider) = providers.key?(provider.to_s)
+    def self.supported?(provider) = [ ANTHROPIC, OPENAI ].include?(provider.to_s)
 
     # The headers besides the key that the provider reads, which the caller passes through as the agent sent them.
     def self.passed_headers(provider) = providers[provider.to_s]&.headers || []
 
-    def initialize(provider)
+    # config is the RubyLLM configuration the payer runs with, the deployment's own when nil.
+    def initialize(provider, config: nil)
       @name = provider.to_s
-      @provider = self.class.providers[@name] || raise(Refused, "Code fixes reach #{self.class.providers.keys.join(' or ')} models, not #{@name}.")
-      raise Refused, "No #{@name} key is configured for Firefight." if @provider.key.blank?
+      @provider = self.class.providers(config || RubyLLM.config)[@name] ||
+                  raise(Refused, "Code fixes reach #{[ ANTHROPIC, OPENAI ].join(' or ')} models, not #{@name}.")
+      raise Refused, "No #{@name} key is configured for this code change." if @provider.key.blank?
 
       @usage = Usage.none
     end

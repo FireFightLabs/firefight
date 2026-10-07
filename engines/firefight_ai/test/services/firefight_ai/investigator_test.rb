@@ -2,6 +2,8 @@ require "test_helper"
 
 class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
   setup do
+    # These chats are mocks, so pointing one at its payer is left out.
+    FirefightAi.stubs(:bind)
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
     @seed_pack = { "incident" => { "identifier" => "INC-001", "name" => "Checkout failing" } }

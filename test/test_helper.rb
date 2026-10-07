@@ -34,5 +34,6 @@ module ActiveSupport
     include TwoEnvironmentMapHelper
     include SettingValuesHelper
     include HalonAccessHelper
+    include AiAccountTestHelper
   end
 end
