@@ -74,6 +74,33 @@ module Integrations
       assert_match "not signed by the CA certificate given", assert_raises(KubernetesApi::Error) { api.get("/x") }.message
     end
 
+    test "a watch asks from a version with bookmarks for a bounded time, and hands over each event however the stream is cut" do
+      api = KubernetesApi.new(server: "https://cluster.example.com", token: "sa-token", ca: @ca)
+      lines = [ { type: "MODIFIED", object: { metadata: { name: "web", resourceVersion: "12" } } },
+                { type: "BOOKMARK", object: { metadata: { resourceVersion: "15" } } } ].map { |event| "#{event.to_json}\n" }.join
+      Http.expects(:request).with do |uri, _request, **options|
+        URI.decode_www_form(uri.query).to_h == { "watch" => "true", "resourceVersion" => "10", "allowWatchBookmarks" => "true", "timeoutSeconds" => "50" } &&
+          options[:read_timeout] == 65
+      end.yields(streamed(200, lines))
+
+      seen = []
+      api.watch("/apis/apps/v1/namespaces/production/deployments", resource_version: "10") { |event| seen << [ event["type"], event.dig("object", "metadata", "resourceVersion") ] }
+
+      assert_equal [ [ "MODIFIED", "12" ], [ "BOOKMARK", "15" ] ], seen
+    end
+
+    test "a watch from a version the server no longer keeps raises Gone, said as an answer or as an event, and a refusal by kind" do
+      api = KubernetesApi.new(server: "https://cluster.example.com", token: "sa-token", ca: @ca)
+      expired = { type: "ERROR", object: { kind: "Status", code: 410, message: "too old resource version: 10 (20)" } }.to_json
+
+      Http.stubs(:request).yields(streamed(200, "#{expired}\n"))
+      assert_equal "The API server answered 410: too old resource version: 10 (20)", assert_raises(KubernetesApi::Gone) { api.watch("/x", resource_version: "10") { nil } }.message
+      Http.stubs(:request).yields(streamed(410, { kind: "Status", message: "Expired" }.to_json))
+      assert_raises(KubernetesApi::Gone) { api.watch("/x", resource_version: "10") { nil } }
+      Http.stubs(:request).yields(streamed(403, { kind: "Status", message: "deployments.apps is forbidden: cannot watch" }.to_json))
+      assert_raises(KubernetesApi::Forbidden) { api.watch("/x", resource_version: "10") { nil } }
+    end
+
     test "a log comes back as text, and a log the API server refuses raises like any other call" do
       api = KubernetesApi.new(server: "https://cluster.example.com", token: "sa-token", ca: @ca)
       Http.stubs(:request).returns(stub(code: "200", body: "2026-10-04T11:58:00Z GET /checkout 500\n", :[] => nil))
@@ -94,6 +121,15 @@ module Integrations
     end
 
     private
+
+    # An answer read as a stream, in two chunks cut mid-line, or read whole for a refusal.
+    def streamed(code, body)
+      answer = Object.new
+      answer.define_singleton_method(:code) { code.to_s }
+      answer.define_singleton_method(:body) { body }
+      answer.define_singleton_method(:read_body) { |&block| [ body[0, 25], body[25..] ].each { |chunk| block.call(chunk) } }
+      answer
+    end
 
     def response(code, body) = stub(code: code.to_s, body: body.to_json)
 

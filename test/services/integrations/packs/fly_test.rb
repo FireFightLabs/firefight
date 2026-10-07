@@ -231,6 +231,24 @@ module Integrations
         assert_raises(Integrations::RateLimited) { @pack.baselines_of(@row, [ web ], 7.days.ago..Time.current) }
       end
 
+      test "a change re-reads only the app it names with its links, and an app Fly no longer has goes" do
+        FlyApi.any_instance.stubs(:app).with("web").returns("name" => "web", "status" => "suspended")
+        FlyApi.any_instance.stubs(:machines).with("web").returns([ machine("m1", "stopped") ])
+        FlyApi.any_instance.stubs(:certificates).with("web").returns(Integrations::Pages::Read.new(items: [ { "hostname" => "app.acme.dev" } ], complete: true))
+        scope = ResourceMap::Scope.new(account: "acme", kind: ResourceMap::KIND_SERVICE, external_id: "web")
+
+        snapshot = @pack.map_refresh(@row, scope)
+
+        assert_equal [ [ "web", "suspended" ], [ "app.acme.dev", nil ] ], snapshot.resources.map { |found| [ found.external_id, found.status ] },
+                     "the cluster it is attached to is read for the link, not written"
+        assert_equal [ [ "app.acme.dev", ResourceMap::RELATION_SERVED_BY, "web" ], [ "web", ResourceMap::RELATION_USES, "pg1" ] ],
+                     snapshot.links.map { |link| [ link.from.last, link.relation, link.to.last ] }
+
+        FlyApi.any_instance.stubs(:app).with("old").raises(FlyApi::NotFound, "Fly answered 404: app not found")
+        assert_equal [ [ "fly", "acme", ResourceMap::KIND_SERVICE, "old" ] ], @pack.map_refresh(@row, scope.with(external_id: "old")).gone
+        assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_DATABASE, external_id: "pg1")), "a cluster is read at the sweep"
+      end
+
       private
 
       def call(tool, arguments = {})

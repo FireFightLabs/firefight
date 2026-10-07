@@ -90,15 +90,19 @@ module Integrations
     end
 
     # Reads the provider's change log after where it was last read, keeping the new cursor only once its events are kept.
+    # A read the provider refused for what the connection may read waits a day (IntegrationEnvironment#map_events_poll_due?).
     def poll!(environment_row)
       source = source_of(environment_row.integration.provider)
       return unless source&.polls?
 
+      environment_row.update_columns(map_events_polled_at: Time.current)
       polled = source.poll(environment_row, since: environment_row.map_events_cursor)
       receive!(environment_row, polled.events)
-      environment_row.update!(map_events_cursor: polled.cursor, map_events_error: nil)
+      environment_row.update!(map_events_cursor: polled.cursor, map_events_error: nil, map_events_refused_at: nil)
     rescue RateLimited
       nil
+    rescue MapEventSource::Refused => error
+      environment_row.update!(map_events_error: error.message, map_events_refused_at: Time.current)
     rescue Integrations::Error => error
       environment_row.update!(map_events_error: error.message)
     end
@@ -106,13 +110,15 @@ module Integrations
     # Gives a connection whose provider sends changes its own address, and registers the provider's webhook when
     # Firefight can. Run on connecting and with each hourly sweep, so a registration that failed is tried again, one the
     # provider refused for its plan or a limit a day later (IntegrationEnvironment#map_events_registration_due?). now is a
-    # connection change, which tries at once and asks again whether a person should decide first.
+    # connection change, which tries at once and asks again whether a person should decide first, and reads a change log
+    # at the next minute's poll, one the provider refused included.
     def prepare!(environment_row, now: false)
       source = source_of(environment_row.integration.provider)
       return unless source
 
       environment_row.give_map_events_token!
       environment_row.give_map_events_secret! if source.offers?
+      environment_row.update_columns(map_events_refused_at: nil, map_events_polled_at: nil) if now && source.polls? && !source.registers?
       return unless source.registers?
 
       register!(environment_row, source) if environment_row.map_events_registration_due?(now: now) || register_again?(environment_row, source)

@@ -120,6 +120,44 @@ module Integrations
         assert_empty Neon.new { |tool, _arguments| answer(tool) }.map.endpoints, "without a connection there is no workspace to digest under"
       end
 
+      test "a change re-reads the one project it names under the account the map has it in, and a branch it no longer lists goes" do
+        reader = Neon.new(settings) { |tool, _arguments| tool == Neon::DESCRIBE_PROJECT ? result({ "project" => PROJECTS.first.except("org_name") }) : answer(tool) }
+        branch = ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_BRANCH, external_id: "shop-123/br-main-1")
+
+        snapshot = reader.map(scope: branch)
+        assert_equal [ "neon", "Acme", ResourceMap::KIND_DATABASE, "shop-123" ], snapshot.resources.first.key
+        assert_equal 4, snapshot.resources.size
+        assert_empty snapshot.gone
+
+        gone = reader.map(scope: branch.with(external_id: "shop-123/br-deleted-9"))
+        assert_equal [ [ "neon", "Acme", ResourceMap::KIND_BRANCH, "shop-123/br-deleted-9" ] ], gone.gone
+      end
+
+      test "a project Neon no longer has goes, and a re-read it cannot make is swept" do
+        missing = Neon.new(settings) { |_tool, _arguments| { "isError" => true, "content" => [ { "type" => "text", "text" => "Neon API error 404: project not found" } ] } }
+        scope = ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_DATABASE, external_id: "shop-123")
+
+        assert_equal [ [ "neon", "Acme", ResourceMap::KIND_DATABASE, "shop-123" ] ], missing.map(scope: scope).gone
+        assert_nil Neon.new(settings) { |_tool, _arguments| nil }.map(scope: scope), "describe_project switched off"
+        assert_nil Neon.new(settings) { |tool, _arguments| answer(tool) }.map(scope: scope.with(account: nil))
+      end
+
+      test "a project's operations are read one page at a time, a project Neon no longer has has none, and a refusal is raised" do
+        operations = [ { "id" => "op-1", "action" => "suspend_compute", "status" => "finished" } ]
+        calls = []
+        reader = Neon.new(settings) do |tool, arguments|
+          calls << [ tool, arguments ]
+          result({ "operations" => operations })
+        end
+
+        assert_equal operations, reader.operations("shop-123")
+        assert_equal [ [ Neon::LIST_OPERATIONS, { "project_id" => "shop-123", "limit" => Neon::OPERATION_LIMIT } ] ], calls
+        assert_nil Neon.new(settings) { |_tool, _arguments| nil }.operations("shop-123")
+        assert_empty Neon.new(settings) { |_tool, _arguments| { "isError" => true, "content" => [ { "type" => "text", "text" => "404 not found" } ] } }.operations("gone-1")
+        refused = Neon.new(settings) { |_tool, _arguments| { "isError" => true, "content" => [ { "type" => "text", "text" => "403 forbidden" } ] } }
+        assert_raises(RemoteReader::Refused) { refused.operations("shop-123") }
+      end
+
       private
 
       def settings

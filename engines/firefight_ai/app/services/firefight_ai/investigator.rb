@@ -58,6 +58,9 @@ module FirefightAi
         - #{LookFirstRule::CONNECTION_RULE}
         - #{LookFirstRule::CHANGED_RULE}
         - #{LookFirstRule::CAUSE_RULE}
+        - #{LookFirstRule::API_GUIDE_RULE}
+        - #{LookFirstRule::GUESSED_CALL_RULE}
+        - #{NormalRule::RULE}
         - #{MAP_START}
         - A responder may add something while you work. Their newest message decides what you check next.
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.

@@ -8,6 +8,9 @@ class ResourceMap::Baseline < ApplicationRecord
   HIGH_PERCENTILE = 0.95
   # A baseline no sweep has renewed for this long is about a resource or metric nobody reads any more, so it is not shown.
   FRESH_FOR = 2.days
+  # Rates a provider reads per second, which a baseline keeps per minute.
+  PER_SECOND = [ "per second", "requests/s", "rps", "/s" ].freeze
+  PER_MINUTE = "per minute".freeze
 
   # One metric as a provider read it, for the resource its key names, as [time, value] points.
   Found = Data.define(:key, :metric, :label, :unit, :points)
@@ -60,7 +63,39 @@ class ResourceMap::Baseline < ApplicationRecord
   def high_text = amount(high)
   def peak_text = amount(peak)
 
+  # The normal a check is read against, such as "usually 80 ms, 95% under 133 ms".
+  def normal_text = "usually #{typical_text}, 95% under #{high_text}"
+
+  # A live reading against this normal, in a sentence, such as "Now 412 ms, 3.1x the usual high of 133 ms (usually 80 ms)".
+  # A reading in another unit is converted when it is only a rate per second against a rate per minute, and otherwise
+  # said and left uncompared. series is how many series the reading is the highest latest value of.
+  def compared(value, reading_unit, series: 1)
+    now = "Now #{self.class.amount(value, reading_unit)}#{" (the highest of #{series} series)" if series > 1}"
+    converted = in_own_unit(value, reading_unit)
+    return "#{now}, in other units than its normal (#{unit}), so it is not compared." if converted.nil?
+
+    if converted > high
+      above = high.positive? ? "#{(converted / high).round(1)}x the usual high of #{high_text}" : "above the usual high of #{high_text}"
+      "#{now}, #{above} (usually #{typical_text})."
+    elsif converted >= typical
+      "#{now}, within its usual range (#{normal_text})."
+    else
+      "#{now}, below its usual #{typical_text} (95% under #{high_text})."
+    end
+  end
+
+  def self.amount(value, unit) = [ value.round(value.abs < 10 ? 2 : 0).to_s.sub(/\.0\z/, ""), unit ].compact_blank.join(" ")
+
   private
 
-  def amount(value) = [ value.round(value.abs < 10 ? 2 : 0).to_s.sub(/\.0\z/, ""), unit ].compact_blank.join(" ")
+  def amount(value) = self.class.amount(value, unit)
+
+  def in_own_unit(value, reading_unit)
+    given = reading_unit.to_s.strip.downcase
+    own = unit.to_s.strip.downcase
+    return value if given == own
+    return value * 60 if own == PER_MINUTE && PER_SECOND.include?(given)
+
+    nil
+  end
 end

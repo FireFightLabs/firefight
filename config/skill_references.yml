@@ -39,6 +39,16 @@ railway:
     content/docs/networking/troubleshooting: networking
     content/docs/observability: observability
 
+# Northflank's documentation and agent skill carry no open license, but its API client is MIT licensed and defines every
+# endpoint of Northflank's API. So the endpoints are written out from it, with which calls exist, their paths inside the
+# project as api_request takes them, and the body each needs.
+northflank:
+  package: "@northflank/js-client"
+  license: LICENSE
+  endpoints: api
+  relative_to: "/v1/projects/{projectId}/"
+  leave_out: [ teamId ]
+
 # Cloudflare's documentation is CC BY 4.0. Each page is copied as the markdown Cloudflare serves at its index.md.
 cloudflare:
   site: https://developers.cloudflare.com

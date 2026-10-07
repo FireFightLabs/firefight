@@ -29,6 +29,19 @@ module FirefightAi
                    "call open_tools again for its group before you answer, since what you hold was found before the " \
                    "change.".freeze
 
+    # Seen in a real chat, asked to create a pipeline at a hosting provider, Halon searched the provider's site, guessed
+    # the path three times and reported each 405 as a refused change, though the API has no such call and the provider's
+    # own endpoint list was a skill away. These two hold in a chat and a run.
+    API_GUIDE_RULE = "Before searching the web for how a provider's API works, which calls it offers, their paths or the " \
+                     "body each takes, read what Firefight holds for that provider first: the provider's skill and the " \
+                     "guides it lists, through use_skill where you hold it, and its tools' own descriptions. Search the " \
+                     "web only when they do not answer.".freeze
+
+    GUESSED_CALL_RULE = "When a provider answers 404 or 405 to a call whose path you wrote yourself, the call may not " \
+                        "exist. Check the provider's API reference before trying again, never send the same call again, " \
+                        "and never try one guessed path after another. When the reference does not list the operation, " \
+                        "say plainly that the provider's API does not offer it and how a person can do it instead.".freeze
+
     CAUSE_RULE = "Never state why something failed or cannot be done, such as a missing permission, a routing fault or a " \
                  "missing parameter, unless a tool result said so. When you do not know why, say what you saw and that " \
                  "the cause is not known.".freeze
