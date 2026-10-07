@@ -132,17 +132,20 @@ module Integrations
 
     # The same pack reading only scope, holding nothing another scope's reads cached.
     def scoped(scope)
-      self.class.new(integration, box_key: box_key, progress: @progress).tap { |pack| pack.instance_variable_set(:@scope, scope.to_s) }
+      self.class.new(integration, box_key: box_key, progress: @progress).tap { |pack| pack.instance_variable_set(:@scope, scope&.to_s) }
     end
 
     # The one scope a call reaches, the one it was given or the connection's only one. A connection that reaches several
-    # and was not told which refuses with the ones to choose from, so a call never lands in one picked for it.
+    # and was not told which refuses with the ones to choose from, so a call never lands in one picked for it. nil for an
+    # optional field left empty.
     def scope!(environment_row)
       return @scope if @scope
 
       settings = ConnectionSettings.of(environment_row)
       field = settings.scope_field || fail!("#{settings.display_name} names nothing it reads.")
       return settings.chosen_scopes.first if settings.chosen_scopes.one? && !settings.all_scopes?
+      # An optional field left empty reads what the credential itself reaches, such as a token made for one team.
+      return if field.optional && settings.chosen_scopes.empty?
 
       reached = settings.scopes
       return reached.first if reached.one?

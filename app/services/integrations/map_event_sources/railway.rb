@@ -50,7 +50,7 @@ module Integrations
           projects = ConnectionSettings.of(row).scopes
           raise Integrations::Error, "This connection reaches no Railway project. Choose one on the Integrations page." if projects.empty?
 
-          rules = registered(row.map_events_webhook_id, ConnectionSettings.of(row))
+          rules = registrations(row.map_events_webhook_id, ConnectionSettings.of(row))
           rules.except(*projects).each_value { |rule| forget(api, rule) }
           made = projects.to_h do |project|
             workspace = api.project(project)&.dig("workspaceId") || raise(Integrations::Error, "Railway did not say which workspace project #{project} is in.")
@@ -69,7 +69,7 @@ module Integrations
         # Every project's webhook. One already gone from Railway is taken back all the same.
         def remove(row, webhook_id)
           api = api(row)
-          registered(webhook_id, ConnectionSettings.of(row)).each_value { |rule| forget(api, rule) }
+          registrations(webhook_id, ConnectionSettings.of(row)).each_value { |rule| forget(api, rule) }
         end
 
         private
@@ -87,17 +87,6 @@ module Integrations
           raise Integrations::Error, "This connection has no Railway token. Reconnect it on the Integrations page." if token.blank?
 
           RailwayApi.new(token)
-        end
-
-        # The rule registered on each project, by project. One registered before a connection read several projects is
-        # its one project's.
-        def registered(webhook_id, settings)
-          return {} if webhook_id.blank?
-
-          parsed = JSON.parse(webhook_id)
-          parsed.is_a?(Hash) ? parsed : { settings.chosen_scopes.first => webhook_id }
-        rescue JSON::ParserError
-          { settings.chosen_scopes.first => webhook_id }
         end
 
         def forget(api, rule)

@@ -115,7 +115,7 @@ class LiveUpdatesCodeHostsTest < ActionDispatch::IntegrationTest
     Integrations::BitbucketApi.any_instance.stubs(:list).with("/workspaces/acme/hooks").returns([ [ { "uuid" => "{theirs}", "url" => "https://example.com/hook" } ], false ])
     Integrations::BitbucketApi.any_instance.expects(:post).with("/workspaces/acme/hooks", has_entries("events" => Integrations::MapEventSources::Bitbucket::EVENTS)).returns("uuid" => "{ours}")
     with_app_host { Integrations::MapEvents.prepare!(row) }
-    assert_equal [ "{ours}", true ], [ row.reload.map_events_webhook_id, row.live_updates.on ]
+    assert_equal [ { "acme" => "{ours}" }, true ], [ JSON.parse(row.reload.map_events_webhook_id), row.live_updates.on ]
 
     ResourceMap.record!(row, ResourceMap::Snapshot.new(resources: [ bitbucket_repository("acme/web", "master"), bitbucket_repository("acme/old", "main") ]))
     Integrations::BitbucketApi.any_instance.stubs(:get).with { |path, *| path == "/repositories/acme/web" }

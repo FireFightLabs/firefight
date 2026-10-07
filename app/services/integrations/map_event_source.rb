@@ -138,6 +138,17 @@ module Integrations
       def app_wide? = respond_to?(:installation_of)
 
       def offers? = respond_to?(:offers)
+
+      # What a source that registers a webhook per scope registered, by scope, from the id it answered as a JSON object of
+      # scope to webhook. An id from before a connection could reach several scopes is its one scope's.
+      def registrations(webhook_id, settings)
+        return {} if webhook_id.blank?
+
+        parsed = JSON.parse(webhook_id)
+        parsed.is_a?(Hash) ? parsed : { settings.chosen_scopes.first => webhook_id }
+      rescue JSON::ParserError
+        { settings.chosen_scopes.first => webhook_id }
+      end
     end
   end
 end
