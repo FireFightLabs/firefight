@@ -1,7 +1,8 @@
 module Integrations
   module Packs
-    # Railway for one project environment per Firefight environment: its services, databases and cron jobs, their logs,
-    # metrics and deployments, read with an account or workspace token. Every tool reads, except the restart, rollback
+    # Railway for one environment in each project a connection reads, one, several or every one its token can read (the
+    # project connect field, a scope). It reads their services, databases and cron jobs, and their logs, metrics and
+    # deployments, with an account or workspace token. Every tool reads, except the restart, rollback
     # and scale an admin switches on for Halon to apply fixes. Queries and mutations are the ones the Railway CLI sends
     # (railwayapp/cli, src/gql) or Railway's API docs give (railwayapp/docs, content/docs/integrations/api).
     class Railway < NativePack
@@ -163,16 +164,26 @@ module Integrations
         ]
       end
 
-      # Reads the project with the token and finds the environment in it, so a wrong token, project or environment is
-      # said on the form before anything is saved.
+      # Reads each project chosen with the token and finds the environment in it, or for every project the token can
+      # read, finds the environment in at least one, so a wrong token, project or environment is said on the form before
+      # anything is saved.
       def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
-        project, environment = [ PROJECT, ENVIRONMENT ].map { |key| fields[key].to_s.strip }
+        projects = Array(fields[PROJECT]).map { |each| each.to_s.strip }.compact_blank
+        environment = fields[ENVIRONMENT].to_s.strip
         return "Paste an API token." if token.empty?
-        return "Enter the project id." if project.empty?
+        return "Choose at least one project, or all the token can read." if projects.empty?
         return "Enter the environment, by its name or id." if environment.empty?
 
-        environment_in(RailwayApi.new(token).project(project), environment)
+        api = RailwayApi.new(token)
+        if projects == [ IntegrationProvider::ConnectField::ALL ]
+          listed = scope_options(values).map(&:value)
+          return "This token can read no Railway projects." if listed.empty?
+          return nil if listed.any? { |project| environment_in(api.project(project), environment, quiet: true) }
+
+          return "None of the projects this token can read has an environment called #{environment}."
+        end
+        projects.each { |project| environment_in(api.project(project), environment) }
         nil
       rescue RailwayApi::Error => error
         Sentence.join("Railway refused this token or project", error.message.delete_prefix("Railway refused this: "))
@@ -180,23 +191,54 @@ module Integrations
         error.message
       end
 
+      # The projects the token can read, every workspace's an account token belongs to, or a workspace token's own
+      # (Integrations::RailwayApi, projects), each named with its workspace when there are several.
+      def self.scope_options(values, region: nil, fields: {})
+        token = values.to_h.stringify_keys[API_TOKEN].to_s.strip
+        raise NativePack::Error, "Paste an API token first." if token.empty?
+
+        api = RailwayApi.new(token)
+        workspaces = begin
+          api.workspaces
+        rescue RailwayApi::Refused
+          []
+        end
+        listed = workspaces.empty? ? [ [ nil, api.projects.items ] ] : workspaces.map { |workspace| [ workspace, api.projects(workspace["id"]).items ] }
+        listed.flat_map do |workspace, projects|
+          projects.map do |project|
+            name = project["name"].presence || project["id"].to_s
+            IntegrationProvider::ConnectOption.new(value: project["id"].to_s, label: workspaces.many? ? "#{workspace['name']}, #{name}" : name)
+          end
+        end.uniq(&:value)
+      rescue RailwayApi::Error => error
+        raise NativePack::Error, Sentence.join("Railway did not list this token's projects", error.message.delete_prefix("Railway refused this: "))
+      end
+
       def self.store_credentials!(environment_row, values)
         environment_row.store_credential!(API_TOKEN, values[API_TOKEN].to_s.strip)
       end
 
-      # The project's environment named by its id or name, or a refusal that lists the ones there are.
-      def self.environment_in(project, asked)
+      # The project's environment named by its id or name, or a refusal that lists the ones there are. quiet answers nil
+      # instead of refusing.
+      def self.environment_in(project, asked, quiet: false)
         environments = Array(project&.dig("environments", "edges")).filter_map { |edge| edge["node"] }
         rows = environments.map { |each| { id: each["id"], name: each["name"], environment: each } }
-        Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER)&.dig(:environment) || raise(NativePack::Error, "The project has no environment called #{asked}. It has #{environments.map { |each| each['name'] }.join(', ').presence || 'none'}.")
+        found = Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER)&.dig(:environment)
+        return found if found || quiet
+
+        raise NativePack::Error, "Project #{project&.dig('name') || project&.dig('id')} has no environment called #{asked}. It has " \
+                                 "#{environments.map { |each| each['name'] }.join(', ').presence || 'none'}."
       end
 
       def list_resources(environment_row:, arguments:)
+        return every_project(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         rows = resources(environment_row).map do |resource|
           latest = resource[:instance]["latestDeployment"]
           "#{resource[:name]} (#{resource[:id]}), #{resource[:type]}, #{latest ? latest['status'].to_s.downcase : 'never deployed'}"
         end
-        text = rows.empty? ? "The #{environment(environment_row)['name']} environment has no services." : "#{rows.size} services in #{environment(environment_row)['name']}.\n#{rows.join("\n")}"
+        where = "the #{environment(environment_row)['name']} environment#{" of project #{scope_label(environment_row)}" if ConnectionSettings.of(environment_row).several_scopes?}"
+        text = rows.empty? ? "#{where.upcase_first} has no services." : "#{rows.size} services in #{where}.\n#{rows.join("\n")}"
         Telemetry.result(text, link: project_link(environment_row))
       end
 
@@ -292,6 +334,13 @@ module Integrations
       # The environment on the resource map: its services, databases and cron jobs, the repositories they build from and
       # the domains they serve.
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_project(environment_row) }
+      end
+
+      # What a sweep puts on the map for one project.
+      MAP_KINDS = (KINDS.values.uniq + [ ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ]).freeze
+
+      def map_of_project(environment_row)
         project = project_of(environment_row)
         environment = environment(environment_row)
         account = "#{project}/#{environment['id']}"
@@ -314,6 +363,13 @@ module Integrations
       # Railway cannot narrow to, which a sweep reads.
       def map_refresh(environment_row, scope)
         return unless scope.external_id && (scope.kind.nil? || KINDS.value?(scope.kind))
+        if every_scope?(environment_row)
+          holder = project_holding(environment_row, scope)
+          return holder.map_refresh(environment_row, scope) if holder
+
+          # A change in a project the connection does not read changes nothing here.
+          return scope.account ? ResourceMap::Snapshot.new(resources: []) : nil
+        end
 
         project = project_of(environment_row)
         environment = environment(environment_row)
@@ -442,6 +498,8 @@ module Integrations
       # What normal looks like for its services and databases: a week of CPU and memory, one reading an hour. A resource
       # Railway cannot read keeps yesterday's baselines, and being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
+        return by_scope(environment_row, resources) { |pack, group| pack.baselines_of(environment_row, group, window) } unless scope
+
         api = api(environment_row)
         environment_id = environment(environment_row)["id"]
         resources.flat_map do |resource|
@@ -463,8 +521,10 @@ module Integrations
         end
       end
 
+      # Finds the environment in each project the connection reaches, so one the token can no longer read is said on the
+      # connection.
       def check_health!(environment_row)
-        environment(environment_row)
+        ConnectionSettings.of(environment_row).scopes.each { |project| scoped(project).send(:environment, environment_row) }
       rescue RailwayApi::Error => error
         fail! error.message
       end
@@ -478,7 +538,31 @@ module Integrations
         RailwayApi.new(token)
       end
 
-      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Railway project. Reconnect it.")
+      def project_of(environment_row) = scope!(environment_row)
+
+      def scope_label(environment_row) = ConnectionSettings.of(environment_row).scope_name(project_of(environment_row))
+
+      # A listing of every project the connection reaches, each read by a pack of its own.
+      def every_project(environment_row)
+        texts = ConnectionSettings.of(environment_row).scopes.map do |project|
+          Array(yield(scoped(project))["content"]).filter_map { |part| part["text"] }.join("\n")
+        end
+        Telemetry.result(texts.join("\n\n"), link: nil)
+      end
+
+      # The pack of the project a change is in, the one its account names or the one the map has the service in, or nil
+      # for the sweep to find.
+      def project_holding(environment_row, scope)
+        reached = ConnectionSettings.of(environment_row).scopes
+        named = scope.account.to_s.split("/").first
+        return scoped(named) if named.present? && reached.include?(named)
+        return if named.present?
+
+        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
+                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
+                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        scoped(on_map) if on_map.present? && reached.include?(on_map)
+      end
 
       def environment(environment_row)
         @environment ||= begin

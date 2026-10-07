@@ -20,7 +20,8 @@
 # server_url of its own, and the first region is the one a connection that names none reaches. The connect dialog offers
 # the choice when there is more than one, and the connection keeps it.
 # connect_fields are what the connect form asks for beside the credentials, each with a key, label, hint and placeholder,
-# and optionally numeric, optional, path, and pattern with allowed (the shape a value must have, and in words what that
+# and optionally numeric, optional, path, scope (what the connection reads, such as projects, which holds one, several or
+# all the credential can read, listed live from it), and pattern with allowed (the shape a value must have, and in words what that
 # allows, which the form says when a value does not fit). None is a secret. A path field is part of the server's
 # address, appended in the order listed, such as an organization and then a project, and belongs to the connection. A
 # path field without a pattern takes a slug's, so no value carries a slash, a query or a fragment into the address.
@@ -156,16 +157,17 @@ providers:
     category: Cloud and hosting
     mark: NF
     color: "#0aa4d8"
-    description: Logs, metrics and builds of the services and databases in a Northflank project, and fixes applied to them when you allow it.
+    description: Logs, metrics and builds of the services and databases in your Northflank projects, and fixes applied to them when you allow it.
     server_url: ""
     kind: native
     connect_with: api_token
     site: https://app.northflank.com
     connect_fields:
       - key: project
-        label: Project
-        hint: The id of the Northflank project this environment runs in, as it appears in the project's URL.
-        placeholder: my-project
+        label: Projects
+        hint: The Northflank projects this environment runs in. Choose one or several, or all this token can read, which takes in a project added later at the next sweep.
+        placeholder: Choose projects
+        scope: true
     source_links: firefight
     map: firefight
   - key: grafana
@@ -412,14 +414,14 @@ providers:
     category: Cloud and hosting
     mark: RW
     color: "#0b0d0e"
-    description: Logs, metrics and deployments of the services in a Railway project, and restarts, rollbacks and scaling when you allow it.
+    description: Logs, metrics and deployments of the services in your Railway projects, and restarts, rollbacks and scaling when you allow it.
     server_url: ""
     site: https://railway.com
     kind: native
     connect_with: api_token
     connect_fields:
-      - { key: project, label: Project, placeholder: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, hint: "The id of the Railway project, shown in its Settings and in its URL after /project/." }
-      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads, by its name or id." }
+      - { key: project, label: Projects, placeholder: Choose projects, scope: true, hint: "The Railway projects this connection reads. Choose one or several, or all this token can read, which takes in a project added later at the next sweep." }
+      - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads in each project, by its name, or by its id when it reads one project." }
     source_links: firefight
     map: firefight
   - key: fly

@@ -127,13 +127,23 @@ module Integrations
     # Whether a registration from before has fallen short of what the connection reaches. A provider that cannot be asked
     # now is asked again at the next sweep.
     def register_again?(environment_row, source)
-      return false unless source.respond_to?(:register_again?) && environment_row.map_events_webhook_id.present? && environment_row.map_events_turned_off_at.nil?
+      return false unless environment_row.map_events_webhook_id.present? && environment_row.map_events_turned_off_at.nil?
+      return true if scopes_changed?(environment_row)
+      return false unless source.respond_to?(:register_again?)
 
       url = url_for(environment_row)
       url.present? && source.register_again?(environment_row, url: url)
     rescue Integrations::Error => error
       Rails.logger.warn({ event: "map_events.register_again_unknown", integration_environment_id: environment_row.id, error: error.message.truncate(200) }.to_json)
       false
+    end
+
+    # Whether the connection reaches other scopes than its registration covers, such as a project chosen, dropped or
+    # added since (Integrations::Scopes), so registering again follows the new ones and stops following the old.
+    def scopes_changed?(environment_row)
+      covered = environment_row.map_events_scopes
+      settings = ConnectionSettings.of(environment_row)
+      covered.present? && settings.scope_field.present? && covered.sort != settings.scopes.sort
     end
 
     # Notes where a verified delivery came from, for a provider a person set up to send changes, so the connection says
@@ -173,7 +183,7 @@ module Integrations
 
       webhook = environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REGISTER) { source.register(environment_row, url: url) }
       environment_row.update!(map_events_webhook_id: webhook.id, map_events_secret: webhook.secret, map_events_expires_at: webhook.expires_at,
-                              map_events_confirmation: asked,
+                              map_events_scopes: webhook.scopes, map_events_confirmation: asked,
                               map_events_error: nil, map_events_refused_at: nil)
     rescue RateLimited
       environment_row.update!(map_events_error: format(SLOWED_REGISTERING, name: environment_row.integration.name))
@@ -185,7 +195,7 @@ module Integrations
 
     def remove!(environment_row, source)
       environment_row.record_map_events_webhook!(IntegrationEnvironment::WEBHOOK_REMOVE) { source.remove(environment_row, environment_row.map_events_webhook_id) }
-      environment_row.update!(map_events_webhook_id: nil, map_events_expires_at: nil)
+      environment_row.update!(map_events_webhook_id: nil, map_events_expires_at: nil, map_events_scopes: nil)
     end
 
     # Extends a registered webhook before it lapses.

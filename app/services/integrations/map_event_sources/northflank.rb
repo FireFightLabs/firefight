@@ -1,7 +1,8 @@
 module Integrations
   module MapEventSources
     # Northflank's changes, sent to a webhook notification integration Firefight adds with the connection's API token,
-    # restricted to the connected project (@northflank/js-client, CreateNotificationData, POST /v1/integrations/notifications).
+    # restricted to the connected projects (@northflank/js-client, CreateNotificationData, POST /v1/integrations/notifications,
+    # whose projects is a list, so one integration covers every project the connection reaches).
     # Northflank sends the integration's secret as it is in X-Northflank-Notification-Integration-Token, the event's id in
     # X-Northflank-Notification-Integration-Event-Id, and a body of the event's type and data, which names the service,
     # addon or job it is about (northflank.com/docs/v1/application/observe/configure-notification-integrations, Webhook
@@ -48,16 +49,19 @@ module Integrations
                                    scope: ResourceMap::Scope.new(kind: kind, external_id: about)) ]
         end
 
-        # Adds the project's integration, deleting first one Firefight added before at this connection's own address, whose
-        # secret Northflank never shows again. An integration at any other address is never touched.
+        # Adds one integration restricted to every project the connection reaches, deleting first one Firefight added
+        # before at this connection's own address, whose secret Northflank never shows again. An integration at any other
+        # address is never touched. Northflank does not say whether an unrestricted integration covers a project made
+        # later, so a connection that reaches every project names each, and is registered again when they change
+        # (MapEvents.register_again?).
         def register(row, url:)
           api = api(row)
           api.notifications.items.select { |integration| integration["webhook"] == url }.each { |integration| api.delete_notification(integration["id"]) }
           secret = SecureRandom.hex(32)
-          project = project_of(row)
-          created = api.create_notification(name: "#{WEBHOOK_NAME} #{project} #{row.map_events_token.to_s.first(6)}", url: url, secret: secret,
-                                            events: EVENTS.map { |event| "#{TRIGGER}#{event}" }, projects: [ project ])
-          MapEventSource::Webhook.new(id: created["id"], secret: secret)
+          projects = projects_of(row)
+          created = api.create_notification(name: "#{WEBHOOK_NAME} #{projects.first(3).join(' ')} #{row.map_events_token.to_s.first(6)}".squish, url: url,
+                                            secret: secret, events: EVENTS.map { |event| "#{TRIGGER}#{event}" }, projects: projects)
+          MapEventSource::Webhook.new(id: created["id"], secret: secret, scopes: projects)
         rescue NorthflankApi::Refused => error
           raise MapEventSource::Refused, Sentence.all(error, PERMISSION_NOTE)
         end
@@ -81,8 +85,8 @@ module Integrations
           NorthflankApi.new(token)
         end
 
-        def project_of(row)
-          ConnectionSettings.of(row).field(Packs::Northflank::PROJECT) || raise(Integrations::Error, "This connection has no Northflank project. Reconnect it.")
+        def projects_of(row)
+          ConnectionSettings.of(row).scopes.presence || raise(Integrations::Error, "This connection reaches no Northflank project. Choose one on the Integrations page.")
         end
       end
     end

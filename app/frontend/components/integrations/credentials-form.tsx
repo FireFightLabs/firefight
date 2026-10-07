@@ -2,7 +2,8 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 
 import type { EnvironmentOption, IntegrationProvider } from "@/types/serializers";
-import { integrationsPath } from "@/lib/routes";
+import { integrationsPath, listScopesIntegrationsPath } from "@/lib/routes";
+import { postJson } from "@/lib/http";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,9 @@ import {
   connectFieldsComplete,
   type ConnectValue,
   type ConnectValues,
+  type ScopeLister,
 } from "@/components/integrations/connect-fields";
+import type { ScopeListing } from "@/components/integrations/scope-select";
 
 interface CredentialsFormProps {
   provider: IntegrationProvider;
@@ -47,6 +50,25 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss, o
   const complete =
     provider.credentialFields.every((field) => field.optional || (values[field.key] ?? "").trim() !== "") &&
     connectFieldsComplete(connectFields, fields);
+
+  // What the typed credentials can read, listed by the provider before anything is saved, again once they change.
+  const otherFields = Object.fromEntries(
+    Object.entries(fields).filter(([key]) => !connectFields.some((field) => field.key === key && field.scope)),
+  );
+  const scopes: ScopeLister = {
+    key: JSON.stringify([values, region, otherFields]),
+    load: listScopes,
+  };
+
+  async function listScopes(): Promise<ScopeListing> {
+    const answer = await postJson<ScopeListing>(listScopesIntegrationsPath(), {
+      provider: provider.key,
+      credentials: values,
+      fields: otherFields,
+      region,
+    });
+    return answer.data ?? { options: [], error: "Firefight could not list them." };
+  }
 
   function setField(key: string, value: ConnectValue) {
     setFields((current) => ({ ...current, [key]: value }));
@@ -131,7 +153,7 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss, o
           </p>
         </div>
       ))}
-      <ConnectFields fields={connectFields} values={fields} onChange={setField} />
+      <ConnectFields fields={connectFields} values={fields} scopes={scopes} onChange={setField} />
       {errors.connection && <p className="text-destructive text-sm">{errors.connection}</p>}
       <div className="flex items-center justify-end gap-2 pt-2">
         {onUseMcpServer && (

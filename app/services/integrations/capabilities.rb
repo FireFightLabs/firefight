@@ -357,7 +357,8 @@ module Integrations
         raise Unroutable, "#{candidate.row.integration.name} would answer this with its #{tool.name} tool, which you may not run."
       end
 
-      Call.new(spec: spec, resource: candidate.resource, environment_row: candidate.row, tool: tool, arguments: route.arguments, present: route.present)
+      arguments = candidate.observer ? route.arguments : Scopes.for_resource(candidate.row, candidate.resource, route.arguments)
+      Call.new(spec: spec, resource: candidate.resource, environment_row: candidate.row, tool: tool, arguments: arguments, present: route.present)
     end
 
     def self.switched_off(candidate, tool_name)
@@ -448,7 +449,7 @@ module Integrations
 
       named = resources.map do |resource|
         through = candidates.select { |candidate| candidate.resource == resource }.map { |candidate| candidate.row.integration.display_name }.uniq
-        "#{resource.kind} #{resource.name} (map id #{resource.id}, on #{through.to_sentence}, its provider's id #{resource.external_id})"
+        "#{resource.kind} #{resource.scoped_name} (map id #{resource.id}, on #{through.to_sentence}, its provider's id #{resource.external_id})"
       end
       rows = labels(candidates)
       choice = rows.size > 1 ? ", or choose connection from: #{rows.join(', ')}" : ""

@@ -50,10 +50,12 @@ class IntegrationProviderSerializer < BaseSerializer
   # A field with options is a choice from them, and one marked multiple holds several. allowed says what a value may hold.
   # Fields chosen after connecting are not asked here. address says a field is part of the server's address, which the
   # form for a pasted address does not ask.
-  type "{ key: string; label: string; hint: string; placeholder: string; numeric: boolean; optional: boolean; address: boolean; allowed: string | null; options: { value: string; label: string }[]; multiple: boolean; default: string | null }[]"
+  # scope says a field names what the connection reads, such as projects, listed live from the credentials typed
+  # (list_scopes), and holding one, several or every one they can read.
+  type "{ key: string; label: string; hint: string; placeholder: string; numeric: boolean; optional: boolean; address: boolean; allowed: string | null; options: { value: string; label: string }[]; multiple: boolean; default: string | null; scope: boolean }[]"
   def connect_fields
     provider.connect_fields.reject(&:learned).map do |field|
-      field.to_h.slice(:key, :label, :hint, :placeholder, :numeric, :optional, :allowed, :multiple, :default)
+      field.to_h.slice(:key, :label, :hint, :placeholder, :numeric, :optional, :allowed, :multiple, :default, :scope)
            .merge(address: field.address?, options: field.options.map(&:to_h))
     end
   end
