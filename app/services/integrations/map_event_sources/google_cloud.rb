@@ -1,6 +1,6 @@
 module Integrations
   module MapEventSources
-    # Google Cloud's changes, read every five minutes from the project's Admin Activity audit log with the connection's own
+    # Google Cloud's changes, read every five minutes from each project's Admin Activity audit log with the connection's own
     # key (Cloud Logging entries.list, logging.googleapis.com/v2). Admin Activity logs are always written, cost nothing and
     # are readable with the Logs Viewer role the connection already asks for (Cloud Audit Logs overview, Admin Activity
     # audit logs, and Access control with IAM, roles/logging.viewer). Pushing them instead would need a log sink, a Pub/Sub
@@ -28,23 +28,28 @@ module Integrations
 
         def events(_payload, headers:) = []
 
-        # The entries after since, oldest first, as events about the Cloud Run service, Cloud SQL instance, Compute Engine
-        # instance or GKE cluster each names. The first read starts from now. A read cut short continues from its last
-        # entry.
+        # Each project's entries after its own cursor, oldest first, as events about the Cloud Run service, Cloud SQL
+        # instance, Compute Engine instance or GKE cluster each names. A project's first read starts from now. A read cut
+        # short continues from its last entry.
         def poll(row, since:)
-          now = Time.current
-          return MapEventSource::Polled.new(events: [], cursor: now.utc.iso8601(6)) if since.blank?
-
-          project = project_of(row)
-          read = api(row).log_entries_since(project, filter(project, Time.iso8601(since) - OVERLAP))
-          events = read.items.filter_map { |entry| event_of(project, entry) }
-          cursor = read.complete ? now : Time.iso8601(read.items.last["timestamp"].to_s)
-          MapEventSource::Polled.new(events: events, cursor: cursor.utc.iso8601(6))
+          api = api(row)
+          poll_each_scope(row, since: since) { |project, cursor| poll_project(api, project, cursor) }
         end
 
         def limits = "Firefight reads Google Cloud's audit log every 5 minutes, so a change reaches the map within about 6 minutes."
 
         private
+
+        # One project's entries after since.
+        def poll_project(api, project, since)
+          now = Time.current
+          return MapEventSource::Polled.new(events: [], cursor: now.utc.iso8601(6)) if since.blank?
+
+          read = api.log_entries_since(project, filter(project, Time.iso8601(since) - OVERLAP))
+          events = read.items.filter_map { |entry| event_of(project, entry) }
+          cursor = read.complete ? now : Time.iso8601(read.items.last["timestamp"].to_s)
+          MapEventSource::Polled.new(events: events, cursor: cursor.utc.iso8601(6))
+        end
 
         def filter(project, from)
           services = SERVICES.map { |service| "\"#{service}\"" }.join(" OR ")
@@ -118,10 +123,6 @@ module Integrations
           raise Integrations::Error, "This connection has no Google Cloud key. Reconnect it on the Integrations page." if key.blank?
 
           GoogleCloudApi.new(key, token_cache: settings)
-        end
-
-        def project_of(row)
-          ConnectionSettings.of(row).field(Packs::GoogleCloud::PROJECT) || raise(Integrations::Error, "This connection has no Google Cloud project. Reconnect it.")
         end
       end
     end

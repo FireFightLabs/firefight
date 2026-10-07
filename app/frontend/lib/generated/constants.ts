@@ -29,6 +29,11 @@ export const INTEGRATION_KINDS = {
 
 export const CUSTOM_MCP_PROVIDER_KEY = "custom_mcp" as const
 
+export const CONNECT_SCOPE_ALL = {
+  "VALUE": "*",
+  "LABEL": "All this token can read"
+} as const
+
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
 export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const
@@ -39,6 +44,12 @@ export const INTEGRATION_CARD_ACTIONS = {
   "CONNECT": "connect",
   "RECONNECT": "reconnect",
   "MANAGE": "manage"
+} as const
+
+export const INSTALLATION_STATES = {
+  "REMOVED": "removed",
+  "SUSPENDED": "suspended",
+  "EMPTIED": "emptied"
 } as const
 
 export const INCIDENT_FORM_SLUGS = [
@@ -595,7 +606,14 @@ export const AGENT_STEP_STATUSES = {
   "DONE": "done",
   "WAITING": "waiting",
   "CANCELLED": "cancelled",
-  "FAILED": "failed"
+  "FAILED": "failed",
+  "NOT_FOUND": "not_found"
+} as const
+
+export const STEP_OUTCOME_KINDS = {
+  "ANSWERED": "answered",
+  "FAILED": "failed",
+  "NOT_FOUND": "not_found"
 } as const
 
 export const AGENT_STEP_KINDS = {

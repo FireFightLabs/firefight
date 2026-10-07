@@ -4,7 +4,8 @@ module Integrations
     Upstash = Provider.new(
       key: "upstash", adapter: "Integrations::Capabilities::Upstash", map_reader: "Integrations::MapReaders::Upstash",
       baseline_reader: "Integrations::BaselineReaders::Upstash", source_links: "Integrations::SourceLinks::Upstash",
-      status_words: { "suspended" => "stopped", "inactive" => "stopped" }
+      status_words: { "suspended" => "stopped", "inactive" => "stopped" },
+      error_reader: "Integrations::ErrorReaders::Upstash"
     )
   end
 end

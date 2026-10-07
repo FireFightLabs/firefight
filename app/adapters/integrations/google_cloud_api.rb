@@ -6,7 +6,9 @@ module Integrations
     class Error < Integrations::Error; end
     class Forbidden < Error; end
     # Google answered that the resource is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     TOKEN_URI = "https://oauth2.googleapis.com/token".freeze
     GRANT_TYPE = "urn:ietf:params:oauth:grant-type:jwt-bearer".freeze
@@ -29,6 +31,7 @@ module Integrations
     end
 
     RESOURCE_MANAGER = "https://cloudresourcemanager.googleapis.com/v1".freeze
+    RESOURCE_MANAGER_V3 = "https://cloudresourcemanager.googleapis.com/v3".freeze
     RUN = "https://run.googleapis.com/v2".freeze
     # Cloud Run's v2 API lists services one region at a time and has no list of regions, so the v1 API names them.
     RUN_LOCATIONS = "https://run.googleapis.com/v1".freeze
@@ -61,6 +64,11 @@ module Integrations
 
     # Resource Manager v1 takes the project id, as projects.get documents it.
     def project(project_id) = get("#{RESOURCE_MANAGER}/projects/#{segment(project_id)}")
+
+    # The projects the key may read, as Resource Manager v3 projects.search lists those the caller holds
+    # resourcemanager.projects.get on (cloud.google.com/resource-manager/reference/rest/v3/projects/search), each with its
+    # projectId, displayName and state, paged by nextPageToken. Viewer on a project holds that permission.
+    def projects = list("#{RESOURCE_MANAGER_V3}/projects:search", "projects")
 
     # Cloud Run's regions, from the v1 API, since the v2 API lists services one region at a time.
     def run_locations(project_id) = list("#{RUN_LOCATIONS}/projects/#{segment(project_id)}/locations", "locations")

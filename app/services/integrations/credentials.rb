@@ -27,6 +27,16 @@ module Integrations
 
     def self.store!(environment_row, values) = pack!(environment_row.integration.provider).store_credentials!(environment_row, values)
 
+    # The scopes credentials can read for a provider whose connect form chooses them (IntegrationProvider::ConnectField,
+    # scope), such as the projects an API token reaches, listed from the provider before anything is saved. Each is an
+    # IntegrationProvider::ConnectOption. Raises the provider's refusal in its words.
+    def self.scope_options(provider_key, values, region: nil, fields: {})
+      pack!(provider_key).scope_options(values, region: region, fields: fields)
+    end
+
+    # The same for a connection already made, with the credentials it keeps.
+    def self.scope_options_of(settings) = pack!(settings.provider_key).scope_options_of(settings)
+
     # The certificates a provider connected from a pasted URL may be given, pasted as text.
     def self.certificate_fields(provider_key) = NativePack.for(provider_key)&.certificate_fields.to_a
 

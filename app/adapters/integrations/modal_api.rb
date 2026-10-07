@@ -15,7 +15,9 @@ module Integrations
     class RateLimited < Error
       include Integrations::RateLimited
     end
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # The token is fine, but Modal will not do this for it, such as a rollback on a plan without rollbacks.
     class Refused < Error; end
 

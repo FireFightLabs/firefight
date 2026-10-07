@@ -38,6 +38,8 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
 
     assert_includes prompt, FirefightAi::LookFirstRule::API_GUIDE_RULE
     assert_includes prompt, FirefightAi::LookFirstRule::GUESSED_CALL_RULE
+    assert_match "Before reading a connected provider, load the skill that fits what you are checking with use_skill", prompt
+    assert_match "names the provider's guides, such as its API reference, which use_skill reads with reference", prompt
   end
 
   test "a run is told to start from the resources the facts list, with the map tools" do

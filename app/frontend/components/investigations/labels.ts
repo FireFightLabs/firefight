@@ -5,7 +5,6 @@ import type {
   RemediationStepStatus,
   HypothesisStatus,
   InvestigationStatus,
-  InvestigationStepStatus,
   InvestigationTrigger,
   LedgerDecision,
 } from "@/lib/generated/constants"
@@ -73,13 +72,6 @@ export const SETTLED_LABELS: Record<HypothesisStatus, string> = {
   open: "Still open",
   supported: "Confirmed",
   refuted: "Ruled out",
-}
-
-export const STEP_LABELS: Record<InvestigationStepStatus, string> = {
-  pending: "Waiting",
-  running: "Running",
-  succeeded: "Done",
-  failed: "Failed",
 }
 
 export const OUTCOME_LABELS: Record<FindingOutcome, string> = {

@@ -2,6 +2,7 @@
 # gateway requires both.
 class IntegrationEnvironment < ApplicationRecord
   include IntegrationEnvironment::LiveUpdates
+  include IntegrationEnvironment::AppInstallation
 
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"
@@ -28,10 +29,10 @@ class IntegrationEnvironment < ApplicationRecord
   after_update_commit :index_reported_resources, if: :saved_change_to_catalog_entry_id?
 
   scope :enabled, -> { where(enabled: true) }
-  # Rows that reach something: enabled, of a connection that is switched on and not removed, and not wired to an
-  # environment that was deleted.
+  # Rows that reach something: enabled, of a connection that is switched on and not removed, not made through an app the
+  # provider says was removed, suspended or given nothing, and not wired to an environment that was deleted.
   scope :reachable, -> {
-    enabled.joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
+    enabled.where(installation_state: nil).joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
            .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
   }
 
@@ -60,9 +61,10 @@ class IntegrationEnvironment < ApplicationRecord
   end
 
   # The install-first path, such as a GitHub App. Only an installation id
-  # comes back, tokens are minted from it at call time.
+  # comes back, tokens are minted from it at call time. What was known of an installation from before is dropped.
   def store_installation!(installation_id)
-    update!(base_config: base_config.merge(INSTALLATION_KEY => installation_id.to_s))
+    update!(base_config: base_config.merge(INSTALLATION_KEY => installation_id.to_s), installation_details: {},
+            installation_state: nil, installation_state_at: nil)
   end
 
   def installation_id = base_config.to_h[INSTALLATION_KEY].presence
@@ -82,6 +84,26 @@ class IntegrationEnvironment < ApplicationRecord
 
     update!(base_config: base_config.to_h.merge(FIELDS_KEY => fields.merge(field.key => field.value_of(value)).compact_blank))
     nil
+  end
+
+  # Sets what the connection reads at its provider, the scopes its connect form chose (IntegrationProvider::ConnectField,
+  # scope), one, several, or ConnectField::ALL. Each must be one the credential can read now. Answers why they cannot be
+  # chosen, or nil once they are kept.
+  def choose_scopes!(field, given)
+    values = field.value_of(given)
+    refusal = field.refusal(values)
+    return refusal if refusal
+
+    unless values == [ IntegrationProvider::ConnectField::ALL ]
+      listed = Integrations::ConnectionSettings.of(self).scope_options.map(&:value)
+      missing = values - listed
+      return "This token cannot read #{field.reach_words(missing)}. Choose from what it lists." if missing.any?
+    end
+
+    update!(base_config: base_config.to_h.merge(FIELDS_KEY => fields.merge(field.key => values)))
+    nil
+  rescue Integrations::Error => error
+    error.message
   end
 
   def learned = base_config.to_h.fetch(LEARNED_KEY, {})

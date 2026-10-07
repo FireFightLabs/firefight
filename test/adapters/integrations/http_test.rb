@@ -22,6 +22,15 @@ module Integrations
       assert_equal "Acme answered 502 with something that is not JSON", assert_raises(AcmeError) { json }.message
     end
 
+    test "a 404 is marked not found whatever class the client raises it as, and nothing else is" do
+      Http.stubs(:request).returns(response(404, '{"message":"Project not found"}'))
+      error = assert_raises(AcmeError) { json }
+      assert_kind_of Integrations::NotFound, error
+
+      Http.stubs(:request).returns(response(500, '{"message":"Internal error"}'))
+      assert_not_kind_of Integrations::NotFound, assert_raises(AcmeError) { json }
+    end
+
     test "a provider's reason is read whether it is words, an object or a list" do
       {
         '{"error":"invalid_token"}' => "invalid_token",

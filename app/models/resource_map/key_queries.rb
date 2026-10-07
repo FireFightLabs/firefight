@@ -188,13 +188,13 @@ module ResourceMap::KeyQueries
     return baseline.compared(found.value, found.unit, series: found.series) if baseline
 
     "Now #{ResourceMap::Baseline.amount(found.value, found.unit)}. No normal is known for it yet, since " \
-      "#{call.environment_row.integration.display_name} has not read a week of #{metric} for #{call.resource.name}."
+      "#{call.environment_row.integration.display_name} has not read a week of #{metric} for #{call.resource.scoped_name}."
   end
 
   # The line an answer starts with: what was checked, through which connection, and how it compares.
   def self.headline(check, call, metric, result)
     read = "read as #{METRIC_WORDS.fetch(metric, metric)}" if metric && check.metrics.many?
-    what = [ "#{check.label} of #{call.resource.name}", read, "from #{call.environment_row.integration.display_name}" ].compact.join(", ")
+    what = [ "#{check.label} of #{call.resource.scoped_name}", read, "from #{call.environment_row.integration.display_name}" ].compact.join(", ")
     [ "#{what}.", verdict(check, call, metric, result) ].compact.join(" ")
   end
 

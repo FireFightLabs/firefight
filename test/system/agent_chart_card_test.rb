@@ -36,12 +36,12 @@ class AgentChartCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-chart-card.png"))
   end
 
-  test "Northflank connects with a token and a project, as the provider's pack asks" do
+  test "Northflank connects with a token and its projects, as the provider's pack asks" do
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "northflank")
 
     assert_text "Connect Northflank"
     assert_field "API token", type: "password"
-    assert_field "Project"
+    assert_button "Choose projects"
     page.save_screenshot(Rails.root.join("tmp/screenshots/northflank-connect.png"))
   end
 end

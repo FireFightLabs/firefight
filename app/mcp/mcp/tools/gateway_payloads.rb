@@ -9,7 +9,8 @@ module Mcp
           permission_set: grant.role&.slug,
           environments: grant.workspace.environment_entries.where(id: grant.environment_ids).pluck(:slug),
           expires_at: grant.expires_at&.utc&.iso8601,
-          expired: grant.expired?
+          expired: grant.expired?,
+          no_access: grant.no_access?
         }.compact
       end
 

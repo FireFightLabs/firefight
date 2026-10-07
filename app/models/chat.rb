@@ -165,11 +165,14 @@ class Chat < ApplicationRecord
   def unfinished_tool_names = tool_calls.where(result_id: nil).distinct.pluck(:name)
 
   # A refusal or an error is still a result the model reads, so the row alone cannot say it failed.
-  def mark_failed!(tool_call_id)
-    tool_calls.where(tool_call_id: tool_call_id).update_all(failed: true, updated_at: Time.current)
+  def mark_failed!(tool_call_id, kind: Chat::StepOutcome::FAILURE_ERROR)
+    tool_calls.where(tool_call_id: tool_call_id).update_all(failed: true, failure_kind: kind, updated_at: Time.current)
   end
 
   def failed_tool_call_ids = tool_calls.where(failed: true).order(:created_at).pluck(:tool_call_id)
+
+  # One call with its answer, for what it got back (Chat::StepOutcome).
+  def outcome_call(tool_call_id) = tool_calls.includes(:result).find_by(tool_call_id: tool_call_id)
 
   # In characters, since that is what a tool hands back. Tokens are only estimated from them.
   def result_limit = (context_window! * RESULT_SHARE * CHARACTERS_PER_TOKEN).to_i

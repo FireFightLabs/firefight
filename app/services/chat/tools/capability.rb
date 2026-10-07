@@ -67,12 +67,22 @@ class Chat::Tools::Capability < RubyLLM::Tool
 
     found ||= Integrations::Capabilities.resolve(@agent_run.workspace, @spec.key, asked.except(Chat::Tools::INTENT_ARG), @callable,
                                                  principal: @agent_run.acting_principal)
-    Chat::Tools::Target.misdirection(found.tool.integration, Chat::Tools.intent_of(asked), called: "#{name} of #{found.resource.name}") do |other|
+    intent = Chat::Tools.intent_of(asked)
+    called = "#{name} of #{found.resource.scoped_name}"
+    Chat::Tools::Target.misdirection(found.tool.integration, intent, called: called) do |other|
       label = Integrations::Capabilities.connections(other.tools.to_a).first || other.slug
       "To reach #{other.target_label}, name the resource by its id on the map there, or pass connection #{label}."
-    end
+    end || scope_misdirection(found, intent, called)
   rescue Integrations::Capabilities::Unroutable
     nil
+  end
+
+  # Words naming another scope of the same connection than the one the resource lives in, such as another project.
+  def scope_misdirection(found, intent, called)
+    scope = found.arguments[Integrations::ConnectionSettings.of(found.environment_row).scope_field&.key.to_s]
+    Chat::Tools::Target.scope_misdirection(found.environment_row, scope, intent, called: called) do |named, field|
+      "To reach one in #{field.one} #{named}, name it by its id on the map there."
+    end
   end
 
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)

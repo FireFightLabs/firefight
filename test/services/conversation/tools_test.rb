@@ -28,18 +28,19 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
                    "search_web", "read_web_page" ], names
   end
 
-  test "opening a group in a chat points at the skills with the steps for its tools, and a run is not told" do
+  test "opening a group points at the skills with the steps for its tools, in a chat and in a run, since both hold use_skill" do
     Chat::Tools.stubs(:catalog).returns([
       Chat::Tools::Entry.new(name: "declare_incident", description: "Declare", state: Chat::Tools::STATE_READY, tool: nil,
                              group: Chat::Tools::Groups::INCIDENT_RESPONSE, source: Chat::Skill::SOURCE_FIREFIGHT, handle: "declare_incident")
     ])
+    run = @workspace.investigations.create!(subject: @incident, trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400)
 
-    in_chat = Chat::Tools::Open.new(turn, offer: ->(_tools) { }, skills: true).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
-    in_run = Chat::Tools::Open.new(turn, offer: ->(_tools) { }).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
+    [ turn, run ].each do |agent_run|
+      opened = Chat::Tools::Open.new(agent_run, offer: ->(_tools) { }).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
 
-    assert_includes in_chat, "Load the one that fits the question with use_skill first"
-    assert_includes in_chat, "declaring: "
-    assert_not_includes in_run, "use_skill"
+      assert_includes opened, "Load the one that fits the question with use_skill first"
+      assert_includes opened, "declaring: "
+    end
   end
 
   test "a group too large to open whole still points at its skills, which load the tools themselves" do
@@ -49,7 +50,7 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     end
     Chat::Tools.stubs(:catalog).returns(entries)
 
-    answer = Chat::Tools::Open.new(turn, offer: ->(_tools) { }, skills: true).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
+    answer = Chat::Tools::Open.new(turn, offer: ->(_tools) { }).call("group" => Chat::Tools::Groups::INCIDENT_RESPONSE)
 
     assert_includes answer, "This group is large, so nothing was loaded"
     assert_includes answer, "declaring: "
@@ -60,6 +61,20 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
 
     assert_no_difference "Investigation.count" do
       assert_match "not allowed to start an investigation", tool.call[:error]
+    end
+  end
+
+  test "a member starts a run from a chat without any grant, and one an admin took it away from is refused, in their name" do
+    bob = workspace_memberships(:bob_workspace_one)
+    as_bob = Conversation::Tools::StartInvestigation.new(Conversation::Turn.new(@conversation, asker: bob))
+
+    assert_match "Started", as_bob.call
+    assert_equal bob, @workspace.investigations.sole.triggered_by
+
+    @workspace.investigations.sole.finish!(status: Investigation::STATUS_SUCCEEDED)
+    take_halon_from(@workspace, bob)
+    assert_no_difference "Investigation.count" do
+      assert_equal "#{bob.display_name} is not allowed to start an investigation.", as_bob.call[:error]
     end
   end
 

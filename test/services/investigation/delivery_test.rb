@@ -37,6 +37,19 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
     delivery.step(key: "call_1", title: "Read recent deploys", status: :running)
   end
 
+  test "a finished step says how it went in a word: a not found completes, a failure is an error" do
+    delivery = Investigation::Delivery.new(@investigation)
+    delivery.start!
+    reported = []
+    Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
+
+    delivery.step(key: "call_1", title: "Cloudflare execute", status: :done, outcome: outcome(Chat::StepOutcome::KIND_NOT_FOUND))
+    delivery.step(key: "call_2", title: "Cloudflare execute", status: :done, outcome: outcome(Chat::StepOutcome::KIND_FAILED))
+    delivery.step(key: "call_3", title: "Search logs", status: :done, outcome: outcome(Chat::StepOutcome::KIND_ANSWERED))
+
+    assert_equal [ [ "complete", "Not found" ], [ "error", "Failed" ], [ "complete", nil ] ], reported.map { |chunk| chunk.values_at(:status, :output) }
+  end
+
   test "an answer is posted and the working state is cleared" do
     delivery = Investigation::Delivery.new(@investigation)
     delivery.start!
@@ -164,4 +177,8 @@ class Investigation::DeliveryTest < ActiveSupport::TestCase
       max_turns: 10, max_spend_cents: 400, brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }, **answer_in
     )
   end
+
+  private
+
+  def outcome(kind) = Chat::StepOutcome.new(kind: kind, said: nil, lines: [], total: 0, size: 0, link: nil)
 end

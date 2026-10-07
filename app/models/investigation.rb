@@ -186,9 +186,6 @@ class Investigation < ApplicationRecord
 
   def memory_teacher = nil
 
-  # Skills are chat work, so a run is never pointed at one.
-  def uses_skills? = false
-
   def live?
     LIVE_STATUSES.include?(status)
   end
@@ -333,6 +330,12 @@ class Investigation < ApplicationRecord
       Investigation::ToolCall.run!(self, action_key: action_key, params: params, scope: scope, tool_name: tool_name, label: label, &block)
     end
     Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
+  end
+
+  # A call that ran but whose answer said it failed. The step keeps what it answered and its status, so it can still be
+  # cited, and the kind says how it is shown (Chat::StepOutcome).
+  def mark_step_failed!(position, kind)
+    steps.where(position: position).update_all(failure_kind: kind, updated_at: Time.current)
   end
 
   # A theory that is settled says which steps settled it, so a ruled out one carries its why.

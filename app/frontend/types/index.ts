@@ -6,6 +6,13 @@ export type FlashData = {
   alert?: string
   // Custom flash keys sent via `flash.inertia[:key]` on the server.
   api_key_token?: string
+  // Pages elsewhere the toast points to, such as a provider's settings for what Firefight left there.
+  links?: FlashLink[]
+}
+
+export type FlashLink = {
+  label: string
+  url: string
 }
 
 export type SharedProps = PageProps & {

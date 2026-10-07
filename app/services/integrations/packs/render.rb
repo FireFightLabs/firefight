@@ -1,7 +1,9 @@
 module Integrations
   module Packs
-    # Render for one workspace per environment: its services, Postgres databases and Key Value instances, their logs,
-    # metrics, deploys and events, read with the API key the workspace's owner creates in Render. Every tool reads,
+    # Render for the workspaces an environment reads, one, several or every one its API key can read (the workspace
+    # connect field, a scope). It reads their services, Postgres databases and Key Value instances, and their logs,
+    # metrics, deploys and events, with the API key a person creates in Render. A call reaches one workspace, the one it
+    # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every workspace. Every tool reads,
     # except the restart, rollback and scale an admin switches on for Halon to apply fixes. Paths, parameters and
     # answers are the ones in Render's OpenAPI spec (api-docs.render.com/openapi/render-public-api-1.json).
     class Render < NativePack
@@ -199,17 +201,40 @@ module Integrations
         ]
       end
 
-      # Reads the workspace with the key, so a wrong key or workspace is said on the form before anything is saved.
+      # Reads each workspace chosen with the key, or lists them for every one it can read, so a wrong key or workspace is
+      # said on the form before anything is saved.
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[API_KEY].to_s.strip
-        workspace = fields[WORKSPACE].to_s.strip
+        workspaces = Array(fields[WORKSPACE]).map { |each| each.to_s.strip }.compact_blank
         return "Paste an API key." if key.empty?
-        return "Enter the workspace id." if workspace.empty?
+        return "Choose at least one workspace, or all the key can read." if workspaces.empty?
 
-        RenderApi.new(key).owner(workspace)
+        api = RenderApi.new(key)
+        return (scope_options(values).empty? ? "This API key can read no Render workspaces." : nil) if workspaces == [ IntegrationProvider::ConnectField::ALL ]
+
+        workspaces.each do |workspace|
+          api.owner(workspace)
+        rescue RenderApi::Error => error
+          return Sentence.join("Render refused this key or workspace#{" #{workspace}" if workspaces.many?}", error)
+        end
         nil
+      rescue NativePack::Error => error
+        error.message
       rescue RenderApi::Error => error
         Sentence.join("Render refused this key or workspace", error)
+      end
+
+      # The workspaces the key can read (GET /v1/owners, "List workspaces", api-docs.render.com/reference/list-owners,
+      # each an owner with its id, name and type). Only team workspaces, whose ids start tea-, as the connect field takes.
+      TEAM_OWNER = "team".freeze
+
+      def self.scope_options(values, region: nil, fields: {})
+        key = values.to_h.stringify_keys[API_KEY].to_s.strip
+        raise NativePack::Error, "Paste an API key first." if key.empty?
+
+        RenderApi.new(key).owners.items.select { |owner| owner["type"] == TEAM_OWNER }.map { |owner| IntegrationProvider::ConnectOption.new(value: owner["id"].to_s, label: owner["name"].presence || owner["id"].to_s) }
+      rescue RenderApi::Error => error
+        raise NativePack::Error, Sentence.join("Render did not list this key's workspaces", error)
       end
 
       def self.store_credentials!(environment_row, values)
@@ -217,8 +242,11 @@ module Integrations
       end
 
       def list_resources(environment_row:, arguments:)
+        return every_workspace(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         rows = resources(environment_row).map { |resource| "#{resource[:name]} (#{resource[:id]}), #{TYPE_WORDS.fetch(resource[:type])}, #{resource[:status]}" }
-        text = rows.empty? ? "Workspace #{workspace_of(environment_row)} has no services or datastores." : "#{rows.size} services and datastores.\n#{rows.join("\n")}"
+        workspace = ConnectionSettings.of(environment_row).scope_name(workspace_of(environment_row))
+        text = rows.empty? ? "Workspace #{workspace} has no services or datastores." : "Workspace #{workspace}, #{rows.size} services and datastores.\n#{rows.join("\n")}"
         Telemetry.result(text, link: nil)
       end
 
@@ -336,6 +364,13 @@ module Integrations
       # The workspace on the resource map: its services, sites, cron jobs and datastores, the repositories services build
       # from and the domains they serve. What could not be read for one service is a gap, not a failed sweep.
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_workspace(environment_row) }
+      end
+
+      # What a sweep puts on the map for one workspace.
+      MAP_KINDS = [ *SERVICE_KINDS, ResourceMap::KIND_DATABASE, ResourceMap::KIND_DOMAIN, ResourceMap::KIND_REPOSITORY ].freeze
+
+      def map_of_workspace(environment_row)
         api = api(environment_row)
         account = workspace_of(environment_row)
         reading = MapReading.new(account)
@@ -357,6 +392,7 @@ module Integrations
       # one. Gone only when Render answers not found for it. nil for a scope Render cannot narrow to, which a sweep reads.
       def map_refresh(environment_row, scope)
         return unless scope.external_id && [ nil, *SERVICE_KINDS, ResourceMap::KIND_DATABASE ].include?(scope.kind)
+        return workspace_holding(environment_row, scope)&.map_refresh(environment_row, scope) if every_scope?(environment_row)
 
         api = api(environment_row)
         account = workspace_of(environment_row)
@@ -472,6 +508,8 @@ module Integrations
       # connections, one reading an hour, instances added up. A resource Render cannot read keeps yesterday's baselines,
       # and being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
+        return by_scope(environment_row, resources) { |pack, group| pack.baselines_of(environment_row, group, window) } if every_scope?(environment_row)
+
         api = api(environment_row)
         resources.flat_map do |resource|
           type = type_of(resource)
@@ -493,8 +531,9 @@ module Integrations
         end
       end
 
+      # Reads each workspace the connection reaches, so one the key can no longer read is said on the connection.
       def check_health!(environment_row)
-        api(environment_row).owner(workspace_of(environment_row))
+        ConnectionSettings.of(environment_row).scopes.each { |workspace| api(environment_row).owner(workspace) }
       rescue RenderApi::Error => error
         fail! error.message
       end
@@ -567,7 +606,39 @@ module Integrations
         RenderApi.new(key)
       end
 
-      def workspace_of(environment_row) = ConnectionSettings.of(environment_row).field(WORKSPACE) || fail!("This environment has no Render workspace. Reconnect it.")
+      def workspace_of(environment_row) = scope!(environment_row)
+
+      # A listing of every workspace the connection reaches, each read by a pack of its own and headed with its own.
+      def every_workspace(environment_row)
+        texts = ConnectionSettings.of(environment_row).scopes.map do |workspace|
+          Array(yield(scoped(workspace))["content"]).filter_map { |part| part["text"] }.join("\n")
+        end
+        Telemetry.result(texts.join("\n\n"), link: nil)
+      end
+
+      # The pack of the workspace a change is in. Render's payload names no workspace (render.com/docs/webhooks, Request
+      # body), so it is the one the map has the service or datastore in, or else the one Render says owns it (a service's
+      # ownerId, a datastore's owner, spec Service and PostgresDetail). nil, for a sweep to read, when neither says.
+      def workspace_holding(environment_row, scope)
+        reached = ConnectionSettings.of(environment_row).scopes
+        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
+                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
+                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        owner = on_map.presence || owner_of(environment_row, scope)
+        scoped(owner) if owner && reached.include?(owner)
+      end
+
+      def owner_of(environment_row, scope)
+        api = api(environment_row)
+        reads = scope.kind == ResourceMap::KIND_DATABASE ? %i[postgres key_value] : %i[service]
+        reads.each do |read|
+          found = api.public_send(read, scope.external_id)
+          return found["ownerId"].presence || found.dig("owner", "id")
+        rescue RenderApi::NotFound
+          next
+        end
+        nil
+      end
 
       def resources(environment_row)
         @resources ||= begin

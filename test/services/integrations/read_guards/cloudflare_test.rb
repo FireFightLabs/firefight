@@ -27,6 +27,26 @@ module Integrations
         assert_raises(Refused) { Cloudflare.reading("execute", "method" => "POST", "path" => "/accounts/acc/workers/scripts/api/deployments", "body" => {}) }
       end
 
+      test "a script Firefight wrote for a read is a read, and a script someone wrote is one only as a single GET" do
+        written = Cloudflare.reading("execute", "method" => "GET", "path" => "/accounts/acc/pages/projects/ember")
+        graphql = Cloudflare.reading("execute", "method" => "POST", "path" => "/graphql", "graphql" => "{ viewer { zones { zoneTag } } }")
+        assert Cloudflare.reads?("execute", written)
+        assert Cloudflare.reads?("execute", graphql)
+
+        # The script Halon wrote in the chat this was seen in.
+        assert Cloudflare.reads?("execute", "code" => "async () => { return await cloudflare.request({method:'GET', path:'/accounts/'+accountId+'/pages/projects/ember-landing'}); }")
+        assert Cloudflare.reads?("execute", "code" => "async () => cloudflare.request({ path: '/zones', method: \"GET\", query: { per_page: 50 } })")
+
+        [
+          "async () => cloudflare.request({method:'DELETE', path:'/zones/abc'})",
+          "async () => { await cloudflare.request({method:'GET', path:'/zones'}); return cloudflare.request({method:'DELETE', path:'/zones/abc'}); }",
+          "async () => cloudflare.request({method:'GET', path:'/zones', method:'DELETE'})",
+          "async () => cloudflare.request({method: verb, path:'/zones'})",
+          "async () => cloudflare.request({\"method\":\"POST\",\"path\":\"/graphql\",\"body\":{\"query\":\"mutation { purge }\"}})",
+          "async () => fetch('https://example.com')"
+        ].each { |code| assert_not Cloudflare.reads?("execute", "code" => code), code }
+      end
+
       test "anything that is not one read is refused before anything is sent" do
         [
           { "method" => "DELETE", "path" => "/zones/abc" },

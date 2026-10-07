@@ -9,4 +9,5 @@ json.permission_set grant.role&.slug
 json.environments grant.workspace.environment_entries.where(id: grant.environment_ids).pluck(:slug)
 json.expires_at grant.expires_at&.utc&.iso8601
 json.expired grant.expired?
+json.no_access grant.no_access?
 json.created_at grant.created_at.utc.iso8601

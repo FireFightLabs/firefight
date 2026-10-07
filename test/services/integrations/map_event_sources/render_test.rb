@@ -71,7 +71,7 @@ module Integrations
         RenderApi.any_instance.expects(:create_webhook).with("tea-1", name: Render::WEBHOOK_NAME, url: URL, events: Render::EVENTS)
                   .returns(webhook("whk-ours", URL).merge("secret" => SECRET))
 
-        assert_equal Render::Webhook.new(id: "whk-ours", secret: SECRET), Render.register(@row, url: URL)
+        assert_equal Render::Webhook.new(id: { "tea-1" => "whk-ours" }.to_json, secret: SECRET, scopes: [ "tea-1" ]), Render.register(@row, url: URL)
         assert_includes Render::EVENTS, "deploy_ended"
         assert_includes Render::EVENTS, "postgres_available"
       end
@@ -81,7 +81,7 @@ module Integrations
         RenderApi.any_instance.expects(:create_webhook).never
         RenderApi.any_instance.expects(:enable_webhook).with("whk-ours").returns(webhook("whk-ours", URL))
 
-        assert_equal Render::Webhook.new(id: "whk-ours", secret: SECRET), Render.register(@row, url: URL)
+        assert_equal Render::Webhook.new(id: { "tea-1" => "whk-ours" }.to_json, secret: SECRET, scopes: [ "tea-1" ]), Render.register(@row, url: URL)
       end
 
       test "a workspace whose plan has no room for a webhook is told why, and its own webhook is never touched" do
@@ -117,7 +117,7 @@ module Integrations
         Render.remove(@row, "whk-ours")
 
         RenderApi.any_instance.stubs(:delete_webhook).raises(RenderApi::NotFound, "Render answered 404: not found")
-        assert_nil Render.remove(@row, "whk-gone")
+        assert_nothing_raised { Render.remove(@row, { "tea-1" => "whk-gone" }.to_json) }
       end
 
       private

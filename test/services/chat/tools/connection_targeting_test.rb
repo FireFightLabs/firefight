@@ -25,7 +25,7 @@ class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
   end
 
   test "a connection with every tool off is named when its group is opened, though the other connection's tools are on" do
-    open = Chat::Tools::Open.new(@turn, offer: ->(_tools) { }, skills: true)
+    open = Chat::Tools::Open.new(@turn, offer: ->(_tools) { })
 
     opened = open.call(group: cloud_group)
 

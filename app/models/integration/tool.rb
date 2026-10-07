@@ -43,13 +43,15 @@ class Integration::Tool < ApplicationRecord
   ENVIRONMENT_ARG = "environment".freeze
 
   # The schema every caller is handed, the agent and an outside MCP client alike: the tool's own, plus
-  # which environment to run in. A connection wired per environment lists them, so a model picks one that exists.
+  # which environment to run in. A connection wired per environment lists them, so a model picks one that exists. A
+  # connection that reaches several of what its provider names a scope, such as Northflank projects, also takes which
+  # one (Integrations::Scopes).
   def offered_schema
     schema = (params_schema.presence || { "type" => "object" }).deep_dup
     choices = integration.environment_choices
     environment = { "type" => "string", "description" => "Environment slug, such as production. Omit when the connection has one environment." }
     environment["enum"] = choices if choices.any?
-    schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment)
+    schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment).merge(Integrations::Scopes.argument(integration).to_h)
     schema
   end
 
@@ -71,6 +73,18 @@ class Integration::Tool < ApplicationRecord
     "Halon would call this tool #{model_facing_name}, the name #{namesake.integration.display_name}'s #{namesake.name} tool already has. " \
       "Connect this account again under another name to switch it on."
   end
+
+  # What the app installation the connection was made through was not granted that this tool needs, as a sentence a
+  # person reads beside it ("Needs Actions read in the GitHub App."), or nil. Each environment's installation is asked,
+  # since one connection may reach several.
+  def access_missing_reason
+    rows = integration.integration_environments.select(&:enabled?)
+    lacking = rows.flat_map { |row| Integrations::Installations.missing(row, remote_name) }.uniq
+    Integrations::Installations.missing_words(rows.first, lacking) if lacking.any?
+  end
+
+  # What an agent reads of the tool, led by what it lacks, so a listing cut short still says it.
+  def described_for_agents = [ access_missing_reason, description.presence ].compact.join(" ").presence
 
   # Another connection's tool Halon would call by the same name, or nil.
   def namesake = integration.tool_namesakes[name]

@@ -283,13 +283,28 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_nil Conversation.find_by(id: conversation.id)
   end
 
-  test "asking the agent still needs the investigations grant" do
+  test "a member asks the agent without any grant, in a new chat and in one already open" do
     sign_in(users(:bob), @workspace)
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:bob_workspace_one))
 
+    assert_enqueued_jobs(2, only: ConversationReplyJob) do
+      post agent_chats_url, params: { question: "what changed today" }
+      post agent_chat_ask_url(conversation), params: { question: "and yesterday" }
+    end
+    assert_nil flash[:alert]
+  end
+
+  test "a member an admin took asking away from is refused with the sentence every refused page says" do
+    sign_in(users(:bob), @workspace)
+    bob = workspace_memberships(:bob_workspace_one)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: bob)
+    take_halon_from(@workspace, bob)
+
     assert_no_enqueued_jobs(only: ConversationReplyJob) do
+      post agent_chats_url, params: { question: "what changed today" }
       post agent_chat_ask_url(conversation), params: { question: "what changed today" }
     end
+    assert_equal WebAuthorization.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE)), flash[:alert]
   end
 
   test "someone else's chat cannot be renamed or deleted" do

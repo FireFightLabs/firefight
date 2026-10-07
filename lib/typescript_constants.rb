@@ -22,12 +22,17 @@ module TypescriptConstants
         "MCP" => Integration::KIND_MCP, "HTTP" => Integration::KIND_HTTP, "NATIVE" => Integration::KIND_NATIVE
       }, nil),
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
+      Export.new("CONNECT_SCOPE_ALL", { "VALUE" => IntegrationProvider::ConnectField::ALL, "LABEL" => IntegrationProvider::ConnectField::ALL_LABEL }, nil),
       Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
       Export.new("INTEGRATION_DETAILS_QUERY_PARAM", Integration::DETAILS_QUERY_PARAM, nil),
       Export.new("INTEGRATION_CONNECT_QUERY_PARAM", Integration::CONNECT_QUERY_PARAM, nil),
       Export.new("INTEGRATION_CARD_ACTIONS", {
         "CONNECT" => IntegrationProvider::ACTION_CONNECT, "RECONNECT" => IntegrationProvider::ACTION_RECONNECT,
         "MANAGE" => IntegrationProvider::ACTION_MANAGE
+      }, nil),
+      Export.new("INSTALLATION_STATES", {
+        "REMOVED" => Integrations::Installations::REMOVED, "SUSPENDED" => Integrations::Installations::SUSPENDED,
+        "EMPTIED" => Integrations::Installations::EMPTIED
       }, nil),
       Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
       Export.new("RESOURCE_MAP_KINDS", ResourceMap::KINDS, "ResourceMapKind"),
@@ -106,7 +111,11 @@ module TypescriptConstants
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
         "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED,
-        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED
+        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED, "NOT_FOUND" => Conversation::LiveDelivery::STATUS_NOT_FOUND
+      }, nil),
+      Export.new("STEP_OUTCOME_KINDS", {
+        "ANSWERED" => Chat::StepOutcome::KIND_ANSWERED, "FAILED" => Chat::StepOutcome::KIND_FAILED,
+        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND

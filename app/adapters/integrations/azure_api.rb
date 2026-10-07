@@ -7,7 +7,9 @@ module Integrations
     class Error < Integrations::Error; end
     class Forbidden < Error; end
     # Resource Manager answered that the resource is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     # Where one of Azure's clouds signs in, runs Resource Manager and answers Log Analytics queries. A token's scope is
     # its audience's host followed by /.default. The hosts are the ones Microsoft documents: sign-in on Microsoft Entra's
@@ -54,6 +56,11 @@ module Integrations
     end
 
     def subscription_details = get("/subscriptions/#{segment(@subscription)}", "2022-12-01")
+
+    # Every subscription the principal holds a role on, each with its subscriptionId, displayName and state, following
+    # nextLink (Subscriptions, List, 2022-12-01, learn.microsoft.com/rest/api/resources/subscriptions/list). Reader on a
+    # subscription is enough to see it. No subscription of its own is needed to ask.
+    def subscriptions = list("/subscriptions", "2022-12-01")
 
     # A Resource Manager read, by path from the root and the api-version that resource type takes.
     def get(path, api_version, query = {}) = arm(Net::HTTP::Get, path, api_version, nil, query)

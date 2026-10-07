@@ -24,15 +24,46 @@ module Chat::Tools::Target
     return connection_label(tool, given) if tool
 
     call = routed(agent_run, tool_name, given)
-    "#{call.resource.kind.humanize(capitalize: false)} #{call.resource.name} on #{call.environment_row.integration.target_label(call.environment_row)}" if call
+    return unless call
+
+    scope = call.arguments[Integrations::ConnectionSettings.of(call.environment_row).scope_field&.key.to_s]
+    "#{call.resource.kind.humanize(capitalize: false)} #{call.resource.scoped_name} on #{call.environment_row.integration.target_label(call.environment_row, scope: scope)}"
   end
 
+  # The connection a call through its tool reaches, with the one scope it reaches when the connection reaches several,
+  # such as "Faylee (Northflank), project faylee".
   def self.connection_label(tool, given)
     integration = tool.integration
-    environment_row = integration.resolve_environment(integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])&.id)
-    integration.target_label(environment_row)
+    environment_row = environment_row_of(tool, given)
+    integration.target_label(environment_row, scope: Integrations::Scopes.of_call(environment_row, given))
   rescue Integration::UnknownEnvironment
     integration.target_label
+  end
+
+  def self.environment_row_of(tool, given)
+    integration = tool.integration
+    integration.resolve_environment(integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])&.id)
+  end
+
+  # Why a call is refused whose words name another scope of its own connection than the one it reaches, such as another
+  # Northflank project, before it runs or is put to anyone. nil when the connection reaches one, or the words name the
+  # call's own scope or none. hint says how to reach the scope the words name instead, given its id.
+  def self.scope_misdirection(environment_row, scope, intent, called:)
+    return if intent.blank? || scope.blank? || environment_row.nil?
+
+    settings = Integrations::ConnectionSettings.of(environment_row)
+    return unless settings.several_scopes?
+
+    terms = ->(id) { [ id, settings.scope_name(id) ].map { |term| term.to_s.downcase }.uniq.select { |term| term.length >= Integration::MIN_TERM } }
+    own = terms.call(scope)
+    return if own.any? { |term| mentions?(intent, term) }
+
+    named = (settings.known_scopes - [ scope ]).find { |id| (terms.call(id) - own).any? { |term| mentions?(intent, term) } }
+    return unless named
+
+    field = settings.scope_field
+    "Not run, and nobody was asked. #{called} reaches #{environment_row.integration.target_label(environment_row, scope: scope)}, but what " \
+      "you wrote names #{field.one} #{settings.scope_name(named)}. #{yield(named, field)} Never run a call in one #{field.one} for another's."
   end
 
   # The connection a capability that changes something would run through. A read never waits for the person.

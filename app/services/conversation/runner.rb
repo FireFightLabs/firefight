@@ -174,15 +174,15 @@ class Conversation::Runner
     shown = shown.with(card: Chat::Tools.chart_card) if done && shown.card.nil? && charted?(step.key)
     delivery.step(
       key: step.key, step: shown, status: step.status, kind: kinds[step.key],
-      seconds: done ? seconds_since_last_step : 0, failed: done && failed?(step.key)
+      seconds: done ? seconds_since_last_step : 0, outcome: (outcome_of(step.key) if done)
     )
   end
 
   # The wrapper kept the call's charts as the tool answered, before the loop reports the step done.
   def charted?(key) = @conversation.chat.charts.exists?(tool_call_id: key)
 
-  # The wrapper marked the call as the tool answered, before the loop reports the step done.
-  def failed?(key) = @conversation.chat.failed_tool_call_ids.include?(key)
+  # The wrapper marked the call as the tool answered, and its answer is saved, before the loop reports the step done.
+  def outcome_of(key) = Chat::StepOutcome.for_call(@conversation.chat.outcome_call(key), @conversation.chat)
 
   # Counted from the end of the last step, so the model's own time between calls counts as thinking.
   def seconds_since_last_step

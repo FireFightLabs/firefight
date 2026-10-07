@@ -70,13 +70,13 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     post integrations_path, params: {
       provider: "northflank", name: "Northflank",
-      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, fields: { Integrations::Packs::Northflank::PROJECT => "firefight" }
+      credentials: { Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, fields: { Integrations::Packs::Northflank::PROJECT => [ "firefight" ] }
     }
 
     integration = @workspace.integrations.find_by!(name: "Northflank")
     row = integration.integration_environments.sole
     assert_equal({ Integrations::Packs::Northflank::API_TOKEN => "nf-s3cret" }, row.credentials_hash)
-    assert_equal "firefight", Integrations::ConnectionSettings.of(row).field(Integrations::Packs::Northflank::PROJECT)
+    assert_equal [ "firefight" ], Integrations::ConnectionSettings.of(row).field(Integrations::Packs::Northflank::PROJECT)
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
     assert_equal Integrations::Packs::Northflank.tool_definitions.map(&:name).sort, integration.tools.pluck(:name).sort
 
@@ -85,8 +85,9 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     provider = inertia_props["providers"].find { |candidate| candidate["key"] == "northflank" }
     assert_equal [ Integrations::Packs::Northflank::API_TOKEN ], provider["credentialFields"].map { |field| field["key"] }
     assert_equal [ Integrations::Packs::Northflank::PROJECT ], provider["connectFields"].map { |field| field["key"] }
-    shown = inertia_props["integrations"].find { |each| each["provider"] == "northflank" }["environments"].sole["settings"]
-    assert_equal [ { "label" => "Project", "value" => "firefight" } ], shown
+    environment = inertia_props["integrations"].find { |each| each["provider"] == "northflank" }["environments"].sole
+    assert_empty environment["settings"], "the projects are shown as a choice of their own"
+    assert_equal [ "project", [ "firefight" ] ], environment["scopes"].values_at("key", "values")
   end
 
   test "GitLab connects with an access token and the address of a GitLab of its own, and discovers its tools" do
@@ -479,6 +480,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
   test "the install callback stores the installation id and discovers the pack's tools" do
     IntegrationProvider.stubs(:oauth_client).with("github").returns(app_slug: "firefight", client_id: "Iv1.abc")
     Integrations::GithubApp.stubs(:installation_token).returns("ghs_token")
+    Integrations::GithubApp.stubs(:installation).returns(
+      "account" => { "login" => "acme" }, "html_url" => "https://github.com/organizations/acme/settings/installations/98765",
+      "permissions" => { "contents" => "read", "metadata" => "read" }, "suspended_at" => nil
+    )
+    Integrations::GithubApp.stubs(:get).with("/installation/repositories?per_page=1", token: "ghs_token").returns("total_count" => 3)
     get oauth_start_integrations_url(provider: "github")
     state = Rack::Utils.parse_query(URI.parse(response.location).query)["state"]
 
@@ -492,6 +498,8 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     row = integration.integration_environments.sole
     assert_equal "98765", row.base_config["installation_id"]
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, row.health_status
+    assert_equal [ "acme", "https://github.com/organizations/acme/settings/installations/98765", "read" ],
+                 [ row.installation_account, row.installation_page, row.installation_access["contents"] ], "connecting reads the installation's account, page and permissions"
     assert integration.tools.exists?(name: "pr_lookup")
     assert_not integration.tools.find_by!(name: "pr_lookup").enabled?,
                "pack tools arrive disabled like discovered ones"

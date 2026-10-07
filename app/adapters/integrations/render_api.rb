@@ -5,7 +5,9 @@ module Integrations
   class RenderApi
     class Error < Integrations::Error; end
     # Render answered that the resource is not there (spec, 404NotFound), the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Render turned the request down as it stands, such as a webhook on a plan without them (spec, 400BadRequest and the
     # like), as opposed to a key it does not accept.
     class Refused < Error; end
@@ -22,6 +24,10 @@ module Integrations
     end
 
     def owner(owner_id) = get("/owners/#{segment(owner_id)}")
+
+    # The workspaces the key can read, as a Pages::Read of owners with their id and name (GET /v1/owners, "List
+    # workspaces", api-docs.render.com/reference/list-owners).
+    def owners = list("/owners", "owner")
 
     # Every service, Postgres database and Key Value instance in the workspace, each as a Pages::Read that says whether the
     # list was read to its end. ownerId is comma separated, as the spec's form style without explode asks.

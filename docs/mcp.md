@@ -85,7 +85,7 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 | Tool | Does |
 |---|---|
 | `list_abilities` | Every grantable ability with risk level, group and whether approval rules can hold it |
-| `list_principals` | People, agents and service keys with the grants each holds |
+| `list_principals` | People, agents and service keys with the grants each holds. A grant with `no_access` is a member's default taken away, reaching nothing |
 | `upsert_permission_set` | Create (no slug) or update (slug) a set. `abilities` is the full contents |
 | `delete_permission_set` | Delete a set, revoking it from everyone holding it |
 | `grant_ability` | Grant an ability key or a set slug to a principal, with environment slugs and an expiry. Regranting retargets the existing row |
@@ -143,7 +143,7 @@ Three tools put Halon in front of an outside agent, such as one in a person's ed
 | `get_halon_performance` | How Halon has done over 7, 30 or 90 days (30 by default): runs, answers and the median time to one, what the team said of the answers (right, partly right, wrong, not rated), what came of its fixes, and the answers marked wrong with the cause they gave and the lessons from their incident. Rehearsals are left out. | `investigations: read` |
 | `ask_halon` | One chat turn, synchronously, and the answer. The chat is a `Conversation` of `KIND_MCP`, one per principal (`Conversation.for_mcp!`), so questions carry on. Delivery is `Conversation::QuietDelivery`, nothing streams. A turn that pauses on a confirmation returns `status: waiting` with the questions in the words the dashboard shows, since an MCP call has no Confirm button. A call through a connection is asked about what the tool reaches, such as "Api request on Faylee (Northflank), project faylee?", never in the agent's words (docs/ai.md). | `investigations: create` |
 
-`ask_halon` and `start_investigation` are never offered to Halon itself (`Chat::Tools::Groups::NOT_FOR_HALON`). `get_investigation` and `get_halon_performance` are, under Incidents and what happened before. A conversation's `started_by` is polymorphic for this, the same shape as `Investigation#triggered_by`.
+Every member holds `investigations: create` without a grant until an admin narrows it (docs/integrations.md, A default a grant narrows), so a personal token or OAuth connection can call `ask_halon` and `start_investigation` from the start, and a service key or agent needs a grant. `ask_halon` and `start_investigation` are never offered to Halon itself (`Chat::Tools::Groups::NOT_FOR_HALON`). `get_investigation` and `get_halon_performance` are, under Incidents and what happened before. A conversation's `started_by` is polymorphic for this, the same shape as `Investigation#triggered_by`.
 
 ## Configuring the workspace
 

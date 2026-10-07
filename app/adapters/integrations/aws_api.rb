@@ -12,7 +12,9 @@ module Integrations
     end
     # The keys are wrong, or their policy does not allow the call.
     class Denied < Error; end
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     # Each service the integration reads, with the gem and client class AWS publishes for it.
     CLIENTS = {

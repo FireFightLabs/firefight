@@ -7,7 +7,9 @@ module Integrations
     # Refused by the plan, such as a rollback past the previous production deployment on Hobby (spec, requestRollback 402).
     class PlanLimited < Error; end
     # Vercel answered that the project or webhook is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Vercel turned the request down as it stands, such as a webhook on a plan without them or past the team's limit
     # (spec, createWebhook 400 and 403).
     class Refused < Error; end
@@ -75,6 +77,18 @@ module Integrations
     end
 
     def team(team_id) = get("/v2/teams/#{segment(team_id)}")
+
+    # The teams the token can reach, each with its id, slug and name, as a Pages::Read (GET /v2/teams, "List all teams",
+    # vercel.com/docs/rest-api/teams/list-all-teams, paged by passing pagination.next back as until). A Full Account token
+    # reaches every team its person belongs to, a Hobby account included since Vercel made each one a team
+    # (vercel.com/changelog/2024-01-account-changes), and a team token its own team.
+    def teams
+      Pages.read(max_pages: MAX_PAGES) do |until_at|
+        answer = get("/v2/teams", { "limit" => PAGE_SIZE, "until" => until_at }.compact)
+        listed = Array(answer["teams"])
+        [ listed, (answer.dig("pagination", "next") if listed.size == PAGE_SIZE) ]
+      end
+    end
 
     def user = get("/v2/user")["user"] || {}
 
