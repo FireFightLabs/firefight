@@ -1,7 +1,8 @@
 module Integrations
   # Same contract as McpExecutor, so callers never branch on kind.
   class NativeExecutor
-    # progress, when given, is called with a sentence each time a long running tool has something to say.
+    # progress, when given, is called each time a long running tool has something to say, with a sentence or a
+    # Chat::CodeFixProgress (NativePack#report).
     # A tool on a connection whose app installation stopped, or lacks what the tool needs, answers why instead of calling
     # the provider (Installations.refusal).
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil)

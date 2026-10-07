@@ -391,6 +391,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # How often a step's details, or a fix's progress message, may be redrawn while a long step works, in seconds.
+  # @return [Integer]
+  def agent_step_update_interval
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Says an investigation has started, and opens the thread the rest of it goes in. incident is nil for a question
   # nobody has declared an incident for, which is then named by the question. Where the app cannot post, it goes to
   # fallback_user_id directly when one is given, and channel_id says where it went.
@@ -406,9 +412,9 @@ class PlatformAdapter
   end
 
   # One step the agent took, status is :running or :done. outcome is how a finished step went, a Chat::StepOutcome kind,
-  # or nil when it is not known.
+  # or nil when it is not known. details is one line on where a long step has got to, sent again as it moves.
   # @return [Hash] { success: true }
-  def report_agent_step(channel_id:, answer_id:, key:, title:, status:, outcome: nil)
+  def report_agent_step(channel_id:, answer_id:, key:, title:, status:, outcome: nil, details: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

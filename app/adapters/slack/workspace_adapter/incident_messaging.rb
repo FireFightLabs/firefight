@@ -408,6 +408,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     AGENT_STREAM_CADENCE
   end
 
+  # Every few seconds is well inside what Slack allows for a stream and for editing a message, and keeps up with a
+  # person reading along.
+  AGENT_STEP_UPDATE_INTERVAL = 5
+
+  def agent_step_update_interval
+    AGENT_STEP_UPDATE_INTERVAL
+  end
+
   def post_ai_response(channel_id:, incident:, answer:)
     blocks = Slack::Messages::AiResponse.build(incident: incident, answer: answer)
     post_message(channel_id: channel_id, text: answer, blocks: blocks)
@@ -454,11 +462,15 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { answer_id: nil }
   end
 
-  def report_agent_step(channel_id:, answer_id:, key:, title:, status:, outcome: nil)
+  # Slack cuts a task's details at 256 characters.
+  STEP_DETAILS_LIMIT = 256
+
+  def report_agent_step(channel_id:, answer_id:, key:, title:, status:, outcome: nil, details: nil)
     return { success: true } if answer_id.blank?
 
     shown = outcome == Chat::StepOutcome::KIND_FAILED ? STEP_ERROR : STEP_STATUSES.fetch(status)
-    task = { type: "task_update", id: key, title: title, status: shown, output: STEP_OUTCOME_WORDS[outcome] }.compact
+    task = { type: "task_update", id: key, title: title, status: shown, details: details&.truncate(STEP_DETAILS_LIMIT),
+             output: STEP_OUTCOME_WORDS[outcome] }.compact
     translate_errors do
       Slack::Client.append_stream(workspace: @workspace, channel: channel_id, ts: answer_id, chunks: [ task ])
       { success: true }

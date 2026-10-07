@@ -95,4 +95,44 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
     assert_equal "devin.fix_code", code.invocation.action_key
     assert_not code.progress!("Too late"), "a step that ended keeps how it ended"
   end
+
+  test "Firefight's own coding agent's steps are kept on the step as they happen, and the thread is redrawn no faster than Slack allows" do
+    redrawn = 0
+    adapter = stub(post_fix_progress: { message_id: "1.2", channel_id: "C1" }, update_investigation_answer: { success: true },
+                   agent_step_update_interval: 5)
+    adapter.stubs(:update_fix_progress).with { redrawn += 1 }.returns(success: true)
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+    Integrations::McpExecutor.stubs(:call).returns("content" => [])
+    seen = {}
+    Integrations::NativeExecutor.stubs(:call).with do |progress:, **|
+      before = redrawn
+      work = Chat::CodeFixProgress.start
+      work.live!
+      10.times do |number|
+        work.add("Read file#{number}.rb")
+        progress.call(work)
+      end
+      seen[:burst] = [ @plan.steps.third.reload.work.total, redrawn - before ]
+      travel 6.seconds
+      work.add("Ran bin/rails test", result: Chat::CodeFixProgress::RESULT_PASSED)
+      progress.call(work)
+      seen[:later] = [ @plan.steps.third.reload.work.total, redrawn - before ]
+      work.opened!(files: { "dns.tf" => [ 0, 3 ] }, pull_request: "https://github.com/acme/infra/pull/9")
+      progress.call(work)
+      seen[:running_text] = Slack::Messages::FixProgress.step_text(@plan.steps.third.reload)
+      travel_back
+      true
+    end.returns("content" => [ { "type" => "text", "text" => "Opened https://github.com/acme/infra/pull/9 on acme/infra against main." } ])
+
+    perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }
+
+    assert_equal [ 1, 1 ], seen[:burst], "the first word goes at once, the rest wait"
+    assert_equal [ 11, 2 ], seen[:later]
+    assert_includes seen[:running_text], ">Opened the pull request · 11 steps"
+    code = @plan.steps.third.reload
+    assert_equal [ "done", Chat::CodeFixProgress::OUTCOME_OPENED, [ "dns.tf" ] ], [ code.status, code.work.outcome, code.work.files.map(&:path) ]
+    assert_not_includes code.read_attribute_before_type_cast(:progress), "dns.tf", "kept encrypted"
+    assert_not code.track!(code.work), "a step that ended keeps how it ended"
+    assert_equal code.work.to_h, InvestigationRemediationStepSerializer.one(code)[:progress]
+  end
 end

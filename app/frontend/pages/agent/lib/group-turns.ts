@@ -17,6 +17,7 @@ export function roomStep(compaction: ChatCompaction): AgentStep {
     seconds: 0,
     card: null,
     outcome: null,
+    progress: null,
   }
 }
 

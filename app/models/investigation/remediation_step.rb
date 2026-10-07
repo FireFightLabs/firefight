@@ -6,6 +6,9 @@ class Investigation::RemediationStep < ApplicationRecord
 
   self.table_name = "investigation_remediation_steps"
 
+  # Its coding agent's steps can quote the model, so they are kept encrypted like a chat's messages.
+  encrypts :progress
+
   KIND_PULL_REQUEST = "pull_request".freeze
   KIND_ACTION = "action".freeze
   KIND_MANUAL = "manual".freeze
@@ -242,6 +245,15 @@ class Investigation::RemediationStep < ApplicationRecord
           state_checked_at: nil)
     pending.approval
   end
+
+  # A coding agent's steps so far, kept while the step runs and summed up once it ends (Chat::CodeFixProgress). Only a running
+  # step takes it, like a sentence of progress.
+  # update_all casts through the attribute's type, so the value is encrypted on its way in.
+  def track!(work)
+    self.class.where(id: id, status: STATUS_RUNNING).update_all(progress: work.to_json, updated_at: Time.current) == 1
+  end
+
+  def work = Chat::CodeFixProgress.from_json(progress)
 
   def mark_done!(by:) = move!(from: STATUS_PROPOSED, to: STATUS_DONE, done_by_id: by.id, finished_at: Time.current)
 

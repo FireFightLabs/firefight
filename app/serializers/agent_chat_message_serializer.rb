@@ -5,6 +5,12 @@ class AgentChatMessageSerializer < BaseSerializer
   OUTCOME_TYPE = "{ kind: string; said: string | null; lines: string[]; total: number; size: number; " \
                  "link: { provider: string; url: string } | null }".freeze
 
+  # What a coding agent a step runs has done so far, the same shape live and saved (Chat::CodeFixProgress#to_h).
+  PROGRESS_TYPE = "{ startedAt: string; live: boolean; total: number; lines: { text: string; at: string | null; result: string | null }[]; " \
+                  "changed: string[]; tests: { command: string; passed: boolean }[]; " \
+                  "files: { path: string; added: number | null; removed: number | null }[]; finishedAt: string | null; " \
+                  "outcome: string | null; pullRequest: string | null; reason: string | null }".freeze
+
   attributes(id: { type: :string }, role: { type: :string })
 
   type :string
@@ -21,12 +27,13 @@ class AgentChatMessageSerializer < BaseSerializer
 
   # Same shape as the live step event, so a step reads the same either way.
   type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; " \
-       "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null }[]"
+       "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null; progress: #{PROGRESS_TYPE} | null }[]"
   def tools
     chat = message.chat
     workspace = chat.workspace
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
     charted = chat.charts.unscope(:order).where(tool_call_id: calls.map(&:tool_call_id)).distinct.pluck(:tool_call_id).to_set
+    works = chat.step_progresses.where(tool_call_id: calls.map(&:tool_call_id)).to_h { |kept| [ kept.tool_call_id, kept.work ] }
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments, workspace: workspace)
       next unless step
@@ -36,7 +43,8 @@ class AgentChatMessageSerializer < BaseSerializer
         status: status, kind: Chat::Tools.kind(call.name, workspace),
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
-        outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)) }
+        outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
+        progress: works[call.tool_call_id]&.to_h }
     end
   end
 

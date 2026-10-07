@@ -1,4 +1,5 @@
 import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
+import { CodeFixWorkView } from "@/components/code-fix-work"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import { useSettledSteps } from "@/pages/agent/hooks/use-settled-steps"
 import { StepOutcomeDetails } from "@/pages/agent/components/step-outcome"
@@ -42,14 +43,16 @@ export function AgentSteps({ steps, thinking = false }: AgentStepsProps) {
 }
 
 function toRow(step: AgentStep): ThinkingRow {
+  const status = isStepStatus(step.status) ? ROW_STATUSES[step.status] : "running"
   return {
     id: step.key,
     primary: step.title,
     secondary: step.headline || undefined,
-    status: isStepStatus(step.status) ? ROW_STATUSES[step.status] : "running",
+    status,
     details: step.asked.map(([ label, meta ]) => ({ label, meta })),
     outcome: step.outcome ? <StepOutcomeDetails outcome={step.outcome} /> : undefined,
     quiet: step.kind === AGENT_STEP_KINDS.ROOM,
+    live: step.progress ? <CodeFixWorkView work={step.progress} running={status === "running"} /> : undefined,
   }
 }
 

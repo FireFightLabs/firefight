@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_232000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_233100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -574,6 +574,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_232000) do
     t.string "skill", null: false
     t.datetime "updated_at", null: false
     t.index ["skill"], name: "index_chat_skill_problems_on_skill", unique: true
+  end
+
+  create_table "chat_step_progresses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.string "tool_call_id", null: false
+    t.text "progress", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "tool_call_id"], name: "index_chat_step_progresses_on_chat_id_and_tool_call_id", unique: true
   end
 
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1374,6 +1383,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_232000) do
     t.text "checked_state"
     t.string "state_change"
     t.datetime "state_checked_at"
+    t.text "progress"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
     t.index ["invocation_id"], name: "index_investigation_remediation_steps_on_invocation_id"
@@ -2271,6 +2281,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_232000) do
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
+  add_foreign_key "chat_step_progresses", "chats", on_delete: :cascade
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify

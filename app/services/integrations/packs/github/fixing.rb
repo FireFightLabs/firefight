@@ -10,6 +10,8 @@ module Integrations
         FIX_TIMEOUT = 15 * 60
         BRANCH_PREFIX = "halon/fix-".freeze
         TITLE_LIMIT = 72
+        # What the agent prints goes to the box's progress file as it runs (SANDBOX_PROGRESS, set by a box that reads
+        # commands in the background) and to its log, so the steps show live and the answer is read at the end as before.
         # Every change is read against the commit the copy started at, whatever the agent did to the branch or the index,
         # and the copy goes back to that commit and its own git settings after. What preparing installed is ignored, so
         # cleaning keeps it. Paths travel base64 encoded, so any name survives, and a file's content comes from git, so a
@@ -23,10 +25,14 @@ module Integrations
           trap restore EXIT
           git reset -q --hard "$start" && git clean -fdq
           printf '%s' "$1" > "$dir/opencode.json"
-          OPENCODE_CONFIG="$dir/opencode.json" opencode run --model "$3" --format json "$2" > "$dir/agent.log" 2>&1
-          echo "AGENT_EXIT $?"
+          OPENCODE_CONFIG="$dir/opencode.json" opencode run --model "$3" --format json "$2" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
+          echo "AGENT_EXIT ${PIPESTATUS[0]}"
           echo "BASE $start"
           git add -A
+          git diff --cached --no-renames --numstat -z "$start" | while IFS= read -r -d '' entry; do
+            added=${entry%%$'\t'*}; rest=${entry#*$'\t'}; removed=${rest%%$'\t'*}
+            printf 'COUNT\t%s\t%s\t%s\n' "$added" "$removed" "$(printf '%s' "${rest#*$'\t'}" | base64 -w0)"
+          done
           git diff --cached --no-renames --raw -z "$start" | while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
             set -- $meta
             name=$(printf '%s' "$path" | base64 -w0)
@@ -47,7 +53,8 @@ module Integrations
         # Files that run with the repository's secrets in its CI, which a change written by an agent never touches.
         GUARDED = %r{\A\.github/}
 
-        Change = Data.define(:files, :stat, :log, :agent_exit, :base)
+        # counts is each changed path with the lines it adds and removes, nil for a binary file.
+        Change = Data.define(:files, :stat, :log, :agent_exit, :base, :counts)
 
         def self.included(pack)
           pack.tool :fix_code,
@@ -70,6 +77,7 @@ module Integrations
         end
 
         def fix_code(environment_row:, arguments:)
+          @work = nil
           running_commands!
           repo = repo_argument(arguments)
           brief = required_text(arguments, "brief")
@@ -84,6 +92,7 @@ module Integrations
           return add_to_branch(environment_row, repo, title, brief, choice, arguments, token) if arguments["pull_request"].present? || arguments["branch"].present?
 
           base = arguments["base"].presence || GithubApp.get("/repos/#{repo}", token: token)["default_branch"]
+          @work = Chat::CodeFixProgress.start
           change = write_change(environment_row, repo, base, choice, agent_brief(brief, arguments["context"]))
           fail! "The coding agent changed nothing in #{repo}.\n#{change.log}" if change.files.empty?
 
@@ -91,7 +100,12 @@ module Integrations
             repo, base: base, base_sha: change.base, branch: "#{BRANCH_PREFIX}#{SecureRandom.hex(4)}", title: title, message: title,
                   files: change.files, body: pull_request_body(arguments["summary"].presence || title, arguments["context"]), token: token
           )
+          @work.opened!(files: change.counts, pull_request: opened["html_url"])
+          report(@work)
           "Opened #{opened['html_url']} on #{repo} against #{base}.\n#{change.stat}"
+        rescue StandardError => error
+          work_failed(error)
+          raise
         end
 
         private
@@ -102,6 +116,7 @@ module Integrations
         # agent worked is refused rather than overwritten.
         def add_to_branch(environment_row, repo, title, brief, choice, arguments, token)
           target = branch_target(repo, arguments, token)
+          @work = Chat::CodeFixProgress.start
           change = write_change(environment_row, repo, target.sha, choice, agent_brief(brief, arguments["context"]))
           fail! "The coding agent changed nothing in #{repo}.\n#{change.log}" if change.files.empty?
 
@@ -113,6 +128,8 @@ module Integrations
             fail! Sentence.join("GitHub did not move #{target.branch} to the new commit", error,
                                 after: "Someone may have pushed to it while the agent worked, so nothing was overwritten. Ask again to write it on the new head")
           end
+          @work.pushed!(files: change.counts, pull_request: target.pull&.dig("html_url"))
+          report(@work)
           said = target.pull && comment_on_change(repo, target.pull, pushed, arguments["summary"].presence || title, change.stat, token)
           "Pushed #{pushed[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}\n#{change.stat}"
         end
@@ -168,11 +185,16 @@ module Integrations
 
         def write_change(environment_row, repo, base, choice, brief)
           reading = code(environment_row)
+          report(@work)
           reading.prepare(repo, ref: base)
+          @work.add("Got #{repo} ready at #{base}")
+          report(@work)
           # Opened once the copy is ready, so its lifetime is the agent's.
           session, agent_token = CodeAgentSession.open!(workspace: integration.workspace, choice: choice, repository: repo)
+          events = SandboxAgentEvents.new(@work, hidden: [ agent_token ])
           result = reading.exec(repo, ref: base, where: Sandboxes::Client::IN_COPY, timeout: FIX_TIMEOUT,
-                                      argv: [ "bash", "-c", RUN, AGENT, agent_config(choice, agent_token).to_json, brief, "#{choice.provider_name}/#{choice.model}" ])
+                                      argv: [ "bash", "-c", RUN, AGENT, agent_config(choice, agent_token).to_json, brief, "#{choice.provider_name}/#{choice.model}" ],
+                                      on_output: ->(text) { report(events.read(text)) })
           fail! "The coding agent did not finish in #{FIX_TIMEOUT / 60} minutes." if result["timed_out"]
           fail! "The change was too large for the sandbox to hand back whole, so nothing is opened." if result["truncated"]
 
@@ -184,8 +206,18 @@ module Integrations
           session&.close!
         end
 
+        # Said once the change failed after the agent was started, so its steps end with why. Firefight's own failures are
+        # not a person's to read, and say so in general words.
+        def work_failed(error)
+          return if @work.nil? || @work.finished?
+
+          @work.failed!(error.is_a?(Integrations::Error) ? error.message : "Firefight could not finish the change.")
+          report(@work)
+        end
+
         def read_change(output)
           files = {}
+          counts = {}
           listing, rest = output.split("\nSTAT\n", 2)
           exit_line, base_line, *lines = listing.to_s.lines
           lines.each do |line|
@@ -193,12 +225,14 @@ module Integrations
             case kind
             when "FILE" then files[decoded(fields[1])] = { mode: fields[0], content: fields[2].to_s }
             when "GONE" then files[decoded(fields[0])] = nil
+            when "COUNT" then counts[decoded(fields[2])] = [ fields[0], fields[1] ].map { |count| Integer(count, exception: false) }
             when "NESTED" then fail!("The change touches #{decoded(fields[0])}, a repository inside this one, which a pull request here cannot carry.")
             end
           end
           guard!(files)
           stat, log = rest.to_s.split("\nLOG\n", 2)
-          Change.new(files: files, stat: stat.to_s.strip, log: log.to_s.strip, agent_exit: exit_line.to_s[/\d+/].to_i, base: base_line.to_s.split.last)
+          Change.new(files: files, stat: stat.to_s.strip, log: log.to_s.strip, agent_exit: exit_line.to_s[/\d+/].to_i, base: base_line.to_s.split.last,
+                     counts: counts)
         end
 
         def decoded(name) = Base64.strict_decode64(name.to_s).force_encoding(Encoding::UTF_8)
