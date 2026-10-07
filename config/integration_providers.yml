@@ -351,14 +351,14 @@ providers:
     category: Cloud and hosting
     mark: GC
     color: "#4285f4"
-    description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, and rollbacks, restarts and scaling when you allow it.
+    description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, across your projects, and rollbacks, restarts and scaling when you allow it.
     server_url: ""
     site: https://console.cloud.google.com
     kind: native
     connect_with: api_token
     # Google's rule for a project id (cloud.google.com/resource-manager/docs/creating-managing-projects).
     connect_fields:
-      - { key: project, label: Project, hint: "The id of the Google Cloud project this environment runs in, as the project picker shows it.", placeholder: my-project, pattern: "[a-z][a-z0-9-]{4,28}[a-z0-9]", allowed: "6 to 30 lowercase letters, numbers and dashes, starting with a letter and not ending with a dash" }
+      - { key: project, label: Projects, scope: true, hint: "The Google Cloud projects this environment runs in. Choose one or several, or all this key can read, which takes in a project added later at the next sweep.", placeholder: Choose projects, pattern: "[a-z][a-z0-9-]{4,28}[a-z0-9]", allowed: "6 to 30 lowercase letters, numbers and dashes, starting with a letter and not ending with a dash" }
     source_links: firefight
     map: firefight
   - key: azure
@@ -379,7 +379,7 @@ providers:
     connect_fields:
       - { key: tenant_id, label: Tenant, hint: "The Microsoft Entra tenant the service principal belongs to, by its id or domain, as its app registration's overview shows it.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}|[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+", allowed: "a GUID or a domain such as contoso.onmicrosoft.com" }
       - { key: client_id, label: Client ID, hint: "The service principal's application (client) id.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
-      - { key: subscription_id, label: Subscription ID, hint: "The Azure subscription this environment runs in. Halon reads every region in it.", placeholder: 00000000-0000-0000-0000-000000000000, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
+      - { key: subscription_id, label: Subscriptions, scope: true, hint: "The Azure subscriptions this environment runs in. Choose one or several, or all this service principal can read, which takes in a subscription added later at the next sweep. Halon reads every region in each.", placeholder: Choose subscriptions, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
     source_links: firefight
     map: firefight
   - key: vercel

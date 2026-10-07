@@ -1,14 +1,15 @@
 module Integrations
   module Packs
-    # Google Cloud for one project per environment, read with a service account key the workspace creates: Cloud Run
-    # services with their revisions, logs, metrics and errors, Cloud SQL instances, Compute Engine instances and GKE
-    # clusters. Three tools change something, each as Google's own API does it, and only when the service account's roles
+    # Google Cloud for the projects an environment reads, one, several or every one its service account key can read (the
+    # project connect field, a scope). It reads Cloud Run services with their revisions, logs, metrics and errors, Cloud
+    # SQL instances, Compute Engine instances and GKE clusters. A call reaches one project, the one it names or the one
+    # its resource is in. Three tools change something, each as Google's own API does it, and only when the service account's roles
     # allow it and an admin switched the tool on: moving a Cloud Run service's traffic to a revision, setting its
     # instances, and restarting a Cloud SQL instance or resetting a Compute Engine instance.
     #
     # Every endpoint, parameter and field is from Google's REST references and discovery documents (Cloud Run Admin v1
     # and v2, Cloud Logging v2, Cloud Monitoring v3, Cloud SQL Admin v1, Compute Engine v1, GKE v1, Error Reporting
-    # v1beta1, Resource Manager v1), and the console pages are the ones Google's own docs link to.
+    # v1beta1, Resource Manager v1 and v3), and the console pages are the ones Google's own docs link to.
     class GoogleCloud < NativePack
       # The environment row's credentials, which only this pack reads.
       KEY = "service_account_key".freeze
@@ -173,24 +174,50 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: KEY, label: "Service account key", secret: true, multiline: true, placeholder: "{\"type\": \"service_account\", ...}",
-                              hint: "The JSON key of a service account with the Viewer, Logs Viewer and Monitoring Viewer roles on the project. " \
+                              hint: "The JSON key of a service account with the Viewer, Logs Viewer and Monitoring Viewer roles on each project it reads. " \
                                     "For Halon to apply fixes, add Cloud Run Developer, Cloud SQL Editor and Compute Instance Admin.")
         ]
       end
 
-      # Reads the project with the key, so a wrong key or project is said on the form before anything is saved. The
-      # project is a connect field, whose format the registry already checked.
+      # Reads each project chosen with the key, or lists them for every one it can read, so a wrong key or project is
+      # said on the form before anything is saved. The projects are a connect field, whose format the registry already
+      # checked.
       def self.credential_refusal(values, region: nil, fields: {})
         key = values[KEY].to_s.strip
-        project = fields[PROJECT].to_s.strip
+        projects = Array(fields[PROJECT]).map { |each| each.to_s.strip }.compact_blank
         return "Paste the service account's JSON key." if key.empty?
-        return "Enter the project id." if project.empty?
+        return "Choose at least one project, or all the key can read." if projects.empty?
 
-        GoogleCloudApi.new(key).project(project)
+        api = GoogleCloudApi.new(key)
+        if projects == [ IntegrationProvider::ConnectField::ALL ]
+          return "This key can read no Google Cloud project. Give its service account the Viewer role on one." if scope_options(values).empty?
+
+          return nil
+        end
+        projects.each do |project|
+          api.project(project)
+        rescue GoogleCloudApi::Error => error
+          return Sentence.join("Google Cloud refused this key or project #{project}", error)
+        end
         nil
-      rescue GoogleCloudApi::Error => error
+      rescue GoogleCloudApi::Error, NativePack::Error => error
         Sentence.join("Google Cloud refused this key or project", error)
       end
+
+      # The active projects the key can read (Integrations::GoogleCloudApi#projects), each with its id and display name.
+      def self.scope_options(values, region: nil, fields: {})
+        key = values.to_h.stringify_keys[KEY].to_s.strip
+        raise NativePack::Error, "Paste the service account's JSON key first." if key.empty?
+
+        GoogleCloudApi.new(key).projects.items.select { |project| project["state"].to_s == ACTIVE }.map do |project|
+          IntegrationProvider::ConnectOption.new(value: project["projectId"].to_s, label: project["displayName"].presence || project["projectId"].to_s)
+        end
+      rescue GoogleCloudApi::Error => error
+        raise NativePack::Error, Sentence.join("Google Cloud did not list this key's projects", error)
+      end
+
+      # A project that is not waiting to be deleted (Resource Manager v3, Project.State).
+      ACTIVE = "ACTIVE".freeze
 
       # A new key drops the token minted with the one before.
       def self.store_credentials!(environment_row, values)
@@ -200,6 +227,8 @@ module Integrations
       end
 
       def list_resources(environment_row:, arguments:)
+        return every_project(environment_row) { |pack| pack.list_resources(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
         project = project_of(environment_row)
         listing = catalog(environment_row)
         rows = listing.items.map { |item| "#{item[:name]} (#{item[:id]}), #{item[:type]} in #{item[:location]}, #{item[:status]}" }
@@ -345,8 +374,9 @@ module Integrations
         Telemetry.result("#{text} There is nothing to undo.", link: page_link(environment_row, target.project, target.type))
       end
 
+      # Reads each project the connection reaches, so one the key can no longer read is said on the connection.
       def check_health!(environment_row)
-        api(environment_row).project(project_of(environment_row))
+        ConnectionSettings.of(environment_row).scopes.each { |project| api(environment_row).project(project) }
       rescue GoogleCloudApi::Error => error
         fail! error.message
       end
@@ -356,6 +386,13 @@ module Integrations
       # a gap, and nothing of its kind is taken as gone. A Cloud Run service's settings are read in memory and the Cloud
       # SQL instances it mounts are links it declares, and each Cloud SQL instance reports the addresses it is reached at.
       def map_of(environment_row)
+        map_of_scopes(environment_row, kinds: MAP_KINDS) { |pack| pack.map_of_project(environment_row) }
+      end
+
+      # What a sweep puts on the map for one project.
+      MAP_KINDS = [ *KINDS.values, ResourceMap::KIND_DOMAIN ].freeze
+
+      def map_of_project(environment_row)
         project = project_of(environment_row)
         listing = catalog(environment_row)
         reading = MapReading.new(environment_row.integration.workspace)
@@ -369,6 +406,11 @@ module Integrations
       # narrow to, such as a Cloud SQL instance whose region the entry did not say.
       def map_refresh(environment_row, scope)
         target = Target.parse(scope.external_id)
+        if every_scope?(environment_row)
+          return unless target && ConnectionSettings.of(environment_row).scopes.include?(target.project)
+
+          return scoped(target.project).map_refresh(environment_row, scope)
+        end
         project = project_of(environment_row)
         return unless target && target.project == project
 
@@ -419,6 +461,8 @@ module Integrations
       # a time over the window. A rate per second becomes one per minute, which a live reading can be compared with. A
       # resource Google will not read keeps yesterday's baselines, and being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
+        return by_scope(environment_row, resources) { |pack, group| pack.baselines_of(environment_row, group, window) } unless scope
+
         alignment = 3600
         resources.flat_map do |resource|
           target = Target.parse(resource.external_id)
@@ -455,7 +499,15 @@ module Integrations
         fail! Sentence.join("This environment's Google Cloud key cannot be used", error, after: "Reconnect it on the Integrations page")
       end
 
-      def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Google Cloud project. Reconnect it.")
+      def project_of(environment_row) = scope!(environment_row)
+
+      # A listing of every project the connection reaches, each read by a pack of its own.
+      def every_project(environment_row)
+        texts = ConnectionSettings.of(environment_row).scopes.map do |project|
+          Array(yield(scoped(project))["content"]).filter_map { |part| part["text"] }.join("\n")
+        end
+        Telemetry.result(texts.join("\n\n"), link: nil)
+      end
 
       def catalog(environment_row)
         @catalog ||= begin
@@ -604,7 +656,7 @@ module Integrations
 
       # By its name on the map's last sweep, then in the live list. A name two resources share is refused with their ids.
       def named(environment_row, wanted)
-        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row).pluck(:external_id, :name).map { |id, name| { id: id, name: name } }
+        mapped = ResourceMap::Resource.present.where(integration_environment: environment_row, account: project_of(environment_row)).pluck(:external_id, :name).map { |id, name| { id: id, name: name } }
         found = Named.find(mapped, wanted, id: :id, name: :name, provider: PROVIDER, connection: environment_row) ||
                 Named.find(catalog(environment_row).items, wanted, id: :id, name: :name, provider: PROVIDER, connection: environment_row)
         found && Target.parse(found[:id])
