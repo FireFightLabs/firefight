@@ -71,4 +71,30 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     Slack::Messages::FixProgress.build(plan).select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements] }
                                 .find { |element| element[:action_id] == Identifiers::UNDO_FIX }
   end
+
+  test "an approved step asks to be run, with how things stand now, Run and Dismiss, and Ask again once its approval expired" do
+    alice = workspace_memberships(:alice_workspace_one)
+    @plan.apply!(by: alice, from: AbilityGateway::SOURCE_SLACK)
+    delete = @plan.steps.first
+    approval = @plan.finding.investigation.workspace.ability_approvals.create!(
+      principal: alice, principal_label: "Alice", action_key: "cloudflare.execute", request_digest: "d", required_role: "admin",
+      status: Ability::Approval::STATUS_APPROVED, approver: alice, held_for_run: true, run_expires_at: 1.hour.from_now
+    )
+    delete.update_columns(status: Investigation::RemediationStep::STATUS_APPROVED, approval_id: approval.id)
+
+    checking = Slack::Messages::FixProgress.build(@plan.reload)
+    assert_includes checking.third.dig(:elements, 0, :text), "Halon is checking how things stand now"
+    assert_equal [ Identifiers::FIX_STEP_DISMISS ], checking.fourth[:elements].map { |button| button[:action_id] }
+
+    delete.reload.checked!(Chat::CurrentState::Report.new(state: "The rule is gone already.", change: Chat::CurrentState::DONE_ALREADY))
+    ready = Slack::Messages::FixProgress.build(@plan.reload)
+    assert_includes ready.second.dig(:text, :text), "_Approved, waiting for someone to run it_"
+    assert_includes ready.third.dig(:elements, 0, :text), "Alice Smith approved it. Run it now?\n*Now:* The rule is gone already.\n:warning: This looks done already."
+    assert_equal [ Identifiers::FIX_STEP_RUN, Identifiers::FIX_STEP_DISMISS ], ready.fourth[:elements].map { |button| button[:action_id] }
+
+    approval.update_columns(status: Ability::Approval::STATUS_EXPIRED)
+    expired = Slack::Messages::FixProgress.build(@plan.reload)
+    assert_includes expired.third.dig(:elements, 0, :text), "nobody ran it within the hour"
+    assert_equal [ Identifiers::FIX_STEP_ASK_AGAIN, Identifiers::FIX_STEP_DISMISS ], expired.fourth[:elements].map { |button| button[:action_id] }
+  end
 end

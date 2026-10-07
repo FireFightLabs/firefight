@@ -9,6 +9,8 @@ class Conversation::LiveDelivery
   EVENT_INVESTIGATION = "investigation"
   # The chat made room in the model's window, shown as a quiet line where it happened.
   EVENT_MADE_ROOM = "made_room"
+  # A call held for approval in this chat moved on, so its card looks again.
+  EVENT_HELD_CALL = "held_call"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -24,6 +26,11 @@ class Conversation::LiveDelivery
     Use markdown: **bold**, _italic_, bullet and numbered lists, `code`, and fenced code blocks.
     Do not use markdown headers (#). Use **bold text** instead. Keep paragraphs short.
   STYLE
+
+  # Said from outside a turn, so it carries no place among the turn's events.
+  def self.held_call_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_HELD_CALL)
+  end
 
   def initialize(conversation)
     @conversation = conversation

@@ -35,6 +35,15 @@ module TypescriptConstants
       Export.new("REMEDIATION_STEP_STATUSES", Investigation::RemediationStep::STATUSES, "RemediationStepStatus"),
       Export.new("REMEDIATION_PLAN_STATUSES", Investigation::RemediationPlan::STATUSES, "RemediationPlanStatus"),
       Export.new("REMEDIATION_STEP_STATUS_DONE", Investigation::RemediationStep::STATUS_DONE, nil),
+      Export.new("HELD_CALL_STATUSES", {
+        "WAITING" => Chat::HeldCall::STATUS_WAITING, "CHECKING" => Chat::HeldCall::STATUS_CHECKING, "READY" => Chat::HeldCall::STATUS_READY,
+        "RUNNING" => Chat::HeldCall::STATUS_RUNNING, "RAN" => Chat::HeldCall::STATUS_RAN, "FAILED" => Chat::HeldCall::STATUS_FAILED,
+        "DISMISSED" => Chat::HeldCall::STATUS_DISMISSED, "EXPIRED" => Chat::HeldCall::STATUS_EXPIRED, "DENIED" => Chat::HeldCall::STATUS_DENIED,
+        "ASKED_AGAIN" => Chat::HeldCall::STATUS_ASKED_AGAIN
+      }, nil),
+      Export.new("APPROVED_CALL_ACTIONS", {
+        "RUN" => Chat::CurrentState::ACTION_RUN, "DISMISS" => Chat::CurrentState::ACTION_DISMISS, "ASK_AGAIN" => Chat::CurrentState::ACTION_ASK_AGAIN
+      }, nil),
       Export.new("PAST_INCIDENT_DAYS", Incident::Outcome::PAST_WINDOW_DAYS, nil),
       Export.new("CHAT_MEMORY_STATES", Chat::Memory::STATES, "ChatMemoryState"),
       Export.new("CHAT_MEMORY_TEXT_LIMIT", Chat::Memory::TEXT_LIMIT, nil),
@@ -91,7 +100,8 @@ module TypescriptConstants
         "THINKING" => Conversation::LiveDelivery::EVENT_THINKING, "STEP" => Conversation::LiveDelivery::EVENT_STEP,
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
-        "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM
+        "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
+        "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,

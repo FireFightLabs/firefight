@@ -14,11 +14,15 @@ class Investigation::RemediationStep < ApplicationRecord
   STATUS_PROPOSED = "proposed".freeze
   STATUS_RUNNING = "running".freeze
   STATUS_WAITING_APPROVAL = "waiting_approval".freeze
+  # Approved, and waiting for someone to run it. Approving a step never runs it.
+  STATUS_APPROVED = "approved".freeze
   STATUS_DONE = "done".freeze
   STATUS_FAILED = "failed".freeze
   STATUS_DECLINED = "declined".freeze
   STATUS_SKIPPED = "skipped".freeze
-  STATUSES = [ STATUS_PROPOSED, STATUS_RUNNING, STATUS_WAITING_APPROVAL, STATUS_DONE, STATUS_FAILED, STATUS_DECLINED, STATUS_SKIPPED ].freeze
+  STATUSES = [
+    STATUS_PROPOSED, STATUS_RUNNING, STATUS_WAITING_APPROVAL, STATUS_APPROVED, STATUS_DONE, STATUS_FAILED, STATUS_DECLINED, STATUS_SKIPPED
+  ].freeze
   ENDED = [ STATUS_DONE, STATUS_FAILED, STATUS_DECLINED, STATUS_SKIPPED ].freeze
   # What stops the steps that wait on it.
   STOPPED = [ STATUS_FAILED, STATUS_DECLINED, STATUS_SKIPPED ].freeze
@@ -31,6 +35,7 @@ class Investigation::RemediationStep < ApplicationRecord
   CODE_STALE_AFTER = 45.minutes
   STATUS_WORDS = {
     STATUS_PROPOSED => "not started", STATUS_RUNNING => "running", STATUS_WAITING_APPROVAL => "waiting for approval",
+    STATUS_APPROVED => "approved and waiting to be run",
     STATUS_DONE => "done", STATUS_FAILED => "failed", STATUS_DECLINED => "declined", STATUS_SKIPPED => "skipped"
   }.freeze
 
@@ -38,6 +43,10 @@ class Investigation::RemediationStep < ApplicationRecord
   belongs_to :invocation, class_name: "Ability::Invocation", optional: true
   belongs_to :approval, class_name: "Ability::Approval", optional: true
   belongs_to :done_by, class_name: "WorkspaceMembership", optional: true
+  # Halon's reading of how things stand now once the step was approved, on a chat of its own.
+  has_one :check, class_name: "Chat", as: :owner, dependent: :destroy
+
+  validates :state_change, inclusion: { in: Chat::CurrentState::CHANGES }, allow_nil: true
 
   scope :in_workspace, ->(workspace) { joins(plan: { finding: :investigation }).where(investigations: { workspace_id: workspace.id }) }
 
@@ -150,6 +159,88 @@ class Investigation::RemediationStep < ApplicationRecord
       context: { source: plan.applied_from, approval_id: approval_id, incident_id: investigation.incident&.id,
                  triggered_by_label: "Step #{position} of the fix from #{investigation.incident&.identifier || 'a Halon run'}" }.compact
     )
+  end
+
+  def workspace_id = plan.finding.investigation.workspace_id
+
+  def approved? = status == STATUS_APPROVED
+
+  # Approved, and Halon has not yet said how things stand now.
+  def checking? = approved? && state_checked_at.nil?
+
+  # Approved, and nobody ran it within its window.
+  def lapsed? = approved? && approval.present? && (approval.expired? || approval.run_lapsed?)
+
+  # What Halon read can quote what a provider said, so anything that looks like a credential is replaced first.
+  def checked!(report)
+    checked = self.class.where(id: id, status: STATUS_APPROVED, state_checked_at: nil)
+                  .update_all(checked_state: report.state && self.class.redacted(report.state), state_change: report.change,
+                              state_checked_at: report.checked_at, updated_at: Time.current)
+    reload
+    checked == 1
+  end
+
+  def report
+    Chat::CurrentState::Report.new(state: checked_state, change: state_change, checked_at: state_checked_at) if state_checked_at
+  end
+
+  EXPIRED = "The approval expired before anyone ran it. Ask for it again if it is still needed.".freeze
+
+  # What may be done with an approved step, whoever does it. Run shows while Halon checks, blocked with why.
+  def offers
+    return [] unless approved?
+    return [ Chat::CurrentState::ACTION_ASK_AGAIN, Chat::CurrentState::ACTION_DISMISS ] if lapsed?
+
+    [ Chat::CurrentState::ACTION_RUN, Chat::CurrentState::ACTION_DISMISS ]
+  end
+
+  # Whoever applied the fix may run an approved step, and so may someone who may run its tool themselves. It still runs as
+  # whoever applied the fix, since that is who it was approved for.
+  def run_blocked_reason(member)
+    return "Step #{position} is #{STATUS_WORDS.fetch(status)}." unless approved?
+    return "Halon is still checking how things stand now." if checking?
+    return EXPIRED if lapsed?
+    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} or someone who may run #{tool_name} can run it." unless may_run?(member)
+
+    nil
+  end
+
+  def dismiss_blocked_reason(member)
+    return "Step #{position} is #{STATUS_WORDS.fetch(status)}." unless approved?
+    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} or someone who may run #{tool_name} can dismiss it." unless may_run?(member)
+
+    nil
+  end
+
+  def ask_again_blocked_reason(member)
+    return "Only an approval that expired can be asked for again." unless lapsed?
+    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} can ask for this again." unless member && member == plan.approved_by
+
+    nil
+  end
+
+  def may_run?(member)
+    return false unless member
+    return true if member == plan.approved_by
+
+    tool = tool_to_run
+    tool.present? && tool.callable_by?(member, Ability::Resolver.resolve(member, plan.finding.investigation.workspace))
+  end
+
+  # Asks the approvers again for exactly what was approved, as whoever applied the fix. Never runs it. Returns the new
+  # approval, or nil when no rule holds the call any more. Raises AbilityGateway::Denied when they may no longer make it.
+  def request_approval_again!
+    investigation = plan.finding.investigation
+    AbilityGateway.request_approval!(
+      principal: plan.approved_by, action_key: approval.action_key, workspace: investigation.workspace, scope: approval.scope,
+      params: approval.params, context: { source: plan.applied_from, incident_id: investigation.incident&.id }.compact
+    )
+    nil
+  rescue AbilityGateway::PendingApproval => pending
+    approval.lapse_run!
+    move!(from: STATUS_APPROVED, to: STATUS_WAITING_APPROVAL, approval_id: pending.approval.id, checked_state: nil, state_change: nil,
+          state_checked_at: nil)
+    pending.approval
   end
 
   def mark_done!(by:) = move!(from: STATUS_PROPOSED, to: STATUS_DONE, done_by_id: by.id, finished_at: Time.current)

@@ -24,6 +24,7 @@ module Slack
         Investigation::RemediationStep::STATUS_PROPOSED => "Not started",
         Investigation::RemediationStep::STATUS_RUNNING => "Running",
         Investigation::RemediationStep::STATUS_WAITING_APPROVAL => "Waiting for approval",
+        Investigation::RemediationStep::STATUS_APPROVED => "Approved, waiting for someone to run it",
         Investigation::RemediationStep::STATUS_DONE => "Done",
         Investigation::RemediationStep::STATUS_FAILED => "Failed",
         Investigation::RemediationStep::STATUS_DECLINED => "Declined",
@@ -32,7 +33,7 @@ module Slack
 
       def self.build(plan)
         steps = plan.steps.includes(:done_by).to_a
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: heading(plan, steps) } }, *steps.first(STEPS_SHOWN).map { |step| step_block(step, steps) } ]
+        blocks = [ { type: "section", text: { type: "mrkdwn", text: heading(plan, steps) } }, *steps.first(STEPS_SHOWN).flat_map { |step| step_blocks(step, steps) } ]
         hidden = steps.size - STEPS_SHOWN
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: "#{hidden} more #{'step'.pluralize(hidden)} on the run page." } ] } if hidden.positive?
         blocks << undo_block(plan) if plan.undo_blocked_reason.nil?
@@ -89,12 +90,69 @@ module Slack
         "*#{headings(plan).fetch(plan.status)}*#{by}. #{steps.count(&:done?)} of #{steps.size} steps done."
       end
 
-      def self.step_block(step, steps)
+      # An approved step asks to be run, with how things stand now, and carries Run and Dismiss, or Ask again once its
+      # approval expired. Approving it never ran it.
+      def self.step_blocks(step, steps)
         block = { type: "section", text: { type: "mrkdwn", text: step_text(step).truncate(SECTION_TEXT_LIMIT) } }
         if step.mark_done_blocked_reason(steps).nil?
           block[:accessory] = { type: "button", text: { type: "plain_text", text: "Mark done" }, action_id: Identifiers::MARK_FIX_STEP_DONE, value: step.id }
         end
-        block
+        return [ block ] unless step.approved?
+
+        [ block, { type: "context", elements: [ { type: "mrkdwn", text: approved_text(step).truncate(SECTION_TEXT_LIMIT) } ] }, approved_actions(step) ]
+      end
+
+      def self.approved_text(step)
+        approver = Mrkdwn.escape(step.approval&.approver&.actor_display_name || "An approver")
+        return "#{approver} approved it, but nobody ran it within the hour, so the approval expired." if step.lapsed?
+        return "#{approver} approved it. Halon is checking how things stand now, and Run waits until it has." if step.checking?
+
+        report = step.report
+        lines = [ "#{approver} approved it. Run it now?" ]
+        lines << "*Now:* #{Mrkdwn.escape(report.state)}" if report&.state
+        lines << ":warning: #{Mrkdwn.escape(report.warning)}" if report&.warning
+        expires = step.approval&.run_expires_at
+        lines << "Expires <!date^#{expires.to_i}^{time}|#{expires.utc.strftime('%H:%M UTC')}>" if expires
+        lines.join("\n")
+      end
+
+      STEP_BUTTONS = {
+        Chat::CurrentState::ACTION_RUN => [ "Run", Identifiers::FIX_STEP_RUN, "primary" ],
+        Chat::CurrentState::ACTION_DISMISS => [ "Dismiss", Identifiers::FIX_STEP_DISMISS, nil ],
+        Chat::CurrentState::ACTION_ASK_AGAIN => [ "Ask again", Identifiers::FIX_STEP_ASK_AGAIN, nil ]
+      }.freeze
+
+      # Slack cannot show a button as blocked, so Run joins once Halon has checked, when the message is redrawn.
+      def self.approved_actions(step)
+        offers = step.offers
+        offers -= [ Chat::CurrentState::ACTION_RUN ] if step.checking?
+        elements = offers.map do |offer|
+          text, action_id, style = STEP_BUTTONS.fetch(offer)
+          { type: "button", text: { type: "plain_text", text: text }, action_id: action_id, value: step.id, style: style }.compact
+        end
+        { type: "actions", elements: elements }
+      end
+
+      STEP_NEWS_TITLES = {
+        Investigation::RemediationStep::STATUS_APPROVED => ":unlock:", Investigation::RemediationStep::STATUS_DECLINED => ":no_entry_sign:"
+      }.freeze
+
+      # To whoever applied a fix that has no thread, when one of its steps was decided on.
+      def self.step_news(step)
+        blocks = [ { type: "section", text: { type: "mrkdwn", text: "#{STEP_NEWS_TITLES.fetch(step.status, ':hourglass:')}  *#{Mrkdwn.escape(step_news_fallback(step))}*" } },
+                   { type: "divider" },
+                   { type: "section", text: { type: "mrkdwn", text: step_text(step).truncate(SECTION_TEXT_LIMIT) } } ]
+        url = DashboardUrl.investigation(step.plan.finding.investigation)
+        blocks << { type: "actions", elements: [ { type: "button", text: { type: "plain_text", text: "Open the run" }, url: url } ] } if url
+        blocks
+      end
+
+      def self.step_news_fallback(step)
+        approver = step.approval&.approver&.actor_display_name || "An approver"
+        return "#{approver} declined step #{step.position} of the fix. It did not run." unless step.approved?
+        return "The approval for step #{step.position} of the fix expired before anyone ran it." if step.lapsed?
+
+        "#{approver} approved step #{step.position} of the fix. Run it now?"
       end
 
       # A tool's result is another system's words, so it is escaped and cut short. The run page has it whole.

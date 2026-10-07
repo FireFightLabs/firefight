@@ -52,6 +52,39 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :string, optional: true
   def mark_done_blocked_reason = step.mark_done_blocked_reason
 
+  # Once approved, who approved it and how things stand now, as Halon read them before anyone runs it.
+  type :string, optional: true
+  def approved_by = (step.approval&.approver&.actor_display_name if step.approved?)
+
+  type :boolean
+  def checking = step.checking?
+
+  type :boolean
+  def lapsed = step.lapsed?
+
+  type :string, optional: true
+  def state = step.report&.state
+
+  type :string, optional: true
+  def warning = step.report&.warning
+
+  type :string, optional: true
+  def expires_at = (step.approval&.run_expires_at&.iso8601 if step.approved?)
+
+  # What may be done with an approved step, each shown with why it is blocked for whoever is looking, who is the
+  # request's principal.
+  type "string[]"
+  def offers = step.offers
+
+  type :string, optional: true
+  def run_blocked_reason = (step.run_blocked_reason(Current.principal) if step.offers.include?(Chat::CurrentState::ACTION_RUN))
+
+  type :string, optional: true
+  def dismiss_blocked_reason = (step.dismiss_blocked_reason(Current.principal) if step.offers.include?(Chat::CurrentState::ACTION_DISMISS))
+
+  type :string, optional: true
+  def ask_again_blocked_reason = (step.ask_again_blocked_reason(Current.principal) if step.offers.include?(Chat::CurrentState::ACTION_ASK_AGAIN))
+
   # The ledger row written before the call, whose decision is what let it run.
   type "{ decision: string, at: string } | null"
   def receipt

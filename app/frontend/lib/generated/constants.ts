@@ -86,6 +86,7 @@ export const REMEDIATION_STEP_STATUSES = [
   "proposed",
   "running",
   "waiting_approval",
+  "approved",
   "done",
   "failed",
   "declined",
@@ -103,6 +104,25 @@ export const REMEDIATION_PLAN_STATUSES = [
 export type RemediationPlanStatus = (typeof REMEDIATION_PLAN_STATUSES)[number]
 
 export const REMEDIATION_STEP_STATUS_DONE = "done" as const
+
+export const HELD_CALL_STATUSES = {
+  "WAITING": "waiting",
+  "CHECKING": "checking",
+  "READY": "ready",
+  "RUNNING": "running",
+  "RAN": "ran",
+  "FAILED": "failed",
+  "DISMISSED": "dismissed",
+  "EXPIRED": "expired",
+  "DENIED": "denied",
+  "ASKED_AGAIN": "asked_again"
+} as const
+
+export const APPROVED_CALL_ACTIONS = {
+  "RUN": "run",
+  "DISMISS": "dismiss",
+  "ASK_AGAIN": "ask_again"
+} as const
 
 export const PAST_INCIDENT_DAYS = 180 as const
 
@@ -566,7 +586,8 @@ export const AGENT_STREAM_EVENTS = {
   "FAILED": "failed",
   "WAITING": "waiting",
   "INVESTIGATION": "investigation",
-  "MADE_ROOM": "made_room"
+  "MADE_ROOM": "made_room",
+  "HELD_CALL": "held_call"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -612,7 +633,8 @@ export const AGENT_CHAT_PROPS = {
   "CHARTS": "charts",
   "WAITING_MESSAGES": "waitingMessages",
   "ATTACHMENT_RULES": "attachmentRules",
-  "COMPACTIONS": "compactions"
+  "COMPACTIONS": "compactions",
+  "HELD_CALLS": "heldCalls"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

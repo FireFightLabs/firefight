@@ -168,6 +168,30 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Firefight runs step 1 itself once the fix is applied.", flash[:alert]
   end
 
+  test "an approved step is run from the run page once, with what the page shows about it, and a second press is refused" do
+    plan = build_fix_plan(@workspace)
+    alice = workspace_memberships(:alice_workspace_one)
+    plan.apply!(by: alice, from: AbilityGateway::SOURCE_WEB)
+    investigation = plan.finding.investigation
+    approval = @workspace.ability_approvals.create!(principal: alice, principal_label: "user:Alice Smith", action_key: "cloudflare.execute",
+                                                    request_digest: "d", required_role: "admin", status: Ability::Approval::STATUS_APPROVED,
+                                                    approver: alice, held_for_run: true, run_expires_at: 52.minutes.from_now)
+    step = plan.steps.first
+    step.update_columns(status: Investigation::RemediationStep::STATUS_APPROVED, approval_id: approval.id, checked_state: "The rule is still there.",
+                        state_change: Chat::CurrentState::UNCHANGED, state_checked_at: Time.current)
+
+    Current.principal = workspace_memberships(:bob_workspace_one)
+    shown = InvestigationRemediationStepSerializer.one_as_hash(step.reload).stringify_keys
+    assert_equal [ "Alice Smith", "The rule is still there.", [ "run", "dismiss" ] ], shown.values_at("approvedBy", "state", "offers")
+    assert_match "Only Alice Smith or someone who may run cloudflare_execute", shown["runBlockedReason"]
+    Current.reset
+
+    assert_enqueued_with(job: InvestigationFixJob, args: [ plan.id, step.id, approval.id ]) { post investigation_fix_step_run_url(investigation, step) }
+    assert_equal "Running the step now.", flash[:notice]
+    post investigation_fix_step_run_url(investigation, step)
+    assert_equal "Step 1 is running.", flash[:alert]
+  end
+
   test "an applied fix's undo is asked for from the run page, shown under the fix, and applied by its own address" do
     plan = build_fix_plan(@workspace)
     plan.update_columns(status: Investigation::RemediationPlan::STATUS_APPLIED)
