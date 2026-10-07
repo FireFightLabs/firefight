@@ -29,6 +29,10 @@ module TypescriptConstants
         "CONNECT" => IntegrationProvider::ACTION_CONNECT, "RECONNECT" => IntegrationProvider::ACTION_RECONNECT,
         "MANAGE" => IntegrationProvider::ACTION_MANAGE
       }, nil),
+      Export.new("INSTALLATION_STATES", {
+        "REMOVED" => Integrations::Installations::REMOVED, "SUSPENDED" => Integrations::Installations::SUSPENDED,
+        "EMPTIED" => Integrations::Installations::EMPTIED
+      }, nil),
       Export.new("INCIDENT_FORM_SLUGS", IncidentForm::SLUGS, "IncidentFormSlug"),
       Export.new("RESOURCE_MAP_KINDS", ResourceMap::KINDS, "ResourceMapKind"),
       Export.new("REMEDIATION_STEP_KINDS", Investigation::RemediationStep::KINDS, "RemediationStepKind"),
