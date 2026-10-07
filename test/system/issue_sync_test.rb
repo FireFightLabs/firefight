@@ -61,6 +61,7 @@ class IssueSyncTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-items.png"))
 
     within("#action-#{asked.id}") { click_button "Create issue" }
+    assert_selector "[data-sonner-toast]", text: "Opening the item's issue."
     within("#action-#{asked.id}") do
       assert_text "Firefight is opening its issue."
       assert_no_button "Create issue"
@@ -76,6 +77,7 @@ class IssueSyncTest < ApplicationSystemTestCase
       assert_link "ENG-30", href: "https://linear.app/acme/issue/ENG-30/rotate", wait: 10
       assert_no_text "Firefight is opening its issue."
     end
+    assert_selector "[data-sonner-toast]", text: "Opening the item's issue.", maximum: 1
     page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-item-linked.png"))
   end
 
