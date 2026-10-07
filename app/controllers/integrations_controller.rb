@@ -230,7 +230,7 @@ class IntegrationsController < InertiaController
     Integrations::MapEvents.connection_removed(@integration)
     installations = Integrations::Installations.disconnected!(@integration, uninstall: params[:uninstall], by: current_membership)
     @integration.update!(deleted_at: Time.current)
-    return redirect_to integrations_path if removal.empty? && installations.empty?
+    return redirect_to integrations_path, notice: "Disconnected #{@integration.name}." if removal.empty? && installations.empty?
 
     lead = removal.any? ? "#{@integration.name} is disconnected and Firefight no longer accepts the changes it sends." : "#{@integration.name} is disconnected."
     failed, done = installations.partition(&:error)
