@@ -64,8 +64,45 @@ module Integrations
     # How often a change log is read unless the source says otherwise.
     POLL_EVERY = 5.minutes
 
-    # What one read of a change log found, and where the next read starts.
-    Polled = Data.define(:events, :cursor)
+    # What one read of a change log found, and where the next read starts. error is why a part of it could not be read,
+    # such as one project of several, while the rest was.
+    Polled = Data.define(:events, :cursor, :error) do
+      def initialize(events:, cursor:, error: nil) = super
+    end
+
+    # Reads the change log of each scope the connection reaches (Integrations::Scopes), such as each Google Cloud project,
+    # from a cursor of its own, by the block answering a Polled for one scope and its cursor. The cursors are kept as one
+    # JSON object of scope to cursor, and a cursor kept before the connection read several is its first scope's. A scope
+    # added since starts from now. A scope that cannot be read keeps its cursor and is said in error while the others are
+    # still read, and only when every scope fails does the read fail.
+    def self.poll_each_scope(row, since:)
+      settings = ConnectionSettings.of(row)
+      kept = cursors(since, settings)
+      failures = {}
+      polled = settings.scopes.filter_map do |scope|
+        [ scope, yield(scope, kept[scope]) ]
+      rescue Integrations::RateLimited
+        raise
+      rescue Integrations::Error => error
+        failures[scope] = error
+        nil
+      end
+      raise failures.values.first if polled.empty? && failures.any?
+
+      cursor = failures.keys.to_h { |scope| [ scope, kept[scope] ] }.compact.merge(polled.to_h { |scope, read| [ scope, read.cursor ] })
+      error = failures.map { |scope, failed| Sentence.join("The change log of #{settings.scope_field.one} #{settings.scope_name(scope)} could not be read", failed) }.join(" ").presence
+      Polled.new(events: polled.flat_map { |_scope, read| read.events }, cursor: cursor.to_json, error: error)
+    end
+
+    def self.cursors(since, settings)
+      return {} if since.blank?
+
+      parsed = JSON.parse(since)
+      parsed.is_a?(Hash) ? parsed : { settings.chosen_scopes.first => since }
+    rescue JSON::ParserError
+      { settings.chosen_scopes.first => since }
+    end
+    private_class_method :cursors
 
     # A place a person may set the provider up to send changes from, by its key and the name a person reads, with why it
     # cannot be set up there, or nil.

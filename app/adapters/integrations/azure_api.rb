@@ -57,6 +57,11 @@ module Integrations
 
     def subscription_details = get("/subscriptions/#{segment(@subscription)}", "2022-12-01")
 
+    # Every subscription the principal holds a role on, each with its subscriptionId, displayName and state, following
+    # nextLink (Subscriptions, List, 2022-12-01, learn.microsoft.com/rest/api/resources/subscriptions/list). Reader on a
+    # subscription is enough to see it. No subscription of its own is needed to ask.
+    def subscriptions = list("/subscriptions", "2022-12-01")
+
     # A Resource Manager read, by path from the root and the api-version that resource type takes.
     def get(path, api_version, query = {}) = arm(Net::HTTP::Get, path, api_version, nil, query)
 

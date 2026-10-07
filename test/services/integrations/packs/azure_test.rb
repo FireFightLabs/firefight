@@ -60,8 +60,9 @@ module Integrations
         AzureApi.any_instance.stubs(:subscription_details).raises(AzureApi::Error, "Microsoft answered 401: AADSTS7000215: Invalid client secret provided")
         values = { Azure::SECRET => "wrong" }
 
-        assert_match "Azure refused this service principal or subscription: Microsoft answered 401: AADSTS7000215: Invalid client secret provided.", Azure.credential_refusal(values, fields: FIELDS)
-        assert_equal "Enter the tenant, client id and subscription id.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
+        assert_match "Azure refused this service principal or subscription 11111111-2222-3333-4444-555555555555: Microsoft answered 401: AADSTS7000215: Invalid client secret provided.", Azure.credential_refusal(values, fields: FIELDS)
+        assert_equal "Enter the tenant and client id.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::TENANT))
+        assert_equal "Choose at least one subscription, or all the service principal can read.", Azure.credential_refusal(values, fields: FIELDS.except(Azure::SUBSCRIPTION))
         assert_equal "Paste the client secret.", Azure.credential_refusal({}, fields: FIELDS)
         assert_equal [ Azure::SECRET ], Azure.credential_fields.map(&:key)
         subscription = IntegrationProvider.find("azure").connect_fields.find { |field| field.key == Azure::SUBSCRIPTION }
