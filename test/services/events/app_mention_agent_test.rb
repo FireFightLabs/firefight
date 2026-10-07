@@ -194,6 +194,54 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_empty run.notes
   end
 
+  test "a member asks Halon and starts an investigation without any grant" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("what is going on", by: bob) }
+    assert_enqueued_with(job: InvestigationJob) { mention("investigate checkout 500s", thread_ts: "1700000000.000200", by: bob) }
+
+    assert_equal bob, @incident.investigations.live.sole.triggered_by
+  end
+
+  test "a member an admin took asking away from is told so, only them, and nothing is asked or started" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+    take_halon_from(@workspace, bob)
+    refusal = AuthorizedDispatch.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE))
+    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:user] == bob.platform_user_id && arguments[:text] == refusal }
+                 .twice.returns({ ok: true })
+
+    assert_no_enqueued_jobs(only: [ ConversationReplyJob, InvestigationJob ]) do
+      mention("what is going on", by: bob)
+      mention("investigate checkout 500s", thread_ts: "1700000000.000200", by: bob)
+    end
+    assert_equal 0, @workspace.conversations.count
+    assert_empty @incident.investigations
+    assert_equal Ability::Invocation::DECISION_DENY,
+                 @workspace.ability_invocations.find_by!(principal_id: bob.id, source: AbilityGateway::SOURCE_SLACK,
+                                                         action_key: Ability::Action::INVESTIGATIONS_CREATE).decision
+  end
+
+  test "a question to Halon in Slack is in Activity as whoever asked, and an approval rule never holds it" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+    @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals").policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: PolicyRule::ApprovalConditions::FIELD_ACTION_KEY, operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ Ability::Action::INVESTIGATIONS_CREATE ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+    halon = Ability::Action.system!(Ability::Action::INVESTIGATIONS_CREATE)
+    assert AbilityGateway.approval_requirement(@workspace, halon, halon.key, {}, {}), "the rule would hold the dashboard"
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("what is going on", by: bob) }
+
+    asked = @workspace.ability_invocations.find_by!(principal_id: bob.id, action_key: Ability::Action::INVESTIGATIONS_CREATE)
+    assert_equal [ Ability::Invocation::DECISION_ALLOW, AbilityGateway::SOURCE_SLACK, @incident.id ], [ asked.decision, asked.source, asked.incident_id ]
+    assert asked.completed_at
+    assert_empty @workspace.ability_approvals
+  end
+
   private
 
   def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id, parent: nil, files: nil)

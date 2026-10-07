@@ -210,7 +210,9 @@ Rails.application.routes.draw do
       end
     end
     get "/gateway/permissions", to: "settings#permissions", as: :gateway_permissions
-    resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants"
+    resources :ability_grants, only: [ :create, :update, :destroy ], path: "gateway/permissions/grants" do
+      post :withhold, on: :collection, path: "no-access"
+    end
     resources :ability_roles, only: [ :create, :update, :destroy ], path: "gateway/permissions/sets"
     resources :approval_rules, only: [ :create, :update, :destroy ], path: "gateway/permissions/approval-rules" do
       member do

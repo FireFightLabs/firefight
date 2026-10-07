@@ -6,6 +6,19 @@ class WorkspaceMembershipTest < ActiveSupport::TestCase
     @alice = workspace_memberships(:alice_workspace_one)
   end
 
+  test "every member asks Halon without a grant until an admin grants it, and from then the grant decides" do
+    bob = workspace_memberships(:bob_workspace_one)
+    asks = -> { bob.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, @workspace) }
+    assert asks.call
+
+    take_halon_from(@workspace, bob)
+    assert_not asks.call
+    assert @alice.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, @workspace)
+
+    Ability::Grant.grant!(workspace: @workspace, principal: bob, target: { action: Ability::Action.system!(Ability::Action::INVESTIGATIONS_CREATE) })
+    assert asks.call
+  end
+
   test "resolve finds a member by membership id, platform user id, or email" do
     assert_equal @alice, @workspace.workspace_memberships.resolve(@alice.id)
     assert_equal @alice, @workspace.workspace_memberships.resolve(@alice.platform_user_id)

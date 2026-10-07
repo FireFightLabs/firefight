@@ -1,5 +1,5 @@
 class AbilityGrantsController < InertiaController
-  authorizes Ability::Action::RESOURCE_PERMISSIONS, create: :create, update: :update, delete: :destroy
+  authorizes Ability::Action::RESOURCE_PERMISSIONS, create: %i[create withhold], update: :update, delete: :destroy
 
   def create
     principal = Ability::Principal.find!(current_workspace, params[:principal_kind], params[:principal_id])
@@ -10,6 +10,17 @@ class AbilityGrantsController < InertiaController
     )
 
     redirect_to gateway_permissions_path, notice: "#{principal.principal_label} was granted #{grant.label}#{expiry_suffix(grant)}."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
+  end
+
+  # Takes a member's default away at once. Revoking the grant this writes gives it back.
+  def withhold
+    principal = Ability::Principal.find!(current_workspace, params[:principal_kind], params[:principal_id])
+    grant = Ability::Grant.withhold!(workspace: current_workspace, principal: principal, action: find_action!)
+
+    redirect_to gateway_permissions_path,
+                notice: "#{principal.actor_display_name} can no longer #{title_of(grant.action)}. Restore it to give it back."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
@@ -30,6 +41,8 @@ class AbilityGrantsController < InertiaController
     grant = current_workspace.ability_grants.find(params[:id])
     label = grant.label
     grant.destroy!
+    return redirect_to(gateway_permissions_path, notice: "#{grant.principal.actor_display_name} can #{title_of(grant.action)} again.") if grant.no_access?
+
     redirect_to gateway_permissions_path, notice: "#{label} was revoked."
   end
 
@@ -40,6 +53,8 @@ class AbilityGrantsController < InertiaController
 
     " until #{grant.expires_at.to_fs(:long)}"
   end
+
+  def title_of(action) = Ability::Action.described(action.key)&.fetch(:title)&.downcase_first || action.key
 
   def find_action!
     Ability::Action.grantable_for(current_workspace).find(params[:action_id])

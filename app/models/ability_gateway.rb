@@ -87,7 +87,8 @@ class AbilityGateway
 
   # Without a block, returns an Authorization the caller must finalize. With one, the block is handed it, so an answer
   # that says it failed can be ledgered as one. On PendingApproval, the retry passes context[:approval_id] once approved.
-  def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
+  # holdable: false is for a way in nothing could resume after an approval, which is ledgered but never held.
+  def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {}, holdable: true)
     action = Ability::Action.lookup(action_key, workspace)
 
     unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
@@ -97,8 +98,8 @@ class AbilityGateway
       raise Denied.new(action_key)
     end
 
-    approval = approval_gate!(principal: principal, action: action, action_key: action_key,
-                              workspace: workspace, scope: scope, params: params, context: context)
+    approval = holdable ? approval_gate!(principal: principal, action: action, action_key: action_key,
+                                         workspace: workspace, scope: scope, params: params, context: context) : nil
 
     invocation = nil
     claimed = true
