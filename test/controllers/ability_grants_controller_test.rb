@@ -167,6 +167,7 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to integrations_url
     assert_equal "Bob Jones was granted PlanetScale: changes.", flash[:notice]
+    assert_equal workspace_memberships(:alice_workspace_one), @member.ability_grants.find_by!(role: pack).granted_by
     assert_equal({}, @member.ability_grants.find_by!(role: pack).scope)
   end
 

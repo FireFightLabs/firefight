@@ -5,6 +5,8 @@ module Ability
     belongs_to :principal, polymorphic: true
     belongs_to :role, class_name: "Ability::Role", optional: true, inverse_of: :grants
     belongs_to :action, class_name: "Ability::Action", optional: true
+    # Whoever made it, through the Permissions screen, the API or MCP. Nil for a grant Firefight made itself.
+    belongs_to :granted_by, polymorphic: true, optional: true
 
     # Workspace is part of the key so a global principal can hold different grants per tenant.
     validates :action_id, uniqueness: { scope: [ :principal_type, :principal_id, :workspace_id ] },
@@ -41,8 +43,9 @@ module Ability
 
     # One grant per principal per target is a DB invariant, so granting again
     # retargets the existing row.
-    def self.grant!(workspace:, principal:, target:, environment_ids: [], expires_at: nil)
+    def self.grant!(workspace:, principal:, target:, environment_ids: [], expires_at: nil, granted_by: nil)
       grant = workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(target))
+      grant.granted_by = granted_by if granted_by
       grant.scope = Ability::Scope.for_environments(workspace, environment_ids)
       grant.expires_at = parse_expiry(grant, expires_at)
       grant.save!
@@ -147,7 +150,7 @@ module Ability
     def settle_pack_requests
       requests = Ability::PackRequest.waiting.where(requester_id: principal_id, role_id: role_id)
       settled = requests.pluck(:id)
-      requests.update_all(given_at: Time.current, updated_at: Time.current)
+      requests.update_all(given_at: Time.current, given_by_id: (granted_by_id if granted_by.is_a?(WorkspaceMembership)), updated_at: Time.current)
       settled.each { |id| PackRequestSettledJob.perform_later(id) }
     end
 

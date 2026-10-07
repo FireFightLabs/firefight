@@ -6,7 +6,7 @@ class AbilityGrantsController < InertiaController
     target = params[:role_id].present? ? { role: find_role! } : { action: find_action! }
     grant = Ability::Grant.grant!(
       workspace: current_workspace, principal: principal, target: target,
-      environment_ids: params[:environment_ids], expires_at: params[:expires_at]
+      environment_ids: params[:environment_ids], expires_at: params[:expires_at], granted_by: current_membership
     )
 
     # Back to the page that asked, since the quick grant panel is not only on the Permissions screen.

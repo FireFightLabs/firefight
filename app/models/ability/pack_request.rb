@@ -62,7 +62,7 @@ module Ability
     def give!(by:)
       transaction do
         self.class.where(id: id, given_at: nil).update_all(given_at: Time.current, given_by_id: by.id, updated_at: Time.current)
-        Ability::Grant.grant!(workspace: workspace, principal: requester, target: { role: role })
+        Ability::Grant.grant!(workspace: workspace, principal: requester, target: { role: role }, granted_by: by)
       end
       reload
     end

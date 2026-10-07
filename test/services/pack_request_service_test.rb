@@ -90,9 +90,9 @@ class PackRequestServiceTest < ActiveSupport::TestCase
     @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")
     PackRequestService.ask!(request, by: @bob)
     @adapter.expects(:update_pack_request).once
-    @adapter.expects(:post_pack_answer_to_user).once.with { |pack_request:, **| pack_request.answered_by_name == "An admin" }.returns(channel_id: "D2", message_id: "2.1")
+    @adapter.expects(:post_pack_answer_to_user).once.with { |pack_request:, **| pack_request.answered_by_name == "Alice Smith" }.returns(channel_id: "D2", message_id: "2.1")
 
-    perform_enqueued_jobs { Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: @changes }) }
+    perform_enqueued_jobs { Ability::Grant.grant!(workspace: @workspace, principal: @bob, target: { role: @changes }, granted_by: @alice) }
 
     assert_not request.reload.waiting?
     assert_empty @workspace.ability_pack_requests.waiting

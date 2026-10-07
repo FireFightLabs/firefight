@@ -15,7 +15,8 @@ class Api::V1::GrantsController < Api::V1::ApiController
     @grant = Ability::Grant.grant!(
       workspace: current_workspace, principal: principal,
       target: Ability::Grant.target_for!(current_workspace, ability: params[:ability], permission_set: params[:permission_set]),
-      environment_ids: current_workspace.environment_ids_for(params[:environments]), expires_at: params[:expires_at]
+      environment_ids: current_workspace.environment_ids_for(params[:environments]), expires_at: params[:expires_at],
+      granted_by: Current.principal
     )
     render :show, status: @grant.previously_new_record? ? :created : :ok
   end
