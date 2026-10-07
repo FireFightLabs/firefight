@@ -34,6 +34,17 @@ Rails.application.configure do
 
   config.action_mailer.default_url_options = { host: "localhost", port: 3000 }
 
+  # A local SMTP server when one is set, otherwise each message opens in the browser.
+  require Rails.root.join("lib/mail_delivery")
+  if (smtp = MailDelivery.smtp_settings)
+    config.action_mailer.delivery_method = :smtp
+    config.action_mailer.smtp_settings = smtp
+  else
+    config.action_mailer.delivery_method = :letter_opener
+    config.action_mailer.perform_deliveries = true
+  end
+  config.x.mail_configured = true
+
   config.active_support.deprecation = :log
 
   config.active_record.migration_error = :page_load

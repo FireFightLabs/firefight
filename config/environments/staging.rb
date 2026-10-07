@@ -31,7 +31,13 @@ Rails.application.configure do
   config.active_job.queue_adapter = :solid_queue
   config.solid_queue.connects_to = { database: { writing: :queue } }
 
-  config.action_mailer.default_url_options = { host: "example.com" }
+  require Rails.root.join("lib/mail_delivery")
+  config.action_mailer.default_url_options = MailDelivery.url_options
+  if (smtp = MailDelivery.smtp_settings)
+    config.action_mailer.delivery_method = :smtp
+    config.action_mailer.smtp_settings = smtp
+  end
+  config.x.mail_configured = MailDelivery.deployed_configured?
 
   config.i18n.fallbacks = true
 

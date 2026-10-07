@@ -6,6 +6,36 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "the sign-in page offers only Slack while self-serve sign-in is off" do
+    Rails.application.config.x.stubs(:google_sign_in).returns(true)
+
+    get login_path, headers: inertia_headers
+
+    assert_equal false, inertia_props["googleSignIn"]
+    assert_equal false, inertia_props["emailSignIn"]
+  end
+
+  test "the sign-in page offers Google and email once self-serve sign-in is on and the host is set up" do
+    FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
+    Rails.application.config.x.stubs(:google_sign_in).returns(true)
+
+    get login_path, headers: inertia_headers
+
+    assert inertia_props["googleSignIn"]
+    assert inertia_props["emailSignIn"]
+  end
+
+  test "Google stays hidden without a Google app and email without mail" do
+    FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
+    Rails.application.config.x.stubs(:google_sign_in).returns(nil)
+    MailDelivery.stubs(:configured?).returns(false)
+
+    get login_path, headers: inertia_headers
+
+    assert_equal false, inertia_props["googleSignIn"]
+    assert_equal false, inertia_props["emailSignIn"]
+  end
+
   test "GET /login redirects authenticated users to dashboard" do
     sign_in(workspace_memberships(:alice_workspace_one))
 
