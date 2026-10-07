@@ -308,9 +308,11 @@ module Chat::Tools
     principal = agent_run.acting_principal
     resolved ||= principal && granted(agent_run)
 
-    Integrations::Capabilities.offered(agent_run.workspace, tools: tools).map do |spec, able|
+    offered = Integrations::Capabilities.offered(agent_run.workspace, tools: tools).map do |spec, able|
+      [ spec, able, principal ? able.select { |tool| tool.callable_by?(principal, resolved) } : [] ]
+    end
+    entries = offered.map do |spec, able, callable|
       writes = agent_run.reads_only? && spec.writes
-      callable = principal ? able.select { |tool| tool.callable_by?(principal, resolved) } : []
       ready = !writes && callable.any?
       Entry.new(
         name: spec.tool_name, description: clean(spec.description, ONE_LINE),
@@ -319,6 +321,20 @@ module Chat::Tools
         group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: spec.tool_name
       )
     end
+    entries + key_query_entries(agent_run, offered)
+  end
+
+  # run_key_query, offered once some capability a key check reads through is offered, and ready when the agent may
+  # run one of them. Each check is still routed and authorized as its capability.
+  def self.key_query_entries(agent_run, offered)
+    reads = offered.select { |spec, _able, _callable| ResourceMap::KeyQueries::CAPABILITIES_READ.include?(spec.key) }
+    return [] if reads.empty?
+
+    ready = reads.any? { |_spec, _able, callable| callable.any? }
+    [ Entry.new(
+      name: KeyQuery::NAME, description: clean(ResourceMap::KeyQueries::DESCRIPTION, ONE_LINE), state: ready ? STATE_READY : STATE_NOT_GRANTED,
+      tool: (KeyQuery.new(agent_run, reads) if ready), group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: KeyQuery::NAME
+    ) ]
   end
 
   def self.granted(agent_run)

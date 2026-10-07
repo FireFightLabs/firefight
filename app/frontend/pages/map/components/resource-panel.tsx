@@ -20,6 +20,7 @@ import {
 import { CHAT_MEMORY_STATES } from "@/lib/generated/constants"
 import { STATE_LABELS, STATE_TONES } from "@/pages/memory/lib/labels"
 import { Clues } from "@/pages/map/components/clues"
+import { KeyChecks } from "@/pages/map/components/key-checks"
 import { changeLabel, howFound, KIND_LABELS, RELATION_SENTENCES } from "@/pages/map/lib/labels"
 import { shortAgo } from "@/pages/map/lib/time"
 import type { SharedProps } from "@/types"
@@ -85,6 +86,10 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
             </Link>
           ))
         )}
+      </Section>
+
+      <Section title="Key checks">
+        <KeyChecks resourceId={resource.id} />
       </Section>
 
       <Section title="Past incidents">

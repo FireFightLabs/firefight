@@ -11,11 +11,53 @@ module Mcp
     # Only what the principal could call through at least one connection, and invoke still authorizes each call.
     def self.tools_for(workspace, principal)
       resolved = Ability::Resolver.resolve(principal, workspace)
-
-      Integrations::Capabilities.offered(workspace).filter_map do |spec, tools|
-        callable = tools.select { |tool| tool.callable_by?(principal, resolved) }
-        build(spec, callable, workspace) if callable.any?
+      callable = Integrations::Capabilities.offered(workspace).filter_map do |spec, tools|
+        able = tools.select { |tool| tool.callable_by?(principal, resolved) }
+        [ spec, able ] if able.any?
       end
+      reads_checks = callable.any? { |spec, _tools| ResourceMap::KeyQueries::CAPABILITIES_READ.include?(spec.key) }
+      callable.map { |spec, tools| build(spec, tools, workspace) } + (reads_checks ? [ key_query_tool ] : [])
+    end
+
+    # One resource the principal reads, or the response saying it is not on the map or which ones share the name.
+    def self.locate(server_context, reference)
+      found = ResourceMap::Resource.locate(server_context[:workspace], server_context[:principal], reference)
+      found.is_a?(String) ? ToolDispatcher.error_response(found) : found
+    end
+
+    # run_key_query, for anything on the map: one of the resource's key checks through the capability it names, each
+    # call authorized as that capability's would be, the answer led by how it compares with normal.
+    def self.key_query_tool
+      ::MCP::Tool.define(
+        name: ResourceMap::KeyQueries::TOOL_NAME,
+        description: "#{ResourceMap::KeyQueries::DESCRIPTION} (routed to a connection that runs or watches the resource; governed by the Ability Gateway)",
+        input_schema: ResourceMap::KeyQueries::SCHEMA.merge(
+          "properties" => ResourceMap::KeyQueries::SCHEMA["properties"].merge(APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" })
+        ),
+        annotations: Tools::Base::READ_ONLY.dup
+      ) do |server_context:, **args|
+        CapabilityToolFactory.key_query(server_context, args)
+      end
+    end
+
+    def self.key_query(server_context, args)
+      given = args.transform_keys(&:to_s)
+      resource = locate(server_context, given["resource"])
+      return resource if resource.is_a?(::MCP::Tool::Response)
+
+      check = ResourceMap::KeyQueries.find(resource.kind, given["query"])
+      return ToolDispatcher.error_response(ResourceMap::KeyQueries.unknown(resource, given["query"])) unless check
+
+      plan = ResourceMap::KeyQueries.plan(resource, check, principal: server_context[:principal], tools: callable(check.capability, server_context))
+      return ToolDispatcher.error_response(plan.refusal) unless plan.available?
+
+      minutes = ResourceMap::KeyQueries.minutes(given["minutes"])
+      response, answered = answer(check.capability, server_context, plan.arguments(minutes).merge(APPROVAL_ID_ARG.to_s => given[APPROVAL_ID_ARG.to_s]).compact)
+      return response unless answered
+
+      result = { Integrations::Telemetry::STRUCTURED => response.structured_content }
+      headline = ResourceMap::KeyQueries.headline(check, answered, plan.metric, result)
+      ::MCP::Tool::Response.new([ { type: "text", text: headline }, *Array(response.content) ], structured_content: response.structured_content, error: response.error?)
     end
 
     def self.build(spec, tools, workspace)
@@ -33,22 +75,30 @@ module Mcp
     end
 
     def self.invoke(key, server_context, args)
-      workspace = server_context[:workspace]
-      given = args.except(APPROVAL_ID_ARG).transform_keys(&:to_s)
+      given = args.transform_keys(&:to_s).except(APPROVAL_ID_ARG.to_s)
       return everywhere(key, server_context, args, given) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
-      call = Integrations::Capabilities.resolve(workspace, key, given, callable(key, server_context), principal: server_context[:principal])
-      response = invoke_call(call, server_context, approval_id: args[APPROVAL_ID_ARG])
+      answer(key, server_context, args).first
+    end
+
+    # The response and the call it came from, the platform's when it answered for an observability tool, or no call
+    # when the request could not be routed or nothing answered.
+    def self.answer(key, server_context, args)
+      approval_id = args[APPROVAL_ID_ARG] || args[APPROVAL_ID_ARG.to_s]
+      given = args.transform_keys(&:to_s).except(APPROVAL_ID_ARG.to_s)
+      call = Integrations::Capabilities.resolve(server_context[:workspace], key, given, callable(key, server_context), principal: server_context[:principal])
+      response = invoke_call(call, server_context, approval_id: approval_id)
       answer = { content: response.content, structuredContent: response.structured_content, isError: response.error? }
-      return response if call.fallback.nil? || response.is_a?(Waiting) || Integrations::Capabilities.definitive?(answer)
+      return [ response, (call unless response.is_a?(Waiting) || response.error?) ] if call.fallback.nil? || response.is_a?(Waiting) || Integrations::Capabilities.definitive?(answer)
 
       # The gateway uses an approval id only on the call it approved, so the retry carries it to both.
-      backup = invoke_call(call.fallback, server_context, approval_id: args[APPROVAL_ID_ARG])
+      backup = invoke_call(call.fallback, server_context, approval_id: approval_id)
       failure = Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n") if response.error?
-      ::MCP::Tool::Response.new([ { type: "text", text: Integrations::Capabilities.fell_back(call, failure: failure) }, *Array(backup.content) ],
-                                structured_content: backup.structured_content, error: backup.error? && response.error?)
+      [ ::MCP::Tool::Response.new([ { type: "text", text: Integrations::Capabilities.fell_back(call, failure: failure) }, *Array(backup.content) ],
+                                  structured_content: backup.structured_content, error: backup.error? && response.error?),
+        (call.fallback unless backup.is_a?(Waiting) || backup.error?) ]
     rescue Integrations::Capabilities::Unroutable => e
-      ToolDispatcher.error_response(e.message)
+      [ ToolDispatcher.error_response(e.message), nil ]
     end
 
     # Every connection that can answer, each answer headed with where it came from, and each call authorized on its own.
@@ -70,12 +120,7 @@ module Mcp
     end
 
     # The tools this principal may run for the capability, so it is routed only to a connection it can use.
-    def self.callable(key, server_context)
-      workspace = server_context[:workspace]
-      resolved = Ability::Resolver.resolve(server_context[:principal], workspace)
-      tools = Integrations::Capabilities.offered(workspace).find { |spec, _tools| spec.key == key }&.last.to_a
-      tools.select { |tool| tool.callable_by?(server_context[:principal], resolved) }
-    end
+    def self.callable(key, server_context) = Integrations::Capabilities.callable(server_context[:workspace], key, server_context[:principal])
 
     def self.invoke_call(call, server_context, approval_id:, alone: true)
       workspace = server_context[:workspace]

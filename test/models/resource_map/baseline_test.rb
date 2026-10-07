@@ -38,6 +38,27 @@ class ResourceMap::BaselineTest < ActiveSupport::TestCase
     assert_empty @web.baselines
   end
 
+  test "a live reading reads against normal: a multiple of the usual high above it, within its range, or below the median" do
+    record(1.upto(100).map(&:to_f))
+    baseline = @web.baselines.sole
+
+    assert_equal "Now 300 requests/s, 3.2x the usual high of 95 requests/s (usually 51 requests/s).", baseline.compared(300, "requests/s")
+    assert_equal "Now 60 requests/s, within its usual range (usually 51 requests/s, 95% under 95 requests/s).", baseline.compared(60, "requests/s")
+    assert_equal "Now 4 requests/s, below its usual 51 requests/s (95% under 95 requests/s).", baseline.compared(4, "requests/s")
+    assert_equal "Now 300 requests/s (the highest of 3 series), 3.2x the usual high of 95 requests/s (usually 51 requests/s).",
+                 baseline.compared(300, "requests/s", series: 3)
+    assert_equal "Now 2 ms, in other units than its normal (requests/s), so it is not compared.", baseline.compared(2, "ms")
+  end
+
+  test "a rate per second compares with a normal kept per minute, and a normal of zero is passed by any reading" do
+    record([ 60.0, 120.0 ])
+    @web.baselines.update_all(unit: "per minute")
+    assert_match "Now 1.6 per second, within its usual range", @web.baselines.sole.compared(1.6, "per second")
+
+    record([ 0.0, 0.0 ])
+    assert_equal "Now 2 requests/s, above the usual high of 0 requests/s (usually 0 requests/s).", @web.baselines.reload.sole.compared(2, "requests/s")
+  end
+
   private
 
   def record(values, metric: "requests")

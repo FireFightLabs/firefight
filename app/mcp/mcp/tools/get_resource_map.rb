@@ -26,7 +26,7 @@ module Mcp
                   "by provider, kind, environment and health with the most depended on. With a resource, its fact sheet: where it " \
                   "runs, its page, the catalog services it runs with what each is for and who owns it, what people " \
                   "confirmed about it, how its recent incidents ended, what normal looks like for its metrics over the last " \
-                  "week, and every link within two hops, each saying how it was found. A status is what the " \
+                  "week, its key checks with their normal (run_key_query runs one), and every link within two hops, each saying how it was found. A status is what the " \
                   "last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a " \
                   "suggestion. Never state it as fact, and say it is unconfirmed if you rely on it. It holds only what runs in the " \
                   "environments the caller may read, and a sheet counts the links it leaves out for that reason. " \
@@ -50,7 +50,7 @@ module Mcp
         end
 
         more = "#{found.size - SHEETS_SHOWN} more share this name, name one by its id on the map" if found.size > SHEETS_SHOWN
-        respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible) }, more: more }.compact)
+        respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible, principal: principal) }, more: more }.compact)
       end
 
       # The whole map one line per resource while it is small enough to read that way, and its numbers once it is not,
@@ -82,7 +82,7 @@ module Mcp
       end
 
       # links leaves out the walk two links out, for a reader that walks the map with its own tools.
-      def self.sheet(resource, visible, links: true)
+      def self.sheet(resource, visible, principal:, links: true)
         hidden = resource.links_out_of_reach(visible) if links
         environment_row = resource.integration_environment
         entries = resource.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).to_a
@@ -94,9 +94,26 @@ module Mcp
           runs: runs(entries).presence, confirmed: confirmed(resource, entries).presence,
           past_incidents: past_incidents(resource.workspace, entries).presence,
           normal: (resource.baselines.fresh.order(:label).map(&:line).presence unless resource.removed_at),
+          key_checks: (key_checks(resource, principal) unless resource.removed_at),
           links: (resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) } if links),
           out_of_reach: (hidden&.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
         }.compact
+      end
+
+      # The checks worth running first on it, each with the read it runs as, the connection that answers and its normal,
+      # or why it cannot run here. run_key_query runs one.
+      def self.key_checks(resource, principal)
+        reason = ResourceMap::KeyQueries.none_reason(resource.kind)
+        return [ reason ] if reason
+
+        ResourceMap::KeyQueries.plans(resource, principal: principal).map do |plan|
+          next "#{plan.check.key}: not available here. #{plan.refusal}" unless plan.available?
+
+          read = [ plan.call.spec.tool_name, ("of #{plan.metric}" if plan.metric) ].compact.join(" ")
+          normal = plan.baseline&.normal_text
+          normal = normal ? "Normal: #{normal}." : ("No normal read yet." if plan.check.metric?)
+          [ "#{plan.check.key} (#{plan.check.label}): #{read} through #{plan.connection}.", normal ].compact.join(" ")
+        end
       end
 
       # The catalog services it runs, with what each is for and who owns it, as people wrote them in the catalog.
