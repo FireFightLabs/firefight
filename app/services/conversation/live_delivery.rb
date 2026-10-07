@@ -51,13 +51,28 @@ class Conversation::LiveDelivery
     broadcast(type: EVENT_THINKING)
   end
 
-  # Text written so far lands before the step. outcome is what the call got back, once it has.
-  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0, outcome: nil)
+  # Text written so far lands before the step. outcome is what the call got back, once it has. progress is what a coding
+  # agent the step runs has done so far (Chat::CodeFixProgress).
+  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0, outcome: nil, progress: nil)
     @text.flush!
     shown = self.class.status_of(status, outcome)
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE), outcome: outcome&.to_h
+      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE), outcome: outcome&.to_h,
+      progress: progress&.to_h
+    )
+  end
+
+  # How often a page is told about a coding agent's work at most. The page counts the time itself.
+  PROGRESS_EVERY = 1
+
+  # The step again, still running, with what its coding agent has done so far.
+  def progress(key:, step:, progress:, kind: Chat::Tools::KIND_ACT)
+    return unless progress_pace.due?(key, progress)
+
+    broadcast(
+      type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
+      status: STATUS_RUNNING, kind: kind, seconds: 0, card: nil, outcome: nil, progress: progress.to_h
     )
   end
 
@@ -92,6 +107,8 @@ class Conversation::LiveDelivery
   end
 
   private
+
+  def progress_pace = @progress_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_EVERY)
 
   # Action Cable hands broadcasts to a pool of threads, so they can reach the page out of order. Each says when it was
   # sent, in microseconds and never twice the same, and the page places it by that.

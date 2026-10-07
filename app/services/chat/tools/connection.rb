@@ -110,7 +110,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
     ) do |authorization|
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
-      result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key)
+      result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
+                                         progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id))
       result = present.call(result) if present
       @last_result = result
       next text_of(result) unless result["isError"] == true

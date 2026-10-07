@@ -22,7 +22,7 @@ module Integrations
 
         test "the agent runs in the writable copy with a config that reaches only Firefight, and its change opens as a pull request" do
           sent = nil
-          CodeReading.any_instance.expects(:exec).with do |repo, ref:, where:, argv:, timeout:|
+          CodeReading.any_instance.expects(:exec).with do |repo, ref:, where:, argv:, timeout:, **|
             sent = argv
             repo == "acme/api" && ref == "main" && where == Sandboxes::Client::IN_COPY && timeout == Fixing::FIX_TIMEOUT
           end.returns("stdout" => agent_output, "exit_code" => 0, "timed_out" => false, "commit" => "abc")
@@ -84,10 +84,51 @@ module Integrations
           assert_match "a repository inside this one", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
         end
 
+        test "what the agent does is reported as it happens, and the change ends with its files, tests and pull request" do
+          heard = []
+          pack = Github.new(@integration, box_key: "investigation-1", progress: ->(update) { heard << update.to_h.deep_dup })
+          lines = file_fixture("opencode/fix_run.jsonl").read.lines
+          CodeReading.any_instance.expects(:exec).with do |*, on_output:, **|
+            on_output.call(lines.first(8).join)
+            on_output.call("")
+            on_output.call(lines.drop(8).join)
+            true
+          end.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.stubs(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+
+          assert_equal [ 0, 1 ], heard.first(2).map { |update| update["lines"].size }, "nothing, then the copy is ready"
+          assert_equal "Got acme/api ready at main", heard[1]["lines"].first["text"]
+          during = heard[2]
+          assert during["live"]
+          assert_includes during["lines"].map { |line| line["text"] }, "Read config/database.yml"
+          assert_nil during["finishedAt"]
+          last = Chat::CodeFixProgress.from_h(heard.last)
+          assert_equal Chat::CodeFixProgress::OUTCOME_OPENED, last.outcome
+          assert_equal "https://github.com/acme/api/pull/7", last.pull_request
+          assert_equal [ [ "config/database.yml", 1, 1 ] ], last.files.map { |file| [ file.path, file.added, file.removed ] }
+          assert_equal [ [ "ruby test/pool_test.rb", true ] ], last.tests.map { |test| [ test.command, test.passed ] }
+          assert_equal 15, last.total
+        end
+
+        test "a change that fails once the agent started ends its steps with why" do
+          heard = []
+          pack = Github.new(@integration, box_key: "investigation-1", progress: ->(update) { heard << update.to_h.deep_dup })
+          CodeReading.any_instance.stubs(:exec).returns("stdout" => agent_output(exit: 1), "timed_out" => false)
+
+          assert_raises(Integrations::Error) { pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }
+
+          last = Chat::CodeFixProgress.from_h(heard.last)
+          assert_equal Chat::CodeFixProgress::OUTCOME_FAILED, last.outcome
+          assert_equal "The coding agent stopped with an error, so its change is not opened.", last.reason
+          refute last.live?, "an older sandbox never says what the agent does"
+        end
+
         private
 
         def agent_output(path: "config/database.yml", exit: 0)
-          "AGENT_EXIT #{exit}\nBASE start-sha\nFILE\t100644\t#{Base64.strict_encode64(path)}\t#{Base64.strict_encode64("pool: 10\n")}\n" \
+          "AGENT_EXIT #{exit}\nBASE start-sha\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\nFILE\t100644\t#{Base64.strict_encode64(path)}\t#{Base64.strict_encode64("pool: 10\n")}\n" \
             "GONE\t#{Base64.strict_encode64('old name.rb')}\nSTAT\n config/database.yml | 2 +-\nLOG\ndone"
         end
       end

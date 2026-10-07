@@ -30,6 +30,7 @@ class Conversation::Runner
     return stopped!(chat) if chat.stop_requested?
 
     delivery.thinking!
+    @turn.listen_to_progress { |key, update| report_progress(key, update) }
     tell_held_outcomes(chat)
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
@@ -174,9 +175,30 @@ class Conversation::Runner
     shown = shown.with(card: Chat::Tools.chart_card) if done && shown.card.nil? && charted?(step.key)
     delivery.step(
       key: step.key, step: shown, status: step.status, kind: kinds[step.key],
-      seconds: done ? seconds_since_last_step : 0, outcome: (outcome_of(step.key) if done)
+      seconds: done ? seconds_since_last_step : 0, outcome: (outcome_of(step.key) if done), progress: works[step.key]
     )
   end
+
+  # Kept with the chat this often at most while a coding agent works, and always once it ends.
+  PROGRESS_SAVED_EVERY = 2
+
+  # A coding agent writing a change says how it is going as it works. Its steps are kept with the chat and shown under
+  # the step. A sentence from any other tool is not shown in a chat, as before, and a report that cannot be kept or
+  # shown never stops the call.
+  def report_progress(key, update)
+    shown = seen[key]
+    return unless update.is_a?(Chat::CodeFixProgress) && shown
+
+    works[key] = update
+    Chat::StepProgress.keep!(@conversation.chat, key, update) if saving_pace.due?(key, update)
+    delivery.progress(key: key, step: shown, kind: kinds[key], progress: update)
+  rescue StandardError => error
+    Rails.logger.warn({ event: "conversation.progress_not_kept", conversation_id: @conversation.id, error: error.class.name }.to_json)
+  end
+
+  def saving_pace = @saving_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_SAVED_EVERY)
+
+  def works = @works ||= {}
 
   # The wrapper kept the call's charts as the tool answered, before the loop reports the step done.
   def charted?(key) = @conversation.chat.charts.exists?(tool_call_id: key)

@@ -46,6 +46,10 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :string, optional: true
   def result = step.result
 
+  # What its coding agent has done so far, or did, the same shape a chat step carries.
+  type "#{AgentChatMessageSerializer::PROGRESS_TYPE} | null"
+  def progress = step.work&.to_h
+
   type :string, optional: true
   def done_by = step.done_by&.display_name
 

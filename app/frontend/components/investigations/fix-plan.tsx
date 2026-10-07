@@ -3,6 +3,7 @@ import { IconAlertTriangle, IconClock, IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { ApplyFix } from "@/components/investigations/apply-fix"
+import { CodeFixWorkView } from "@/components/code-fix-work"
 import { CancelFix } from "@/components/investigations/cancel-fix"
 import { FixStepStatus } from "@/components/investigations/fix-step-status"
 import { UndoFix } from "@/components/investigations/undo-fix"
@@ -17,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useExpiresIn } from "@/hooks/use-expires-in"
 import { formatTime } from "@/lib/formatters"
-import { APPROVED_CALL_ACTIONS, REMEDIATION_STEP_STATUS_DONE } from "@/lib/generated/constants"
+import { APPROVED_CALL_ACTIONS, REMEDIATION_STEP_STATUS_DONE, REMEDIATION_STEP_STATUS_RUNNING } from "@/lib/generated/constants"
 import {
   investigationFixStepAskAgainPath, investigationFixStepDismissPath, investigationFixStepDonePath, investigationFixStepRunPath,
 } from "@/lib/routes"
@@ -193,7 +194,8 @@ function Step({ investigationId, step }: { investigationId: string; step: Invest
           </details>
         )}
         {status && <FixStepStatus status={step.status} label={status} />}
-        {step.result && (
+        {step.progress && <CodeFixWorkView work={step.progress} running={step.status === REMEDIATION_STEP_STATUS_RUNNING} />}
+        {step.result && !step.progress && (
           <pre className="max-h-40 overflow-auto rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono text-xs whitespace-pre-wrap text-fg-body">
             {step.result}
           </pre>

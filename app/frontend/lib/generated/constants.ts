@@ -122,6 +122,8 @@ export type RemediationPlanStatus = (typeof REMEDIATION_PLAN_STATUSES)[number]
 
 export const REMEDIATION_STEP_STATUS_DONE = "done" as const
 
+export const REMEDIATION_STEP_STATUS_RUNNING = "running" as const
+
 export const HELD_CALL_STATUSES = {
   "WAITING": "waiting",
   "CHECKING": "checking",
@@ -624,6 +626,16 @@ export const STEP_OUTCOME_KINDS = {
   "ANSWERED": "answered",
   "FAILED": "failed",
   "NOT_FOUND": "not_found"
+} as const
+
+export const CODE_FIX_LINE_RESULTS = {
+  "PASSED": "passed",
+  "FAILED": "failed"
+} as const
+
+export const CODE_FIX_OUTCOMES = {
+  "OPENED": "opened",
+  "FAILED": "failed"
 } as const
 
 export const AGENT_STEP_KINDS = {

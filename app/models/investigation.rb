@@ -337,6 +337,9 @@ class Investigation < ApplicationRecord
     Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
   end
 
+  # A run only reads, and its steps show no progress of their own.
+  def progress_listener(_tool_call_id) = nil
+
   # A call that ran but whose answer said it failed. The step keeps what it answered and its status, so it can still be
   # cited, and the kind says how it is shown (Chat::StepOutcome).
   def mark_step_failed!(position, kind)

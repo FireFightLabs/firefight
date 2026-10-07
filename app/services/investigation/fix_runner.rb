@@ -3,6 +3,9 @@
 # approved for someone to run it, after Halon reads how things stand now. Approving a step never runs it. A step that fails, or is declined, stops the steps that wait on it, and the rest stand. The
 # run's thread carries one message that follows along, and the run page reads the same rows.
 class Investigation::FixRunner
+  # How often a coding agent's steps are kept on the fix step at most while it works. The run page reads them from there.
+  PROGRESS_SAVED_EVERY = 2
+
   ALREADY_APPLIED = "Someone else applied this fix a moment ago.".freeze
   APPLYING = "Applying the fix. Each step shows how it went.".freeze
   MARKED_DONE = "Marked done.".freeze
@@ -240,10 +243,21 @@ class Investigation::FixRunner
   end
 
   # A tool that runs long, such as a coding agent writing a change, says how it is going. The step shows it and the
-  # thread is redrawn, and a report that cannot be kept never stops the step.
+  # thread is redrawn, and a report that cannot be kept never stops the step. A connected coding agent says it in a
+  # sentence. Firefight's own reports each thing it did (Chat::CodeFixProgress), several a second at times, so the step keeps
+  # it every few seconds and the thread is redrawn no more often than the platform allows.
   def progress_of(step)
-    lambda do |text|
-      publish! if step.progress!(text)
+    saving = Chat::CodeFixProgress::Pace.new(every: PROGRESS_SAVED_EVERY)
+    redrawing = nil
+    lambda do |update|
+      if update.is_a?(Chat::CodeFixProgress)
+        next unless saving.due?(step.id, update) && step.track!(update)
+
+        redrawing ||= Chat::CodeFixProgress::Pace.new(every: WorkspaceAdapter.for(workspace).agent_step_update_interval)
+        publish! if redrawing.due?(step.id, update)
+      elsif step.progress!(update)
+        publish!
+      end
     rescue StandardError => error
       Rails.logger.warn({ event: "fix.progress_not_kept", step_id: step.id, error: error.class.name }.to_json)
     end

@@ -36,13 +36,26 @@ class Conversation::Delivery
   # Text written so far lands before the step card, which shows the tool by name and not its query.
   # A thread shows every step the same way, so what kind it is and how long it took are the dashboard's alone. How a
   # finished step went is said in a word.
-  def step(key:, step:, status:, kind: nil, seconds: nil, outcome: nil)
+  # A step whose coding agent worked through it ends with where it got to.
+  def step(key:, step:, status:, kind: nil, seconds: nil, outcome: nil, progress: nil)
     answered = outcome.nil? || outcome.kind == Chat::StepOutcome::KIND_ANSWERED
     cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && answered
     charted << key if step.card&.kind == Chat::Tools::CARD_CHART
     @text.flush!
     adapter.report_agent_step(
-      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind,
+      details: progress&.headline
+    )
+  end
+
+  # A coding agent's work, as the step's one line of details, redrawn in place no more often than the platform allows.
+  # The latest thing it did and the counts, never every line.
+  def progress(key:, step:, progress:, kind: nil)
+    return unless progress_pace.due?(key, progress)
+
+    adapter.report_agent_step(
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title,
+      status: FirefightAi::AgentLoop::STEP_RUNNING, details: progress.headline
     )
   end
 
@@ -84,6 +97,8 @@ class Conversation::Delivery
   end
 
   private
+
+  def progress_pace = @progress_pace ||= Chat::CodeFixProgress::Pace.new(every: adapter.agent_step_update_interval)
 
   def cards = @cards ||= []
 

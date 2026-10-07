@@ -31,6 +31,18 @@ class Conversation::Turn
     Chat::ToolCall::Outcome.new(value: value)
   end
 
+  # Hears how a long running call is going, such as a coding agent writing a change, so the turn can show it. Set by
+  # whoever delivers the turn.
+  def listen_to_progress(&block)
+    @progress_listener = block
+  end
+
+  # What a tool call reports its progress to, or nil when nobody listens.
+  def progress_listener(tool_call_id)
+    listener = @progress_listener
+    listener && ->(update) { listener.call(tool_call_id, update) }
+  end
+
   # A chat keeps no steps of its own, its tool calls carry how they went.
   def mark_step_failed!(_position, _kind) = nil
 

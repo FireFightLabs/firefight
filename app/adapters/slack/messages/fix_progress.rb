@@ -155,11 +155,14 @@ module Slack
         "#{approver} approved step #{step.position} of the fix. Run it now?"
       end
 
-      # A tool's result is another system's words, so it is escaped and cut short. The run page has it whole.
+      # A tool's result is another system's words, so it is escaped and cut short. The run page has it whole. While a
+      # coding agent works on the step, where it has got to stands in for the result, the latest thing it did and the
+      # counts, never every line.
       def self.step_text(step)
         status = STATUSES.fetch(step.status)
         status = "Done by #{Mrkdwn.escape(step.done_by.display_name)}" if step.done? && step.done_by
-        result = step.result.present? ? "\n>#{Mrkdwn.escape(step.result.truncate(RESULT_SHOWN)).gsub("\n", "\n>")}" : ""
+        said = step.status == Investigation::RemediationStep::STATUS_RUNNING && step.work ? step.work.headline : step.result
+        result = said.present? ? "\n>#{Mrkdwn.escape(said.truncate(RESULT_SHOWN)).gsub("\n", "\n>")}" : ""
         "*#{step.position}.* #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(step.description))}\n_#{status}_#{result}"
       end
     end

@@ -49,6 +49,9 @@ class Chat::StateCheck
   def changes_memory? = false
   def uses_skills? = false
   def code_box_key = "state-check-#{@owner.id}"
+
+  # A check only reads, so nobody listens for progress.
+  def progress_listener(_tool_call_id) = nil
   def confirms?(*, **) = false
   def hold!(*, **) = false
 

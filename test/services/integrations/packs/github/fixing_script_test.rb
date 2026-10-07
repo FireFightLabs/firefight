@@ -7,6 +7,7 @@ module Integrations
       class FixingScriptTest < ActiveSupport::TestCase
         AGENT = <<~SH.freeze
           #!/bin/sh
+          echo '{"type":"text","part":{"text":"Renaming old.rb."}}'
           git mv old.rb renamed.rb
           rm gone.txt
           printf 'pool: 10\\n' > 'config/data base.yml'
@@ -33,7 +34,9 @@ module Integrations
             File.write(File.join(bin, "opencode"), AGENT)
             File.chmod(0o755, File.join(bin, "opencode"))
 
-            output, status = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }, "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y", chdir: repo)
+            progress = File.join(root, "progress.log")
+            env = { "PATH" => "#{bin}:#{ENV.fetch('PATH')}", "SANDBOX_PROGRESS" => progress }
+            output, status = Open3.capture2(env, "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y", chdir: repo)
             change = Github.new(Integration.new(provider: "github")).send(:read_change, output)
 
             assert status.success?, output
@@ -48,6 +51,30 @@ module Integrations
             assert_empty git(repo, "status", "--porcelain").strip
             assert_empty git(repo, "config", "--get", "core.hooksPath").strip
             assert File.exist?(File.join(repo, "node_modules", "installed.js")), "what preparing installed stays"
+            assert_equal [ 1, 1 ], change.counts["config/data base.yml"]
+            assert_equal [ 0, 1 ], change.counts["gone.txt"]
+            assert_equal "{\"type\":\"text\",\"part\":{\"text\":\"Renaming old.rb.\"}}\n", File.read(progress), "what the agent prints is told as it goes"
+            assert_includes change.log, "Renaming old.rb.", "and still kept for the answer"
+          end
+        end
+
+        test "the agent's exit code comes through the pipe, and an older box with nowhere to tell runs it all the same" do
+          Dir.mktmpdir do |root|
+            repo = File.join(root, "repo")
+            bin = File.join(root, "bin")
+            FileUtils.mkdir_p([ repo, bin ])
+            File.write(File.join(repo, "a.txt"), "a\n")
+            git(repo, "init", "-q")
+            git(repo, "add", "-A")
+            git(repo, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "start")
+            File.write(File.join(bin, "opencode"), "#!/bin/sh\necho b > a.txt\necho failing\nexit 3\n")
+            File.chmod(0o755, File.join(bin, "opencode"))
+
+            output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }, "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y", chdir: repo)
+            change = Github.new(Integration.new(provider: "github")).send(:read_change, output)
+
+            assert_equal 3, change.agent_exit
+            assert_equal "failing", change.log
           end
         end
 

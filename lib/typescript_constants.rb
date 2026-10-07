@@ -43,6 +43,7 @@ module TypescriptConstants
       Export.new("REMEDIATION_STEP_STATUSES", Investigation::RemediationStep::STATUSES, "RemediationStepStatus"),
       Export.new("REMEDIATION_PLAN_STATUSES", Investigation::RemediationPlan::STATUSES, "RemediationPlanStatus"),
       Export.new("REMEDIATION_STEP_STATUS_DONE", Investigation::RemediationStep::STATUS_DONE, nil),
+      Export.new("REMEDIATION_STEP_STATUS_RUNNING", Investigation::RemediationStep::STATUS_RUNNING, nil),
       Export.new("HELD_CALL_STATUSES", {
         "WAITING" => Chat::HeldCall::STATUS_WAITING, "CHECKING" => Chat::HeldCall::STATUS_CHECKING, "READY" => Chat::HeldCall::STATUS_READY,
         "RUNNING" => Chat::HeldCall::STATUS_RUNNING, "RAN" => Chat::HeldCall::STATUS_RAN, "FAILED" => Chat::HeldCall::STATUS_FAILED,
@@ -119,6 +120,12 @@ module TypescriptConstants
       Export.new("STEP_OUTCOME_KINDS", {
         "ANSWERED" => Chat::StepOutcome::KIND_ANSWERED, "FAILED" => Chat::StepOutcome::KIND_FAILED,
         "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND
+      }, nil),
+      Export.new("CODE_FIX_LINE_RESULTS", {
+        "PASSED" => Chat::CodeFixProgress::RESULT_PASSED, "FAILED" => Chat::CodeFixProgress::RESULT_FAILED
+      }, nil),
+      Export.new("CODE_FIX_OUTCOMES", {
+        "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND

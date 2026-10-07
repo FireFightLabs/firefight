@@ -107,9 +107,10 @@ module Integrations
       @progress = progress
     end
 
-    # Tells whoever runs the tool how it is going, in a sentence. Nobody may be listening, as in a chat.
-    def report(text)
-      @progress&.call(text)
+    # Tells whoever runs the tool how it is going, in a sentence, or as a Chat::CodeFixProgress for a coding agent working in
+    # the sandbox, handed over again each time it moves. Nobody may be listening.
+    def report(update)
+      @progress&.call(update)
     end
 
     def tool_definitions

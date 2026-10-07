@@ -15,6 +15,8 @@ module Sandbox
   CODE = "/code"
   WORK = "/work"
   RUNS = "/runs"
+  # What a command started in the background writes as it goes, one file per command, read back by offset.
+  PROGRESS = ENV.fetch("SANDBOX_PROGRESS_DIR", "/progress")
   OUTPUT_LIMIT = 10 * 1024 * 1024
   DEFAULT_TIMEOUT = 60
   MAX_TIMEOUT = 20 * 60
@@ -365,12 +367,81 @@ module Sandbox
     end
   end
 
+  # A command that runs long, started in the background and read back while it runs. It is told where to write what it
+  # is doing (SANDBOX_PROGRESS), which the app reads by offset as often as it likes. A reader that falls behind or goes
+  # away never holds the command up, since what it writes waits on disk rather than in memory. The answer is kept for a
+  # while after the command ends, so a reader that missed it can ask again.
+  module Runs
+    STORE = {}
+    GUARD = Mutex.new
+    ID = /\A\h{32}\z/
+    KEPT_FOR = 15 * 60
+    # The most one read hands back. A read that is full is followed at once by the next.
+    CHUNK = 256 * 1024
+
+    def self.start(request)
+      sweep
+      id = SecureRandom.hex(16)
+      FileUtils.mkdir_p(PROGRESS, mode: 0o711)
+      path = File.join(PROGRESS, "#{id}.log")
+      File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { }
+      user = request["where"] == "run" ? "runner" : "reader"
+      FileUtils.chown(user, user, path)
+      entry = { "path" => path, "result" => nil, "finished_at" => nil }
+      GUARD.synchronize { STORE[id] = entry }
+      Thread.new do
+        result = begin
+          Handler.exec(request, progress: path)
+        rescue Refused, KeyError => error
+          { "error" => error.message }
+        rescue StandardError => error
+          { "error" => "#{error.class}: #{error.message}" }
+        end
+        GUARD.synchronize { entry.merge!("result" => result, "finished_at" => Time.now) }
+      end
+      { "id" => id }
+    end
+
+    # Whole lines from after on, and the command's answer once every line before it was read. A line longer than a
+    # chunk is passed over, and the reader drops the piece of it the next read starts with.
+    def self.read(id, after)
+      entry = GUARD.synchronize { STORE[id] } if id.match?(ID)
+      raise Refused, "No run #{id}" unless entry
+
+      finished = GUARD.synchronize { !entry["finished_at"].nil? }
+      size = File.size?(entry["path"]).to_i
+      offset = after.to_i.clamp(0, size)
+      data = File.open(entry["path"], "rb") { |file| file.seek(offset) && file.read([ size - offset, CHUNK ].min) }.to_s
+      cut = data.rindex("\n")
+      taken = if cut then cut + 1
+      elsif data.bytesize == CHUNK || finished then data.bytesize
+      else 0
+      end
+      shown = data.bytesize == CHUNK && cut.nil? ? +"" : data.byteslice(0, taken)
+      more = offset + taken < size
+      done = finished && !more
+      { "progress" => shown.force_encoding(Encoding::UTF_8).scrub, "offset" => offset + taken, "more" => more, "done" => done,
+        "result" => (GUARD.synchronize { entry["result"] } if done) }
+    end
+
+    def self.sweep
+      gone = GUARD.synchronize do
+        old = STORE.select { |_id, entry| entry["finished_at"] && entry["finished_at"] < Time.now - KEPT_FOR }
+        old.each_key { |id| STORE.delete(id) }
+        old.values
+      end
+      gone.each { |entry| FileUtils.rm_f(entry["path"]) }
+    end
+  end
+
   module Handler
-    def self.call(method, path, body)
+    def self.call(method, path, body, query = {})
       case [ method, path ]
-      in [ "GET", "/health" ] then { "ok" => true }
+      in [ "GET", "/health" ] then { "ok" => true, "runs" => true }
       in [ "PUT", %r{\A/repos/([^/]+)\z} ] then Repos.push(Regexp.last_match(1), body)
       in [ "POST", "/exec" ] then exec(JSON.parse(body))
+      in [ "POST", "/runs" ] then Runs.start(JSON.parse(body))
+      in [ "GET", %r{\A/runs/([^/]+)\z} ] then Runs.read(Regexp.last_match(1), query["after"])
       in [ "POST", "/prepare" ] then prepare(JSON.parse(body))
       in [ "POST", "/lsp" ] then lsp(JSON.parse(body))
       else raise Refused, "No route #{method} #{path}"
@@ -378,23 +449,25 @@ module Sandbox
     end
 
     # where is "git" for a command that reads the repository's objects, "checkout" for one that reads files at a
-    # commit, and "run" for one that runs in runner's writable copy.
-    def self.exec(request)
+    # commit, and "run" for one that runs in runner's writable copy. progress is the file a background command writes
+    # what it is doing to.
+    def self.exec(request, progress: nil)
       name = request.fetch("repo")
       sha = Repos.commit(name, request["ref"])
       argv = Array(request.fetch("argv")).map(&:to_s)
       raise Refused, "An empty command" if argv.empty?
 
       timeout = request.fetch("timeout", DEFAULT_TIMEOUT).to_i.clamp(1, MAX_TIMEOUT)
+      told = progress ? { "SANDBOX_PROGRESS" => progress } : {}
       case request.fetch("where", "checkout")
       when "git"
         argv = argv.map { |part| part == "{commit}" ? sha : part }
-        Sandbox.run([ "git", "--git-dir", Repos.bare(name), *argv ], user: "reader", timeout: timeout).merge("commit" => sha)
+        Sandbox.run([ "git", "--git-dir", Repos.bare(name), *argv ], user: "reader", timeout: timeout, env: told).merge("commit" => sha)
       when "checkout"
-        Sandbox.run(argv, dir: Repos.checkout(name, sha), user: "reader", timeout: timeout).merge("commit" => sha)
+        Sandbox.run(argv, dir: Repos.checkout(name, sha), user: "reader", timeout: timeout, env: told).merge("commit" => sha)
       when "run"
         dir = Repos.run_copy(name, sha)
-        env = Services.start(request["services"]).merge(Prepare.env(dir))
+        env = Services.start(request["services"]).merge(Prepare.env(dir), told)
         Sandbox.run([ "mise", "exec", "--", *argv ], dir: dir, user: "runner", timeout: timeout, env: env).merge("commit" => sha)
       else raise Refused, "No place called #{request['where']}"
       end
@@ -443,7 +516,8 @@ module Sandbox
       return respond(socket, 413, { "error" => "Too large" }) if length > MAX_BODY
 
       body = length.positive? ? socket.read(length) : ""
-      respond(socket, 200, Handler.call(method, target.to_s.split("?").first, body))
+      path, query = target.to_s.split("?", 2)
+      respond(socket, 200, Handler.call(method, path, body, URI.decode_www_form(query.to_s).to_h))
     rescue Refused, KeyError, JSON::ParserError => error
       respond(socket, 422, { "error" => error.message })
     rescue StandardError => error

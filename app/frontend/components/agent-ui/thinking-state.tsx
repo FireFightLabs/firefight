@@ -25,6 +25,8 @@ export type ThinkingRow = {
   outcome?: ReactNode;
   /** something that happened along the way rather than a step taken, drawn as a muted line with a dot for its mark */
   quiet?: boolean;
+  /** what a long step is doing, or did, shown under the row whether or not it is opened */
+  live?: ReactNode;
 };
 
 /* the mark each status draws, so a step reads without its colour */
@@ -78,7 +80,7 @@ export default function ThinkingState({
   const [firstRows] = useState(() => new Set(rows.map((row) => row.id)));
   useLayoutEffect(() => {
     if (traceRef.current) setLineHeight(traceRef.current.offsetHeight);
-  }, [rows.length, expanded, working, openRows]);
+  }, [rows, expanded, working, openRows]);
 
   function toggleRow(id: string) {
     setOpenRows((current) => ({ ...current, [id]: !current[id] }));
@@ -204,6 +206,7 @@ export default function ThinkingState({
                     <div className="flex min-h-7 w-full min-w-0 items-center gap-2 rounded-[6px] px-1.5 py-0.5">{line}</div>
                   )}
                   {expandable && opened && row.details && row.details.length > 0 && <DetailList details={row.details} className="mt-1 mb-1.5 ml-7" />}
+                  {row.live && <div className="mt-0.5 mb-1.5 ml-7 min-w-0">{row.live}</div>}
                   {expandable && opened && row.outcome && <div className="mt-1 mb-1.5 ml-7">{row.outcome}</div>}
                 </div>
               );

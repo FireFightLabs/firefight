@@ -1,4 +1,5 @@
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
+import type { CodeFixWork } from "@/lib/code-fix-work"
 import type { StepOutcome } from "@/lib/step-outcome"
 import { roomStep } from "@/pages/agent/lib/group-turns"
 import type { AgentCard, AgentStep, StepKind, StepStatus, StreamEventType } from "@/pages/agent/types"
@@ -16,6 +17,7 @@ export interface StreamEvent {
   seconds?: number
   card?: AgentCard | null
   outcome?: StepOutcome | null
+  progress?: CodeFixWork | null
   at?: string
 }
 
@@ -89,6 +91,7 @@ function stepOf(event: StreamEvent): AgentStep {
     seconds: event.seconds ?? 0,
     card: event.card ?? null,
     outcome: event.outcome ?? null,
+    progress: event.progress ?? null,
   }
 }
 
