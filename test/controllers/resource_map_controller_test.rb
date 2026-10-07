@@ -158,6 +158,18 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     assert_match "web has no throttles check", response.parsed_body.dig("outcome", "refusal")
   end
 
+  test "a resource's usual log lines are read when its panel opens, with why none are known when none are" do
+    get resource_map_resource_log_lines_path(resource("web"))
+    assert_equal [ [], 0 ], response.parsed_body.values_at("lines", "total")
+    assert_match "Its logs cannot be read, so its usual lines are not known.", response.parsed_body["reason"]
+
+    ResourceMap::LogTemplate.record!(@row, resource("web"), ResourceMap::LogMiner.mine([ "user ada logged in", "user bob logged in", "ERROR db timeout after 3 ms" ]))
+    get resource_map_resource_log_lines_path(resource("web"))
+    lines = response.parsed_body["lines"]
+    assert_equal [ [ "user <*> logged in", nil, 2 ], [ "ERROR db timeout after <NUM> ms", "error", 1 ] ], lines.map { |line| line.values_at("template", "level", "lines") }
+    assert_nil response.parsed_body["reason"]
+  end
+
   private
 
   def found(kind, id) = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: kind, external_id: id, name: id)

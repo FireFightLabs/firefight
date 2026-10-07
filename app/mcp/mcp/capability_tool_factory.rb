@@ -16,7 +16,42 @@ module Mcp
         [ spec, able ] if able.any?
       end
       reads_checks = callable.any? { |spec, _tools| ResourceMap::KeyQueries::CAPABILITIES_READ.include?(spec.key) }
-      callable.map { |spec, tools| build(spec, tools, workspace) } + (reads_checks ? [ key_query_tool ] : [])
+      reads_logs = callable.any? { |spec, _tools| spec.key == Integrations::Capabilities::LOGS }
+      callable.map { |spec, tools| build(spec, tools, workspace) } + (reads_checks ? [ key_query_tool ] : []) + (reads_logs ? [ log_patterns_tool ] : [])
+    end
+
+    def self.with_approval_id(schema)
+      schema.merge("properties" => schema["properties"].merge(APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" }))
+    end
+
+    # new_log_patterns: a resource's recent logs through the logs capability, authorized as its call would be, answered
+    # as the patterns not seen in the last week and the usual error patterns, never the raw lines.
+    def self.log_patterns_tool
+      ::MCP::Tool.define(
+        name: Integrations::Capabilities::LOG_PATTERNS_TOOL,
+        description: "#{ResourceMap::LogTemplate::DESCRIPTION} (routed to a connection that runs or watches the resource; governed by the Ability Gateway)",
+        input_schema: with_approval_id(ResourceMap::LogTemplate::SCHEMA),
+        annotations: Tools::Base::READ_ONLY.dup
+      ) do |server_context:, **args|
+        CapabilityToolFactory.log_patterns(server_context, args)
+      end
+    end
+
+    def self.log_patterns(server_context, args)
+      given = args.transform_keys(&:to_s)
+      resource = locate(server_context, given["resource"])
+      return resource if resource.is_a?(::MCP::Tool::Response)
+
+      minutes = ResourceMap::KeyQueries.minutes(given["minutes"])
+      asked = { Integrations::Capabilities::RESOURCE_ARG => resource.id, "minutes" => minutes, "limit" => ResourceMap::LogTemplate::LINES,
+                APPROVAL_ID_ARG.to_s => given[APPROVAL_ID_ARG.to_s] }.compact
+      response, answered = answer(Integrations::Capabilities::LOGS, server_context, asked)
+      return response unless answered
+
+      lines = ResourceMap::LogMiner.lines_of({ "content" => Array(response.content).map { |part| part.transform_keys(&:to_s) } })
+      comparison = ResourceMap::LogTemplate.compare(resource, lines)
+      text = ResourceMap::LogTemplate.report(resource, comparison, from: answered.environment_row.integration.display_name, minutes: minutes)
+      ::MCP::Tool::Response.new([ { type: "text", text: text } ])
     end
 
     # One resource the principal reads, or the response saying it is not on the map or which ones share the name.
@@ -31,9 +66,7 @@ module Mcp
       ::MCP::Tool.define(
         name: ResourceMap::KeyQueries::TOOL_NAME,
         description: "#{ResourceMap::KeyQueries::DESCRIPTION} (routed to a connection that runs or watches the resource; governed by the Ability Gateway)",
-        input_schema: ResourceMap::KeyQueries::SCHEMA.merge(
-          "properties" => ResourceMap::KeyQueries::SCHEMA["properties"].merge(APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" })
-        ),
+        input_schema: with_approval_id(ResourceMap::KeyQueries::SCHEMA),
         annotations: Tools::Base::READ_ONLY.dup
       ) do |server_context:, **args|
         CapabilityToolFactory.key_query(server_context, args)

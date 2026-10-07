@@ -31,6 +31,9 @@ module ResourceMap::Fingerprint
     name.empty? ? nil : digest(workspace, "name", name)
   end
 
+  # A pattern a resource's logs follow, so the same pattern is found again without reading the encrypted text.
+  def self.of_log_template(template, workspace) = digest(workspace, "log_template", template.to_s)
+
   def self.digest(workspace, kind, text)
     OpenSSL::HMAC.hexdigest("SHA256", key_for(workspace), "#{kind}:#{text}")
   end

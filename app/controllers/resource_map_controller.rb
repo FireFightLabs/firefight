@@ -1,6 +1,6 @@
 # The resource map page: what runs where, read off the connections, and the links people add or confirm on it.
 class ResourceMapController < InertiaController
-  authorizes Ability::Action::RESOURCE_MAP, read: %i[index checks run_check]
+  authorizes Ability::Action::RESOURCE_MAP, read: %i[index checks run_check log_lines]
   authorizes Ability::Action::RESOURCE_INTEGRATIONS, update: %i[sync]
   authorizes Ability::Action::RESOURCE_CATALOG,
     update: %i[create_link destroy_link confirm_link dismiss_link link_entry unlink_entry]
@@ -33,6 +33,14 @@ class ResourceMapController < InertiaController
 
     outcome = ResourceMap::KeyQueries.run!(target, check, principal: current_membership, approval_id: params[:approval_id].presence)
     render json: { outcome: ResourceMapCheckOutcomeSerializer.one(outcome) }
+  end
+
+  # The kinds of line a resource usually logs, read when its panel opens, with why none are known when none are.
+  def log_lines
+    target = resource(params[:id])
+    usual = target.log_templates.this_week.most_lines_first
+    render json: { lines: ResourceMapLogTemplateSerializer.many(usual.limit(ResourceMap::LogTemplate::SHOWN)), total: usual.count,
+                   reason: ResourceMap::LogTemplate.missing_reason(target, current_membership) }
   end
 
   def sync

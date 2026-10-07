@@ -85,6 +85,15 @@ module Mcp
         assert_equal [ ResourceMap::KeyQueries::NONE.fetch(ResourceMap::KIND_BUILD_SERVICE) ], call(resource: "builder")[:resources].sole[:key_checks]
       end
 
+      test "a fact sheet lists the log lines a resource usually prints, or why none are known" do
+        web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
+        assert_match "Its logs cannot be read, so its usual lines are not known.", call(resource: "web")[:resources].sole[:usual_log_lines].sole
+
+        ResourceMap::LogTemplate.record!(@row, web, ResourceMap::LogMiner.mine([ "user ada logged in", "user bob logged in", "ERROR db timeout after 3 ms" ]))
+        assert_equal [ "user <*> logged in (2 lines in the last read, seen in 1 read)", "ERROR db timeout after <NUM> ms (error, 1 line in the last read, seen in 1 read)" ],
+                     call(resource: "web")[:resources].sole[:usual_log_lines]
+      end
+
       test "a resource can be named by its id on the map, as search_map and get_resource give it" do
         web = ResourceMap::Resource.find_by!(workspace: @workspace, external_id: "web")
 

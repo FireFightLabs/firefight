@@ -321,7 +321,19 @@ module Chat::Tools
         group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: spec.tool_name
       )
     end
-    entries + key_query_entries(agent_run, offered)
+    entries + key_query_entries(agent_run, offered) + log_pattern_entries(agent_run, offered)
+  end
+
+  # new_log_patterns, offered beside search_logs, which it reads through.
+  def self.log_pattern_entries(agent_run, offered)
+    logs = offered.find { |spec, _able, _callable| spec.key == Integrations::Capabilities::LOGS }
+    return [] unless logs
+
+    ready = logs.last.any?
+    [ Entry.new(
+      name: LogPatterns::NAME, description: clean(ResourceMap::LogTemplate::DESCRIPTION, ONE_LINE), state: ready ? STATE_READY : STATE_NOT_GRANTED,
+      tool: (LogPatterns.new(agent_run, logs) if ready), group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: LogPatterns::NAME
+    ) ]
   end
 
   # run_key_query, offered once some capability a key check reads through is offered, and ready when the agent may

@@ -45,6 +45,10 @@ development:
     class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
     queue: background
     schedule: at 5am every day
+  resource_log_pattern_sweep:
+    class: Integrations::LogPatternSweepJob # samples a week of logs into the patterns each resource usually prints
+    queue: background
+    schedule: at 6am every day
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
@@ -121,6 +125,10 @@ staging:
     class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
     queue: background
     schedule: at 5am every day
+  resource_log_pattern_sweep:
+    class: Integrations::LogPatternSweepJob # samples a week of logs into the patterns each resource usually prints
+    queue: background
+    schedule: at 6am every day
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
@@ -219,6 +227,10 @@ production:
     class: Integrations::BaselineSweepJob # reads a week of metrics into what normal looks like for each resource on the map
     queue: background
     schedule: at 5am every day
+  resource_log_pattern_sweep:
+    class: Integrations::LogPatternSweepJob # samples a week of logs into the patterns each resource usually prints
+    queue: background
+    schedule: at 6am every day
   alert_routing_sweep:
     class: Alerts::RoutingSweepJob # retries alerts stuck in routing_state: pending
     queue: events
