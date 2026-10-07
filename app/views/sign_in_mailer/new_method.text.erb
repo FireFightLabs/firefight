@@ -1,0 +1,5 @@
+<%= @method_name %><%= " (#{@identity_email})" if @identity_email %> can now be used to sign in to your Firefight account. It was added on <%= @added_at.utc.strftime("%B %-d, %Y at %H:%M UTC") %>.
+
+If this was you, there is nothing to do. If it was not, remove it from your profile and tell your workspace admin:
+
+<%= @profile_url %>

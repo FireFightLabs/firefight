@@ -41,6 +41,14 @@ class OnboardingController < InertiaController
     }
   end
 
+  # A Google or email sign-in that reached nobody with a workspace. Creating one from here is not built yet.
+  def signup
+    return redirect_to(login_path) unless SignInMethods.self_serve?
+    return redirect_to(dashboard_path) if user_signed_in?
+
+    render inertia: "onboarding/signup"
+  end
+
   private
 
   # The pending team is one Firefight knows and the user administers, so this is a reconnect.

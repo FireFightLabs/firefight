@@ -5,5 +5,7 @@ module Entitlements
     end
 
     def ai_account(_workspace) = Entitlements::AI_ACCOUNT_OPERATOR
+
+    def private_ai_endpoints?(_workspace) = true
   end
 end

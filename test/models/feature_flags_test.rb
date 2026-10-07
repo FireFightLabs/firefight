@@ -40,4 +40,19 @@ class FeatureFlagsTest < ActiveSupport::TestCase
     assert_raises(FeatureFlags::UnknownFlag) { FeatureFlags.enabled?(@workspace, :not_a_flag) }
     assert_raises(FeatureFlags::UnknownFlag) { FeatureFlags.enable!(@workspace, :not_a_flag) }
   end
+
+  test "a global flag is off until turned on for everyone" do
+    assert_not FeatureFlags.enabled_globally?(FeatureFlags::SELF_SERVE_SIGNUP)
+
+    FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
+    assert FeatureFlags.enabled_globally?(FeatureFlags::SELF_SERVE_SIGNUP)
+
+    FeatureFlags.disable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
+    assert_not FeatureFlags.enabled_globally?(FeatureFlags::SELF_SERVE_SIGNUP)
+  end
+
+  test "a global flag is never set per workspace, and a workspace flag never globally" do
+    assert_raises(FeatureFlags::UnknownFlag) { FeatureFlags.enable!(@workspace, FeatureFlags::SELF_SERVE_SIGNUP) }
+    assert_raises(FeatureFlags::UnknownFlag) { FeatureFlags.enable_globally!(FeatureFlags::AI_SRE) }
+  end
 end

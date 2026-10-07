@@ -16,12 +16,14 @@ module FirefightAi
     # The app has already saved the call to check as the last message. answered says whether the report is in.
     def run(chat:, tools:, max_spend_cents:, answered:, on_step: nil, &on_turn)
       FirefightAi.translating_errors do
+        FirefightAi.bind(chat, ai_model)
         chat.with_instructions(template_text)
         chat.with_tools(*tools)
 
         AgentLoop.new(
           chat: chat, budget: AgentLoop::Budget.new(max_spend_cents: max_spend_cents, max_turns: MAX_TURNS),
-          answered: answered, inference: inference_context, on_step: on_step, output: output_cap
+          answered: answered, inference: inference_context, on_step: on_step, output: output_cap,
+          choice: ai_model, purpose: AiPurpose::INVESTIGATION
         ).run(&on_turn)
       end
     end

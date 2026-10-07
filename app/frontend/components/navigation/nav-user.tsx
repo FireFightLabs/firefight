@@ -1,5 +1,5 @@
-import { IconCheck, IconDotsVertical, IconLogout } from "@tabler/icons-react"
-import { router } from "@inertiajs/react"
+import { IconCheck, IconDotsVertical, IconLogout, IconUserCircle } from "@tabler/icons-react"
+import { Link, router } from "@inertiajs/react"
 
 import {
   Avatar,
@@ -20,7 +20,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { logoutPath, workspaceSwitchPath } from "@/lib/routes"
+import { logoutPath, profilePath, workspaceSwitchPath } from "@/lib/routes"
 import type { CurrentWorkspace } from "@/types/serializers"
 
 type WorkspaceOption = Pick<CurrentWorkspace, "id" | "name" | "avatarUrl">
@@ -129,6 +129,12 @@ export function NavUser({
                 <DropdownMenuSeparator />
               </>
             )}
+            <DropdownMenuItem asChild>
+              <Link href={profilePath()}>
+                <IconUserCircle />
+                Profile
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout}>
               <IconLogout />
               Log out

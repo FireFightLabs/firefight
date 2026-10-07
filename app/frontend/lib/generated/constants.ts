@@ -36,6 +36,12 @@ export const CONNECT_SCOPE_ALL = {
 
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
+export const SIGN_IN_PROVIDERS = {
+  "GOOGLE": "google",
+  "SLACK": "slack",
+  "EMAIL": "email"
+} as const
+
 export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const
 
 export const INTEGRATION_CONNECT_QUERY_PARAM = "connect" as const
@@ -390,7 +396,8 @@ export const ABILITY_RESOURCES = [
   "integrations",
   "api_keys",
   "permissions",
-  "workspace"
+  "workspace",
+  "ai_accounts"
 ] as const
 export type AbilityResource = (typeof ABILITY_RESOURCES)[number]
 
@@ -438,7 +445,8 @@ export const ABILITY_RESOURCE_LABELS = {
   "integrations": "Integrations",
   "api_keys": "API Keys",
   "permissions": "Permissions",
-  "workspace": "Workspace"
+  "workspace": "Workspace",
+  "ai_accounts": "AI Accounts"
 } as const
 
 export const ABILITY_ACTIONS = [

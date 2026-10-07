@@ -14,14 +14,18 @@ class CodeAgentSession < ApplicationRecord
   TOO_MANY_AT_ONCE = "This code change already has #{MAX_CALLS_AT_ONCE} model calls running.".freeze
 
   belongs_to :workspace
+  # The workspace's own AI account that pays for this change, when one does.
+  belongs_to :workspace_ai_account, optional: true
 
   scope :live, -> { where(closed_at: nil).where("expires_at > ?", Time.current) }
 
   # The session and the token the box sends, which is shown once and kept only as a digest.
   def self.open!(workspace:, choice:, repository:, budget_micros: DEFAULT_BUDGET_MICROS)
     token = SecureRandom.urlsafe_base64(TOKEN_BYTES)
+    payer = choice.payer || AiPayer.deployment(workspace)
     session = create!(workspace: workspace, provider: choice.provider_name, model: choice.model, repository: repository,
-                      budget_micros: budget_micros, expires_at: LIFETIME.from_now, token_digest: digest(token))
+                      budget_micros: budget_micros, expires_at: LIFETIME.from_now, token_digest: digest(token),
+                      paid_by: payer.paid_by, workspace_ai_account: payer.account)
     [ session, token ]
   end
 
@@ -34,6 +38,21 @@ class CodeAgentSession < ApplicationRecord
   def self.digest(token) = OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, token.to_s)
 
   def over_budget? = spent_micros >= budget_micros
+
+  # A provider refusing the key itself, rather than the request.
+  KEY_REFUSED_STATUSES = [ 401, 403 ].freeze
+  ACCOUNT_GONE = "The AI account paying for this code change was removed.".freeze
+
+  def payer = AiPayer.new(paid_by: paid_by || AiPayer.deployment(workspace).paid_by, account: workspace_ai_account)
+
+  # The configuration the model proxy forwards with: the paying account's own, or the deployment's. Nil means the
+  # deployment's, and an account removed since the change began is never replaced by it.
+  def llm_config
+    return nil unless paid_by == Inference::PAID_BY_ACCOUNT
+    raise FirefightAi::ModelProxy::Refused, ACCOUNT_GONE unless workspace_ai_account&.enabled
+
+    workspace_ai_account.llm_context.config
+  end
 
   # Added in SQL, so two calls the agent makes at once are both counted.
   def charge!(micros)

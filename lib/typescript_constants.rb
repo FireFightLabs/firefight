@@ -24,6 +24,9 @@ module TypescriptConstants
       Export.new("CUSTOM_MCP_PROVIDER_KEY", Integration::PROVIDER_CUSTOM_MCP, nil),
       Export.new("CONNECT_SCOPE_ALL", { "VALUE" => IntegrationProvider::ConnectField::ALL, "LABEL" => IntegrationProvider::ConnectField::ALL_LABEL }, nil),
       Export.new("RUNBOOK_QUERY_PARAM", Runbook::QUERY_PARAM, nil),
+      Export.new("SIGN_IN_PROVIDERS", {
+        "GOOGLE" => UserIdentity::GOOGLE, "SLACK" => UserIdentity::SLACK, "EMAIL" => UserIdentity::EMAIL
+      }, nil),
       Export.new("INTEGRATION_DETAILS_QUERY_PARAM", Integration::DETAILS_QUERY_PARAM, nil),
       Export.new("INTEGRATION_CONNECT_QUERY_PARAM", Integration::CONNECT_QUERY_PARAM, nil),
       Export.new("INTEGRATION_CARD_ACTIONS", {

@@ -120,22 +120,33 @@ Rails.application.routes.draw do
 
   get "/auth/slack_openid/callback", to: "auth/omniauth_callbacks#slack_openid", as: :slack_openid_callback
   get "/auth/slack/callback",        to: "auth/omniauth_callbacks#slack",        as: :slack_install_callback
+  get "/auth/google_oauth2/callback", to: "auth/omniauth_callbacks#google_oauth2", as: :google_callback
   get "/auth/failure",               to: "auth/omniauth_callbacks#failure"
+
+  # The link's token rides in the query and the form body, never the path, so request logs filter it.
+  post "/auth/email", to: "auth/email_sign_ins#create", as: :email_sign_in
+  get "/auth/email/sent", to: "auth/email_sign_ins#sent", as: :email_sign_in_sent
+  get "/auth/email/confirm", to: "auth/email_sign_ins#show", as: :email_sign_in_link
+  post "/auth/email/confirm", to: "auth/email_sign_ins#consume", as: :consume_email_sign_in
 
   # OmniAuth middleware answers these before routing. They exist for the named path helpers,
   # the redirect only fires if the middleware is misconfigured.
   get "/auth/slack_openid", to: redirect("/login"), as: :sign_in_with_slack
   get "/auth/slack",        to: redirect("/login"), as: :install_slack_app
+  get "/auth/google_oauth2", to: redirect("/login"), as: :sign_in_with_google
 
   get "/onboarding/invite-code", to: "onboarding#invite_code", as: :onboarding_invite_code
   get "/onboarding/install", to: "onboarding#install", as: :onboarding_install
   get "/onboarding/reinstall", to: "onboarding#reinstall", as: :onboarding_reinstall
   get "/onboarding/welcome", to: "onboarding#welcome", as: :onboarding_welcome
+  get "/onboarding/signup", to: "onboarding#signup", as: :onboarding_signup
 
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
     patch "/onboarding/dialog", to: "workspace_onboardings#dismiss_dialog", as: :dismiss_onboarding_dialog
     post "/workspace-switch", to: "workspace_switches#create", as: :workspace_switch
+    get "/profile", to: "profiles#show", as: :profile
+    delete "/profile/sign-in-methods/:id", to: "user_identities#destroy", as: :sign_in_method
     get "/settings", to: "settings#index", as: :settings
     get "/settings/roles", to: "settings#roles", as: :settings_roles
     get "/settings/statuses", to: "settings#statuses", as: :settings_statuses
@@ -403,6 +414,18 @@ Rails.application.routes.draw do
     # The gateway and developer screens used to live under /settings, the redirects keep old links working.
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace
     patch "/settings/workspace", to: "workspace_settings#update"
+    resources :ai_accounts, only: [ :create, :update, :destroy ], path: "settings/workspace/ai-accounts" do
+      collection do
+        patch :reorder
+        get "sign-in", action: :sign_in, as: :sign_in
+        get "sign-in/callback", action: :sign_in_callback, as: :sign_in_callback
+      end
+      member do
+        post :check
+        patch :disable
+        patch :enable
+      end
+    end
     get "/settings/permissions", to: redirect("/app/gateway/permissions")
     get "/settings/activity", to: redirect("/app/gateway/activity")
     get "/settings/approvals", to: redirect("/app/gateway/approvals")

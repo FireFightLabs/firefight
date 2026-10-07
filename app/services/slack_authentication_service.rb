@@ -3,6 +3,10 @@
 class SlackAuthenticationService
   INVITE_REQUIRED_MESSAGE   = "Public beta access currently requires an invite code.".freeze
   WORKSPACE_MISMATCH_MESSAGE = "Workspace mismatch. Please sign in again with the workspace you want to connect.".freeze
+  UNVERIFIED_EMAIL_MESSAGE = "Slack has not verified the email on your account. Verify it in Slack, then sign in again.".freeze
+
+  # A Slack user id is only unique inside its team, so the team is part of the identity.
+  def self.identity_uid(team_id, user_id) = "#{team_id}/#{user_id}"
 
   # Invite gating applies only to new workspace installs and only when
   # InviteCode.required? is true. Members of an existing workspace always auto-provision.
@@ -10,7 +14,10 @@ class SlackAuthenticationService
     team_id   = auth_hash.info.team_id
     team_name = auth_hash.info.team_name
 
-    user      = User.find_or_create_from_openid!(auth_hash)
+    result = AuthenticationService.new.sign_in_with(claims_from(auth_hash), create_user: true, refresh_profile: true)
+    return AuthOutcome.refused(message: UNVERIFIED_EMAIL_MESSAGE) if result.unverified_email?
+
+    user      = result.user
     workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 
     return AuthOutcome.install_needed(user: user, team_id: team_id, team_name: team_name) if workspace.nil?
@@ -84,6 +91,18 @@ class SlackAuthenticationService
   end
 
   private
+
+  def claims_from(auth_hash)
+    info = auth_hash.info
+    AuthenticationService::Claims.new(
+      provider: UserIdentity::SLACK,
+      uid: self.class.identity_uid(info.team_id, auth_hash.uid),
+      email: info.email,
+      email_verified: info.email_verified,
+      name: info.name,
+      avatar_url: info.image
+    )
+  end
 
   def trigger_workspace_setup(workspace, installer_user_id)
     Rails.logger.info({

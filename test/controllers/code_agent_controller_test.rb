@@ -13,7 +13,7 @@ class CodeAgentControllerTest < ActionDispatch::IntegrationTest
     FirefightAi::ModelProxy.any_instance.stubs(:usage).returns(FirefightAi::ModelProxy::Usage.new(input: 1000, output: 100, cache_read: 0, cache_write: 0))
     FirefightAi::ModelProxy.any_instance.stubs(:status).returns(200)
     FirefightAi.stubs(:cost_micros).returns(1_500)
-    FirefightAi.configuration.stubs(:provider_settings).returns(anthropic_api_key: "sk-firefight")
+    RubyLLM.config.stubs(:anthropic_api_key).returns("sk-firefight")
 
     post "/code_agent/anthropic/messages", params: "{\"x\":1}", headers: { "x-api-key" => @token, "anthropic-version" => "2023-06-01", "CONTENT_TYPE" => "application/json" }
 

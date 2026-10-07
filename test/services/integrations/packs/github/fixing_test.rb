@@ -12,7 +12,7 @@ module Integrations
           @pack = Github.new(@integration, box_key: "investigation-1")
           GithubApp.stubs(:installation_token).returns("ghs_token")
           GithubApp.stubs(:get).with("/repos/acme/api", token: "ghs_token").returns("default_branch" => "main")
-          FirefightAi.stubs(:model_for).returns(FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic"))
+          FirefightAi.stubs(:choices_for).returns([ FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic") ])
           FirefightAi.stubs(:priced?).returns(true)
           CodeReading.any_instance.stubs(:prepare).returns({})
           ENV.stubs(:[]).returns(nil)
@@ -60,7 +60,7 @@ module Integrations
         end
 
         test "a model Firefight cannot reach from the sandbox is said before anything runs" do
-          FirefightAi.stubs(:model_for).returns(FirefightAi::ModelChoice.new(model: "gemini-2.5-pro", provider: "gemini"))
+          FirefightAi.stubs(:choices_for).returns([ FirefightAi::ModelChoice.new(model: "gemini-2.5-pro", provider: "gemini") ])
           CodeReading.any_instance.expects(:exec).never
 
           assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }

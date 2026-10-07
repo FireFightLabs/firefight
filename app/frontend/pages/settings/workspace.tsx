@@ -10,19 +10,27 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ARCHIVE_CHANNEL_DELAY_CHOICES, MEMORY_EXPIRY_DAY_CHOICES } from "@/lib/generated/constants"
+import { useCan } from "@/lib/permissions"
 import { integrationsPath, settingsWorkspacePath } from "@/lib/routes"
+import { AiAccountsCard, type AiSignIn } from "@/pages/settings/components/workspace/ai-accounts-card"
+import type { AiCredits } from "@/pages/settings/components/workspace/ai-credits-row"
 import {
   IssueTrackingCard,
   trackerChoice,
   trackerSlug,
   type IssueTrackingState,
 } from "@/pages/settings/components/workspace/issue-tracking-card"
-import type { WorkspaceSettings } from "@/types/serializers"
+import type { AiProviderOption, WorkspaceAiAccount, WorkspaceSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
 interface WorkspacePageProps extends SharedProps {
   settings: WorkspaceSettings
   issueWebhookUrl: string | null
+  aiAccounts: WorkspaceAiAccount[]
+  aiProviders: AiProviderOption[]
+  aiSignIn: AiSignIn | null
+  aiFallback: string
+  aiCredits: AiCredits | null
 }
 
 function retentionText(days?: number): string {
@@ -52,7 +60,8 @@ function agentSlug(choice: string): string {
 }
 
 export default function Workspace() {
-  const { settings, issueWebhookUrl } = usePage<WorkspacePageProps>().props
+  const { settings, issueWebhookUrl, aiAccounts, aiProviders, aiSignIn, aiFallback, aiCredits } = usePage<WorkspacePageProps>().props
+  const canManageAiAccounts = useCan("ai_accounts")
   const [transcriptAccess, setTranscriptAccess] = useState(settings.transcriptAccessEnabled)
   const [retention, setRetention] = useState(retentionText(settings.transcriptRetentionDays))
   const [archiveDelay, setArchiveDelay] = useState(settings.archiveChannelDelay)
@@ -319,6 +328,15 @@ export default function Workspace() {
             </div>
           </CardContent>
         </Card>
+
+        <AiAccountsCard
+          accounts={aiAccounts}
+          providers={aiProviders}
+          signIn={aiSignIn}
+          fallback={aiFallback}
+          credits={aiCredits}
+          canManage={canManageAiAccounts}
+        />
 
         <IssueTrackingCard
           settings={settings}

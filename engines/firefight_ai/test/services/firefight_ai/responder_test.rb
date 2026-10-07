@@ -2,6 +2,8 @@ require "test_helper"
 
 class FirefightAi::ResponderTest < ActiveSupport::TestCase
   setup do
+    # These chats are mocks, so pointing one at its payer is left out.
+    FirefightAi.stubs(:bind)
     @workspace = workspaces(:slack_workspace_one)
     FirefightAi::AgentLoop.any_instance.stubs(:run).returns(:outcome)
   end

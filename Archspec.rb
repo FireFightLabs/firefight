@@ -219,6 +219,61 @@ class ProviderClientsStayHome
 end
 rule ProviderClientsStayHome.new(INTEGRATION_CLIENT_CONSTANTS)
 
+# A RubyLLM context copies the deployment's configuration, Firefight's own keys included, so one built anywhere else
+# could send a workspace's call on Firefight's key or the reverse. Only WorkspaceAiAccount#llm_context builds one, from
+# a configuration with every provider setting emptied, and the engine runs what it is handed. Only AiProviders reads
+# RubyLLM::Provider, so what a provider needs is decided in one place.
+class AiKeysStayWithTheirAccount
+  CONTEXT_BUILDERS = %w[app/models/workspace_ai_account.rb].freeze
+  PROVIDER_READERS = %w[app/models/ai_providers.rb].freeze
+  ENGINE = "engines/firefight_ai/".freeze
+  CONTEXT_CALL = /RubyLLM\s*\.\s*context\b|RubyLLM::Context\s*\.\s*new\b/
+
+  def initialize(root) = @root = root
+
+  def id = "ai.keys"
+
+  def evaluate(graph)
+    contexts = graph.edges.filter_map do |edge|
+      next unless edge.type == :calls_named_method && %w[context new].include?(edge.to.to_s)
+
+      path = relative(graph, edge)
+      next if CONTEXT_BUILDERS.include?(path) || path.start_with?(ENGINE)
+      next unless line(edge).match?(CONTEXT_CALL)
+
+      ArchSpec::Diagnostic.new(rule: id, message: "Only WorkspaceAiAccount#llm_context builds a RubyLLM context, from an emptied configuration",
+                               location: edge.location, evidence: "#{graph.edge_source_name(edge)} builds a RubyLLM context")
+    end
+    contexts + provider_reads(graph)
+  end
+
+  private
+
+  def provider_reads(graph)
+    graph.dependency_edges.filter_map do |edge|
+      target = graph.resolve_edge_constant(edge).to_s
+      next unless target == "RubyLLM::Provider" || edge.to.to_s.sub(/\A::/, "") == "RubyLLM::Provider"
+
+      path = relative(graph, edge)
+      next if PROVIDER_READERS.include?(path) || path.start_with?(ENGINE)
+
+      ArchSpec::Diagnostic.new(rule: id, message: "Only AiProviders reads RubyLLM::Provider", location: edge.location,
+                               evidence: "#{graph.edge_source_name(edge)} references RubyLLM::Provider")
+    end
+  end
+
+  def relative(graph, edge) = graph.files[edge.from_path]&.relative_path || edge.from_path.to_s
+
+  def line(edge)
+    path = edge.location&.path.to_s
+    path = File.join(@root, path) unless path.start_with?("/")
+    File.readlines(path)[edge.location.line - 1].to_s
+  rescue SystemCallError, NoMethodError
+    ""
+  end
+end
+rule AiKeysStayWithTheirAccount.new(__dir__)
+
 feature_flags.can_only_use :models
 
 # Keep last, the Flipper ban only covers components declared above.

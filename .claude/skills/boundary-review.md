@@ -53,6 +53,17 @@ Slack handlers, the API, MCP, and the dashboard normalize input and call shared 
 - **AI records belong to the app.** `engines/firefight_ai` never names `Investigation`, `Chat` or anything nested under them: it returns a result, the app writes the row. A new AI SRE record is a nested `Investigation::*` model, or `Chat::*` when every agent run needs it, in `app/models`, not another generic name at the top level.
 - **Raced writes are one statement.** A status two workers could reach moves with a guarded `update_all` whose `WHERE` names the states it may leave, never a read followed by a write, and the row count is what says who won. A value that has to survive the race is computed in SQL, not read off a record that may be stale. A new `lock_version` column is a different answer to a solved problem.
 
+## Secrets
+
+A credential is stored in one of two places and travels by one road each. Every question here was a leak the AI accounts work had to close.
+
+- **Two stores.** Only `IntegrationEnvironment` and `WorkspaceAiAccount` hold secrets, in an encrypted column. A new token, key or password anywhere else (a jsonb `settings`, a plain column, `Rails.cache`, a job argument, the session) is a second store. The session carries at most an OAuth state and PKCE verifier for the length of a redirect.
+- **Never sent back.** No serializer, Inertia prop, MCP tool, API response, log line, ledger row or flash message carries a stored secret, even to the admin who entered it. The page gets a hint (`credential_summary`) and an empty field that keeps the stored value when left empty.
+- **One way to a model.** A workspace's AI key reaches a model only through `WorkspaceAiAccount#llm_context`. A `RubyLLM.context` built anywhere else copies the deployment's configuration, Firefight's own keys and Bedrock's credential provider included, which ArchSpec refuses (`ai.keys`). A new RubyLLM setting is emptied there for free, since the list comes from `RubyLLM::Configuration`.
+- **No ambient credentials.** A provider that falls back to credentials the server holds (Bedrock's credential provider, Vertex AI's application default credentials) must be made to need explicit ones for a workspace (`AiProviders::EXPLICIT_CREDENTIALS`).
+- **Who pays is recorded.** A model call is ledgered with `paid_by` and, for a workspace's own account, `workspace_ai_account_id`. A call that quietly falls back to the deployment's key for a workspace that was meant to pay is a billing leak as much as a security one.
+- **Addresses a workspace names.** A custom API base is checked as written and as it resolves where private networks are refused, when saved and again before every call, connecting to the address checked (`Integrations::ModelAddress`, like `Integrations::PublicAddress` for connections). A new way of calling a model with an account's settings goes through the same check.
+
 ## The operator console
 
 - **The app never knows it exists.** No association, method, constant or callback outside `Operator` exists only for the console. A console query that needs a scope writes it in `app/models/operator/`, not on the app model.

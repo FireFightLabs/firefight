@@ -62,6 +62,7 @@ module OmniauthTestHelper
       info: {
         name: "Test User",
         email: "test@example.com",
+        email_verified: true,
         image: "https://example.com/avatar.jpg",
         team_id: team_id,
         team_name: "Test Workspace"
@@ -77,11 +78,29 @@ module OmniauthTestHelper
           "sub" => "U12345678",
           "name" => "Test User",
           "email" => "test@example.com",
+          "email_verified" => true,
           "picture" => "https://example.com/avatar.jpg",
           "https://slack.com/team_id" => team_id,
           "https://slack.com/team_name" => "Test Workspace"
         }
       }
+    }
+
+    OmniAuth::AuthHash.new(deep_merge_hashes(defaults, overrides))
+  end
+
+  def mock_google_auth_hash(overrides = {})
+    defaults = {
+      provider: "google_oauth2",
+      uid: "108#{SecureRandom.random_number(10**12)}",
+      info: {
+        name: "Test User",
+        email: "test@example.com",
+        unverified_email: "test@example.com",
+        email_verified: true,
+        image: "https://example.com/google-avatar.jpg"
+      },
+      credentials: { token: "ya29.google-test-token", expires: true }
     }
 
     OmniAuth::AuthHash.new(deep_merge_hashes(defaults, overrides))
