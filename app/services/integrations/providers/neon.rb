@@ -6,7 +6,8 @@ module Integrations
       key: "neon", adapter: "Integrations::Capabilities::Neon", map_reader: "Integrations::MapReaders::Neon",
       map_events: "Integrations::MapEventSources::Neon",
       source_links: "Integrations::SourceLinks::Neon",
-      status_words: { "idle" => "sleeping", "init" => "starting", "disabled" => "stopped", "archived" => "sleeping" }
+      status_words: { "idle" => "sleeping", "init" => "starting", "disabled" => "stopped", "archived" => "sleeping" },
+      error_reader: "Integrations::ErrorReaders::Neon"
     )
   end
 end

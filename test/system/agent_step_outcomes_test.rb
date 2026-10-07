@@ -79,6 +79,39 @@ class AgentStepOutcomesTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-step-outcomes.png"))
   end
 
+  test "a run's card in the chat marks each step the way its story does" do
+    member = workspace_memberships(:alice_workspace_one)
+    conversation = Conversation.start_personal!(workspace: @workspace, member: member)
+    conversation.ask!("why does ember.dev answer 404")
+    reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Mcp::Tools::START_INVESTIGATION, arguments: { "symptom" => "ember.dev answers 404" })
+    conversation.chat.add_message(role: :tool, content: "Started.", tool_call_id: "call_1")
+    conversation.note!("It is running. Its answer will come back here.")
+    conversation.reply_delivered!
+    run = @workspace.investigations.create!(
+      trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: member, max_turns: 10, max_spend_cents: 400,
+      conversation: conversation, tool_call_id: "call_1", status: Investigation::STATUS_SUCCEEDED,
+      started_at: 1.minute.ago, completed_at: Time.current, brief: { Investigation::Brief::KEY_SYMPTOM => "ember.dev answers 404" }
+    )
+    step!(run, 1, "Execute · Cloudflare Pages project ember-landing").fail!("NotFound: Cloudflare answered 404: Project not found",
+                                                                        kind: Chat::StepOutcome::FAILURE_NOT_FOUND)
+    step!(run, 2, "Execute · Cloudflare Workers").succeed!(compacted_result: "ember-landing")
+    step!(run, 3, "Execute · Cloudflare routes of ember-landing").succeed!(
+      compacted_result: "Error: Cloudflare API error: 10000: Authentication error", failure_kind: Chat::StepOutcome::FAILURE_ERROR
+    )
+    run.conclude!(summary: "ember-landing is a Worker whose route was removed at 14:02.")
+
+    visit agent_chat_path(conversation)
+
+    within("section[aria-label='Investigation']") do
+      find("button", text: /Investigated in/).click
+      assert_selector ".sr-only", text: "Not found", visible: :all
+      assert_selector ".sr-only", text: "Done", visible: :all
+      assert_selector ".sr-only", text: "Failed", visible: :all
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/agent-run-card-outcomes.png"))
+  end
+
   private
 
   def called!(chat, reply, id, intent, path, said, failure: nil)
