@@ -9,7 +9,6 @@ class Mcp::Tools::HalonAccessTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
     @member = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     FirefightAi.stubs(:context_window).returns(200_000)
     Conversation::Runner.stubs(:new).returns(

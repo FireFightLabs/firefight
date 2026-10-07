@@ -38,7 +38,6 @@ class ResourceMapReachControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the Memory page offers only the resources a limited member reads" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     limit_map_to(@workspace, @member, catalog_entries(:production_env))
     sign_in(users(:bob), @workspace)
@@ -76,7 +75,6 @@ class ResourceMapReachControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the Memory page leaves out a hidden resource's memories, and confirming one finds nothing" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     limit_map_to(@workspace, @member, catalog_entries(:production_env))
     hidden = Chat::Memory.create!(workspace: @workspace, text: "secret-db holds the card tokens", subject: map_resource(@workspace, "secret-db"),
@@ -95,7 +93,6 @@ class ResourceMapReachControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the Memory page leaves out a hidden resource's instructions, and editing, removing or writing them finds nothing" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     limit_map_to(@workspace, @member, catalog_entries(:production_env))
     Ability::Grant.grant!(workspace: @workspace, principal: @member, target: { action: Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_CATALOG, Ability::Action::ACTION_UPDATE)) })

@@ -11,7 +11,7 @@ class IncidentLearningService
     @workspace = workspace
   end
 
-  # Returns the memories it saved. A workspace without the agent, or an incident that taught nothing, gets no memories
+  # Returns the memories it saved. A workspace whose plan does not include AI, or an incident that taught nothing, gets no memories
   # and no message.
   def learn!(incident, postmortem: nil)
     return [] unless learns?
@@ -45,7 +45,7 @@ class IncidentLearningService
   private
 
   def learns?
-    defined?(FirefightAi) && FeatureFlags.enabled?(@workspace, FeatureFlags::AI_SRE) && Entitlements.allows?(@workspace, Entitlements::AI)
+    defined?(FirefightAi) && Entitlements.allows?(@workspace, Entitlements::AI)
   end
 
   def extractor = @extractor ||= FirefightAi::LessonExtractor.new(@workspace)

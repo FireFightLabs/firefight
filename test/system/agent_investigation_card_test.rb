@@ -4,7 +4,6 @@ class AgentInvestigationCardTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), @workspace)
   end

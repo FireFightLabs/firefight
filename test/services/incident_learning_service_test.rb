@@ -7,7 +7,6 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     @incident = incidents(:active_critical_ws1)
     @entry = catalog_entries(:auth_service)
     IncidentFieldValue.create!(incident: @incident, incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: @entry)
-    FeatureFlags.stubs(:enabled?).returns(true)
     Entitlements.stubs(:allows?).returns(true)
     FirefightAi::IncidentSummaryService.any_instance.stubs(:fetch_or_refresh).returns(nil)
     @adapter = @workspace.adapter
@@ -49,12 +48,12 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     assert_not_includes seen.map(&:text), own.text
   end
 
-  test "an incident that taught nothing posts nothing, and a workspace without the agent learns nothing" do
+  test "an incident that taught nothing posts nothing, and a workspace whose plan does not include AI learns nothing" do
     stub_lessons([])
     @adapter.expects(:post_learned_memories).never
     assert_empty IncidentLearningService.new(@workspace).learn!(@incident)
 
-    FeatureFlags.stubs(:enabled?).returns(false)
+    Entitlements.stubs(:allows?).returns(false)
     FirefightAi::LessonExtractor.any_instance.expects(:extract).never
     assert_empty IncidentLearningService.new(@workspace).learn!(@incident)
   end

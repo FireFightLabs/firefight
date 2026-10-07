@@ -1,13 +1,12 @@
 module FeatureFlags
   class UnknownFlag < ArgumentError; end
 
-  AI_SRE = :ai_sre
   # Sign in with ChatGPT as a workspace's AI account, until OpenAI approves its use here.
   CHATGPT_SIGN_IN = :chatgpt_sign_in
   # Google and email on the sign-in page. Global, since nobody signing in has a workspace yet.
   SELF_SERVE_SIGNUP = :self_serve_signup
 
-  WORKSPACE = [ AI_SRE, CHATGPT_SIGN_IN ].freeze
+  WORKSPACE = [ CHATGPT_SIGN_IN ].freeze
   GLOBAL = [ SELF_SERVE_SIGNUP ].freeze
   ALL = (WORKSPACE + GLOBAL).freeze
 

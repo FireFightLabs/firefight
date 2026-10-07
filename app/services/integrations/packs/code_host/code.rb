@@ -222,7 +222,6 @@ module Integrations
         end
 
         def run_shell(environment_row:, arguments:)
-          running_commands!
           repo = repo_argument(arguments)
           result = code(environment_row).exec(repo, ref: ref_argument(arguments), where: Sandboxes::Client::IN_CHECKOUT,
                                                     argv: [ "sh", "-c", required_text(arguments, "command") ],
@@ -231,7 +230,6 @@ module Integrations
         end
 
         def run_tests(environment_row:, arguments:)
-          running_commands!
           repo = repo_argument(arguments)
           ref = ref_argument(arguments)
           services = Array(arguments["services"]).map(&:to_s)
@@ -247,13 +245,6 @@ module Integrations
         private
 
         def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, remote: code_remote(environment_row))
-
-        # Commands a repository chooses reach the network, so they wait for the workspace's AI SRE switch.
-        def running_commands!
-          return if FeatureFlags.enabled?(integration.workspace, FeatureFlags::AI_SRE)
-
-          fail! "Running commands in the code sandbox is not switched on for this workspace."
-        end
 
         def definition_repos(environment_row, arguments)
           named = Array(arguments["repos"]).map { |repo| repo_argument({ "repo" => repo.to_s }) }

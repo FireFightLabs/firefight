@@ -12,14 +12,14 @@ class Slack::Messages::QuickActionsTest < ActiveSupport::TestCase
     assert_empty Slack::Messages::QuickActions.buttons(incidents(:resolved_minor_ws1))
   end
 
-  test "the investigate button appears only once the workspace has the flag" do
-    incident = incidents(:active_critical_ws1)
+  test "every workspace is offered the investigate button" do
+    assert_includes action_ids(incidents(:active_critical_ws1)), Identifiers::START_INVESTIGATION
+  end
 
-    assert_not_includes action_ids(incident), Identifiers::START_INVESTIGATION
+  test "a workspace whose plan does not include AI is not offered it" do
+    deny_entitlements!
 
-    FeatureFlags.enable!(incident.workspace, FeatureFlags::AI_SRE)
-
-    assert_includes action_ids(incident), Identifiers::START_INVESTIGATION
+    assert_not_includes action_ids(incidents(:active_critical_ws1)), Identifiers::START_INVESTIGATION
   end
 
   private

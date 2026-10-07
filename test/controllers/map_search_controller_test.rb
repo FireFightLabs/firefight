@@ -4,7 +4,6 @@ class MapSearchControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     build_two_environment_map(@workspace)
     SearchDocument.index!(ResourceMap::Resource, ResourceMap::Resource.where(workspace: @workspace).pluck(:id))
     SearchDocument.index!(CatalogEntry, @workspace.catalog_entries.pluck(:id))

@@ -3,7 +3,6 @@ require "application_system_test_case"
 class IncidentInvestigateButtonTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     @incident = incidents(:active_critical_ws1)
     sign_in(users(:bob), @workspace)
@@ -55,8 +54,8 @@ class IncidentInvestigateButtonTest < ApplicationSystemTestCase
     page.current_window.resize_to(1400, 1400)
   end
 
-  test "a workspace without Halon shows no button" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+  test "a workspace whose plan does not include AI shows no button" do
+    deny_entitlements!
 
     visit incident_path(@incident)
 

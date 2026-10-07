@@ -42,7 +42,6 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
 
     @plan.update_columns(status: Investigation::RemediationPlan::STATUS_PARTLY_APPLIED)
     @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_DONE)
-    FeatureFlags.enable!(@plan.finding.investigation.workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:check).returns(stub(blocked?: false))
     FirefightAi.stubs(:context_window).returns(200_000)
     button = undo_button(@plan.reload)

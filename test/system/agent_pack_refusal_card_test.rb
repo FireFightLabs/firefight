@@ -6,7 +6,6 @@ class AgentPackRefusalCardTest < ApplicationSystemTestCase
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     @adapter = stub_everything(post_pack_request_to_user: { channel_id: "D1", message_id: "1.1" })
     WorkspaceAdapter.stubs(:for).returns(@adapter)
