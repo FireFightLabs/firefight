@@ -5,7 +5,7 @@ class CodingAgentChoiceTest < ApplicationSystemTestCase
     sign_in(users(:alice), workspaces(:slack_workspace_one))
   end
 
-  test "a coding agent is connected with its key, then chosen to write code fixes, and the page says what it still needs" do
+  test "a coding agent is connected with its key, then chosen to write code fixes, and the page says what it needs once its tool is off" do
     Integrations::DevinApi.any_instance.stubs(:whoami).returns("principal_type" => "service_user", "org_id" => "org-abc")
     visit integrations_path(Integration::CONNECT_QUERY_PARAM => "devin")
 
@@ -27,9 +27,13 @@ class CodingAgentChoiceTest < ApplicationSystemTestCase
     click_button "Save changes"
 
     assert_text "Workspace settings were updated."
-    assert_text "Devin's fix_code tool is switched off, so code steps wait for a person. Switch it on under Integrations."
+    assert_no_text "code steps wait for a person"
     assert_equal "devin", workspaces(:slack_workspace_one).reload.code_fix_agent
     page.save_screenshot(Rails.root.join("tmp/screenshots/coding-agent-chosen.png"))
+
+    row.integration.tools.find_by!(name: "fix_code").update!(enabled: false)
+    visit settings_workspace_path
+    assert_text "Devin's fix_code tool is switched off, so code steps wait for a person. Switch it on under Integrations."
   end
 
   test "Factory's connect form asks which of its deployments the organization is on" do

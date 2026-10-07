@@ -5,6 +5,8 @@ module Ability
     belongs_to :principal, polymorphic: true
     belongs_to :role, class_name: "Ability::Role", optional: true, inverse_of: :grants
     belongs_to :action, class_name: "Ability::Action", optional: true
+    # Whoever made it, through the Permissions screen, the API or MCP. Nil for a grant Firefight made itself.
+    belongs_to :granted_by, polymorphic: true, optional: true
 
     # Workspace is part of the key so a global principal can hold different grants per tenant.
     validates :action_id, uniqueness: { scope: [ :principal_type, :principal_id, :workspace_id ] },
@@ -25,6 +27,7 @@ module Ability
     scope :live, -> { where(expires_at: nil).or(where(expires_at: Time.current..)) }
 
     after_commit :bust_principal_cache
+    after_create_commit :settle_pack_requests, if: -> { role_id.present? && principal_type == WorkspaceMembership.name && !no_access? }
 
     def self.grantable_actions(workspace)
       Ability::Action.grantable_for(workspace).includes(source: :integration).order(:kind, :key)
@@ -40,17 +43,19 @@ module Ability
 
     # One grant per principal per target is a DB invariant, so granting again
     # retargets the existing row.
-    def self.grant!(workspace:, principal:, target:, environment_ids: [], expires_at: nil)
+    def self.grant!(workspace:, principal:, target:, environment_ids: [], expires_at: nil, granted_by: nil)
       grant = workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(target))
+      grant.granted_by = granted_by if granted_by
       grant.scope = Ability::Scope.for_environments(workspace, environment_ids)
       grant.expires_at = parse_expiry(grant, expires_at)
       grant.save!
       grant
     end
 
-    # Takes a member's default away at once, replacing any grant of the same ability. Revoking it gives the default back.
-    def self.withhold!(workspace:, principal:, action:)
-      grant = workspace.ability_grants.find_or_initialize_by(principal: principal, action: action)
+    # Takes a member's default away at once, replacing any grant of the same ability or read pack. Revoking it gives the
+    # default back.
+    def self.withhold!(workspace:, principal:, action: nil, role: nil)
+      grant = workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(role ? { role: role } : { action: action }))
       grant.update!(scope: Ability::Scope::NO_ACCESS, expires_at: nil)
       grant
     end
@@ -123,8 +128,8 @@ module Ability
     end
 
     def no_access_only_for_a_member_default
-      return errors.add(:base, NO_ACCESS_ONLY_FOR_DEFAULTS) unless principal.is_a?(WorkspaceMembership) && action &&
-                                                                   WorkspaceMembership::NARROWABLE_KEYS.include?(action.key)
+      return errors.add(:base, NO_ACCESS_ONLY_FOR_DEFAULTS) unless principal.is_a?(WorkspaceMembership) &&
+                                                                   WorkspaceMembership.default_target?(action: action, role: role)
 
       errors.add(:base, NO_ACCESS_NOT_FOR_ADMINS) if principal.admin_access?
     end
@@ -139,6 +144,14 @@ module Ability
 
     def action_grantable
       errors.add(:action, "is admin-only and cannot be granted") if action&.admin_only?
+    end
+
+    # Granting a pack someone asked for answers their request, wherever it was granted from.
+    def settle_pack_requests
+      requests = Ability::PackRequest.waiting.where(requester_id: principal_id, role_id: role_id)
+      settled = requests.pluck(:id)
+      requests.update_all(given_at: Time.current, given_by_id: (granted_by_id if granted_by.is_a?(WorkspaceMembership)), updated_at: Time.current)
+      settled.each { |id| PackRequestSettledJob.perform_later(id) }
     end
 
     def bust_principal_cache

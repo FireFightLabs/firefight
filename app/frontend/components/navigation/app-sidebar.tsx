@@ -133,6 +133,11 @@ const navSections: SidebarNavSection[] = [
   },
 ]
 
+// The Gateway links that carry a count of what waits on someone.
+function badgedItem(item: SidebarNavItem, counts: Record<string, number | undefined>): SidebarNavItem {
+  return item.title in counts ? { ...item, badge: counts[item.title] } : item
+}
+
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const navScroll = useRememberedScroll<HTMLDivElement>("app-sidebar")
   const {
@@ -142,6 +147,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     cloudBillingPath,
     currentUserIsAdmin,
     pendingApprovalsCount,
+    waitingPackRequestsCount,
     agentAvailable,
   } = usePage<SharedProps>().props
 
@@ -170,7 +176,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       ? {
           ...section,
           items: section.items.map((item) =>
-            item.title === "Approvals" ? { ...item, badge: pendingApprovalsCount } : item,
+            badgedItem(item, { Approvals: pendingApprovalsCount, Permissions: waitingPackRequestsCount }),
           ),
         }
       : section,

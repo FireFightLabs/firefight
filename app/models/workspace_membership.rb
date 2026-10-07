@@ -45,6 +45,7 @@ class WorkspaceMembership < ApplicationRecord
 
   # Held in every environment without a grant, until an admin grants one to the member, alone or in a set. From then the
   # grants decide where, so a grant narrows the default rather than adding to it, and one that expires narrows to nothing.
+  # A connected tool that only reads is held the same way (default_read?).
   NARROWABLE_KEYS = [ Ability::Action::MAP_READ, Ability::Action::INVESTIGATIONS_CREATE ].freeze
 
   # Where one of those defaults stands for a member: held, narrowed by a grant, or taken away by an admin.
@@ -56,15 +57,16 @@ class WorkspaceMembership < ApplicationRecord
     DEFAULT_NARROWED => "A grant below decides where they have it.",
     DEFAULT_NO_ACCESS => "No access. Restore it to give them the default back."
   }.freeze
-  DefaultAccess = Data.define(:action, :state, :grant) do
+  # One of the defaults, either a system action or a connection's read pack, which stands for every tool on it that reads.
+  DefaultAccess = Data.define(:action, :role, :state, :grant) do
     def note = DEFAULT_NOTES.fetch(state)
   end
 
-  # Admins hold every catalogued ability including integration tools, since enabling one on a
-  # connection is already the deliberate step. For members anything reaching another system stays an explicit grant.
-  def implicitly_allowed?(action)
+  # Admins hold every catalogued ability including integration tools. A member reads every connected tool that only
+  # reads, the way they read Firefight's own data, while a tool that changes something stays an explicit grant.
+  def implicitly_allowed?(action, resolved = nil)
     return true if admin_access?
-    return false unless action.system?
+    return default_read?(action, resolved) if action.tool?
 
     implicitly_permits?(*action.key.split("."))
   end
@@ -82,18 +84,39 @@ class WorkspaceMembership < ApplicationRecord
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
   end
 
+  # A connected tool that only reads, held until a grant of it, alone or in a set such as its connection's read pack,
+  # narrows it.
+  def default_read?(action, resolved = nil)
+    return false unless action.tool? && action.read? && action.workspace_id == workspace_id
+
+    !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(action.key)
+  end
+
+  # Whether an admin may take this away from a member with No access: a default above, or a connection's read pack.
+  def self.default_target?(action: nil, role: nil)
+    return role.read_pack? if role
+
+    action.present? && (NARROWABLE_KEYS.include?(action.key) || (action.tool? && action.read?))
+  end
+
   def implicit_authority
     admin_access? ? :admin : :member
   end
 
-  # Where each default stands for this member, which the Permissions screen shows and lets an admin take away.
+  # Where each default stands for this member, which the Permissions screen shows and lets an admin take away. A
+  # connection's reads are one row, its read pack, rather than a row for each tool.
   def default_access
     return [] if admin_access?
 
     resolved = Ability::Resolver.resolve(self, workspace_id)
-    withheld = ability_grants.where(workspace_id: workspace_id).includes(:action).select(&:no_access?).index_by { |grant| grant.action.key }
-    NARROWABLE_KEYS.map do |key|
-      DefaultAccess.new(action: Ability::Action.system!(key), state: default_state(key, withheld, resolved), grant: withheld[key])
+    withheld = ability_grants.where(workspace_id: workspace_id).includes(:action, :role).select(&:no_access?)
+    by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
+    by_role = withheld.select(&:role).index_by(&:role_id)
+    system = NARROWABLE_KEYS.map do |key|
+      DefaultAccess.new(action: Ability::Action.system!(key), role: nil, state: default_state(key, by_action, resolved), grant: by_action[key])
+    end
+    system + read_packs.map do |pack|
+      DefaultAccess.new(action: nil, role: pack, state: pack_state(pack, by_role, resolved), grant: by_role[pack.id])
     end
   end
 
@@ -103,6 +126,19 @@ class WorkspaceMembership < ApplicationRecord
     resolved.granted_ever?(key) ? DEFAULT_NARROWED : DEFAULT_HELD
   end
   private :default_state
+
+  def pack_state(pack, withheld, resolved)
+    return DEFAULT_NO_ACCESS if withheld.key?(pack.id)
+
+    pack.actions.any? { |action| resolved.granted_ever?(action.key) } ? DEFAULT_NARROWED : DEFAULT_HELD
+  end
+  private :pack_state
+
+  def read_packs
+    workspace.ability_roles.where(pack: Ability::Role::PACK_READ).joins(:integration).merge(Integration.where(deleted_at: nil))
+             .includes(:actions, :integration).order(:name).select { |pack| pack.actions.any? }
+  end
+  private :read_packs
 
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }

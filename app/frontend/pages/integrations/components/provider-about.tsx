@@ -41,8 +41,8 @@ export function ProviderAbout({ provider, onClose }: { provider: IntegrationProv
               <div className="flex flex-col gap-1">
                 <dt className="text-fg-primary font-medium">What it may change</dt>
                 <dd className="text-fg-body">
-                  Halon only uses the tools you switch on. A tool that changes something follows your permissions and approval
-                  rules, and an investigation only reads.
+                  Every tool arrives switched on, and Halon uses only the ones that stay on. A tool that changes something follows
+                  your permissions and approval rules, and an investigation only reads.
                 </dd>
               </div>
             </dl>

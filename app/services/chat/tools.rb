@@ -304,12 +304,18 @@ module Chat::Tools
       writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
-        name: tool.model_facing_name, description: clean(tool.described_for_agents, ONE_LINE),
+        name: tool.model_facing_name, description: clean([ (pack_needed(tool) unless ready || writes), tool.described_for_agents ].compact.join(" "), ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name
       )
     end
+  end
+
+  # Leads a tool that changes something and is not granted, so the agent can tell the person which pack to ask for.
+  def self.pack_needed(tool)
+    pack = Ability::Role.to_ask_for(tool.ability_action)
+    "Needs the #{pack.name} pack, which a workspace admin can give." if pack
   end
 
   # One entry per capability some connection in the workspace can answer. It is ready when the principal may call at

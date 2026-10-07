@@ -607,7 +607,8 @@ export const AGENT_STREAM_EVENTS = {
   "WAITING": "waiting",
   "INVESTIGATION": "investigation",
   "MADE_ROOM": "made_room",
-  "HELD_CALL": "held_call"
+  "HELD_CALL": "held_call",
+  "PACK_REFUSAL": "pack_refusal"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -661,7 +662,8 @@ export const AGENT_CHAT_PROPS = {
   "WAITING_MESSAGES": "waitingMessages",
   "ATTACHMENT_RULES": "attachmentRules",
   "COMPACTIONS": "compactions",
-  "HELD_CALLS": "heldCalls"
+  "HELD_CALLS": "heldCalls",
+  "PACK_REFUSALS": "packRefusals"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

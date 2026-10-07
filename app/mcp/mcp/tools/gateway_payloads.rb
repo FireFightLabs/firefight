@@ -15,7 +15,8 @@ module Mcp
       end
 
       def permission_set_payload(set)
-        { slug: set.slug, name: set.name, abilities: set.actions.map(&:key).sort, grant_count: set.grants.size }
+        { slug: set.slug, name: set.name, description: set.description, built_in: set.built_in?, abilities: set.actions.map(&:key).sort,
+          grant_count: set.grants.size }
       end
 
       def approval_rule_payload(rule)

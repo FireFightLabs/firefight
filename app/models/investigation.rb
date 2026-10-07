@@ -166,6 +166,9 @@ class Investigation < ApplicationRecord
     "Not allowed: this agent has no grant for #{action_key} in this workspace."
   end
 
+  # A run acts as its own agent, so no person is refused and nobody is offered a pack.
+  def pack_refused!(_action_key, _tool_call_id) = nil
+
   # Nobody is watching a run to confirm anything, so its reach is set by its grants and approval rules alone.
   def confirms?(_action, declared_destructive: false, **) = declared_destructive
 

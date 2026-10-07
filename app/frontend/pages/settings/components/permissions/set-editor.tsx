@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { router } from "@inertiajs/react"
 
 import type { AbilityActionOption, AbilityRole, ApprovalRule } from "@/types/serializers"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Blocked } from "@/pages/settings/components/blocked-tooltip"
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RequiresApprovalBadge } from "@/pages/settings/components/permissions/requires-approval-badge"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
@@ -26,7 +27,13 @@ export function SetEditor({
 }) {
   const [search, setSearch] = useState("")
 
-  const grouped = useGroupedActions(actions, search)
+  // A built-in pack is kept in step by Firefight, so it lists what it holds and is never edited here.
+  const canEdit = canManage && !set.editBlockedReason
+  const shown = useMemo(
+    () => (set.builtIn ? actions.filter((action) => set.actionIds.includes(action.id)) : actions),
+    [actions, set.builtIn, set.actionIds],
+  )
+  const grouped = useGroupedActions(shown, search)
 
   function toggle(actionId: string) {
     const next = set.actionIds.includes(actionId)
@@ -51,6 +58,7 @@ export function SetEditor({
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div className="min-w-0">
           <CardTitle className="text-base">{set.name}</CardTitle>
+          {set.description && <p className="text-muted-foreground text-sm">{set.description}</p>}
           <p className="text-muted-foreground text-xs">
             {set.actionIds.length} {set.actionIds.length === 1 ? "ability" : "abilities"} ·{" "}
             {set.grantCount === 0
@@ -59,18 +67,27 @@ export function SetEditor({
           </p>
         </div>
         {canManage && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive shrink-0"
-            onClick={() => router.delete(abilityRolePath(set.id))}
-          >
-            Delete set
-          </Button>
+          <Blocked reason={set.deleteBlockedReason ?? undefined}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive shrink-0"
+              disabled={Boolean(set.deleteBlockedReason)}
+              onClick={() => router.delete(abilityRolePath(set.id))}
+            >
+              Delete set
+            </Button>
+          </Blocked>
         )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {set.grantCount > 0 && (
+        {set.editBlockedReason && (
+          <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-3 py-2 text-xs">
+            {set.editBlockedReason}
+          </div>
+        )}
+
+        {set.grantCount > 0 && canEdit && (
           <div className="border-border bg-muted/40 text-muted-foreground rounded-lg border px-3 py-2 text-xs">
             Changing this set changes what everyone holding it can do, immediately.
           </div>
@@ -90,7 +107,7 @@ export function SetEditor({
               <div key={group}>
                 <div className="bg-muted/50 flex items-center justify-between gap-2 px-3 py-1.5">
                   <p className="text-muted-foreground text-xs font-medium">{group}</p>
-                  {canManage && (
+                  {canEdit && (
                     <button
                       type="button"
                       onClick={() => toggleGroup(entries)}
@@ -105,11 +122,11 @@ export function SetEditor({
                 {entries.map((action) => (
                   <label
                     key={action.id}
-                    className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2"
+                    className={`flex items-center gap-3 px-3 py-2 ${canEdit ? "hover:bg-muted/50 cursor-pointer" : ""}`}
                   >
                     <Checkbox
                       checked={set.actionIds.includes(action.id)}
-                      disabled={!canManage}
+                      disabled={!canEdit}
                       onCheckedChange={() => toggle(action.id)}
                     />
                     <ActionLabel actionKey={action.key} title={action.title} description={action.description} />

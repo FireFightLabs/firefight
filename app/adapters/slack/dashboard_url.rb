@@ -26,6 +26,10 @@ module Slack
       build(:integrations_url, Integration::DETAILS_QUERY_PARAM => integration_id)
     end
 
+    def self.permissions
+      build(:gateway_permissions_url, {})
+    end
+
     def self.build(helper, params)
       host = ENV["APP_HOST"].presence
       return nil unless host

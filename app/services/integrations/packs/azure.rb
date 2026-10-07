@@ -4,8 +4,8 @@ module Integrations
     # subscription connect field, a scope), with a service principal the workspace creates. It reads App Service and
     # Functions apps with their deployments and slots, Container Apps with their revisions, Azure SQL databases and
     # PostgreSQL flexible servers, their metrics from Azure Monitor and their logs from Log Analytics. Three tools change
-    # something, each as Azure's own API does it, and only when the principal's roles allow it and an admin switched the
-    # tool on: swapping a slot or moving a Container App's traffic, restarting, and scaling.
+    # something, each as Azure's own API does it, and only when the principal's roles allow it and the
+    # tool is switched on: swapping a slot or moving a Container App's traffic, restarting, and scaling.
     #
     # Every endpoint, parameter and field is from the Resource Manager specifications in Azure/azure-rest-api-specs
     # (Microsoft.Web 2025-03-01, Microsoft.App 2025-01-01, Microsoft.Sql 2023-08-01, Microsoft.DBforPostgreSQL

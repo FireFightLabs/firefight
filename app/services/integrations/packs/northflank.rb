@@ -3,7 +3,7 @@ module Integrations
     # Northflank for the projects an environment reads, one, several or every one its token can read (the project
     # connect field, a scope). It reads what runs there, its logs, its metrics and its builds, with the API token the
     # workspace creates in Northflank. Every tool reads, except api_request, which reaches all of Northflank's API inside
-    # one project when the token's role allows it and an admin switched it on. A call reaches one project, the one it
+    # one project when the token's role allows it and it is switched on. A call reaches one project, the one it
     # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every project.
     class Northflank < NativePack
       # The environment row's credentials, which only this pack reads.

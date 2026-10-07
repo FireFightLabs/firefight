@@ -2,7 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CARD_KINDS, AGENT_CHANNEL, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
-import { refreshCharts, refreshHeldCalls, refreshOpenChat, refreshRuns } from "@/pages/agent/lib/chat-updates"
+import { refreshCharts, refreshHeldCalls, refreshOpenChat, refreshPackRefusals, refreshRuns } from "@/pages/agent/lib/chat-updates"
 import { NOTHING_STREAMED, type StreamEvent, streamedSteps, streamedText, withEvent } from "@/pages/agent/lib/stream-order"
 import type { AgentStream } from "@/pages/agent/types"
 
@@ -52,6 +52,10 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           }
           if (event.type === AGENT_STREAM_EVENTS.HELD_CALL) {
             refreshHeldCalls()
+            return
+          }
+          if (event.type === AGENT_STREAM_EVENTS.PACK_REFUSAL) {
+            refreshPackRefusals()
             return
           }
           if (event.type === AGENT_STREAM_EVENTS.STEP && event.card?.kind === AGENT_CARD_KINDS.CHART) {

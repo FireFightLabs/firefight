@@ -21,6 +21,7 @@ class Workspace < ApplicationRecord
   # Its own model keys, tried in order before whatever the deployment pays with.
   has_many :workspace_ai_accounts, -> { order(:position) }, dependent: :destroy, inverse_of: :workspace
   has_many :ability_roles, class_name: "Ability::Role", dependent: :destroy
+  has_many :ability_pack_requests, class_name: "Ability::PackRequest", dependent: :delete_all
   has_many :webhooks, dependent: :destroy
   has_many :alerts, dependent: :destroy
   has_many :alert_groups, dependent: :destroy

@@ -3,7 +3,7 @@ module Integrations
     # Railway for one environment in each project a connection reads, one, several or every one its token can read (the
     # project connect field, a scope). It reads their services, databases and cron jobs, and their logs, metrics and
     # deployments, with an account or workspace token. Every tool reads, except the restart, rollback
-    # and scale an admin switches on for Halon to apply fixes. Queries and mutations are the ones the Railway CLI sends
+    # and scale Halon uses to apply fixes. Queries and mutations are the ones the Railway CLI sends
     # (railwayapp/cli, src/gql) or Railway's API docs give (railwayapp/docs, content/docs/integrations/api).
     class Railway < NativePack
       # The environment row's credentials, which only this pack reads.

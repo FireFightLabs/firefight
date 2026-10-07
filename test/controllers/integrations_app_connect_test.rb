@@ -37,7 +37,7 @@ class IntegrationsAppConnectTest < ActionDispatch::IntegrationTest
     assert_nil query["code_challenge"]
   end
 
-  test "coming back connects a native connection beside the MCP one, with the pack's tools switched off" do
+  test "coming back connects a native connection beside the MCP one, with the pack's tools switched on" do
     mcp = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "linear", name: "Linear", settings: { "server_url" => "https://mcp.linear.app/mcp" })
     state = Rack::Utils.parse_query(start("linear").query)["state"]
     Integrations::OauthClient.expects(:exchange).with(has_entries(token_endpoint: "https://api.linear.app/oauth/token", client_secret: "lin-secret",
@@ -51,7 +51,7 @@ class IntegrationsAppConnectTest < ActionDispatch::IntegrationTest
     assert_equal [ Integration::KIND_NATIVE, "linear" ], [ app.kind, app.provider ]
     assert_equal Integration::KIND_MCP, mcp.reload.kind
     assert_equal %w[get_issue list_issue_statuses list_users save_issue], app.tools.order(:name).pluck(:name)
-    assert app.tools.none?(&:enabled?)
+    assert app.tools.all?(&:enabled?)
   end
 
   test "without the app registered on this install the dialog offers it nowhere" do

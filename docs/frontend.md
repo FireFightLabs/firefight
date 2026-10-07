@@ -96,6 +96,7 @@ app/frontend/pages/dashboard/types.ts             # Manual TS types (DashboardFi
 app/frontend/
   components/              # Cross-page shared components
     confirm-delete-dialog.tsx  # Used by settings, incidents and the agent chat
+    permissions/           # who-can-do-what, the quick grant panel (Permissions screen and onboarding)
     agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
     layout/                # App shell (authenticated-layout)
