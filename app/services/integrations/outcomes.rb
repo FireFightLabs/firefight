@@ -1,7 +1,7 @@
 module Integrations
   # Whether a failed call was the provider saying the thing it was asked about is not there, which answers a check rather
-  # than breaking it. It is read from what the provider answered, never from what the agent said about it: an error
-  # marked NotFound, or a remote server's own answer read by the error reader its provider's definition names. Only a
+  # than breaking it. It is read from what the provider answered, never from what the agent said about it. That is an
+  # error marked NotFound, or a remote server's own answer read by the error reader its provider's definition names. Only a
   # call that reads counts, since a change that found nothing to change still did not do what it was asked.
   module Outcomes
     def self.not_found?(tool, arguments, error: nil, said: nil)

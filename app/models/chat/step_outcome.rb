@@ -1,5 +1,5 @@
-# What a step got back, shown under it once opened: the provider's own words for a call that failed or found nothing,
-# and how a call that answered starts, how long it is and the page it came from. Built from what is already kept for the
+# What a step got back, shown under it once opened. A call that failed or found nothing shows the provider's own words,
+# and a call that answered shows how its answer starts, how long it is and the page it came from. Built from what is already kept for the
 # call, the tool's answer and its failure kind, and redacted like every answer, so nothing here is a second copy. total
 # counts the answer's lines that are not blank and size its characters.
 Chat::StepOutcome = Data.define(:kind, :said, :lines, :total, :size, :link)
@@ -30,7 +30,7 @@ class Chat::StepOutcome
   FRAME_CLOSING = "\n</#{FirefightAi::Evidence::TAG}>".freeze
   # A result too large to hand over, or cleared to make room, names where the whole of it was kept.
   SAVED_AS = /\A\[[^\]]*\bsaved (?:in full )?as (?<handle>result_\d+)/
-  # How a failure is introduced before the provider's own words: a remote server's "Error: " and Firefight's
+  # How a failure is introduced before the provider's own words, a remote server's "Error: " or Firefight's
   # "<action> failed: ".
   INTRODUCED = /\A(?:Error: |[\w.:-]+ failed: )+/
   ERROR_NAME = /\A[A-Z]\w*: (?=\S)/

@@ -1,6 +1,6 @@
 require "test_helper"
 
-# Seen in a real chat: Halon checked whether ember-landing was a Cloudflare Pages project, Cloudflare answered that no
+# Seen in a real chat, Halon checked whether ember-landing was a Cloudflare Pages project, Cloudflare answered that no
 # such project exists, and the step showed a red cross before Halon listed Workers and found it there. A read the
 # provider answered not found is kept as one, and anything else that failed stays a failure.
 class Chat::Tools::StepOutcomesTest < ActiveSupport::TestCase

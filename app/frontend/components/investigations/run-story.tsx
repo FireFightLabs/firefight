@@ -61,7 +61,7 @@ function IconMarker({ icon: Marker }: { icon: Icon }) {
   return <Marker className="size-[13px]" strokeWidth={1.75} />
 }
 
-// How the step went decides its colour: a call whose provider answered with an error is red even when the step ran, and
+// How the step went decides its colour. A call whose provider answered with an error is red even when the step ran, and
 // one whose provider found nothing stays neutral.
 function stepTone(step: InvestigationStep): Tone {
   if (step.outcome?.kind === STEP_OUTCOME_KINDS.FAILED) {

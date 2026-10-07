@@ -1,6 +1,6 @@
 require "application_system_test_case"
 
-# Seen in a real chat: Halon checked whether ember-landing was a Cloudflare Pages project, Cloudflare answered that it
+# Seen in a real chat, Halon checked whether ember-landing was a Cloudflare Pages project, Cloudflare answered that it
 # is not, and the step showed a red cross with nothing but its arguments under it. An opened step now says what came back.
 class AgentStepOutcomesTest < ApplicationSystemTestCase
   PAGES_INTENT = "Check whether ember-landing is a Cloudflare Pages project and read its current configuration before renaming it".freeze
