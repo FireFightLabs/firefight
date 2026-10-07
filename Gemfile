@@ -60,6 +60,7 @@ gem "aws-sdk-rds", require: false
 # Authentication with OmniAuth
 gem "omniauth", "~> 2.1"
 gem "omniauth-oauth2"
+gem "omniauth-google-oauth2"
 gem "omniauth-rails_csrf_protection"
 
 # Generate JavaScript routes from Rails routes
@@ -125,6 +126,9 @@ end
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
+
+  # Opens sent mail in the browser when no SMTP server is set
+  gem "letter_opener"
 end
 
 group :test do

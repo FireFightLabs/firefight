@@ -1,5 +1,10 @@
 module Auth
   class OmniauthCallbacksController < ApplicationController
+    include SignInSession
+
+    UNAVAILABLE_MESSAGE = "That way of signing in is not available.".freeze
+    GOOGLE_UNVERIFIED_MESSAGE = "Google has not verified the email on that account. Verify it with Google, then sign in again.".freeze
+
     skip_before_action :verify_authenticity_token, only: [ :slack, :slack_openid ]
 
     # Sign-in only, no bot install. AuthOutcome decides between signed in and the install
@@ -25,6 +30,28 @@ module Auth
     rescue => e
       log_auth_failure(:slack_install_failed, e)
       redirect_to login_path, alert: "Installation failed. Please try again."
+    end
+
+    # Signs in only a person who already has a workspace. Anyone else lands on the signup page.
+    def google_oauth2
+      return redirect_to(login_path, alert: UNAVAILABLE_MESSAGE) unless SignInMethods.google?
+
+      info = auth_hash.info
+      claims = AuthenticationService::Claims.new(
+        provider: UserIdentity::GOOGLE,
+        uid: auth_hash.uid,
+        email: info.unverified_email || info.email,
+        email_verified: info.email_verified,
+        name: info.name,
+        avatar_url: info.image
+      )
+      result = AuthenticationService.new.sign_in_with(claims, require_verified_email: true)
+      return redirect_to(login_path, alert: GOOGLE_UNVERIFIED_MESSAGE) if result.unverified_email?
+
+      finish_self_serve_sign_in(result)
+    rescue => e
+      log_auth_failure(:google_failed, e)
+      redirect_to login_path, alert: "Sign-in failed. Please try again."
     end
 
     def failure
@@ -57,25 +84,16 @@ module Auth
       return sign_in_and_redirect(outcome)       if outcome.signed_in?
       return start_install_and_redirect(outcome) if outcome.install_needed?
       return invite_required_and_redirect(outcome) if outcome.invite_required?
+      return redirect_to(login_path, alert: outcome.message) if outcome.refused?
 
       raise "Unhandled auth outcome: #{outcome.inspect}"
     end
 
     def sign_in_and_redirect(outcome)
-      # Captured before reset_session wipes it.
-      return_to = safe_return_to(session[:return_to])
-      reset_session
-      session[:user_id]      = outcome.membership.user_id
-      session[:workspace_id] = outcome.membership.workspace_id
+      return_to = start_session(user_id: outcome.membership.user_id, workspace_id: outcome.membership.workspace_id)
       session[:show_welcome_note] = true if outcome.first_install?
       target = outcome.first_install? ? onboarding_welcome_path : (return_to || dashboard_path)
       redirect_to(target, notice: outcome.message)
-    end
-
-    def safe_return_to(path)
-      return nil if path.blank?
-      return nil unless path.is_a?(String) && path.start_with?("/app/")
-      path
     end
 
     def start_install_and_redirect(outcome)

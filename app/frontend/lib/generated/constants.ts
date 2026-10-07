@@ -36,6 +36,12 @@ export const CONNECT_SCOPE_ALL = {
 
 export const RUNBOOK_QUERY_PARAM = "runbook" as const
 
+export const SIGN_IN_PROVIDERS = {
+  "GOOGLE": "google",
+  "SLACK": "slack",
+  "EMAIL": "email"
+} as const
+
 export const INTEGRATION_DETAILS_QUERY_PARAM = "integration" as const
 
 export const INTEGRATION_CONNECT_QUERY_PARAM = "connect" as const

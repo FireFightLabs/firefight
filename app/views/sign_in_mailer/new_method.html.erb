@@ -1,0 +1,5 @@
+<p style="margin: 0 0 16px;"><strong><%= @method_name %></strong><%= " (#{@identity_email})" if @identity_email %> can now be used to sign in to your Firefight account. It was added on <%= @added_at.utc.strftime("%B %-d, %Y at %H:%M UTC") %>.</p>
+<p style="margin: 0 0 24px; color: #555555;">If this was you, there is nothing to do. If it was not, remove it from your profile and tell your workspace admin.</p>
+<p style="margin: 0;">
+  <a href="<%= @profile_url %>" style="display: inline-block; padding: 10px 18px; border-radius: 6px; background: #121312; color: #9ee464; font-weight: 600; text-decoration: none;">Open your profile</a>
+</p>

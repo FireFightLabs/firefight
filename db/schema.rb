@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_230200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_230600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1437,6 +1437,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230200) do
     t.index ["redeemed_by_id"], name: "index_invite_codes_on_redeemed_by_id"
   end
 
+  create_table "login_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "email", null: false
+    t.string "token_digest", null: false
+    t.string "purpose", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "consumed_at"
+    t.string "requested_ip"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email", "purpose"], name: "index_login_tokens_open_by_email", where: "(consumed_at IS NULL)"
+    t.index ["expires_at"], name: "index_login_tokens_on_expires_at"
+    t.index ["token_digest"], name: "index_login_tokens_on_token_digest", unique: true
+  end
+
   create_table "oauth_access_grants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "application_id", null: false
     t.string "code_challenge"
@@ -1976,12 +1991,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230200) do
     t.index ["slug"], name: "index_system_agents_on_slug", unique: true
   end
 
+  create_table "user_identities", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "user_id", null: false
+    t.string "provider", null: false
+    t.string "uid", null: false
+    t.string "email"
+    t.boolean "email_verified", default: false, null: false
+    t.datetime "last_used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "uid"], name: "index_user_identities_on_provider_and_uid", unique: true
+    t.index ["user_id"], name: "index_user_identities_on_user_id"
+  end
+
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "avatar_url"
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
+    t.index "lower((email)::text)", name: "index_users_on_lower_email", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
   end
 
@@ -2321,6 +2350,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230200) do
   add_foreign_key "solid_workflow_events", "solid_workflow_steps", column: "step_id", on_delete: :cascade
   add_foreign_key "solid_workflow_events", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
   add_foreign_key "solid_workflow_steps", "solid_workflow_workflows", column: "workflow_id", on_delete: :cascade
+  add_foreign_key "user_identities", "users", on_delete: :cascade
   add_foreign_key "webhook_delinquency_trackers", "webhooks"
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"

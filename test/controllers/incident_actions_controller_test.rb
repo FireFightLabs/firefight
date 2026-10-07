@@ -267,7 +267,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
       post incident_item_issue_path(incident_id: @incident.id, id: action.id)
     end
     assert_redirected_to incident_path(@incident)
-    assert_nil flash[:notice]
+    assert_equal "Opening the item's issue.", flash[:notice]
     assert_equal IncidentAction::ISSUE_CREATING, action.reload.issue_sync_state
 
     post incident_item_issue_path(incident_id: @incident.id, id: action.id)

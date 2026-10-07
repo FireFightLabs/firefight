@@ -8,7 +8,10 @@ class SessionsController < InertiaController
       return
     end
 
-    render inertia: "login/index"
+    render inertia: "login/index", props: {
+      googleSignIn: SignInMethods.google?,
+      emailSignIn: SignInMethods.email?
+    }
   end
 
   def destroy

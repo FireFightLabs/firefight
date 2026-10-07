@@ -2,7 +2,7 @@ require "test_helper"
 require "rake"
 
 class FeatureFlagsRakeTest < ActiveSupport::TestCase
-  TASKS = %w[feature_flags:enable feature_flags:disable feature_flags:list].freeze
+  TASKS = %w[feature_flags:enable feature_flags:disable feature_flags:enable_globally feature_flags:disable_globally feature_flags:list].freeze
 
   setup do
     Rails.application.load_tasks unless Rake::Task.task_defined?("feature_flags:enable")
@@ -59,5 +59,30 @@ class FeatureFlagsRakeTest < ActiveSupport::TestCase
     end
 
     assert_match "No workspace", error
+  end
+
+  test "enable_globally and disable_globally turn a global flag on and off for everyone" do
+    output, = capture_io { Rake::Task["feature_flags:enable_globally"].invoke(FeatureFlags::SELF_SERVE_SIGNUP.to_s) }
+    assert FeatureFlags.enabled_globally?(FeatureFlags::SELF_SERVE_SIGNUP)
+    assert_match "on for everyone", output
+
+    capture_io { Rake::Task["feature_flags:disable_globally"].invoke(FeatureFlags::SELF_SERVE_SIGNUP.to_s) }
+    assert_not FeatureFlags.enabled_globally?(FeatureFlags::SELF_SERVE_SIGNUP)
+  end
+
+  test "list says whether each global flag is on" do
+    FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
+
+    output, = capture_io { Rake::Task["feature_flags:list"].invoke }
+
+    assert_match "#{FeatureFlags::SELF_SERVE_SIGNUP}: on for everyone", output
+  end
+
+  test "enable_globally stops on a flag that is set per workspace" do
+    _, error = capture_io do
+      assert_raises(SystemExit) { Rake::Task["feature_flags:enable_globally"].invoke(FeatureFlags::AI_SRE.to_s) }
+    end
+
+    assert_match "set per workspace", error
   end
 end
