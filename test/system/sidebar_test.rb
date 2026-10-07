@@ -2,16 +2,10 @@ require "application_system_test_case"
 
 class SidebarTest < ApplicationSystemTestCase
   SHORT = [ 1400, 600 ].freeze
-  DESKTOP = [ 1400, 1400 ].freeze
 
   setup do
     sign_in(users(:alice), workspaces(:slack_workspace_one))
     page.driver.browser.manage.window.resize_to(*SHORT)
-  end
-
-  # The browser is shared across tests, so the full size window is put back before the next test.
-  teardown do
-    page.driver.browser.manage.window.resize_to(*DESKTOP)
   end
 
   test "the sidebar keeps its scroll when a link in it opens another page" do
