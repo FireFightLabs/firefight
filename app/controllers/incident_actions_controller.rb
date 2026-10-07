@@ -65,7 +65,7 @@ class IncidentActionsController < InertiaController
     refusal = IssueSyncService.new(current_workspace).request(action, by: current_member)
     return redirect_to(incident_path(incident), alert: refusal) if refusal
 
-    redirect_to incident_path(incident)
+    redirect_to incident_path(incident), notice: "Opening the item's issue."
   end
 
   private
