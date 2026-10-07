@@ -13,6 +13,7 @@ class ResourceMap::Resource < ApplicationRecord
   has_many :entry_links, class_name: "ResourceMap::EntryLink", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
   has_many :catalog_entries, through: :entry_links
   has_many :baselines, class_name: "ResourceMap::Baseline", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
+  has_many :log_templates, class_name: "ResourceMap::LogTemplate", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
   has_many :uses, class_name: "ResourceMap::Use", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
   has_many :endpoints, class_name: "ResourceMap::Endpoint", foreign_key: :resource_id, inverse_of: :resource, dependent: :delete_all
 
@@ -89,6 +90,16 @@ class ResourceMap::Resource < ApplicationRecord
     by_id = " OR resource_map_resources.id = CAST(:wanted AS uuid)" if wanted.match?(CatalogEntry::ReferenceManagement::UUID_FORMAT)
     where(workspace: workspace).where("lower(resource_map_resources.name) = :wanted OR lower(resource_map_resources.external_id) = :wanted#{by_id}", wanted: wanted)
       .order(Arel.sql("resource_map_resources.removed_at IS NOT NULL"), :provider, :account, :kind)
+  end
+
+  # The one present resource principal may read by that reference, or a sentence saying nothing is called that or which
+  # ones share the name, so a tool that acts on one resource refuses in the same words on every surface.
+  def self.locate(workspace, principal, reference)
+    found = visible_to(principal, workspace).referenced(workspace, reference.to_s).present.to_a
+    return "Nothing on the resource map is called #{reference}. find_resources searches it." if found.empty?
+    return found.first if found.one?
+
+    "More than one resource is called #{reference}: #{found.map { |each| "#{each.kind} #{each.name} (map id #{each.id})" }.to_sentence}. Name it by its map id."
   end
 
   # One line saying what it is and where it runs, for a reader that has no room for a fact sheet.

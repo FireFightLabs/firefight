@@ -21,6 +21,10 @@ class ResourceMapConnectionSerializer < BaseSerializer
   type :string, optional: true
   def baseline_error = row.baseline_error
 
+  # Why the last daily read of the usual log lines failed, or nil.
+  type :string, optional: true
+  def log_patterns_error = row.log_patterns_error
+
   # Whether the provider's changes reach the map between sweeps, null for a provider that cannot say what changed.
   type "{ on: boolean; lastEventAt: string | null; reason: string | null } | null"
   def live_updates

@@ -35,6 +35,10 @@ module Integrations
     ].freeze
     DEFAULT_MINUTES = 60
     MAX_MINUTES = 7 * 24 * 60
+    # The shared read that runs one of a resource's key checks (ResourceMap::KeyQueries) through a capability.
+    KEY_QUERY_TOOL = "run_key_query".freeze
+    # The shared read that mines a resource's recent logs for patterns it does not usually print (ResourceMap::LogTemplate).
+    LOG_PATTERNS_TOOL = "new_log_patterns".freeze
 
     RANGE = {
       "minutes" => { "type" => "integer", "description" => "How far back from now, in minutes (optional, #{DEFAULT_MINUTES})" },
@@ -198,8 +202,15 @@ module Integrations
       spec && adapter_for(provider)&.tool_for(spec.key)
     end
 
-    # Names the capabilities take, so no connection tool is offered under the same name.
-    def self.tool_names = SPECS.values.map(&:tool_name)
+    # Names the capabilities and the reads built on them take, so no connection tool is offered under the same name.
+    def self.tool_names = [ *SPECS.values.map(&:tool_name), KEY_QUERY_TOOL, LOG_PATTERNS_TOOL ]
+
+    # The tools principal may run for a capability, so a call is routed only to a connection it can use.
+    def self.callable(workspace, key, principal)
+      resolved = Ability::Resolver.resolve(principal, workspace)
+      tools = offered(workspace).find { |spec, _tools| spec.key == key }&.last.to_a
+      tools.select { |tool| tool.callable_by?(principal, resolved) }
+    end
 
     def self.schema(spec, connections)
       properties = { RESOURCE_ARG => { "type" => "string", "description" => "The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it" } }
@@ -222,6 +233,24 @@ module Integrations
       tools ||= Integration::Tool.in_workspace(workspace).to_a
       spec = spec(key)
       candidates, reference = candidates_for(workspace, spec, given, tools, principal)
+      routed(workspace, spec, candidates, given, reference, tools)
+    end
+
+    # The call for a read Firefight makes on its own about a resource it picked, such as the daily read of its usual log
+    # lines. It is routed as any request is, through every switched on tool, with nobody's reach, since nobody asked.
+    # The tool's own recording (Integration::Tool#swept!) is what puts it in the activity log.
+    def self.resolve_for(resource, key, given)
+      workspace = resource.workspace
+      tools = Integration::Tool.in_workspace(workspace).to_a
+      spec = spec(key)
+      candidates = holders([ resource ], spec, ResourceMap::Resource.present.where(workspace_id: workspace.id))
+      candidates += observers(workspace, candidates, [ resource ], spec, tools)
+      raise Unroutable, "#{resource.name} is on the map, but no connection offers #{spec.what} for it." if candidates.empty?
+
+      routed(workspace, spec, candidates, given.merge(RESOURCE_ARG => resource.id), resource.name, tools)
+    end
+
+    def self.routed(workspace, spec, candidates, given, reference, tools)
       chosen = choose(candidates, given, reference, spec)
       call = call_for(workspace, spec, chosen, given, tools)
       return call unless chosen.observer && given[CONNECTION_ARG].blank?
@@ -427,6 +456,6 @@ module Integrations
     end
 
     def self.labels(candidates) = candidates.map { |candidate| connection_label(candidate.row) }.uniq
-    private_class_method :parsed, :holds_something?, :fallback_for, :candidates_for, :call_for, :switched_off, :holders, :observers, :choose, :one_resource!, :labels
+    private_class_method :parsed, :holds_something?, :fallback_for, :routed, :candidates_for, :call_for, :switched_off, :holders, :observers, :choose, :one_resource!, :labels
   end
 end

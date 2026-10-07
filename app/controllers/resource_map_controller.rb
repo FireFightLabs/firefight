@@ -1,6 +1,6 @@
 # The resource map page: what runs where, read off the connections, and the links people add or confirm on it.
 class ResourceMapController < InertiaController
-  authorizes Ability::Action::RESOURCE_MAP, read: %i[index]
+  authorizes Ability::Action::RESOURCE_MAP, read: %i[index checks run_check log_lines]
   authorizes Ability::Action::RESOURCE_INTEGRATIONS, update: %i[sync]
   authorizes Ability::Action::RESOURCE_CATALOG,
     update: %i[create_link destroy_link confirm_link dismiss_link link_entry unlink_entry]
@@ -16,6 +16,31 @@ class ResourceMapController < InertiaController
       readsIn: view.environments && current_workspace.environment_entries.where(id: view.environments).pluck(:name),
       catalogEntries: ResourceMapEntrySerializer.many(current_workspace.catalog_entries.active.includes(:catalog_type, outgoing_relationships: { target_entry: :catalog_type }).order(:name))
     }
+  end
+
+  # A resource's key checks, read when its panel opens, since whether each can run is worked out live.
+  def checks
+    target = resource(params[:id])
+    render json: { checks: ResourceMapCheckSerializer.many(ResourceMap::KeyQueries.listed(target, current_membership)),
+                   none: ResourceMap::KeyQueries.none_reason(target.kind) }
+  end
+
+  # Runs one check as the person, through the gateway as the provider tool it reads with, and answers inline.
+  def run_check
+    target = resource(params[:id])
+    check = ResourceMap::KeyQueries.find(target.kind, params[:check])
+    return render(json: { outcome: { refusal: ResourceMap::KeyQueries.unknown(target, params[:check]) } }, status: :unprocessable_entity) unless check
+
+    outcome = ResourceMap::KeyQueries.run!(target, check, principal: current_membership, approval_id: params[:approval_id].presence)
+    render json: { outcome: ResourceMapCheckOutcomeSerializer.one(outcome) }
+  end
+
+  # The kinds of line a resource usually logs, read when its panel opens, with why none are known when none are.
+  def log_lines
+    target = resource(params[:id])
+    usual = target.log_templates.this_week.most_lines_first
+    render json: { lines: ResourceMapLogTemplateSerializer.many(usual.limit(ResourceMap::LogTemplate::SHOWN)), total: usual.count,
+                   reason: ResourceMap::LogTemplate.missing_reason(target, current_membership) }
   end
 
   def sync

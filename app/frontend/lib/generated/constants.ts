@@ -209,6 +209,12 @@ export const RESOURCE_MAP_HEALTHS = [
 ] as const
 export type ResourceMapHealth = (typeof RESOURCE_MAP_HEALTHS)[number]
 
+export const RESOURCE_MAP_LOG_LEVELS = [
+  "error",
+  "warning"
+] as const
+export type ResourceMapLogLevel = (typeof RESOURCE_MAP_LOG_LEVELS)[number]
+
 export const RESOURCE_MAP_CERTAINTIES = [
   "likely",
   "possible"

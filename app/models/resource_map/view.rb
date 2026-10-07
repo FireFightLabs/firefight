@@ -48,7 +48,7 @@ class ResourceMap::View
   def connections
     rows = IntegrationEnvironment.joins(:integration).merge(Integration.active).where(integrations: { workspace_id: workspace.id })
     rows = rows.where(catalog_entry_id: environments) unless environments.nil?
-    rows.includes(:integration).select { |row| row.map_swept_at || row.map_error || row.baseline_error }
+    rows.includes(:integration).select { |row| row.map_swept_at || row.map_error || row.baseline_error || row.log_patterns_error }
   end
 
   # The environments the principal reads the map in, nil for every one.

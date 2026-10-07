@@ -10,7 +10,8 @@ module Mcp
       description "One resource on the resource map by its name, its provider's id or its id: where it runs, its page, " \
                   "status as the last sweep saw it, details, the catalog services it runs with what each is for and who " \
                   "owns it, what people confirmed about it, how its recent incidents ended and what normal looks like for " \
-                  "its metrics, with how many links lead in and out of it by relation. get_resource_links lists the links, " \
+                  "its metrics, its key checks with their normal (run_key_query runs one), with how many links lead in and " \
+                  "out of it by relation. get_resource_links lists the links, " \
                   "get_resource_neighbours the resources one link away. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       input_schema(properties: { resource: MapPayloads::RESOURCE_PROPERTY }, required: [ "resource" ])
@@ -20,7 +21,7 @@ module Mcp
         resource = locate(workspace, visible, args[:resource])
         return resource if resource.is_a?(::MCP::Tool::Response)
 
-        sheet = GetResourceMap.sheet(resource, visible, links: false)
+        sheet = GetResourceMap.sheet(resource, visible, principal: principal, links: false)
         respond(sheet.merge(id: resource.id, provider_id: resource.external_id, health: resource.health, **link_counts(resource, visible)))
       end
 

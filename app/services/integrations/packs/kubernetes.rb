@@ -41,6 +41,8 @@ module Integrations
       SCALABLE = [ DEPLOYMENT, STATEFULSET ].freeze
       SERVICE = Kind.new(key: "service", name: "Service", plural: "services", api: CORE, map_kind: ResourceMap::KIND_LOAD_BALANCER, aliases: %w[services svc])
       INGRESS = Kind.new(key: "ingress", name: "Ingress", plural: "ingresses", api: NETWORKING, map_kind: ResourceMap::KIND_LOAD_BALANCER, aliases: %w[ingresses ing])
+      # Every kind the map lists in each namespace.
+      MAPPED = [ *WORKLOADS.values, SERVICE, INGRESS ].freeze
 
       # kubectl's annotations and labels, from k8s.io/api and kubectl's deployment util.
       REVISION = "deployment.kubernetes.io/revision".freeze
@@ -183,7 +185,7 @@ module Integrations
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Service account token", secret: true, placeholder: "eyJhbGciOi...",
-                              hint: "The token of a service account whose role can get and list workloads, replica sets, controller revisions, pods, pod logs, services, ingresses, events and pod metrics. For Halon to apply fixes, its role also needs patch on deployments, statefulsets, daemonsets and their scale."),
+                              hint: "The token of a service account whose role can get and list workloads, replica sets, controller revisions, pods, pod logs, services, ingresses, events and pod metrics. For the map to follow changes as they happen, it also needs watch on deployments, statefulsets, daemonsets, cronjobs, jobs, services and ingresses. For Halon to apply fixes, its role also needs patch on deployments, statefulsets, daemonsets and their scale."),
           CredentialField.new(key: CA, label: "CA certificate", secret: false, multiline: true, placeholder: "LS0tLS1CRUdJTi...",
                               hint: "The certificate-authority-data from your kubeconfig, or the cluster's CA in PEM. Firefight trusts only this CA for this cluster.")
         ]
@@ -222,6 +224,26 @@ module Integrations
       def self.probe(api, namespaces)
         namespaces.each { |namespace| api.get(collection(WORKLOADS.fetch(DEPLOYMENT), namespace), "limit" => 1) }
       end
+
+      # The cluster's client for a connection, for live updates (MapEventSources::Kubernetes) as for the pack's own reads.
+      def self.client_for(environment_row)
+        settings = ConnectionSettings.of(environment_row)
+        server, token, ca = settings.field(SERVER), settings.credential(TOKEN), settings.credential(CA)
+        raise KubernetesApi::Error, "This environment has no Kubernetes credentials. Reconnect it on the Integrations page." if [ server, token, ca ].any?(&:blank?)
+
+        KubernetesApi.new(server: server, token: token, ca: ca)
+      end
+
+      # Each list the map reads, as [kind, namespace].
+      def self.map_lists(environment_row)
+        namespace_list(ConnectionSettings.of(environment_row).field(NAMESPACES)).flat_map { |namespace| MAPPED.map { |kind| [ kind, namespace ] } }
+      end
+
+      # The key a workload, service or ingress has on the map, ResourceMap::Found#key.
+      def self.key_of(host, kind, namespace, name) = [ PROVIDER_KEY, "#{host}/#{namespace}", kind.map_kind, "#{namespace}/#{kind.key}/#{name}" ]
+
+      # A Job its CronJob made is shown through the CronJob, so it is not on the map of its own.
+      def self.on_map?(kind, item) = !(kind.key == JOB && Array(item.dig("metadata", "ownerReferences")).any? { |owner| owner["kind"].to_s.casecmp?(WORKLOADS.fetch(CRONJOB).name) })
 
       def self.collection(kind, namespace)
         namespace == ALL_NAMESPACES ? "#{kind.api}/#{kind.plural}" : "#{kind.api}/namespaces/#{segment(namespace)}/#{kind.plural}"
@@ -405,20 +427,50 @@ module Integrations
         gaps = []
         mapping = MapReading.new(api.host, environment_row.integration.workspace, config_maps: config_maps_of(api, gaps))
         connected(environment_row).each do |namespace|
-          [ *WORKLOADS.values, SERVICE, INGRESS ].each do |kind|
-            listing = api.list(self.class.collection(kind, namespace))
-            if listing.incomplete?
-              gaps << ResourceMap::Gap.new(text: "Only the first #{KubernetesApi::PAGE_SIZE * KubernetesApi::MAX_PAGES} #{kind.plural} in #{namespace} were read.",
-                                           kinds: kinds_listed_by(kind))
-            end
-            listing.items.reject { |item| kind.key == JOB && owned_by?(item, CRONJOB) }.each { |item| mapping.add(kind, item) }
-          rescue KubernetesApi::Forbidden, KubernetesApi::NotFound => error
-            gaps << ResourceMap::Gap.new(text: Sentence.join("#{kind.plural.capitalize} in #{namespace} could not be read", error), kinds: kinds_listed_by(kind))
-          end
+          MAPPED.each { |kind| read_list(api, kind, namespace, gaps) { |item| mapping.add(kind, item) } }
         end
         mapping.connect!
         ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: mapping.uses, endpoints: mapping.endpoints)
       end
+
+      # Only the workload, service or ingress a change named (MapEventSources::Kubernetes), read again as the sweep reads
+      # it. A service's links come from the workloads its selector picks, and an ingress's from the services it routes
+      # to, which are read for that and not written. Gone only when the API server
+      # answers not found for it. nil for a scope that names no one object, which a sweep reads.
+      def map_refresh(environment_row, scope)
+        namespace, key, name = scope.external_id.to_s.split("/", 3)
+        kind = MAPPED.find { |each| each.key == key }
+        return unless kind && name.present? && namespace.to_s.match?(NAMESPACE_FORMAT)
+
+        api = api(environment_row)
+        item = begin
+          api.get("#{self.class.collection(kind, namespace)}/#{segment(name)}")
+        rescue KubernetesApi::NotFound
+          return ResourceMap::Snapshot.new(resources: [], gone: [ self.class.key_of(api.host, kind, namespace, name) ])
+        end
+        return ResourceMap::Snapshot.new(resources: []) unless self.class.on_map?(kind, item)
+
+        gaps = []
+        mapping = MapReading.new(api.host, environment_row.integration.workspace, config_maps: config_maps_of(api, gaps))
+        mapping.add(kind, item)
+        around = { SERVICE.key => WORKLOADS.values, INGRESS.key => [ SERVICE ] }.fetch(kind.key, [])
+        around.each { |neighbour| read_list(api, neighbour, namespace, gaps, kinds: [ kind.map_kind ]) { |each| mapping.know(neighbour, each) } }
+        mapping.connect!
+        ResourceMap::Snapshot.new(resources: mapping.resources, links: mapping.links, gaps: gaps, uses: mapping.uses, endpoints: mapping.endpoints)
+      end
+
+      # Every item of one kind in a namespace, each handed to the block. A list it stopped short of, or one the token may
+      # not read, is a gap naming kinds, what it would have put on the map unless the caller says otherwise.
+      def read_list(api, kind, namespace, gaps, kinds: kinds_listed_by(kind), &)
+        listing = api.list(self.class.collection(kind, namespace))
+        if listing.incomplete?
+          gaps << ResourceMap::Gap.new(text: "Only the first #{KubernetesApi::PAGE_SIZE * KubernetesApi::MAX_PAGES} #{kind.plural} in #{namespace} were read.", kinds: kinds)
+        end
+        listing.items.select { |item| self.class.on_map?(kind, item) }.each(&)
+      rescue KubernetesApi::Forbidden, KubernetesApi::NotFound => error
+        gaps << ResourceMap::Gap.new(text: Sentence.join("#{kind.plural.capitalize} in #{namespace} could not be read", error), kinds: kinds)
+      end
+      private :read_list
 
       # A ConfigMap's data by namespace and name, read once each and only when a workload's env names one of its keys.
       # ConfigMaps hold settings that are not secret, and reading them is optional (get on configmaps). A namespace that
@@ -465,14 +517,12 @@ module Integrations
           @workloads = []
           @services = []
           @ingresses = []
+          @known_workloads = []
+          @known_services = []
         end
 
         def add(kind, item)
-          namespace = item.dig("metadata", "namespace")
-          found = ResourceMap::Found.new(provider: PROVIDER_KEY, account: "#{@host}/#{namespace}", kind: kind.map_kind,
-                                         external_id: "#{namespace}/#{kind.key}/#{item.dig('metadata', 'name')}",
-                                         name: item.dig("metadata", "name"), status: Kubernetes.state_of(kind.key, item),
-                                         details: details(kind, item))
+          found = found(kind, item)
           @resources << found
           case kind.key
           when SERVICE.key
@@ -485,12 +535,30 @@ module Integrations
           end
         end
 
+        # Something read only so what was added links to it, such as the workloads a service picks, and not written.
+        def know(kind, item)
+          found = found(kind, item)
+          case kind.key
+          when SERVICE.key then @known_services << [ found, item ]
+          when INGRESS.key then nil
+          else @known_workloads << [ found, item, Kubernetes.template_labels(kind.key, item) ]
+          end
+        end
+
         def connect!
           @services.each { |found, service| serve_service(found, service) }
           @ingresses.each { |found, ingress| serve_ingress(found, ingress) }
         end
 
         private
+
+        def found(kind, item)
+          namespace = item.dig("metadata", "namespace")
+          name = item.dig("metadata", "name")
+          _provider, account, map_kind, external_id = Kubernetes.key_of(@host, kind, namespace, name)
+          ResourceMap::Found.new(provider: PROVIDER_KEY, account: account, kind: map_kind, external_id: external_id, name: name,
+                                 status: Kubernetes.state_of(kind.key, item), details: details(kind, item))
+        end
 
         def details(kind, item)
           {
@@ -541,7 +609,7 @@ module Integrations
           selector = service.dig("spec", "selector").to_h
           if selector.any?
             namespace = service.dig("metadata", "namespace")
-            @workloads.each do |workload, item, labels|
+            (@workloads + @known_workloads).each do |workload, item, labels|
               next unless item.dig("metadata", "namespace") == namespace && selector <= labels
 
               link(found.key, workload.key)
@@ -555,7 +623,7 @@ module Integrations
           backends = [ ingress.dig("spec", "defaultBackend", "service", "name"),
                        *Array(ingress.dig("spec", "rules")).flat_map { |rule| Array(rule.dig("http", "paths")).map { |path| path.dig("backend", "service", "name") } } ]
           backends.compact.uniq.each do |name|
-            service = @services.find { |each, item| item.dig("metadata", "namespace") == namespace && each.name == name }
+            service = (@services + @known_services).find { |each, item| item.dig("metadata", "namespace") == namespace && each.name == name }
             link(found.key, service.first.key) if service
           end
           Array(ingress.dig("spec", "rules")).filter_map { |rule| rule["host"].presence }.reject { |host| host.include?("*") }.uniq.each { |host| domain(host, found) }
@@ -640,11 +708,7 @@ module Integrations
       def kinds_listed_by(kind) = [ kind.map_kind, (ResourceMap::KIND_DOMAIN if [ SERVICE, INGRESS ].include?(kind)) ].compact
 
       def api(environment_row)
-        settings = ConnectionSettings.of(environment_row)
-        server, token, ca = settings.field(SERVER), settings.credential(TOKEN), settings.credential(CA)
-        fail! "This environment has no Kubernetes credentials. Reconnect it on the Integrations page." if [ server, token, ca ].any?(&:blank?)
-
-        @api ||= KubernetesApi.new(server: server, token: token, ca: ca)
+        @api ||= self.class.client_for(environment_row)
       rescue KubernetesApi::Error => error
         fail! error.message
       end

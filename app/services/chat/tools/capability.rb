@@ -30,7 +30,13 @@ class Chat::Tools::Capability < RubyLLM::Tool
   # person (Chat::Tools::Target).
   def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| misdirection(given).present? }
 
+  # The call that gave the answer the last call ended on, the platform's when it answered for an observability tool, and
+  # what it answered. nil when nothing answered.
+  Answered = Data.define(:call, :result)
+  attr_reader :answered
+
   def call(tool_call: nil, **arguments)
+    @answered = nil
     return refused(tool_call, "#{name} changes things, so it is not used while investigating. It belongs in the fix.") if @spec.writes && @agent_run.reads_only?
 
     asked = arguments.transform_keys(&:to_s)
@@ -72,7 +78,9 @@ class Chat::Tools::Capability < RubyLLM::Tool
   def connection(found) = Chat::Tools::Connection.new(@agent_run, found.tool)
 
   def ask(found, tool_call, alone: true, asked: connection(found))
-    asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present, alone: alone)
+    text = asked.run(found.arguments, environment_entry: found.environment_entry, tool_call_id: tool_call&.id, shown_as: name, present: found.present, alone: alone)
+    @answered = Answered.new(call: found, result: asked.last_result) unless asked.failed? || asked.waiting?
+    text
   end
 
   # Every connection that can answer, one after another, each answer headed with where it came from. Each call is its

@@ -29,6 +29,7 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     assert_includes prompt, FirefightAi::LookFirstRule::CONNECTION_RULE
     assert_includes prompt, FirefightAi::LookFirstRule::CHANGED_RULE
     assert_includes prompt, FirefightAi::LookFirstRule::CAUSE_RULE
+    assert_includes prompt, FirefightAi::NormalRule::RULE
   end
 
   # Seen in a real chat, Halon searched the web and guessed a provider's path three times for a call that does not exist.

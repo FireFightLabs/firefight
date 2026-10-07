@@ -119,6 +119,8 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_includes instructions, FirefightAi::LookFirstRule::CAUSE_RULE
     assert_includes instructions, FirefightAi::LookFirstRule::API_GUIDE_RULE
     assert_includes instructions, FirefightAi::LookFirstRule::GUESSED_CALL_RULE
+    assert_includes instructions, FirefightAi::NormalRule::RULE
+    assert_match "A log pattern seen all week is not the cause by itself", FirefightAi::NormalRule::RULE
   end
 
   # Seen in a real chat, asked to create a pipeline at a hosting provider, Halon searched the web and guessed the path

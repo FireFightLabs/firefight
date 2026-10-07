@@ -5,6 +5,14 @@ module Integrations
   # (src/gql/schema.json).
   class RailwayApi
     class Error < Integrations::Error; end
+    # Railway answered that what was asked for is not there, the one answer a re-read takes as gone. Railway words it in
+    # its errors list, such as "Project not found" or "ServiceInstance not found", with HTTP 200.
+    class NotFound < Error; end
+    # Railway turned the request down as it stands, such as a token without the right to change the project's webhooks
+    # ("Not Authorized"), as opposed to a token it does not accept at all.
+    class Refused < Error; end
+    NOT_FOUND = /not found/i
+    REFUSED = /not authori[sz]ed|forbidden|permission|limit|plan/i
 
     ENDPOINT = "https://backboard.railway.com/graphql/v2".freeze
     PROVIDER = "Railway".freeze
@@ -35,6 +43,40 @@ module Integrations
         }
       }
     GRAPHQL
+
+    # One service instance, with the fields INSTANCES reads for each (schema, Query.serviceInstance).
+    INSTANCE = <<~GRAPHQL.freeze
+      query ServiceInstance($environmentId: String!, $serviceId: String!) {
+        serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+          id serviceId serviceName environmentId numReplicas region cronSchedule nextCronRunAt startCommand healthcheckPath
+          healthcheckTimeout restartPolicyType restartPolicyMaxRetries sleepApplication
+          source { repo image }
+          latestDeployment { id status createdAt meta canRollback deploymentStopped instances { id status } }
+          domains { serviceDomains { domain targetPort } customDomains { domain targetPort } }
+        }
+      }
+    GRAPHQL
+
+    # A project's webhooks are its notification rules, each with channels whose config is { type: "webhook", url, headers },
+    # header values never answered (schema, Query.notificationRules and NotificationRule, and the documents Railway's own
+    # dashboard sends, NotificationRuleFields). Railway's docs say the same of headers (docs,
+    # content/docs/observability/webhooks.md, Custom headers).
+    NOTIFICATION_RULE_FIELDS = "id projectId eventTypes ephemeralEnvironments channels { id config }".freeze
+    NOTIFICATION_RULES = <<~GRAPHQL.freeze
+      query NotificationRules($workspaceId: String!, $projectId: String!) {
+        notificationRules(workspaceId: $workspaceId, projectId: $projectId) { #{NOTIFICATION_RULE_FIELDS} }
+      }
+    GRAPHQL
+    NOTIFICATION_RULE_CREATE = <<~GRAPHQL.freeze
+      mutation NotificationRuleCreate($input: CreateNotificationRuleInput!) { notificationRuleCreate(input: $input) { #{NOTIFICATION_RULE_FIELDS} } }
+    GRAPHQL
+    NOTIFICATION_RULE_UPDATE = <<~GRAPHQL.freeze
+      mutation NotificationRuleUpdate($id: String!, $input: UpdateNotificationRuleInput!) {
+        notificationRuleUpdate(id: $id, input: $input) { #{NOTIFICATION_RULE_FIELDS} }
+      }
+    GRAPHQL
+    NOTIFICATION_RULE_DELETE = "mutation NotificationRuleDelete($id: String!) { notificationRuleDelete(id: $id) }".freeze
+    WEBHOOK_CHANNEL = "webhook".freeze
 
     DEPLOYMENTS = <<~GRAPHQL.freeze
       query Deployments($input: DeploymentListInput!, $first: Int) {
@@ -119,6 +161,27 @@ module Integrations
       end
     end
 
+    def service_instance(environment_id, service_id) = query(INSTANCE, "environmentId" => environment_id, "serviceId" => service_id)["serviceInstance"]
+
+    # The project's webhooks, read only to find one Firefight registered before at the same address.
+    def notification_rules(workspace_id, project_id) = Array(query(NOTIFICATION_RULES, "workspaceId" => workspace_id, "projectId" => project_id)["notificationRules"])
+
+    # A webhook for the event types named, in the project's own environments only (ephemeralEnvironments false leaves out
+    # preview environments, as the dashboard's form does), sending headers with every delivery.
+    def create_webhook(workspace_id, project_id, url:, events:, headers:)
+      input = { "workspaceId" => workspace_id, "projectId" => project_id, "eventTypes" => events, "ephemeralEnvironments" => false,
+                "channelConfigs" => [ webhook_channel(url, headers) ] }
+      query(NOTIFICATION_RULE_CREATE, "input" => input)["notificationRuleCreate"]
+    end
+
+    # Sets a webhook's event types and headers again, replacing every header it had (docs, Custom headers).
+    def update_webhook(rule_id, url:, events:, headers:)
+      input = { "eventTypes" => events, "ephemeralEnvironments" => false, "channelConfigs" => [ webhook_channel(url, headers) ] }
+      query(NOTIFICATION_RULE_UPDATE, "id" => rule_id, "input" => input)["notificationRuleUpdate"]
+    end
+
+    def delete_webhook(rule_id) = query(NOTIFICATION_RULE_DELETE, "id" => rule_id)["notificationRuleDelete"]
+
     def service_variables(project_id, environment_id, service_id)
       answer = query(SERVICE_VARIABLES, "projectId" => project_id, "environmentId" => environment_id, "serviceId" => service_id)
       [ answer["unrendered"].to_h, answer["rendered"].to_h ]
@@ -147,6 +210,8 @@ module Integrations
 
     private
 
+    def webhook_channel(url, headers) = { "type" => WEBHOOK_CHANNEL, "url" => url, "headers" => headers }
+
     # Railway answers a refusal with HTTP 200 and an errors list, and a 429 when asked too often (docs,
     # content/docs/integrations/api.md, Errors and Rate limits).
     def query(text, variables)
@@ -157,9 +222,15 @@ module Integrations
       request.body = { query: text, variables: variables.compact }.to_json
       body = Http.json(uri, request, error_class: Error, provider_name: PROVIDER, reason: REASON)
       message = REASON.call(body) if body.is_a?(Hash)
-      raise Error, "Railway refused this: #{message}" if message
+      raise error_for(message), "Railway refused this: #{message}" if message
 
       body.is_a?(Hash) ? body["data"] || {} : {}
+    end
+
+    def error_for(message)
+      return NotFound if message.match?(NOT_FOUND)
+
+      message.match?(REFUSED) ? Refused : Error
     end
   end
 end

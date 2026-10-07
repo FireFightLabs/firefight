@@ -13,6 +13,13 @@ module Integrations
       LIST_BRANCHES = "list_branches".freeze
       LIST_COMPUTES = "list_postgres_endpoints".freeze
       LIST_DATABASES = "list_postgres_databases".freeze
+      DESCRIBE_PROJECT = "describe_project".freeze
+      # A project's operations, one page of at most OPERATION_LIMIT (Neon API, listProjectOperations, through @neon/tools
+      # as list_operations, which without a limit answers every page). Neon's docs do not say in which order a page comes,
+      # so a full page is taken as possibly missing some (MapEventSources::Neon).
+      LIST_OPERATIONS = "list_operations".freeze
+      OPERATION_LIMIT = 50
+      NOT_FOUND = /\b404\b|not found/i
       # list_projects answers every page unless given a limit, and takes at most this many.
       PROJECT_LIMIT = 400
       BRANCH_LIMIT = 500
@@ -37,7 +44,11 @@ module Integrations
         @endpoints = []
       end
 
-      def map
+      # Everything the connection reaches, or with scope the one project a change named (MapEventSources::Neon), read
+      # again with its branches, computes and databases. nil for a scope it cannot narrow to, which a sweep reads.
+      def map(scope: nil)
+        return narrowed(scope) if scope
+
         organizations.each do |organization|
           arguments = { "limit" => PROJECT_LIMIT }
           arguments["org_id"] = organization["id"] if organization
@@ -51,7 +62,47 @@ module Integrations
         ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints)
       end
 
+      # A project's latest operations, or nil when list_operations is switched off. A project Neon no longer has answers
+      # none. Raises Refused with Neon's words for any other refusal.
+      def operations(project_id)
+        result = call(LIST_OPERATIONS, { "project_id" => project_id, "limit" => OPERATION_LIMIT }, "operations of #{project_id}")
+        return if result.nil?
+
+        if result["isError"]
+          text = Capabilities::Answers.text(result).to_s
+          return [] if text.match?(NOT_FOUND)
+
+          raise Refused, Sentence.join("#{NAME} refused to list the operations of #{project_id}", text.truncate(300))
+        end
+        data = Capabilities::Answers.data(result)
+        list = data.is_a?(Hash) ? data["operations"] : data
+        list.is_a?(Array) ? list.select { |each| each.is_a?(Hash) } : []
+      end
+
       private
+
+      # The project read in full under the account the map already has it in, with gone naming the project when Neon
+      # answers not found, and a branch or compute when the project's whole list was read without it.
+      def narrowed(scope)
+        project_id = scope.external_id.to_s.split("/").first
+        return if project_id.blank? || scope.account.blank? || !ALL_KINDS.include?(scope.kind)
+
+        result = call(DESCRIBE_PROJECT, { "project_id" => project_id }, "project #{project_id}")
+        return if result.nil?
+
+        if result["isError"]
+          gone = [ PROVIDER, scope.account, ResourceMap::KIND_DATABASE, project_id ]
+          return Capabilities::Answers.text(result).to_s.match?(NOT_FOUND) ? ResourceMap::Snapshot.new(resources: [], gone: [ gone ]) : nil
+        end
+        data = Capabilities::Answers.data(result)
+        found = data.is_a?(Hash) ? data["project"] || data : nil
+        return unless found.is_a?(Hash) && found["id"] == project_id
+
+        project(found, nil, account: scope.account)
+        wanted = [ PROVIDER, scope.account, scope.kind, scope.external_id ]
+        gone = @resources.none? { |each| each.key == wanted } && gaps.none? { |gap| gap.kinds.include?(scope.kind) } ? [ wanted ] : []
+        ResourceMap::Snapshot.new(resources: @resources, links: @links, gaps: gaps, endpoints: @endpoints, gone: gone)
+      end
 
       # Without the organization list, list_projects picks the organization itself when the account has one, so projects
       # in any other may be missed.
@@ -60,9 +111,9 @@ module Integrations
         listed.present? ? listed : [ nil ]
       end
 
-      def project(project, organization)
+      def project(project, organization, account: nil)
         id = project["id"]
-        account = project["org_name"].presence || organization&.dig("name").presence || project["org_id"].presence || project["owner_id"].to_s
+        account ||= project["org_name"].presence || organization&.dig("name").presence || project["org_id"].presence || project["owner_id"].to_s
         database = ResourceMap::Found.new(
           provider: PROVIDER, account: account, kind: ResourceMap::KIND_DATABASE, external_id: id, name: project["name"].presence || id,
           status: LISTED, url: self.class.project_page(settings&.site, id),

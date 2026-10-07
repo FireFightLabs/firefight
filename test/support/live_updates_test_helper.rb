@@ -64,7 +64,8 @@ end
 
 class LiveTestPoll < Integrations::MapEventSource
   class << self
-    attr_accessor :log
+    # refusal is a reason the provider turns the read down with, for what the connection may read.
+    attr_accessor :log, :refusal
 
     def verify(**) = false
 
@@ -72,6 +73,8 @@ class LiveTestPoll < Integrations::MapEventSource
 
     # The log holds [cursor, event] pairs in order, and a read answers those after since.
     def poll(_row, since:)
+      raise Integrations::MapEventSource::Refused, refusal if refusal
+
       after = log.select { |cursor, _event| since.nil? || cursor > since }
       Integrations::MapEventSource::Polled.new(events: after.map(&:last), cursor: after.last&.first || since)
     end
