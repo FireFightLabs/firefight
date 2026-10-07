@@ -11,6 +11,7 @@ module FirefightAi
     setup do
       RubyLLM.config.stubs(:anthropic_api_key).returns("sk-firefight")
       RubyLLM.config.stubs(:openai_api_key).returns("sk-openai")
+      RubyLLM.config.stubs(:openrouter_api_key).returns("sk-openrouter")
     end
 
     test "a streamed Anthropic answer passes through as it comes, with Firefight's key, and its usage is read off it" do
@@ -70,6 +71,19 @@ module FirefightAi
       assert_match "Only the agent's own tools", error.message
       assert_match "could not be reached", assert_raises(ModelProxy::Refused) { proxy.forward(path: "messages", body: "{}", model: "x") { |*| nil } }.message
       assert_equal ModelProxy::Usage.none, proxy.usage
+    end
+
+    test "an OpenRouter call goes to OpenRouter with its key as a bearer, pinned to the session's model alone, and its usage is read" do
+      sent = nil
+      answer(FakeResponse.new("200", "text/event-stream", [ ": OPENROUTER PROCESSING\n\n", "data: {\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":4}}\n\ndata: [DONE]\n\n" ])) { |request| sent = request }
+
+      body = { stream: true, models: [ "openai/o1-pro" ], route: "fallback", plugins: [ { id: "web" } ] }.to_json
+      usage = ModelProxy.new("openrouter").forward(path: "chat/completions", body: body, model: "anthropic/claude-sonnet-4.5") { |*| nil }
+
+      assert_equal "https://openrouter.ai/api/v1/chat/completions", sent.uri.to_s
+      assert_equal "Bearer sk-openrouter", sent["Authorization"]
+      assert_equal({ "stream" => true, "model" => "anthropic/claude-sonnet-4.5", "stream_options" => { "include_usage" => true } }, JSON.parse(sent.body))
+      assert_equal [ 12, 4 ], [ usage.input, usage.output ]
     end
 
     test "only the paths a coding agent calls, and only providers Firefight can reach, are forwarded" do

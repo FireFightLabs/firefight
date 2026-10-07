@@ -12,9 +12,11 @@ module FirefightAi
       def self.none = new(input: 0, output: 0, cache_read: 0, cache_write: 0)
     end
 
-    Provider = Data.define(:base, :key, :paths, :headers, :tool_types, :output_keys)
+    Provider = Data.define(:base, :key, :paths, :headers, :tool_types, :output_keys, :dropped_keys)
     ANTHROPIC = "anthropic".freeze
     OPENAI = "openai".freeze
+    OPENROUTER = "openrouter".freeze
+    SUPPORTED = [ ANTHROPIC, OPENAI, OPENROUTER ].freeze
     CHAT_COMPLETIONS = "chat/completions".freeze
     READ_TIMEOUT = 600
     # Enough for any one edit a coding agent makes.
@@ -29,14 +31,19 @@ module FirefightAi
       {
         ANTHROPIC => Provider.new(base: config.anthropic_api_base.presence || "https://api.anthropic.com/v1", key: config.anthropic_api_key,
                                   paths: %w[messages], headers: %w[anthropic-version anthropic-beta], tool_types: [ nil, "custom" ],
-                                  output_keys: %w[max_tokens]),
+                                  output_keys: %w[max_tokens], dropped_keys: []),
         OPENAI => Provider.new(base: config.openai_api_base.presence || "https://api.openai.com/v1", key: config.openai_api_key,
                                paths: [ CHAT_COMPLETIONS, "responses" ], headers: [], tool_types: [ "function" ],
-                               output_keys: %w[max_tokens max_completion_tokens max_output_tokens])
+                               output_keys: %w[max_tokens max_completion_tokens max_output_tokens], dropped_keys: []),
+        # OpenRouter speaks OpenAI's chat format. Its fallback models, routes and plugins such as web search would reach
+        # another model or the web, so they never travel.
+        OPENROUTER => Provider.new(base: config.openrouter_api_base.presence || "https://openrouter.ai/api/v1", key: config.openrouter_api_key,
+                                   paths: [ CHAT_COMPLETIONS ], headers: [], tool_types: [ "function" ],
+                                   output_keys: %w[max_tokens max_completion_tokens], dropped_keys: %w[models route plugins])
       }
     end
 
-    def self.supported?(provider) = [ ANTHROPIC, OPENAI ].include?(provider.to_s)
+    def self.supported?(provider) = SUPPORTED.include?(provider.to_s)
 
     # The headers besides the key that the provider reads, which the caller passes through as the agent sent them.
     def self.passed_headers(provider) = providers[provider.to_s]&.headers || []
@@ -48,7 +55,7 @@ module FirefightAi
       @name = provider.to_s
       @connect_to = connect_to
       @provider = self.class.providers(config || RubyLLM.config)[@name] ||
-                  raise(Refused, "Code fixes reach #{[ ANTHROPIC, OPENAI ].join(' or ')} models, not #{@name}.")
+                  raise(Refused, "Code fixes reach #{SUPPORTED.to_sentence(last_word_connector: ' or ')} models, not #{@name}.")
       raise Refused, "No #{@name} key is configured for this code change." if @provider.key.blank?
 
       @usage = Usage.none
@@ -102,6 +109,7 @@ module FirefightAi
         type = tool.is_a?(Hash) ? tool["type"] : :missing
         raise Refused, "Only the agent's own tools travel to the model, not #{type.inspect}." unless @provider.tool_types.include?(type)
       end
+      @provider.dropped_keys.each { |key| asked.delete(key) }
       asked["model"] = model
       @provider.output_keys.each { |key| asked[key] = [ asked[key].to_i, MAX_OUTPUT_TOKENS ].min if asked[key].present? }
       asked["max_tokens"] = MAX_OUTPUT_TOKENS if @name == ANTHROPIC && asked["max_tokens"].blank?
