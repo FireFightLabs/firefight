@@ -183,9 +183,6 @@ class Investigation < ApplicationRecord
 
   def memory_teacher = nil
 
-  # Skills are chat work, so a run is never pointed at one.
-  def uses_skills? = false
-
   def live?
     LIVE_STATUSES.include?(status)
   end

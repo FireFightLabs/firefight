@@ -3,7 +3,7 @@
 # A skill whose steps the chat still holds is never named, and a skill already named in the chat is not named again.
 class Chat::Tools::SkillReminder
   def self.for(agent_run, source:, handle:, tool_call_id:)
-    return unless agent_run.uses_skills? && tool_call_id.present?
+    return if tool_call_id.blank?
 
     chat = agent_run.chat
     chat && new(chat, agent_run.workspace).text(source, handle, tool_call_id)
