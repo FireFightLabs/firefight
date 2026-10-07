@@ -473,6 +473,18 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_nil @conversation.stop_blocked_reason
   end
 
+  test "an admin's first answered chat finishes setup's Meet Halon step, and a stopped one does not" do
+    onboarding = @workspace.create_onboarding!(installer: workspace_memberships(:alice_workspace_one))
+    personal_chat
+    fake(outcome: FirefightAi::AgentLoop::STATUS_CANCELED)
+    ask(@conversation, "what runs where")
+    assert_nil onboarding.reload.halon_answered_at
+
+    fake(reply: "Two services on Northflank")
+    ask(@conversation, "what runs where")
+    assert onboarding.reload.halon_answered_at
+  end
+
   private
 
   def with_app_host

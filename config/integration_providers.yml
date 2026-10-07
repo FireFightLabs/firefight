@@ -30,22 +30,48 @@
 # setting_words are words in a service's setting names that point at this provider's stores, such as NEON in
 # NEON_DATABASE_URL. The map's matcher reads them as a clue when a setting's value is hidden or names no address a store
 # reported.
-# Section headings on the gallery. A provider naming a category that is not
-# listed here still renders, it just shows no tagline, so adding a provider
-# in a new category stays a registry edit rather than a code change.
-# Listed in the order the gallery shows them.
+# Section headings on the gallery, listed in the order the gallery shows them. A provider naming a category that is
+# not listed here still renders, it just shows no tagline, so adding a provider in a new category stays a registry edit
+# rather than a code change. Each has a tagline, halon (what Halon can do with a tool from it, in a sentence or two,
+# which setup shows as it walks through every category) and required (setup asks for a connection in it and offers no
+# "We don't use this").
 categories:
-  Cloud and hosting: Where your apps run, and what you can change there
-  Observability: Logs, metrics, traces and errors for investigations
-  Alerting and on-call: Who is on call, and the alerts and incidents paging them
-  Product analytics: Who an incident reaches, what they saw, and the feature flags behind it
-  Databases: Your data and how it is set up
-  Code: Correlate incidents with what shipped
-  CI: Builds, tests and their logs, and rerunning them
-  Coding agents: Agents that write a fix's code change and open the pull request
-  Issues: Tickets and follow-up work tied to incidents
-  Knowledge: Runbooks and documentation as context
-  Custom: Anything with an MCP server
+  Cloud and hosting:
+    tagline: Where your apps run, and what you can change there
+    halon: Halon sees what runs where, what was deployed and how it is doing. When you allow it, it can make changes there too.
+    required: true
+  Observability:
+    tagline: Logs, metrics, traces and errors for investigations
+    halon: Halon searches your logs, metrics, traces and errors to find what broke and when it started.
+    required: true
+  Alerting and on-call:
+    tagline: Who is on call, and the alerts and incidents paging them
+    halon: Halon sees which alerts fired and who is on call, so it can say who was paged and why.
+  Product analytics:
+    tagline: Who an incident reaches, what they saw, and the feature flags behind it
+    halon: Halon checks how many people an incident reached, what they saw and which feature flags changed.
+  Databases:
+    tagline: Your data and how it is set up
+    halon: Halon reads how your databases are set up and how they are doing, such as slow queries and connections, to tell when data is the cause.
+  Code:
+    tagline: Correlate incidents with what shipped
+    halon: Halon matches an incident to the commits, pull requests and deploys that shipped just before it. It can also write a fix and open a pull request when you ask.
+    required: true
+  CI:
+    tagline: Builds, tests and their logs, and rerunning them
+    halon: Halon reads builds and test runs with their logs, and reruns one when you allow it.
+  Coding agents:
+    tagline: Agents that write a fix's code change and open the pull request
+    halon: Halon hands a fix to your coding agent, which writes the change and opens the pull request.
+  Issues:
+    tagline: Tickets and follow-up work tied to incidents
+    halon: Halon reads the tickets tied to an incident, and when you allow it, files the follow-up work there.
+  Knowledge:
+    tagline: Runbooks and documentation as context
+    halon: Halon reads your runbooks and docs as context while it investigates.
+  Custom:
+    tagline: Anything with an MCP server
+    halon: Halon uses the tools you switch on from any MCP server you connect.
 
 providers:
   - key: github

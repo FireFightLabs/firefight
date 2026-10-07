@@ -96,7 +96,7 @@ app/frontend/pages/dashboard/types.ts             # Manual TS types (DashboardFi
 app/frontend/
   components/              # Cross-page shared components
     confirm-delete-dialog.tsx  # Used by settings, incidents and the agent chat
-    permissions/           # who-can-do-what, the quick grant panel (Permissions screen and onboarding)
+    permissions/           # who-can-do-what, the quick grant panel (Permissions screen and the setup checklist)
     agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
     layout/                # App shell (authenticated-layout)
@@ -142,6 +142,10 @@ app/frontend/
       <step>.tsx           # /onboarding/<step>
       components/          # permissions-dialog (install-only but onboarding-feature-shared)
       lib/                 # scope-permissions
+    setup/
+      index.tsx            # /app/setup, the checklist after the founder's letter (docs/architecture.md, Setup checklist)
+      components/          # setup-rail, step-panel and one *-step per step, stack-category for the integrations walk
+      lib/                 # step titles, typed against the generated SETUP_STEPS
   types/                   # Cross-page app-level types (SharedProps, Pagination)
     serializers/           # Auto-generated from oj_serializers — never edit by hand
   hooks/                   # Cross-page hooks (use-mobile)

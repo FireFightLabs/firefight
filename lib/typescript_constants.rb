@@ -140,6 +140,20 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CHANNEL", ConversationChannel.name, nil),
       Export.new("AGENT_CHAT_PROPS", AgentChatsController::PROPS, nil),
+      Export.new("SETUP_STEPS", {
+        "ACCOUNT" => WorkspaceOnboarding::STEP_ACCOUNT, "AI" => WorkspaceOnboarding::STEP_AI, "STACK" => WorkspaceOnboarding::STEP_STACK,
+        "PERMISSIONS" => WorkspaceOnboarding::STEP_PERMISSIONS, "HALON" => WorkspaceOnboarding::STEP_HALON,
+        "SLACK" => WorkspaceOnboarding::STEP_SLACK, "TEST_INCIDENT" => WorkspaceOnboarding::STEP_TEST_INCIDENT
+      }, nil),
+      Export.new("SETUP_STEP_STATES", {
+        "DONE" => WorkspaceOnboarding::STATE_DONE, "SKIPPED" => WorkspaceOnboarding::STATE_SKIPPED,
+        "UNAVAILABLE" => WorkspaceOnboarding::STATE_UNAVAILABLE, "CURRENT" => WorkspaceOnboarding::STATE_CURRENT,
+        "WAITING" => WorkspaceOnboarding::STATE_WAITING
+      }, nil),
+      Export.new("SETUP_AI_CHOICES", {
+        "ACCOUNT" => WorkspaceOnboarding::AI_ACCOUNT, "CREDITS" => WorkspaceOnboarding::AI_CREDITS, "HOUSE" => WorkspaceOnboarding::AI_HOUSE
+      }, nil),
+      Export.new("SETUP_ANSWERS", { "CONNECTED" => WorkspaceOnboarding::ANSWER_CONNECTED, "UNUSED" => WorkspaceOnboarding::ANSWER_UNUSED }, nil),
       Export.new("INVESTIGATION_QUERY_PARAM", Investigation::QUERY_PARAM, nil),
       Export.new("INCIDENT_NAME_FIELD_KEY", IncidentSystemField::KEY_NAME, nil),
       *Operator::TypescriptConstants.exports.map { |name, value| Export.new(name, value, nil) },

@@ -25,6 +25,8 @@ class AgentChatsController < InertiaController
   PROP_HELD_CALLS = "heldCalls"
   # Changes Halon was refused in the open chat for want of a pack, each with Ask an admin.
   PROP_PACK_REFUSALS = "packRefusals"
+  # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
+  PROP_SETUP_GUIDE = "setupGuide"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
@@ -32,7 +34,7 @@ class AgentChatsController < InertiaController
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
-    "PACK_REFUSALS" => PROP_PACK_REFUSALS
+    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SETUP_GUIDE" => PROP_SETUP_GUIDE
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -47,6 +49,8 @@ class AgentChatsController < InertiaController
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
+  # Setup's Meet Halon step is a chat here.
+  skip_before_action :continue_setup
 
   # Sent empty so a partial visit here clears the open chat instead of keeping the last one.
   def index
@@ -247,8 +251,20 @@ class AgentChatsController < InertiaController
       PROP_INCIDENTS => AgentChatIncidentSerializer.many(mentionable_incidents),
       # What an integrations card draws, read fresh on every visit, so returning from connecting shows it connected.
       PROP_INTEGRATION_CARDS => reads_integrations? ? IntegrationCardSerializer.many(IntegrationProvider.cards_for(current_workspace)) : [],
-      PROP_ENVIRONMENTS => reads_integrations? ? EnvironmentOptionSerializer.many(current_workspace.environment_entries) : []
+      PROP_ENVIRONMENTS => reads_integrations? ? EnvironmentOptionSerializer.many(current_workspace.environment_entries) : [],
+      PROP_SETUP_GUIDE => setup_guide
     }
+  end
+
+  # Only while the Meet Halon step is the one to do, or has just been done and setup waits to go on.
+  def setup_guide
+    onboarding = current_workspace.onboarding
+    return nil unless onboarding&.steers?(current_membership)
+
+    step = onboarding.steps.find { |candidate| candidate.key == WorkspaceOnboarding::STEP_HALON }
+    return nil unless [ WorkspaceOnboarding::STATE_CURRENT, WorkspaceOnboarding::STATE_DONE ].include?(step.state)
+
+    { question: onboarding.first_question, answered: step.state == WorkspaceOnboarding::STATE_DONE, setupPath: onboarding_checklist_path }
   end
 
   def reads_integrations?

@@ -676,7 +676,37 @@ export const AGENT_CHAT_PROPS = {
   "ATTACHMENT_RULES": "attachmentRules",
   "COMPACTIONS": "compactions",
   "HELD_CALLS": "heldCalls",
-  "PACK_REFUSALS": "packRefusals"
+  "PACK_REFUSALS": "packRefusals",
+  "SETUP_GUIDE": "setupGuide"
+} as const
+
+export const SETUP_STEPS = {
+  "ACCOUNT": "account",
+  "AI": "ai",
+  "STACK": "stack",
+  "PERMISSIONS": "permissions",
+  "HALON": "halon",
+  "SLACK": "slack",
+  "TEST_INCIDENT": "test_incident"
+} as const
+
+export const SETUP_STEP_STATES = {
+  "DONE": "done",
+  "SKIPPED": "skipped",
+  "UNAVAILABLE": "unavailable",
+  "CURRENT": "current",
+  "WAITING": "waiting"
+} as const
+
+export const SETUP_AI_CHOICES = {
+  "ACCOUNT": "account",
+  "CREDITS": "credits",
+  "HOUSE": "house"
+} as const
+
+export const SETUP_ANSWERS = {
+  "CONNECTED": "connected",
+  "UNUSED": "unused"
 } as const
 
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const

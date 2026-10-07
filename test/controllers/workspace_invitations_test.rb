@@ -10,6 +10,8 @@ class WorkspaceInvitationsTest < ActionDispatch::IntegrationTest
     @admin = User.create!(email: "admin@example.com", name: "Ada Admin")
     @admin_membership = Workspace.sign_up!(name: "Invite Co", user: @admin)
     @workspace = @admin_membership.workspace
+    # What these cover comes after setup, which has its own tests.
+    @workspace.onboarding.update!(checklist_completed_at: Time.current)
     sign_in_by_email(@admin)
   end
 

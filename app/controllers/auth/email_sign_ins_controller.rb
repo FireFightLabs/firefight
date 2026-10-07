@@ -9,6 +9,7 @@ module Auth
 
     skip_before_action :block_inaccessible_workspace
     skip_before_action :require_authentication
+    skip_before_action :continue_setup
     before_action :require_email_sign_in
 
     def create
