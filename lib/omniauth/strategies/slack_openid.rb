@@ -39,6 +39,7 @@ module OmniAuth
         {
           name:      raw_info["name"],
           email:     raw_info["email"],
+          email_verified: raw_info["email_verified"],
           image:     raw_info["picture"],
           team_id:   raw_info["https://slack.com/team_id"],
           team_name: raw_info["https://slack.com/team_name"]

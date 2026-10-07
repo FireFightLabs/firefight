@@ -210,6 +210,51 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "handle_openid_signin refuses to link a Slack account whose email Slack has not verified" do
+    workspace = workspaces(:slack_workspace_one)
+    alice = users(:alice)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U_UNVERIFIED",
+      info: { email: alice.email, email_verified: false, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.refused?
+    assert_equal SlackAuthenticationService::UNVERIFIED_EMAIL_MESSAGE, outcome.message
+    assert_not alice.identities.exists?
+  end
+
+  test "handle_openid_signin links a verified Slack account by team and user id" do
+    workspace = workspaces(:slack_workspace_one)
+    alice = users(:alice)
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U12345678",
+      info: { email: alice.email, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    @service.handle_openid_signin(auth_hash)
+
+    identity = alice.identities.sole
+    assert_equal UserIdentity::SLACK, identity.provider
+    assert_equal "#{workspace.platform_id}/U12345678", identity.uid
+  end
+
+  test "handle_openid_signin finds a linked Slack account by its id even after its email changes" do
+    workspace = workspaces(:slack_workspace_one)
+    alice = users(:alice)
+    alice.identities.create!(provider: UserIdentity::SLACK, uid: SlackAuthenticationService.identity_uid(workspace.platform_id, "U12345678"))
+    auth_hash = mock_slack_openid_auth_hash(
+      uid: "U12345678",
+      info: { email: users(:bob).email, email_verified: false, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    outcome = @service.handle_openid_signin(auth_hash)
+
+    assert outcome.signed_in?
+    assert_equal alice, outcome.membership.user
+  end
+
   test "handle_install returns signed_in outcome and triggers setup on first install" do
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "wf-1", status: "running"))

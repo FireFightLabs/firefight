@@ -29,6 +29,20 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_nil flash[:notice], "a returning sign-in announces nothing"
   end
 
+  test "slack_openid with an email Slack has not verified sends the person back to sign in" do
+    workspace = workspaces(:slack_workspace_one)
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      uid: "U_UNVERIFIED",
+      info: { email: users(:alice).email, email_verified: false, team_id: workspace.platform_id, team_name: workspace.name }
+    )
+
+    get "/auth/slack_openid/callback"
+
+    assert_redirected_to login_path
+    assert_equal SlackAuthenticationService::UNVERIFIED_EMAIL_MESSAGE, flash[:alert]
+    assert_nil session[:user_id]
+  end
+
   test "slack_openid with no workspace sends the installer to the install step" do
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       info: { email: "installer@example.com", team_id: "T_NEW", team_name: "Brand New Co" }

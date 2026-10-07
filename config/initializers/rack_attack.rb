@@ -8,11 +8,26 @@ Rack::Attack.throttle("invite_code_claim by ip", limit: 10, period: 60.seconds) 
   req.ip if req.path == "/invite-code/claim" && req.post?
 end
 
+# Asking for a sign-in link sends an email, so both the sender and the inbox are capped.
+Rack::Attack.throttle("email sign-in link by ip", limit: 5, period: 1.minute) do |req|
+  req.ip if req.path == "/auth/email" && req.post?
+end
+
+Rack::Attack.throttle("email sign-in link by email", limit: 5, period: 1.hour) do |req|
+  RackAttackParams.email(req) if req.path == "/auth/email" && req.post?
+end
+
+Rack::Attack.throttle("email sign-in confirm by ip", limit: 20, period: 1.minute) do |req|
+  req.ip if req.path == "/auth/email/confirm" && req.post?
+end
+
 Rack::Attack.throttled_responder = lambda do |request|
   if request.path.start_with?("/api/")
     [ 429, { "Content-Type" => "application/json" }, [ { error: "Too many requests" }.to_json ] ]
   else
-    body = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Too many requests</title></head><body><h1>Too many requests</h1><p>Please try again in a minute.</p></body></html>"
-    [ 429, { "Content-Type" => "text/html; charset=utf-8", "Retry-After" => "60" }, [ body ] ]
+    period = request.env.dig("rack.attack.match_data", :period).to_i
+    wait = period >= 1.hour ? "an hour" : "a minute"
+    body = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Too many requests</title></head><body><h1>Too many requests</h1><p>Please try again in #{wait}.</p></body></html>"
+    [ 429, { "Content-Type" => "text/html; charset=utf-8", "Retry-After" => [ period, 60 ].max.to_s }, [ body ] ]
   end
 end

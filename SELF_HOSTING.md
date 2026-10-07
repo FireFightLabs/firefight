@@ -109,6 +109,16 @@ Boxes can reach the internet, so a repository's own tests can too. Running comma
 
 Every setting is described in [`.env.example`](.env.example).
 
+## Signing in with Google or an email link
+
+Slack sign-in works out of the box. Google and email links are optional and stay hidden until you turn them on.
+
+1. For email links, set `SMTP_ADDRESS`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in `.env`, with `APP_HOST` set to your dashboard's host. Firefight also emails a person whenever a new way to sign in is added to their account.
+2. For Google, create an OAuth client of type Web application in Google Cloud with the redirect URI `https://<your-host>/auth/google_oauth2/callback`, and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+3. `docker compose up -d`, then `docker compose exec web bin/rails 'feature_flags:enable_globally[self_serve_signup]'`.
+
+Google and email sign in only people who already belong to a workspace. Each person sees and removes their sign-in methods under Profile.
+
 ## The operator console
 
 `/operator` shows your install's background jobs: what is waiting, what failed and why, with retry. Only people you name can open it. Everyone else sees a not found page.
