@@ -210,6 +210,7 @@ module IntegrationEnvironment::LiveUpdates
 
   def live_updates_on?(source)
     return false unless integration.operational? && enabled?
+    return false if installation_stopped?
     return true if source.polls? && map_events_error.blank?
     return map_events_sent_from.present? if source.offers?
     return installation_id.present? && Integrations::MapEvents.app_secret(integration.provider).present? if source.app_wide?
@@ -221,6 +222,7 @@ module IntegrationEnvironment::LiveUpdates
   def live_updates_off_reason(source)
     name = integration.name
     return "#{name} is switched off, so changes there do not reach the map." unless integration.operational? && enabled?
+    return Integrations::Installations.live_updates_reason(self) if installation_stopped?
     return "Live updates were turned off, so the map updates at each sweep." if source.registers? && map_events_turned_off_at.present?
     if map_events_error.present?
       if source.offers? && map_events_sent_from.present?

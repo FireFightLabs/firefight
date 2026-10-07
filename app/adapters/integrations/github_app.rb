@@ -10,9 +10,13 @@ module Integrations
     # The installation was not granted a permission the call needs, which GitHub says as "Resource not accessible by
     # integration" (docs.github.com, REST API, troubleshooting).
     class NotPermitted < Error; end
+    # GitHub did not accept the token, such as one minted for an installation that changed since.
+    class Unauthorized < Error; end
     # GitHub answered that the repository is not there, or not one the installation can see, the one answer a re-read
     # takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     API_ROOT = "https://api.github.com".freeze
     PROVIDER_KEY = "github".freeze
@@ -25,7 +29,38 @@ module Integrations
     PROVIDER = "GitHub".freeze
     NOT_PERMITTED = /not accessible by integration/i
     NOT_FOUND = 404
-    REFINE = ->(code, said) { NotPermitted if code == 403 && said.match?(NOT_PERMITTED) }
+    UNAUTHORIZED = 401
+    REFINE = ->(code, said) { (NotPermitted if code == 403 && said.match?(NOT_PERMITTED)) || (Unauthorized if code == UNAUTHORIZED) }
+
+    # An installation token with the connection it was minted for. GitHub fixes a token's permissions when it is minted
+    # (docs.github.com, Generating an installation access token for a GitHub App), so once an owner accepts new
+    # permissions a token minted before still lacks them, and GitHub refuses it as "Resource not accessible by
+    # integration". A call refused that way, or with a 401, mints a fresh token and is tried once more (refresh!). A
+    # token minted for this call is never minted again, so a permission the installation truly lacks fails once.
+    class InstallationToken
+      def initialize(environment_row, value, fresh:)
+        @row = environment_row
+        @value = value
+        @fresh = fresh
+      end
+
+      def to_s = @value
+
+      def to_str = @value
+
+      def inspect = "#<#{self.class.name} [redacted]>"
+
+      def ==(other) = other.respond_to?(:to_str) && @value == other.to_str
+
+      # Whether there is a new token to try.
+      def refresh!
+        return false if @fresh
+
+        @fresh = true
+        @value = GithubApp.mint_token(@row)
+        true
+      end
+    end
 
     BLAME_QUERY = <<~GRAPHQL.freeze
       query($owner: String!, $name: String!, $expression: String!, $path: String!) {
@@ -63,42 +98,92 @@ module Integrations
         cached = ConnectionSettings.of(environment_row).credential(TOKEN_CACHE_KEY).to_h
         if cached.present?
           expires_at = Time.zone.parse(cached["expires_at"].to_s)
-          return cached["token"] if expires_at && expires_at > TOKEN_REFRESH_MARGIN.from_now
+          return InstallationToken.new(environment_row, cached["token"], fresh: false) if expires_at && expires_at > TOKEN_REFRESH_MARGIN.from_now
         end
 
-        mint_token(environment_row)
+        InstallationToken.new(environment_row, mint_token(environment_row), fresh: true)
+      end
+
+      # Mints a token for the installation and caches it on the row, with the permissions GitHub says it holds.
+      def mint_token(environment_row)
+        uri = URI.parse("#{API_ROOT}/app/installations/#{installation_id!(environment_row)}/access_tokens")
+        request = Net::HTTP::Post.new(uri)
+        request["Authorization"] = "Bearer #{app_jwt}"
+        apply_api_headers(request)
+        body = parse_response(Http.request(uri, request, error_class: Error))
+
+        token = body.fetch("token") { raise Error, "GitHub returned no installation token" }
+        settings = ConnectionSettings.of(environment_row)
+        settings.store_credential!(TOKEN_CACHE_KEY, "token" => token, "expires_at" => body["expires_at"])
+        settings.store_installation_access!(body["permissions"]) if body["permissions"].is_a?(Hash)
+        token
+      end
+
+      # Drops the cached token, so the next call mints one holding what the installation was granted now.
+      def forget_token!(environment_row)
+        settings = ConnectionSettings.of(environment_row)
+        settings.forget_credential!(TOKEN_CACHE_KEY) if settings.credential(TOKEN_CACHE_KEY)
+      end
+
+      # The installation as GitHub has it now, read with the App's own JWT (docs.github.com, REST API, Get an installation
+      # for the authenticated app): its account, its settings page, its permissions and whether it is suspended. GitHub
+      # answers 404 for one that was deleted. Answers the body, or nil for one that is gone.
+      def installation(environment_row)
+        get("/app/installations/#{installation_id!(environment_row)}", token: app_jwt)
+      rescue NotFound
+        nil
+      end
+
+      # Removes the App from the account it is installed on (docs.github.com, REST API, Delete an installation for the
+      # authenticated app), which GitHub answers 204. One already gone counts as removed.
+      def uninstall(environment_row)
+        uri = URI.parse("#{API_ROOT}/app/installations/#{installation_id!(environment_row)}")
+        request = Net::HTTP::Delete.new(uri)
+        request["Authorization"] = "Bearer #{app_jwt}"
+        apply_api_headers(request)
+        response = Http.request(uri, request, error_class: Error)
+        return true if response.code.to_i == 204 || response.code.to_i == NOT_FOUND
+
+        parse_response(response)
+        true
       end
 
       def get(path, token:)
         uri = URI.parse("#{API_ROOT}#{path}")
-        request = Net::HTTP::Get.new(uri)
-        request["Authorization"] = "Bearer #{token}"
-        apply_api_headers(request)
-        parse_response(Http.request(uri, request, error_class: Error))
+        refreshing(token) do |value|
+          request = Net::HTTP::Get.new(uri)
+          request["Authorization"] = "Bearer #{value}"
+          apply_api_headers(request)
+          parse_response(Http.request(uri, request, error_class: Error))
+        end
       end
 
       def post(path, body, token:)
         uri = URI.parse("#{API_ROOT}#{path}")
-        request = Net::HTTP::Post.new(uri)
-        request["Authorization"] = "Bearer #{token}"
-        request["Content-Type"] = "application/json"
-        apply_api_headers(request)
-        request.body = body.to_json
-        parse_response(Http.request(uri, request, error_class: Error))
+        refreshing(token) do |value|
+          request = Net::HTTP::Post.new(uri)
+          request["Authorization"] = "Bearer #{value}"
+          request["Content-Type"] = "application/json"
+          apply_api_headers(request)
+          request.body = body.to_json
+          parse_response(Http.request(uri, request, error_class: Error))
+        end
       end
 
       # A change that answers 201, 202 or 204, often with no body, such as rerunning or canceling a workflow run. Read with
       # Http.json, so an empty answer counts as done and reads as {}, and a missing permission raises NotPermitted.
       def act(path, body = nil, token:)
         uri = URI.parse("#{API_ROOT}#{path}")
-        request = Net::HTTP::Post.new(uri)
-        request["Authorization"] = "Bearer #{token}"
-        apply_api_headers(request)
-        unless body.nil?
-          request["Content-Type"] = "application/json"
-          request.body = body.to_json
+        refreshing(token) do |value|
+          request = Net::HTTP::Post.new(uri)
+          request["Authorization"] = "Bearer #{value}"
+          apply_api_headers(request)
+          unless body.nil?
+            request["Content-Type"] = "application/json"
+            request.body = body.to_json
+          end
+          Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: REFINE, rate_limited: RateLimited)
         end
-        Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: REFINE, rate_limited: RateLimited)
       end
 
       # One commit on a new branch, holding every changed file, and a pull request for it into base, ready for review.
@@ -124,26 +209,32 @@ module Integrations
       # without the token, on a public host only, and the text is cut to its last limit bytes, where a job says why it failed.
       def download(path, token:, limit: DOWNLOAD_LIMIT)
         uri = URI.parse("#{API_ROOT}#{path}")
-        request = Net::HTTP::Get.new(uri)
-        request["Authorization"] = "Bearer #{token}"
-        apply_api_headers(request)
-        response = Http.request(uri, request, error_class: Error)
-        parse_response(response) unless response.is_a?(Net::HTTPRedirection)
+        response = refreshing(token) do |value|
+          request = Net::HTTP::Get.new(uri)
+          request["Authorization"] = "Bearer #{value}"
+          apply_api_headers(request)
+          Http.request(uri, request, error_class: Error).tap { |answer| parse_response(answer) unless answer.is_a?(Net::HTTPRedirection) }
+        end
 
         Http.download(response["location"], provider_key: PROVIDER_KEY, error_class: Error, limit: limit)
       end
 
       # Blame at a given commit exists only in GitHub's GraphQL API.
+      # A missing permission is said in the errors of a 200 answer, with the same words as the REST API's 403.
       def graphql(query, variables, token:)
         uri = URI.parse("#{API_ROOT}/graphql")
-        request = Net::HTTP::Post.new(uri)
-        request["Authorization"] = "Bearer #{token}"
-        request["Content-Type"] = "application/json"
-        apply_api_headers(request)
-        request.body = { query: query, variables: variables }.to_json
-        body = parse_response(Http.request(uri, request, error_class: Error))
-        raise Error, "GitHub: #{body['errors'].filter_map { |error| Sentence.clean(error['message']) }.join(', ')}" if body["errors"].present?
+        body = refreshing(token) do |value|
+          request = Net::HTTP::Post.new(uri)
+          request["Authorization"] = "Bearer #{value}"
+          request["Content-Type"] = "application/json"
+          apply_api_headers(request)
+          request.body = { query: query, variables: variables }.to_json
+          answer = parse_response(Http.request(uri, request, error_class: Error))
+          said = Array(answer["errors"]).filter_map { |error| Sentence.clean(error["message"]) }
+          raise (said.any? { |message| message.match?(NOT_PERMITTED) } ? NotPermitted : Error), "GitHub: #{said.join(', ')}" if answer["errors"].present?
 
+          answer
+        end
         body.fetch("data")
       end
 
@@ -164,21 +255,21 @@ module Integrations
 
       private
 
-      def mint_token(environment_row)
+      # Runs the call with the token, and once more with a fresh one when GitHub refused a token minted before the
+      # installation changed (InstallationToken#refresh!). A plain string, such as the App's own JWT, is never refreshed.
+      def refreshing(token)
+        yield token.to_s
+      rescue NotPermitted, Unauthorized
+        raise unless token.respond_to?(:refresh!) && token.refresh!
+
+        yield token.to_s
+      end
+
+      def installation_id!(environment_row)
         installation_id = ConnectionSettings.of(environment_row).installation_id.to_s
-        if installation_id.blank?
-          raise Error, "No GitHub App installation is linked to this connection. Reconnect GitHub to link one."
-        end
+        raise Error, "No GitHub App installation is linked to this connection. Reconnect GitHub to link one." if installation_id.blank?
 
-        uri = URI.parse("#{API_ROOT}/app/installations/#{installation_id}/access_tokens")
-        request = Net::HTTP::Post.new(uri)
-        request["Authorization"] = "Bearer #{app_jwt}"
-        apply_api_headers(request)
-        body = parse_response(Http.request(uri, request, error_class: Error))
-
-        token = body.fetch("token") { raise Error, "GitHub returned no installation token" }
-        ConnectionSettings.of(environment_row).store_credential!(TOKEN_CACHE_KEY, "token" => token, "expires_at" => body["expires_at"])
-        token
+        installation_id
       end
 
       # GitHub accepts the App's client id as the JWT issuer, so the OAuth
@@ -211,6 +302,8 @@ module Integrations
           message = "GitHub: #{body['message'] || "HTTP #{response.code}"}"
           raise RateLimited, message if rate_limited?(response)
           raise NotFound, message if response.code.to_i == NOT_FOUND
+          raise Unauthorized, message if response.code.to_i == UNAUTHORIZED
+          raise NotPermitted, message if response.code.to_i == 403 && message.match?(NOT_PERMITTED)
 
           raise Error, message
         end

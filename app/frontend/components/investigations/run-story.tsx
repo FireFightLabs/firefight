@@ -13,10 +13,11 @@ import {
 import type { ReactNode } from "react"
 
 import { formatTime } from "@/lib/formatters"
-import { HYPOTHESIS_STATUS, INVESTIGATION_STEP_STATUS } from "@/lib/generated/constants"
+import { HYPOTHESIS_STATUS, INVESTIGATION_STEP_STATUS, STEP_OUTCOME_KINDS } from "@/lib/generated/constants"
+import { outcomeLabel } from "@/lib/step-outcome"
 import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
-import { SETTLED_LABELS, STEP_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
+import { SETTLED_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
 import { AddNote } from "@/components/investigations/add-note"
 import { StopRun } from "@/components/investigations/stop-run"
 import { StepDetails } from "@/components/investigations/step-row"
@@ -24,7 +25,7 @@ import { StepLinks } from "@/components/investigations/step-links"
 import { type StoryEntry, buildStory } from "@/components/investigations/story"
 import { HYPOTHESIS_TONES, STEP_TONES, TONE_CLASSES, type Tone } from "@/components/investigations/tone"
 import { isLive } from "@/components/investigations/use-live-investigation"
-import type { InvestigationDetail, InvestigationHypothesis } from "@/types/serializers"
+import type { InvestigationDetail, InvestigationHypothesis, InvestigationStep } from "@/types/serializers"
 
 interface RowProps {
   id?: string
@@ -60,6 +61,18 @@ function IconMarker({ icon: Marker }: { icon: Icon }) {
   return <Marker className="size-[13px]" strokeWidth={1.75} />
 }
 
+// How the step went decides its colour. A call whose provider answered with an error is red even when the step ran, and
+// one whose provider found nothing stays neutral.
+function stepTone(step: InvestigationStep): Tone {
+  if (step.outcome?.kind === STEP_OUTCOME_KINDS.FAILED) {
+    return "error"
+  }
+  if (step.outcome?.kind === STEP_OUTCOME_KINDS.NOT_FOUND) {
+    return "neutral"
+  }
+  return isKeyOf(STEP_TONES, step.status) ? STEP_TONES[step.status] : "neutral"
+}
+
 function hypothesisTone(hypothesis: InvestigationHypothesis): Tone {
   return isKeyOf(HYPOTHESIS_TONES, hypothesis.status) ? HYPOTHESIS_TONES[hypothesis.status] : "neutral"
 }
@@ -87,7 +100,7 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
     }
     case "step": {
       const { step } = entry
-      const tone = isKeyOf(STEP_TONES, step.status) ? STEP_TONES[step.status] : "neutral"
+      const tone = stepTone(step)
       const stepCharts = investigation.charts.filter((chart) => chart.stepPosition === step.position)
       return (
         <Row
@@ -97,7 +110,9 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
           title={<span className="font-medium text-fg-primary">{step.label}</span>}
           aside={
             <>
-              {step.status === INVESTIGATION_STEP_STATUS.FAILED && <span className="text-error">{labelFor(STEP_LABELS, step.status)}</span>}
+              {step.outcome && step.outcome.kind !== STEP_OUTCOME_KINDS.ANSWERED && (
+                <span className={step.outcome.kind === STEP_OUTCOME_KINDS.FAILED ? "text-error" : "text-fg-secondary"}>{outcomeLabel(step.outcome)}</span>
+              )}
               {step.seconds != null && <span>{formatSeconds(step.seconds)}</span>}
             </>
           }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1126,6 +1126,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.jsonb "map_events_sent_from", default: {}, null: false
     t.datetime "map_events_polled_at"
     t.string "log_patterns_error"
+    t.string "installation_state"
+    t.datetime "installation_state_at"
+    t.jsonb "installation_details", default: {}, null: false
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
     t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true
@@ -1311,6 +1314,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "error_summary"
+    t.string "failure_kind"
     t.uuid "hypothesis_id"
     t.uuid "investigation_id", null: false
     t.uuid "invocation_id"
@@ -1742,6 +1746,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_205000) do
     t.jsonb "arguments", default: {}
     t.datetime "created_at", null: false
     t.boolean "failed", default: false, null: false
+    t.string "failure_kind"
     t.uuid "message_id", null: false
     t.string "message_type", null: false
     t.string "name", null: false

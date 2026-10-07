@@ -227,10 +227,11 @@ module Chat::Tools
     waiting_for_approval(Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action))
   end
 
-  def self.mark_failed(agent_run, tool_call_id)
+  # kind says whether the provider answered that what was asked about is not there (Chat::StepOutcome).
+  def self.mark_failed(agent_run, tool_call_id, kind: Chat::StepOutcome::FAILURE_ERROR)
     return if tool_call_id.blank?
 
-    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id)
+    Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id, kind: kind)
   end
 
   # What a step is called wherever it is cited later, such as "Get form declare".
@@ -294,7 +295,7 @@ module Chat::Tools
       writes = agent_run.reads_only? && !tool.read_only? && Integrations::ReadGuards.for(tool).nil?
       ready = !writes && principal.present? && tool.callable_by?(principal, resolved)
       Entry.new(
-        name: tool.model_facing_name, description: clean(tool.description, ONE_LINE),
+        name: tool.model_facing_name, description: clean(tool.described_for_agents, ONE_LINE),
         state: (writes && STATE_READS_ONLY) || (ready ? STATE_READY : STATE_NOT_GRANTED),
         tool: (Connection.new(agent_run, tool) if ready),
         group: Groups.of_connection(tool.integration), source: tool.integration.provider, handle: tool.name

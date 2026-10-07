@@ -219,6 +219,30 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_includes reported, "List resources · Faylee (Northflank)"
   end
 
+  test "a finished step is reported with what it got back, read from the call the run's chat kept" do
+    reported = []
+    Investigation::Delivery.any_instance.stubs(:step).with { |**step| reported << step }
+    investigator = fake(outcome: :answered)
+    investigation = @investigation
+    investigator.define_singleton_method(:run) do |**arguments|
+      chat = investigation.chat
+      asking = chat.add_message(role: :assistant, content: "")
+      result = chat.add_message(role: :tool, content: FirefightAi::Evidence.frame("search_incidents", "Error: Cloudflare API error: 8000007: Project not found."))
+      RubyLLM::ActiveRecord::ToolCall.create!(message: asking, tool_call_id: "call_1", name: "search_incidents", arguments: {}, result: result,
+                                              failed: true, failure_kind: Chat::StepOutcome::FAILURE_NOT_FOUND)
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_1", tool: "search_incidents", status: FirefightAi::AgentLoop::STEP_RUNNING, arguments: {}))
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_1", tool: nil, status: FirefightAi::AgentLoop::STEP_DONE, arguments: nil))
+      investigation.conclude!(summary: "It is a Worker")
+      FirefightAi::AgentLoop::Outcome.new(status: :answered, turns_used: 0, spent_micros: 0)
+    end
+
+    Investigation::Runner.new(@investigation).run
+
+    running, done = reported
+    assert_nil running[:outcome]
+    assert_equal [ "Search incidents", Chat::StepOutcome::KIND_NOT_FOUND ], [ done[:title], done[:outcome].kind ]
+  end
+
   private
 
   def turn(turns_used, spent_micros)

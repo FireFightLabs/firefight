@@ -25,12 +25,12 @@ class Investigation::Delivery
     )[:answer_id]
   end
 
-  def step(key:, title:, status:)
+  def step(key:, title:, status:, outcome: nil)
     tell_chat
     return unless thread_id
 
     adapter.report_agent_step(
-      channel_id: channel_id, answer_id: @answer_id, key: key, title: title, status: status
+      channel_id: channel_id, answer_id: @answer_id, key: key, title: title, status: status, outcome: outcome&.kind
     )
   end
 

@@ -2,10 +2,12 @@ import { Link, usePage } from "@inertiajs/react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
-import ThinkingState from "@/components/agent-ui/thinking-state"
+import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
 import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { isLive } from "@/components/investigations/use-live-investigation"
+import { STEP_OUTCOME_KINDS } from "@/lib/generated/constants"
+import { isOutcomeKind, type StepOutcomeKind } from "@/lib/step-outcome"
 import { incidentPath } from "@/lib/routes"
 import { AnswerText } from "@/pages/agent/components/answer-text"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
@@ -48,7 +50,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
     <section className="flex w-full flex-col gap-3" aria-label="Investigation">
       {run.question && <h3 className="truncate text-[13.5px] font-semibold text-ink">{run.question}</h3>}
       <ThinkingState
-        rows={run.steps.map((step) => ({ id: String(step.position), primary: step.label }))}
+        rows={run.steps.map(toRow)}
         active="Investigating"
         done={doneLabel(run)}
         working={working}
@@ -91,4 +93,22 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
 function doneLabel(run: InvestigationCard) {
   const checked = run.steps.length === 1 ? "1 step" : `${run.steps.length} steps`
   return `Investigated in ${formatSeconds(run.durationSeconds)}, ${checked}`
+}
+
+type RunStep = InvestigationCard["steps"][number]
+
+// The same marks as the run's story. A failure is red, and a not found answered its check so it is drawn quietly. A step
+// still going keeps the trace's own mark, the last one spinning while the run works.
+const OUTCOME_ROWS: Record<StepOutcomeKind, ThinkingRowStatus> = {
+  [STEP_OUTCOME_KINDS.ANSWERED]: "done",
+  [STEP_OUTCOME_KINDS.FAILED]: "failed",
+  [STEP_OUTCOME_KINDS.NOT_FOUND]: "not_found",
+}
+
+function toRow(step: RunStep): ThinkingRow {
+  return {
+    id: String(step.position),
+    primary: step.label,
+    status: step.outcome && isOutcomeKind(step.outcome) ? OUTCOME_ROWS[step.outcome] : undefined,
+  }
 }

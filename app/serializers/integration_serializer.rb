@@ -40,21 +40,41 @@ class IntegrationSerializer < BaseSerializer
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
   LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlocked: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null } | null".freeze
 
-  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: #{LIVE_UPDATES_TYPE} }[]"
+  # installation is there for a connection made through an app installed at the provider: what the provider calls the
+  # app, the account it is on, the
+  # address of its settings there, and while the provider says it was removed, suspended or given nothing, the state with
+  # its label and why the connection stopped. null otherwise.
+  INSTALLATION_STATE_UNION = Integrations::Installations::STATES.map(&:inspect).join(" | ")
+  INSTALLATION_TYPE = "{ app: string; account: string | null; page: string | null; state: #{INSTALLATION_STATE_UNION} | null; label: string | null; reason: string | null } | null".freeze
+
+  type "{ id: string; environmentId: string | null; environmentName: string | null; enabled: boolean; healthStatus: #{HEALTH_UNION}; healthError: string | null; settings: { label: string; value: string }[]; choices: { key: string; label: string; hint: string; value: string | null; options: { value: string; label: string }[] }[]; liveUpdates: #{LIVE_UPDATES_TYPE}; installation: #{INSTALLATION_TYPE} }[]"
   def environments
     integration.integration_environments.map do |row|
       { id: row.id, environmentId: row.catalog_entry_id, environmentName: row.environment&.name,
         enabled: row.enabled, healthStatus: row.health_status, healthError: row.health_error, settings: settings_of(row),
-        choices: choices_of(row), liveUpdates: live_updates_of(row) }
+        choices: choices_of(row), liveUpdates: live_updates_of(row), installation: installation_of(row) }
     end
   end
 
-  type "{ id: string; name: string; description: string | null; actionKey: string; readOnly: boolean; enabled: boolean; available: boolean; toggleBlockedReason: string | null }[]"
+  # accessMissing says what the app installation was not granted that the tool needs, or null.
+  type "{ id: string; name: string; description: string | null; actionKey: string; readOnly: boolean; enabled: boolean; available: boolean; toggleBlockedReason: string | null; accessMissing: string | null }[]"
   def tools
     integration.tools.order(:name).map do |tool|
       { id: tool.id, name: tool.name, description: tool.description,
         actionKey: tool.action_key, readOnly: tool.read_only, enabled: tool.enabled,
-        available: tool.available?, toggleBlockedReason: tool.toggle_blocked_reason }
+        available: tool.available?, toggleBlockedReason: tool.toggle_blocked_reason, accessMissing: tool.access_missing_reason }
+    end
+  end
+
+  # The app installations disconnecting may also remove from their account at the provider, one for each the connection
+  # was made through, with what the choice reads and why it cannot be made (another connection still uses it), or null.
+  type "{ installationId: string; label: string; page: string | null; blockedReason: string | null }[]"
+  def installations
+    integration.integration_environments.select { |row| Integrations::Installations.installed?(row) && row.installation_state != Integrations::Installations::REMOVED }
+               .uniq(&:installation_id).map do |row|
+      provider = Integrations::Installations.provider_name(row)
+      { installationId: row.installation_id, label: "Also remove the Firefight app from #{row.installation_account || 'this account'} on #{provider}",
+        page: row.installation_page, blockedReason: row.uninstall_blocked_reason }
     end
   end
 
@@ -68,6 +88,13 @@ class IntegrationSerializer < BaseSerializer
     values = row.fields.merge(integration.address_fields)
     fields = entry.connect_fields.reject(&:learned).filter_map { |field| { label: field.label, value: field.shown(values[field.key]) } if values[field.key].present? }
     [ region, *fields ].compact
+  end
+
+  def installation_of(row)
+    return unless Integrations::Installations.installed?(row)
+
+    { app: Integrations::Installations.app_name(row), account: row.installation_account, page: row.installation_page, state: row.installation_state,
+      label: Integrations::Installations.state_label(row), reason: Integrations::Installations.stopped_reason(row) }
   end
 
   def live_updates_of(row)

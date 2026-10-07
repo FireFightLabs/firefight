@@ -41,6 +41,12 @@ export const INTEGRATION_CARD_ACTIONS = {
   "MANAGE": "manage"
 } as const
 
+export const INSTALLATION_STATES = {
+  "REMOVED": "removed",
+  "SUSPENDED": "suspended",
+  "EMPTIED": "emptied"
+} as const
+
 export const INCIDENT_FORM_SLUGS = [
   "declare",
   "update",
@@ -574,7 +580,14 @@ export const AGENT_STEP_STATUSES = {
   "DONE": "done",
   "WAITING": "waiting",
   "CANCELLED": "cancelled",
-  "FAILED": "failed"
+  "FAILED": "failed",
+  "NOT_FOUND": "not_found"
+} as const
+
+export const STEP_OUTCOME_KINDS = {
+  "ANSWERED": "answered",
+  "FAILED": "failed",
+  "NOT_FOUND": "not_found"
 } as const
 
 export const AGENT_STEP_KINDS = {

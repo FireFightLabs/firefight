@@ -174,6 +174,82 @@ module Integrations
         GithubApp.install_url(state: state)
       end
 
+      READ = "read".freeze
+      WRITE = "write".freeze
+      # A permission held at a level covers every lower one.
+      LEVELS = { READ => 1, WRITE => 2, "admin" => 3 }.freeze
+      # The permissions as GitHub's App settings name them, by the key an installation's permissions use.
+      PERMISSION_NAMES = { "actions" => "Actions", "contents" => "Contents", "deployments" => "Deployments", "pull_requests" => "Pull requests" }.freeze
+      # The permissions each tool cannot answer without, from GitHub's list of the permission every REST endpoint needs
+      # (docs.github.com, REST API, Permissions required for GitHub Apps). A tool that reads a further endpoint only to
+      # add to its answer, and says so when GitHub refuses it, names only what it cannot do without. Code is read by
+      # cloning, which needs Contents read, and blame is GraphQL over the repository's contents. list_repositories reads
+      # /installation/repositories and library_source reads public package sources, so neither needs one. fix_code
+      # commits through the Git database (blobs, trees, commits, refs) and opens a pull request, and GitHub asks for
+      # Workflows write besides when the change touches a workflow file, which only the change itself shows.
+      NEEDS = {
+        "pr_lookup" => { "pull_requests" => READ },
+        "commit_lookup" => { "contents" => READ },
+        "recent_deployments" => { "deployments" => READ },
+        "changes_before" => { "contents" => READ },
+        "list_repositories" => {},
+        "running_commit" => { "deployments" => READ, "contents" => READ },
+        "compare_commits" => { "contents" => READ },
+        "merged_pull_requests" => { "pull_requests" => READ },
+        "fetch_file" => { "contents" => READ },
+        "blame" => { "contents" => READ },
+        "workflow_runs" => { "actions" => READ },
+        "workflow_jobs" => { "actions" => READ },
+        "job_log" => { "actions" => READ },
+        "ci_status" => { "actions" => READ, "deployments" => READ },
+        "rerun_workflow" => { "actions" => WRITE },
+        "run_workflow" => { "actions" => WRITE, "contents" => READ },
+        "cancel_workflow" => { "actions" => WRITE },
+        "fix_code" => { "contents" => WRITE, "pull_requests" => WRITE },
+        "library_source" => {},
+        "list_files" => { "contents" => READ },
+        "code_search" => { "contents" => READ },
+        "find_definition" => { "contents" => READ },
+        "find_usages" => { "contents" => READ },
+        "git_log" => { "contents" => READ },
+        "show_commit" => { "contents" => READ },
+        "diff_refs" => { "contents" => READ },
+        "ask_language_server" => { "contents" => READ },
+        "run_shell" => { "contents" => READ },
+        "run_tests" => { "contents" => READ }
+      }.freeze
+
+      # The installation a connection was made through, as Integrations::Installations reads it. One that is suspended
+      # cannot mint a token, and one that shares no repository is read with a token, since only that lists them.
+      def self.installation(environment_row)
+        found = GithubApp.installation(environment_row)
+        return Installations::Installation.new(state: Installations::REMOVED) unless found
+
+        state = found["suspended_at"].present? ? Installations::SUSPENDED : (Installations::EMPTIED if shares_nothing?(environment_row))
+        Installations::Installation.new(state: state, account: found.dig("account", "login"), page: found["html_url"], access: found["permissions"])
+      end
+
+      def self.shares_nothing?(environment_row)
+        GithubApp.get("/installation/repositories?per_page=1", token: GithubApp.installation_token(environment_row))["total_count"].to_i.zero?
+      end
+
+      def self.uninstall(environment_row) = GithubApp.uninstall(environment_row)
+
+      def self.forget_access(environment_row) = GithubApp.forget_token!(environment_row)
+
+      def self.app_name = "GitHub App"
+
+      def self.reach_name = "repositories"
+
+      # What the tool needs that the installation's permissions leave out, such as "Actions read and write".
+      def self.missing_access(environment_row, tool_name)
+        granted = ConnectionSettings.of(environment_row).installation_access
+        return [] unless granted.is_a?(Hash)
+
+        NEEDS.fetch(tool_name.to_s, {}).reject { |permission, level| LEVELS.fetch(granted[permission].to_s, 0) >= LEVELS.fetch(level) }
+             .map { |permission, level| "#{PERMISSION_NAMES.fetch(permission)} #{level == WRITE ? 'read and write' : 'read'}" }
+      end
+
       def pr_lookup(environment_row:, arguments:)
         repo = repo_argument(arguments)
         number = Integer(arguments["number"].to_s, exception: false)
@@ -377,7 +453,7 @@ module Integrations
 
       # GitHub's repositories, fetched with the installation's token as GitHub asks for one (x-access-token).
       def code_remote(environment_row)
-        CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(environment_row) })
+        CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(environment_row).to_s })
       end
 
       private

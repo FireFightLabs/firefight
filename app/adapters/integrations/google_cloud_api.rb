@@ -6,7 +6,9 @@ module Integrations
     class Error < Integrations::Error; end
     class Forbidden < Error; end
     # Google answered that the resource is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
 
     TOKEN_URI = "https://oauth2.googleapis.com/token".freeze
     GRANT_TYPE = "urn:ietf:params:oauth:grant-type:jwt-bearer".freeze

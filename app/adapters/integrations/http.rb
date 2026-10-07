@@ -4,6 +4,7 @@ module Integrations
   module Http
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
+    NOT_FOUND = 404
     # What a redirect to stored content keeps by default, the tail of a log where it says why something failed.
     DOWNLOAD_LIMIT = 2_000_000
     REDIRECTS = [ 301, 302, 303, 307, 308 ].freeze
@@ -45,8 +46,8 @@ module Integrations
     # The answer read as JSON. A 2xx answer that is not JSON still counts as done and reads as {}, so a change that went
     # through is never reported as failed. Anything else raises "<provider> answered <code>: <reason>", RateLimited for a
     # 429, the class refine names for the code and reason, or error_class. reason reads the provider's own words from
-    # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited. with_status answers an Answer
-    # holding the status, the body and the headers. as: :text answers a 2xx body as the text it is, for an endpoint that
+    # the parsed body. A 429 is rate_limited (error_class unless given), marked RateLimited, and a 404 is marked NotFound.
+    # with_status answers an Answer holding the status, the body and the headers. as: :text answers a 2xx body as the text it is, for an endpoint that
     # answers text such as a log, with errors read the same way. redirect: :download follows a redirect the provider
     # documents to stored content through download (https only, a public address, no credentials), for provider_key,
     # keeping its last download_limit bytes as text.
@@ -71,7 +72,8 @@ module Integrations
       raise (rate_limited || error_class).new("#{provider_name} answered #{code}: #{said}").extend(RateLimited) if code == TOO_MANY_REQUESTS
       raise error_class, "#{provider_name} answered #{code} with something that is not JSON" unless body
 
-      raise refine&.call(code, said) || error_class, "#{provider_name} answered #{code}: #{said}"
+      error = (refine&.call(code, said) || error_class).new("#{provider_name} answered #{code}: #{said}")
+      raise code == NOT_FOUND ? error.extend(NotFound) : error
     end
 
     # A file at a short-lived signed address a provider handed over, such as a job's log. It is fetched without the
