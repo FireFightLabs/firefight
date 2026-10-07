@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -16,6 +18,7 @@ export function ConfirmDeleteDialog({
   confirmVariant = "destructive",
   onConfirm,
   onCancel,
+  children,
 }: {
   open: boolean
   title: string
@@ -25,6 +28,8 @@ export function ConfirmDeleteDialog({
   confirmVariant?: "destructive" | "default"
   onConfirm: () => void
   onCancel: () => void
+  // A choice that goes with the confirmation, such as also removing something elsewhere.
+  children?: ReactNode
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -33,6 +38,7 @@ export function ConfirmDeleteDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
           <Button type="button" variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>

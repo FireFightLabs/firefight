@@ -72,6 +72,18 @@ class Integration::Tool < ApplicationRecord
       "Connect this account again under another name to switch it on."
   end
 
+  # What the app installation the connection was made through was not granted that this tool needs, as a sentence a
+  # person reads beside it ("Needs Actions read in the GitHub App."), or nil. Each environment's installation is asked,
+  # since one connection may reach several.
+  def access_missing_reason
+    rows = integration.integration_environments.select(&:enabled?)
+    lacking = rows.flat_map { |row| Integrations::Installations.missing(row, remote_name) }.uniq
+    Integrations::Installations.missing_words(rows.first, lacking) if lacking.any?
+  end
+
+  # What an agent reads of the tool, led by what it lacks, so a listing cut short still says it.
+  def described_for_agents = [ access_missing_reason, description.presence ].compact.join(" ").presence
+
   # Another connection's tool Halon would call by the same name, or nil.
   def namesake = integration.tool_namesakes[name]
 

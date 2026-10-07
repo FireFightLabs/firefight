@@ -35,6 +35,8 @@ module Integrations
   #                                           app, the installation they are about, matched to a connection's own
   #                                           (IntegrationEnvironment#installation_id). The delivery is verified with
   #                                           the app's secret, INTEGRATION_<KEY>_WEBHOOK_SECRET.
+  #   installation_change(payload, headers:)  for such a provider, what a delivery says changed about the installation
+  #                                           itself (Installations::CHANGE_*), such as removed or suspended, or nil
   #   offers(row)                             for a provider a person sets up to send changes, from a template Firefight
   #                                           made, the places they may set it up in (Offer), such as a cloud's regions,
   #                                           with offer_words (what setting it up does), offer_action (the button),
