@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_230100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -120,10 +120,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
   create_table "ability_roles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description"
+    t.uuid "integration_id"
     t.string "name", null: false
+    t.string "pack"
     t.string "slug", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.index ["integration_id", "pack"], name: "index_ability_roles_one_pack_per_connection", unique: true, where: "(integration_id IS NOT NULL)"
+    t.index ["workspace_id", "pack"], name: "index_ability_roles_one_workspace_pack", unique: true, where: "((pack IS NOT NULL) AND (integration_id IS NULL))"
     t.index ["workspace_id", "slug"], name: "index_ability_roles_on_workspace_id_and_slug", unique: true
   end
 
@@ -2096,6 +2100,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_220000) do
   add_foreign_key "ability_invocations", "workspaces"
   add_foreign_key "ability_role_actions", "ability_actions", column: "action_id"
   add_foreign_key "ability_role_actions", "ability_roles", column: "role_id"
+  add_foreign_key "ability_roles", "integrations", on_delete: :cascade
   add_foreign_key "ability_roles", "workspaces"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"

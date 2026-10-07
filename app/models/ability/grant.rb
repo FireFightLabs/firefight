@@ -48,9 +48,10 @@ module Ability
       grant
     end
 
-    # Takes a member's default away at once, replacing any grant of the same ability. Revoking it gives the default back.
-    def self.withhold!(workspace:, principal:, action:)
-      grant = workspace.ability_grants.find_or_initialize_by(principal: principal, action: action)
+    # Takes a member's default away at once, replacing any grant of the same ability or read pack. Revoking it gives the
+    # default back.
+    def self.withhold!(workspace:, principal:, action: nil, role: nil)
+      grant = workspace.ability_grants.find_or_initialize_by({ principal: principal }.merge(role ? { role: role } : { action: action }))
       grant.update!(scope: Ability::Scope::NO_ACCESS, expires_at: nil)
       grant
     end
@@ -123,8 +124,8 @@ module Ability
     end
 
     def no_access_only_for_a_member_default
-      return errors.add(:base, NO_ACCESS_ONLY_FOR_DEFAULTS) unless principal.is_a?(WorkspaceMembership) && action &&
-                                                                   WorkspaceMembership::NARROWABLE_KEYS.include?(action.key)
+      return errors.add(:base, NO_ACCESS_ONLY_FOR_DEFAULTS) unless principal.is_a?(WorkspaceMembership) &&
+                                                                   WorkspaceMembership.default_target?(action: action, role: role)
 
       errors.add(:base, NO_ACCESS_NOT_FOR_ADMINS) if principal.admin_access?
     end

@@ -1,5 +1,6 @@
-# enabled is the admin's allowlist, removed_at is whether the provider still offers it.
-# Discovery only writes removed_at, so a tool that vanishes and returns keeps the admin's choice.
+# enabled is whether it is switched on, removed_at is whether the provider still offers it. A tool arrives switched on
+# and is an admin's choice from then, so discovery only writes removed_at for a tool it has seen before, and one that
+# vanishes and returns keeps that choice.
 class Integration::Tool < ApplicationRecord
   belongs_to :integration
   has_one :ability_action, class_name: "Ability::Action", as: :source, dependent: :destroy
@@ -30,7 +31,7 @@ class Integration::Tool < ApplicationRecord
   end
 
   # A call the health check makes to see that a connection reaches the account behind its server. Like the sweep it
-  # calls only tools an admin switched on, and each call is recorded under the health check.
+  # calls only tools that are switched on, and each call is recorded under the health check.
   def checked!(arguments, reads = nil, &)
     recorded!(SystemAgent.health_check, AbilityGateway::SOURCE_HEALTH_CHECK, arguments, reads, &)
   end
@@ -59,7 +60,7 @@ class Integration::Tool < ApplicationRecord
   def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace))
     return true if resolved.action_keys.include?(action_key)
 
-    ability_action.present? && principal.implicitly_allowed?(ability_action)
+    ability_action.present? && principal.implicitly_allowed?(ability_action, resolved)
   end
 
   def available?
@@ -111,6 +112,7 @@ class Integration::Tool < ApplicationRecord
       source: self
     )
     action.save!
+    Ability::Role.file!(action, integration)
     action
   end
 

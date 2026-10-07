@@ -85,7 +85,10 @@ class Investigation::RemediationPlan < ApplicationRecord
       tool = step.tool_to_run(workspace)
       return "Step #{step.position} runs #{step.tool_name}, which is no longer switched on." unless tool
       if membership && !tool.callable_by?(membership, resolved)
-        return "Step #{step.position} runs #{step.tool_name}, which you have no access to. An admin can grant it under Permissions."
+        pack = Ability::Role.to_ask_for(tool.ability_action)
+        return "Step #{step.position} runs #{step.tool_name}, which you have no access to. An admin can grant it under Permissions." unless pack
+
+        return "Step #{step.position} runs #{step.tool_name}, which you have no access to. Ask an admin for the #{pack.name} pack under Permissions."
       end
     end
     nil

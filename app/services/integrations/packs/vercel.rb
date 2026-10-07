@@ -3,8 +3,8 @@ module Integrations
     # Vercel for the teams an environment reads, one, several or every one its token can reach, or the token's own account
     # when the team connect field (a scope) is left empty. A call reaches one team, the one it names or the one its
     # project lives in (Integrations::Scopes), and a listing named none lists every team. It reads their projects, the
-    # projects' deployments and their build and runtime logs, with an access token a person creates in Vercel. Every tool reads, except the rollback and promotion an admin switches on
-    # for Halon to apply fixes. Paths, parameters and answers are the ones in Vercel's OpenAPI spec (openapi.vercel.sh),
+    # projects' deployments and their build and runtime logs, with an access token a person creates in Vercel. Every tool reads, except the rollback and promotion Halon uses
+    # to apply fixes. Paths, parameters and answers are the ones in Vercel's OpenAPI spec (openapi.vercel.sh),
     # and how a rollback or promotion is asked follows Vercel's own CLI (vercel/vercel, packages/cli/src/commands).
     # Vercel's remote MCP server only accepts the AI clients Vercel has approved, so Firefight reaches its API directly.
     class Vercel < NativePack

@@ -1,7 +1,7 @@
 class Api::V1::PermissionSetsController < Api::V1::ApiController
   def index
     authorize!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_READ)
-    @permission_sets = current_workspace.ability_roles.order(:name).includes(:grants, actions: { source: :integration })
+    @permission_sets = current_workspace.ability_roles.order(:name).includes(:grants, :integration, actions: { source: :integration })
   end
 
   def create
@@ -22,7 +22,7 @@ class Api::V1::PermissionSetsController < Api::V1::ApiController
 
   def destroy
     authorize!(Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE)
-    find_set!.destroy!
+    find_set!.destroy_by_hand!
     head :no_content
   end
 

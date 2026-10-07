@@ -137,7 +137,7 @@ class AbilityGatewayTest < ActiveSupport::TestCase
                                                 workspace: @workspace) { :ok }
   end
 
-  test "admins hold enabled tool actions implicitly, members do not" do
+  test "admins hold enabled tool actions implicitly, members hold only the ones that read" do
     integration = @workspace.integrations.create!(
       kind: Integration::KIND_MCP, provider: "github", name: "GitHub",
       settings: { "server_url" => "https://gh.example/mcp" }
@@ -151,8 +151,10 @@ class AbilityGatewayTest < ActiveSupport::TestCase
                  "enabling the capability is the admin's decision, no second grant step"
 
     member = workspace_memberships(:bob_workspace_one)
+    assert_equal :ok, AbilityGateway.authorize!(principal: member, action_key: action_key, workspace: @workspace) { :ok }
+    change = integration.tools.create!(name: "create_issue", read_only: false, enabled: true)
     assert_raises(AbilityGateway::Denied) do
-      AbilityGateway.authorize!(principal: member, action_key: action_key, workspace: @workspace)
+      AbilityGateway.authorize!(principal: member, action_key: change.action_key, workspace: @workspace)
     end
   end
 

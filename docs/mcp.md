@@ -86,8 +86,8 @@ The Ability Gateway is administered over MCP with the same model calls the dashb
 |---|---|
 | `list_abilities` | Every grantable ability with risk level, group and whether approval rules can hold it |
 | `list_principals` | People, agents and service keys with the grants each holds. A grant with `no_access` is a member's default taken away, reaching nothing |
-| `upsert_permission_set` | Create (no slug) or update (slug) a set. `abilities` is the full contents |
-| `delete_permission_set` | Delete a set, revoking it from everyone holding it |
+| `upsert_permission_set` | Create (no slug) or update (slug) a set. `abilities` is the full contents. A built-in pack (`built_in: true` in the payload) refuses with why |
+| `delete_permission_set` | Delete a set, revoking it from everyone holding it. A built-in pack refuses with why |
 | `grant_ability` | Grant an ability key or a set slug to a principal, with environment slugs and an expiry. Regranting retargets the existing row |
 | `revoke_grant` | Revoke a grant by id |
 | `upsert_approval_rule` | Create (no id) or update (id) an approval rule. Only the keys given change |

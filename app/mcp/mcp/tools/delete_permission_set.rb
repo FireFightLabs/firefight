@@ -2,7 +2,7 @@ module Mcp
   module Tools
     class DeletePermissionSet < Base
       tool_name DELETE_PERMISSION_SET
-      description "Delete a permission set by slug. Everyone holding it loses it at once. " \
+      description "Delete a permission set by slug. Everyone holding it loses it at once. Built-in packs cannot be deleted. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**DESTRUCTIVE)
       authorize_as Ability::Action::RESOURCE_PERMISSIONS, Ability::Action::ACTION_DELETE
@@ -15,7 +15,7 @@ module Mcp
       )
 
       def self.perform(workspace:, args:)
-        workspace.ability_roles.find_by!(slug: args[:slug].to_s).destroy!
+        workspace.ability_roles.find_by!(slug: args[:slug].to_s).destroy_by_hand!
         respond(slug: args[:slug], deleted: true)
       end
     end

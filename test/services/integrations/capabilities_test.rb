@@ -116,11 +116,11 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
 
   test "a provider's details say what Halon can do through it, in the capabilities' order, and one with no adapter is used through its tools" do
     assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, and roll a resource back " \
-                 "for anything Cloudflare runs, through the tools you switch on. It also uses Cloudflare's other tools that you switch on.", Integrations::Capabilities.halon_sentence("cloudflare", "Cloudflare")
+                 "for anything Cloudflare runs, through the tools that are switched on. It also uses Cloudflare's other tools that are switched on.", Integrations::Capabilities.halon_sentence("cloudflare", "Cloudflare")
     assert_equal "Halon can read its logs, read its metrics, read its errors, and read its traces for the services on the map that Datadog watches, by their " \
-                 "name in Datadog, through the tools you switch on. It also uses Datadog's other tools that you switch on.",
+                 "name in Datadog, through the tools that are switched on. It also uses Datadog's other tools that are switched on.",
                  Integrations::Capabilities.halon_sentence("datadog", "Datadog")
-    assert_equal "Halon uses Linear's own tools that you switch on, in chats and investigations.", Integrations::Capabilities.halon_sentence("linear", "Linear")
+    assert_equal "Halon uses Linear's own tools that are switched on, in chats and investigations.", Integrations::Capabilities.halon_sentence("linear", "Linear")
     assert_equal Integrations::Capabilities::SPECS.keys.sort, Integrations::Capabilities::PHRASES.keys.sort, "every capability can be said"
     assert_equal %w[logs metrics deploys status rollback], Integrations::Capabilities::Cloudflare.capabilities
     details = IntegrationProviderSerializer.one(IntegrationProvider.find("cloudflare"))
@@ -142,7 +142,7 @@ class Integrations::CapabilitiesTest < ActiveSupport::TestCase
     end
     Integrations::Capabilities.stubs(:adapter_for).with("acme").returns(adapter)
 
-    assert_equal "Halon can read their build logs for the repositories Acme builds, through the tools you switch on. It also uses Acme's other tools that you switch on.",
+    assert_equal "Halon can read their build logs for the repositories Acme builds, through the tools that are switched on. It also uses Acme's other tools that are switched on.",
                  Integrations::Capabilities.halon_sentence("acme", "Acme")
 
     Integrations::NativePack.stubs(:halon_sentence).returns("Firefight hands Acme a fix's code change.")

@@ -13,6 +13,8 @@ class Integration < ApplicationRecord
   belongs_to :workspace
   has_many :integration_environments, dependent: :destroy
   has_many :tools, class_name: "Integration::Tool", dependent: :destroy
+  # Its read, changes and everything packs, which Firefight keeps in step with its tools (Ability::Role::Packs).
+  has_many :permission_packs, class_name: "Ability::Role", dependent: :destroy
 
   validates :kind, inclusion: { in: KINDS }
   validates :provider, :name, presence: true
@@ -26,6 +28,8 @@ class Integration < ApplicationRecord
   validate :slug_immutable, on: :update
 
   scope :active, -> { where(disabled_at: nil, deleted_at: nil) }
+
+  after_save :keep_packs_in_step, if: -> { saved_change_to_id? || saved_change_to_name? || saved_change_to_provider? || saved_change_to_deleted_at? }
 
   def operational?
     disabled_at.nil? && deleted_at.nil?
@@ -248,6 +252,10 @@ class Integration < ApplicationRecord
   end
 
   private
+
+  def keep_packs_in_step
+    Ability::Role.keep_in_step!(self)
+  end
 
   # Action keys derive from the slug, renaming would orphan grants, policies
   # and ledger rows.

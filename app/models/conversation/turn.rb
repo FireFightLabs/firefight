@@ -66,8 +66,12 @@ class Conversation::Turn
 
   def memory_teacher = asker
 
+  # A tool that changes something names the pack to ask for, so the person knows exactly what to request.
   def refusal(action_key)
-    "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it."
+    pack = Ability::Role.to_ask_for(Ability::Action.lookup(action_key, workspace))
+    return "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it." unless pack
+
+    "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can give them the #{pack.name} pack."
   end
 
   # Starting a run spends money and posts in the channel, so it goes through the full gateway, approval rules included.

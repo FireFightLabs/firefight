@@ -27,9 +27,9 @@ class Integrations::Capabilities::CodeHostAdapterTest < ActiveSupport::TestCase
   test "a code host wraps none of its tools, so Halon keeps every one, and its details say what it answers for its repositories" do
     assert_not Integrations::Capabilities.adapter_for("github").wraps?("recent_deployments")
     assert_equal "Halon can read their build logs, see what was deployed, and check how their CI stands for the repositories GitLab puts on the map, " \
-                 "through the tools you switch on. It also uses GitLab's other tools that you switch on.", Integrations::Capabilities.halon_sentence("gitlab", "GitLab")
-    assert_equal "Halon can check how their CI stands for the repositories on the map that CircleCI builds, through the tools you switch on. " \
-                 "It also uses CircleCI's other tools that you switch on.", Integrations::Capabilities.halon_sentence("circleci", "CircleCI")
+                 "through the tools that are switched on. It also uses GitLab's other tools that are switched on.", Integrations::Capabilities.halon_sentence("gitlab", "GitLab")
+    assert_equal "Halon can check how their CI stands for the repositories on the map that CircleCI builds, through the tools that are switched on. " \
+                 "It also uses CircleCI's other tools that are switched on.", Integrations::Capabilities.halon_sentence("circleci", "CircleCI")
   end
 
   test "GitHub answers a repository's CI status by default when CircleCI builds it too, and CircleCI answers when named" do

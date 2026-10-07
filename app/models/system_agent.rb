@@ -3,10 +3,10 @@ class SystemAgent < ApplicationRecord
   include Principal
 
   SLUG_INVESTIGATOR = "investigator"
-  # Reads what a connection reaches onto the resource map. It only runs tools an admin switched on, with Firefight's own
+  # Reads what a connection reaches onto the resource map. It only runs tools that are switched on, with Firefight's own
   # fixed reads, so what it did is in the activity log under its name.
   SLUG_MAP_SWEEP = "map_sweep"
-  # Checks that a connection reaches the account behind its server. It only runs tools an admin switched on, with
+  # Checks that a connection reaches the account behind its server. It only runs tools that are switched on, with
   # Firefight's own fixed reads, so what it did is in the activity log under its name.
   SLUG_HEALTH_CHECK = "health_check"
   # Applies what changed in an issue tracker to the items its issues are linked to. It holds no grants and calls no tool,

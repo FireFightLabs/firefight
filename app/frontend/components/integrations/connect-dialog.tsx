@@ -230,8 +230,8 @@ function ConnectForm({
             : alreadyConnected
             ? "Authorize another environment on the connection you have, or name this one to keep a second account's permissions separate."
             : nativeConnect
-              ? "Install the Firefight app, choose what it can reach, and pick which tools to enable. Nothing turns on automatically."
-              : "Firefight discovers this server's tools and you pick which to enable. Nothing turns on automatically."}
+              ? "Install the Firefight app and choose what it can reach. Its tools arrive switched on, and you can switch any of them off."
+              : "Firefight discovers this server's tools and switches them on. You can switch any of them off."}
         </DialogDescription>
       </DialogHeader>
 

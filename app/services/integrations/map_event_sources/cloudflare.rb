@@ -2,7 +2,7 @@ module Integrations
   module MapEventSources
     # Cloudflare sends no events Firefight can register for, so every five minutes it reads each account's audit log
     # (Audit Logs v2) through Cloudflare's own server, with the fixed script MapReaders::Cloudflare#changes runs on
-    # execute, only when an admin switched execute on, recorded under the map sweep. Each write names the API path it
+    # execute, only when execute is switched on, recorded under the map sweep. Each write names the API path it
     # was made on (raw.uri), which says what changed: a zone, or a Worker, Pages project, bucket, database, namespace,
     # queue, Tunnel, pool or Hyperdrive configuration in an account. Reading the log needs Account Settings Read, and a
     # connection without it stays on the daily read, saying why.

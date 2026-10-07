@@ -59,7 +59,7 @@ class Integrations::Capabilities::TinybirdTest < ActiveSupport::TestCase
     adapter = Integrations::Capabilities::Tinybird
     assert_equal %w[describe_resource list_errors], PACK.tool_definitions.map(&:name).select { |name| adapter.wraps?(name) }
     assert_equal "Halon can read its logs, read its metrics, see the workspace's deployments, check how a resource stands, and read its errors " \
-                 "for anything Tinybird runs, through the tools you switch on. It also uses Tinybird's other tools that you switch on.",
+                 "for anything Tinybird runs, through the tools that are switched on. It also uses Tinybird's other tools that are switched on.",
                  Integrations::Capabilities.halon_sentence(PACK::PROVIDER_KEY, "Tinybird")
   end
 

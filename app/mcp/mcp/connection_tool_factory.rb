@@ -73,7 +73,7 @@ module Mcp
       )
     rescue AbilityGateway::Denied
       ToolDispatcher.error_response(
-        "No grant covers '#{tool.action_key}' here (or the connection is not wired for this environment). " \
+        "No grant covers '#{tool.action_key}' here (or the connection is not wired for this environment).#{pack_hint(tool)} " \
         "Token scopes are documented at #{Docs::MCP_SERVER}#{environment_hint(tool)}"
       )
     rescue AbilityGateway::PendingApproval => e
@@ -83,6 +83,12 @@ module Mcp
       )
     rescue Integrations::Error => e
       ToolDispatcher.error_response("Upstream tool failed: #{e.message}")
+    end
+
+    # A tool that changes something names the pack a workspace admin can give, so the person knows what to ask for.
+    def self.pack_hint(tool)
+      pack = Ability::Role.to_ask_for(tool.ability_action)
+      pack ? " A workspace admin can give the #{pack.name} pack." : ""
     end
 
     # A deny for a missing environment really means "pick one", so name them.

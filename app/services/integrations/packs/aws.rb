@@ -2,7 +2,7 @@ module Integrations
   module Packs
     # AWS for one account per environment, in the regions the connection names: its ECS services, Lambda functions, EC2
     # instances and RDS databases, their CloudWatch logs and metrics, ECS deployments and Lambda versions, and three
-    # changes Halon may make when the keys allow them and an admin switched the tools on (roll an ECS service or a Lambda
+    # changes Halon may make when the keys allow them and the tools are switched on (roll an ECS service or a Lambda
     # alias back, restart an ECS service, scale one). Every call goes through AWS's SDK for Ruby (Integrations::AwsApi),
     # with the operations, parameters and answers the API references of ECS, Lambda, EC2, RDS, CloudWatch and
     # CloudWatch Logs give. The metric names, dimensions and statistics are the ones each service's CloudWatch metrics

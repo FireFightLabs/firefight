@@ -26,7 +26,7 @@ module Integrations
       assert_not @integration.tools.find_by!(name: "execute").read_only?
     end
 
-    test "sync! upserts discovered tools disabled by default and marks vanished ones removed" do
+    test "sync! upserts discovered tools switched on and marks vanished ones removed" do
       McpClient.any_instance.stubs(:tools_list).returns([
         { "name" => "logs.query", "description" => "Query logs",
           "inputSchema" => { "type" => "object" }, "annotations" => { "readOnlyHint" => true } },
@@ -37,14 +37,14 @@ module Integrations
 
       logs = @integration.tools.find_by!(name: "logs.query")
       assert logs.read_only?
-      assert_not logs.enabled?
+      assert logs.enabled?, "a new tool arrives switched on"
       assert_equal "logs.query", logs.remote_name
 
       sanitized = @integration.tools.find_by!(name: "dashboards_write")
       assert_equal "Dashboards Write", sanitized.remote_name
       assert_not sanitized.read_only?
+      assert sanitized.enabled?, "a tool that changes something arrives switched on too"
 
-      logs.update!(enabled: true)
       McpClient.any_instance.stubs(:tools_list).returns([])
       DiscoveryService.sync!(@integration)
       logs.reload
@@ -57,6 +57,36 @@ module Integrations
       DiscoveryService.sync!(@integration)
       assert logs.reload.available?, "a tool that comes back is offered again with its earlier choice"
       assert logs.enabled?
+    end
+
+    test "a tool already known keeps the admin's choice, and one discovered later on the same connection arrives switched on" do
+      @integration.tools.create!(name: "logs.query", read_only: true, enabled: false)
+      McpClient.any_instance.stubs(:tools_list).returns([
+        { "name" => "logs.query", "annotations" => { "readOnlyHint" => true } },
+        { "name" => "alerts.mute", "description" => "Mute an alert" }
+      ])
+
+      DiscoveryService.sync!(@integration)
+
+      assert_not @integration.tools.find_by!(name: "logs.query").enabled?, "a tool switched off stays off"
+      muted = @integration.tools.find_by!(name: "alerts.mute")
+      assert muted.enabled?
+      packs = @integration.permission_packs.index_by(&:pack)
+      assert_equal [ muted.ability_action ], packs[Ability::Role::PACK_CHANGES].actions.to_a
+      assert_equal [ muted.ability_action ], packs[Ability::Role::PACK_EVERYTHING].actions.to_a
+      assert_empty packs[Ability::Role::PACK_READ].actions
+    end
+
+    test "a new tool Halon would call by another connection's tool's name stays off" do
+      other = Integration.create!(workspace: workspaces(:slack_workspace_one), kind: Integration::KIND_MCP, provider: "newrelic",
+                                  name: "New", settings: { "server_url" => "https://mcp.example/other" })
+      other.tools.create!(name: "relic_logs", read_only: true, enabled: true)
+      McpClient.any_instance.stubs(:tools_list).returns([ { "name" => "logs", "annotations" => { "readOnlyHint" => true } } ])
+
+      DiscoveryService.sync!(@integration)
+
+      assert_equal "new_relic_logs", @integration.tools.find_by!(name: "logs").model_facing_name
+      assert_not @integration.tools.find_by!(name: "logs").enabled?
     end
 
     test "re-discovery that flips a tool to write updates the action's risk level" do
@@ -100,7 +130,7 @@ module Integrations
 
       tool = native.tools.find_by!(name: "echo_text")
       assert tool.read_only?
-      assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
+      assert tool.enabled?, "pack tools arrive switched on like discovered ones"
       assert_equal "Echoes text back", tool.description
       assert_not leftover.reload.available?, "tools the pack no longer declares are marked removed"
     end

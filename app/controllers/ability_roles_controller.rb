@@ -17,10 +17,12 @@ class AbilityRolesController < InertiaController
     redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
-  # Destroying the set revokes it everywhere it was granted.
+  # Destroying the set revokes it everywhere it was granted. A built-in pack refuses, with the reason.
   def destroy
-    current_workspace.ability_roles.find(params[:id]).destroy!
+    current_workspace.ability_roles.find(params[:id]).destroy_by_hand!
     redirect_to gateway_permissions_path
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
 
   private

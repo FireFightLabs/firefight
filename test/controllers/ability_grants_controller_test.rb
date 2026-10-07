@@ -12,8 +12,9 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
       settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" }
     )
     integration.integration_environments.create!(catalog_entry_id: @production.id)
-    @tool = integration.tools.create!(name: "list_databases", read_only: true, enabled: true)
-    @action = Ability::Action.find_by!(key: "planetscale.list_databases")
+    # A tool that changes something, since a member reads every connected tool without a grant.
+    @tool = integration.tools.create!(name: "create_branch", read_only: false, enabled: true)
+    @action = Ability::Action.find_by!(key: "planetscale.create_branch")
 
     sign_in(users(:alice), @workspace)
   end
@@ -138,6 +139,35 @@ class AbilityGrantsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "Bob Jones can ask Halon and start investigations again.", flash[:notice]
     assert @member.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, @workspace)
+  end
+
+  test "no access takes a connection's reads away as one row, and restoring gives them back, each with a toast" do
+    reads = @tool.integration.tools.create!(name: "list_databases", read_only: true, enabled: true)
+    pack = @tool.integration.permission_packs.find_by!(pack: Ability::Role::PACK_READ)
+
+    get gateway_permissions_url, headers: inertia_headers
+    bob = inertia_props["principals"].find { |principal| principal["id"] == @member.id }
+    assert_equal [ "set", pack.id, "PlanetScale: read", WorkspaceMembership::DEFAULT_NOTES[WorkspaceMembership::DEFAULT_HELD] ],
+                 bob["defaultAccess"].find { |access| access["kind"] == "set" }.values_at("kind", "targetId", "title", "note")
+
+    post withhold_ability_grants_url, params: { principal_kind: "user", principal_id: @member.id, role_id: pack.id }
+    assert_equal "Bob Jones can no longer read PlanetScale's tools. Restore it to give it back.", flash[:notice]
+    assert_not @member.permitted_to?(reads.ability_action, @workspace)
+
+    delete ability_grant_url(@member.ability_grants.find_by!(role: pack))
+    assert_equal "Bob Jones can read PlanetScale's tools again.", flash[:notice]
+    assert @member.permitted_to?(reads.ability_action, @workspace)
+  end
+
+  test "giving a person a pack from the quick grant panel goes back to the page it came from with a toast" do
+    pack = @tool.integration.permission_packs.find_by!(pack: Ability::Role::PACK_CHANGES)
+
+    post ability_grants_url, params: { principal_kind: "user", principal_id: @member.id, role_id: pack.id, environment_ids: [] },
+                             headers: { "Referer" => integrations_url }
+
+    assert_redirected_to integrations_url
+    assert_equal "user:Bob Jones was granted PlanetScale: changes.", flash[:notice]
+    assert_equal({}, @member.ability_grants.find_by!(role: pack).scope)
   end
 
   test "no access is refused for an ability members do not hold by default, and for an admin, with why" do

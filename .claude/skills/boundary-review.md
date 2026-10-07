@@ -32,6 +32,8 @@ The Slack adapter is the only place that knows Slack. A second platform is a sec
 - **No frontend guessing.** A page decides what to render from `currentUserCan` / `useCan(resource)`, never from `currentUserIsAdmin` (which only picks navigation and banners).
 - **Vocabulary, not strings.** Resources and actions come from `Ability::Action::RESOURCE_*` / `ACTION_*`. A new resource goes into `RESOURCES`, gets a label, and is either grantable or in `ADMIN_ONLY_RESOURCES`. A permission the matrix cannot show is a permission nobody can reason about.
 - **Machines never inherit.** A service key or `Agent` reaches only what it was granted. Anything that lets a machine read a human's authority is wrong.
+- **A member's default has one rule.** What a member holds without a grant is `WorkspaceMembership#implicitly_allowed?` (reads of Firefight's data, `NARROWABLE_KEYS`, every connected tool that only reads) and the screen explains it from the same place. A new default goes there and into `default_access`, so No access can take it away, never into a check of its own.
+- **Packs stay Firefight's.** A built-in permission pack changes only through `Ability::Role.keep_in_step!` or `file!`. A new path that switches a tool on or changes its read-only flag goes through `Integration::Tool#sync_ability_action!`, so the packs pick it up, and nothing edits a pack with `sync_actions!`.
 - **Ledger.** A write from a new surface arrives with a `source` and is ledgered unless it is human incident participation.
 
 ## Entry point thinness
@@ -91,7 +93,7 @@ ArchSpec proves no file outside the integrations layer names a provider's code, 
 ## The resource map
 
 - **Every cloud is on the map.** A new provider that runs or stores something (a host, an edge network, a database service) declares `map: firefight` and ships its reader in the same PR. `none` is only for a provider that holds no infrastructure, and its `map_note` says so.
-- **A reader only reads, with Firefight's own code.** A remote server's reader never runs a script a model wrote, calls only tools an admin switched on, and records each call under the map sweep. What it could not read is a gap in words, never a quiet omission.
+- **A reader only reads, with Firefight's own code.** A remote server's reader never runs a script a model wrote, calls only tools that are switched on, and records each call under the map sweep. What it could not read is a gap in words, never a quiet omission.
 
 ## Reach
 

@@ -101,7 +101,7 @@ class SettingsController < InertiaController
       principals: principal_rows,
       actions: AbilityActionOptionSerializer.many(Ability::Grant.grantable_actions(current_workspace)),
       sets: AbilityRoleSerializer.many(
-        current_workspace.ability_roles.order(:name).includes(:grants, :role_actions)
+        current_workspace.ability_roles.order(:name).includes(:grants, :role_actions, :integration)
       ),
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       approvalRules: ApprovalRuleSerializer.many(current_workspace.approval_rules)

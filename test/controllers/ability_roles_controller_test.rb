@@ -11,10 +11,11 @@ class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
       settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" }
     )
     integration.integration_environments.create!(catalog_entry_id: @production.id)
-    integration.tools.create!(name: "list_databases", read_only: true, enabled: true)
-    integration.tools.create!(name: "get_database", read_only: true, enabled: true)
-    @list = Ability::Action.find_by!(key: "planetscale.list_databases")
-    @get = Ability::Action.find_by!(key: "planetscale.get_database")
+    # Tools that change something, since a member reads every connected tool without a grant.
+    integration.tools.create!(name: "create_branch", read_only: false, enabled: true)
+    integration.tools.create!(name: "merge_branch", read_only: false, enabled: true)
+    @list = Ability::Action.find_by!(key: "planetscale.create_branch")
+    @get = Ability::Action.find_by!(key: "planetscale.merge_branch")
 
     sign_in(users(:alice), @workspace)
   end
@@ -22,7 +23,7 @@ class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
   test "a set is created with a slug derived from its name" do
     post ability_roles_url, params: { name: "Database read-only" }
 
-    assert_equal "database_read_only", @workspace.ability_roles.sole.slug
+    assert_equal "database_read_only", @workspace.ability_roles.hand_made.sole.slug
   end
 
   test "syncing a set replaces its contents rather than accumulating" do
@@ -113,7 +114,30 @@ class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
 
     post ability_roles_url, params: { name: "Everything" }
 
-    assert_empty @workspace.ability_roles
+    assert_empty @workspace.ability_roles.hand_made
+  end
+
+  test "a built-in pack refuses a hand edit or a delete with a toast saying why" do
+    changes = @workspace.ability_roles.find_by!(pack: Ability::Role::PACK_CHANGES)
+
+    patch ability_role_url(changes), params: { action_ids: [] }
+    assert_equal changes.edit_blocked_reason, flash[:alert]
+    delete ability_role_url(changes)
+    assert_equal changes.delete_blocked_reason, flash[:alert]
+    assert_equal [ @get.id, @list.id ].sort, changes.reload.role_actions.map(&:action_id).sort
+  end
+
+  test "the page lists built-in packs apart from hand-made sets, each with what it covers and why it cannot be edited" do
+    @workspace.ability_roles.create!(name: "Database helpers")
+
+    get gateway_permissions_url, headers: inertia_headers
+
+    sets = inertia_props["sets"]
+    assert_equal [ "Database helpers" ], sets.reject { |set| set["builtIn"] }.map { |set| set["name"] }
+    pack = sets.find { |set| set["name"] == "PlanetScale: changes" }
+    assert_equal [ true, "Every tool on PlanetScale that changes something." ], pack.values_at("builtIn", "description")
+    assert_match "cannot be changed by hand", pack["editBlockedReason"]
+    assert_includes sets.map { |set| set["name"] }, Ability::Role::CHANGES_EVERYWHERE_NAME
   end
 
   private

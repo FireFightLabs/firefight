@@ -222,6 +222,10 @@ module Ability
       kind == KIND_SYSTEM
     end
 
+    def tool? = kind == KIND_TOOL
+
+    def read? = risk_level == RISK_READ
+
     def admin_only?
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))
     end

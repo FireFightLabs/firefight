@@ -5,7 +5,7 @@ module Ability
     DIMENSION_ENVIRONMENT = "environment"
     DIMENSION_SERVICE = "service"
     DIMENSIONS = [ DIMENSION_ENVIRONMENT, DIMENSION_SERVICE ].freeze
-    # Reaches nothing anywhere. Only a member's default (WorkspaceMembership::NARROWABLE_KEYS) is held this way, so an
+    # Reaches nothing anywhere. Only a member's default (WorkspaceMembership.default_target?) is held this way, so an
     # admin can take it away at once. It is its own key rather than an empty dimension, which a form could read as all.
     NO_ACCESS_KEY = "no_access"
     NO_ACCESS = { NO_ACCESS_KEY => true }.freeze

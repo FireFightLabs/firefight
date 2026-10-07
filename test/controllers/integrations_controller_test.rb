@@ -44,7 +44,9 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     integration = @workspace.integrations.find_by!(provider: "sentry")
     assert_equal "Bearer key", integration.integration_environments.first.credentials_hash["authorization"]
     tool = integration.tools.find_by!(name: "issues.search")
-    assert_not tool.enabled?, "discovered tools arrive disabled"
+    assert tool.enabled?, "discovered tools arrive switched on"
+    assert_equal [ "Sentry: read", "Sentry: changes", "Sentry: everything" ], integration.permission_packs.order(:created_at).map(&:name)
+    assert_includes integration.permission_packs.find_by!(pack: Ability::Role::PACK_READ).actions, tool.ability_action
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY, integration.integration_environments.first.health_status
   end
 
@@ -501,8 +503,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "acme", "https://github.com/organizations/acme/settings/installations/98765", "read" ],
                  [ row.installation_account, row.installation_page, row.installation_access["contents"] ], "connecting reads the installation's account, page and permissions"
     assert integration.tools.exists?(name: "pr_lookup")
-    assert_not integration.tools.find_by!(name: "pr_lookup").enabled?,
-               "pack tools arrive disabled like discovered ones"
+    assert integration.tools.find_by!(name: "pr_lookup").enabled?, "pack tools arrive switched on like discovered ones"
   end
 
   test "an install callback without an installation id connects nothing" do
@@ -664,7 +665,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil integration.server_url
 
     tool = integration.tools.find_by!(name: "echo_text")
-    assert_not tool.enabled?, "pack tools arrive disabled like discovered ones"
+    assert tool.enabled?, "pack tools arrive switched on like discovered ones"
     assert_equal IntegrationEnvironment::HEALTH_HEALTHY,
                  integration.integration_environments.first.health_status
   end

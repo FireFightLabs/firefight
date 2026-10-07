@@ -72,6 +72,7 @@ class ResourceMap::KeyQueriesTest < ActiveSupport::TestCase
   end
 
   test "a person who may not run the tool sees the check with why, and an admin may run it" do
+    take_aws_reads_from_bob
     listed = KEY_QUERIES.listed(@function, @bob)
     throttles = listed.find { |each| each.plan.check.key == "throttles" }
     assert_match "Running it calls aws.cloudwatch_metrics on AWS, which you have not been granted", throttles.run_blocked_reason
@@ -106,6 +107,7 @@ class ResourceMap::KeyQueriesTest < ActiveSupport::TestCase
   end
 
   test "a person without the grant is refused through the gateway, and nothing is called" do
+    take_aws_reads_from_bob
     Integrations::NativeExecutor.expects(:call).never
 
     outcome = KEY_QUERIES.run!(@function, KEY_QUERIES::CHECKS.fetch("throttles"), principal: @bob)
@@ -130,6 +132,11 @@ class ResourceMap::KeyQueriesTest < ActiveSupport::TestCase
   end
 
   private
+
+  # Every member reads every connected tool, so an admin takes AWS's reads away for this one.
+  def take_aws_reads_from_bob
+    Ability::Grant.withhold!(workspace: @workspace, principal: @bob, role: @aws.permission_packs.find_by!(pack: Ability::Role::PACK_READ))
+  end
 
   def keys(kind) = KEY_QUERIES.for(kind).map(&:key)
 

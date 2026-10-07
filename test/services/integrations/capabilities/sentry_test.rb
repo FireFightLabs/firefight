@@ -135,7 +135,7 @@ class Integrations::Capabilities::SentryTest < ActiveSupport::TestCase
     assert_match "no connection offers errors", unroutable(Integrations::Capabilities::ERRORS, "resource" => "web")
 
     assert_equal "Halon can see what was deployed and read its errors for the services on the map that Sentry watches, by their name in Sentry, " \
-                 "through the tools you switch on. It also uses Sentry's other tools that you switch on.",
+                 "through the tools that are switched on. It also uses Sentry's other tools that are switched on.",
                  Integrations::Capabilities.halon_sentence("sentry", "Sentry")
   end
 

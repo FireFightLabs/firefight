@@ -28,7 +28,7 @@ app/controllers/api/v1/incident_types_controller.rb # Read-only
 app/controllers/api/v1/runbooks_controller.rb    # Read-only (index + show by slug or id)
 app/controllers/api/v1/abilities_controller.rb   # Gateway: grantable abilities (permissions:read)
 app/controllers/api/v1/principals_controller.rb  # Gateway: people, agents, service keys and their grants
-app/controllers/api/v1/permission_sets_controller.rb # Gateway: sets by slug, abilities by key
+app/controllers/api/v1/permission_sets_controller.rb # Gateway: sets by slug, abilities by key, built-in packs read only
 app/controllers/api/v1/grants_controller.rb      # Gateway: grants by id, environments by slug
 app/controllers/api/v1/approval_rules_controller.rb # Gateway: rules by id, partial updates, move_up/move_down
 app/controllers/api/v1/approvals_controller.rb   # Gateway: list, approve, deny
