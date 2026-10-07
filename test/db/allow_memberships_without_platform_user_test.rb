@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261007230500_allow_memberships_without_platform_user")
+require Rails.root.join("db/migrate/20261007230800_allow_memberships_without_platform_user")
 
 class AllowMembershipsWithoutPlatformUserTest < ActiveSupport::TestCase
   setup do
