@@ -35,7 +35,8 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
     checkpointed(step) do
       workflow.subject.workspace.adapter.post_lead_announcement(
         channel_id: workflow.subject.channel_id,
-        lead_platform_user_id: workflow.context["lead_platform_user_id"]
+        lead_platform_user_id: workflow.context["lead_platform_user_id"],
+        lead_name: workflow.context["lead_name"]
       )
     end
   end

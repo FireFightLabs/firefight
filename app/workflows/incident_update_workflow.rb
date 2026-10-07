@@ -48,6 +48,7 @@ class IncidentUpdateWorkflow < SolidWorkflow::Base
     {
       message: workflow.context["message"],
       updated_by_platform_user_id: workflow.context["updated_by_platform_user_id"],
+      updated_by_name: workflow.context["updated_by_name"],
       previous_status_name: workflow.context["previous_status_name"],
       previous_severity_name: workflow.context["previous_severity_name"],
       previous_type_name: workflow.context["previous_type_name"]

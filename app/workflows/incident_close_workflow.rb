@@ -26,7 +26,8 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
     checkpointed(step) do
       service(workflow).post_resolution_message(
         workflow.subject,
-        resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
+        resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"],
+        resolved_by_name: workflow.context["resolved_by_name"]
       )
     end
   end
@@ -42,7 +43,8 @@ class IncidentCloseWorkflow < SolidWorkflow::Base
     checkpointed(step) do
       service(workflow).post_resolution_announcement_thread(
         workflow.subject,
-        resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"]
+        resolved_by_platform_user_id: workflow.context["resolved_by_platform_user_id"],
+        resolved_by_name: workflow.context["resolved_by_name"]
       )
     end
   end

@@ -34,27 +34,29 @@ class IncidentUpdateService
     )
   end
 
-  def post_incident_update_message(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:, previous_type_name: nil)
+  def post_incident_update_message(incident, message:, updated_by_platform_user_id:, previous_status_name:, updated_by_name: nil, previous_severity_name:, previous_type_name: nil)
     @workspace.adapter.post_incident_update_message(
       channel_id: incident.channel_id,
       incident: incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
+      updated_by_name: updated_by_name,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name
     )
   end
 
-  def post_resolution_message(incident, resolved_by_platform_user_id:)
+  def post_resolution_message(incident, resolved_by_platform_user_id:, resolved_by_name: nil)
     @workspace.adapter.post_resolution_message(
       channel_id: incident.channel_id,
       incident: incident,
-      resolved_by_platform_user_id: resolved_by_platform_user_id
+      resolved_by_platform_user_id: resolved_by_platform_user_id,
+      resolved_by_name: resolved_by_name
     )
   end
 
-  def post_resolution_announcement_thread(incident, resolved_by_platform_user_id:)
+  def post_resolution_announcement_thread(incident, resolved_by_platform_user_id:, resolved_by_name: nil)
     return unless incident.announcement_message_ts
 
     @workspace.adapter.post_resolution_announcement_thread(
@@ -62,20 +64,22 @@ class IncidentUpdateService
       parent_message_id: incident.announcement_message_ts,
       incident: incident,
       resolved_by_platform_user_id: resolved_by_platform_user_id,
+      resolved_by_name: resolved_by_name,
       subscriber_user_ids: incident.subscriber_platform_user_ids
     )
   end
 
-  def post_reopen_message(incident, reopened_by_platform_user_id:, reason: nil)
+  def post_reopen_message(incident, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil)
     @workspace.adapter.post_reopen_message(
       channel_id: incident.channel_id,
       incident: incident,
       reopened_by_platform_user_id: reopened_by_platform_user_id,
+      reopened_by_name: reopened_by_name,
       reason: reason
     )
   end
 
-  def post_reopen_announcement_thread(incident, reopened_by_platform_user_id:, reason: nil)
+  def post_reopen_announcement_thread(incident, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil)
     return unless incident.announcement_message_ts
 
     @workspace.adapter.post_reopen_announcement_thread(
@@ -83,6 +87,7 @@ class IncidentUpdateService
       parent_message_id: incident.announcement_message_ts,
       incident: incident,
       reopened_by_platform_user_id: reopened_by_platform_user_id,
+      reopened_by_name: reopened_by_name,
       reason: reason,
       subscriber_user_ids: incident.subscriber_platform_user_ids
     )
@@ -146,7 +151,7 @@ class IncidentUpdateService
     )
   end
 
-  def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, previous_severity_name:, previous_type_name: nil)
+  def post_incident_update_announcement_thread(incident, message:, updated_by_platform_user_id:, previous_status_name:, updated_by_name: nil, previous_severity_name:, previous_type_name: nil)
     return unless incident.announcement_message_ts
 
     @workspace.adapter.post_incident_update_announcement_thread(
@@ -155,6 +160,7 @@ class IncidentUpdateService
       incident: incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
+      updated_by_name: updated_by_name,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
       previous_type_name: previous_type_name,

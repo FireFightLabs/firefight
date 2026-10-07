@@ -54,7 +54,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: ":white_check_mark:  *Escalation acknowledged*" } },
           {
             type: "context",
-            elements: [ { type: "mrkdwn", text: ":firefighter: <@#{escalated_to_platform_user_id}> joined the incident" } ]
+            elements: [ { type: "mrkdwn", text: ":firefighter: #{Mrkdwn.person(escalated_to_platform_user_id, nil)} joined the incident" } ]
           }
         ]
       end

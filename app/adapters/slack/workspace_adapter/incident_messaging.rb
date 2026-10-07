@@ -59,11 +59,11 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_lead_announcement(channel_id:, lead_platform_user_id:)
-    blocks = Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: lead_platform_user_id)
+  def post_lead_announcement(channel_id:, lead_platform_user_id:, lead_name: nil)
+    blocks = Slack::Messages::LeadAssignment.announcement(lead_platform_user_id: lead_platform_user_id, lead_name: lead_name)
     post_message(
       channel_id: channel_id,
-      text: "<@#{lead_platform_user_id}> is now the Incident Lead",
+      text: "#{Slack::Mrkdwn.person(lead_platform_user_id, lead_name)} is now the Incident Lead",
       blocks: blocks
     )
   end
@@ -116,11 +116,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+  def post_incident_update_message(channel_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
     blocks = Slack::Messages::StatusUpdate.build(
       incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
+      updated_by_name: updated_by_name,
       scope: :inline,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
@@ -129,11 +130,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: notification_text(incident), blocks: blocks)
   end
 
-  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
+  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
     blocks = Slack::Messages::StatusUpdate.build(
       incident,
       message: message,
       updated_by_platform_user_id: updated_by_platform_user_id,
+      updated_by_name: updated_by_name,
       scope: :announcement,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
@@ -153,7 +155,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def format_incident_list_line(incident)
-    lead = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
+    lead = incident.lead ? Slack::Mrkdwn.mention(incident.lead) : "Unassigned"
     channel = if incident.channel_id.present?
       "<##{incident.channel_id}>"
     elsif incident.is_private?
@@ -192,13 +194,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
-  def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:)
-    blocks = Slack::Messages::Resolution.build(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
+  def post_resolution_message(channel_id:, incident:, resolved_by_platform_user_id:, resolved_by_name: nil)
+    blocks = Slack::Messages::Resolution.build(incident, resolved_by_platform_user_id: resolved_by_platform_user_id, resolved_by_name: resolved_by_name)
     post_message(channel_id: channel_id, text: "Incident resolved", blocks: blocks)
   end
 
-  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, subscriber_user_ids: [])
-    blocks = Slack::Messages::Resolution.announcement_thread(incident, resolved_by_platform_user_id: resolved_by_platform_user_id)
+  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, resolved_by_name: nil, subscriber_user_ids: [])
+    blocks = Slack::Messages::Resolution.announcement_thread(incident, resolved_by_platform_user_id: resolved_by_platform_user_id, resolved_by_name: resolved_by_name)
     reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident resolved", blocks: blocks)
   end
 
@@ -217,13 +219,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     post_message(channel_id: channel_id, text: "Duplicate merged in", blocks: blocks)
   end
 
-  def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reason: nil)
-    blocks = Slack::Messages::Reopen.build(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
+  def post_reopen_message(channel_id:, incident:, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil)
+    blocks = Slack::Messages::Reopen.build(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reopened_by_name: reopened_by_name, reason: reason)
     post_message(channel_id: channel_id, text: "Incident reopened", blocks: blocks)
   end
 
-  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil, subscriber_user_ids: [])
-    blocks = Slack::Messages::Reopen.announcement_thread(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reason: reason)
+  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil, subscriber_user_ids: [])
+    blocks = Slack::Messages::Reopen.announcement_thread(incident, reopened_by_platform_user_id: reopened_by_platform_user_id, reopened_by_name: reopened_by_name, reason: reason)
     reply_and_notify_subscribers(channel_id, parent_message_id, subscriber_user_ids, incident: incident, text: "Incident reopened", blocks: blocks)
   end
 
@@ -667,7 +669,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
     return nil if events.empty?
 
-    lead_text = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
+    lead_text = incident.lead ? Slack::Mrkdwn.mention(incident.lead) : "Unassigned"
     detail_lines = [
       "*#{incident.identifier}* · #{incident.name}",
       "#{incident.incident_severity.name} · #{incident.incident_status.name} · Lead: #{lead_text}"
