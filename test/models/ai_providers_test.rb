@@ -28,7 +28,7 @@ class AiProvidersTest < ActiveSupport::TestCase
   end
 
   test "code fixes are offered where the model proxy reaches" do
-    assert_equal %w[anthropic openai], AiProviders.all.select(&:code_fixes).map(&:slug).sort
+    assert_equal %w[anthropic openai openrouter], AiProviders.all.select(&:code_fixes).map(&:slug).sort
   end
 
   test "Sign in with ChatGPT is offered only behind its flag, and only once every address it needs is set" do

@@ -71,7 +71,7 @@ module Integrations
           title = required_text(arguments, "title").truncate(TITLE_LIMIT)
           choice = code_fix_choice
           fail! AiCredit.cannot(integration.workspace, "write this code change") if choice.unpaid?
-          fail! "Code fixes need an Anthropic or OpenAI model, and this workspace uses #{choice.provider_name}." unless FirefightAi::ModelProxy.supported?(choice.provider_name)
+          fail! "Code fixes need an Anthropic, OpenAI or OpenRouter model, and this workspace uses #{choice.provider_name}." unless FirefightAi::ModelProxy.supported?(choice.provider_name)
           # Its budget is counted in what the model costs, so a model nobody can price would never run out.
           fail! "Firefight cannot price #{choice.model}, so a code fix cannot be given a budget with it." unless FirefightAi.priced?(choice.model)
 

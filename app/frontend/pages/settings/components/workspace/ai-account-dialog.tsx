@@ -165,7 +165,7 @@ export function AiAccountDialog({
               {errorText(errors.provider) && <p className="text-xs text-destructive">{errorText(errors.provider)}</p>}
               {provider && !provider.codeFixes && (
                 <p className="text-xs text-muted-foreground">
-                  Halon answers and investigates on this provider. Code fixes need an Anthropic or OpenAI account, so a
+                  Halon answers and investigates on this provider. Code fixes need an Anthropic, OpenAI or OpenRouter account, so a
                   fix uses the next account in the list that is one.
                 </p>
               )}
