@@ -16,17 +16,15 @@ class Interactions::RerunInvestigationQuestionHandlerTest < ActiveSupport::TestC
   end
 
   test "the question is asked again in the same place, as whoever pressed it" do
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
-
     assert_enqueued_with(job: InvestigationJob) { Interactions::RerunInvestigationQuestionHandler.execute(press) }
 
     rerun = @workspace.investigations.where.not(id: @original.id).sole
     assert_equal [ "checkout is slow", "C0GENERAL", @bob ], [ rerun.question, rerun.channel_id, rerun.triggered_by ]
   end
 
-  test "with AI SRE turned off since, it says so and starts nothing" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
-    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:text].include?("not turned on") }.returns({ ok: true })
+  test "with AI blocked since, it says so and starts nothing" do
+    message = deny_entitlements!
+    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:text] == message }.returns({ ok: true })
 
     assert_no_enqueued_jobs(only: InvestigationJob) { Interactions::RerunInvestigationQuestionHandler.execute(press) }
   end

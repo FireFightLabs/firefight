@@ -195,7 +195,7 @@ Api::V1::EventsController → ProcessEventJob → EventDispatcher → Events::<T
 
 - `EventsController` handles `url_verification` inline, then enqueues `ProcessEventJob` with the raw payload and returns `head :ok`.
 - `EventDispatcher` routes on `Identifiers::EVENT_*` to handlers in `app/services/events/` (`MessageHandler`, `ReactionAddedHandler`, `PinAddedHandler`, `PinRemovedHandler`, `AppMentionHandler`, `MemberJoinedChannelHandler`). Unknown types are logged and dropped.
-- These handlers power transcript capture (`MessageHandler` → `IncidentTranscriptMessage`), reaction-to-action/followup/shoutout creation, pin timeline events, and AI responses to @mentions.
+- These handlers power transcript capture (`MessageHandler` → `IncidentTranscriptMessage`), reaction-to-action/followup/shoutout creation, pin timeline events, and @mentions, which go to Halon's conversation in the mention's thread.
 - A pin event stores the pinned message's text (`fetch_message` through the adapter) alongside its permalink, so the timeline can quote it. The fetch is decoration: an `AdapterError` leaves `message_text` nil and the pin is still recorded.
 - Pins Firefight makes itself (the quick actions header at channel setup, the postmortem message when generated) are not recorded. `Incident#own_pinned_message?` names those message ids, and `PinAddedHandler` drops the event for them, for both pin and unpin. The timeline lists only pins a person chose to make.
 - Slack does **not** redeliver events after the 200 ack, so `ProcessEventJob` retries transient DB failures itself — a dropped job loses the event.
@@ -399,17 +399,17 @@ Entitlements.check(workspace, feature)              # → Result (allowed? + mes
 Work that is not ready for everyone hides behind `FeatureFlags` (`app/models/feature_flags.rb`), backed by Flipper with its ActiveRecord adapter:
 
 ```ruby
-FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)   # → true/false
+FeatureFlags.enabled?(workspace, FeatureFlags::CHATGPT_SIGN_IN)   # → true/false
 ```
 
 - Every flag is off for every workspace until an operator turns it on. Unlike `Entitlements`, this holds on self-hosted installs too, so unfinished work never reaches anyone by default.
-- Operators switch flags with rake, never from the dashboard: `bin/rails 'feature_flags:enable[ai_sre,WORKSPACE_ID]'`, `feature_flags:disable[...]`, and `feature_flags:list`.
+- Operators switch flags with rake, never from the dashboard: `bin/rails 'feature_flags:enable[chatgpt_sign_in,WORKSPACE_ID]'`, `feature_flags:disable[...]`, and `feature_flags:list`.
 - A flag is a constant on `FeatureFlags` listed in `FeatureFlags::ALL`. Any other name raises `FeatureFlags::UnknownFlag`.
 - A flag is either per workspace (`FeatureFlags::WORKSPACE`) or global (`FeatureFlags::GLOBAL`, asked with `enabled_globally?` and switched with `feature_flags:enable_globally[FLAG]` and `feature_flags:disable_globally[FLAG]`). A global flag is for something no workspace owns yet, such as `SELF_SERVE_SIGNUP` on the sign-in page. Using one kind as the other raises `UnknownFlag`.
 - Only `FeatureFlags` may name `Flipper` (ArchSpec). State lives in the `flipper_features` and `flipper_gates` tables. Flipper Cloud is never configured, and its routes only mount when `FLIPPER_CLOUD_TOKEN` and `FLIPPER_CLOUD_SYNC_SECRET` are both set.
 - Flags are checked lazily per request (`preload = false` in `config/initializers/flipper.rb`), so a request that never asks costs no query.
 - Flipper caps actor gates at 100 workspaces per flag (`config.flipper.actor_limit`). A flag that needs more than that is ready to ship.
-- Shipping a feature means deleting its constant and every check, then gating it with `Entitlements` if it is premium-capable.
+- Shipping a feature means deleting its constant and every check, then gating it with `Entitlements` if it is premium-capable, plus a migration that deletes its rows from `flipper_features` and `flipper_gates` (as `RemoveAiSreFeatureFlag` did when the agent shipped to every workspace).
 - Tests run on Flipper's in-memory adapter, reset before every test. Turn a flag on with `FeatureFlags.enable!(workspace, flag)`.
 
 ## Identifiers

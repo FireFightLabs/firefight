@@ -8,7 +8,6 @@ class AgentStepOutcomesTest < ApplicationSystemTestCase
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), @workspace)
   end

@@ -16,7 +16,6 @@ class AgentStreamTest < ApplicationSystemTestCase
   test "the answer arrives as it is written" do
     workspace = workspaces(:slack_workspace_one)
     member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), workspace)
     # The sign in helper stubs the controller, not the session the socket reads, so the socket is stubbed too.
@@ -45,7 +44,6 @@ class AgentStreamTest < ApplicationSystemTestCase
   test "a turn says where Halon shortened its working notes, as it happens and once the answer is saved" do
     workspace = workspaces(:slack_workspace_one)
     member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), workspace)
     ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))
@@ -90,7 +88,6 @@ class AgentStreamTest < ApplicationSystemTestCase
   test "events that reach the page out of order still show in the order they were sent" do
     workspace = workspaces(:slack_workspace_one)
     member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), workspace)
     ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))

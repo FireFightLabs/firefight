@@ -7,7 +7,6 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     FirefightAi.stubs(:context_window).returns(200_000)
   end
@@ -73,13 +72,13 @@ class Mcp::Tools::InvestigationsTest < ActiveSupport::TestCase
     assert_match "nothing left to investigate", response.content.first[:text]
   end
 
-  test "a workspace without the agent says why" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+  test "a workspace whose plan does not include AI says why" do
+    message = deny_entitlements!
 
     response = Mcp::Tools::StartInvestigation.perform_with_principal(workspace: @workspace, principal: @member, args: { incident: @incident.identifier })
 
     assert response.error?
-    assert_match "not turned on", response.content.first[:text]
+    assert_match message, response.content.first[:text]
   end
 
   test "a run is read back whole: theories with their steps, the steps, and the finding with its sources" do

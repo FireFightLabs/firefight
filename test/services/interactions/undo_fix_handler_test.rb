@@ -8,7 +8,6 @@ class Interactions::UndoFixHandlerTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @plan = build_fix_plan(@workspace)
     @bob = workspace_memberships(:bob_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:check).returns(stub(blocked?: false))
     FirefightAi.stubs(:context_window).returns(200_000)
   end

@@ -78,7 +78,6 @@ module Integrations
 
         def fix_code(environment_row:, arguments:)
           @work = nil
-          running_commands!
           repo = repo_argument(arguments)
           brief = required_text(arguments, "brief")
           title = required_text(arguments, "title").truncate(TITLE_LIMIT)

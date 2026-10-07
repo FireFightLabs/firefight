@@ -86,7 +86,6 @@ class Investigation < ApplicationRecord
 
   def self.unavailable_reason(workspace)
     return "AI features are not available." unless defined?(FirefightAi)
-    return "Investigations are not turned on for this workspace." unless FeatureFlags.enabled?(workspace, FeatureFlags::AI_SRE)
 
     gate = Entitlements.check(workspace, Entitlements::AI)
     return gate.message if gate.blocked?

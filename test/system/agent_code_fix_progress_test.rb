@@ -19,7 +19,6 @@ class AgentCodeFixProgressTest < ApplicationSystemTestCase
     ActionCable.server.restart
     @workspace = workspaces(:slack_workspace_one)
     @member = workspace_memberships(:alice_workspace_one)
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), @workspace)
     ApplicationCable::Connection.any_instance.stubs(:signed_in_user).returns(users(:alice))

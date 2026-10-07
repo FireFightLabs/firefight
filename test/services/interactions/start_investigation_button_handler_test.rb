@@ -8,7 +8,6 @@ class Interactions::StartInvestigationButtonHandlerTest < ActiveSupport::TestCas
     @incident = incidents(:active_critical_ws1)
     @member = workspace_memberships(:alice_workspace_one)
     stub_post_message
-    FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
   end
 
   test "the button starts a run and says where it came from" do
@@ -30,11 +29,10 @@ class Interactions::StartInvestigationButtonHandlerTest < ActiveSupport::TestCas
     assert_empty resolved.investigations
   end
 
-  test "a workspace without the flag is told, not ignored" do
-    FeatureFlags.disable!(@workspace, FeatureFlags::AI_SRE)
+  test "a workspace whose plan does not include AI is told, not ignored" do
+    message = deny_entitlements!
     Slack::WorkspaceAdapter.any_instance.expects(:post_ephemeral).with(
-      channel_id: @incident.channel_id, user_id: @member.platform_user_id,
-      text: regexp_matches(/not turned on/)
+      channel_id: @incident.channel_id, user_id: @member.platform_user_id, text: message
     ).once
 
     Interactions::StartInvestigationButtonHandler.execute(build_interaction)

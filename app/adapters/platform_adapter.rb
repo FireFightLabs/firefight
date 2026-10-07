@@ -373,6 +373,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The one reply /ff catchup posts in the incident's channel.
+  # @return [Hash] { message_id: ..., channel_id: ... }
+  def post_ai_response(channel_id:, incident:, answer:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Prompt instruction naming the markup this platform renders.
   # @return [String]
   def ai_output_style

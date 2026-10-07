@@ -7,19 +7,12 @@ module Ability
       @agent = SystemAgent.investigator
     end
 
-    test "a workspace without the feature is not offered an agent it cannot use" do
-      assert_not_includes Ability::Principal.all(@workspace), @agent
-    end
-
-    test "a workspace with the feature can grant the built in agent" do
-      FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
-
+    test "every workspace can grant the built in agent" do
       assert_includes Ability::Principal.all(@workspace), @agent
     end
 
     test "the listing shows only the grants made in the workspace being listed" do
       other = workspaces(:slack_workspace_two)
-      FeatureFlags.enable!(@workspace, FeatureFlags::AI_SRE)
       Ability::Grant.create!(workspace: @workspace, principal: @agent, action: ability_actions(:alerts_read))
       Ability::Grant.create!(workspace: other, principal: @agent, action: ability_actions(:incidents_read))
 
