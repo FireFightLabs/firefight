@@ -90,9 +90,7 @@ module Slack
         update_details(event)
       when IncidentEvent::INCIDENT_ESCALATED
         target = details["escalated_to_platform_user_id"]
-        reason = details["reason"]
-        detail = target.present? ? "to <@#{target}>" : nil
-        [ detail, reason ].compact.join(" | ")
+        [ ("to <@#{target}>" if target.present?), quoted_reason(details) ].compact.join("\n")
       when IncidentEvent::MESSAGE_PINNED, IncidentEvent::MESSAGE_UNPINNED
         details["permalink"].presence
       when IncidentEvent::MESSAGE_FILE_SHARED
@@ -100,7 +98,7 @@ module Slack
         permalink = details["permalink"].present? ? "<#{details['permalink']}|Open in Slack>" : nil
         [ file_name, permalink ].compact.join(" · ")
       when IncidentEvent::INCIDENT_REOPENED
-        details["reason"]
+        quoted_reason(details)
       when IncidentEvent::ESCALATION_ACKNOWLEDGED
         "by <@#{details['acknowledged_by_platform_user_id']}>"
       when IncidentEvent::ESCALATION_NUDGED
@@ -122,6 +120,12 @@ module Slack
       end
     end
     private_class_method :details_for
+
+    # The reason a person gave, quoted as the channel showed it.
+    def self.quoted_reason(details)
+      Slack::Messages::Formatting.quoted_markdown(details["reason"]) if details["reason"].present?
+    end
+    private_class_method :quoted_reason
 
     # The message as the channel showed it, then what changed with its before and after.
     def self.update_details(event)

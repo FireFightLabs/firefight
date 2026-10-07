@@ -176,6 +176,63 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal 0, @workspace.conversations.count
   end
 
+  test "files shared with a mention in a running investigation's thread go with the note, and the run reads them" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    run = running_investigation
+    Slack::Client.expects(:download_file).returns({ body: "pool exhausted at 10:02", content_type: "text/plain" })
+
+    mention("this is from the db host", thread_ts: "1700000000.000950", parent: run.thread_id, files: [ slack_file("F1", "db.log", size: 23) ])
+
+    note = run.notes.sole
+    assert_equal [ "db.log" ], note.attached_files.map(&:filename)
+    taken = run.take_notes!
+    message = run.chat.messages.where(role: Chat::Message::ROLE_USER).sole
+    assert_equal [ note ], taken
+    assert_equal "Alice Smith added: this is from the db host", message.content
+    assert_match "pool exhausted at 10:02", message.to_llm.content
+    assert_match "trust=\"untrusted\"", message.to_llm.content
+  end
+
+  test "a file alone in a running investigation's thread is a note, and one Halon will not read is kept with why" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    run = running_investigation
+    Slack::Client.expects(:download_file).returns({ body: "\x00\x01binary".b, content_type: "application/octet-stream" })
+
+    mention("", thread_ts: "1700000000.000950", parent: run.thread_id, files: [ slack_file("F1", "core.dump", size: 9) ])
+
+    file = run.notes.sole.attached_files.sole
+    assert file.unread?
+    assert_match Chat::Attachment::ACCEPTED, file.refusal
+    run.take_notes!
+    assert_equal "Alice Smith added a file.", run.chat.messages.where(role: Chat::Message::ROLE_USER).sole.content
+  end
+
+  test "files shared with a mention that starts an investigation are handed to the run before its first step" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    Slack::Client.expects(:download_file).returns({ body: "boom at 10:02", content_type: "text/plain" })
+
+    assert_enqueued_with(job: InvestigationJob) do
+      mention("investigate checkout 500s", files: [ slack_file("F1", "app.log", size: 13) ])
+    end
+
+    run = @incident.investigations.live.sole
+    note = run.notes.sole
+    assert_equal Investigation::Noting::FILES_WITH_THE_ASK, note.content
+    assert_equal [ "app.log" ], note.attached_files.map(&:filename)
+    assert_equal workspace_memberships(:alice_workspace_one), note.sender
+  end
+
+  test "files shared with a mention that cannot start an investigation are not handed to any run" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    mention("investigate")
+    Slack::Client.stubs(:post_ephemeral).returns({ ok: true })
+    Slack::Client.expects(:download_file).returns({ body: "boom", content_type: "text/plain" })
+
+    mention("investigate again", files: [ slack_file("F1", "app.log", size: 4) ])
+
+    assert_empty @incident.investigations.live.sole.notes
+  end
+
   test "a mention in a finished investigation's thread is answered as a chat, as before" do
     FeatureFlags.stubs(:enabled?).returns(true)
     run = running_investigation(status: Investigation::STATUS_SUCCEEDED)

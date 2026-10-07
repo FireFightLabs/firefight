@@ -19,6 +19,7 @@ import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { SETTLED_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
 import { AddNote } from "@/components/investigations/add-note"
+import { NoteFiles } from "@/components/investigations/note-files"
 import { StopRun } from "@/components/investigations/stop-run"
 import { StepDetails } from "@/components/investigations/step-row"
 import { StepLinks } from "@/components/investigations/step-links"
@@ -172,7 +173,10 @@ function EntryRow({ entry, investigation, connected }: { entry: StoryEntry; inve
           at={note.createdAt}
           connected={connected}
         >
-          <p className="text-sm leading-relaxed text-fg-body">{note.content}</p>
+          <div className="flex flex-col gap-1.5">
+            {note.content && <p className="text-sm leading-relaxed text-fg-body">{note.content}</p>}
+            <NoteFiles files={note.files} />
+          </div>
         </Row>
       )
     }

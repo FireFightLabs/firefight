@@ -6,7 +6,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: ":rotating_light:  *Incident Reopened*" } },
           { type: "divider" }
         ]
-        blocks << { type: "section", text: { type: "mrkdwn", text: "> #{reason}" } } if reason.present?
+        blocks.concat(Formatting.quoted_blocks(reason))
         blocks << {
           type: "context",
           elements: [
@@ -21,7 +21,7 @@ module Slack
           { type: "header", text: { type: "plain_text", text: "Incident Reopened", emoji: true } },
           { type: "divider" }
         ]
-        blocks << { type: "section", text: { type: "mrkdwn", text: reason } } if reason.present?
+        blocks.concat(Formatting.quoted_blocks(reason))
         blocks << { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Reopened by: *<@#{reopened_by_platform_user_id}>*" } }
         blocks << { type: "section", text: { type: "mrkdwn", text: ":bar_chart: Status: *#{incident.incident_status.name}*" } }
         blocks

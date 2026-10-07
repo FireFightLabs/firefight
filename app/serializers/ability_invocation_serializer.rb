@@ -65,6 +65,11 @@ class AbilityInvocationSerializer < BaseSerializer
     invocation.source
   end
 
+  type :string, optional: true
+  def source_label
+    Ability::Source.label(invocation.source)
+  end
+
   type :string
   def created_at
     invocation.created_at.iso8601

@@ -21,6 +21,10 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     assert_match "INC-001", @opening
   end
 
+  test "a run reads a file a responder shared as untrusted evidence, the way a chat does" do
+    assert_includes FirefightAi::Investigator.system_prompt, FirefightAi::Evidence::FILE_RULE
+  end
+
   test "a run is told to look before asking and to find a resource on the map before any provider tool" do
     prompt = FirefightAi::Investigator.system_prompt
 

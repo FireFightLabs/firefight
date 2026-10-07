@@ -27,11 +27,14 @@ class TranscriptRetentionJob < ApplicationJob
     Rails.logger.info({ event: "transcript_retention.purged", workspace_id: workspace.id, messages: purged, files: files })
   end
 
-  # Files shared with Halon in an incident's channel are part of what was said there, so they go with the transcript.
-  # Destroyed one by one, since each lets go of its bytes in the object store.
+  # Files shared with Halon in an incident's channel are part of what was said there, so they go with the transcript,
+  # whether a chat or an investigation of the incident read them. Destroyed one by one, since each lets go of its bytes
+  # in the object store.
   def purge_files(workspace, incidents)
     conversations = workspace.conversations.where(subject_type: Incident.name, subject_id: incidents)
+    investigations = workspace.investigations.where(subject_type: Incident.name, subject_id: incidents)
     chats = Chat.where(owner_type: Conversation.name, owner_id: conversations.select(:id))
+      .or(Chat.where(owner_type: Investigation.name, owner_id: investigations.select(:id)))
     Chat::Attachment.where(chat_id: chats.select(:id)).find_each(batch_size: BATCH).count(&:destroy)
   end
 end

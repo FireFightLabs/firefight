@@ -7,8 +7,14 @@ class PostmortemUpdateSerializer < BaseSerializer
   end
 
   attributes(
-    update_type: { type: '"generated" | "edited"' }
+    update_type: { type: PostmortemUpdate::UPDATE_TYPES.map { |type| %("#{type}") }.join(" | ") }
   )
+
+  # How the revision came about, in the words the revisions list shows.
+  type :string
+  def label
+    update.label
+  end
 
   type :string
   def edited_by

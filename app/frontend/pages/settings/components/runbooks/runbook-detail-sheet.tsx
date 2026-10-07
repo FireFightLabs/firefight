@@ -7,6 +7,7 @@ import type {
   RunbookSettings,
 } from "@/types/serializers"
 import { conditionSummary } from "@/pages/settings/lib/runbook-conditions"
+import { MarkdownText } from "@/components/markdown-text"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -74,7 +75,7 @@ export function RunbookDetailSheet({
           {runbook.content && (
             <>
               <Separator />
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{runbook.content}</p>
+              <MarkdownText text={runbook.content} />
             </>
           )}
 

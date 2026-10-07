@@ -76,6 +76,7 @@ module FirefightAi
         - For a failing page or endpoint, find its route and the code that handles it, then check that everything that runs before the handler, its filters and callbacks and the methods they call, is defined. Only then look at data or configuration.
         - #{Evidence::RULE}
         - #{Evidence::REFUSAL_RULE}
+        - #{Evidence::FILE_RULE}
         - When the cause may sit in a library the code uses, read that library at the version the repository installs with library_source, and its documentation with search_web and read_web_page, before deciding how it behaves. Cite the page or the file.
         - A past incident's finding_outcome says what the team made of that answer. A confirmed one is a worked example, and one marked wrong is a mistake not to repeat, never a lead.
 

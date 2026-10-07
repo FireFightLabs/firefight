@@ -100,6 +100,13 @@ module Slack
       end
 
       # mrkdwn quotes one line per > and draws no list from a markdown marker.
+      # What a person typed, as a message's body, quoted line by line and split before Slack's section limit.
+      def self.quoted_blocks(text)
+        return [] if text.blank?
+
+        StatusUpdate.body_sections(text).map { |section| { type: "section", text: { type: "mrkdwn", text: section } } }
+      end
+
       def self.quoted_markdown(text)
         in_code = false
         markdown_to_mrkdwn(text.to_s.gsub(/\r\n?/, "\n")).split("\n", -1).map do |line|

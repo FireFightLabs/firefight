@@ -70,6 +70,12 @@ class Chat < ApplicationRecord
     reload
   end
 
+  # Copies of what people sent in this chat, oldest first, for a run it started to read as they did.
+  def copies_of_sent_files
+    attached_files.joins(:message).reorder(Chat::Message.arel_table[:created_at], :position, :id)
+      .includes(sealed_attachment: :blob).map(&:copy!)
+  end
+
   # Loaded once for the whole chat, since every message asks while the history is built.
   def files_sent_with(message)
     files_by_message.fetch(message.id, [])

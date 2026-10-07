@@ -8,13 +8,15 @@ class InvestigationService
   # The run announces itself when it starts working, so nothing is posted here.
   # The brief is what whoever asked said about it (Investigation::Brief), which the run reads for clues.
   # A run with no subject answers where it was asked, a channel or the chat and tool call that asked.
-  def start(subject, trigger_source:, triggered_by: nil, brief: {}, channel_id: nil, conversation: nil, tool_call_id: nil)
+  # files are what was shared with the ask, unsent, which the run reads before its first step.
+  def start(subject, trigger_source:, triggered_by: nil, brief: {}, channel_id: nil, conversation: nil, tool_call_id: nil, files: [])
     investigation = claim(
       subject, trigger_source: trigger_source, triggered_by: triggered_by, brief: brief,
       answer_in: { channel_id: channel_id, conversation: conversation, tool_call_id: tool_call_id }
     )
     return nil unless investigation
 
+    investigation.hand_over_files!(files, by: (triggered_by if triggered_by.is_a?(WorkspaceMembership)))
     InvestigationJob.perform_later(investigation.id)
     investigation
   end
