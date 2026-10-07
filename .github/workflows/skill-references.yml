@@ -18,6 +18,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      # A provider's endpoints are written out from its API client, which runs under Node's permission model.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
       - name: Copy the providers' guides
         run: bin/sync-skill-references
 

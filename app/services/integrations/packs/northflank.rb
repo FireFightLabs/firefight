@@ -43,6 +43,13 @@ module Integrations
       SECRET_PATHS = /environment|argument|secret|credential|registr|key|token|password|connection/i
       API_RESULT_LIMIT = 6_000
       PROJECT_PATH = %r{\A[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\z}
+      # Seen in a real chat, Halon guessed a path to create a pipeline, which Northflank's API has no call for, three
+      # times over. A path Northflank does not know, or a method it does not take there, sends it to the reference.
+      MISSING_CALL = [ "Northflank answered 404", "Northflank answered 405" ].freeze
+      NO_SUCH_CALL = "Northflank's API may not offer this call, or what the path names does not exist. Check the call in " \
+                     "the northflank_fixes skill's API reference before trying again, and never send the same call again. " \
+                     "When the reference does not list it, say Northflank's API does not offer it and give the steps in " \
+                     "Northflank's dashboard instead.".freeze
       DEFAULT_MINUTES = 60
       MAX_MINUTES = 7 * 24 * 60
       LOG_LIMIT = 200
@@ -72,9 +79,9 @@ module Integrations
 
       tool :api_request,
            description: "Any call to Northflank's API inside the project: read or change services, databases, jobs, builds, " \
-                        "deployments, volumes, domains, secrets and the rest, with the method and body Northflank's API docs give. " \
-                        "The path is relative to the project, such as services/web/restart. Load the northflank_fixes skill first. " \
-                        "It lists common fixes and their paths",
+                        "deployments, volumes, secrets, release flows and the rest. The path is relative to the project, such as " \
+                        "services/web/restart. Load the northflank_fixes skill first. It lists common fixes, and its API reference " \
+                        "lists every call Northflank's API offers with the body each needs, so a call it does not list does not exist",
            params_schema: {
              "type" => "object",
              "properties" => {
@@ -281,6 +288,7 @@ module Integrations
         rescue NorthflankApi::NotEnabled
           raise
         rescue NorthflankApi::Error => error
+          fail!(Sentence.all(error, NO_SUCH_CALL)) if error.message.start_with?(*MISSING_CALL)
           raise unless error.message.start_with?("Northflank answered 403")
 
           fail!(Sentence.all(error, "The API token's role cannot make this change. In Northflank, give the role permission " \

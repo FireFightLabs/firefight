@@ -58,6 +58,8 @@ module FirefightAi
         - #{LookFirstRule::CONNECTION_RULE}
         - #{LookFirstRule::CHANGED_RULE}
         - #{LookFirstRule::CAUSE_RULE}
+        - #{LookFirstRule::API_GUIDE_RULE}
+        - #{LookFirstRule::GUESSED_CALL_RULE}
         - #{NormalRule::RULE}
         - #{MAP_START}
         - A responder may add something while you work. Their newest message decides what you check next.
