@@ -162,6 +162,34 @@ class SetupChecklistTest < ApplicationSystemTestCase
     assert_button "Save"
   end
 
+  test "on Firefight's cloud, Firefight credits are the other choice, once there is a balance to spend" do
+    credit = AiAccountTestHelper::Credit.new(false, false)
+    on_firefights_cloud!(credit: credit)
+    owner = signed_up_owner
+    sign_in(owner.user, owner.workspace)
+
+    visit onboarding_checklist_path
+    assert_no_text "Use the AI keys this Firefight runs on"
+    find("label", text: "Use Firefight credits").click
+
+    assert_text "$12.40 left"
+    assert_link "Buy credits", href: "/app/settings/billing#credits"
+    assert_no_button "Add account"
+    find("button", text: "Continue").find(:xpath, "..").hover
+    assert_text "Buy Firefight credits first."
+    screenshot("ai-credits")
+    phone_screenshot("ai-credits")
+
+    credit.spendable = true
+    visit onboarding_checklist_path
+    find("label", text: "Use Firefight credits").click
+    click_button "Continue"
+
+    assert_text "Halon will use your Firefight credits."
+    assert_selector "h1", text: "Connect your stack"
+    assert_equal WorkspaceOnboarding::AI_CREDITS, owner.workspace.onboarding.reload.ai_choice
+  end
+
   test "a category Halon can do without is answered with we don't use this, and a required one cannot be" do
     owner = signed_up_owner
     onboarding = owner.workspace.onboarding
