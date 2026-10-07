@@ -1,4 +1,4 @@
-import { usePage } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import { IconCheck } from "@tabler/icons-react";
 
 import { installSlackAppPath } from "@/lib/routes";
@@ -11,6 +11,8 @@ import type { SharedProps } from "@/types";
 interface InstallPageProps extends SharedProps {
   [key: string]: unknown;
   teamName: string;
+  // Set when connecting a workspace that already exists, which can carry on without Slack for now.
+  skipPath: string | null;
 }
 
 const PERMISSIONS = [
@@ -22,7 +24,7 @@ const PERMISSIONS = [
 ];
 
 export default function Install() {
-  const { teamName } = usePage<InstallPageProps>().props;
+  const { teamName, skipPath } = usePage<InstallPageProps>().props;
 
   return (
     <AuthLayout title="Install Firefight" containerClassName="max-w-[460px]">
@@ -61,6 +63,17 @@ export default function Install() {
         <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
           You'll need to be a Slack workspace admin to complete the install.
         </p>
+
+        {skipPath ? (
+          <p className="mt-3 text-center text-xs">
+            <Link
+              href={skipPath}
+              className="text-muted-foreground underline decoration-border underline-offset-[3px] transition-colors hover:text-fg-primary hover:decoration-foreground"
+            >
+              Not now
+            </Link>
+          </p>
+        ) : null}
       </div>
     </AuthLayout>
   );

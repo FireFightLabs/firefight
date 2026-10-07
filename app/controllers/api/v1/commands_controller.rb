@@ -7,8 +7,8 @@ class Api::V1::CommandsController < Api::V1::BaseController
       return render_response(Command.ephemeral(unknown_workspace_message))
     end
 
-    if command.workspace.suspended?
-      return render_response(Command.ephemeral(command.workspace.suspension_message))
+    if (blocked = command.workspace.access_blocked)
+      return render_response(Command.ephemeral(blocked.message))
     end
 
     # Who is acting is resolved once, by the dispatcher.

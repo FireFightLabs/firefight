@@ -21,6 +21,20 @@ Rack::Attack.throttle("email sign-in confirm by ip", limit: 20, period: 1.minute
   req.ip if req.path == "/auth/email/confirm" && req.post?
 end
 
+Rack::Attack.throttle("invitation accept by ip", limit: 20, period: 1.minute) do |req|
+  req.ip if req.path == "/auth/invitation" && req.post?
+end
+
+# Each new workspace is seeded with its defaults, so one address creates a handful an hour at most.
+Rack::Attack.throttle("workspace signup by ip", limit: 5, period: 1.hour) do |req|
+  req.ip if req.path == "/signup/workspace" && req.post?
+end
+
+# Every invitation sends an email. WorkspaceInvitation also caps each workspace, whoever sends.
+Rack::Attack.throttle("workspace invitations by ip", limit: 30, period: 1.hour) do |req|
+  req.ip if req.post? && req.path.start_with?("/app/settings/members/invitations")
+end
+
 Rack::Attack.throttled_responder = lambda do |request|
   if request.path.start_with?("/api/")
     [ 429, { "Content-Type" => "application/json" }, [ { error: "Too many requests" }.to_json ] ]

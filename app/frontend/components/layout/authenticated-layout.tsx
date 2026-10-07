@@ -1,11 +1,12 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useState } from "react";
-import { usePage } from "@inertiajs/react";
-import { IconPlugConnectedX } from "@tabler/icons-react";
+import { router, usePage } from "@inertiajs/react";
+import { IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-react";
 
 import { FlashToaster } from "@/components/flash-toaster";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { onboardingReinstallPath } from "@/lib/routes";
+import { onboardingConnectSlackPath, onboardingReinstallPath } from "@/lib/routes";
+import { useCan } from "@/lib/permissions";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { SearchPalette } from "@/components/navigation/search-palette";
 import { SiteHeader } from "@/components/navigation/site-header";
@@ -56,6 +57,44 @@ function DisconnectedBanner() {
       ) : (
         <span className="text-xs shrink-0 text-fg-secondary">
           Ask a workspace admin to reconnect it.
+        </span>
+      )}
+    </Alert>
+  );
+}
+
+function connectSlack() {
+  router.post(onboardingConnectSlackPath());
+}
+
+// The workspace started without Slack. Everything but incidents works, so the page says what waits on it.
+function ConnectSlackBanner() {
+  const { currentWorkspace } = usePage().props;
+  const canConnect = useCan("workspace");
+
+  if (!currentWorkspace || currentWorkspace.chatConnected) {
+    return null;
+  }
+
+  return (
+    <Alert className="mx-6 mt-6 w-auto flex flex-col items-start justify-between gap-3 border-border border-l-2 border-l-brand bg-surface text-fg-primary sm:flex-row sm:items-center *:data-[slot=alert-description]:text-fg-body">
+      <div className="flex items-start gap-3">
+        <IconPlugConnected className="mt-0.5 size-5 shrink-0 text-brand" />
+        <div>
+          <AlertTitle>Connect Slack to run incidents</AlertTitle>
+          <AlertDescription>
+            Each incident gets its own Slack channel, so declaring one waits
+            until Slack is connected. Everything else works now.
+          </AlertDescription>
+        </div>
+      </div>
+      {canConnect ? (
+        <Button variant="outline" size="sm" className="shrink-0" onClick={connectSlack}>
+          Connect Slack
+        </Button>
+      ) : (
+        <span className="text-xs shrink-0 text-fg-secondary">
+          Ask a workspace admin to connect it.
         </span>
       )}
     </Alert>
@@ -113,6 +152,7 @@ export function AuthenticatedLayout({
         <SidebarInset>
           <SiteHeader title={title} actions={actions} onSearch={openSearch} searchShortcut={!ownsSearchShortcut} />
           <DisconnectedBanner />
+          <ConnectSlackBanner />
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2 pt-6">
               {children}

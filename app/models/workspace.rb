@@ -9,6 +9,9 @@ class Workspace < ApplicationRecord
   include Workspace::CodeFixes
   include Workspace::IssueSync
   include Workspace::AgentDefaults
+  include Workspace::ChatConnection
+  include Workspace::Access
+  include Workspace::Signup
 
   enum :platform, { slack: Platforms::SLACK, teams: Platforms::TEAMS }, suffix: true
 
@@ -50,8 +53,10 @@ class Workspace < ApplicationRecord
   has_many :idempotency_keys, dependent: :delete_all
   has_many :api_keys, dependent: :destroy
   has_one :onboarding, class_name: "WorkspaceOnboarding", dependent: :destroy
+  has_many :invitations, class_name: "WorkspaceInvitation", dependent: :delete_all
   has_many :workspace_memberships, dependent: :destroy
   has_many :users, through: :workspace_memberships
+  belongs_to :created_by, class_name: "User", optional: true
 
   # The one list grant scoping and connection wiring both read, so an id from
   # a form is checked against exactly what the UI offered.
@@ -60,8 +65,7 @@ class Workspace < ApplicationRecord
 
   encrypts :access_token, :refresh_token, deterministic: false
 
-  validates :platform, :platform_id, :name, :installed_at, presence: true
-  validates :platform_id, uniqueness: { scope: :platform }
+  validates :name, presence: true
 
   scope :by_platform, ->(platform) { where(platform: platform) }
   scope :slack_platform, -> { where(platform: Platforms::SLACK) }
@@ -175,7 +179,7 @@ class Workspace < ApplicationRecord
     end
   end
 
-  def self.find_or_create_from_slack!(auth_hash)
+  def self.find_or_create_from_slack!(auth_hash, created_by: nil)
     team_info = auth_hash.extra.team_info
 
     workspace = find_or_initialize_by(
@@ -193,6 +197,7 @@ class Workspace < ApplicationRecord
       disconnected_at: nil,
       disconnected_reason: nil
     )
+    workspace.created_by ||= created_by if workspace.new_record?
 
     workspace.save!
     workspace
@@ -200,9 +205,14 @@ class Workspace < ApplicationRecord
 
   # user comes from the prior OIDC sign-in. The bot install's users.info fetch
   # is brittle, so identity is never derived from auth_hash when user is given.
-  def self.process_slack_installation(auth_hash, user: nil)
+  # workspace is one that started without Slack, which this install connects.
+  def self.process_slack_installation(auth_hash, user: nil, workspace: nil)
     transaction do
-      workspace = find_or_create_from_slack!(auth_hash)
+      if workspace
+        workspace.connect_slack!(auth_hash)
+      else
+        workspace = find_or_create_from_slack!(auth_hash, created_by: user)
+      end
       user ||= User.find_or_create_from_omniauth!(auth_hash)
       membership = WorkspaceMembership.find_or_create_from_omniauth!(user, workspace, auth_hash)
 

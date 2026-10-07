@@ -43,9 +43,9 @@ class IncidentInviteService
 
   private
 
-  # Two references can name one person, so dedupe by the platform account.
+  # Two references can name one person, so dedupe by the platform account. A member with none is themselves.
   def distinct(people)
-    Array(people).compact.uniq { |person| platform_user_id(person) }
+    Array(people).compact.uniq { |person| platform_user_id(person) || person }
   end
 
   def platform_user_id(person)

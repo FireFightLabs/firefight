@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_230600) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1439,9 +1439,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
     t.string "user_agent"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "workspace_invitation_id"
     t.index ["email", "purpose"], name: "index_login_tokens_open_by_email", where: "(consumed_at IS NULL)"
     t.index ["expires_at"], name: "index_login_tokens_on_expires_at"
     t.index ["token_digest"], name: "index_login_tokens_on_token_digest", unique: true
+    t.index ["workspace_invitation_id"], name: "index_login_tokens_on_workspace_invitation_id"
   end
 
   create_table "oauth_access_grants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2049,11 +2051,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
     t.index ["workspace_id"], name: "index_webhooks_on_workspace_id"
   end
 
+  create_table "workspace_invitations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "email", null: false
+    t.uuid "invited_by_id"
+    t.uuid "membership_id"
+    t.datetime "last_sent_at", null: false
+    t.datetime "accepted_at"
+    t.datetime "revoked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["invited_by_id"], name: "index_workspace_invitations_on_invited_by_id"
+    t.index ["membership_id"], name: "index_workspace_invitations_on_membership_id"
+    t.index ["workspace_id", "email"], name: "index_workspace_invitations_pending_by_email", unique: true, where: "((accepted_at IS NULL) AND (revoked_at IS NULL))"
+    t.index ["workspace_id"], name: "index_workspace_invitations_on_workspace_id"
+  end
+
   create_table "workspace_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "joined_at", null: false
     t.jsonb "platform_data", default: {}, null: false
-    t.string "platform_user_id", null: false
+    t.string "platform_user_id"
     t.string "role", default: "member", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
@@ -2061,6 +2079,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
     t.index ["role"], name: "index_workspace_memberships_on_role"
     t.index ["user_id"], name: "index_workspace_memberships_on_user_id"
     t.index ["workspace_id", "platform_user_id"], name: "index_workspace_memberships_on_workspace_and_platform_user", unique: true
+    t.index ["workspace_id", "user_id"], name: "index_workspace_memberships_on_workspace_and_user", unique: true
     t.index ["workspace_id"], name: "index_workspace_memberships_on_workspace_id"
   end
 
@@ -2086,13 +2105,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
     t.string "disconnected_reason"
     t.boolean "halon_regression_enabled", default: false, null: false
     t.string "incidents_channel_id"
-    t.datetime "installed_at", null: false
+    t.datetime "installed_at"
     t.integer "investigation_max_spend_cents"
     t.integer "investigation_max_turns"
     t.string "name", null: false
-    t.string "platform", default: "slack", null: false
+    t.string "platform"
     t.jsonb "platform_data", default: {}, null: false
-    t.string "platform_id", null: false
+    t.string "platform_id"
     t.text "refresh_token"
     t.datetime "suspended_at"
     t.string "suspended_reason"
@@ -2111,6 +2130,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
     t.datetime "issue_webhook_expires_at"
     t.text "issue_webhook_error"
     t.integer "memory_expiry_days"
+    t.uuid "created_by_id"
+    t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
     t.index ["platform", "platform_id"], name: "index_workspaces_on_platform_and_platform_id", unique: true
@@ -2269,6 +2290,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
   add_foreign_key "investigations", "investigations", column: "replay_of_id"
   add_foreign_key "investigations", "workspaces"
   add_foreign_key "invite_codes", "users", column: "redeemed_by_id"
+  add_foreign_key "login_tokens", "workspace_invitations", on_delete: :cascade
   add_foreign_key "oauth_access_grants", "oauth_applications", column: "application_id"
   add_foreign_key "oauth_access_grants", "workspace_memberships", column: "resource_owner_id"
   add_foreign_key "oauth_access_tokens", "oauth_applications", column: "application_id"
@@ -2321,8 +2343,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_230300) do
   add_foreign_key "webhook_deliveries", "incident_events"
   add_foreign_key "webhook_deliveries", "webhooks"
   add_foreign_key "webhooks", "workspaces"
+  add_foreign_key "workspace_invitations", "workspace_memberships", column: "invited_by_id", on_delete: :nullify
+  add_foreign_key "workspace_invitations", "workspace_memberships", column: "membership_id", on_delete: :nullify
+  add_foreign_key "workspace_invitations", "workspaces", on_delete: :cascade
   add_foreign_key "workspace_memberships", "users"
   add_foreign_key "workspace_memberships", "workspaces"
   add_foreign_key "workspace_onboardings", "workspace_memberships", column: "installer_id", on_delete: :nullify
   add_foreign_key "workspace_onboardings", "workspaces"
+  add_foreign_key "workspaces", "users", column: "created_by_id", on_delete: :nullify
 end

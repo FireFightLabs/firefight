@@ -110,7 +110,11 @@ app/frontend/
       types.ts             # DashboardStat, DashboardFilters
     login/
       index.tsx            # /login
+      check-email.tsx, confirm-email.tsx  # the email sign-in link
+      invitation.tsx       # /auth/invitation, joining a workspace from an email invitation
       components/          # terms-notice (login-only)
+    signup/
+      workspace.tsx        # /signup/workspace, naming a new workspace
     incidents/
       index.tsx            # /incidents/:id
       postmortem.tsx       # /incidents/:id/postmortem

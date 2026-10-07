@@ -89,7 +89,7 @@ class IncidentCreationService
   def invite_members(incident, membership_ids)
     return { skipped: true } if membership_ids.blank?
 
-    user_ids = @workspace.workspace_memberships.where(id: membership_ids).pluck(:platform_user_id)
+    user_ids = @workspace.workspace_memberships.where(id: membership_ids).where.not(platform_user_id: nil).pluck(:platform_user_id)
     return { skipped: true } if user_ids.empty?
 
     @workspace.adapter.invite_users(channel_id: incident.channel_id, user_ids: user_ids)

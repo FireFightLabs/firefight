@@ -13,6 +13,7 @@ import type { IncidentListItem, SeverityOption } from "@/types/serializers"
 import { Button } from "@/components/ui/button"
 import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
 import { useCan } from "@/lib/permissions"
+import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
 import { dismissOnboardingDialogPath } from "@/lib/routes"
 
 interface DashboardPageProps extends SharedProps {
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [declaringTest, setDeclaringTest] = useState(false)
   const [onboardingOpen, setOnboardingOpen] = useState(onboarding.dialogPending)
   const canDeclare = useCan("incidents")
+  const declareBlockedReason = useIncidentsBlockedReason()
 
   function openDeclare() {
     setDeclaringTest(false)
@@ -58,10 +60,12 @@ export default function Dashboard() {
       title="Incidents"
       actions={
         canDeclare && (
-          <Button onClick={openDeclare} className="gap-1.5">
-            <IconPlus className="size-4" />
-            Declare incident
-          </Button>
+          <IncidentsBlocked reason={declareBlockedReason}>
+            <Button onClick={openDeclare} className="gap-1.5" disabled={Boolean(declareBlockedReason)}>
+              <IconPlus className="size-4" />
+              Declare incident
+            </Button>
+          </IncidentsBlocked>
         )
       }
     >

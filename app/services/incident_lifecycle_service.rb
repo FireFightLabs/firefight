@@ -12,6 +12,9 @@ class IncidentLifecycleService
   # from_investigation is a run asked without an incident whose answer this incident was declared from, which the
   # incident then carries on its timeline.
   def create(create_channel_sync: false, workflow_context: {}, from_investigation: nil, **attrs)
+    blocked_reason = workspace.incidents_blocked_reason
+    raise Incident::CreationBlocked, blocked_reason if blocked_reason
+
     incident = Incident.create!(**attrs, workspace: workspace)
     from_investigation&.attach_to!(incident)
 

@@ -112,12 +112,12 @@ class Auth::EmailSignInsControllerTest < ActionDispatch::IntegrationTest
     assert_nil session[:user_id]
   end
 
-  test "an address nobody holds lands on the signup page" do
+  test "an address nobody holds goes on to name a workspace" do
     token = LoginToken.issue!(email: "nobody-here@example.com")
 
     post consume_email_sign_in_path, params: { token: token }
 
-    assert_redirected_to onboarding_signup_path
+    assert_redirected_to signup_workspace_path
     assert_nil session[:user_id]
     assert_nil User.find_by(email: "nobody-here@example.com")
   end

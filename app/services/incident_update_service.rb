@@ -112,7 +112,10 @@ class IncidentUpdateService
     )
   end
 
+  # Someone with no platform account cannot be messaged there, so the escalation reaches them in the channel only.
   def post_escalation_direct_message(incident, event:)
+    return { skipped: true } if escalation_target(event).platform_user_id.blank?
+
     @workspace.adapter.post_escalation_direct_message(
       user_id: escalation_target(event).platform_user_id,
       incident: incident,
@@ -132,6 +135,8 @@ class IncidentUpdateService
   end
 
   def post_escalation_nudge_direct_message(incident, event:)
+    return { skipped: true } if escalation_target(event).platform_user_id.blank?
+
     @workspace.adapter.post_escalation_nudge_direct_message(
       user_id: escalation_target(event).platform_user_id,
       incident: incident,

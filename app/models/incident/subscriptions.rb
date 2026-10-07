@@ -43,7 +43,7 @@ class Incident
     end
 
     def subscriber_platform_user_ids
-      subscribers.pluck(:platform_user_id)
+      subscribers.where.not(platform_user_id: nil).pluck(:platform_user_id)
     end
   end
 end

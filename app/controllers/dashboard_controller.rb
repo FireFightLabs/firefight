@@ -22,13 +22,15 @@ class DashboardController < InertiaController
 
   private
 
-  # The first-run dialog is the installer's, once. The channel link is built by the platform.
+  # The first-run dialog is the installer's, once, and waits for Slack, since its test incident runs there. The
+  # channel link is built by the platform.
   def onboarding_props
     onboarding = current_workspace.onboarding
+    connected = current_workspace.chat_connected?
     {
-      dialogPending: onboarding.present? && onboarding.dialog_pending_for?(current_membership),
+      dialogPending: connected && onboarding.present? && onboarding.dialog_pending_for?(current_membership),
       steps: WorkspaceOnboarding::STEPS,
-      incidentsChannelUrl: WorkspaceAdapter.for(current_workspace).channel_url(channel_id: current_workspace.incidents_channel_id)
+      incidentsChannelUrl: connected ? WorkspaceAdapter.for(current_workspace).channel_url(channel_id: current_workspace.incidents_channel_id) : nil
     }
   end
 

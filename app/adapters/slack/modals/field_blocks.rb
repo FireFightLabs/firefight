@@ -110,7 +110,7 @@ module Slack
           action_id: input_id(IncidentSystemField::KEY_LEAD),
           placeholder: copy_placeholder(IncidentSystemField::KEY_LEAD)
         }
-        element[:initial_user] = incident.lead.platform_user_id if incident&.lead
+        element[:initial_user] = incident.lead.platform_user_id if incident&.lead&.platform_user_id
 
         {
           type: "input",

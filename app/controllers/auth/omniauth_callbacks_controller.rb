@@ -19,20 +19,25 @@ module Auth
 
     # Bot install, creating the workspace and owner membership. The installer's identity comes
     # from the sign-in step as `pending_user_id`, since the install auth_hash's user info is brittle.
+    # Connecting Slack to a workspace that started without it runs through here too, marked by connecting_workspace_id.
     def slack
+      connecting = connecting_workspace
       outcome = SlackAuthenticationService.new.handle_install(
         auth_hash,
         user: pending_user || current_user,
         invite_code: claimed_invite_code,
-        pending_team_id: session[:pending_team_id]
+        pending_team_id: session[:pending_team_id],
+        connecting: connecting
       )
+      return apply_connect_outcome(outcome) if connecting
+
       apply_outcome(outcome)
     rescue => e
       log_auth_failure(:slack_install_failed, e)
       redirect_to login_path, alert: "Installation failed. Please try again."
     end
 
-    # Signs in only a person who already has a workspace. Anyone else lands on the signup page.
+    # A person with no workspace yet goes on to name one.
     def google_oauth2
       return redirect_to(login_path, alert: UNAVAILABLE_MESSAGE) unless SignInMethods.google?
 
@@ -80,6 +85,20 @@ module Auth
       User.find_by(id: id) if id
     end
 
+    # Only a workspace the signed-in person belongs to. Whether they may connect it was asked when they started.
+    def connecting_workspace
+      id = session[:connecting_workspace_id]
+      current_user&.workspaces&.find_by(id: id) if id
+    end
+
+    # The person stays signed in to the workspace they were connecting, whatever happened.
+    def apply_connect_outcome(outcome)
+      clear_pending_session_keys
+      return redirect_to(dashboard_path, alert: outcome.message || "Slack could not be connected. Please try again.") unless outcome.signed_in?
+
+      redirect_to dashboard_path, notice: outcome.message
+    end
+
     def apply_outcome(outcome)
       return sign_in_and_redirect(outcome)       if outcome.signed_in?
       return start_install_and_redirect(outcome) if outcome.install_needed?
@@ -96,7 +115,11 @@ module Auth
       redirect_to(target, notice: outcome.message)
     end
 
+    # With self-serve signup on, a team Firefight does not know names its workspace first, like any other sign-in.
     def start_install_and_redirect(outcome)
+      return start_signup(user: outcome.user, team_id: outcome.team_id, team_name: outcome.team_name) if SignInMethods.self_serve?
+
+      session.delete(:connecting_workspace_id)
       session[:pending_user_id]   = outcome.user.id
       session[:pending_team_id]   = outcome.team_id
       session[:pending_team_name] = outcome.team_name
@@ -104,7 +127,7 @@ module Auth
     end
 
     def clear_pending_session_keys
-      %i[pending_user_id pending_team_id pending_team_name invite_code_id].each do |key|
+      %i[pending_user_id pending_team_id pending_team_name invite_code_id connecting_workspace_id].each do |key|
         session.delete(key)
       end
     end

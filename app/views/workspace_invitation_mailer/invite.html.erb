@@ -1,0 +1,6 @@
+<p style="margin: 0 0 16px;"><%= @inviter_name ? "#{@inviter_name} invited you" : "You are invited" %> to join <strong><%= @workspace_name %></strong> on Firefight, where your team runs its incidents.</p>
+<p style="margin: 0 0 24px;">
+  <a href="<%= @url %>" style="display: inline-block; padding: 10px 18px; border-radius: 6px; background: #121312; color: #9ee464; font-weight: 600; text-decoration: none;">Join <%= @workspace_name %></a>
+</p>
+<p style="margin: 0 0 16px; color: #555555;">The link signs you in to Firefight. It works once, for the next <%= @days %> days. If you were not expecting this, you can ignore this email.</p>
+<p style="margin: 0; color: #888888; font-size: 12px; word-break: break-all;">Or paste this into your browser: <%= @url %></p>

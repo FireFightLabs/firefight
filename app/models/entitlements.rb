@@ -1,5 +1,7 @@
 module Entitlements
   AI = "ai"
+  # Whether the workspace may be used at all. A hosted build answers with its plan, an install someone runs always allows.
+  ACCESS = "access"
 
   # Whose account pays for the AI a workspace uses. On Firefight's own cloud it is Firefight's, on an install someone
   # runs themselves it is theirs, since the model keys are their own.
@@ -32,11 +34,16 @@ module Entitlements
     backend.try(:ai_account, workspace) || AI_ACCOUNT_FIREFIGHT
   end
 
-  def self.allow
-    Result.new(true, nil)
+  # Where a new workspace goes once it is created, such as choosing a plan. Nil sends it on to the dashboard.
+  def self.next_step_path(workspace)
+    backend.try(:next_step_path, workspace)
   end
 
-  def self.deny(message)
-    Result.new(false, message)
+  def self.allow
+    Result.new(true, nil, nil)
+  end
+
+  def self.deny(message, path: nil)
+    Result.new(false, message, path)
   end
 end

@@ -5,5 +5,7 @@ module Entitlements
     end
 
     def ai_account(_workspace) = Entitlements::AI_ACCOUNT_OPERATOR
+
+    def next_step_path(_workspace) = nil
   end
 end

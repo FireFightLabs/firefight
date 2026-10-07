@@ -19,7 +19,10 @@ class LeadAssignmentWorkflow < SolidWorkflow::Base
     service(workflow).update_announcement(workflow.subject)
   end
 
+  # A lead with no platform account has nobody to show the expectations to.
   def post_lead_expectations(workflow:, step:, input:)
+    return { skipped: true } if workflow.context["lead_platform_user_id"].blank?
+
     checkpointed(step) do
       workflow.subject.workspace.adapter.post_lead_expectations(
         channel_id: workflow.subject.channel_id,

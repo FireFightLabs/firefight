@@ -77,4 +77,16 @@ class LoginTokenConcurrencyTest < ActiveSupport::TestCase
   ensure
     LoginToken.where(email: email).delete_all
   end
+
+  test "an invitation link lasts a week and belongs to its invitation" do
+    invitation = WorkspaceInvitation.create!(workspace: workspaces(:slack_workspace_one), email: "week@example.com", last_sent_at: Time.current)
+
+    token = invitation.issue_link!
+    login_token = LoginToken.find_usable(token, purpose: LoginToken::INVITE)
+
+    assert_equal invitation, login_token.workspace_invitation
+    assert_in_delta 7.days.from_now, login_token.expires_at, 5.seconds
+    assert_nil LoginToken.find_usable(token), "an invitation link is not a sign-in link"
+    assert_not LoginToken.new(email: "x@example.com", purpose: LoginToken::INVITE, token_digest: "d", expires_at: 1.day.from_now).valid?
+  end
 end

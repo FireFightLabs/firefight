@@ -16,6 +16,13 @@ class AdapterError < StandardError
   class MissingPermission < AdapterError; end
   class UnsafeDownloadHost < AdapterError; end
 
+  # The workspace has no chat platform yet, so there is nobody to reach.
+  class NotConnected < AdapterError
+    def initialize(message = "This workspace has not connected a chat platform yet")
+      super
+    end
+  end
+
   class AuthRevoked < AdapterError
     attr_reader :error_code
 

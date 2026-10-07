@@ -70,15 +70,15 @@ class SignInMethodsTest < ApplicationSystemTestCase
     Rack::Attack.cache.store = store
   end
 
-  test "an address with no workspace lands on the signup page" do
+  test "an address with no workspace goes on to name one" do
     FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
     token = LoginToken.issue!(email: "newcomer@example.com")
 
     visit email_sign_in_link_path(token: token)
     click_on "Sign in"
 
-    assert_text "Signup is coming soon"
-    page.save_screenshot(Rails.root.join("tmp/screenshots/sign-in-signup-soon.png"))
+    assert_text "Name your workspace"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/sign-in-name-workspace.png"))
   end
 
   test "a person removes a sign-in method from their profile, and the last one stays" do

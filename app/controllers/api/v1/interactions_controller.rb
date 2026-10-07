@@ -11,7 +11,7 @@ class Api::V1::InteractionsController < Api::V1::BaseController
       Rails.logger.info({ event: "interaction.unknown_workspace", team_id: interaction.team_id })
       return head :ok
     end
-    if workspace.suspended?
+    if workspace.access_blocked
       Rails.logger.info({ event: "interaction.suspended_workspace", workspace_id: workspace.id })
       return head :ok
     end
