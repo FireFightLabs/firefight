@@ -40,11 +40,16 @@ class Chat::Tools::SkillReminderTest < ActiveSupport::TestCase
     assert_nil remind("call_2")
   end
 
-  test "a run is never pointed at a skill, since skills are chat work" do
+  test "a run holds use_skill too, so it is pointed at a skill on its own chat" do
+    run = @workspace.investigations.create!(
+      subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 10, max_spend_cents: 400
+    )
+    @chat = run.chat_record
     called("call_1", Mcp::Tools::DECLARE_INCIDENT)
-    run = Investigation.new(workspace: @workspace)
 
-    assert_nil Chat::Tools::SkillReminder.for(run, source: Chat::Skill::SOURCE_FIREFIGHT, handle: Mcp::Tools::DECLARE_INCIDENT.to_s, tool_call_id: "call_1")
+    reminder = Chat::Tools::SkillReminder.for(run, source: Chat::Skill::SOURCE_FIREFIGHT, handle: Mcp::Tools::DECLARE_INCIDENT.to_s, tool_call_id: "call_1")
+
+    assert_includes reminder, "#{@declaring.name}: #{@declaring.used_when}"
   end
 
   private

@@ -198,6 +198,15 @@ class Chat::SkillTest < ActiveSupport::TestCase
     assert_no_match "Northflank's API docs give", skill.steps
   end
 
+  test "Northflank's fixes skill pages through a list with the query options the reference lists, and filters it" do
+    steps = Chat::Skill.find("northflank_fixes").steps
+
+    assert_match "Query options go in `query`, never in the path, and only the ones the reference lists under Query for that call", steps
+    assert_match "pass per_page 100 in `query`, and while the pagination says hasNextPage is true, call again with cursor set to the cursor it gave", steps
+    assert_match "Narrow a list with the filters its call lists instead of reading every page", steps
+    assert_no_match "sends no query options", steps
+  end
+
   # A skill that hands Halon a raw API tool without the provider's list of calls leaves it guessing paths.
   test "every skill that names a raw API tool lists the provider's endpoint reference, or finds the endpoint with search" do
     Chat::Skill.all.reject(&:firefight?).each do |skill|
