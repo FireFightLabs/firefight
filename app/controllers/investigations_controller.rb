@@ -13,7 +13,7 @@ class InvestigationsController < InertiaController
     return redirect_to incident_path(incident, Investigation::QUERY_PARAM => investigation.id) if incident
 
     render inertia: "investigations/investigation", props: {
-      PROP_INVESTIGATION => InvestigationDetailSerializer.one(investigation)
+      PROP_INVESTIGATION => InvestigationDetailSerializer.one(investigation, file_path: ->(file) { investigation_file_path(investigation, file) })
     }
   end
 
@@ -45,7 +45,7 @@ class InvestigationsController < InertiaController
     redirect_back_or_to investigation_path(investigation), notice: Investigation::Finding.verdict_recorded(outcome)
   end
 
-  # A file that went with a note, for whoever may read the run, the same bytes and headers as a chat's file.
+  # A file that went with a note, for whoever may read the run on its own page, the same bytes and headers as a chat's file.
   def file
     investigation = current_workspace.investigations.seen.find(params[:id])
     send_chat_attachment(investigation.note_file(params[:file_id]))

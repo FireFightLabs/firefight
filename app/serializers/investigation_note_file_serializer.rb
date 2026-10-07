@@ -14,12 +14,13 @@ class InvestigationNoteFileSerializer < BaseSerializer
   type :string
   def kind = file.kind
 
-  # Where whoever may read the run opens it. A file Halon did not read was never kept, so it has none.
+  # Served by the page the run is drawn over, under that page's own rule, so whoever sees the file may open it. The page
+  # names its address as `file_path`. A file Halon did not read was never kept, so it has none.
   type "string | null"
   def url
     return nil if file.unread?
 
-    Rails.application.routes.url_helpers.investigation_file_path(file.chat.owner_id, file)
+    options.fetch(:file_path).call(file)
   end
 
   # Why Halon did not read it, for a file a platform shared that could not be taken.

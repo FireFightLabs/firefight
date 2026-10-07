@@ -36,8 +36,10 @@ class AgentChatsController < InertiaController
   NOTHING_ASKED = "Say something first."
   CHAT_DELETED = "Chat deleted."
 
+  include ServesChatAttachment
+
   # Asking spends money, so it needs the same permission as starting an investigation.
-  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search], update: %i[update], delete: %i[destroy]
+  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file], update: %i[update], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
@@ -65,6 +67,12 @@ class AgentChatsController < InertiaController
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
       PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership)
     )
+  end
+
+  # A file that went with a note to a run this chat started, for whoever may read the chat and so the run.
+  def investigation_file
+    investigation = conversation.investigations.seen.find(params[:investigation_id])
+    send_chat_attachment(investigation.note_file(params[:file_id]))
   end
 
   def search
@@ -170,7 +178,7 @@ class AgentChatsController < InertiaController
   def open_investigation
     id = params[Investigation::QUERY_PARAM]
     investigation = id.presence && conversation.investigations.seen.find_by(id: id)
-    investigation && InvestigationDetailSerializer.one(investigation)
+    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { agent_chat_investigation_file_path(conversation, investigation, file) })
   end
 
   def question = params[:question].to_s.strip

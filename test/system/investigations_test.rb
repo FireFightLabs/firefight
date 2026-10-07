@@ -98,6 +98,51 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-notes.png"))
   end
 
+  test "a note's toast shows once while the running run reloads and as its panel closes, and again for a second note" do
+    @investigation.update_columns(status: Investigation::STATUS_RUNNING, completed_at: nil)
+    @investigation.finding.destroy!
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+    # Counts every toast that appears onto the page, since one shown again could replace one still showing.
+    page.execute_script(<<~JS, Investigation::Noting::NOTE_ADDED)
+      const text = arguments[0]
+      document.body.dataset.toastsShown = "0"
+      new MutationObserver((mutations) => {
+        mutations.flatMap((mutation) => [ ...mutation.addedNodes ]).forEach((node) => {
+          if (node.matches?.("[data-sonner-toast]") && node.textContent.includes(text)) {
+            document.body.dataset.toastsShown = String(Number(document.body.dataset.toastsShown) + 1)
+          }
+        })
+      }).observe(document.body, { childList: true, subtree: true })
+    JS
+
+    within("[role=dialog]") do
+      fill_in "Tell Halon something", with: "Skip GitHub"
+      click_button "Add to the run"
+    end
+    assert_toasts_shown 1
+
+    # Two polls land, the second only after anything the first replayed has drawn.
+    step(4, "Read the 5xx errors on web", "Mostly 502s", 5)
+    within("[role=dialog]") { assert_text "Read the 5xx errors on web", wait: 10 }
+    step(5, "Read the load balancer logs", "Nothing unusual", 4)
+    within("[role=dialog]") { assert_text "Read the load balancer logs", wait: 10 }
+    assert_toasts_shown 1
+
+    within("[role=dialog]") do
+      fill_in "Tell Halon something", with: "Look at the database too"
+      click_button "Add to the run"
+    end
+    assert_toasts_shown 2
+
+    find("body").send_keys(:escape)
+    assert_no_selector "[role=dialog]"
+    assert_current_path incident_path(@incident)
+    find("a[href*='#{Investigation::QUERY_PARAM}=#{@investigation.id}']", match: :first).click
+    within("[role=dialog]") { assert_text "Look at the database too" }
+    assert_toasts_shown 2
+  end
+
   test "files shared with the ask are named in the story after the run read them, and one it did not read says so" do
     member = workspace_memberships(:alice_workspace_one)
     log = Chat::Attachment.take!(workspace: @workspace, uploaded_by: member, filename: "checkout.log", bytes: "pool exhausted at 14:03")
@@ -131,15 +176,15 @@ class InvestigationsTest < ApplicationSystemTestCase
 
     within("ul[aria-label='Files added']") do
       download = find("a[aria-label='Download checkout.log']")
-      assert_equal investigation_file_path(@investigation, log), URI(download[:href]).path
+      assert_equal incident_investigation_file_path(@incident, @investigation, log), URI(download[:href]).path
       assert_equal "checkout.log", download[:download]
       find("button[aria-label='Open halon_graph.png']").click
     end
 
     within("[role=dialog]", text: "The image at full size") do
       shown = find("img[alt='halon_graph.png']")
-      assert_equal investigation_file_path(@investigation, image), URI(shown[:src]).path
-      assert shown.evaluate_script("this.complete && this.naturalWidth > 0"), "the image loads from the run's file address"
+      assert_equal incident_investigation_file_path(@incident, @investigation, image), URI(shown[:src]).path
+      assert shown.evaluate_script("this.complete && this.naturalWidth > 0"), "the image loads from the file address under the incident"
       assert_link "Open the original"
     end
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-note-image.png"))
@@ -166,6 +211,10 @@ class InvestigationsTest < ApplicationSystemTestCase
   end
 
   private
+
+  def assert_toasts_shown(count)
+    assert_selector "body[data-toasts-shown='#{count}']"
+  end
 
   def step(position, label, result, seconds_ago)
     step = @investigation.steps.create!(
