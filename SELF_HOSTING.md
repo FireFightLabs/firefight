@@ -46,6 +46,8 @@ cp .env.selfhost.example .env
 
 Fill in `.env` with your hostname, a Postgres password of your choosing, the secrets from step 2, and the three Slack values from step 1. Leave `ANTHROPIC_API_KEY` empty if you do not want the AI features, and leave `SLACK_TEAM_ID` empty unless you want to lock sign-in to one workspace.
 
+Faylee bug reports are optional and off by default. To enable them, set `FAYLEE_VERIFICATION_TOKEN` and `FAYLEE_SITE_ID` in `.env` with values from Faylee. The verification token is served at `/.well-known/faylee-verification.txt`, and the widget is added to the dashboard when the site ID is set.
+
 ```sh
 docker compose up -d
 docker compose logs -f firefight
