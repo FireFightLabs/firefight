@@ -1,6 +1,7 @@
 import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES } from "@/lib/generated/constants"
 import { useSettledSteps } from "@/pages/agent/hooks/use-settled-steps"
+import { StepOutcomeDetails } from "@/pages/agent/components/step-outcome"
 import type { AgentStep, StepStatus } from "@/pages/agent/types"
 
 interface AgentStepsProps {
@@ -13,12 +14,14 @@ const ROW_STATUSES: Record<StepStatus, ThinkingRowStatus> = {
   [AGENT_STEP_STATUSES.RUNNING]: "running",
   [AGENT_STEP_STATUSES.DONE]: "done",
   [AGENT_STEP_STATUSES.FAILED]: "failed",
+  [AGENT_STEP_STATUSES.NOT_FOUND]: "not_found",
   [AGENT_STEP_STATUSES.WAITING]: "waiting",
   [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
 }
 
 // A turn's work is one trace, every step in the order it ran, so reading something and acting on it never split the
 // thread into alternating blocks. A step that failed or waits on the person holds the trace open, since it needs a look.
+// A step whose provider found nothing answered its check, so it does not.
 export function AgentSteps({ steps, thinking = false }: AgentStepsProps) {
   const settled = useSettledSteps(steps)
   const rows = settled.map(toRow)
@@ -45,6 +48,7 @@ function toRow(step: AgentStep): ThinkingRow {
     secondary: step.headline || undefined,
     status: isStepStatus(step.status) ? ROW_STATUSES[step.status] : "running",
     details: step.asked.map(([ label, meta ]) => ({ label, meta })),
+    outcome: step.outcome ? <StepOutcomeDetails outcome={step.outcome} /> : undefined,
     quiet: step.kind === AGENT_STEP_KINDS.ROOM,
   }
 }

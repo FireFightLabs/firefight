@@ -329,6 +329,12 @@ class Investigation < ApplicationRecord
     Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
   end
 
+  # A call that ran but whose answer said it failed. The step keeps what it answered and its status, so it can still be
+  # cited, and the kind says how it is shown (Chat::StepOutcome).
+  def mark_step_failed!(position, kind)
+    steps.where(position: position).update_all(failure_kind: kind, updated_at: Time.current)
+  end
+
   # A theory that is settled says which steps settled it, so a ruled out one carries its why.
   def record_hypothesis!(assertion:, status: nil, confidence: nil, steps: [])
     settled = [ Investigation::Hypothesis::STATUS_SUPPORTED, Investigation::Hypothesis::STATUS_REFUTED ].include?(status.to_s)

@@ -182,6 +182,30 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     ask(@conversation, "what is going on")
   end
 
+  test "a finished step streams to the dashboard what it got back, and a not found reads as one" do
+    personal = personal_chat
+    fake(reply: "It is a Worker", during: finished_step(personal, "Error: Cloudflare API error: 8000007: Project not found."))
+
+    ask(personal, "is ember-landing a Pages project")
+
+    shown = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }
+                                                                     .select { |event| event["type"] == Conversation::LiveDelivery::EVENT_STEP }.last
+    assert_equal [ Conversation::LiveDelivery::STATUS_NOT_FOUND, Chat::StepOutcome::KIND_NOT_FOUND, "Cloudflare API error: 8000007: Project not found." ],
+                 [ shown["status"], shown.dig("outcome", "kind"), shown.dig("outcome", "said") ]
+  end
+
+  test "a finished step in a thread says how it went in a word, a failure as an error" do
+    reported = []
+    Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
+    fake(reply: "ok", during: finished_step(@conversation, "Error: Cloudflare API error: 8000007: Project not found."))
+    ask(@conversation, "is ember-landing a Pages project")
+    fake(reply: "ok", during: finished_step(@conversation, "Error: Cloudflare API error: 10000: Authentication error", kind: Chat::StepOutcome::FAILURE_ERROR, id: "call_2"))
+    ask(@conversation, "and now")
+
+    finished = reported.select { |chunk| chunk[:type] == "task_update" && chunk[:status] != "in_progress" }
+    assert_equal [ [ "complete", "Not found" ], [ "error", "Failed" ] ], finished.map { |chunk| chunk.values_at(:status, :output) }
+  end
+
   test "an answer that rests on what a connected system showed is checked before it goes out" do
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     read = github.tools.create!(name: "fetch_file", description: "Read a file", read_only: true, enabled: true)
@@ -470,6 +494,19 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     @conversation = Conversation.start_personal!(
       workspace: @workspace, member: workspace_memberships(:alice_workspace_one)
     )
+  end
+
+  # A call the agent made and the provider failed, saved and marked as the wrapper does, then reported done by the loop.
+  def finished_step(conversation, said, kind: Chat::StepOutcome::FAILURE_NOT_FOUND, id: "call_1")
+    lambda do |arguments|
+      chat = conversation.reload.chat
+      asking = chat.add_message(role: :assistant, content: "")
+      result = chat.add_message(role: :tool, content: FirefightAi::Evidence.frame("search_incidents", said))
+      RubyLLM::ActiveRecord::ToolCall.create!(message: asking, tool_call_id: id, name: "search_incidents", arguments: { "query" => "ember" },
+                                              result: result, failed: true, failure_kind: kind)
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: "search_incidents", status: :running, arguments: { "query" => "ember" }))
+      arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: nil, status: :done, arguments: nil))
+    end
   end
 
   def fake(outcome: FirefightAi::AgentLoop::STATUS_ANSWERED, reply: nil, turns: [], steps: [], pieces: [], take: false, during: nil)

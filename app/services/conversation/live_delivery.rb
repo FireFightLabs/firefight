@@ -15,6 +15,8 @@ class Conversation::LiveDelivery
   STATUS_WAITING = "waiting"
   STATUS_CANCELLED = "cancelled"
   STATUS_FAILED = "failed"
+  # The provider answered that what a read asked about is not there, an answer rather than a failure (Chat::StepOutcome).
+  STATUS_NOT_FOUND = "not_found"
   STATUSES = {
     FirefightAi::AgentLoop::STEP_RUNNING => STATUS_RUNNING, FirefightAi::AgentLoop::STEP_DONE => STATUS_DONE
   }.freeze
@@ -36,15 +38,19 @@ class Conversation::LiveDelivery
     broadcast(type: EVENT_THINKING)
   end
 
-  # Text written so far lands before the step.
-  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0, failed: false)
+  # Text written so far lands before the step. outcome is what the call got back, once it has.
+  def step(key:, step:, status:, kind: Chat::Tools::KIND_ACT, seconds: 0, outcome: nil)
     @text.flush!
-    shown = failed ? STATUS_FAILED : STATUSES.fetch(status)
+    shown = self.class.status_of(status, outcome)
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE)
+      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE), outcome: outcome&.to_h
     )
   end
+
+  OUTCOME_STATUSES = { Chat::StepOutcome::KIND_FAILED => STATUS_FAILED, Chat::StepOutcome::KIND_NOT_FOUND => STATUS_NOT_FOUND }.freeze
+
+  def self.status_of(status, outcome) = OUTCOME_STATUSES.fetch(outcome&.kind) { STATUSES.fetch(status) }
 
   # Text written so far lands before the line, so it sits where the room was made.
   def made_room(compaction)

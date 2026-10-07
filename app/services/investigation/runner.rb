@@ -59,10 +59,19 @@ class Investigation::Runner
     result
   end
 
+  # A finished step says how it went, read from the call the run's chat kept, since the wrapper marked it as it answered.
   def report_step(step)
     titles[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @investigation.workspace)&.title if step.tool.present?
     title = titles[step.key]
-    delivery.step(key: step.key, title: title, status: step.status) if title
+    return unless title
+
+    done = step.status == FirefightAi::AgentLoop::STEP_DONE
+    delivery.step(key: step.key, title: title, status: step.status, outcome: (outcome_of(step.key) if done))
+  end
+
+  def outcome_of(key)
+    chat = @investigation.chat
+    Chat::StepOutcome.for_call(chat.outcome_call(key), chat) if chat
   end
 
   def titles = @titles ||= {}

@@ -12,7 +12,9 @@ module Integrations
     class NotEnabled < Error; end
     NOT_ENABLED = /feature flag is not enabled/i
     # Northflank answered that the resource is not there, the one answer a re-read takes as gone.
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # Northflank turned the request down as it stands, such as a token whose role may not add notification integrations.
     class Refused < Error; end
     REFINED = { 400 => Refused, 403 => Refused, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze

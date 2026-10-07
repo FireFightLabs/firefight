@@ -4,7 +4,9 @@ module Integrations
   # reached only on a public address unless an operator allowed it, and every call goes to the address checked first.
   class GitlabApi
     class Error < Integrations::Error; end
-    class NotFound < Error; end
+    class NotFound < Error
+      include Integrations::NotFound
+    end
     # The token is not accepted, or may not do this.
     class Refused < Error; end
 

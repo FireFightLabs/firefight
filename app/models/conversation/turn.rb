@@ -31,6 +31,9 @@ class Conversation::Turn
     Chat::ToolCall::Outcome.new(value: value)
   end
 
+  # A chat keeps no steps of its own, its tool calls carry how they went.
+  def mark_step_failed!(_position, _kind) = nil
+
   # Only destructive or irreversible changes wait, plus those an approval rule lets the asker approve themselves, and a
   # tool that declares itself destructive. A tool the person allowed for the rest of the chat stops asking, except where
   # an approval rule applies, since that rule wants each call signed off.

@@ -16,6 +16,7 @@ export function roomStep(compaction: ChatCompaction): AgentStep {
     kind: AGENT_STEP_KINDS.ROOM,
     seconds: 0,
     card: null,
+    outcome: null,
   }
 }
 

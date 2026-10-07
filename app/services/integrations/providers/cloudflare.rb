@@ -9,6 +9,7 @@ module Integrations
       map_events: "Integrations::MapEventSources::Cloudflare",
       source_links: "Integrations::SourceLinks::Cloudflare",
       read_guard: "Integrations::ReadGuards::Cloudflare",
+      error_reader: "Integrations::ErrorReaders::Cloudflare",
       status_words: { "initializing" => "pending", "moved" => "unavailable", "inactive" => "stopped", "disabled" => "stopped" }
     )
   end
