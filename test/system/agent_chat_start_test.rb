@@ -2,18 +2,12 @@ require "application_system_test_case"
 
 class AgentChatStartTest < ApplicationSystemTestCase
   PHONE = [ 390, 844 ].freeze
-  DESKTOP = [ 1400, 1400 ].freeze
 
   setup do
     workspace = workspaces(:slack_workspace_one)
     FeatureFlags.enable!(workspace, FeatureFlags::AI_SRE)
     Entitlements.stubs(:allows?).returns(true)
     sign_in(users(:alice), workspace)
-  end
-
-  # The browser is shared across tests, so a phone sized window is put back before the next test.
-  teardown do
-    page.driver.browser.manage.window.resize_to(*DESKTOP)
   end
 
   test "a new chat holds the composer in the middle, and an example question fills it" do

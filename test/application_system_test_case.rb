@@ -10,5 +10,14 @@ ViteRuby.commands.build || raise("The Vite build failed, see log/test.log")
 Capybara.disable_animation = true
 
 class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
-  driven_by :selenium, using: :headless_chrome, screen_size: [ 1400, 1400 ]
+  SCREEN_SIZE = [ 1400, 1400 ].freeze
+
+  driven_by :selenium, using: :headless_chrome, screen_size: SCREEN_SIZE
+
+  # Each worker keeps one browser for all its tests, so a window a test narrowed to a phone's width stayed narrow for
+  # whichever test that worker ran next, and that test failed on a layout it was never written for. Every test starts
+  # at the full size.
+  setup do
+    page.current_window.resize_to(*SCREEN_SIZE)
+  end
 end
