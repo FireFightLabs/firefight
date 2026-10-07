@@ -125,7 +125,7 @@ module TypescriptConstants
         "PASSED" => Chat::CodeFixProgress::RESULT_PASSED, "FAILED" => Chat::CodeFixProgress::RESULT_FAILED
       }, nil),
       Export.new("CODE_FIX_OUTCOMES", {
-        "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED
+        "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "PUSHED" => Chat::CodeFixProgress::OUTCOME_PUSHED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND

@@ -3,8 +3,8 @@ import { useState } from "react"
 
 import { useElapsed } from "@/hooks/use-elapsed"
 import {
-  type CodeFixLine, type CodeFixWork, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests, opened, passedLine,
-  shownLines, stepsWord, stopped,
+  type CodeFixLine, type CodeFixWork, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests, passedLine,
+  shownLines, stepsWord, stopped, wroteChange,
 } from "@/lib/code-fix-work"
 
 interface CodeFixWorkProps {
@@ -14,7 +14,7 @@ interface CodeFixWorkProps {
 }
 
 // What a coding agent writing a change is doing, under the step that runs it. While it works, its newest steps with the
-// earlier ones a click away, how long it has been and the files it changed so far. Once it opened the pull request, what
+// earlier ones a click away, how long it has been and the files it changed so far. Once it wrote the change, what
 // it changed, the tests it ran and the link. When it stopped, its last steps and why.
 export function CodeFixWorkView({ work, running }: CodeFixWorkProps) {
   const elapsed = useElapsed(work.startedAt, work.finishedAt, running)
@@ -24,7 +24,7 @@ export function CodeFixWorkView({ work, running }: CodeFixWorkProps) {
     setAllLines((shown) => !shown)
   }
 
-  if (opened(work)) {
+  if (wroteChange(work)) {
     return (
       <div className="flex min-w-0 flex-col gap-2 text-[12px] leading-5">
         <ChangedFiles work={work} />

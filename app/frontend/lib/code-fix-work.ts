@@ -27,8 +27,9 @@ export function passedLine(line: CodeFixLine): boolean {
   return line.result === CODE_FIX_LINE_RESULTS.PASSED
 }
 
-export function opened(work: CodeFixWork): boolean {
-  return work.outcome === CODE_FIX_OUTCOMES.OPENED
+// Opened a pull request, or added a commit to a branch that already had one.
+export function wroteChange(work: CodeFixWork): boolean {
+  return work.outcome === CODE_FIX_OUTCOMES.OPENED || work.outcome === CODE_FIX_OUTCOMES.PUSHED
 }
 
 export function stopped(work: CodeFixWork): boolean {

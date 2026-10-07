@@ -5,7 +5,7 @@ module Integrations
       # github/rest-api-description), and what each deployment environment last received. A job that names an
       # environment writes a GitHub deployment, so deploys from Actions are read as deployments. The App needs Actions read.
       # Rerunning a run, starting a workflow by hand and canceling a run are changes (actions/runs/{run_id}/rerun,
-      # rerun-failed-jobs and cancel, actions/workflows/{workflow_id}/dispatches), so they arrive switched off, go through
+      # rerun-failed-jobs and cancel, actions/workflows/{workflow_id}/dispatches), so they go through
       # the gateway as writes and need Actions read and write.
       module Actions
         RUN_LIMIT = 10
@@ -32,6 +32,12 @@ module Integrations
         FOLLOW = "workflow_jobs with its run_id, or ci_status, follows it".freeze
 
         def self.included(pack)
+          pack.tool :list_workflows,
+                    description: "A repository's GitHub Actions workflows, each with its file, whether it is active and its page. A " \
+                                 "workflow's file name is what workflow_runs and run_workflow take",
+                    params_schema: Code.object_schema({ "repo" => Code::REPO }, %w[repo]),
+                    read_only: true
+
           pack.tool :workflow_runs,
                     description: "A repository's GitHub Actions workflow runs, newest first, with the workflow, its outcome, the branch and " \
                                  "commit, what started it and its page",
@@ -99,6 +105,15 @@ module Integrations
                     description: "Cancel a GitHub Actions workflow run that is queued or running, such as a deploy that should not go out",
                     params_schema: Code.object_schema({ "repo" => Code::REPO, "run_id" => run_id }, %w[repo run_id]),
                     read_only: false
+        end
+
+        def list_workflows(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          token = GithubApp.installation_token(environment_row)
+          workflows = Array(GithubApp.get("/repos/#{repo}/actions/workflows?per_page=100", token: token)["workflows"])
+          lines = workflows.map { |workflow| "  #{workflow['name']}  #{workflow['path']}  #{workflow['state'].to_s.tr('_', ' ')}  id #{workflow['id']}  #{workflow['html_url']}" }
+          Telemetry.result(lines.empty? ? "#{repo} has no GitHub Actions workflows." : "Workflows in #{repo}:\n#{lines.join("\n")}",
+                           link: actions_link("https://github.com/#{repo}/actions"))
         end
 
         def workflow_runs(environment_row:, arguments:)

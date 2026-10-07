@@ -6,8 +6,9 @@ class Chat::CodeFixProgress
   RESULTS = [ RESULT_PASSED, RESULT_FAILED ].freeze
 
   OUTCOME_OPENED = "opened"
+  OUTCOME_PUSHED = "pushed"
   OUTCOME_FAILED = "failed"
-  OUTCOMES = [ OUTCOME_OPENED, OUTCOME_FAILED ].freeze
+  OUTCOMES = [ OUTCOME_OPENED, OUTCOME_PUSHED, OUTCOME_FAILED ].freeze
 
   # The newest lines are kept and the rest only counted, so a long run stays small.
   LINES_KEPT = 60
@@ -87,12 +88,10 @@ class Chat::CodeFixProgress
   end
 
   # Lines added and removed are nil for a binary file.
-  def opened!(files:, pull_request:, at: Time.current)
-    @files = files.map { |path, (added, removed)| ChangedFile.new(path: clean(path, LINE_LIMIT), added: added, removed: removed) }
-    @pull_request = pull_request
-    @outcome = OUTCOME_OPENED
-    @finished_at = at
-  end
+  def opened!(files:, pull_request:, at: Time.current) = wrote!(OUTCOME_OPENED, files, pull_request, at)
+
+  # Added as a commit to a branch that already existed. The pull request is nil when the branch has none open.
+  def pushed!(files:, pull_request:, at: Time.current) = wrote!(OUTCOME_PUSHED, files, pull_request, at)
 
   def failed!(reason, at: Time.current)
     @reason = clean(reason.to_s.lines.first, REASON_LIMIT)
@@ -136,8 +135,16 @@ class Chat::CodeFixProgress
 
   def finished_words
     return "Opened the pull request" if outcome == OUTCOME_OPENED
+    return pull_request ? "Added to the pull request" : "Pushed to the branch" if outcome == OUTCOME_PUSHED
 
     "Stopped: #{reason}"
+  end
+
+  def wrote!(outcome, files, pull_request, at)
+    @files = files.map { |path, (added, removed)| ChangedFile.new(path: clean(path, LINE_LIMIT), added: added, removed: removed) }
+    @pull_request = pull_request
+    @outcome = outcome
+    @finished_at = at
   end
 
   def clean(text, limit) = Chat::SecretFree.redacted(text.to_s.squish).truncate(limit)

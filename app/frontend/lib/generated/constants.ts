@@ -635,6 +635,7 @@ export const CODE_FIX_LINE_RESULTS = {
 
 export const CODE_FIX_OUTCOMES = {
   "OPENED": "opened",
+  "PUSHED": "pushed",
   "FAILED": "failed"
 } as const
 
