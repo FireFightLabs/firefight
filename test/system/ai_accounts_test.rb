@@ -78,6 +78,17 @@ class AiAccountsTest < ApplicationSystemTestCase
     assert_equal page.evaluate_script("document.documentElement.clientWidth"), page.evaluate_script("document.documentElement.scrollWidth")
   end
 
+  test "on Firefight's cloud the credits row under the accounts says what is left and where to buy more" do
+    on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(true, false))
+
+    visit settings_workspace_path
+    show_card
+
+    assert_text "Firefight credits"
+    assert_text "$12.40 left"
+    assert_selector "a[href='/app/settings/billing#credits']", text: "Buy credits"
+  end
+
   private
 
   def choose_model(label, model)

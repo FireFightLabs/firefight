@@ -32,6 +32,8 @@ module AiCredit
     case situation(workspace)
     when :operator then "Whoever runs Firefight needs to add credit"
     when :firefight then AiAccount.alerting? ? "Firefight's team has been told" : "Firefight's team can see this"
+    # Where credits are topped up is the hosted build's to say, since only it sells them.
+    when :credits_used then Entitlements.ai_credit(workspace).try(:top_up).presence || WHERE_TO_FIX
     else WHERE_TO_FIX
     end
   end

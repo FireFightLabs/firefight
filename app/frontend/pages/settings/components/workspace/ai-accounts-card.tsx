@@ -136,7 +136,7 @@ export function AiAccountsCard({
             No accounts yet. Add one with your provider&apos;s API key and Halon uses it first.
           </p>
         )}
-        {credits && <AiCreditsRow credits={credits} />}
+        {credits && <AiCreditsRow credits={credits} canManage={canManage} />}
       </CardContent>
 
       <AiAccountDialog state={dialog} providers={providers} onClose={closeDialog} />
