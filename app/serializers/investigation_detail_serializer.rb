@@ -87,7 +87,7 @@ class InvestigationDetailSerializer < BaseSerializer
 
   # What responders added while it worked, placed in the story where the run read each one.
   has_many :notes, serializer: InvestigationNoteSerializer do
-    investigation.notes
+    investigation.notes.includes(:attached_files)
   end
 
   # Each time the run made room in its model's window, placed in the story before the next step.

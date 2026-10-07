@@ -2,14 +2,13 @@ module Slack
   module Messages
     module Escalation
       def self.build(_incident, escalated_by:, escalated_to:, reason: nil)
-        blocks = [
+        [
           { type: "header", text: { type: "plain_text", text: ":rotating_light: Incident Escalated", emoji: true } },
           { type: "divider" },
+          *Formatting.quoted_blocks(reason),
           { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Escalated to:* #{Mrkdwn.mention(escalated_to)}" } },
           { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* #{Mrkdwn.mention(escalated_by)}" } }
         ]
-        blocks << { type: "section", text: { type: "mrkdwn", text: "> #{reason}" } } if reason.present?
-        blocks
       end
 
       # `variant: :nudge` is the reminder sent when they have not acknowledged.
@@ -22,10 +21,10 @@ module Slack
         blocks = [
           { type: "header", text: { type: "plain_text", text: "#{config[:header_emoji]} #{incident.identifier} · #{config[:header_suffix]}", emoji: true } },
           { type: "section", text: { type: "mrkdwn", text: config[:body] } },
+          *Formatting.quoted_blocks(reason),
           { type: "section", text: { type: "mrkdwn", text: ":mega: *Escalated by:* #{Mrkdwn.mention(escalated_by)}" } },
           { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{incident.channel_id}>" } }
         ]
-        blocks << { type: "section", text: { type: "mrkdwn", text: "> #{reason}" } } if reason.present?
         blocks << {
           type: "actions",
           elements: [

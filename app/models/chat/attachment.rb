@@ -124,6 +124,12 @@ class Chat::Attachment < ApplicationRecord
     files.sort_by { |file| ids.index(file.id) }
   end
 
+  # Uploads a platform message shared and handed on unsent, such as to the run it asked for, in the order they came.
+  def self.handed_on(workspace:, uploaded_by:, ids:)
+    ids = Array(ids).map(&:to_s)
+    workspace.chat_attachments.unsent.where(uploaded_by: uploaded_by, id: ids).sort_by { |file| ids.index(file.id) }
+  end
+
   # A file a platform shared that Halon will not read, kept with why.
   def self.unread!(workspace:, uploaded_by:, filename:, byte_size:, refusal:)
     create!(
@@ -188,12 +194,21 @@ class Chat::Attachment < ApplicationRecord
     owner.respond_to?(:watchable_by?) && owner.watchable_by?(member.user)
   end
 
+  # An unsent copy with its own encrypted bytes, so another chat can take it and each lets go of its own when it goes.
+  def copy!
+    self.class.create!(
+      workspace: workspace, uploaded_by: uploaded_by, filename: filename, content_type: content_type, byte_size: byte_size,
+      kind: kind, sealed: (self.class.sealed(bytes) if sealed.attached?), text: text, redactions: redactions,
+      page_count: page_count, refusal: refusal
+    )
+  end
+
   # Joins the message it was sent with. A text too long to hand over whole is kept as a saved result, which the agent
-  # reads the rest of by line or by search.
+  # reads the rest of by line or by search. A file that waited on a note stays on it, so a run's story still names it.
   def join!(message, position:)
     chat = message.chat
     keep = text.present? && text.length > chat.result_limit
     saved = chat.saved_results.keep!(tool_name: "file #{filename}", text: text) if keep
-    update!(chat: chat, message: message, queued_message: nil, saved_result: saved || saved_result, position: position)
+    update!(chat: chat, message: message, saved_result: saved || saved_result, position: position)
   end
 end

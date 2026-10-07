@@ -371,7 +371,7 @@ function EmptyMap({ syncing, canSync, readsIn, onSync }: EmptyMapProps) {
   return (
     <EmptyState
       title={title}
-      text="The map shows what runs where, read off your connections. Connect Northflank or PlanetScale and Firefight reads what runs there, and how it depends on each other."
+      text="The map shows what runs where, read off your connections. Connect a cloud, hosting or database provider and what it runs appears here, with how each part depends on the others."
     >
       <Button asChild size="sm">
         <Link href={integrationsPath()}>Connect a provider</Link>

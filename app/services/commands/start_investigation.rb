@@ -13,12 +13,14 @@ module Commands
       return Command.ephemeral(refusal) if refusal
       return Command.ephemeral(Investigation::NEEDS_A_QUESTION) if incident.nil? && brief.empty?
 
+      member = workspace.workspace_memberships.find_by!(platform_user_id: command.user_id)
       started = InvestigationService.new(workspace).start(
         incident,
         trigger_source: Investigation::TRIGGER_COMMAND,
-        triggered_by: workspace.workspace_memberships.find_by!(platform_user_id: command.user_id),
+        triggered_by: member,
         brief: brief,
-        channel_id: (command.channel_id unless incident)
+        channel_id: (command.channel_id unless incident),
+        files: Chat::Attachment.handed_on(workspace: workspace, uploaded_by: member, ids: command.shared_file_ids)
       )
       return nil if started
 

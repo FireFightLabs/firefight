@@ -51,6 +51,11 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.source
   end
 
+  type :string, optional: true
+  def source_label
+    Ability::Source.label(approval.source)
+  end
+
   type :string
   def created_at
     approval.created_at.iso8601

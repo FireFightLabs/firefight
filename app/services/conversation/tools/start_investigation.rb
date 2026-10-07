@@ -28,7 +28,7 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
     started = @turn.start_investigation do
       InvestigationService.new(@turn.workspace).start(
         incident, trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @turn.asker, brief: brief,
-        conversation: @turn.conversation, tool_call_id: tool_call&.id
+        conversation: @turn.conversation, tool_call_id: tool_call&.id, files: files_shared_here
       )
     end
     return refused(tool_call, Investigation.already_running_message(incident)) unless started
@@ -39,6 +39,9 @@ class Conversation::Tools::StartInvestigation < RubyLLM::Tool
   end
 
   private
+
+  # The run reads what people shared in this chat, as the chat does. Copied only once the start is allowed.
+  def files_shared_here = Array(@turn.conversation.chat&.copies_of_sent_files)
 
   # The words still go to the model. The mark is for whoever reads the chat afterwards.
   def refused(tool_call, text)

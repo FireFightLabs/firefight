@@ -98,6 +98,27 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-notes.png"))
   end
 
+  test "files shared with the ask are named in the story after the run read them, and one it did not read says so" do
+    member = workspace_memberships(:alice_workspace_one)
+    log = Chat::Attachment.take!(workspace: @workspace, uploaded_by: member, filename: "checkout.log", bytes: "pool exhausted at 14:03")
+    dump = Chat::Attachment.unread!(workspace: @workspace, uploaded_by: member, filename: "core.dump", byte_size: 9,
+                                    refusal: "core.dump is not a file Halon reads.")
+    @investigation.hand_over_files!([ log, dump ], by: member)
+    @investigation.take_notes!
+    @investigation.notes.sole.update!(created_at: 130.seconds.ago, taken_at: 128.seconds.ago)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      assert_text Investigation::Noting::FILES_WITH_THE_ASK
+      within("ul[aria-label='Files added']") do
+        assert_text "checkout.log"
+        assert_selector "[title='core.dump is not a file Halon reads.']", text: "Not read"
+      end
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-note-files.png"))
+  end
+
   private
 
   def step(position, label, result, seconds_ago)

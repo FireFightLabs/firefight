@@ -13,6 +13,10 @@ class InvestigationNoteSerializer < BaseSerializer
     note.sender
   end
 
+  has_many :files, serializer: InvestigationNoteFileSerializer do
+    note.attached_files
+  end
+
   type :string
   def created_at
     note.created_at.utc.iso8601

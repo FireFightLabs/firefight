@@ -53,6 +53,16 @@ class TranscriptRetentionJobTest < ActiveSupport::TestCase
     assert in_channel.chat.messages.exists?, "the conversation itself stays"
   end
 
+  test "a file shared with an investigation of the incident goes with the transcript too" do
+    shared = Chat::Attachment.take!(workspace: @workspace, uploaded_by: @member, filename: "app.log", bytes: "boom")
+    InvestigationService.new(@workspace).start(@incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: @member, files: [ shared ])
+    close!(resolved_at: 90.days.ago)
+
+    TranscriptRetentionJob.perform_now
+
+    assert_not Chat::Attachment.exists?(shared.id)
+  end
+
   test "the milestones survive the purge, with their quotes" do
     message = transcript_message
     note = @incident.incident_events.create!(

@@ -31,6 +31,8 @@ module Mcp
         {
           id: approval.id,
           principal: approval.principal_label,
+          source: approval.source,
+          source_label: Ability::Source.label(approval.source),
           action_key: approval.action_key,
           connection: approval.connection_name,
           provider: approval.connection_provider,

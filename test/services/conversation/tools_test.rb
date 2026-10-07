@@ -109,6 +109,36 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     assert_equal Investigation::TRIGGER_CONVERSATION, investigation.trigger_source
   end
 
+  test "a run started from a chat is handed its own copy of every file shared in the chat, and one it will not read says why" do
+    member = workspace_memberships(:alice_workspace_one)
+    log = Chat::Attachment.take!(workspace: @workspace, uploaded_by: member, filename: "app.log", bytes: "pool exhausted at 10:02")
+    @conversation.ask!("what broke?", asker: member, files: [ log ])
+    @conversation.reply_delivered!
+    dump = Chat::Attachment.unread!(workspace: @workspace, uploaded_by: member, filename: "core.dump", byte_size: 9, refusal: "core.dump is not a file Halon reads.")
+    @conversation.ask!("and this", asker: member, files: [ dump ])
+
+    tool.call
+
+    run = @workspace.investigations.sole
+    handed = run.notes.sole.attached_files.to_a
+    assert_equal %w[app.log core.dump], handed.map(&:filename)
+    assert_not_includes handed.map(&:id), log.id, "the chat keeps its own file"
+    assert_equal "pool exhausted at 10:02", handed.first.bytes
+    assert_equal "core.dump is not a file Halon reads.", handed.last.refusal
+
+    run.take_notes!
+    read = run.chat.messages.where(role: Chat::Message::ROLE_USER).sole.to_llm.content
+    assert_match "Alice Smith added: #{Investigation::Noting::FILES_WITH_THE_ASK}", read
+    assert_match "pool exhausted at 10:02", read
+    assert_equal @conversation.chat, log.reload.chat
+  end
+
+  test "a chat with no files starts a run with nothing waiting on it" do
+    tool.call
+
+    assert_empty @workspace.investigations.sole.notes
+  end
+
   test "a run already going is said plainly rather than started twice" do
     tool.call
 

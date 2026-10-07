@@ -3,7 +3,6 @@ import { router } from "@inertiajs/react"
 import type { AbilityApproval } from "@/types/serializers"
 import { approveApprovalPath, denyApprovalPath } from "@/lib/routes"
 import { formatDateTime } from "@/lib/formatters"
-import { LEDGER_SOURCES, type LedgerSource } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,23 +22,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
-
-const SOURCE_LABELS: Partial<Record<LedgerSource, string>> = {
-  web: "Dashboard",
-  slack: "Slack",
-  api: "API",
-  mcp: "MCP",
-  investigation: "Investigation",
-  map_sweep: "Map sweep",
-  health_check: "Health check",
-  issue_sync: "Issue sync",
-  code_agent: "Coding agent",
-}
-
-function sourceLabel(source: string): string {
-  const known = LEDGER_SOURCES.find((each) => each === source)
-  return (known && SOURCE_LABELS[known]) || source
-}
 
 const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
   approved: "default",
@@ -102,7 +84,7 @@ export function ApprovalsTab({
                     </TableCell>
                     <TableCell>{approval.principalLabel}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {approval.source ? sourceLabel(approval.source) : "-"}
+                      {approval.sourceLabel ?? "-"}
                     </TableCell>
                     <TableCell>
                       <ActionLabel actionKey={approval.actionKey} title={approval.connection} />

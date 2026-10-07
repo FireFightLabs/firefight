@@ -71,7 +71,7 @@ class Postmortem < ApplicationRecord
     else
       postmortem = create!(attrs.merge(incident: incident, generated_by: by))
     end
-    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: by)
+    postmortem.record_change!(IncidentEvent::POSTMORTEM_GENERATED, by: by, update_type: PostmortemUpdate::STARTED)
     postmortem
   end
 

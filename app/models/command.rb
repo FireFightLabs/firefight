@@ -4,6 +4,8 @@ class Command
   include ActiveModel::Validations
 
   EPHEMERAL = "ephemeral"
+  # Files a mention shared, taken already and unsent, which the command hands on.
+  SHARED_FILE_IDS = :shared_file_ids
 
   def self.ephemeral(text, blocks: nil)
     { response_type: EPHEMERAL, text: text, blocks: blocks }
@@ -67,6 +69,8 @@ class Command
   def subcommand
     args.first
   end
+
+  def shared_file_ids = Array(metadata[SHARED_FILE_IDS])
 
   def command_name
     metadata[:command]&.to_s&.delete_prefix("/")

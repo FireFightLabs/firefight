@@ -55,10 +55,12 @@ module Events
     private_class_method :investigate?
 
     # The same command /ff investigate runs, so the permission, the refusals and the brief are decided in one place.
+    # Files shared with the mention go with the command, for the run to read as a chat does.
     def self.investigate(workspace, channel_id, event, user_text)
+      files = shared_files(workspace, event, workspace.workspace_memberships.find_by(platform_user_id: event["user"]))
       command = Command.new(
         platform: workspace.platform, workspace_id: workspace.id, user_id: event["user"], text: user_text,
-        channel_id: channel_id, metadata: { command: Identifiers::COMMAND_FF }
+        channel_id: channel_id, metadata: { command: Identifiers::COMMAND_FF, Command::SHARED_FILE_IDS => files.map(&:id) }
       )
       refusal = CommandDispatcher.dispatch(command)
       notify_blocked(workspace, channel_id, event["user"], refusal[:text]) if refusal.is_a?(Hash)
@@ -67,7 +69,8 @@ module Events
 
     def self.add_note(workspace, run, channel_id, event, user_text)
       member = Conversation::Opener.member(workspace, event["user"])
-      refusal = run.add_note_from(user_text, member: member, source: AbilityGateway::SOURCE_SLACK)
+      files = shared_files(workspace, event, member)
+      refusal = run.add_note_from(user_text, member: member, source: AbilityGateway::SOURCE_SLACK, files: files)
       notify_blocked(workspace, channel_id, event["user"], refusal) if refusal
     end
     private_class_method :add_note
@@ -78,10 +81,15 @@ module Events
         thread_id: thread_id, platform_user_id: event["user"]
       )
       asker = Conversation::Opener.member(workspace, event["user"])
-      files = Conversation::SharedFiles.receive(workspace: workspace, files: event["files"], sender: asker)
-      Conversation::Asking.ask(conversation, user_text, asker: asker, files: files)
+      Conversation::Asking.ask(conversation, user_text, asker: asker, files: shared_files(workspace, event, asker))
     end
     private_class_method :answer_as_agent
+
+    # Taken the same way whatever the mention does, with the same limits and refusals.
+    def self.shared_files(workspace, event, sender)
+      Conversation::SharedFiles.receive(workspace: workspace, files: event["files"], sender: sender)
+    end
+    private_class_method :shared_files
 
     def self.strip_mention(text)
       text.to_s.gsub(/<@[^>]+>/, "").squish
