@@ -14,11 +14,22 @@ class AiCreditPayersTest < ActiveSupport::TestCase
                  "An admin can fix this under Settings, Workspace, AI accounts.", AiCredit.cannot(@workspace)
   end
 
-  test "credits that ran out say so" do
+  test "credits that ran out say so, and where the hosted build sells more" do
     on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(false, true))
 
     assert_equal "Halon cannot write this postmortem right now because this workspace's Firefight credits are used up. " \
-                 "An admin can fix this under Settings, Workspace, AI accounts.", AiCredit.cannot(@workspace, "write this postmortem")
+                 "An admin can buy more under Settings, Billing.", AiCredit.cannot(@workspace, "write this postmortem")
+  end
+
+  test "credits that ran out on a backend that does not say where to buy more point at the AI accounts" do
+    credit = Class.new do
+      def spendable? = false
+      def used? = true
+    end
+    on_firefights_cloud!(credit: credit.new)
+
+    assert_equal "Halon cannot answer right now because this workspace's Firefight credits are used up. " \
+                 "An admin can fix this under Settings, Workspace, AI accounts.", AiCredit.cannot(@workspace)
   end
 
   test "the workspace's own account out of credit, or with its key refused, is the admin's to fix" do
