@@ -129,9 +129,60 @@ module Integrations
         assert_equal Cloudflare::HANDLED.size, Cloudflare::HANDLED.uniq.size
       end
 
+      test "a change to a Worker reads that Worker and its bindings alone, and one the account no longer has goes" do
+        snapshot = read(scope: ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_WORKER, external_id: "edge-api"))
+
+        assert_equal [ [ ResourceMap::KIND_WORKER, "edge-api" ] ], snapshot.resources.map { |found| [ found.kind, found.external_id ] }
+        assert_equal [ [ "edge-api", "uploads" ], [ "edge-api", "emails" ] ], snapshot.links.map { |link| [ link.from.last, link.to.last ] }
+        assert_empty snapshot.gone
+        assert snapshot.complete?, "its bindings are replaced"
+
+        gone = read(scope: ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_WORKER, external_id: "retired"))
+        assert_equal [ [ "cloudflare", "Acme", ResourceMap::KIND_WORKER, "retired" ] ], gone.gone
+        refused = read(scope: ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_WORKER, external_id: "retired"),
+                       errors: { %r{workers/scripts"} => "Cloudflare API error: 10000: Authentication error." })
+        assert_empty refused.gone, "a list it could not read takes nothing away"
+      end
+
+      test "a change to a zone reads that zone and its hostnames, adding links and taking none away" do
+        snapshot = read(scope: ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_ZONE, external_id: "z1"))
+
+        names = snapshot.resources.map(&:name)
+        assert_equal [ "firefight.app", "app.firefight.app" ], names.first(2)
+        assert_not_includes names, "edge-api"
+        assert_includes snapshot.gap_texts, Cloudflare::ZONE_ONLY
+        assert_not snapshot.complete?
+        assert_nil read(scope: ResourceMap::Scope.new(account: "Elsewhere", kind: ResourceMap::KIND_ZONE, external_id: "z1")), "an account it cannot find is swept"
+        assert_nil read(scope: ResourceMap::Scope.new(account: "Acme", kind: ResourceMap::KIND_ACCESS_APP, external_id: "a1")), "an Access app is swept"
+      end
+
+      test "the audit log's writes are read for every account in one script, and a refusal or a slow down is raised" do
+        entries = [ { "account" => "Acme", "id" => "e1", "action.time" => "2026-10-06T10:00:00Z", "raw.method" => "PUT", "raw.uri" => "/client/v4/accounts/#{ACCOUNT}/workers/scripts/edge-api" } ]
+        changes = reader(raw: { %r{logs/audit} => { "entries" => entries, "refused" => [], "unread" => [], "accounts" => [ "Acme" ] }.to_json })
+                  .changes(since: 10.minutes.ago, before: Time.current)
+        assert_equal [ entries, [], [] ], [ changes.entries, changes.refused, changes.unread ]
+
+        cut = { "entries" => [], "refused" => [], "unread" => [], "accounts" => [ "Acme" ], "--- TRUNCATED ---" => "more" }.to_json
+        assert_equal [ "Acme" ], reader(raw: { %r{logs/audit} => cut }).changes(since: 10.minutes.ago, before: Time.current).unread
+
+        refusal = assert_raises(RemoteReader::Refused) do
+          reader(errors: { %r{logs/audit} => "Cloudflare API error: 10000: Authentication error." }).changes(since: 10.minutes.ago, before: Time.current)
+        end
+        assert_equal "Cloudflare refused to read its audit log: Cloudflare API error: 10000: Authentication error.", refusal.message
+        limited = assert_raises(Integrations::Error) do
+          reader(errors: { %r{logs/audit} => "Cloudflare API error: 971: Please wait and consider throttling your request speed" }).changes(since: 10.minutes.ago, before: Time.current)
+        end
+        assert_kind_of RateLimited, limited
+        assert_raises(Integrations::Error) { Cloudflare.new { |_tool, _arguments| nil }.changes(since: 10.minutes.ago, before: Time.current) }
+      end
+
       private
 
-      def read(products: [], errors: {}, raw: {}, search_error: nil)
+      def read(products: [], errors: {}, raw: {}, search_error: nil, scope: nil)
+        reader(products: products, errors: errors, raw: raw, search_error: search_error).then { |each| scope ? each.map(scope: scope) : each.map }
+      end
+
+      def reader(products: [], errors: {}, raw: {}, search_error: nil)
         Cloudflare.new do |tool, arguments|
           code = arguments.to_h["code"].to_s
           next { "isError" => true, "content" => [ { "type" => "text", "text" => search_error } ] } if tool == Cloudflare::SEARCH && search_error
@@ -145,7 +196,7 @@ module Integrations
 
           answer = ANSWERS.find { |pattern, _| code.match?(pattern) }&.last
           text_result(answer || { "items" => [] })
-        end.map
+        end
       end
 
       def text_result(value) = { "content" => [ { "type" => "text", "text" => value.to_json } ] }

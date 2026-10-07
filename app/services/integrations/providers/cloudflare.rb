@@ -6,6 +6,7 @@ module Integrations
       key: "cloudflare",
       adapter: "Integrations::Capabilities::Cloudflare",
       map_reader: "Integrations::MapReaders::Cloudflare",
+      map_events: "Integrations::MapEventSources::Cloudflare",
       source_links: "Integrations::SourceLinks::Cloudflare",
       read_guard: "Integrations::ReadGuards::Cloudflare",
       status_words: { "initializing" => "pending", "moved" => "unavailable", "inactive" => "stopped", "disabled" => "stopped" }

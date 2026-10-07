@@ -63,6 +63,10 @@ module Integrations
       reader(environment_row, :map_reader, :swept!).map(scope: scope)
     end
 
+    # The provider's map reader for its live updates (MapEventSource#poll) to read the provider's change log with its own
+    # fixed reads, through the same switched on tools and recorded under the map sweep, as the sweep's reads are.
+    def self.map_events_reader(environment_row) = reader(environment_row, :map_reader, :swept!)
+
     def self.narrows?(reader) = reader.present? && reader.instance_method(:map).parameters.any? { |_type, name| name == :scope }
 
     # What normal looks like, through the baseline reader the provider's definition names, with its own fixed reads and
