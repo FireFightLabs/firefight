@@ -45,7 +45,7 @@ class WorkspaceMembership < ApplicationRecord
 
   # Held in every environment without a grant, until an admin grants one to the member, alone or in a set. From then the
   # grants decide where, so a grant narrows the default rather than adding to it, and one that expires narrows to nothing.
-  NARROWABLE_KEYS = [ Ability::Action::MAP_READ ].freeze
+  NARROWABLE_KEYS = [ Ability::Action::MAP_READ, Ability::Action::INVESTIGATIONS_CREATE ].freeze
 
   # Admins hold every catalogued ability including integration tools, since enabling one on a
   # connection is already the deliberate step. For members anything reaching another system stays an explicit grant.

@@ -327,6 +327,7 @@ A `Conversation` is a person talking to the agent, which does the work a questio
 The rules:
 
 - **A mention is the entry point.** `@Firefight` in an incident channel reaches the agent once `FeatureFlags::AI_SRE` is on, and the old `IncidentResponder` answer stands for every workspace without the flag.
+- **Asking is the same permission everywhere.** A mention, the dashboard chat and `ask_halon` all need `investigations.create`, which every member holds without a grant until an admin narrows it (docs/integrations.md, A default a grant narrows). A mention asks `Principal#may?` before it opens a conversation and tells a refused member the dispatcher's sentence, only them. Service keys and agents need a grant.
 - **One conversation per thread.** `Conversation::Opener` joins the one already there, so a second mention continues rather than starting over, and the unique index on workspace, channel and thread is the guard.
 - **A reply ends the turn.** `reply_is_answer` is the only difference in the loop: in a chat the person is waiting, so plain text is the answer, and in a run only `conclude` ends it.
 - **An answer that rests on a connected system is checked before it goes out.** Once a question has read from a connection (`Workspace#reading_tool_names`), `Conversation::Runner` hands the loop `FirefightAi::Responder::CHECK`. The loop does not stream a reply while a check is owed, holds the first answer (`Chat#hold_last_reply!` marks it like a nudge, so the person never reads it), asks the check once, and the reply after it is the answer. The check only runs new tool calls for a claim that goes beyond what a result showed, such as a cause, a diagnosis or a recommendation. A draft that only repeats results comes back unchanged with nothing run, so a plain lookup costs one short extra model call instead of repeating its queries. Answers from Firefight's own records, and the last turn a budget buys, go out as written.
@@ -413,7 +414,7 @@ A responder can add to a run while it works, and the run reads it at its next st
 
 - **A note waits on the run's chat.** `Investigation#add_note!` queues a `Chat::QueuedMessage` with its sender, and `Investigation::Runner` hands the loop `take_notes`, which adds each waiting note as "Name added: ..." between a tool's result and the next model call. Each note read is reported as a step ("Read what Name added"), so Slack and the chat show the run took it.
 - **Two ways in.** A mention in a live run's Slack thread (`Investigation.live_in_thread`) is a note, through `Investigation#add_note_from`, which asks the gateway since no controller did, and opens no chat. Once the run has finished, a mention there is a chat as before. On the dashboard the run's story takes one while the run is live (`POST /investigations/:id/notes`).
-- **Whoever may start a run may add to one**, `investigations.create`. `Investigation#note_blocked_reason` refuses a finished run and an empty note.
+- **Whoever may start a run may add to one**, `investigations.create`, which every member holds until an admin narrows it. `Investigation#note_blocked_reason` refuses a finished run and an empty note.
 - **The story shows each note where the run read it**, and one still waiting last (`InvestigationDetailSerializer#notes`).
 
 ## What a run says in Slack

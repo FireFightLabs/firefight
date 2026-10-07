@@ -107,6 +107,23 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
     assert_nil shown["takenAt"]
   end
 
+  test "a member steers a run without any grant, and one an admin took it away from is refused with the usual sentence" do
+    bob = workspace_memberships(:bob_workspace_one)
+    sign_in(users(:bob), @workspace)
+    investigation = investigation_run(status: Investigation::STATUS_RUNNING)
+
+    post investigation_notes_url(investigation), params: { note: "look at 5xx on web" }
+    assert_equal bob, investigation.notes.sole.sender
+
+    take_halon_from(@workspace, bob)
+    post investigation_notes_url(investigation), params: { note: "and the queue" }
+    post investigation_stop_url(investigation)
+
+    assert_equal WebAuthorization.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE)), flash[:alert]
+    assert_equal 1, investigation.notes.count
+    assert_not investigation.reload.cancel_requested?
+  end
+
   test "a finished run takes no note, and says why" do
     investigation = investigation_run
 

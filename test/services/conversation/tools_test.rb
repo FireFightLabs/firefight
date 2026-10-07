@@ -63,6 +63,20 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     end
   end
 
+  test "a member starts a run from a chat without any grant, and one an admin took it away from is refused, in their name" do
+    bob = workspace_memberships(:bob_workspace_one)
+    as_bob = Conversation::Tools::StartInvestigation.new(Conversation::Turn.new(@conversation, asker: bob))
+
+    assert_match "Started", as_bob.call
+    assert_equal bob, @workspace.investigations.sole.triggered_by
+
+    @workspace.investigations.sole.finish!(status: Investigation::STATUS_SUCCEEDED)
+    take_halon_from(@workspace, bob)
+    assert_no_difference "Investigation.count" do
+      assert_equal "#{bob.display_name} is not allowed to start an investigation.", as_bob.call[:error]
+    end
+  end
+
   test "a run that needs approval is not started until someone approves it" do
     start = Ability::Action.system!(
       Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE)

@@ -72,12 +72,18 @@ module Events
     end
     private_class_method :add_note
 
+    # Asking spends money, so a member an admin narrowed is refused here as in the dashboard and over MCP.
     def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
+      asker = Conversation::Opener.member(workspace, event["user"])
+      unless asker.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, workspace)
+        refusal = AuthorizedDispatch.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE))
+        return notify_blocked(workspace, channel_id, event["user"], refusal)
+      end
+
       conversation = Conversation::Opener.call(
         workspace: workspace, incident: incident, channel_id: channel_id,
         thread_id: thread_id, platform_user_id: event["user"]
       )
-      asker = Conversation::Opener.member(workspace, event["user"])
       files = Conversation::SharedFiles.receive(workspace: workspace, files: event["files"], sender: asker)
       Conversation::Asking.ask(conversation, user_text, asker: asker, files: files)
     end

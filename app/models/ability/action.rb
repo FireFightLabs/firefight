@@ -92,6 +92,8 @@ module Ability
     RESOURCE_ACTIONS = { RESOURCE_MAP => [ ACTION_READ ].freeze }.freeze
 
     MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
+    # Asking Halon and starting, steering or stopping an investigation.
+    INVESTIGATIONS_CREATE = "#{RESOURCE_INVESTIGATIONS}.#{ACTION_CREATE}".freeze
     # Reads whose environment scope narrows what comes back rather than whether the call runs. A call that names no
     # environment is admitted when the principal holds the action in any environment, and the reader keeps to
     # AbilityGateway.reach (ResourceMap::Resource.visible_to for the map).
@@ -104,6 +106,12 @@ module Ability
         description: "See what runs where on the resource map, how its resources depend on each other, and each one's fact sheet. " \
                      "Members hold it in every environment without a grant. Granting it to a member, alone or in a set, " \
                      "limits them to the environments ticked here, and an expired grant leaves them none."
+      }.freeze,
+      INVESTIGATIONS_CREATE => {
+        title: "Ask Halon and start investigations",
+        description: "Ask Halon in a chat, in Slack or over MCP, start an investigation, add to a running one and apply its fix. " \
+                     "Members hold it without a grant. Granting it to a member, alone or in a set, means the grant decides, " \
+                     "so an expired grant leaves them none."
       }.freeze
     }.freeze
 

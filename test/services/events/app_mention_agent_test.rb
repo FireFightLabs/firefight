@@ -194,6 +194,32 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_empty run.notes
   end
 
+  test "a member asks Halon and starts an investigation without any grant" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("what is going on", by: bob) }
+    assert_enqueued_with(job: InvestigationJob) { mention("investigate checkout 500s", thread_ts: "1700000000.000200", by: bob) }
+
+    assert_equal bob, @incident.investigations.live.sole.triggered_by
+  end
+
+  test "a member an admin took asking away from is told so, only them, and nothing is asked or started" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+    take_halon_from(@workspace, bob)
+    refusal = AuthorizedDispatch.denied_message(AbilityGateway::Denied.new(Ability::Action::INVESTIGATIONS_CREATE))
+    Slack::Client.expects(:post_ephemeral).with { |arguments| arguments[:user] == bob.platform_user_id && arguments[:text] == refusal }
+                 .twice.returns({ ok: true })
+
+    assert_no_enqueued_jobs(only: [ ConversationReplyJob, InvestigationJob ]) do
+      mention("what is going on", by: bob)
+      mention("investigate checkout 500s", thread_ts: "1700000000.000200", by: bob)
+    end
+    assert_equal 0, @workspace.conversations.count
+    assert_empty @incident.investigations
+  end
+
   private
 
   def mention(text, thread_ts: "1700000000.000100", by: workspace_memberships(:alice_workspace_one), channel: @incident.channel_id, parent: nil, files: nil)
