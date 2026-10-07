@@ -98,6 +98,8 @@ class Chat::StepOutcomeTest < ActiveSupport::TestCase
                  Chat::StepOutcome.for_step(answered_error).to_h.values_at(:kind, :said)
     assert_equal [ Chat::StepOutcome::KIND_ANSWERED, [ "one", "two" ] ], Chat::StepOutcome.for_step(answered).to_h.values_at(:kind, :lines)
     assert_nil Chat::StepOutcome.for_step(running)
+    assert_equal [ Chat::StepOutcome::KIND_NOT_FOUND, Chat::StepOutcome::KIND_FAILED, Chat::StepOutcome::KIND_ANSWERED, nil ],
+                 [ raised, answered_error, answered, running ].map { |step| Chat::StepOutcome.kind_for_step(step) }
   end
 
   private

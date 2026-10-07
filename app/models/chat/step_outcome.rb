@@ -45,15 +45,22 @@ class Chat::StepOutcome
     build(kind, saved_text(chat, text) || text)
   end
 
+  # How a run's step went, without reading what it returned, or nil while it has not finished. A list of steps shows only this.
+  def self.kind_for_step(step)
+    case step.status
+    when Investigation::Step::STATUS_FAILED then kind_of(failed: true, failure_kind: step.failure_kind)
+    when Investigation::Step::STATUS_SUCCEEDED then kind_of(failed: step.failure_kind.present?, failure_kind: step.failure_kind)
+    end
+  end
+
   # A run's step, once it finished. A step whose call raised keeps its reason apart from what a tool returned, headed by
   # the error's name, which says nothing a person needs.
   def self.for_step(step)
-    case step.status
-    when Investigation::Step::STATUS_FAILED
-      build(kind_of(failed: true, failure_kind: step.failure_kind), step.error_summary.to_s.sub(ERROR_NAME, ""))
-    when Investigation::Step::STATUS_SUCCEEDED
-      build(kind_of(failed: step.failure_kind.present?, failure_kind: step.failure_kind), body(step.raw_result || step.compacted_result))
-    end
+    kind = kind_for_step(step)
+    return nil unless kind
+
+    text = step.status == Investigation::Step::STATUS_FAILED ? step.error_summary.to_s.sub(ERROR_NAME, "") : body(step.raw_result || step.compacted_result)
+    build(kind, text)
   end
 
   def self.kind_of(failed:, failure_kind:)
