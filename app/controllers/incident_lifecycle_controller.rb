@@ -30,6 +30,8 @@ class IncidentLifecycleController < InertiaController
     redirect_to incident_path(incident), notice: "#{incident.identifier} was declared."
   rescue IncidentFormResolver::ValidationError => e
     redirect_to dashboard_path, alert: e.field_errors.first
+  rescue Incident::CreationBlocked => e
+    redirect_back_or_to dashboard_path, alert: e.message
   end
 
   def update

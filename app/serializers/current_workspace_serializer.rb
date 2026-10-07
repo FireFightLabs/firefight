@@ -8,8 +8,19 @@ class CurrentWorkspaceSerializer < BaseSerializer
 
   attributes(
     name: { type: :string },
-    platform: { type: :string }
+    platform: { type: :string, optional: true }
   )
+
+  type :boolean
+  def chat_connected
+    workspace.chat_connected?
+  end
+
+  # Every Declare button reads this, so none of them offers what the server would refuse.
+  type :string, optional: true
+  def incidents_blocked_reason
+    workspace.incidents_blocked_reason
+  end
 
   type :boolean
   def disconnected

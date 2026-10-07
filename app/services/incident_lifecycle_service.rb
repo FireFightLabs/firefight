@@ -12,6 +12,9 @@ class IncidentLifecycleService
   # from_investigation is a run asked without an incident whose answer this incident was declared from, which the
   # incident then carries on its timeline.
   def create(create_channel_sync: false, workflow_context: {}, from_investigation: nil, **attrs)
+    blocked_reason = workspace.incidents_blocked_reason
+    raise Incident::CreationBlocked, blocked_reason if blocked_reason
+
     incident = Incident.create!(**attrs, workspace: workspace)
     from_investigation&.attach_to!(incident)
 
@@ -50,7 +53,8 @@ class IncidentLifecycleService
     end
 
     LeadAssignmentWorkflow.start!(incident, context: {
-      lead_platform_user_id: lead&.platform_user_id
+      lead_platform_user_id: lead&.platform_user_id,
+      lead_name: lead&.actor_display_name
     })
   end
 
@@ -129,6 +133,7 @@ class IncidentLifecycleService
 
     IncidentUpdateWorkflow.start!(incident, context: {
       updated_by_platform_user_id: changed_by&.platform_user_id,
+      updated_by_name: changed_by&.actor_display_name,
       message: message,
       previous_status_name: previous_status_name,
       previous_severity_name: previous_severity_name,
@@ -146,7 +151,8 @@ class IncidentLifecycleService
     end
 
     IncidentCloseWorkflow.start!(incident, context: {
-      resolved_by_platform_user_id: changed_by&.platform_user_id
+      resolved_by_platform_user_id: changed_by&.platform_user_id,
+      resolved_by_name: changed_by&.actor_display_name
     })
 
     if workspace.archive_channel_enabled && incident.channel_id.present?
@@ -169,6 +175,7 @@ class IncidentLifecycleService
 
     IncidentCancelWorkflow.start!(incident, context: {
       updated_by_platform_user_id: changed_by&.platform_user_id,
+      updated_by_name: changed_by&.actor_display_name,
       previous_status_name: previous_status_name,
       message: message
     })
@@ -198,6 +205,7 @@ class IncidentLifecycleService
 
     IncidentReopenWorkflow.start!(incident, context: {
       reopened_by_platform_user_id: changed_by&.platform_user_id,
+      reopened_by_name: changed_by&.actor_display_name,
       reason: reason
     })
   end
@@ -211,7 +219,8 @@ class IncidentLifecycleService
     end
 
     IncidentUpdateWorkflow.start!(incident, context: {
-      updated_by_platform_user_id: changed_by&.platform_user_id
+      updated_by_platform_user_id: changed_by&.platform_user_id,
+      updated_by_name: changed_by&.actor_display_name
     })
   end
 
@@ -257,7 +266,7 @@ class IncidentLifecycleService
 
     workspace.adapter.post_role_announcement(
       channel_id: incident.channel_id,
-      changes: changes.map { |role, member| { role_name: role.name, platform_user_id: member&.platform_user_id } }
+      changes: changes.map { |role, member| { role_name: role.name, platform_user_id: member&.platform_user_id, name: member&.actor_display_name } }
     )
   end
 end

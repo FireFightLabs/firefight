@@ -34,8 +34,11 @@ class CatalogueController < InertiaController
     render json: member_resolution_service.pickable_members
   end
 
+  # Before a platform is connected there are no channels to pick.
   def search_channels
     render json: current_workspace.adapter.list_channels
+  rescue AdapterError::NotConnected
+    render json: []
   end
 
   def create_type

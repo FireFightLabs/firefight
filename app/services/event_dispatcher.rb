@@ -27,7 +27,7 @@ class EventDispatcher
 
     workspace = Workspace.find_by(platform: platform, platform_id: payload["team_id"])
     return unless workspace
-    if workspace.suspended?
+    if workspace.access_blocked
       Rails.logger.info({ event: "event_dispatcher.suspended_workspace", workspace_id: workspace.id })
       return
     end

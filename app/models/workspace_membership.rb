@@ -17,14 +17,24 @@ class WorkspaceMembership < ApplicationRecord
   has_many :oauth_access_tokens, class_name: "Doorkeeper::AccessToken",
            foreign_key: :resource_owner_id, dependent: :delete_all
 
-  validates :platform_user_id, presence: true
-  validates :platform_user_id, uniqueness: { scope: :workspace_id }
+  # Nil for a teammate who joined by email and has not used the chat platform here yet.
+  validates :platform_user_id, uniqueness: { scope: :workspace_id }, allow_nil: true
+  validates :user_id, uniqueness: { scope: :workspace_id }
   validates :role, presence: true
 
   delegate :email, to: :user
 
   def display_name
     user.name
+  end
+
+  # Fills in who this member is on the chat platform the first time they show up there. One already known is kept,
+  # so a second account in the same team never takes over the seat.
+  def link_platform_user!(platform_user_id, platform_data = nil)
+    return self if platform_user_id.blank? || self.platform_user_id.present?
+
+    update!(platform_user_id: platform_user_id, platform_data: platform_data.presence || self.platform_data)
+    self
   end
 
   # Actor interface shared with ApiKey.
@@ -187,17 +197,19 @@ class WorkspaceMembership < ApplicationRecord
     end
   end
 
+  # A member who joined before the workspace connected Slack keeps their row and gains their platform id.
   def self.create_from_omniauth!(user, workspace, auth_hash)
     is_first_member = workspace.workspace_memberships.empty?
 
-    find_or_create_by!(
+    membership = find_or_create_by!(
       user: user,
       workspace: workspace
-    ) do |membership|
-      membership.platform_user_id = auth_hash.uid
-      membership.role = is_first_member ? :owner : :member
-      membership.platform_data = auth_hash.extra.user_info
-      membership.joined_at = Time.current
+    ) do |created|
+      created.platform_user_id = auth_hash.uid
+      created.role = is_first_member ? :owner : :member
+      created.platform_data = auth_hash.extra.user_info
+      created.joined_at = Time.current
     end
+    membership.link_platform_user!(auth_hash.uid, auth_hash.extra.user_info)
   end
 end

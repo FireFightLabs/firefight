@@ -21,10 +21,11 @@ module Catalogue
     end
 
     # Members are keyed by membership id and everyone else by platform id, so one person never appears twice.
-    # A member the platform did not return is kept, an incomplete answer is not a person who left.
+    # A member the platform did not return is kept, an incomplete answer is not a person who left. Members with no
+    # platform account yet, and every member before a platform is connected, are offered as they are.
     def pickable_members
-      known = @workspace.workspace_memberships.includes(:user).index_by(&:platform_user_id)
-      directory = @workspace.adapter.member_directory
+      known = @workspace.workspace_memberships.includes(:user).index_by { |membership| membership.platform_user_id || membership.id }
+      directory = member_directory
 
       offered = directory[:members].map do |member|
         membership = known.delete(member[:id])
@@ -37,6 +38,12 @@ module Catalogue
     end
 
     private
+
+    def member_directory
+      @workspace.adapter.member_directory
+    rescue AdapterError::NotConnected
+      { members: [], deactivated_ids: [] }
+    end
 
     def member_row(membership)
       { id: membership.id, name: membership.display_name, avatarUrl: membership.user.avatar_url }

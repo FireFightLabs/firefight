@@ -2,6 +2,7 @@ import { IconAlertTriangle, IconCircleCheck, IconLoader2 } from "@tabler/icons-r
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
 import { FixPlan } from "@/components/investigations/fix-plan"
 import { RateAnswer } from "@/components/investigations/rate-answer"
 import { StepLinks } from "@/components/investigations/step-links"
@@ -40,6 +41,7 @@ interface AnswerProps {
 
 export function Answer({ investigation, onDeclare }: AnswerProps) {
   const finding = investigation.finding
+  const declareBlockedReason = useIncidentsBlockedReason()
 
   if (!finding && isLive(investigation.status)) {
     const current = investigation.steps[investigation.steps.length - 1]
@@ -89,9 +91,11 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
             <IconAlertTriangle className="size-4 shrink-0 text-error" />
             Halon thinks this is hurting users now.
           </span>
-          <Button size="sm" onClick={onDeclare}>
-            Declare incident
-          </Button>
+          <IncidentsBlocked reason={declareBlockedReason}>
+            <Button size="sm" onClick={onDeclare} disabled={Boolean(declareBlockedReason)}>
+              Declare incident
+            </Button>
+          </IncidentsBlocked>
         </div>
       )}
 

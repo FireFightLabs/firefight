@@ -5,7 +5,7 @@ class McpController < ActionController::API
   SERVER_VERSION = "1.0.0".freeze
 
   before_action :authenticate!, only: :create
-  before_action :block_suspended_workspace, only: :create
+  before_action :block_inaccessible_workspace, only: :create
   # Declared after authenticate! so the per-principal bucket is populated.
   rate_limit to: 1000, within: 1.minute, by: -> { Current.principal&.id }, with: :rate_limit_exceeded
 
@@ -57,12 +57,13 @@ class McpController < ActionController::API
     annotate_trace
   end
 
-  def block_suspended_workspace
-    return unless Current.workspace&.suspended?
+  def block_inaccessible_workspace
+    blocked = Current.workspace&.access_blocked
+    return unless blocked
 
     render json: {
       error: "workspace_suspended",
-      message: Current.workspace.suspension_message
+      message: blocked.message
     }, status: :forbidden
   end
 

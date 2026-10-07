@@ -319,17 +319,17 @@ class PlatformAdapter
   end
 
   # @return [Hash] { message_id: ... }
-  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
+  def post_incident_update_announcement_thread(channel_id:, parent_message_id:, incident:, message:, updated_by_platform_user_id:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil, subscriber_user_ids: [])
     raise NotImplemented.new(__method__, self.class)
   end
 
   # @return [Hash] { message_id: ... }
-  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, subscriber_user_ids: [])
+  def post_resolution_announcement_thread(channel_id:, parent_message_id:, incident:, resolved_by_platform_user_id:, resolved_by_name: nil, subscriber_user_ids: [])
     raise NotImplemented.new(__method__, self.class)
   end
 
   # @return [Hash] { message_id: ... }
-  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reason: nil, subscriber_user_ids: [])
+  def post_reopen_announcement_thread(channel_id:, parent_message_id:, incident:, reopened_by_platform_user_id:, reopened_by_name: nil, reason: nil, subscriber_user_ids: [])
     raise NotImplemented.new(__method__, self.class)
   end
 

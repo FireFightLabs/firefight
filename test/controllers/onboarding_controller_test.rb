@@ -10,20 +10,6 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     OmniAuth.config.test_mode = false
   end
 
-  test "the signup page shows once self-serve sign-in is on" do
-    FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
-
-    get onboarding_signup_path, headers: inertia_headers
-
-    assert_equal "onboarding/signup", JSON.parse(response.body)["component"]
-  end
-
-  test "the signup page does not exist while self-serve sign-in is off" do
-    get onboarding_signup_path
-
-    assert_redirected_to login_path
-  end
-
   test "invite_code redirects to install when the gate is off" do
     seed_pending_install("T_OPEN_CO", "Open Co", gate: false)
 

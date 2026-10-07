@@ -2,6 +2,8 @@ class Incident < ApplicationRecord
   # Carries the sentence the surface shows, so a dispatcher can render it
   # without knowing which rule refused.
   class NotActive < StandardError; end
+  # The workspace cannot run incidents yet, with Workspace#incidents_blocked_reason as the message.
+  class CreationBlocked < StandardError; end
 
   VISIBILITY_PUBLIC = "public"
   VISIBILITY_PRIVATE = "private"

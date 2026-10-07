@@ -7,7 +7,7 @@ module Auth
     INVALID_EMAIL_MESSAGE = "Enter a valid email address.".freeze
     EXPIRED_MESSAGE = "That sign-in link has expired or was already used. Ask for a new one below.".freeze
 
-    skip_before_action :block_suspended_workspace
+    skip_before_action :block_inaccessible_workspace
     skip_before_action :require_authentication
     before_action :require_email_sign_in
 

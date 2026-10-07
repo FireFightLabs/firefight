@@ -46,9 +46,12 @@ module Slack
     end
     private_class_method :emoji_for
 
+    # Someone with no Slack account, a person or a machine, is named rather than shown as Firefight's own doing.
     def self.actor_mention_for(event)
       user_id = (event.metadata || {})["user_id"] || event.actor&.platform_user_id
-      user_id.present? ? "<@#{user_id}>" : "System"
+      return "<@#{user_id}>" if user_id.present?
+
+      event.actor ? Mrkdwn.mention(event.actor) : "System"
     end
     private_class_method :actor_mention_for
 
@@ -91,7 +94,8 @@ module Slack
         update_details(event)
       when IncidentEvent::INCIDENT_ESCALATED
         target = details["escalated_to_platform_user_id"]
-        [ ("to <@#{target}>" if target.present?), quoted_reason(details) ].compact.join("\n")
+        name = details["escalated_to_name"]
+        [ ("to #{Mrkdwn.person(target, name)}" if target.present? || name.present?), quoted_reason(details) ].compact.join("\n")
       when IncidentEvent::MESSAGE_PINNED, IncidentEvent::MESSAGE_UNPINNED
         details["permalink"].presence
       when IncidentEvent::MESSAGE_FILE_SHARED
@@ -101,9 +105,9 @@ module Slack
       when IncidentEvent::INCIDENT_REOPENED
         quoted_reason(details)
       when IncidentEvent::ESCALATION_ACKNOWLEDGED
-        "by <@#{details['acknowledged_by_platform_user_id']}>"
+        "by #{Mrkdwn.person(details['acknowledged_by_platform_user_id'], details['acknowledged_by_name'])}"
       when IncidentEvent::ESCALATION_NUDGED
-        "to <@#{details['escalated_to_platform_user_id']}>"
+        "to #{Mrkdwn.person(details['escalated_to_platform_user_id'], details['escalated_to_name'])}"
       when IncidentEvent::INVESTIGATION_ANSWERED
         details["message"]
       when IncidentEvent::MILESTONE_NOTED

@@ -31,20 +31,20 @@ class Auth::GoogleSignInTest < ActionDispatch::IntegrationTest
     assert_not UserIdentity.exists?(user: @alice, provider: UserIdentity::GOOGLE)
   end
 
-  test "a Google account nobody holds lands on the signup page without making anyone" do
+  test "a Google account nobody holds goes on to name a workspace without making anyone" do
     google_callback(email: "newcomer@example.com")
 
-    assert_redirected_to onboarding_signup_path
+    assert_redirected_to signup_workspace_path
     assert_nil session[:user_id]
     assert_nil User.find_by(email: "newcomer@example.com")
   end
 
-  test "a person with no workspace lands on the signup page" do
+  test "a person with no workspace goes on to name a workspace" do
     loner = User.create!(email: "loner@example.com", name: "Loner")
 
     google_callback(email: loner.email)
 
-    assert_redirected_to onboarding_signup_path
+    assert_redirected_to signup_workspace_path
     assert_nil session[:user_id]
   end
 

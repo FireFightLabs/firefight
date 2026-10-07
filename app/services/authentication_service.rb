@@ -21,7 +21,12 @@ class AuthenticationService
     def verified_email = email_verified ? email : nil
   end
 
-  Result = Data.define(:status, :user, :identity) do
+  # claims rides on a sign-in that reached nobody, so signing up can make the person from it later.
+  Result = Data.define(:status, :user, :identity, :claims) do
+    def initialize(status:, user:, identity:, claims: nil)
+      super
+    end
+
     def signed_in? = status == SIGNED_IN
     def unverified_email? = status == UNVERIFIED_EMAIL
     def no_account? = status == NO_ACCOUNT
@@ -39,7 +44,7 @@ class AuthenticationService
 
     user = User.find_by(email: claims.verified_email)
     user ||= create_user!(claims) if create_user
-    return Result.new(status: NO_ACCOUNT, user: nil, identity: nil) unless user
+    return Result.new(status: NO_ACCOUNT, user: nil, identity: nil, claims: claims) unless user
 
     link(user, claims, refresh_profile)
   end

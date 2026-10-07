@@ -117,7 +117,7 @@ Slack sign-in works out of the box. Google and email links are optional and stay
 2. For Google, create an OAuth client of type Web application in Google Cloud with the redirect URI `https://<your-host>/auth/google_oauth2/callback`, and set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 3. `docker compose up -d`, then `docker compose exec web bin/rails 'feature_flags:enable_globally[self_serve_signup]'`.
 
-Google and email sign in only people who already belong to a workspace. Each person sees and removes their sign-in methods under Profile.
+With the flag on, someone who signs in and belongs to no workspace names a new one, and can connect Slack to it then or later from the banner on every page. Until Slack is connected, incidents cannot be declared. Admins invite teammates by email from Members, which needs the email settings above. Each person sees and removes their sign-in methods under Profile.
 
 ## The operator console
 

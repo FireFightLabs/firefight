@@ -5,7 +5,7 @@ module Mcp
     APPROVAL_ID_ARG = :approval_id
     # Rescued outside the authorized block, so the ledger still records these calls as failed.
     TOOL_ERRORS = [
-      Incident::NotActive, Postmortem::StaleContent, ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid,
+      Incident::NotActive, Incident::CreationBlocked, Postmortem::StaleContent, ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid,
       ArgumentError, ActionController::ParameterMissing
     ].freeze
 

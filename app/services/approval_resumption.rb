@@ -114,7 +114,7 @@ class ApprovalResumption
     adapter = WorkspaceAdapter.for(approval.workspace)
     if payload["kind"] == KIND_WEB
       membership = approval.workspace.workspace_memberships.find_by(id: payload["membership_id"])
-      return if membership.nil?
+      return if membership&.platform_user_id.blank?
 
       adapter.post_direct_message(user_id: membership.platform_user_id, text: text)
     else

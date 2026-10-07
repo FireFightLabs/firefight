@@ -3,7 +3,7 @@ module Slack
     module StatusUpdate
       SECTION_TEXT_LIMIT = 3000
 
-      def self.build(incident, message:, updated_by_platform_user_id:, scope:, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
+      def self.build(incident, message:, updated_by_platform_user_id:, scope:, updated_by_name: nil, previous_status_name: nil, previous_severity_name: nil, previous_type_name: nil)
         field_lines = [
           Formatting.diff_text("Severity", previous_severity_name, incident.incident_severity.name),
           Formatting.diff_text("Status", previous_status_name, incident.incident_status.name)
@@ -27,7 +27,7 @@ module Slack
         blocks << { type: "divider" }
         body_sections(message).each { |text| blocks << { type: "section", text: { type: "mrkdwn", text: text } } } if message.present?
         blocks << { type: "section", text: { type: "mrkdwn", text: field_lines.join("  ·  ") } }
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id) } ] }
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id, updated_by_name) } ] }
 
         blocks
       end
@@ -41,9 +41,9 @@ module Slack
         sections.map { |section| section.chomp.truncate(SECTION_TEXT_LIMIT) }
       end
 
-      def self.context_text(incident, updated_by_platform_user_id)
+      def self.context_text(incident, updated_by_platform_user_id, updated_by_name = nil)
         verb = incident.canceled? ? "Canceled" : "Updated"
-        parts = [ "#{verb} by <@#{updated_by_platform_user_id}>" ]
+        parts = [ "#{verb} by #{Mrkdwn.person(updated_by_platform_user_id, updated_by_name)}" ]
         if incident.next_update_at.present?
           unix_ts = incident.next_update_at.to_i
           fallback = incident.next_update_at.in_time_zone.strftime("%H:%M")

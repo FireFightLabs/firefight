@@ -3,12 +3,13 @@ class Api::V1::ApiController < ActionController::API
 
   rate_limit to: 1000, within: 1.minute, by: -> { Current.api_key&.id }, with: :rate_limit_exceeded
 
-  before_action :block_suspended_workspace
+  before_action :block_inaccessible_workspace
   before_action :annotate_trace_source
 
   rescue_from ActiveRecord::RecordNotFound, with: :not_found
   rescue_from ActiveRecord::RecordInvalid, with: :validation_error
   rescue_from Incident::NotActive, with: :incident_not_active
+  rescue_from Incident::CreationBlocked, with: :incidents_blocked
   rescue_from OptionGuards::Blocked, with: :incident_not_active
   rescue_from IncidentLifecycleService::RoleNotUnassignable, with: :incident_not_active
   rescue_from IncidentFormResolver::ValidationError, with: :form_validation_error
@@ -19,10 +20,11 @@ class Api::V1::ApiController < ActionController::API
 
   private
 
-  def block_suspended_workspace
-    return unless Current.workspace&.suspended?
+  def block_inaccessible_workspace
+    blocked = Current.workspace&.access_blocked
+    return unless blocked
 
-    render json: error_response("workspace_suspended", Current.workspace.suspension_message), status: :forbidden
+    render json: error_response("workspace_suspended", blocked.message), status: :forbidden
   end
 
   def annotate_trace_source
@@ -54,6 +56,10 @@ class Api::V1::ApiController < ActionController::API
 
   def incident_not_active(exception)
     render json: error_response("incident_not_active", exception.message), status: :unprocessable_entity
+  end
+
+  def incidents_blocked(exception)
+    render json: error_response("incidents_blocked", exception.message), status: :unprocessable_entity
   end
 
   def approval_not_allowed(exception)

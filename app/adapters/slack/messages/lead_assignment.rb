@@ -1,11 +1,11 @@
 module Slack
   module Messages
     module LeadAssignment
-      def self.announcement(lead_platform_user_id:)
+      def self.announcement(lead_platform_user_id:, lead_name: nil)
         [
           {
             type: "section",
-            text: { type: "mrkdwn", text: ":firefighter: <@#{lead_platform_user_id}> is now the *Incident Lead*" }
+            text: { type: "mrkdwn", text: ":firefighter: #{Mrkdwn.person(lead_platform_user_id, lead_name)} is now the *Incident Lead*" }
           },
           {
             type: "context",

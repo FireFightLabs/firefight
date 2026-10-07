@@ -9,7 +9,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: ":link:  *Related incident linked*" } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: "*#{target.identifier}* — #{target.name || 'Untitled Incident'}\n#{detail}" } },
-          { type: "context", elements: [ { type: "mrkdwn", text: "Linked by <@#{linked_by_platform_user_id}>" } ] }
+          { type: "context", elements: [ { type: "mrkdwn", text: "Linked by #{Mrkdwn.person(linked_by_platform_user_id, nil)}" } ] }
         ]
       end
 
@@ -20,7 +20,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: "Merged into *#{canonical.identifier}* — #{canonical.name || 'Untitled Incident'}\n#{canonical.incident_severity.name}  ·  #{canonical.incident_status.name}" } }
         ]
         blocks << { type: "section", text: { type: "mrkdwn", text: ":point_right: Continue in <##{canonical.channel_id}>" } } if canonical.channel_id
-        blocks << { type: "context", elements: [ { type: "mrkdwn", text: "Merged by <@#{linked_by_platform_user_id}>" } ] }
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: "Merged by #{Mrkdwn.person(linked_by_platform_user_id, nil)}" } ] }
         blocks
       end
 
@@ -32,7 +32,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: ":repeat:  *Duplicate incident merged in*" } },
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: "*#{source.identifier}* — #{source.name || 'Untitled Incident'}\n#{detail}" } },
-          { type: "context", elements: [ { type: "mrkdwn", text: "Merged by <@#{linked_by_platform_user_id}>" } ] }
+          { type: "context", elements: [ { type: "mrkdwn", text: "Merged by #{Mrkdwn.person(linked_by_platform_user_id, nil)}" } ] }
         ]
       end
     end

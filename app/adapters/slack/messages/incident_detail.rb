@@ -5,8 +5,8 @@ module Slack
     module IncidentDetail
       TEST_NOTE = ":test_tube: Test incident. Not counted in your metrics.".freeze
 
-      def self.blocks(title:, summary:, severity_name:, status_name:, reporter_id:,
-                      lead_id: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil, test: false)
+      def self.blocks(title:, summary:, severity_name:, status_name:, reporter_id:, reporter_name: nil,
+                      lead_id: nil, lead_name: nil, channel_id: nil, relationship_text: nil, custom_fields_text: nil, test: false)
         blocks = [
           { type: "header", text: { type: "plain_text", text: ":rotating_light: #{title}", emoji: true } }
         ]
@@ -15,8 +15,8 @@ module Slack
         blocks << { type: "divider" }
         blocks << { type: "section", text: { type: "mrkdwn", text: ":fire: *Severity:* #{severity_name}" } }
         blocks << { type: "section", text: { type: "mrkdwn", text: ":construction: *Status:* #{status_name}" } }
-        blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* <@#{lead_id}>" } } if lead_id
-        blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Declared by:* <@#{reporter_id}>" } }
+        blocks << { type: "section", text: { type: "mrkdwn", text: ":firefighter: *Lead:* #{Mrkdwn.person(lead_id, lead_name)}" } } if lead_id || lead_name
+        blocks << { type: "section", text: { type: "mrkdwn", text: ":mega: *Declared by:* #{Mrkdwn.person(reporter_id, reporter_name)}" } }
         blocks << { type: "section", text: { type: "mrkdwn", text: ":speech_balloon: *Channel:* <##{channel_id}>" } } if channel_id
         blocks << { type: "section", text: { type: "mrkdwn", text: custom_fields_text } } if custom_fields_text
         blocks << { type: "section", text: { type: "mrkdwn", text: relationship_text } } if relationship_text
@@ -35,7 +35,9 @@ module Slack
           severity_name: incident.incident_severity.name,
           status_name: incident.incident_status.name,
           reporter_id: incident.declared_by&.platform_user_id,
+          reporter_name: incident.declared_by&.actor_display_name,
           lead_id: incident.lead&.platform_user_id,
+          lead_name: incident.lead&.actor_display_name,
           channel_id: channel_id,
           relationship_text: Formatting.relationship_summary(incident),
           custom_fields_text: Formatting.custom_fields_summary(incident),

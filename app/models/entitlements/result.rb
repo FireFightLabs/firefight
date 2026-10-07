@@ -1,5 +1,6 @@
 module Entitlements
-  Result = Struct.new(:allowed, :message) do
+  # path is where a person goes to lift the block, such as a billing page, when the backend has one.
+  Result = Struct.new(:allowed, :message, :path) do
     def allowed?
       allowed
     end

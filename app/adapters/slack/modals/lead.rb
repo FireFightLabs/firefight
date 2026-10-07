@@ -7,7 +7,7 @@ module Slack
           action_id: "lead_select",
           placeholder: { type: "plain_text", text: "Select a person" }
         }
-        element[:initial_user] = incident.lead.platform_user_id if incident.lead
+        element[:initial_user] = incident.lead.platform_user_id if incident.lead&.platform_user_id
 
         {
           type: "modal",

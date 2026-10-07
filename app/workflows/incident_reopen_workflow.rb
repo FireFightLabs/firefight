@@ -24,6 +24,7 @@ class IncidentReopenWorkflow < SolidWorkflow::Base
       service(workflow).post_reopen_message(
         workflow.subject,
         reopened_by_platform_user_id: workflow.context["reopened_by_platform_user_id"],
+        reopened_by_name: workflow.context["reopened_by_name"],
         reason: workflow.context["reason"]
       )
     end
@@ -34,6 +35,7 @@ class IncidentReopenWorkflow < SolidWorkflow::Base
       service(workflow).post_reopen_announcement_thread(
         workflow.subject,
         reopened_by_platform_user_id: workflow.context["reopened_by_platform_user_id"],
+        reopened_by_name: workflow.context["reopened_by_name"],
         reason: workflow.context["reason"]
       )
     end

@@ -2,7 +2,7 @@
 class InertiaController < ApplicationController
   include WebAuthorization
 
-  before_action :block_suspended_workspace
+  before_action :block_inaccessible_workspace
   before_action :require_authentication
   before_action :authorize_web_action!
 
@@ -39,11 +39,15 @@ class InertiaController < ApplicationController
     end
   end
 
-  def block_suspended_workspace
-    return unless user_signed_in? && current_workspace&.suspended?
+  # A backend that names a page to lift the block, such as billing, sends the person there. That page's controller
+  # skips this guard.
+  def block_inaccessible_workspace
+    blocked = user_signed_in? && current_workspace&.access_blocked
+    return unless blocked
+    return redirect_to(blocked.path) if blocked.path.present?
 
     render inertia: "errors/suspended",
-      props: { message: current_workspace.suspension_message },
+      props: { message: blocked.message },
       status: :forbidden
   end
 end

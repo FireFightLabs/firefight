@@ -73,7 +73,7 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
     # Forcing the find_by to miss drives execution into create_or_find_by!, which must return this row.
     existing = WorkspaceMembership.create!(
       workspace: @workspace,
-      user: users(:alice),
+      user: User.create!(email: "already-racing@example.com", name: "Already Racing"),
       platform_user_id: "U_RACE",
       role: :member,
       joined_at: Time.current
@@ -108,5 +108,41 @@ class WorkspaceMemberProvisionerTest < ActiveSupport::TestCase
 
       assert_nil result
     end
+  end
+
+  test "a teammate who joined by email is matched by who they are and gains their platform id" do
+    teammate = User.create!(email: "joined-by-email@example.com", name: "Email Joiner")
+    seat = @workspace.workspace_memberships.create!(user: teammate, role: :member, joined_at: Time.current)
+    @adapter.expects(:get_user_info).with(user_id: "U_EMAIL_JOINER").returns(
+      { real_name: "Email Joiner", email: "Joined-By-Email@example.com" }
+    )
+
+    membership = assert_no_difference -> { @workspace.workspace_memberships.count } do
+      WorkspaceMemberProvisioner.find_or_provision!(workspace: @workspace, platform_user_id: "U_EMAIL_JOINER", adapter: @adapter)
+    end
+
+    assert_equal seat, membership
+    assert_equal "U_EMAIL_JOINER", seat.reload.platform_user_id
+  end
+
+  test "a known user passed in is matched before anyone is created" do
+    teammate = User.create!(email: "known@example.com", name: "Known")
+    seat = @workspace.workspace_memberships.create!(user: teammate, role: :member, joined_at: Time.current)
+    @adapter.expects(:get_user_info).never
+
+    membership = WorkspaceMemberProvisioner.find_or_provision!(
+      workspace: @workspace, platform_user_id: "U_KNOWN", adapter: @adapter, user: teammate
+    )
+
+    assert_equal seat, membership
+    assert_equal "U_KNOWN", seat.reload.platform_user_id
+  end
+
+  test "a member's platform id, once known, is never replaced by another account" do
+    seat = workspace_memberships(:alice_workspace_one)
+
+    seat.link_platform_user!("U_SECOND_ACCOUNT")
+
+    assert_equal "U12345678", seat.reload.platform_user_id
   end
 end

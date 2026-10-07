@@ -38,7 +38,7 @@ module Slack
         return "*Requires:* workspace #{approval.required_role}" unless approval.named_approvers?
 
         mentions = approval.approvers.map do |approver|
-          approver.platform_user_id ? "<@#{approver.platform_user_id}>" : "*#{approver.actor_display_name}* (agent)"
+          approver.actor_kind == Ability::Principal::KIND_USER ? Slack::Mrkdwn.mention(approver) : "*#{Slack::Mrkdwn.escape(approver.actor_display_name)}* (agent)"
         end
         "*Approvers:* #{mentions.join(', ')}"
       end

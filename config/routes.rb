@@ -128,6 +128,9 @@ Rails.application.routes.draw do
   get "/auth/email/sent", to: "auth/email_sign_ins#sent", as: :email_sign_in_sent
   get "/auth/email/confirm", to: "auth/email_sign_ins#show", as: :email_sign_in_link
   post "/auth/email/confirm", to: "auth/email_sign_ins#consume", as: :consume_email_sign_in
+  # An invitation's link, kept to the query and body the same way.
+  get "/auth/invitation", to: "auth/invitations#show", as: :invitation_link
+  post "/auth/invitation", to: "auth/invitations#accept", as: :accept_invitation
 
   # OmniAuth middleware answers these before routing. They exist for the named path helpers,
   # the redirect only fires if the middleware is misconfigured.
@@ -139,7 +142,9 @@ Rails.application.routes.draw do
   get "/onboarding/install", to: "onboarding#install", as: :onboarding_install
   get "/onboarding/reinstall", to: "onboarding#reinstall", as: :onboarding_reinstall
   get "/onboarding/welcome", to: "onboarding#welcome", as: :onboarding_welcome
-  get "/onboarding/signup", to: "onboarding#signup", as: :onboarding_signup
+  post "/onboarding/connect-slack", to: "onboarding#connect_slack", as: :onboarding_connect_slack
+  get "/signup/workspace", to: "workspace_signups#new", as: :signup_workspace
+  post "/signup/workspace", to: "workspace_signups#create"
 
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
@@ -410,6 +415,9 @@ Rails.application.routes.draw do
     end
 
     get "/settings/members", to: "settings#members", as: :settings_members
+    post "/settings/members/invitations", to: "workspace_invitations#create", as: :workspace_invitations
+    post "/settings/members/invitations/:id/resend", to: "workspace_invitations#resend", as: :resend_workspace_invitation
+    delete "/settings/members/invitations/:id", to: "workspace_invitations#destroy", as: :workspace_invitation
 
     # The gateway and developer screens used to live under /settings, the redirects keep old links working.
     get "/settings/workspace", to: "workspace_settings#show", as: :settings_workspace

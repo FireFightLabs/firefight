@@ -23,16 +23,22 @@ module Slack
 
       def self.summary_text(changes)
         changes.map do |change|
-          holder = change[:platform_user_id] ? "assigned" : "cleared"
+          holder = assigned?(change) ? "assigned" : "cleared"
           "#{change[:role_name]} #{holder}"
         end.join(", ")
       end
 
       def self.line(change)
-        holder = change[:platform_user_id] ? "<@#{change[:platform_user_id]}>" : UNASSIGNED
+        holder = assigned?(change) ? Slack::Mrkdwn.person(change[:platform_user_id], change[:name]) : UNASSIGNED
         "• *#{Slack::Mrkdwn.escape(change[:role_name])}*: #{holder}"
       end
       private_class_method :line
+
+      # A holder with no platform account is still a holder, named by their name.
+      def self.assigned?(change)
+        change[:platform_user_id].present? || change[:name].present?
+      end
+      private_class_method :assigned?
     end
   end
 end

@@ -193,6 +193,17 @@ entire workspace.
 Text a responder typed into one of our own modals is trusted, because they
 could have typed it into the channel anyway.
 
+## Naming people
+
+A person is never written as `<@#{id}>` by hand. Someone who joined by email,
+an agent and an API key have no Slack account, and an empty `<@>` renders as
+a broken mention. `Slack::Mrkdwn.mention(actor)` takes the actor, and
+`Slack::Mrkdwn.person(platform_user_id, name)` takes the two values a
+workflow carries in its context (`updated_by_name` beside
+`updated_by_platform_user_id`, and so on). Both mention the person when there
+is an id, name them in bold otherwise, and say "someone" when there is
+neither.
+
 ## Copy
 
 Everything in [CLAUDE.md](../CLAUDE.md) applies: no em dashes, no semicolons.

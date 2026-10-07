@@ -42,4 +42,14 @@ class WorkspaceMembershipTest < ActiveSupport::TestCase
     assert_nil other_workspace.workspace_memberships.resolve(@alice.id)
     assert_nil other_workspace.workspace_memberships.resolve(@alice.platform_user_id)
   end
+
+  test "a person holds one seat per workspace, and a seat may wait for its platform id" do
+    workspace = workspaces(:slack_workspace_one)
+    seat = workspace.workspace_memberships.new(user: User.create!(email: "seatless@example.com", name: "Seatless"), role: :member, joined_at: Time.current)
+    assert seat.valid?, "no platform id is fine"
+
+    duplicate = workspace.workspace_memberships.new(user: users(:alice), role: :member, joined_at: Time.current)
+    assert_not duplicate.valid?
+    assert duplicate.errors[:user_id].any?
+  end
 end

@@ -3,7 +3,7 @@ module Slack
     module Postmortem
       def self.build(incident, postmortem)
         duration_text = Formatting.format_duration(incident.time_to_resolve)
-        lead_text = incident.lead ? "<@#{incident.lead.platform_user_id}>" : "Unassigned"
+        lead_text = incident.lead ? Mrkdwn.mention(incident.lead) : "Unassigned"
 
         title_line = "*#{postmortem.title}*"
         meta_line  = "Duration: #{duration_text}  |  Severity: #{incident.incident_severity.name}  |  Lead: #{lead_text}"

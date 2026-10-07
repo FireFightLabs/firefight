@@ -1,7 +1,7 @@
 import { Card } from "@/components/card";
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
-import { dashboardPath } from "@/lib/routes";
+import { dashboardPath, onboardingInstallPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { FounderAvatar } from "@/pages/onboarding/components/welcome/founder-avatar";
 import signatureUrl from "@/assets/uros-signature.png";
@@ -11,9 +11,11 @@ interface WelcomePageProps extends SharedProps {
   [key: string]: unknown;
   userName: string;
   workspaceName: string;
+  // A workspace created from a Slack sign-in goes on to connect that team.
+  connectSlack: boolean;
 }
 
-export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
+export default function Welcome({ userName, workspaceName, connectSlack }: WelcomePageProps) {
   const firstName = (userName?.trim().split(/\s+/)[0] ?? userName) || "there";
 
   return (
@@ -73,8 +75,8 @@ export default function Welcome({ userName, workspaceName }: WelcomePageProps) {
         </div>
 
         <Button asChild className="mt-4 w-full cursor-pointer">
-          <a href={dashboardPath()}>
-            Continue to {workspaceName}
+          <a href={connectSlack ? onboardingInstallPath() : dashboardPath()}>
+            {connectSlack ? "Connect Slack" : `Continue to ${workspaceName}`}
             <span aria-hidden="true" className="text-base">→</span>
           </a>
         </Button>

@@ -2,6 +2,7 @@ import { Link, usePage } from "@inertiajs/react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
+import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
 import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
 import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
@@ -25,6 +26,7 @@ interface InvestigationRunCardProps {
 export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps) {
   const { investigations, conversation } = usePage<AgentPageProps>().props
   const [ declaring, setDeclaring ] = useState(false)
+  const declareBlockedReason = useIncidentsBlockedReason()
   const run = investigations.find((candidate) => candidate.toolCallId === toolCallKey)
   if (!run || !conversation) {
     return null
@@ -75,9 +77,11 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
           </Button>
         )}
         {run.suggestsIncident && (
-          <Button size="sm" variant="primary" onClick={startDeclaring}>
-            Declare incident
-          </Button>
+          <IncidentsBlocked reason={declareBlockedReason}>
+            <Button size="sm" variant="primary" onClick={startDeclaring} disabled={Boolean(declareBlockedReason)}>
+              Declare incident
+            </Button>
+          </IncidentsBlocked>
         )}
         {run.incidentId && (
           <Link href={incidentPath(run.incidentId)} className="text-[12.5px] text-ink-2 hover:text-ink transition-colors duration-150">

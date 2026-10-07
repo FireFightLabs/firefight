@@ -1,7 +1,7 @@
 module Slack
   module Messages
     module Resolution
-      def self.build(incident, resolved_by_platform_user_id:)
+      def self.build(incident, resolved_by_platform_user_id:, resolved_by_name: nil)
         duration_text = Formatting.format_duration(incident.time_to_resolve)
         emoji = Formatting.severity_emoji(incident.incident_severity)
 
@@ -12,7 +12,7 @@ module Slack
           {
             type: "context",
             elements: [
-              { type: "mrkdwn", text: "Resolved by <@#{resolved_by_platform_user_id}>  |  #{emoji} #{incident.incident_severity.name}  |  Time to resolve: #{duration_text}" }
+              { type: "mrkdwn", text: "Resolved by #{Mrkdwn.person(resolved_by_platform_user_id, resolved_by_name)}  |  #{emoji} #{incident.incident_severity.name}  |  Time to resolve: #{duration_text}" }
             ]
           }
         ]
@@ -54,7 +54,7 @@ module Slack
         end
       end
 
-      def self.announcement_thread(incident, resolved_by_platform_user_id:)
+      def self.announcement_thread(incident, resolved_by_platform_user_id:, resolved_by_name: nil)
         duration_text = Formatting.format_duration(incident.time_to_resolve)
         emoji = Formatting.severity_emoji(incident.incident_severity)
 
@@ -62,7 +62,7 @@ module Slack
           { type: "header", text: { type: "plain_text", text: "Incident Resolved", emoji: true } },
           { type: "divider" },
           *summary_blocks(incident),
-          { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Resolved by: *<@#{resolved_by_platform_user_id}>*" } },
+          { type: "section", text: { type: "mrkdwn", text: ":bust_in_silhouette: Resolved by: #{Mrkdwn.person(resolved_by_platform_user_id, resolved_by_name, bold: true)}" } },
           { type: "section", text: { type: "mrkdwn", text: "#{emoji} Severity: *#{incident.incident_severity.name}*" } },
           { type: "section", text: { type: "mrkdwn", text: ":stopwatch: Time to resolve: *#{duration_text}*" } }
         ]

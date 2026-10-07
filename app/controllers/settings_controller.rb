@@ -58,10 +58,17 @@ class SettingsController < InertiaController
     }
   end
 
+  # Invitations wait on self-serve signup, since someone invited signs in again by email.
   def members
     render inertia: "settings/members", props: {
       members: WorkspaceMembershipSerializer.many(
         current_workspace.workspace_memberships.includes(:user).order(:joined_at)
+      ),
+      invitationsOffered: SignInMethods.self_serve?,
+      invitationUnavailableReason: WorkspaceInvitation.unavailable_reason,
+      invitationDays: LoginToken.lifetime(LoginToken::INVITE).in_days.to_i,
+      invitations: WorkspaceInvitationSerializer.many(
+        current_workspace.invitations.pending.includes(invited_by: :user).order(created_at: :desc)
       )
     }
   end

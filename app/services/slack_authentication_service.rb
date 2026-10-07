@@ -3,6 +3,10 @@
 class SlackAuthenticationService
   INVITE_REQUIRED_MESSAGE   = "Public beta access currently requires an invite code.".freeze
   WORKSPACE_MISMATCH_MESSAGE = "Workspace mismatch. Please sign in again with the workspace you want to connect.".freeze
+  TEAM_TAKEN_MESSAGE = "This Slack workspace is already connected to another Firefight workspace. Sign in with Slack to join it, or ask its admin to invite you.".freeze
+  CONNECT_FAILED_MESSAGE = "Only an admin of the Firefight workspace can connect Slack to it.".freeze
+  ALREADY_CONNECTED_MESSAGE = "This Firefight workspace is already connected to Slack.".freeze
+  CONNECTED_MESSAGE = "Slack is connected. Firefight is setting up your incidents channel.".freeze
   UNVERIFIED_EMAIL_MESSAGE = "Slack has not verified the email on your account. Verify it in Slack, then sign in again.".freeze
 
   # A Slack user id is only unique inside its team, so the team is part of the identity.
@@ -23,7 +27,7 @@ class SlackAuthenticationService
     return AuthOutcome.install_needed(user: user, team_id: team_id, team_name: team_name) if workspace.nil?
 
     membership = workspace.workspace_memberships.find_by(user: user)
-    return AuthOutcome.signed_in(membership: membership) if membership
+    return AuthOutcome.signed_in(membership: membership.link_platform_user!(auth_hash.uid)) if membership
 
     membership = WorkspaceMemberProvisioner.find_or_provision!(
       workspace:        workspace,
@@ -37,7 +41,8 @@ class SlackAuthenticationService
 
   # user comes from the prior OIDC sign-in, never the install auth_hash. pending_team_id must
   # match the auth_hash team, or someone could sign in to team A and install into team B past the invite gate.
-  def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil)
+  # connecting is a workspace that started without Slack and is being connected by one of its admins.
+  def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil, connecting: nil)
     team_id = auth_hash.extra.team_info["id"]
 
     if pending_team_id.present? && pending_team_id != team_id
@@ -48,6 +53,8 @@ class SlackAuthenticationService
       })
       return AuthOutcome.invite_required(message: WORKSPACE_MISMATCH_MESSAGE)
     end
+
+    return connect(auth_hash, connecting, user) if connecting
 
     existing_workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 
@@ -91,6 +98,24 @@ class SlackAuthenticationService
   end
 
   private
+
+  # One Slack team belongs to one Firefight workspace, so a team already here is refused rather than merged.
+  def connect(auth_hash, workspace, user)
+    team_id = auth_hash.extra.team_info["id"]
+    membership = user && workspace.workspace_memberships.find_by(user: user)
+    return AuthOutcome.refused(message: CONNECT_FAILED_MESSAGE) unless membership
+    return AuthOutcome.refused(message: TEAM_TAKEN_MESSAGE) if Workspace.where.not(id: workspace.id).exists?(platform: Platforms::SLACK, platform_id: team_id)
+
+    result = Workspace.process_slack_installation(auth_hash, user: user, workspace: workspace)
+    trigger_workspace_setup(result[:workspace], auth_hash.uid)
+    notify_install(result[:workspace], result[:membership])
+    AuthOutcome.signed_in(membership: result[:membership], message: CONNECTED_MESSAGE)
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    # Another workspace connected the same team a moment earlier.
+    AuthOutcome.refused(message: TEAM_TAKEN_MESSAGE)
+  rescue Workspace::ChatConnection::AlreadyConnected
+    AuthOutcome.refused(message: ALREADY_CONNECTED_MESSAGE)
+  end
 
   def claims_from(auth_hash)
     info = auth_hash.info
