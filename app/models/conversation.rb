@@ -47,6 +47,16 @@ class Conversation < ApplicationRecord
     end
   end
 
+  # From a platform thread, where no controller asked the gateway. A question spends money, so it is allowed and ledgered
+  # like one in the dashboard, but never held by an approval rule, since nothing in a thread could pick it up again.
+  # Raises AbilityGateway::Denied, and returns what the block returns.
+  def self.ask_from_thread!(asker:, workspace:, incident:, source:, &)
+    AbilityGateway.authorize!(
+      principal: asker, action_key: Ability::Action::INVESTIGATIONS_CREATE, workspace: workspace, holdable: false,
+      context: { source: source, incident_id: incident&.id }, &
+    )
+  end
+
   def self.start_personal!(workspace:, member:)
     limits = workspace.conversation_limits
     workspace.conversations.create!(

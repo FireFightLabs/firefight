@@ -218,6 +218,28 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     end
     assert_equal 0, @workspace.conversations.count
     assert_empty @incident.investigations
+    assert_equal Ability::Invocation::DECISION_DENY,
+                 @workspace.ability_invocations.find_by!(principal_id: bob.id, source: AbilityGateway::SOURCE_SLACK,
+                                                         action_key: Ability::Action::INVESTIGATIONS_CREATE).decision
+  end
+
+  test "a question to Halon in Slack is in Activity as whoever asked, and an approval rule never holds it" do
+    FeatureFlags.stubs(:enabled?).returns(true)
+    bob = workspace_memberships(:bob_workspace_one)
+    @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals").policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: PolicyRule::ApprovalConditions::FIELD_ACTION_KEY, operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ Ability::Action::INVESTIGATIONS_CREATE ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+    halon = Ability::Action.system!(Ability::Action::INVESTIGATIONS_CREATE)
+    assert AbilityGateway.approval_requirement(@workspace, halon, halon.key, {}, {}), "the rule would hold the dashboard"
+
+    assert_enqueued_with(job: ConversationReplyJob) { mention("what is going on", by: bob) }
+
+    asked = @workspace.ability_invocations.find_by!(principal_id: bob.id, action_key: Ability::Action::INVESTIGATIONS_CREATE)
+    assert_equal [ Ability::Invocation::DECISION_ALLOW, AbilityGateway::SOURCE_SLACK, @incident.id ], [ asked.decision, asked.source, asked.incident_id ]
+    assert asked.completed_at
+    assert_empty @workspace.ability_approvals
   end
 
   private

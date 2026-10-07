@@ -93,13 +93,16 @@ class WorkspaceMembership < ApplicationRecord
     resolved = Ability::Resolver.resolve(self, workspace_id)
     withheld = ability_grants.where(workspace_id: workspace_id).includes(:action).select(&:no_access?).index_by { |grant| grant.action.key }
     NARROWABLE_KEYS.map do |key|
-      state = if withheld.key?(key) then DEFAULT_NO_ACCESS
-              elsif resolved.granted_ever?(key) then DEFAULT_NARROWED
-              else DEFAULT_HELD
-              end
-      DefaultAccess.new(action: Ability::Action.system!(key), state: state, grant: withheld[key])
+      DefaultAccess.new(action: Ability::Action.system!(key), state: default_state(key, withheld, resolved), grant: withheld[key])
     end
   end
+
+  def default_state(key, withheld, resolved)
+    return DEFAULT_NO_ACCESS if withheld.key?(key)
+
+    resolved.granted_ever?(key) ? DEFAULT_NARROWED : DEFAULT_HELD
+  end
+  private :default_state
 
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }

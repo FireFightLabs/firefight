@@ -72,14 +72,9 @@ module Events
     end
     private_class_method :add_note
 
-    # Asking spends money, so it is the gateway's to allow and the ledger's to record, as in the dashboard and over MCP.
-    # Nothing in a thread could pick a question up again after an approval, so an approval rule never holds one.
     def self.answer_as_agent(workspace, incident, channel_id, thread_id, event, user_text)
       asker = Conversation::Opener.member(workspace, event["user"])
-      AbilityGateway.authorize!(
-        principal: asker, action_key: Ability::Action::INVESTIGATIONS_CREATE, workspace: workspace, holdable: false,
-        context: { source: AbilityGateway::SOURCE_SLACK, incident_id: incident&.id }
-      ) do
+      Conversation.ask_from_thread!(asker: asker, workspace: workspace, incident: incident, source: AbilityGateway::SOURCE_SLACK) do
         conversation = Conversation::Opener.call(
           workspace: workspace, incident: incident, channel_id: channel_id,
           thread_id: thread_id, platform_user_id: event["user"]
