@@ -135,6 +135,13 @@ module TypescriptConstants
       Export.new("CODE_FIX_OUTCOMES", {
         "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "PUSHED" => Chat::CodeFixProgress::OUTCOME_PUSHED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED
       }, nil),
+      Export.new("CODE_AGENT_QUESTION_STATUSES", {
+        "OPEN" => CodeAgentQuestion::STATUS_OPEN, "ANSWERED" => CodeAgentQuestion::STATUS_ANSWERED,
+        "EXPIRED" => CodeAgentQuestion::STATUS_EXPIRED, "WITHDRAWN" => CodeAgentQuestion::STATUS_WITHDRAWN
+      }, nil),
+      Export.new("CODE_CHECK_STATUSES", {
+        "PASSED" => Integrations::CodeChecks::PASSED, "FAILED" => Integrations::CodeChecks::FAILED, "TIMED_OUT" => Integrations::CodeChecks::TIMED_OUT
+      }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND
       }, nil),

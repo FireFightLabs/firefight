@@ -3,13 +3,14 @@ module Integrations
   class NativeExecutor
     # progress, when given, is called each time a long running tool has something to say, with a sentence or a
     # Chat::CodeFixProgress (NativePack#report).
+    # request, for a tool that writes code, is who asked and what they said (CodeAgent::Request).
     # A tool on a connection whose app installation stopped, or lacks what the tool needs, answers why instead of calling
     # the provider (Installations.refusal).
-    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil)
+    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
       refused = Installations.refusal(environment_row, tool)
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
 
-      pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress)
+      pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress, request: request)
       arguments = Scopes.resolved(environment_row, arguments.to_h)
       result = ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
       Redactions.apply(result, **Redactions.rules(tool.integration.provider))

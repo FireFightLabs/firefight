@@ -31,6 +31,15 @@ class AiProvidersTest < ActiveSupport::TestCase
     assert_equal %w[anthropic openai openrouter], AiProviders.all.select(&:code_fixes).map(&:slug).sort
   end
 
+  test "an env var replaces a provider's code fix model, and the registry's pick stands without one" do
+    entry = YAML.load_file(AiProviders::REGISTRY_PATH).fetch("anthropic")
+    assert_equal "claude-opus-5-5", AiProviders.send(:build, "anthropic", entry).code_fix_model
+
+    ENV.stubs(:[]).returns(nil)
+    ENV.stubs(:[]).with("ANTHROPIC_CODE_FIX_MODEL").returns("claude-sonnet-5-5")
+    assert_equal "claude-sonnet-5-5", AiProviders.send(:build, "anthropic", entry).code_fix_model
+  end
+
   test "Sign in with ChatGPT is offered only behind its flag, and only once every address it needs is set" do
     workspace = workspaces(:slack_workspace_one)
     env = { "CHATGPT_OAUTH_CLIENT_ID" => "client", "CHATGPT_OAUTH_AUTHORIZE_URL" => "https://auth.example.com/authorize",

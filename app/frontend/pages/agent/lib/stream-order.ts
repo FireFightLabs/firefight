@@ -92,6 +92,7 @@ function stepOf(event: StreamEvent): AgentStep {
     card: event.card ?? null,
     outcome: event.outcome ?? null,
     progress: event.progress ?? null,
+    questionBlockedReason: null,
   }
 }
 

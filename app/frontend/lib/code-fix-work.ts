@@ -1,4 +1,4 @@
-import { CODE_FIX_LINE_RESULTS, CODE_FIX_OUTCOMES } from "@/lib/generated/constants"
+import { CODE_AGENT_QUESTION_STATUSES, CODE_CHECK_STATUSES, CODE_FIX_LINE_RESULTS, CODE_FIX_OUTCOMES } from "@/lib/generated/constants"
 import type { InvestigationRemediationStep } from "@/types/serializers"
 
 // What a coding agent writing a change has done so far, the same shape on a chat step and on a fix step.
@@ -6,6 +6,9 @@ export type CodeFixWork = NonNullable<InvestigationRemediationStep["progress"]>
 export type CodeFixLine = CodeFixWork["lines"][number]
 export type CodeFixTest = CodeFixWork["tests"][number]
 export type CodeFixFile = CodeFixWork["files"][number]
+export type CodeFixQuestion = NonNullable<CodeFixWork["question"]>
+export type CodeFixReview = NonNullable<CodeFixWork["review"]>
+export type CodeFixCheck = CodeFixWork["checks"][number]
 
 // The newest lines show while it works, and the earlier ones open on request.
 export const LINES_SHOWN = 5
@@ -68,4 +71,21 @@ export function stepsWord(count: number): string {
 
 export function filesWord(count: number): string {
   return count === 1 ? "1 file" : `${count} files`
+}
+
+// The agent asked and is waiting, so the person can answer it here.
+export function questionOpen(question: CodeFixQuestion): boolean {
+  return question.status === CODE_AGENT_QUESTION_STATUSES.OPEN
+}
+
+export function questionAnswered(question: CodeFixQuestion): boolean {
+  return question.status === CODE_AGENT_QUESTION_STATUSES.ANSWERED
+}
+
+export function questionExpired(question: CodeFixQuestion): boolean {
+  return question.status === CODE_AGENT_QUESTION_STATUSES.EXPIRED
+}
+
+export function checkPassed(check: CodeFixCheck): boolean {
+  return check.status === CODE_CHECK_STATUSES.PASSED
 }

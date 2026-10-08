@@ -353,6 +353,7 @@ Rails.application.routes.draw do
     post "/investigations/:id/fix/steps/:step_id/ask_again", to: "investigations#ask_fix_step_again", as: :investigation_fix_step_ask_again
     post "/investigations/:id/fix/undo", to: "investigations#undo_fix", as: :investigation_fix_undo
     post "/investigations/:id/fix/cancel", to: "investigations#cancel_fix", as: :investigation_fix_cancel
+    post "/code-agent-questions/:id/answer", to: "code_agent_questions#answer", as: :code_agent_question_answer
     get "/halon/performance", to: "halon_performance#show", as: :halon_performance
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"

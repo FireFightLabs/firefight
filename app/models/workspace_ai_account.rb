@@ -110,8 +110,10 @@ class WorkspaceAiAccount < ApplicationRecord
   end
 
   # The model and payer for a call with the purpose, on this account.
+  # A code fix runs on the model the provider recommends for code when the registry can price it, and on the main
+  # model otherwise.
   def choice_for(purpose)
-    model = model_for(AiPurpose.quick?(purpose) ? FAST : MAIN)
+    model = (provider_definition&.code_fix_model_ready if purpose == AiPurpose::CODE_FIX) || model_for(AiPurpose.quick?(purpose) ? FAST : MAIN)
     FirefightAi::ModelChoice.new(model: model, provider: provider, context: llm_context, payer: AiPayer.account(self))
   end
 
