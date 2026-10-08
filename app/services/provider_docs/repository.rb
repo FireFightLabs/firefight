@@ -6,10 +6,11 @@ module ProviderDocs
     RAW = "https://raw.githubusercontent.com".freeze
     REF = "HEAD".freeze
 
-    def initialize(definition, client:, revisions:)
+    def initialize(definition, client:, revisions:, progress:)
       @definition = definition
       @client = client
       @revisions = revisions
+      @progress = progress
     end
 
     def read
@@ -21,18 +22,26 @@ module ProviderDocs
       wanted = pages_in(blobs)
       failed = {}
       too_large = []
+      @progress.listed(wanted.size)
       pages = wanted.filter_map do |path, from|
         sha = blobs.fetch(from)
-        next Fetched.new(path: path, url: page_url(from), content: nil, revision: sha) if @revisions[path] == sha
+        if @revisions[path] == sha
+          @progress.page(:unchanged)
+          next Fetched.new(path: path, url: page_url(from), content: nil, revision: sha)
+        end
 
-        Fetched.new(path: path, url: page_url(from), content: @client.file(raw(from)).body, revision: sha)
+        content = @client.file(raw(from)).body
+        @progress.page(:changed)
+        Fetched.new(path: path, url: page_url(from), content: content, revision: sha)
       rescue DocsClient::RateLimited
         raise
       rescue DocsClient::TooLarge
         too_large << path
+        @progress.page(:left_out)
         nil
       rescue DocsClient::Error => error
         failed[path] = error.message
+        @progress.page(:failed)
         nil
       end
       Reading.new(pages: pages, listed: wanted.keys - too_large, failed: failed, version: "#{REF} tree #{tree['sha'].to_s.first(12)}", license: license(blobs))

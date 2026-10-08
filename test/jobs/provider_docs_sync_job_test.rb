@@ -31,6 +31,16 @@ class ProviderDocsSyncJobTest < ActiveSupport::TestCase
     ProviderDocsSyncJob.perform_now(true)
   end
 
+  test "a named source is read alone" do
+    read = []
+    ProviderDocs::Sync.stubs(:run!).with { |definition, **| read << definition.key }.returns(ProviderDocSource.new)
+    ProviderDocs::Embedding.stubs(:run!).returns(0)
+
+    ProviderDocsSyncJob.perform_now(source: "northflank_docs")
+
+    assert_equal [ "northflank_docs" ], read
+  end
+
   test "an embedding model that cannot be reached leaves the store searched by its words" do
     ProviderDocs::Sync.stubs(:run!).returns(ProviderDocSource.new)
     ProviderDocs::Embedding.stubs(:run!).raises(FirefightAi::TerminalError.new("no key", reason: "ConfigurationError"))

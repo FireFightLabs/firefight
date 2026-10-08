@@ -5,7 +5,8 @@ module ProviderDocs
   module Embedding
     BATCH = 100
 
-    def self.run!(model: FirefightAi.embedding_model)
+    def self.run!(model: FirefightAi.embedding_model, progress: Progress.new)
+      progress.embedding_started(ProviderDocChunk.unembedded(model).count)
       written = 0
       ProviderDocChunk.unembedded(model).find_in_batches(batch_size: BATCH) do |chunks|
         vectors, used = FirefightAi.embed_documents(chunks.map { |chunk| text_for(chunk) })
@@ -13,7 +14,9 @@ module ProviderDocs
           chunk.update_columns(embedding: vector, embedding_model: used, embedded_digest: chunk.content_digest)
         end
         written += chunks.size
+        progress.embedded(written)
       end
+      progress.embedding_finished(written)
       written
     end
 

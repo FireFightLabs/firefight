@@ -5,10 +5,11 @@ module ProviderDocs
   class Index
     LINK = /\]\((?<url>https:[^)\s]+)\)/
 
-    def initialize(definition, client:, revisions:)
+    def initialize(definition, client:, revisions:, progress:)
       @definition = definition
       @client = client
       @revisions = revisions
+      @progress = progress
     end
 
     def read
@@ -20,7 +21,7 @@ module ProviderDocs
       end
       raise DocsClient::Error, "#{@definition.address} lists no pages under #{under}" if wanted.empty?
 
-      Pages.read(wanted, client: @client, revisions: @revisions, license: @definition["license"])
+      Pages.read(wanted, client: @client, revisions: @revisions, license: @definition["license"], progress: @progress)
     end
   end
 end

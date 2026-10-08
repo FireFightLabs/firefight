@@ -6,10 +6,11 @@ module ProviderDocs
     REGISTRY = "https://registry.npmjs.org".freeze
     SCRIPT = Rails.root.join("script/provider_docs/api_client_endpoints.mjs")
 
-    def initialize(definition, client:, revisions:, version: nil)
+    def initialize(definition, client:, revisions:, progress:, version: nil)
       @definition = definition
       @client = client
       @revisions = revisions
+      @progress = progress
       @version = version
     end
 
@@ -18,6 +19,7 @@ module ProviderDocs
       latest = @client.json("#{REGISTRY}/#{package.sub('/', '%2F')}/latest").fetch("version")
       url = "https://www.npmjs.com/package/#{package}/v/#{latest}"
       if latest == @version && @revisions.any?
+        @progress.listed(@revisions.size)
         return Reading.new(pages: @revisions.keys.map { |path| Fetched.new(path: path, url: url, content: nil, revision: latest) }, listed: @revisions.keys, version: latest)
       end
 
@@ -34,6 +36,8 @@ module ProviderDocs
           Fetched.new(path: path, url: url, content: File.read(file), revision: latest)
         end
         raise DocsClient::Error, "#{package} #{latest} defines no endpoints" if pages.empty?
+
+        @progress.listed(pages.size)
 
         license = File.read(File.join(install, "node_modules", package, @definition.fetch("license")))
         Reading.new(pages: pages, listed: pages.map(&:path), version: latest, license: license)

@@ -1,36 +1,6 @@
 require "test_helper"
 
 class ProviderDocs::SyncTest < ActiveSupport::TestCase
-  # Answers like the web would, from a table of address to text. An address answering :gone is a 404, :down cannot be
-  # reached, and :unchanged a 304 for the revision it was asked with.
-  class FakeWeb
-    attr_reader :asked
-
-    def initialize(answers)
-      @answers = answers
-      @asked = []
-    end
-
-    def page(url, revision: nil) = answer(url, revision)
-
-    def file(url, revision: nil, headers: {}) = answer(url, revision)
-
-    def json(url, headers: {}) = JSON.parse(answer(url, nil).body)
-
-    private
-
-    def answer(url, revision)
-      @asked << url
-      found = @answers.fetch(url) { raise DocsClient::NotFound, "#{url} answered 404" }
-      raise DocsClient::NotFound, "#{url} answered 404" if found == :gone
-      raise DocsClient::Error, "could not reach #{URI.parse(url).host}" if found == :down
-      raise DocsClient::TooLarge, "#{url} is larger than 3 MB" if found == :huge
-      return DocsClient::Answer.new(body: nil, revision: revision, url: url) if found == :unchanged
-
-      DocsClient::Answer.new(body: found, revision: "\"#{Digest::SHA1.hexdigest(found)}\"", url: url)
-    end
-  end
-
   INDEX = "https://docs.example.com/llms.txt".freeze
 
   setup do
@@ -110,6 +80,29 @@ class ProviderDocs::SyncTest < ActiveSupport::TestCase
     again = FakeWeb.new("https://api.github.com/repos/planetscale/database-skills/git/trees/HEAD?recursive=1" => tree.call("s1"), "#{raw}/LICENSE" => "MIT License")
     ProviderDocs::Sync.run!(definition, client: again)
     assert_not_includes again.asked, "#{raw}/skills/postgres/references/locks.md"
+  end
+
+  test "reading a source reports how many pages it lists, what it skipped and failed, and the chunks it wrote" do
+    ProviderDocs::Sync.run!(@definition, client: FakeWeb.new(INDEX => index("workflows", "builds"), page("workflows") => "# Workflows", page("builds") => "# Builds"))
+    out = StringIO.new
+    progress = ProviderDocs::Progress.new(out: out)
+    progress.started([ "northflank_docs" ])
+
+    ProviderDocs::Sync.run!(@definition, progress: progress, client: FakeWeb.new(INDEX => index("workflows", "builds", "runs"), page("workflows") => :unchanged,
+                                                                                 page("builds") => :down, page("runs") => "# Runs\n\n## One\n\nA.\n\n## Two\n\nB."))
+
+    assert_includes out.string, "northflank_docs  reading 3 pages\n"
+    assert_match(/northflank_docs  done, 3 pages, 2 chunks written \(1 unchanged, 1 failed\) in \d+s/, out.string)
+  end
+
+  test "a source that cannot be read reports why" do
+    out = StringIO.new
+    progress = ProviderDocs::Progress.new(out: out)
+    progress.started([ "northflank_docs" ])
+
+    assert_raises(DocsClient::Error) { ProviderDocs::Sync.run!(@definition, progress: progress, client: FakeWeb.new(INDEX => :down)) }
+
+    assert_includes out.string, "northflank_docs  could not be read: could not reach docs.example.com"
   end
 
   private
