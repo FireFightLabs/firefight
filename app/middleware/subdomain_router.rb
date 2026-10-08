@@ -3,8 +3,9 @@ class SubdomainRouter
 
   # MCP and the OAuth provider live on the app host because authorize signs in through the
   # dashboard with a host-only cookie, and discovery documents advertise the host that served them.
+  # A code sandbox reaches its model through /code_agent at APP_HOST.
   APP_EXACT    = %w[/ /login /logout].freeze
-  APP_PREFIXES = %w[/app /auth /rails /vite /invite-code /onboarding /mcp /oauth /.well-known].freeze
+  APP_PREFIXES = %w[/app /auth /rails /vite /invite-code /onboarding /signup /mcp /oauth /.well-known /operator /code_agent].freeze
 
   SLACK_EXACT = %w[/api/v1/commands /api/v1/events /api/v1/interactions].freeze
 
