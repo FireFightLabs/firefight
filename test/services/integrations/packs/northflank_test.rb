@@ -10,6 +10,7 @@ module Integrations
         Northflank.store_credentials!(@row, Northflank::API_TOKEN => " nf-token ")
         @row.store_fields!(Northflank::PROJECT => "firefight")
         @pack = Northflank.new(@integration)
+        store_doc_page(provider: "northflank", path: "api/project/services.md", content: file_fixture("provider_docs/northflank_services.md").read)
         NorthflankApi.any_instance.stubs(:services).returns(listed([
           { "id" => "web", "name" => "web", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/web",
             "status" => { "deployment" => { "status" => "COMPLETED" } } }

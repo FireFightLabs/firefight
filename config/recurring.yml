@@ -81,6 +81,10 @@ development:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
     schedule: at 4am every day
+  provider_docs_sync:
+    class: ProviderDocsSyncJob # reads each provider's documentation into the docs store Halon searches, and embeds what changed
+    queue: background
+    schedule: at 3am every day
   refresh_model_registry:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
@@ -199,6 +203,10 @@ staging:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
     schedule: at 4am every day
+  provider_docs_sync:
+    class: ProviderDocsSyncJob # reads each provider's documentation into the docs store Halon searches, and embeds what changed
+    queue: background
+    schedule: at 3am every day
   refresh_model_registry:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background
@@ -317,6 +325,10 @@ production:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
     schedule: at 4am every day
+  provider_docs_sync:
+    class: ProviderDocsSyncJob # reads each provider's documentation into the docs store Halon searches, and embeds what changed
+    queue: background
+    schedule: at 3am every day
   refresh_model_registry:
     class: RefreshModelRegistryJob # pulls model prices and new models into ruby_llm_models, which nothing else updates
     queue: background

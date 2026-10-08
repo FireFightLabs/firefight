@@ -7,32 +7,38 @@ class Chat::Skill
   DIRECTORY = Rails.root.join("config/skills")
   FRONT_MATTER = /\A---\n(.*?)\n---\n(.*)\z/m
   SOURCE_FIREFIGHT = "firefight".freeze
-  # A provider's own guides, kept under config/skills/<source>/references/ with their license and where they came from.
-  # A skill lists the ones that help it, and the agent reads one when it needs the detail.
-  REFERENCES = "references".freeze
 
-  # A provider's skill names its tools as the provider does, and its domain is the provider's category.
+  # A provider's skill names its tools as the provider does, and its domain is the provider's category. references are
+  # pages of the provider's documentation in the docs store (ProviderDocPage), by their path within the provider. A skill
+  # lists the ones that help it, and the agent reads one when it needs the detail.
   Definition = Data.define(:name, :source, :domain, :used_when, :tools, :steps, :references) do
     def firefight? = source == SOURCE_FIREFIGHT
   end
 
   class << self
     def all
-      @all ||= Dir[DIRECTORY.join("*/*/*.md")].sort.reject { |path| File.basename(File.dirname(path)) == REFERENCES }
-                                              .map { |path| parse(path) }.freeze
+      @all ||= Dir[DIRECTORY.join("*/*/*.md")].sort.map { |path| parse(path) }.freeze
     end
 
-    # Every guide a source keeps, by its path under that source's references folder.
-    def references_of(source)
-      root = DIRECTORY.join(source.to_s, REFERENCES)
-      Dir[root.join("**/*.md")].sort.map { |path| Pathname(path).relative_path_from(root).to_s }
-    end
+    # Every page of a source's documentation the docs store holds, by its path.
+    def references_of(source) = ProviderDocPage.paths_of(source)
 
-    # Only a path the source actually keeps is read, so nothing outside its folder can be named.
+    # The page, with where it came from first so whatever is used from it is cited to its source, or nil when the store
+    # does not hold it. Only a page the store holds can be named, so nothing else can be read.
     def reference(source, path)
-      return nil unless references_of(source).include?(path.to_s)
+      page = ProviderDocPage.named(source, path)
+      page && "#{page.attribution}\n\n#{page.content}"
+    end
 
-      File.read(DIRECTORY.join(source.to_s, REFERENCES, path.to_s))
+    # Whether the source's documentation has been read into the store at all, so a missing page is told apart from
+    # documentation that is not available here yet, such as on a fresh install with no network.
+    def documentation?(source) = ProviderDocSource.read_for?(source)
+
+    # Every guide a skill lists that its provider's documentation, once read, does not hold, as skill => paths.
+    def missing_references
+      all.select { |skill| skill.references.any? && documentation?(skill.source) }.to_h do |skill|
+        [ skill.name, skill.references - references_of(skill.source) ]
+      end.reject { |_name, paths| paths.empty? }
     end
 
     def find(name) = all.find { |skill| skill.name == name.to_s }

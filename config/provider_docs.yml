@@ -1,0 +1,555 @@
+# Where each provider's documentation is read from. ProviderDocsSyncJob reads every source once a day into the docs store
+# (provider_doc_pages and their chunks), and Halon reads and searches it there. Nothing here is copied into the
+# repository. A source's key names it, and its provider is the key unless it says. Its pages are named by their path
+# within the provider, under the source's to: folder when it has one, which is what a skill lists under references.
+#
+# A source is one of four kinds.
+#
+# A GitHub repository, read through GitHub's tree and raw files, so a file that did not change is not read again:
+#   repository  https://github.com/<owner>/<name>
+#   license     the license file's path, read with the pages (optional)
+#   notice      the NOTICE file's path, for a license that asks for it to travel with a copy (optional)
+#   paths       from => to. A folder reads each page in it into to/ (its subfolders too when recursive is true), and a
+#               file reads into the path to names
+#   extensions  the pages' extensions in folders, md unless it says (such as [md, mdx]). Each is named .md
+#   exclude     paths in the repository to leave out (optional)
+#
+# A documentation site whose pages are served as markdown:
+#   site        the site's address
+#   license     the license, in words
+#   pages       path => page, each read at page_url
+#   page_url    where a page's markdown is, as a format of site and page, %<site>s/%<page>s/index.md unless it says
+#
+# A documentation site that publishes an index of its markdown pages, such as an llms.txt:
+#   index       the index's address
+#   under       the address every page listed is read from, and only links under it are read
+#   suffix      what each page's address ends with, such as .md
+#   license     the license, in words (optional)
+#   to          the folder its pages are named under
+#
+# An API client published on npm, whose endpoints are written out as pages, for a provider whose API reference is
+# clearest in its client:
+#   package      the package's name
+#   license      the license file's path in the package
+#   endpoints    the folder the pages go to, where index.md lists every endpoint and a page for each area the detail
+#   relative_to  the path the provider's tool writes paths after, such as /v1/projects/{projectId}/
+#   leave_out    path parameters whose variant of each path is left out, such as a team scoped copy (optional)
+# The client is loaded by script/provider_docs/api_client_endpoints.mjs under Node's permission model, reading only the
+# folder it is installed in and writing only the pages, with no environment.
+planetscale:
+  repository: https://github.com/planetscale/database-skills
+  license: LICENSE
+  paths:
+    skills/postgres/references: postgres
+    skills/mysql/references: mysql
+    skills/vitess/references: vitess
+
+# New Relic's agent skills are Apache 2.0. Its documentation is CC BY-NC-SA, which a product cannot copy, so what the
+# New Relic skills take from it is in our own words.
+newrelic:
+  repository: https://github.com/newrelic/nr-skills-hub
+  license: LICENSE
+  notice: NOTICE
+  paths:
+    skills/nl2-nrql: nrql
+    skills/apm-error-investigation: errors
+    skills/discover-trace: traces
+
+render:
+  repository: https://github.com/render-oss/skills
+  license: LICENSE
+  paths:
+    skills/render-debug/references: debug
+    skills/render-monitor/references: monitor
+    skills/render-postgres/references: postgres
+    skills/render-keyvalue/references: keyvalue
+
+# Railway's documentation is MIT licensed. Its pages on deployments, networking troubleshooting and observability back
+# the Railway skills.
+railway:
+  repository: https://github.com/railwayapp/docs
+  license: LICENSE
+  paths:
+    content/docs/deployments: deployments
+    content/docs/deployments/troubleshooting: deployments/troubleshooting
+    content/docs/networking/troubleshooting: networking
+    content/docs/observability: observability
+
+# Northflank's API client is MIT licensed and defines every endpoint of Northflank's API. So the endpoints are written out
+# from it, with which calls exist, their paths inside the project as api_request takes them, and the body each needs.
+northflank:
+  package: "@northflank/js-client"
+  license: LICENSE
+  endpoints: api
+  relative_to: "/v1/projects/{projectId}/"
+  leave_out: [ teamId ]
+
+# Northflank's product documentation, every page of it as the markdown Northflank publishes at <page>.md and lists in its
+# llms.txt: workflows and their triggers, webhooks, builds, deployments, networking and the rest.
+northflank_docs:
+  provider: northflank
+  index: https://northflank.com/docs/llms.txt
+  under: https://northflank.com/docs/v1/
+  suffix: .md
+  to: docs
+
+# Northflank's own agent skill and the references it carries.
+northflank_skills:
+  provider: northflank
+  repository: https://github.com/northflank/skills
+  paths:
+    skills/northflank: skills
+  recursive: true
+
+# Cloudflare's documentation is CC BY 4.0. Each page is read as the markdown Cloudflare serves at its index.md.
+cloudflare:
+  site: https://developers.cloudflare.com
+  license: |
+    These guides are pages of Cloudflare's developer documentation (https://developers.cloudflare.com), copied
+    unchanged from the markdown Cloudflare publishes for each page. They are licensed under the Creative Commons
+    Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright Cloudflare, Inc.
+  pages:
+    mcp/cloudflare-api-mcp.md: agents/model-context-protocol/cloudflare/servers-for-cloudflare
+    api/limits.md: fundamentals/api/reference/limits
+    security/ip-access-rules.md: waf/tools/ip-access-rules
+    security/ip-access-rules-create.md: waf/tools/ip-access-rules/create
+    security/ip-access-rules-actions.md: waf/tools/ip-access-rules/actions
+    security/ip-access-rules-parameters.md: waf/tools/ip-access-rules/parameters
+    security/custom-rules.md: waf/custom-rules
+    security/custom-rules-create-api.md: waf/custom-rules/create-api
+    security/block-countries.md: waf/custom-rules/use-cases/block-traffic-from-specific-countries
+    security/allowlist-only.md: waf/custom-rules/use-cases/allow-traffic-from-ips-in-allowlist
+    security/rate-limiting-rules.md: waf/rate-limiting-rules
+    security/rate-limiting-rules-create-api.md: waf/rate-limiting-rules/create-api
+    security/lists.md: waf/tools/lists
+    security/lists-api-endpoints.md: waf/tools/lists/lists-api/endpoints
+    security/security-level.md: waf/tools/security-level
+    security/under-attack-mode.md: fundamentals/reference/under-attack-mode
+    security/under-ddos-attack.md: fundamentals/security/under-ddos-attack
+    security/security-events.md: waf/analytics/security-events
+    security/querying-firewall-events.md: analytics/graphql-api/tutorials/querying-firewall-events
+    errors/cloudflare-5xx-errors.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors
+    errors/error-502-504.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502-504
+    errors/error-520.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-520
+    errors/error-521.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-521
+    errors/error-522.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522
+    errors/error-524.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-524
+    errors/error-525.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-525
+    errors/error-526.md: support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-526
+    cache/purge-cache.md: cache/how-to/purge-cache
+    cache/purge-by-single-file.md: cache/how-to/purge-cache/purge-by-single-file
+    cache/purge-by-prefix.md: cache/how-to/purge-cache/purge_by_prefix
+    cache/purge-by-hostname.md: cache/how-to/purge-cache/purge-by-hostname
+    cache/purge-everything.md: cache/how-to/purge-cache/purge-everything
+    cache/investigating-uncached-responses.md: cache/troubleshooting/investigating-uncached-responses
+    dns/dns-records.md: dns/manage-dns-records
+    dns/create-dns-records.md: dns/manage-dns-records/how-to/create-dns-records
+    origin/protect-your-origin-server.md: fundamentals/security/protect-your-origin-server
+    origin/traffic-flow.md: fundamentals/concepts/traffic-flow-cloudflare
+    analytics/graphql-querying-basics.md: analytics/graphql-api/getting-started/querying-basics
+    rules/expressions.md: ruleset-engine/rules-language/expressions
+    rules/operators.md: ruleset-engine/rules-language/operators
+    rules/values.md: ruleset-engine/rules-language/values
+    rules/edit-expressions.md: ruleset-engine/rules-language/expressions/edit-expressions
+
+# Kubernetes' documentation is CC BY 4.0. Each page is read as the markdown the site is built from, in the
+# kubernetes/website repository, rather than cloning a repository that holds every translation and image.
+kubernetes:
+  site: https://raw.githubusercontent.com/kubernetes/website/main/content/en/docs
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of the Kubernetes documentation (https://kubernetes.io/docs), copied unchanged from the
+    markdown the site is built from, in https://github.com/kubernetes/website. They are licensed under the Creative
+    Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright The
+    Kubernetes Authors.
+  pages:
+    debug/debug-pods.md: tasks/debug/debug-application/debug-pods
+    debug/debug-running-pod.md: tasks/debug/debug-application/debug-running-pod
+    debug/determine-reason-pod-failure.md: tasks/debug/debug-application/determine-reason-pod-failure
+    debug/debug-service.md: tasks/debug/debug-application/debug-service
+    debug/debug-statefulset.md: tasks/debug/debug-application/debug-statefulset
+    workloads/pod-lifecycle.md: concepts/workloads/pods/pod-lifecycle
+    workloads/deployment.md: concepts/workloads/controllers/deployment
+    workloads/statefulset.md: concepts/workloads/controllers/statefulset
+    workloads/daemonset.md: concepts/workloads/controllers/daemonset
+    workloads/rollback-daemon-set.md: tasks/manage-daemon/rollback-daemon-set
+    workloads/scale-stateful-set.md: tasks/run-application/scale-stateful-set
+    workloads/job.md: concepts/workloads/controllers/job
+    workloads/cron-jobs.md: concepts/workloads/controllers/cron-jobs
+    workloads/horizontal-pod-autoscale.md: concepts/workloads/autoscaling/horizontal-pod-autoscale
+    configuration/probes.md: tasks/configure-pod-container/configure-liveness-readiness-startup-probes
+    configuration/manage-resources-containers.md: concepts/configuration/manage-resources-containers
+    configuration/images.md: concepts/containers/images
+    scheduling/assign-pod-node.md: concepts/scheduling-eviction/assign-pod-node
+    scheduling/taint-and-toleration.md: concepts/scheduling-eviction/taint-and-toleration
+    scheduling/node-pressure-eviction.md: concepts/scheduling-eviction/node-pressure-eviction
+    networking/ingress.md: concepts/services-networking/ingress
+    metrics/resource-metrics-pipeline.md: tasks/debug/debug-cluster/resource-metrics-pipeline
+    access/rbac.md: reference/access-authn-authz/rbac
+
+# Grafana's MCP server documents its own tools under Apache 2.0. Grafana's, Loki's and Tempo's own documentation is AGPL,
+# so what the Grafana skills take from it is written in our own words. The guide to Grafana's incident product is left
+# out, since Halon runs incidents in Firefight.
+grafana:
+  repository: https://github.com/grafana/mcp-grafana
+  license: LICENSE
+  paths:
+    docs/sources/guides: guides
+    docs/sources/reference: reference
+    docs/sources/troubleshooting: troubleshooting
+  exclude:
+    - docs/sources/guides/use-grafana-incident.md
+
+# Netlify's agent guides are MIT, in netlify/context-and-tools.
+netlify:
+  repository: https://github.com/netlify/context-and-tools
+  license: LICENSE
+  paths:
+    agent-plugin/skills/netlify-deploy/references: deploy
+    agent-plugin/skills/netlify-config: config
+    agent-plugin/skills/netlify-caching: caching
+    agent-plugin/skills/netlify-functions: functions
+
+# Convex's agent skills are Apache 2.0. Its documentation is FSL-1.1-Apache-2.0, which is not an open licence, so none of
+# it is copied. The skills that recommend Convex as the backend for new work are left out.
+convex:
+  repository: https://github.com/get-convex/agent-skills
+  license: LICENSE
+  paths:
+    skills/convex-insights: insights
+    skills/convex-advisor: advisor
+
+# Trigger.dev's documentation lives in its Apache 2.0 repository as .mdx pages, each named by the .md path given.
+trigger_dev:
+  repository: https://github.com/triggerdotdev/trigger.dev
+  license: LICENSE
+  paths:
+    docs/runs.mdx: runs.md
+    docs/errors-retrying.mdx: errors-retrying.md
+    docs/queues.mdx: queues.md
+    docs/concurrency.mdx: concurrency.md
+    docs/deployment/overview.mdx: deployment.md
+    docs/logging.mdx: logging.md
+    docs/machines.mdx: machines.md
+    docs/runs/max-duration.mdx: max-duration.md
+    docs/troubleshooting.mdx: troubleshooting.md
+    docs/limits.mdx: limits.md
+
+# DigitalOcean's App Platform agent guides are MIT, in digitalocean-labs/do-app-platform-skills. Its product
+# documentation states no open licence, so none of it is copied.
+digitalocean:
+  repository: https://github.com/digitalocean-labs/do-app-platform-skills
+  license: LICENSE
+  paths:
+    skills/troubleshooting/reference: troubleshooting
+    shared: shared
+    skills/postgres/reference: postgres
+    skills/managed-db-services/reference: databases
+    skills/networking/reference: networking
+
+# AWS's agent guides are Apache 2.0, from the skills in AWS's Agent Toolkit repository. Each folder is one guide's
+# references: ECS and containers, EC2, Lambda and serverless, CloudWatch, Lambda timeouts, failing applications and RDS.
+aws:
+  repository: https://github.com/aws/agent-toolkit-for-aws
+  license: LICENSE
+  notice: NOTICE
+  paths:
+    skills/core-skills/aws-containers/references: containers
+    skills/core-skills/aws-compute/references: compute
+    skills/core-skills/aws-serverless/references: serverless
+    skills/core-skills/aws-observability/references/cloudwatch: cloudwatch
+    skills/specialized-skills/serverless-skills/debugging-lambda-timeouts/references: lambda-timeouts
+    skills/specialized-skills/operations-skills/troubleshooting-application-failures/references: application-failures
+    skills/specialized-skills/database-skills/rds-oss/references: rds
+
+# Google Cloud's documentation is CC BY 4.0. Each page is read as the markdown Google serves at the page's address
+# followed by .md.txt.
+google_cloud:
+  site: https://docs.cloud.google.com
+  page_url: "%<site>s/%<page>s.md.txt"
+  license: |
+    These guides are pages of Google Cloud's documentation (https://docs.cloud.google.com), copied unchanged from the
+    markdown Google publishes for each page. Except as otherwise noted on a page, they are licensed under the Creative
+    Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/, and their code samples
+    under the Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Google LLC.
+  pages:
+    run/troubleshooting.md: run/docs/troubleshooting
+    run/rollouts-rollbacks-traffic-migration.md: run/docs/rollouts-rollbacks-traffic-migration
+    run/managing-revisions.md: run/docs/managing/revisions
+    run/min-instances.md: run/docs/configuring/min-instances
+    run/max-instances.md: run/docs/configuring/max-instances
+    run/container-contract.md: run/docs/container-contract
+    run/health-checks.md: run/docs/configuring/healthchecks
+    run/logging.md: run/docs/logging
+    run/monitoring.md: run/docs/monitoring
+    sql/postgres-diagnose-issues.md: sql/docs/postgres/diagnose-issues
+    sql/mysql-diagnose-issues.md: sql/docs/mysql/diagnose-issues
+    sql/postgres-manage-connections.md: sql/docs/postgres/manage-connections
+    sql/postgres-system-insights.md: sql/docs/postgres/use-system-insights
+    sql/postgres-start-stop-restart.md: sql/docs/postgres/start-stop-restart-instance
+    sql/mysql-start-stop-restart.md: sql/docs/mysql/start-stop-restart-instance
+    compute/vm-startup.md: compute/docs/troubleshooting/vm-startup
+    compute/serial-console.md: compute/docs/troubleshooting/troubleshooting-using-serial-console
+    compute/reset-instance.md: compute/docs/instances/reset-instance
+    gke/troubleshooting.md: kubernetes-engine/docs/troubleshooting
+    gke/crashloopbackoff.md: kubernetes-engine/docs/troubleshooting/crashloopbackoff-events
+    logging/logging-query-language.md: logging/docs/view/logging-query-language
+    errors/viewing-errors.md: error-reporting/docs/viewing-errors
+
+# Microsoft's Azure documentation is CC BY 4.0. Each page is read as the markdown source Microsoft publishes on GitHub
+# (MicrosoftDocs/azure-docs, azure-monitor-docs and sql-docs). PostgreSQL flexible server's documentation has no public
+# source, so its skill is in our own words.
+azure:
+  site: https://raw.githubusercontent.com/MicrosoftDocs
+  page_url: "%<site>s/%<page>s"
+  license: |
+    These guides are pages of Microsoft's Azure documentation (https://learn.microsoft.com/azure), copied unchanged from
+    the markdown sources Microsoft publishes in its MicrosoftDocs repositories on GitHub (azure-docs, azure-monitor-docs
+    and sql-docs). They are licensed under the Creative Commons Attribution 4.0 International license,
+    https://creativecommons.org/licenses/by/4.0/, and their code samples under the MIT license. Copyright Microsoft
+    Corporation.
+  pages:
+    app-service/deploy-staging-slots.md: azure-docs/main/articles/app-service/deploy-staging-slots.md
+    app-service/monitor-instances-health-check.md: azure-docs/main/articles/app-service/monitor-instances-health-check.md
+    app-service/troubleshoot-diagnostic-logs.md: azure-docs/main/articles/app-service/troubleshoot-diagnostic-logs.md
+    app-service/overview-diagnostics.md: azure-docs/main/articles/app-service/overview-diagnostics.md
+    app-service/manage-scale-up.md: azure-docs/main/articles/app-service/manage-scale-up.md
+    functions/functions-monitoring.md: azure-docs/main/articles/azure-functions/functions-monitoring.md
+    functions/functions-scale.md: azure-docs/main/articles/azure-functions/functions-scale.md
+    container-apps/revisions.md: azure-docs/main/articles/container-apps/revisions.md
+    container-apps/revisions-manage.md: azure-docs/main/articles/container-apps/revisions-manage.md
+    container-apps/traffic-splitting.md: azure-docs/main/articles/container-apps/traffic-splitting.md
+    container-apps/scale-app.md: azure-docs/main/articles/container-apps/scale-app.md
+    container-apps/log-options.md: azure-docs/main/articles/container-apps/log-options.md
+    container-apps/troubleshoot-container-start-failures.md: azure-docs/main/articles/container-apps/troubleshoot-container-start-failures.md
+    container-apps/troubleshoot-health-probe-failures.md: azure-docs/main/articles/container-apps/troubleshoot-health-probe-failures.md
+    sql/high-cpu-diagnose-troubleshoot.md: sql-docs/live/azure-sql/database/high-cpu-diagnose-troubleshoot.md
+    sql/understand-resolve-blocking.md: sql-docs/live/azure-sql/database/understand-resolve-blocking.md
+    sql/troubleshoot-common-connectivity-issues.md: sql-docs/live/azure-sql/database/troubleshoot-common-connectivity-issues.md
+    sql/troubleshoot-common-errors-issues.md: sql-docs/live/azure-sql/database/troubleshoot-common-errors-issues.md
+    monitor/diagnostic-settings.md: azure-monitor-docs/main/articles/azure-monitor/data-collection/diagnostic-settings.md
+
+# Fly.io's documentation (github.com/superfly/docs) is Apache 2.0. Each page is read as the markdown Fly serves at
+# <page>.md.
+fly:
+  site: https://docs.fly.io
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of Fly.io's documentation (https://fly.io/docs), copied unchanged from the markdown Fly.io
+    publishes for each page at docs.fly.io. The documentation's source, github.com/superfly/docs, is licensed under the
+    Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Fly.io, Inc.
+  pages:
+    errors/error-codes.md: monitoring/error-codes
+    deploy/troubleshooting.md: getting-started/troubleshooting
+    deploy/health-checks.md: reference/health-checks
+    deploy/rollback-guide.md: blueprints/rollback-guide
+    machines/restart-policy.md: machines/guides-examples/machine-restart-policy
+    machines/machine-states.md: machines/machine-states
+    machines/autostop-autostart.md: launch/autostop-autostart
+    monitoring/metrics.md: monitoring/metrics
+    monitoring/logs-api-options.md: monitoring/logs-api-options
+
+# Neon's agent skills (Apache 2.0). Only the guides under its overview skill are read, since the skills themselves
+# walk an agent through building on Neon rather than reading it.
+neon:
+  repository: https://github.com/neondatabase/agent-skills
+  license: LICENSE
+  paths:
+    skills/neon/references: neon
+
+# Supabase's agent skills (MIT): its Postgres best practices, one guide per rule.
+supabase:
+  repository: https://github.com/supabase/agent-skills
+  license: LICENSE
+  paths:
+    skills/supabase-postgres-best-practices/references: postgres
+
+# A database reached by its URL is plain Postgres, so its skills are backed by PlanetScale's Postgres guides (MIT),
+# which are about Postgres itself and travel here with their license.
+postgresql:
+  repository: https://github.com/planetscale/database-skills
+  license: LICENSE
+  paths:
+    skills/postgres/references: postgres
+
+# ClickHouse's agent skills are Apache 2.0. Only its best practices rules are read, since they cover querying safely.
+clickhouse:
+  repository: https://github.com/ClickHouse/agent-skills
+  license: LICENSE
+  paths:
+    skills/clickhouse-best-practices/rules: best-practices
+
+# Turso's documentation is MIT and written in MDX, so each page is kept as markdown.
+turso:
+  repository: https://github.com/tursodatabase/turso-docs
+  license: LICENSE
+  extensions: [mdx]
+  paths:
+    help: help
+    cloud: cloud
+    features: features
+
+# Upstash's agent skills are MIT. Its documentation carries no license, so what it says is in our own words instead.
+upstash:
+  repository: https://github.com/upstash/skills
+  license: LICENSE
+  paths:
+    skills/upstash-qstash-js/advanced: qstash
+    skills/upstash-qstash-js/fundamentals: qstash
+    skills/upstash-workflow-js: workflow
+    skills/upstash-redis-js/performance: redis
+
+# Atlassian's agent skills for its MCP server are Apache 2.0. The guides behind its triage and status report skills
+# cover searching Jira with JQL and writing a bug report.
+jira:
+  repository: https://github.com/atlassian/atlassian-mcp-server
+  license: LICENSE
+  paths:
+    skills/triage-issue/references: triage
+    skills/generate-status-report/references: jql
+
+# PagerDuty's incident response documentation is Apache 2.0. Its on-call pages say what being on call asks of a
+# responder and how alerts should page people.
+pagerduty:
+  repository: https://github.com/PagerDuty/incident-response-docs
+  license: LICENSE
+  paths:
+    docs/oncall: oncall
+
+# PostHog's agent skills (MIT). Single guides are named, since the folders hold a setup guide for every SDK.
+posthog:
+  repository: https://github.com/PostHog/skills
+  license: LICENSE
+  paths:
+    skills/posthog/logs/skills/all/references/start-here.md: logs/start-here.md
+    skills/posthog/logs/skills/all/references/search.md: logs/search.md
+    skills/posthog/logs/skills/all/references/troubleshooting.md: logs/troubleshooting.md
+    skills/posthog/logs/skills/all/references/best-practices.md: logs/best-practices.md
+    skills/posthog/logs/skills/all/references/link-session-replay.md: logs/link-session-replay.md
+    skills/posthog/error-tracking/skills/all/references/monitoring.md: error-tracking/monitoring.md
+    skills/posthog/error-tracking/skills/all/references/fingerprints.md: error-tracking/fingerprints.md
+    skills/posthog/error-tracking/skills/all/references/alerts.md: error-tracking/alerts.md
+    skills/posthog/error-tracking/skills/all/references/assigning-issues.md: error-tracking/assigning-issues.md
+    skills/posthog/error-tracking/skills/all/references/upload-source-maps.md: error-tracking/upload-source-maps.md
+    skills/posthog/feature-flags/skills/api/references/api.md: feature-flags/api.md
+    skills/posthog/feature-flags/skills/api/references/best-practices.md: feature-flags/best-practices.md
+    skills/posthog/tools-and-features/skills/hogql/references: hogql
+
+# Mixpanel's agent skills (Apache 2.0).
+mixpanel:
+  repository: https://github.com/mixpanel/skills
+  license: LICENSE
+  paths:
+    plugins/mixpanel/skills/manage-feature-flags: feature-flags
+    plugins/mixpanel/skills/manage-feature-flags/references: feature-flags
+    plugins/mixpanel/skills/monitor-metrics: metrics
+    plugins/mixpanel/skills/monitor-metrics/references: metrics
+    plugins/mixpanel/skills/monitor-metrics/commands: metrics
+    plugins/mixpanel/skills/analyze-report/references: reports
+
+# Devin's handoff guide, MIT licensed, which Devin's API docs point to for handing work to Devin from another agent.
+devin:
+  repository: https://github.com/club-cog/devin-handoff
+  license: LICENSE
+  paths:
+    .agents/skills/devin-handoff: handoff
+
+# Honeycomb's agent skill is MIT. Its documentation has no open license, so what the Honeycomb skills take from it is in
+# our own words.
+honeycomb:
+  repository: https://github.com/honeycombio/agent-skill
+  license: LICENSE
+  paths:
+    honeycomb/skills/production-investigation: investigation
+    honeycomb/skills/production-investigation/references: investigation
+    honeycomb/skills/query-patterns: queries
+    honeycomb/skills/query-patterns/references: queries
+    honeycomb/skills/slos-and-triggers: slos
+    honeycomb/skills/slos-and-triggers/references: slos
+
+# Axiom's agent skills are MIT. Only the guides to APL, Axiom and investigating with them are read, and the ones about
+# other tools, Slack and the skill's own scripts and memory are left out.
+axiom:
+  repository: https://github.com/axiomhq/skills
+  license: LICENSE
+  paths:
+    skills/sre/reference: sre
+  exclude:
+    - skills/sre/reference/api-capabilities.md
+    - skills/sre/reference/api-methods.md
+    - skills/sre/reference/blocks.md
+    - skills/sre/reference/grafana.md
+    - skills/sre/reference/memory-system.md
+    - skills/sre/reference/postmortem-template.md
+    - skills/sre/reference/pyroscope.md
+    - skills/sre/reference/sentry.md
+    - skills/sre/reference/slack-api.md
+    - skills/sre/reference/slack.md
+
+# Pydantic's Logfire skills are MIT. Only the guide to querying is read, since the others set up instrumentation or
+# drive a browser.
+logfire:
+  repository: https://github.com/pydantic/skills
+  license: LICENSE
+  paths:
+    plugins/logfire/skills/logfire-query: query
+    plugins/logfire/skills/logfire-query/references: query
+
+# SigNoz's agent skills are MIT. Its documentation is CC BY-NC-ND, which a product cannot copy, so what the SigNoz skills
+# take from it is in our own words.
+signoz:
+  repository: https://github.com/SigNoz/agent-skills
+  license: LICENSE
+  paths:
+    plugins/signoz/skills/signoz-generating-queries: queries
+    plugins/signoz/skills/signoz-investigating-alerts: alerts
+    plugins/signoz/skills/signoz-investigating-alerts/references: alerts
+
+# GitLab's documentation is CC BY-SA 4.0. Each page is read as the markdown docs.gitlab.com serves at the page's
+# index.md, since gitlab.com's robots.txt asks crawlers to stay off its raw files.
+gitlab:
+  site: https://docs.gitlab.com
+  license: |
+    These guides are pages of GitLab's documentation (https://docs.gitlab.com), read unchanged from the markdown
+    docs.gitlab.com serves for each page. They are licensed under the Creative Commons Attribution-ShareAlike 4.0
+    International license, https://creativecommons.org/licenses/by-sa/4.0/. Copyright GitLab B.V.
+  pages:
+    ci/debugging.md: ci/debugging
+    ci/job-troubleshooting.md: ci/jobs/job_troubleshooting
+    ci/job-logs.md: ci/jobs/job_logs
+    environments/environments.md: ci/environments
+    environments/deployments.md: ci/environments/deployments
+    environments/deployment-safety.md: ci/environments/deployment_safety
+    ci/pipelines.md: ci/pipelines
+
+# GitHub's documentation is CC BY 4.0. Each page is read as the markdown source in github/docs, Liquid tags included.
+github:
+  site: https://raw.githubusercontent.com/github/docs/main/content
+  page_url: "%<site>s/%<page>s.md"
+  license: |
+    These guides are pages of GitHub's documentation (https://docs.github.com), copied unchanged from the markdown in
+    https://github.com/github/docs, whose {% %} tags fill in product names and versions. They are licensed under the
+    Creative Commons Attribution 4.0 International license, https://creativecommons.org/licenses/by/4.0/. Copyright GitHub, Inc.
+  pages:
+    actions/troubleshoot-workflows.md: actions/how-tos/troubleshoot-workflows
+    actions/use-workflow-run-logs.md: actions/how-tos/monitor-workflows/use-workflow-run-logs
+    actions/enable-debug-logging.md: actions/how-tos/monitor-workflows/enable-debug-logging
+    actions/re-run-workflows-and-jobs.md: actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs
+    actions/manually-run-a-workflow.md: actions/how-tos/manage-workflow-runs/manually-run-a-workflow
+    actions/cancel-a-workflow-run.md: actions/how-tos/manage-workflow-runs/cancel-a-workflow-run
+    actions/workflow-cancellation.md: actions/reference/workflows-and-actions/workflow-cancellation
+    deployments/deployment-environments.md: actions/concepts/workflows-and-actions/deployment-environments
+    deployments/deployments-and-environments.md: actions/reference/workflows-and-actions/deployments-and-environments
+    deployments/view-deployment-history.md: actions/how-tos/deploy/configure-and-manage-deployments/view-deployment-history
+    pull_requests/merging-a-pull-request.md: pull-requests/how-tos/merge-and-close-pull-requests/merging-a-pull-request
+    pull_requests/keeping-in-sync-with-the-base-branch.md: pull-requests/how-tos/create-pull-requests/keeping-your-pull-request-in-sync-with-the-base-branch
+    pull_requests/commenting-on-a-pull-request.md: pull-requests/how-tos/review-pull-requests/commenting-on-a-pull-request
+    pull_requests/approving-with-required-reviews.md: pull-requests/how-tos/review-pull-requests/approving-a-pull-request-with-required-reviews
+    branches/about-protected-branches.md: repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+    branches/about-rulesets.md: repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
+    security/dependabot-alerts.md: code-security/concepts/supply-chain-security/dependabot-alerts
+    security/view-dependabot-alerts.md: code-security/how-tos/manage-security-alerts/manage-dependabot-alerts/view-dependabot-alerts
+    security/code-scanning-alerts.md: code-security/concepts/code-scanning/code-scanning-alerts
+    security/secret-scanning-alerts.md: code-security/concepts/secret-security/about-alerts
+    issues/closing-an-issue.md: issues/tracking-your-work-with-issues/administering-issues/closing-an-issue
+    releases/managing-releases.md: repositories/releasing-projects-on-github/managing-releases-in-a-repository

@@ -11,6 +11,12 @@ AiPayer = Data.define(:paid_by, :account) do
     house(Entitlements.ai_account(workspace) == Entitlements::AI_ACCOUNT_OPERATOR ? Inference::PAID_BY_OPERATOR : Inference::PAID_BY_FIREFIGHT)
   end
 
+  # A call for the deployment itself rather than for one workspace, such as embedding the providers' documentation. Only
+  # the open-source backend runs on an operator's own keys, so every other build pays as Firefight.
+  def self.deployment_only
+    house(Entitlements.backend.is_a?(Entitlements::OpenSourceBackend) ? Inference::PAID_BY_OPERATOR : Inference::PAID_BY_FIREFIGHT)
+  end
+
   # The provider refused for credit.
   def self.out_of_credit?(error)
     return true if error.is_a?(FirefightAi::OutOfCredit)

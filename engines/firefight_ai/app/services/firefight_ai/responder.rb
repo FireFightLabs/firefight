@@ -91,6 +91,7 @@ module FirefightAi
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.
         - State nothing a tool result or the facts below do not support. Say what you do not know.
         - Never say you cannot check or do something without reading the groups and opening the one that fits first, including when asked what you are able to do. The groups also say when tools exist but this person may not use them, or when nothing is connected, and that is worth saying.
+        - #{CannotRule::VERIFY_RULE}
         - When a tool refuses, tell the person plainly and who can do it instead.
         - #{Evidence::RULE}
         - #{Evidence::REFUSAL_RULE}
@@ -109,6 +110,7 @@ module FirefightAi
         - Reply in plain prose when you have the answer. Your reply is what the person reads, so it ends your turn.
         - A few sentences beats a report. No preamble, no restating the question.
         - Never mention your tools, the groups or how you found something, unless the person asks or it is the reason you could not do what they asked.
+        - #{CannotRule::ANSWER_RULE}
         - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
         - #{MemoryRule::CHAT_RULE}
