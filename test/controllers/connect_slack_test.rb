@@ -46,7 +46,7 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
   end
 
   test "an admin connects Slack, which fills this workspace and starts its setup" do
-    InstallNotificationService.stubs(:configured?).returns(true)
+    SignupNotificationService.stubs(:configured?).returns(true)
     SlackWorkspaceSetupWorkflow.expects(:start!).with(@workspace, context: { installer_user_id: "U_OLIVE" })
       .returns(OpenStruct.new(id: "wf-1", status: "running"))
 
@@ -59,7 +59,7 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
     assert_equal dashboard_path, inertia_props["skipPath"]
 
     assert_no_difference -> { Workspace.count } do
-      assert_enqueued_with(job: InstallNotificationJob, args: [ @workspace.id, @membership.id ]) do
+      assert_enqueued_with(job: SignupNotificationJob, args: [ SignupNotificationService::CHAT_CONNECTED, @workspace.id, @membership.id, nil ]) do
         slack_install(team_id: "T_OLIVE", uid: "U_OLIVE")
       end
     end
@@ -73,6 +73,27 @@ class ConnectSlackTest < ActionDispatch::IntegrationTest
     assert_equal "U_OLIVE", @membership.reload.platform_user_id
     assert_equal @owner.id, session[:user_id]
     assert_nil session[:connecting_workspace_id]
+  end
+
+  test "with no team webhook set, connecting Slack enqueues nothing and connects as before" do
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+    post onboarding_connect_slack_path
+
+    slack_install(team_id: "T_QUIET", uid: "U_OLIVE")
+
+    assert_redirected_to dashboard_path
+    assert_equal SlackAuthenticationService::CONNECTED_MESSAGE, flash[:notice]
+    assert @workspace.reload.chat_connected?
+    assert_no_enqueued_jobs only: SignupNotificationJob
+  end
+
+  test "a refused connect tells the team nothing" do
+    SignupNotificationService.stubs(:configured?).returns(true)
+    post onboarding_connect_slack_path
+
+    slack_install(team_id: workspaces(:slack_workspace_one).platform_id, uid: "U_OLIVE")
+
+    assert_no_enqueued_jobs only: SignupNotificationJob
   end
 
   test "a Slack team already on another Firefight workspace is refused, never merged" do

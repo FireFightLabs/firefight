@@ -54,7 +54,7 @@ class SlackAuthenticationService
       return AuthOutcome.invite_required(message: WORKSPACE_MISMATCH_MESSAGE)
     end
 
-    return connect(auth_hash, connecting, user) if connecting
+    return connect(auth_hash, connecting, user, signed_up_with_team: pending_team_id.present?) if connecting
 
     existing_workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 
@@ -75,9 +75,10 @@ class SlackAuthenticationService
       Workspace.process_slack_installation(auth_hash, user: user)
     end
 
-    if result[:first_install]
-      trigger_workspace_setup(result[:workspace], auth_hash.uid)
-      notify_install(result[:workspace], result[:membership])
+    trigger_workspace_setup(result[:workspace], auth_hash.uid) if result[:first_install]
+    if result[:created]
+      SignupNotificationService.announce(SignupNotificationService::WORKSPACE_CREATED, result[:workspace], result[:membership],
+                                         sign_up_method: UserIdentity::SLACK)
     end
 
     message = result[:first_install] ? "Setting up your Firefight workspace..." : "Signed in."
@@ -100,7 +101,9 @@ class SlackAuthenticationService
   private
 
   # One Slack team belongs to one Firefight workspace, so a team already here is refused rather than merged.
-  def connect(auth_hash, workspace, user)
+  # signed_up_with_team is a workspace just named from a Slack sign-in in this team, already announced as created
+  # with Slack, so connecting it is not announced again.
+  def connect(auth_hash, workspace, user, signed_up_with_team:)
     team_id = auth_hash.extra.team_info["id"]
     membership = user && workspace.workspace_memberships.find_by(user: user)
     return AuthOutcome.refused(message: CONNECT_FAILED_MESSAGE) unless membership
@@ -108,7 +111,9 @@ class SlackAuthenticationService
 
     result = Workspace.process_slack_installation(auth_hash, user: user, workspace: workspace)
     trigger_workspace_setup(result[:workspace], auth_hash.uid)
-    notify_install(result[:workspace], result[:membership])
+    unless signed_up_with_team
+      SignupNotificationService.announce(SignupNotificationService::CHAT_CONNECTED, result[:workspace], result[:membership])
+    end
     AuthOutcome.signed_in(membership: result[:membership], message: CONNECTED_MESSAGE)
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
     # Another workspace connected the same team a moment earlier.
@@ -140,11 +145,5 @@ class SlackAuthenticationService
       workspace,
       context: { installer_user_id: installer_user_id }
     )
-  end
-
-  def notify_install(workspace, membership)
-    return unless InstallNotificationService.configured?
-
-    InstallNotificationJob.perform_later(workspace.id, membership.id)
   end
 end

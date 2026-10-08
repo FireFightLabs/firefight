@@ -232,7 +232,8 @@ class Workspace < ApplicationRecord
         workspace: workspace,
         user: user,
         membership: membership,
-        first_install: first_install
+        first_install: first_install,
+        created: workspace.previously_new_record?
       }
     end
   end

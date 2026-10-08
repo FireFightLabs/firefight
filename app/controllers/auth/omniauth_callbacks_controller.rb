@@ -117,7 +117,9 @@ module Auth
 
     # With self-serve signup on, a team Firefight does not know names its workspace first, like any other sign-in.
     def start_install_and_redirect(outcome)
-      return start_signup(user: outcome.user, team_id: outcome.team_id, team_name: outcome.team_name) if SignInMethods.self_serve?
+      if SignInMethods.self_serve?
+        return start_signup(user: outcome.user, team_id: outcome.team_id, team_name: outcome.team_name, method: UserIdentity::SLACK)
+      end
 
       session.delete(:connecting_workspace_id)
       session[:pending_user_id]   = outcome.user.id

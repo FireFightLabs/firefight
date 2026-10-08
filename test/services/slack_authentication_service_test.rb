@@ -333,16 +333,17 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     assert invite_code.reload.redeemed?
   end
 
-  test "handle_install creates the onboarding row for the installer and pings the webhook when one is configured" do
+  test "handle_install creates the onboarding row for the installer and tells the team of a workspace created with Slack" do
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
-    InstallNotificationService.stubs(:configured?).returns(true)
+    SignupNotificationService.stubs(:configured?).returns(true)
 
-    outcome = nil
-    assert_enqueued_with(job: InstallNotificationJob) do
-      outcome = @service.handle_install(@auth_hash, user: users(:charlie))
-    end
+    outcome = @service.handle_install(@auth_hash, user: users(:charlie))
 
+    assert_enqueued_jobs 1, only: SignupNotificationJob
+    assert_enqueued_with(job: SignupNotificationJob, args: [
+      SignupNotificationService::WORKSPACE_CREATED, outcome.membership.workspace_id, outcome.membership.id, UserIdentity::SLACK
+    ])
     onboarding = outcome.membership.workspace.onboarding
     assert_equal outcome.membership, onboarding.installer
     assert_nil onboarding.dialog_dismissed_at
@@ -352,7 +353,7 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
 
-    assert_no_enqueued_jobs(only: InstallNotificationJob) do
+    assert_no_enqueued_jobs(only: SignupNotificationJob) do
       @service.handle_install(@auth_hash, user: users(:charlie))
     end
   end
@@ -392,5 +393,20 @@ class SlackAuthenticationServiceTest < ActiveSupport::TestCase
 
     assert outcome.signed_in?
     assert_equal "Signed in.", outcome.message
+  end
+
+  test "handle_install finishing setup for a workspace that already exists is not a new workspace" do
+    team_id = "T#{SecureRandom.hex(8)}"
+    Workspace.create!(platform: "slack", platform_id: team_id, name: "Half Set Up", access_token: "existing-token",
+                      installed_at: Time.current)
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "wf-1", status: "running"))
+    SignupNotificationService.stubs(:configured?).returns(true)
+
+    outcome = @service.handle_install(mock_slack_auth_hash(extra: { team_info: { "id" => team_id, "name" => "Half Set Up" } }),
+                                      user: users(:charlie))
+
+    assert outcome.first_install?
+    assert_no_enqueued_jobs only: SignupNotificationJob
   end
 end

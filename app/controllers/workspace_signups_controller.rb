@@ -29,7 +29,8 @@ class WorkspaceSignupsController < InertiaController
 
     claims = signup_claims && (asks_name? ? signup_claims.with(name: params[:person_name].to_s.strip.first(100)) : signup_claims)
     membership = WorkspaceSignupService.new.create(
-      name: params[:name], user: signup_user, claims: claims, invite_code: invite_code
+      name: params[:name], user: signup_user, claims: claims, invite_code: invite_code,
+      sign_up_method: session[:signup_method]
     )
     redirect_to signed_up(membership)
   rescue InviteCode::RedemptionError

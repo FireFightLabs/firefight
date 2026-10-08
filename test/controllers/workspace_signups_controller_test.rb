@@ -13,6 +13,7 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
 
   teardown do
     Rails.application.config.x.google_sign_in = @google_configured
+    Rails.configuration.x.install_notification_webhook_url = nil
     OmniAuth.config.mock_auth[:slack_openid] = nil
     OmniAuth.config.mock_auth[:slack] = nil
     OmniAuth.config.test_mode = false
@@ -207,7 +208,88 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to "/app/billing/plans"
   end
 
+  test "the team is told of a workspace created through Google, naming the method" do
+    configure_team_webhook!
+    google_sign_in("told@example.com")
+
+    post signup_workspace_path, params: { name: "Told Co" }
+
+    workspace = Workspace.find_by!(name: "Told Co")
+    membership = workspace.workspace_memberships.sole
+    assert_enqueued_jobs 1, only: SignupNotificationJob
+    assert_enqueued_with(job: SignupNotificationJob,
+                         args: [ SignupNotificationService::WORKSPACE_CREATED, workspace.id, membership.id, UserIdentity::GOOGLE ])
+  end
+
+  test "the team is told of a workspace created through an email link, for someone new and for someone known" do
+    configure_team_webhook!
+    post consume_email_sign_in_path, params: { token: LoginToken.issue!(email: "linked@example.com") }
+    post signup_workspace_path, params: { name: "Linked Co", person_name: "Lin Ked" }
+
+    known = User.create!(email: "known@example.com", name: "Known")
+    post consume_email_sign_in_path, params: { token: LoginToken.issue!(email: known.email) }
+    post signup_workspace_path, params: { name: "Known Co" }
+
+    [ "Linked Co", "Known Co" ].each do |name|
+      workspace = Workspace.find_by!(name: name)
+      assert_enqueued_with(job: SignupNotificationJob,
+                           args: [ SignupNotificationService::WORKSPACE_CREATED, workspace.id, workspace.workspace_memberships.sole.id, UserIdentity::EMAIL ])
+    end
+  end
+
+  test "a workspace created through a Slack sign-in is told once, as created with Slack, not again when it connects" do
+    configure_team_webhook!
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      uid: "U_ONCE", info: { email: "once@example.com", team_id: "T_ONCE", team_name: "Once Co" }
+    )
+    get "/auth/slack_openid/callback"
+    post signup_workspace_path, params: { name: "Once Co" }
+    OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(
+      uid: "U_ONCE", extra: { team_info: { "id" => "T_ONCE", "name" => "Once Co" } }
+    )
+    get "/auth/slack/callback"
+
+    workspace = Workspace.find_by!(name: "Once Co")
+    assert workspace.chat_connected?
+    assert_enqueued_jobs 1, only: SignupNotificationJob
+    assert_enqueued_with(job: SignupNotificationJob,
+                         args: [ SignupNotificationService::WORKSPACE_CREATED, workspace.id, workspace.workspace_memberships.sole.id, UserIdentity::SLACK ])
+  end
+
+  test "with no team webhook set, signing up by every method enqueues nothing and works as before" do
+    stub_successful_slack_workflow
+    SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
+
+    google_sign_in("quiet@example.com")
+    post signup_workspace_path, params: { name: "Quiet Co" }
+    assert_redirected_to onboarding_welcome_path
+
+    post consume_email_sign_in_path, params: { token: LoginToken.issue!(email: "hush@example.com") }
+    post signup_workspace_path, params: { name: "Hush Co", person_name: "Hush" }
+    assert_redirected_to onboarding_welcome_path
+
+    OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
+      uid: "U_MUTE", info: { email: "mute@example.com", team_id: "T_MUTE", team_name: "Mute Co" }
+    )
+    get "/auth/slack_openid/callback"
+    post signup_workspace_path, params: { name: "Mute Co" }
+    OmniAuth.config.mock_auth[:slack] = mock_slack_auth_hash(uid: "U_MUTE", extra: { team_info: { "id" => "T_MUTE", "name" => "Mute Co" } })
+    get "/auth/slack/callback"
+    assert_redirected_to dashboard_path
+
+    assert Workspace.find_by!(name: "Mute Co").chat_connected?
+    assert Workspace.exists?(name: "Quiet Co")
+    assert Workspace.exists?(name: "Hush Co")
+    assert_no_enqueued_jobs only: SignupNotificationJob
+  end
+
   private
+
+  def configure_team_webhook!
+    Rails.configuration.x.install_notification_webhook_url = "https://hooks.example.test/services/T0/B0/x"
+  end
 
   def google_sign_in(email, name: "Test User")
     auth = mock_google_auth_hash(info: { email: email, unverified_email: email, email_verified: true, name: name })
