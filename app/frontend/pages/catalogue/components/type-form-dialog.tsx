@@ -35,7 +35,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { omitErrors, pickErrors } from "@/lib/form-errors"
 import { FormErrors } from "@/pages/settings/components/form-errors"
 
-const DEFAULT_TYPE_COLOR = "#70D5ED"
+const DEFAULT_TYPE_COLOR = "#EFD369"
 
 function generateSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
