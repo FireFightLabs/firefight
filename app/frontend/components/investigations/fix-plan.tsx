@@ -194,7 +194,13 @@ function Step({ investigationId, step }: { investigationId: string; step: Invest
           </details>
         )}
         {status && <FixStepStatus status={step.status} label={status} />}
-        {step.progress && <CodeFixWorkView work={step.progress} running={step.status === REMEDIATION_STEP_STATUS_RUNNING} />}
+        {step.progress && (
+          <CodeFixWorkView
+            work={step.progress}
+            running={step.status === REMEDIATION_STEP_STATUS_RUNNING}
+            questionBlockedReason={step.questionBlockedReason}
+          />
+        )}
         {step.result && !step.progress && (
           <pre className="max-h-40 overflow-auto rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono text-xs whitespace-pre-wrap text-fg-body">
             {step.result}

@@ -515,6 +515,36 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A coding agent's question, in the thread of the chat or fix its change was asked in, with Answer while it waits.
+  # question is a CodeAgentQuestion.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_code_question(channel_id:, thread_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once it is answered, or ended unanswered.
+  # @return [Hash] { success: true }
+  def update_code_question(channel_id:, message_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the form that answers a coding agent's question.
+  def open_code_question_modal(trigger_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What the answer form was submitted with.
+  # @return [String] the answer
+  def code_question_answer(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps the answer form open with why it was refused.
+  # @return [Hash] the platform's answer to the form
+  def code_question_error(message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Redraws a confirmation message once some of its calls are answered.
   # @return [Hash] { success: true }
   def update_agent_confirmation(channel_id:, message_id:, conversation_id:, confirmations:)

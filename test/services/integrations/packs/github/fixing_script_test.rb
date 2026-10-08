@@ -78,6 +78,45 @@ module Integrations
           end
         end
 
+        test "the changed files are checked with what the box has, and a change handed back starts from the earlier one" do
+          Dir.mktmpdir do |root|
+            repo = File.join(root, "repo")
+            bin = File.join(root, "bin")
+            FileUtils.mkdir_p([ repo, bin ])
+            File.write(File.join(repo, "settings.json"), "{}\n")
+            File.write(File.join(repo, "untouched.json"), "not json\n")
+            git(repo, "init", "-q")
+            git(repo, "add", "-A")
+            git(repo, "-c", "user.email=a@b", "-c", "user.name=t", "commit", "-qm", "start")
+            File.write(File.join(bin, "opencode"), "#!/bin/sh\nprintf '{ broken' > settings.json\nmkdir -p .github/workflows\nprintf 'on: push\\n' > .github/workflows/ci.yml\n")
+            File.write(File.join(bin, "actionlint"), "#!/bin/sh\necho \"$1:1: unknown key\"\nexit 1\n")
+            [ "opencode", "actionlint" ].each { |name| File.chmod(0o755, File.join(bin, name)) }
+            env = { "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }
+
+            output, = Open3.capture2(env, "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y", chdir: repo)
+            change = Github.new(Integration.new(provider: "github")).send(:read_change, output)
+
+            checks = change.checks.to_h { |check| [ check.name, check.status ] }
+            assert_equal CodeChecks::FAILED, checks["actionlint .github/workflows/ci.yml"]
+            assert_equal CodeChecks::FAILED, checks["json settings.json"]
+            assert_equal CodeChecks::PASSED, checks["yaml .github/workflows/ci.yml"]
+            assert_not checks.key?("json untouched.json"), "only the files the change touched are checked"
+            assert_includes change.checks.find { |check| check.name.start_with?("actionlint") }.output, "unknown key"
+            assert_includes change.diff, "+{ broken"
+
+            File.write(File.join(bin, "opencode"), "#!/bin/sh\nprintf '{\"fixed\": true}' > settings.json\n")
+            again_output, = Open3.capture2(env, "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y", change.patch, chdir: repo)
+            again = Github.new(Integration.new(provider: "github")).send(:read_change, again_output)
+
+            assert_equal [ ".github/workflows/ci.yml", "settings.json" ], again.files.keys.sort, "the earlier change is carried into the second"
+            assert_equal "{\"fixed\": true}", Base64.decode64(again.files["settings.json"][:content])
+            assert_empty git(repo, "status", "--porcelain").strip, "the copy is put back after both"
+
+            refused, = Open3.capture2(env, "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y", Base64.strict_encode64("not a patch\n"), chdir: repo)
+            assert refused.start_with?(Fixing::EARLIER_NOT_APPLIED)
+          end
+        end
+
         private
 
         def git(dir, *args)

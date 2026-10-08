@@ -24,7 +24,8 @@ module Integrations
       @hidden = hidden.compact_blank
     end
 
-    attr_reader :progress
+    # The agent's last words whole, which end with its summary of the change, for the review to read.
+    attr_reader :progress, :last_said
 
     # A line that is not an event, such as the tail of one too long to hand over, is passed over.
     def read(text)
@@ -67,6 +68,13 @@ module Integrations
       when "skill" then said("Loaded the #{input['name']} skill", failed)
       when "webfetch", /read_web_page\z/ then said("Read #{input['url']}", failed)
       when "websearch", /search_web\z/ then said("Searched the web for '#{input['query']}'", failed)
+      when /#{CodeAgent::ReadTools::CALL}\z/o then said("Read with #{input['name']}", failed)
+      when /#{CodeAgent::ReadTools::LIST}\z/o then said("Listed the tools it can read with", failed)
+      when /#{CodeAgent::ReadTools::DESCRIBE}\z/o then said("Read how #{input['name']} works", failed)
+      when /#{CodeAgent::ReadTools::SKILLS}\z/o then said("Listed the skills and guides", failed)
+      when /#{CodeAgent::ReadTools::SKILL}\z/o then said(input["reference"].present? ? "Read #{input['reference']} from #{input['skill']}" : "Read the #{input['skill']} skill", failed)
+      when /#{CodeAgent::QuestionTools::ASK}\z/o then said("Asked a question", failed)
+      when /#{CodeAgent::QuestionTools::WAIT}\z/o then said("Waited for an answer", failed)
       when "invalid" then said("Tried a tool it does not have", true)
       else said("Used #{part['tool']}", failed)
       end
@@ -116,6 +124,7 @@ module Integrations
 
     # Prose the model writes between steps reads as its thinking, cut to its first sentence. Code it quotes is left out.
     def thought(text)
+      @last_said = hide(text.to_s.strip) if text.present?
       words = text.to_s.split("```").first.to_s.squish
       return if words.blank?
 

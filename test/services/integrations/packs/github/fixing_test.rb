@@ -17,13 +17,15 @@ module Integrations
           ENV.stubs(:[]).returns(nil)
           ENV.stubs(:[]).with("APP_HOST").returns("ff.example.com")
           ENV.stubs(:fetch).with("APP_PROTOCOL", "https").returns("https")
+          FirefightAi::ChangeReviewer.any_instance.stubs(:review).returns(review)
         end
 
         test "the agent runs in the writable copy with a config that reaches only Firefight, and its change opens as a pull request" do
           sent = nil
           CodeReading.any_instance.expects(:exec).with do |repo, ref:, where:, argv:, timeout:, **|
             sent = argv
-            repo == "acme/api" && ref == "main" && where == Sandboxes::Client::IN_COPY && timeout == Fixing::FIX_TIMEOUT
+            repo == "acme/api" && ref == "main" && where == Sandboxes::Client::IN_COPY &&
+              timeout == Fixing::FIX_TIMEOUT + (CodeAgentQuestion::MAX_PER_CHANGE * CodeAgentQuestion::ANSWER_WITHIN).to_i
           end.returns("stdout" => agent_output, "exit_code" => 0, "timed_out" => false, "commit" => "abc")
           GithubApp.expects(:open_pull_request).with do |repo, base:, base_sha:, branch:, title:, files:, body:, **|
             repo == "acme/api" && base == "main" && base_sha == "start-sha" && branch.start_with?(Fixing::BRANCH_PREFIX) && title == "Restore the pool size" &&
@@ -153,7 +155,7 @@ module Integrations
           assert_equal "https://github.com/acme/api/pull/7", last.pull_request
           assert_equal [ [ "config/database.yml", 1, 1 ] ], last.files.map { |file| [ file.path, file.added, file.removed ] }
           assert_equal [ [ "ruby test/pool_test.rb", true ] ], last.tests.map { |test| [ test.command, test.passed ] }
-          assert_equal 15, last.total
+          assert_equal 17, last.total, "the agent's steps, then the review"
         end
 
         test "a change that fails once the agent started ends its steps with why" do
@@ -277,6 +279,123 @@ module Integrations
                        "the agent worked, so nothing was overwritten. Ask again to write it on the new head.", error.message
         end
 
+        test "the agent's brief carries the person's own words and what Halon read, scrubbed, and its Firefight tools are on with web search off" do
+          @workspace.update!(web_search_enabled: false)
+          request = CodeAgent::Request.new(
+            principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
+            words: [ "Make the release job send the commit", "No, send the tag, not the commit" ],
+            evidence: [ CodeAgent::Request::Evidence.new(label: "Fetch file release.yml", text: "on: release\ntoken ghp_#{'a' * 36}") ]
+          )
+          pack = Github.new(@integration, box_key: "investigation-1", request: request)
+          sent = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| sent = argv }.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.stubs(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send the release tag" })
+
+          brief = sent[5]
+          assert_includes brief, "What the person asked, in their own words, oldest first. A later message corrects an earlier one:\n> Make the release job send the commit\n\n> No, send the tag, not the commit"
+          assert_includes brief, "<tool_result tool=\"Fetch file release.yml\" trust=\"untrusted\">\non: release\ntoken [REDACTED:github_token]"
+          assert_includes brief, "read that system's documented contract and how it is set up now"
+          refute_includes brief, "ghp_"
+          config = JSON.parse(sent[4])
+          assert config.dig("mcp", "firefight", "enabled"), "the read tools and questions need the server even without web search"
+          session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
+          assert_equal [ workspace_memberships(:alice_workspace_one), "investigation-1" ], [ session.principal, session.box_key ]
+        end
+
+        test "a change the review finds wrong goes back to the agent once with the findings and the earlier change, and opens once it is right" do
+          FirefightAi::ChangeReviewer.any_instance.stubs(:review)
+                                     .returns(review(right: false, findings: [ "The workflow sends the commit in a body the provider ignores." ]))
+                                     .then.returns(review(unverified: [ "That the provider reads the tag from the ref." ]))
+          runs = []
+          CodeReading.any_instance.expects(:exec).twice.with { |*, argv:, timeout:, **| runs << [ argv[5], argv[7], timeout ] }
+                     .returns("stdout" => agent_output(patch: "first change\n"), "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send the tag", "summary" => "Sends the tag" })
+
+          assert_equal "", runs.first[1], "the first pass starts clean"
+          assert_includes runs.last[0], "A review of your change found it does not yet do what was asked. Your change is already in the copy. Correct it:\n" \
+                                         "- The workflow sends the commit in a body the provider ignores."
+          assert_equal Base64.strict_encode64("first change\n"), runs.last[1], "the second pass starts from the first change"
+          assert_operator runs.last[2], :<=, Fixing::SEND_BACK_TIMEOUT
+          assert body.start_with?("### Check before merging\n\n**Not verified**\n- That the provider reads the tag from the ref.\n\nSends the tag"), body
+          assert_includes text, "Halon's review sent the change back once, and the corrected change does what was asked."
+          assert_includes text, "Not verified, so check before merging:\n- That the provider reads the tag from the ref."
+        end
+
+        test "a change still wrong after it was sent back is not opened, and says what the review found" do
+          FirefightAi::ChangeReviewer.any_instance.stubs(:review).returns(review(right: false, findings: [ "It still sends the commit." ]))
+          CodeReading.any_instance.expects(:exec).twice.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) do
+            @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send the tag" })
+          end
+
+          assert_equal "Halon's review still found the change wrong after sending it back once, so nothing is opened.\n- It still sends the commit.", error.message
+        end
+
+        test "what the review found and could not verify leads the pull request body, the checks follow it, and the review reads the person's words" do
+          request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
+                                           words: [ "Send the tag" ])
+          pack = Github.new(@integration, box_key: "investigation-1", request: request)
+          FirefightAi::ChangeReviewer.any_instance.expects(:review).with do |asked:, checks:, diff:, **|
+            asked == "1. Send the tag" && checks.include?("- actionlint .github/workflows/release.yml: failed\nline 3: unknown key") && diff.include?("+pool: 10")
+          end.returns(review(findings: [ "No test covers the new input." ], unverified: [ "That the provider reads the tag." ]))
+          output = agent_output(path: ".github/workflows/release.yml", checks: check_line("actionlint .github/workflows/release.yml", 1, "line 3: unknown key") +
+                                                                            check_line("yaml .github/workflows/release.yml", 0))
+          CodeReading.any_instance.stubs(:exec).returns("stdout" => output, "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/9")
+
+          pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send it", "summary" => "Sends the tag" })
+
+          assert body.start_with?("#{CodeChange::CI_WARNING}\n\n### Check before merging\n\n**What Halon's review found**\n- No test covers the new input.\n\n" \
+                                  "**Not verified**\n- That the provider reads the tag.\n\nSends the tag"), body
+          assert_includes body, "Checks run in Firefight's sandbox on the changed files:\n- `actionlint .github/workflows/release.yml`: failed\n- `yaml .github/workflows/release.yml`: passed"
+        end
+
+        test "a review that cannot run opens the change saying nothing was checked" do
+          FirefightAi::ChangeReviewer.any_instance.stubs(:review).raises(FirefightAi::TransientError.new(reason: "Timeout"))
+          CodeReading.any_instance.stubs(:exec).returns("stdout" => agent_output, "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+
+          assert body.start_with?("### Check before merging\n\n**Not verified**\n- Halon's review could not run"), body
+          assert_includes text, "Not verified, so check before merging:\n- Halon's review could not run"
+        end
+
+        test "a question nobody answered in time ends the change with the question, and the step shows it" do
+          heard = []
+          request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
+                                           place: @workspace.conversations.create!(kind: Conversation::KIND_PERSONAL, started_by: workspace_memberships(:alice_workspace_one),
+                                                                                    max_turns: 10, max_spend_cents: 50))
+          pack = Github.new(@integration, box_key: "investigation-1", request: request, progress: ->(update) { heard << update.to_h.deep_dup })
+          CodeReading.any_instance.expects(:exec).with do |*, on_output:, **|
+            session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
+            CodeAgentQuestion.ask!(session, "Should the job send the tag or the commit?")
+            on_output.call("")
+            travel CodeAgentQuestion::ANSWER_WITHIN + 1.second
+            on_output.call("")
+            true
+          end.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) do
+            pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          assert_equal "The coding agent asked a question nobody answered within 5 minutes, so nothing is opened: Should the job send the tag or the commit?", error.message
+          waiting = heard.map { |update| Chat::CodeFixProgress.from_h(update) }.find(&:waiting_for_answer?)
+          assert_equal "Waiting for an answer: Should the job send the tag or the commit?", waiting.headline.split(" · ").first
+          assert_equal CodeAgentQuestion::STATUS_EXPIRED, Chat::CodeFixProgress.from_h(heard.last).question["status"]
+        end
+
         private
 
         def pull(number, overrides = {})
@@ -293,9 +412,17 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/api/rules/branches/#{name}?per_page=100", token: "ghs_token").returns(rules)
         end
 
-        def agent_output(path: "config/database.yml", exit: 0)
-          "AGENT_EXIT #{exit}\nBASE start-sha\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\nFILE\t100644\t#{Base64.strict_encode64(path)}\t#{Base64.strict_encode64("pool: 10\n")}\n" \
-            "GONE\t#{Base64.strict_encode64('old name.rb')}\nSTAT\n config/database.yml | 2 +-\nLOG\ndone"
+        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n")
+          "AGENT_EXIT #{exit}\nBASE start-sha\n#{checks}COUNT\t1\t1\t#{Base64.strict_encode64(path)}\nFILE\t100644\t#{Base64.strict_encode64(path)}\t#{Base64.strict_encode64("pool: 10\n")}\n" \
+            "GONE\t#{Base64.strict_encode64('old name.rb')}\nPATCH\t#{Base64.strict_encode64(patch)}\nSTAT\n config/database.yml | 2 +-\nLOG\ndone"
+        end
+
+        def check_line(name, code, output = "")
+          "CHECK\t#{Base64.strict_encode64(name)}\t#{code}\t#{Base64.strict_encode64(output)}\n"
+        end
+
+        def review(right: true, findings: [], unverified: [])
+          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, unverified: unverified, summary: "Sets the pool to 10.")
         end
       end
     end

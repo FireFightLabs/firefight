@@ -22,7 +22,11 @@ class Chat::CodeFixProgress
   Test = Data.define(:command, :passed)
   ChangedFile = Data.define(:path, :added, :removed)
 
-  attr_reader :started_at, :lines, :total, :changed, :tests, :files, :finished_at, :outcome, :pull_request, :reason
+  # question is the agent's latest question as CodeAgentQuestion#to_h, checks what ran on the change in the sandbox, and
+  # review what Halon's review of it found (Github::Fixing::Reviewed#to_h).
+  attr_reader :started_at, :lines, :total, :changed, :tests, :files, :finished_at, :outcome, :pull_request, :reason, :question, :checks, :review
+
+  Check = Data.define(:name, :status)
 
   def self.start(at: Time.current) = new(started_at: at)
 
@@ -36,7 +40,9 @@ class Chat::CodeFixProgress
       changed: Array(data["changed"]).map(&:to_s),
       tests: Array(data["tests"]).map { |test| Test.new(command: test["command"].to_s, passed: test["passed"] == true) },
       files: Array(data["files"]).map { |file| ChangedFile.new(path: file["path"].to_s, added: file["added"], removed: file["removed"]) },
-      finished_at: parse_time(data["finishedAt"]), outcome: data["outcome"], pull_request: data["pullRequest"], reason: data["reason"]
+      finished_at: parse_time(data["finishedAt"]), outcome: data["outcome"], pull_request: data["pullRequest"], reason: data["reason"],
+      question: data["question"].presence, review: data["review"].presence,
+      checks: Array(data["checks"]).map { |check| Check.new(name: check["name"].to_s, status: check["status"].to_s) }
     )
   end
 
@@ -49,7 +55,7 @@ class Chat::CodeFixProgress
   def self.parse_time(value) = value.present? ? Time.zone.parse(value.to_s) : nil
 
   def initialize(started_at:, live: false, total: 0, lines: [], changed: [], tests: [], files: [], finished_at: nil, outcome: nil,
-                 pull_request: nil, reason: nil)
+                 pull_request: nil, reason: nil, question: nil, checks: [], review: nil)
     @started_at = started_at
     @live = live
     @total = total
@@ -61,6 +67,9 @@ class Chat::CodeFixProgress
     @outcome = outcome
     @pull_request = pull_request
     @reason = reason
+    @question = question
+    @checks = checks
+    @review = review
   end
 
   # A box from an older image runs the agent without saying what it does.
@@ -93,6 +102,23 @@ class Chat::CodeFixProgress
   # Added as a commit to a branch that already existed. The pull request is nil when the branch has none open.
   def pushed!(files:, pull_request:, at: Time.current) = wrote!(OUTCOME_PUSHED, files, pull_request, at)
 
+  def asked!(question) = (@question = question)
+
+  # Waiting on a person, so the headline says so rather than the agent's last step.
+  def waiting_for_answer? = question.present? && question["status"] == CodeAgentQuestion::STATUS_OPEN && !finished?
+
+  # Only a check's name and how it went are kept, never what it printed, which can quote the repository.
+  def checked!(found)
+    @checks = found.map { |check| Check.new(name: clean(check.name, LINE_LIMIT), status: check.status) }
+    return if found.empty?
+
+    failed = found.reject(&:passed?)
+    add(failed.empty? ? "Checked the change: #{found.size} #{'check'.pluralize(found.size)} passed" : "Checked the change: #{failed.size} of #{found.size} failed",
+        result: failed.empty? ? RESULT_PASSED : RESULT_FAILED)
+  end
+
+  def reviewed!(found) = (@review = found)
+
   def failed!(reason, at: Time.current)
     @reason = clean(reason.to_s.lines.first, REASON_LIMIT)
     @outcome = OUTCOME_FAILED
@@ -106,12 +132,12 @@ class Chat::CodeFixProgress
     counts = [ "#{total} #{'step'.pluralize(total)}" ]
     counts << "#{changed.size} #{'file'.pluralize(changed.size)} changed" if changed.any?
     counts << tests_words if tests.any?
-    lead = finished? ? finished_words : current&.text
+    lead = finished? ? finished_words : (waiting_words || current&.text)
     [ lead, *counts ].compact.join(" · ").truncate(HEADLINE_LIMIT)
   end
 
   # Changes only when there is something new to show.
-  def signature = [ total, changed.size, tests.size, live?, outcome ].join(":")
+  def signature = [ total, changed.size, tests.size, live?, outcome, question&.values_at("id", "status")&.join("/"), review.present? ].join(":")
 
   # Kept and sent in the shape the page reads, AgentChatMessageSerializer::PROGRESS_TYPE.
   def to_h
@@ -120,13 +146,16 @@ class Chat::CodeFixProgress
       "lines" => lines.map { |line| { "text" => line.text, "at" => line.at&.utc&.iso8601, "result" => line.result } },
       "changed" => changed, "tests" => tests.map { |test| { "command" => test.command, "passed" => test.passed } },
       "files" => files.map { |file| { "path" => file.path, "added" => file.added, "removed" => file.removed } },
-      "finishedAt" => finished_at&.utc&.iso8601, "outcome" => outcome, "pullRequest" => pull_request, "reason" => reason
+      "finishedAt" => finished_at&.utc&.iso8601, "outcome" => outcome, "pullRequest" => pull_request, "reason" => reason,
+      "question" => question, "checks" => checks.map { |check| { "name" => check.name, "status" => check.status } }, "review" => review
     }
   end
 
   def to_json(*) = to_h.to_json(*)
 
   private
+
+  def waiting_words = ("Waiting for an answer: #{question['text']}" if waiting_for_answer?)
 
   def tests_words
     last = tests.last

@@ -62,7 +62,6 @@ module FirefightAi
       AiPurpose::SUMMARY => "gpt-4o-mini",
       AiPurpose::MILESTONES => "gpt-4o-mini",
       AiPurpose::INVESTIGATION => "gpt-4o",
-      AiPurpose::CODE_FIX => "gpt-4o",
       AiPurpose::EMBEDDING => "text-embedding-3-small"
     }.fetch(purpose)
   end
@@ -87,6 +86,7 @@ module FirefightAi
       AiPurpose::POSTMORTEM => [ 16_000, 6_000 ],
       AiPurpose::CITATION_CHECK => [ 8_000, 2_000 ],
       AiPurpose::LESSONS => [ 8_000, 2_000 ],
+      AiPurpose::CODE_FIX => [ 8_000, 2_000 ],
       AiPurpose::INCIDENT_RESPONSE => [ 4_000, 1_000 ],
       AiPurpose::SUMMARY => [ 4_000, 1_000 ],
       AiPurpose::MILESTONES => [ 4_000, 1_000 ]
@@ -183,7 +183,8 @@ module FirefightAi
   def choices_for(purpose, workspace: nil) = AiFunding.for(workspace, purpose)
 
   # The deployment's own model for the purpose, most specific first: workspace override for the purpose, for any
-  # purpose, the purpose's env var, then the parent purpose's model when it has one, the deployment default, the fallback.
+  # purpose, the purpose's env var, the model the providers recommend for it, then the parent purpose's model when it
+  # has one, the deployment default, the fallback.
   def deployment_model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override
@@ -193,6 +194,9 @@ module FirefightAi
       return ModelChoice.new(model: ENV["#{prefix}_MODEL"], provider: ENV["#{prefix}_PROVIDER"].presence)
     end
 
+    recommended = recommended_model_for(purpose)
+    return recommended if recommended
+
     parent = AiPurpose::PARENTS[purpose]
     return deployment_model_for(parent, workspace: workspace) if parent
     if configuration.default_model.present?
@@ -200,6 +204,12 @@ module FirefightAi
     end
 
     ModelChoice.new(model: fallback_model(purpose), provider: nil)
+  end
+
+  # Code fixes run on the model the providers recommend for writing code, when nothing names one for them and this
+  # deployment holds a key that reaches it. Every other purpose has none of its own.
+  def recommended_model_for(purpose)
+    AiProviders.deployment_code_fix_choice if purpose == AiPurpose::CODE_FIX
   end
 
   # Points a saved chat at the choice, its model and the context holding its account's settings, so a chat resumed after
@@ -219,6 +229,11 @@ module FirefightAi
   # A model whose price the registry does not know is billed at zero, so nothing stops a run that uses it.
   def priced?(model_id)
     priced_model?(RubyLLM.models.all.find { |candidate| candidate.id == model_id.to_s })
+  end
+
+  # The same for the model as one provider serves it, since a model id can be several providers' with different prices.
+  def priced_for?(model_id, provider)
+    priced_model?(RubyLLM.models.all.find { |candidate| candidate.id == model_id.to_s && candidate.provider.to_s == provider.to_s })
   end
 
   def priced_model?(model)
