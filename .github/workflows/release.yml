@@ -101,6 +101,10 @@ jobs:
             exit 1
           fi
 
+          # Northflank run names allow only letters, digits, spaces and hyphens, so v0.0.14 becomes release-v0-0-14.
+          RUN_NAME="release-${{ needs.tag.outputs.tag }}"
+          RUN_NAME="${RUN_NAME//./-}"
+
           # Each query parameter becomes a workflow argument (${args.branch}, ${args.sha}), and name labels the run.
           curl --fail-with-body --silent --show-error \
             --get \
@@ -108,7 +112,7 @@ jobs:
             --max-time 10 \
             --data-urlencode "branch=main" \
             --data-urlencode "sha=${{ needs.tag.outputs.tagged_sha }}" \
-            --data-urlencode "name=${{ needs.tag.outputs.tag }}" \
+            --data-urlencode "name=$RUN_NAME" \
             "$NORTHFLANK_RELEASE_WEBHOOK_URL"
 
   # Self-host image for GHCR, public repo only. Each platform builds on its own
