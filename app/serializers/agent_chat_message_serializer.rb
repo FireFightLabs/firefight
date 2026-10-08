@@ -63,7 +63,8 @@ class AgentChatMessageSerializer < BaseSerializer
   end
 
   FINISHED = [
-    Conversation::LiveDelivery::STATUS_DONE, Conversation::LiveDelivery::STATUS_FAILED, Conversation::LiveDelivery::STATUS_NOT_FOUND
+    Conversation::LiveDelivery::STATUS_DONE, Conversation::LiveDelivery::STATUS_FAILED, Conversation::LiveDelivery::STATUS_NOT_FOUND,
+    Conversation::LiveDelivery::STATUS_REFUSED
   ].freeze
 
   STEP_STATUS_BY_APPROVAL = {
@@ -85,8 +86,7 @@ class AgentChatMessageSerializer < BaseSerializer
   end
 
   def self.failed_status(call)
-    return Conversation::LiveDelivery::STATUS_NOT_FOUND if call.failure_kind == Chat::StepOutcome::FAILURE_NOT_FOUND
-
-    Conversation::LiveDelivery::STATUS_FAILED
+    kind = Chat::StepOutcome.kind_of(failed: true, failure_kind: call.failure_kind)
+    Conversation::LiveDelivery::OUTCOME_STATUSES.fetch(kind)
   end
 end

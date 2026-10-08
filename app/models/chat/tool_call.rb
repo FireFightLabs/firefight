@@ -6,9 +6,11 @@ class Chat::ToolCall
     def initialize(value:, step: nil) = super
   end
 
-  def self.run!(workspace:, principal:, action_key:, params: {}, scope: {}, context: {})
+  # holdable: false is for a call already refused by one of Firefight's own rules, which is ledgered but never waits for
+  # an approval, since nothing would run once it was given.
+  def self.run!(workspace:, principal:, action_key:, params: {}, scope: {}, context: {}, holdable: true)
     authorization = AbilityGateway.authorize!(
-      principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params, context: context
+      principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params, context: context, holdable: holdable
     )
 
     begin

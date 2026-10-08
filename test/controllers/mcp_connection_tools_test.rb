@@ -30,6 +30,21 @@ class McpConnectionToolsTest < ActiveSupport::TestCase
     assert_equal [ Ability::Invocation::OUTCOME_ERROR, "Unknown query field" ], [ invocation.outcome, invocation.error_summary ]
   end
 
+  test "a call one of Firefight's own rules refused tells the outside agent it is Firefight's and final, and the ledger says refused" do
+    alice = workspace_memberships(:alice_workspace_one)
+    @integration.integration_environments.create!
+    Integrations::McpExecutor.expects(:call).raises(Integrations::PolicyRefusal, "release in acme/api is protected, so Firefight does not push to it.")
+
+    response = Mcp::ConnectionToolFactory.invoke(@tool.id, { workspace: @workspace, principal: alice }, {})
+
+    assert response.error?
+    assert_equal "#{FirefightAi::Evidence::REFUSED_BY_RULE} release in acme/api is protected, so Firefight does not push to it.",
+                 response.content.first["text"]
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: @tool.action_key)
+    assert_equal [ Ability::Invocation::OUTCOME_REFUSED, "release in acme/api is protected, so Firefight does not push to it." ],
+                 [ invocation.outcome, invocation.error_summary ]
+  end
+
   test "a tool the provider no longer offers is not published over MCP" do
     @tool.update!(removed_at: Time.current)
 

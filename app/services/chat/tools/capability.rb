@@ -53,7 +53,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
     asked = connection(found)
     text = ask(found, tool_call, alone: false, asked: asked)
     # A refusal by Firefight's own rule is final, so the fallback is never asked in its place.
-    return refused(tool_call, text) if asked.refused_by_rule?
+    return refused(tool_call, text, kind: Chat::StepOutcome::FAILURE_REFUSED) if asked.refused_by_rule?
     return text if asked.waiting? || (!asked.failed? && Integrations::Capabilities.definitive?(asked.last_result))
 
     "#{Integrations::Capabilities.fell_back(found, failure: (text if asked.failed?))}\n#{ask(found.fallback, tool_call)}"
@@ -120,8 +120,8 @@ class Chat::Tools::Capability < RubyLLM::Tool
     resource ? "#{resource.kind.humanize(capitalize: false)} #{resource.name} on #{where}" : where
   end
 
-  def refused(tool_call, text)
-    Chat::Tools.mark_failed(@agent_run, tool_call&.id)
+  def refused(tool_call, text, kind: Chat::StepOutcome::FAILURE_ERROR)
+    Chat::Tools.mark_failed(@agent_run, tool_call&.id, kind: kind)
     text
   end
 end

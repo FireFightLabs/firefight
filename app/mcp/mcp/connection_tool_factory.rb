@@ -63,6 +63,8 @@ module Mcp
         )
         ToolDispatcher.ledger_failure(authorization, answer)
         answer
+      rescue Integrations::PolicyRefusal => refusal
+        ToolDispatcher.refused(authorization, refusal.message)
       end
       ToolDispatcher.log_call(tool.action_key, server_context, started_at)
 

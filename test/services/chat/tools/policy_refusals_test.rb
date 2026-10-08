@@ -27,7 +27,8 @@ class Chat::Tools::PolicyRefusalsTest < ActiveSupport::TestCase
     assert_equal FirefightAi::Evidence.refused(@writes.model_facing_name, REASON), said
     assert_no_match(/failed/, said)
     saved = @chat.outcome_call("call_1")
-    assert_equal [ true, Chat::StepOutcome::FAILURE_ERROR ], [ saved.failed, saved.failure_kind ]
+    assert_equal [ true, Chat::StepOutcome::FAILURE_REFUSED ], [ saved.failed, saved.failure_kind ]
+    assert_equal Conversation::LiveDelivery::STATUS_REFUSED, AgentChatMessageSerializer.failed_status(saved)
   end
 
   test "the ledger records the call as refused with the rule's reason, not as an error" do
@@ -46,21 +47,29 @@ class Chat::Tools::PolicyRefusalsTest < ActiveSupport::TestCase
 
     step = investigation.steps.ordered.first
     assert_equal FirefightAi::Evidence.refused(@writes.model_facing_name, REASON, step: step.position), said
-    assert_equal [ Investigation::Step::STATUS_SUCCEEDED, Chat::StepOutcome::FAILURE_ERROR ], [ step.status, step.failure_kind ]
+    assert_equal [ Investigation::Step::STATUS_SUCCEEDED, Chat::StepOutcome::FAILURE_REFUSED ], [ step.status, step.failure_kind ]
+    assert_equal [ Chat::StepOutcome::KIND_REFUSED, REASON ], Chat::StepOutcome.for_step(step).to_h.values_at(:kind, :said)
     assert_equal Ability::Invocation::OUTCOME_REFUSED, step.invocation.outcome
   end
 
-  test "a call a read guard refuses while investigating reaches the run as Firefight's own rule too" do
+  test "a call a read guard refuses while investigating reaches the run as Firefight's own rule, as a step the ledger calls refused" do
     northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank")
     northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
     api = northflank.tools.create!(name: "api_request", description: "Calls the API", enabled: true, read_only: false,
                                    params_schema: { "type" => "object", "properties" => { "method" => { "type" => "string" }, "path" => { "type" => "string" } } })
 
-    said = Chat::Tools::Connection.new(run_on_incident, api).call(method: "POST", path: "services/web/restart")
+    investigation = run_on_incident
+    Ability::Grant.create!(workspace: @workspace, principal: investigation.acting_principal, action: api.reload.ability_action)
+    Integrations::NorthflankApi.any_instance.expects(:request).never
+
+    said = Chat::Tools::Connection.new(investigation, api).call(method: "POST", path: "services/web/restart")
 
     assert said.end_with?("\n#{FirefightAi::Evidence::REFUSED_BY_RULE}")
     assert_includes said, "only reads, so its method must be GET"
     assert_no_match(/failed/, said)
+    step = investigation.steps.ordered.first
+    assert_equal Chat::StepOutcome::FAILURE_REFUSED, step.failure_kind
+    assert_equal [ Ability::Invocation::OUTCOME_REFUSED, "step=\"#{step.position}\"" ], [ step.invocation.outcome, said[/step="\d+"/] ]
   end
 
   private

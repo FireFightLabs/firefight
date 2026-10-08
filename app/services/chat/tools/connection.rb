@@ -68,13 +68,20 @@ class Chat::Tools::Connection < RubyLLM::Tool
 
   def tracks_issues? = @agent_run.incident.present? && Integrations::Issues.opens?(@tool)
 
+  # A call a read guard refuses still goes through the gateway, so it is a numbered step and the activity log records it
+  # as refused, like any other refusal by one of Firefight's own rules.
   def invoke(given, tool_call_id:)
     environment_entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
-    run(reading(given.except(Integration::Tool::ENVIRONMENT_ARG)), environment_entry: environment_entry, tool_call_id: tool_call_id)
+    arguments = given.except(Integration::Tool::ENVIRONMENT_ARG)
+    refusal = nil
+    begin
+      arguments = reading(arguments)
+    rescue Integrations::PolicyRefusal => refused
+      refusal = refused.message
+    end
+    run(arguments, environment_entry: environment_entry, tool_call_id: tool_call_id, refusal: refusal)
   rescue Integration::UnknownEnvironment, Integrations::ReadGuards::Refused => error
     failed(tool_call_id, error.message)
-  rescue Integrations::PolicyRefusal => refusal
-    failed(tool_call_id, FirefightAi::Evidence.refused(name, refusal.message))
   end
 
   public
@@ -97,7 +104,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # alone is false when this is one of several answers to one call, so a failure here leaves the card to the caller.
   # target is what the call reaches as a person reads it, the resource and connection for a capability, and the
   # connection alone otherwise.
-  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil)
+  # refusal is the reason one of Firefight's own rules already refused the call for, so it is ledgered without running.
+  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil)
     @alone = alone
     @failed = false
     @waiting = false
@@ -112,8 +120,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
     environment_row = nil
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
-      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), **{ approval_id: approval_id }.compact
+      label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), holdable: refusal.nil?, **{ approval_id: approval_id }.compact
     ) do |authorization|
+      next refused_by_rule!(tool_call_id, authorization, refusal) if refusal
+
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = begin
@@ -184,9 +194,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def refused_by_rule!(tool_call_id, authorization, reason)
     @failed = true
     @refusal = reason
-    @answered_failure = Chat::StepOutcome::FAILURE_ERROR
+    @answered_failure = Chat::StepOutcome::FAILURE_REFUSED
     authorization.answer_refused!(reason)
-    Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
+    Chat::Tools.mark_failed(@agent_run, tool_call_id, kind: @answered_failure) unless @alone == false
     reason
   end
 

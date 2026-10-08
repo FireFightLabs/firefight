@@ -8,8 +8,6 @@ module Operator
       Ability::Invocation::DECISION_ALLOW => "allowed", Ability::Invocation::DECISION_DENY => "denied",
       Ability::Invocation::DECISION_PENDING => "waiting for approval"
     }.freeze
-    # A call that ran and did not do what it was asked, because it failed or one of Firefight's own rules refused it.
-    UNDONE = [ Ability::Invocation::OUTCOME_ERROR, Ability::Invocation::OUTCOME_REFUSED ].freeze
 
     attr_reader :run
 
@@ -96,13 +94,14 @@ module Operator
       run.steps.includes(:invocation).map do |step|
         invocation = step.invocation
         denied = denied?(step)
-        # A tool that answered with its own error ran, so its step holds what it said, and the ledger row says it failed or
-        # that one of Firefight's own rules refused it.
-        failed = step.status == Investigation::Step::STATUS_FAILED || UNDONE.include?(invocation&.outcome)
+        # A tool that answered with its own error ran, so its step holds what it said, and the ledger row says it failed.
+        # One of Firefight's own rules refusing it is worth a look rather than a failure.
+        failed = step.status == Investigation::Step::STATUS_FAILED || invocation&.outcome == Ability::Invocation::OUTCOME_ERROR
+        refused = invocation&.outcome == Ability::Invocation::OUTCOME_REFUSED
         Trace.span(
           key: "tool-#{step.id}", kind: KIND_TOOL, title: step.tool_name || step.action_key.to_s,
           started_at: step.started_at || step.created_at, ended_at: step.completed_at,
-          tone: failed || denied ? IncidentProcess::TONE_BAD : IncidentProcess::TONE_OK,
+          tone: tool_tone(failed || denied, refused),
           detail: [ decision_word(step), Trace.seconds(step.started_at, step.completed_at), Trace.size(step.raw_result),
                     (step.error_summary || invocation&.error_summary unless denied?(step)) ].compact.join(" · "),
           facts: [
@@ -125,6 +124,12 @@ module Operator
       return "denied" if denied?(step)
 
       whole ? "allowed, a read of Firefight's own data, which the gateway does not ledger" : "allowed, own data"
+    end
+
+    def tool_tone(bad, refused)
+      return IncidentProcess::TONE_BAD if bad
+
+      refused ? IncidentProcess::TONE_WARN : IncidentProcess::TONE_OK
     end
 
     def denied?(step)
