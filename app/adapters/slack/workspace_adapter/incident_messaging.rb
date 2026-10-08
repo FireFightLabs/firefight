@@ -647,6 +647,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_secret_entry(channel_id:, thread_id:, entry:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::SecretEntry.fallback(entry), blocks: Slack::Messages::SecretEntry.build(entry)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
+  def update_secret_entry(channel_id:, message_id:, entry:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::SecretEntry.fallback(entry),
+                   blocks: Slack::Messages::SecretEntry.build(entry))
+    { success: true }
+  end
+
   def post_pack_answer_to_user(user_id:, pack_request:)
     post_message(channel_id: user_id, text: Slack::Messages::PackAnswer.fallback(pack_request, direct: true),
                  blocks: Slack::Messages::PackAnswer.build(pack_request, direct: true))

@@ -35,7 +35,7 @@ LABEL org.opencontainers.image.source="https://github.com/FireFightLabs/firefigh
 # Chrome runs as root here, which it refuses to do inside its sandbox, so chromedriver finds a google-chrome that
 # starts it without one. SE_CHROMEDRIVER points Selenium at the driver that matches it, with no download at test time.
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y ca-certificates curl git libpq5 libvips libyaml-0-2 postgresql-client \
+    apt-get install --no-install-recommends -y ca-certificates curl git libpq5 libsodium23 libvips libyaml-0-2 postgresql-client \
       ripgrep unzip xz-utils zstd && \
     curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     apt-get install --no-install-recommends -y /tmp/chrome.deb && \

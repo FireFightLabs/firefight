@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_180400) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -564,6 +564,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_180400) do
     t.string "tool_name", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
+  end
+
+  create_table "chat_secret_entries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.string "tool_call_id"
+    t.string "kind", null: false
+    t.uuid "integration_tool_id", null: false
+    t.uuid "catalog_entry_id"
+    t.uuid "requester_id", null: false
+    t.string "title", null: false
+    t.jsonb "target", default: {}, null: false
+    t.string "reference"
+    t.string "status", null: false
+    t.datetime "expires_at"
+    t.uuid "done_by_id"
+    t.datetime "done_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "created_at"], name: "index_chat_secret_entries_on_chat_id_and_created_at"
+    t.index ["done_by_id"], name: "index_chat_secret_entries_on_done_by_id"
+    t.index ["integration_tool_id"], name: "index_chat_secret_entries_on_integration_tool_id"
+    t.index ["requester_id"], name: "index_chat_secret_entries_on_requester_id"
   end
 
   create_table "chat_skill_problems", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2424,6 +2448,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_180400) do
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
+  add_foreign_key "chat_secret_entries", "chats", on_delete: :cascade
+  add_foreign_key "chat_secret_entries", "integration_tools", on_delete: :cascade
+  add_foreign_key "chat_secret_entries", "workspace_memberships", column: "done_by_id", on_delete: :nullify
+  add_foreign_key "chat_secret_entries", "workspace_memberships", column: "requester_id", on_delete: :cascade
   add_foreign_key "chat_step_progresses", "chats", on_delete: :cascade
   add_foreign_key "chat_watch_steps", "chat_watches", column: "watch_id", on_delete: :cascade
   add_foreign_key "chat_watch_steps", "integration_environments", on_delete: :nullify

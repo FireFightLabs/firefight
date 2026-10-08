@@ -145,6 +145,11 @@ export const WATCH_STATUSES = {
   "STOPPED": "stopped"
 } as const
 
+export const SECRET_ENTRY_KINDS = {
+  "ENTER": "enter",
+  "REVEAL": "reveal"
+} as const
+
 export const RUNBOOK_CHOICE_PROPS = {
   "TOOL_CHOICES": "toolChoices",
   "WATCH_READS": "watchReads",
@@ -653,7 +658,8 @@ export const AGENT_STREAM_EVENTS = {
   "MADE_ROOM": "made_room",
   "HELD_CALL": "held_call",
   "PACK_REFUSAL": "pack_refusal",
-  "WATCH": "watch"
+  "WATCH": "watch",
+  "SECRET_ENTRY": "secret_entry"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -722,6 +728,7 @@ export const AGENT_CHAT_PROPS = {
   "COMPACTIONS": "compactions",
   "HELD_CALLS": "heldCalls",
   "PACK_REFUSALS": "packRefusals",
+  "SECRET_ENTRIES": "secretEntries",
   "SETUP_GUIDE": "setupGuide",
   "WATCHES": "watches",
   "WATCH_UPDATES": "watchUpdates"

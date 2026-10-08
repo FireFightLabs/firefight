@@ -5,6 +5,7 @@ import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HeldCallCard } from "@/pages/agent/components/held-call-card"
 import { PackRefusalCard } from "@/pages/agent/components/pack-refusal-card"
+import { SecretEntryCard } from "@/pages/agent/components/secret-entry-card"
 import { WatchCard } from "@/pages/agent/components/watch-card"
 import { WatchUpdate } from "@/pages/agent/components/watch-update"
 import { ImageDialog } from "@/components/image-dialog"
@@ -13,7 +14,7 @@ import { MessageAttachments } from "@/pages/agent/components/message-attachments
 import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/pages/agent/lib/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
-  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatWaitingMessage,
+  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatSecretEntry, AgentChatWaitingMessage,
   AgentChatWatch, AgentChatWatchUpdate, ChatCompaction,
 } from "@/types/serializers"
 
@@ -24,6 +25,7 @@ interface ThreadProps {
   compactions: ChatCompaction[]
   heldCalls: AgentChatHeldCall[]
   packRefusals: AgentChatPackRefusal[]
+  secretEntries: AgentChatSecretEntry[]
   watches: AgentChatWatch[]
   watchUpdates: AgentChatWatchUpdate[]
   waiting: AgentChatWaitingMessage[]
@@ -31,7 +33,7 @@ interface ThreadProps {
 }
 
 export function Thread({
-  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, watches, watchUpdates, waiting, stream,
+  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
@@ -40,6 +42,8 @@ export function Thread({
   const held = useMemo(() => placeAfterTurns(turns, messages, heldCalls), [ turns, messages, heldCalls ])
   // A refusal sits after the turn it happened in.
   const refused = useMemo(() => placeAfterTurns(turns, messages, packRefusals), [ turns, messages, packRefusals ])
+  // A secret to type or reveal sits after the turn whose call asked for it.
+  const handed = useMemo(() => placeAfterTurns(turns, messages, secretEntries), [ turns, messages, secretEntries ])
   // A watch sits after the answer that started it, and each line it said later sits where it was said.
   const watched = useMemo(() => placeAfterTurns(turns, messages, watches), [ turns, messages, watches ])
   const said = useMemo(() => placeAfterTurns(turns, messages, watchUpdates), [ turns, messages, watchUpdates ])
@@ -53,19 +57,21 @@ export function Thread({
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
-  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, watchUpdates.length ])
+  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length ])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(BEFORE_ALL_TURNS)} />}
+        {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
         {turns.map((turn) => (
           <Fragment key={turn.id}>
             <Message turn={turn} onOpenImage={setOpenImageId} />
             {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(turn.id)} />}
             {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(turn.id)} />}
+            {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(turn.id)} />}
             {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
           </Fragment>
         ))}
@@ -90,6 +96,10 @@ function HeldCalls({ conversationId, heldCalls }: { conversationId: string; held
 
 function PackRefusals({ conversationId, refusals }: { conversationId: string; refusals: AgentChatPackRefusal[] | undefined }) {
   return refusals?.map((refusal) => <PackRefusalCard key={refusal.id} conversationId={conversationId} refusal={refusal} />)
+}
+
+function SecretEntries({ conversationId, entries }: { conversationId: string; entries: AgentChatSecretEntry[] | undefined }) {
+  return entries?.map((entry) => <SecretEntryCard key={entry.id} conversationId={conversationId} entry={entry} />)
 }
 
 interface WatchesProps {

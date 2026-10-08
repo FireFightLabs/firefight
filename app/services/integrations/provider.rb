@@ -14,21 +14,24 @@ module Integrations
   #   issue_tracker    a RemoteReader saying which issue a tool call opened or closed (Integrations::Issues)
   #   map_events       a MapEventSource, how the provider's changes reach the map between sweeps (Integrations::MapEvents)
   #   error_reader     reads a remote server's answer of its own failure, saying whether it was a not found (Integrations::Outcomes)
-  # redacted_fields names answer fields that hold a credential, which never reach the model. status_words maps the
+  # redacted_fields names answer fields that hold a credential, which never reach the model, and redacted_patterns the
+  # credentials of the provider's own shape, such as an address that works as a password, wherever they appear in an
+  # answer. status_words maps the
   # provider's own status words onto Firefight's (ResourceMap::Resource::STATUS_HEALTH), applied to everything its
   # connection puts on the map, so a resource never reads unknown for a word that means one Firefight has.
   class Provider
     PARTS = %i[pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/
 
-    attr_reader :key, :redacted_fields, :status_words
+    attr_reader :key, :redacted_fields, :redacted_patterns, :status_words
 
-    def initialize(key:, redacted_fields: [], status_words: {}, **parts)
+    def initialize(key:, redacted_fields: [], redacted_patterns: {}, status_words: {}, **parts)
       unknown = parts.keys - PARTS
       raise ArgumentError, "#{key} names parts a provider does not have: #{unknown.join(', ')}" if unknown.any?
 
       @key = key
       @redacted_fields = redacted_fields.map(&:to_s).freeze
+      @redacted_patterns = redacted_patterns.transform_keys(&:to_s).freeze
       @status_words = status_words.to_h { |word, firefight| [ word.to_s.downcase, firefight.to_s ] }.freeze
       @parts = parts.transform_values(&:to_s).freeze
     end
