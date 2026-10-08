@@ -260,6 +260,19 @@ module Integrations
         assert_raises(Integrations::RateLimited) { @pack.baselines_of(@row, [ app ], 7.days.ago..Time.current) }
       end
 
+      test "deploy history ends a deployment when its last step ended, or when its phase last changed" do
+        DigitaloceanApi.any_instance.stubs(:deployments).returns([
+          { "id" => "dep-2", "phase" => "ACTIVE", "created_at" => "2026-10-01T09:00:00Z", "phase_last_updated_at" => "2026-10-01T09:10:00Z",
+            "progress" => { "steps" => [ { "name" => "build", "ended_at" => "2026-10-01T09:04:00Z" }, { "name" => "deploy", "ended_at" => "2026-10-01T09:06:00Z" } ] } },
+          { "id" => "dep-1", "phase" => "ERROR", "created_at" => "2026-10-01T08:00:00Z", "phase_last_updated_at" => "2026-10-01T08:02:00Z" },
+          { "id" => "dep-3", "phase" => "BUILDING", "created_at" => "2026-10-01T10:00:00Z" }
+        ])
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => APP_ID }))
+
+        assert_equal [ [ "dep-3", "running", nil ], [ "dep-2", "succeeded", 360 ], [ "dep-1", "failed", 120 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
+      end
+
       private
 
       def resource(kind, id, name, details = {})

@@ -69,6 +69,12 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
     assert_equal({ "resource" => FUNCTION_ARN, "to" => "live:11" }, resolve(Integrations::Capabilities::ROLLBACK, "resource" => "checkout", "to" => "live:11").arguments)
   end
 
+  test "an ECS service's run history is its deployments, and a Lambda function, whose versions keep no finish, has none" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web")
+    assert_equal [ "list_deployments", { "resource" => SERVICE_ARN, "limit" => Integrations::Capabilities::History::LIMIT } ], [ history.tool.name, history.arguments ]
+    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "checkout")
+  end
+
   test "what AWS does not hold for a kind is said, never guessed" do
     assert_match "stream must be app", unroutable(Integrations::Capabilities::LOGS, "resource" => "web", "stream" => "build")
     assert_match "no connection offers logs", unroutable(Integrations::Capabilities::LOGS, "resource" => "bastion")

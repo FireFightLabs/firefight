@@ -14,6 +14,8 @@ module Integrations
         METRICS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_ZONE ],
         DEPLOYS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ],
         STATUS => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_ZONE, ResourceMap::KIND_SITE ],
+        # A Worker's deployment switches versions at once, so only a Pages project's builds take a time worth reading.
+        HISTORY => [ ResourceMap::KIND_SITE ],
         ROLLBACK => [ ResourceMap::KIND_WORKER, ResourceMap::KIND_SITE ]
       }.freeze
       TOOLS = SUPPORTS.keys.index_with { EXECUTE }.freeze
@@ -56,6 +58,7 @@ module Integrations
         in [ METRICS, ResourceMap::KIND_ZONE ] then metrics(resource, account, given, ZONE_METRICS, ZONE_QUERY, { "zoneTag" => resource.external_id })
         in [ DEPLOYS, ResourceMap::KIND_WORKER ] then deploys(resource, account, given, "/accounts/#{account}/workers/scripts/#{resource.external_id}/deployments")
         in [ DEPLOYS, ResourceMap::KIND_SITE ] then deploys(resource, account, given, "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments")
+        in [ HISTORY, ResourceMap::KIND_SITE ] then history(resource, account, given, "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments")
         in [ STATUS, ResourceMap::KIND_WORKER ] then status(resource, account, "/accounts/#{account}/workers/scripts/#{resource.external_id}/settings")
         in [ STATUS, ResourceMap::KIND_ZONE ] then status(resource, account, "/zones/#{resource.external_id}")
         in [ STATUS, ResourceMap::KIND_SITE ] then status(resource, account, "/accounts/#{account}/pages/projects/#{resource.external_id}")
@@ -110,6 +113,12 @@ module Integrations
         limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, DEPLOY_LIMIT ].min : DEPLOY_LIMIT
         Route.new(tool_name: EXECUTE, arguments: script({ "method" => "GET", "path" => path }, account),
                   present: ->(result) { read(result) { |data| deploys_result(resource, data, limit) } })
+      end
+
+      def self.history(resource, account, given, path)
+        limit = given["limit"].to_i.positive? ? [ given["limit"].to_i, History::LIMIT ].min : History::LIMIT
+        Route.new(tool_name: EXECUTE, arguments: script({ "method" => "GET", "path" => path }, account),
+                  present: ->(result) { read(result) { |data| history_result(resource, data, given["name"], limit) } })
       end
 
       def self.status(resource, account, path)
@@ -217,6 +226,30 @@ module Integrations
         Telemetry.result("Latest #{rows.size} deployments of #{resource.name}, newest first. rollback takes #{to}.\n#{rows.join("\n")}", link: link(resource))
       end
 
+      # A Pages deployment's stages run queued, initialize, clone_repo, build and deploy, each with its status and when it
+      # started and ended (Pages API, deployments, stages and latest_stage). It has finished once its deploy stage
+      # succeeded, or any stage failed or was cancelled.
+      STAGE_STATUSES = { "idle" => History::QUEUED, "active" => History::RUNNING, "failure" => History::FAILED, "canceled" => History::CANCELLED }.freeze
+      LAST_STAGE = "deploy".freeze
+
+      def self.history_result(resource, data, name, limit)
+        listed = data["result"].is_a?(Hash) ? data.dig("result", "deployments") : data["result"]
+        runs = Array(listed).map do |deployment|
+          latest = deployment["latest_stage"] || {}
+          status = if latest["status"] == "success" then latest["name"] == LAST_STAGE ? History::SUCCEEDED : History::RUNNING
+          else History.status(latest["status"], STAGE_STATUSES)
+          end
+          started = Array(deployment["stages"]).filter_map { |stage| time_of(stage["started_on"]) }.min || time_of(deployment["created_on"])
+          meta = deployment.dig("deployment_trigger", "metadata") || {}
+          History::Run.new(
+            id: deployment["id"], name: "#{deployment['environment'] || 'production'} deploy", status: status, started_at: started,
+            finished_at: (time_of(latest["ended_on"]) if History::FINISHED.include?(status)), url: deployment["url"],
+            detail: ("#{meta['commit_hash'].to_s.first(12)} #{meta['commit_message'].to_s.lines.first.to_s.strip}".strip if meta["commit_hash"])
+          )
+        end
+        History.result(runs, what: resource.name, link: link(resource), name: name, limit: limit)
+      end
+
       def self.deploy_line(resource, deployment)
         if resource.kind == ResourceMap::KIND_WORKER
           versions = Array(deployment["versions"]).map { |version| "version #{version['version_id']} at #{version['percentage']}%" }.join(" and ")
@@ -252,7 +285,7 @@ module Integrations
       end
 
       private_class_method :account_of, :logs, :metrics, :deploys, :status, :change, :read, :logs_result, :metrics_result,
-                           :worker_points, :zone_points, :deploys_result, :deploy_line, :link, :time_of, :bucket_minutes, :floor, :script, :range_js
+                           :worker_points, :zone_points, :deploys_result, :deploy_line, :history, :history_result, :link, :time_of, :bucket_minutes, :floor, :script, :range_js
     end
   end
 end

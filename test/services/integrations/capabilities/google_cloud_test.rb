@@ -70,6 +70,12 @@ class Integrations::Capabilities::GoogleCloudTest < ActiveSupport::TestCase
                                   details: { "type" => type }, integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
   end
 
+  test "a Cloud Run service's run history is its revisions, and nothing else has one" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "revision", "limit" => 3)
+    assert_equal [ "list_revisions", { "resource" => RUN_ID, "limit" => 3 } ], [ history.tool.name, history.arguments ]
+    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "orders")
+  end
+
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given) = assert_raises(Integrations::Capabilities::Unroutable) { resolve(key, given) }.message

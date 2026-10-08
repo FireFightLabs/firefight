@@ -15,8 +15,9 @@ module Chat::Tools::Groups
   # The capabilities, which answer for anything on the resource map whichever provider holds it.
   RESOURCES = "resources".freeze
 
-  # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation.
-  NOT_FOR_HALON = [ Mcp::Tools::ASK_HALON, Mcp::Tools::START_INVESTIGATION ].freeze
+  # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation and
+  # its own watches.
+  NOT_FOR_HALON = [ Mcp::Tools::ASK_HALON, Mcp::Tools::START_INVESTIGATION, Mcp::Tools::LIST_WATCHES, Mcp::Tools::STOP_WATCH ].freeze
 
   # The registry's catch all, whose connections have nothing in common but their kind.
   CUSTOM_CATEGORY = "Custom".freeze

@@ -9,13 +9,13 @@ module Integrations
       RUNNING = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_DATABASE ].freeze
       DEPLOYED = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_JOB, ResourceMap::KIND_SITE ].freeze
       SUPPORTS = {
-        LOGS => [ *RUNNING, ResourceMap::KIND_SITE ], METRICS => RUNNING, DEPLOYS => DEPLOYED,
+        LOGS => [ *RUNNING, ResourceMap::KIND_SITE ], METRICS => RUNNING, DEPLOYS => DEPLOYED, HISTORY => DEPLOYED,
         STATUS => [ *RUNNING, ResourceMap::KIND_SITE ], ROLLBACK => DEPLOYED,
         RESTART => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DATABASE ], SCALE => [ ResourceMap::KIND_SERVICE ]
       }.freeze
       TOOLS = {
         LOGS => "search_logs", METRICS => "query_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
-        ROLLBACK => "rollback_deploy", RESTART => "restart_service", SCALE => "scale_service"
+        HISTORY => "deploy_history", ROLLBACK => "rollback_deploy", RESTART => "restart_service", SCALE => "scale_service"
       }.freeze
       WRAPPED = TOOLS.values.freeze
       STREAMS = { STREAM_APP => "app", "build" => "build", "requests" => "request" }.freeze
@@ -31,6 +31,7 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => id, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "limit")))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deploy" => target(given) })
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => id })
         when SCALE then Route.new(tool_name: TOOLS[SCALE], arguments: { "resource" => id, "instances" => instances(given) })

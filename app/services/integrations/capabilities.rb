@@ -12,6 +12,7 @@ module Integrations
     STATUS = "status".freeze
     ERRORS = "errors".freeze
     TRACES = "traces".freeze
+    HISTORY = "history".freeze
     ROLLBACK = "rollback".freeze
     RESTART = "restart".freeze
     SCALE = "scale".freeze
@@ -81,6 +82,12 @@ module Integrations
                description: "How one resource on the map is set up and how it stands now, read live from whichever connection " \
                             "runs it: its state, size, what it runs and its health checks",
                params: {}, required: []),
+      Spec.new(key: HISTORY, tool_name: "run_history", writes: false, what: "run history",
+               description: "Recent runs of one resource on the map, newest first, from whichever connection runs it: a repository's CI " \
+                            "runs, or a service's builds and deploys, each with its status, when it started and finished and how long it " \
+                            "took, and how long finished ones usually take. Use it to learn how long something usually takes or to follow one run",
+               params: { "name" => { "type" => "string", "description" => "Only runs whose workflow, pipeline or kind contains this, such as release or build (optional)" },
+                         "limit" => LIMIT }, required: []),
       Spec.new(key: ERRORS, tool_name: "search_errors", writes: false, what: "errors",
                description: "Errors one resource on the map raised, newest first, grouped by kind with how often each happened",
                params: { "text" => { "type" => "string", "description" => "Only errors containing this text (optional)" }, "limit" => LIMIT, **RANGE },
@@ -138,7 +145,7 @@ module Integrations
     # is still used through its own tools.
     PHRASES = {
       LOGS => "read its logs", METRICS => "read its metrics", DEPLOYS => "see what was deployed", STATUS => "check how a resource stands",
-      ERRORS => "read its errors", TRACES => "read its traces", ROLLBACK => "roll a resource back", RESTART => "restart a service",
+      ERRORS => "read its errors", TRACES => "read its traces", HISTORY => "see how long its runs usually take", ROLLBACK => "roll a resource back", RESTART => "restart a service",
       SCALE => "scale a service"
     }.freeze
 
@@ -314,6 +321,21 @@ module Integrations
         call_for(workspace, spec, candidate, given, tools)
       rescue Unroutable => error
         Refused.new(environment_row: candidate.row, reason: error.message)
+      end
+    end
+
+    # Why each connection holding the resource keeps no run history Halon can read, in its provider's own note (the
+    # registry's history_note), so a watch says what it cannot follow and why.
+    def self.history_notes(workspace, reference, principal:)
+      return [] if reference.to_s.strip.empty?
+
+      visible = ResourceMap::Resource.visible_to(principal, workspace)
+      rows = visible.referenced(workspace, reference.to_s.strip).present.to_a.flat_map(&:holders)
+      rows.map(&:integration).uniq.filter_map do |integration|
+        entry = IntegrationProvider.find(integration.provider)
+        next unless entry && entry.history == IntegrationProvider::HISTORY_NONE
+
+        "#{integration.name} keeps no run history Halon can read. #{entry.history_note}"
       end
     end
 

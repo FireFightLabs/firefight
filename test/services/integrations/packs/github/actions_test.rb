@@ -29,6 +29,32 @@ module Integrations
           assert_match "status must be one of", assert_raises(NativePack::Error) { @pack.workflow_runs(environment_row: @row, arguments: { "repo" => "acme/web", "status" => "red" }) }.message
         end
 
+        test "CI runs say when each started and finished, narrowed to a workflow by name, with how long finished ones usually take" do
+          GithubApp.expects(:get).with("/repos/acme/web/actions/runs?per_page=100", token: "ghs_token").returns("workflow_runs" => [
+            history_run(46, "Release", "in_progress", nil, "2026-10-01T10:00:00Z", "2026-10-01T10:03:00Z"),
+            history_run(45, "Release", "completed", "success", "2026-10-01T09:00:00Z", "2026-10-01T09:18:00Z"),
+            history_run(44, "CI", "completed", "failure", "2026-10-01T08:30:00Z", "2026-10-01T08:34:00Z"),
+            history_run(43, "Release", "completed", "failure", "2026-10-01T08:00:00Z", "2026-10-01T08:05:00Z")
+          ])
+
+          result = @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "release" })
+          runs = Capabilities::History.runs_of(result)
+
+          assert_equal [ %w[46 running], %w[45 succeeded], %w[43 failed] ], runs.map { |run| [ run.number, run.status ] }
+          assert_nil runs.first.finished_at, "a run still going has not finished, whatever it last changed"
+          assert_equal 1080, runs.second.seconds
+          assert_equal 1080, result["structuredContent"]["usual_seconds"]
+          assert_includes text_of(result), "Finished ones usually take 18 minutes."
+          assert_includes text_of(result), "https://github.com/acme/web/actions"
+          assert Github.tool_definitions.find { |definition| definition.name == "ci_runs" }.read_only
+        end
+
+        test "without a name, as many runs are read as asked" do
+          GithubApp.expects(:get).with("/repos/acme/web/actions/runs?branch=main&per_page=5", token: "ghs_token").returns("workflow_runs" => [])
+
+          assert_includes text_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "branch" => "main", "limit" => 5 })), "No runs of GitHub Actions in acme/web"
+        end
+
         test "a run's jobs name the steps that failed, and link to the run" do
           GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", "failure"))
           GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41/jobs?filter=latest&per_page=100", token: "ghs_token").returns("jobs" => [ job(9, "failure"), job(8, "success") ])
@@ -261,6 +287,12 @@ module Integrations
           { "id" => id, "name" => name, "run_number" => 7, "status" => "completed", "conclusion" => conclusion, "head_branch" => "main", "head_sha" => "a" * 40,
             "event" => "push", "actor" => { "login" => "ana" }, "created_at" => "2026-10-01T09:00:00Z", "updated_at" => "2026-10-01T09:05:00Z",
             "workflow_id" => workflow, "html_url" => "https://github.com/acme/web/actions/runs/#{id}" }
+        end
+
+        def history_run(id, name, status, conclusion, started, updated)
+          { "id" => id * 100, "name" => name, "run_number" => id, "status" => status, "conclusion" => conclusion, "head_branch" => "main", "head_sha" => "a" * 40,
+            "event" => "workflow_dispatch", "run_started_at" => started, "created_at" => started, "updated_at" => updated,
+            "html_url" => "https://github.com/acme/web/actions/runs/#{id * 100}" }
         end
 
         def job(id, conclusion)

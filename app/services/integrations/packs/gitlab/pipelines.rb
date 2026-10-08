@@ -22,6 +22,19 @@ module Integrations
         WRITE_NEEDS = "Running, retrying or canceling a pipeline needs a token with the api scope, from someone who may run " \
                       "pipelines in the project, and on a protected branch someone allowed to merge or push to it".freeze
         FOLLOW = "pipeline_jobs with its pipeline_id, or ci_status, follows it".freeze
+        # GitLab's list of pipelines gives no start or finish (doc/api/pipelines.md, list project pipelines), so each one is
+        # read again on its own, which gives started_at and finished_at. That keeps the history short.
+        HISTORY_LIMIT = 10
+        MAX_HISTORY = 20
+        HISTORY_CANDIDATES = 50
+        # A pipeline's status in Firefight's words (the status values of doc/api/pipelines.md).
+        HISTORY_STATUSES = {
+          "created" => Capabilities::History::QUEUED, "waiting_for_resource" => Capabilities::History::QUEUED,
+          "preparing" => Capabilities::History::QUEUED, "pending" => Capabilities::History::QUEUED, "scheduled" => Capabilities::History::QUEUED,
+          "manual" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING, "canceling" => Capabilities::History::RUNNING,
+          "success" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED,
+          "canceled" => Capabilities::History::CANCELLED, "skipped" => Capabilities::History::CANCELLED
+        }.freeze
 
         def self.included(pack)
           repo = pack::REPO_PARAM
@@ -33,6 +46,17 @@ module Integrations
                       "status" => { "type" => "string", "enum" => PIPELINE_STATUSES, "description" => "Only pipelines in this status, such as failed (optional)" },
                       "since" => { "type" => "string", "description" => "Only pipelines updated at or after this time, as ISO 8601 (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{PIPELINE_LIMIT}, at most #{MAX_PIPELINES})" }
+                    }, %w[repo]),
+                    read_only: true
+
+          pack.tool :ci_runs,
+                    description: "A project's pipelines, newest first, each with its status, when it started and finished and how long " \
+                                 "it took, and how long finished pipelines usually take",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo,
+                      "name" => { "type" => "string", "description" => "Only pipelines whose name contains this, such as release (optional)" },
+                      "ref" => { "type" => "string", "description" => "Only pipelines for this branch or tag (optional)" },
+                      "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT}, at most #{MAX_HISTORY})" }
                     }, %w[repo]),
                     read_only: true
 
@@ -99,6 +123,18 @@ module Integrations
           return "No pipelines in #{repo} match." if found.empty?
 
           found.map { |pipeline| pipeline_line(pipeline) }.join("\n")
+        end
+
+        def ci_runs(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, MAX_HISTORY)
+          name = arguments["name"].to_s.strip.presence
+          gitlab = api(environment_row)
+          query = { "ref" => ref_argument(arguments), "per_page" => name ? HISTORY_CANDIDATES : limit }
+          listed = Array(gitlab.get("#{GitlabApi.project(repo)}/pipelines", query)).map { |pipeline| history_run(pipeline) }
+          chosen = listed.select { |run| run.called?(name) }.first(limit)
+          runs = chosen.map { |run| history_run(gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{run.id}")) }
+          Capabilities::History.result(runs, what: "pipelines in #{repo}", link: link(gitlab.web_url(repo, "-", "pipelines")), name: name, limit: limit)
         end
 
         def pipeline_jobs(environment_row:, arguments:)
@@ -205,6 +241,16 @@ module Integrations
           fail! "#{key} must be an object of names and values" unless value.is_a?(Hash)
 
           value
+        end
+
+        # A pipeline without a name of its own is called by the branch or tag it ran on.
+        def history_run(pipeline)
+          Capabilities::History::Run.new(
+            id: pipeline["id"].to_s, number: pipeline["iid"]&.to_s, name: pipeline["name"].presence || "pipeline on #{pipeline['ref']}",
+            status: Capabilities::History.status(pipeline["status"], HISTORY_STATUSES),
+            started_at: Telemetry.parse_time(pipeline["started_at"] || pipeline["created_at"]), finished_at: Telemetry.parse_time(pipeline["finished_at"]),
+            url: pipeline["web_url"], detail: "#{pipeline['ref']} at #{pipeline['sha'].to_s[0, 12]}, #{pipeline['source']}"
+          )
         end
 
         def pipeline_line(pipeline)

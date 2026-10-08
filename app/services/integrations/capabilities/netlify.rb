@@ -7,9 +7,10 @@ module Integrations
       extend Adapter
 
       SUPPORTS = {
-        DEPLOYS => [ ResourceMap::KIND_SITE ], STATUS => [ ResourceMap::KIND_SITE ], ROLLBACK => [ ResourceMap::KIND_SITE ]
+        DEPLOYS => [ ResourceMap::KIND_SITE ], STATUS => [ ResourceMap::KIND_SITE ], HISTORY => [ ResourceMap::KIND_SITE ],
+        ROLLBACK => [ ResourceMap::KIND_SITE ]
       }.freeze
-      TOOLS = { DEPLOYS => "list_deploys", STATUS => "describe_site", ROLLBACK => "restore_deploy" }.freeze
+      TOOLS = { DEPLOYS => "list_deploys", STATUS => "describe_site", HISTORY => "deploy_history", ROLLBACK => "restore_deploy" }.freeze
       WRAPPED = TOOLS.values.freeze
       SITE = "site".freeze
       DEPLOY = "deploy".freeze
@@ -19,6 +20,7 @@ module Integrations
         case key
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: site.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: site)
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: site.merge(given.slice("name", "limit")))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: site.merge(DEPLOY => target(given)))
         end
       end

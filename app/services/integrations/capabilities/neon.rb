@@ -4,7 +4,8 @@ module Integrations
     # Each is the Neon API call of the same name and answers with the API's own objects, as @neon/tools and @neon/sdk
     # unwrap them, a list to its items. A project is the database on the map, a branch its branch, a compute the endpoint serving one.
     # Neon keeps no metrics a tool reads and no history of deploys, so status reads the computes, deploys reads the
-    # operations Neon ran, and logs read what runs on a branch.
+    # operations Neon ran, and logs read what runs on a branch. Run history is those same operations, each with when it was
+    # made and how long it took (the API's Operation, created_at and total_duration_ms), named by its action.
     module Neon
       extend Adapter
 
@@ -12,9 +13,18 @@ module Integrations
       PROVIDER_KEY = MapReaders::Neon::PROVIDER
       PROJECT_KINDS = [ ResourceMap::KIND_DATABASE, ResourceMap::KIND_BRANCH, ResourceMap::KIND_COMPUTE ].freeze
       SUPPORTS = {
-        LOGS => [ ResourceMap::KIND_BRANCH ], DEPLOYS => PROJECT_KINDS, STATUS => PROJECT_KINDS, RESTART => [ ResourceMap::KIND_COMPUTE ]
+        LOGS => [ ResourceMap::KIND_BRANCH ], DEPLOYS => PROJECT_KINDS, HISTORY => PROJECT_KINDS, STATUS => PROJECT_KINDS,
+        RESTART => [ ResourceMap::KIND_COMPUTE ]
       }.freeze
-      TOOLS = { LOGS => "query_logs", DEPLOYS => "list_operations", STATUS => "list_postgres_endpoints", RESTART => "restart_postgres_endpoint" }.freeze
+      TOOLS = {
+        LOGS => "query_logs", DEPLOYS => "list_operations", HISTORY => "list_operations", STATUS => "list_postgres_endpoints",
+        RESTART => "restart_postgres_endpoint"
+      }.freeze
+      # An operation's status in the API's own words (OperationStatus), in the words every run history uses.
+      OPERATION_STATUSES = {
+        "scheduling" => History::QUEUED, "running" => History::RUNNING, "cancelling" => History::RUNNING, "finished" => History::SUCCEEDED,
+        "skipped" => History::SUCCEEDED, "failed" => History::FAILED, "error" => History::FAILED, "cancelled" => History::CANCELLED
+      }.freeze
       # Neon's tools reach every project the account sees, far beyond the map, so they stay offered as they are.
       WRAPPED = [].freeze
       # query_logs takes at most 1000 a call and a window of at most seven days.
@@ -25,8 +35,10 @@ module Integrations
       DEPLOY_LIMIT = 20
       DEPLOY_MOST = 100
 
-      # A restart here is of a compute, which Neon suspends and starts again.
-      def self.phrase(key) = key == RESTART ? "restart a compute" : PHRASES.fetch(key)
+      # A restart here is of a compute, which Neon suspends and starts again, and its runs are the operations it ran.
+      OWN_PHRASES = { RESTART => "restart a compute", HISTORY => "see how long its operations usually take" }.freeze
+
+      def self.phrase(key) = OWN_PHRASES.fetch(key) { PHRASES.fetch(key) }
 
       def self.route(key, resource, given, tool: nil, settings: nil)
         project, id = ids_of(resource)
@@ -35,6 +47,9 @@ module Integrations
         when DEPLOYS
           Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "project_id" => project, "limit" => OPERATIONS_READ },
                     present: ->(result) { Answers.read(result, PROVIDER) { |data| deploys_result(resource, id, data, given) } })
+        when HISTORY
+          Route.new(tool_name: TOOLS[HISTORY], arguments: { "project_id" => project, "limit" => OPERATIONS_READ },
+                    present: ->(result) { Answers.read(result, PROVIDER) { |data| history_result(resource, id, data, given) } })
         when STATUS
           names = branch_names(resource, project)
           Route.new(tool_name: TOOLS[STATUS], arguments: { "project_id" => project },
@@ -95,9 +110,30 @@ module Integrations
         Telemetry.result(text, link: Answers.page(resource, PROVIDER))
       end
 
+      def self.history_result(resource, id, data, given)
+        runs = operations_on(resource, id, data).map do |operation|
+          status = History.status(operation["status"], OPERATION_STATUSES)
+          started = Telemetry.parse_time(operation["created_at"])
+          took = operation["total_duration_ms"]
+          History::Run.new(
+            id: operation["id"], name: operation["action"], status: status, started_at: started,
+            finished_at: (started + (took.to_f / 1000) if started && took && History::FINISHED.include?(status)),
+            detail: operation["error"].presence&.to_s&.truncate(200)
+          )
+        end
+        History.result(runs, what: resource.name, link: Answers.page(resource, PROVIDER), name: given["name"],
+                             limit: Answers.limit(given, History::LIMIT))
+      end
+
+      # The project's operations on the resource, the whole project's for the database.
+      def self.operations_on(resource, id, data)
+        field = { ResourceMap::KIND_BRANCH => "branch_id", ResourceMap::KIND_COMPUTE => "endpoint_id" }[resource.kind]
+        Array(data.is_a?(Hash) ? data["operations"] : data).select { |operation| field.nil? || operation[field] == id }
+      end
+
       def self.deploys_result(resource, id, data, given)
         field = { ResourceMap::KIND_BRANCH => "branch_id", ResourceMap::KIND_COMPUTE => "endpoint_id" }[resource.kind]
-        operations = Array(data.is_a?(Hash) ? data["operations"] : data).select { |operation| field.nil? || operation[field] == id }
+        operations = operations_on(resource, id, data)
         operations = operations.sort_by { |operation| operation["created_at"].to_s }.reverse.first(Answers.limit(given, DEPLOY_MOST, default: DEPLOY_LIMIT))
         link = Answers.page(resource, PROVIDER)
         if operations.empty?
@@ -154,7 +190,7 @@ module Integrations
                              .to_h { |external_id, name| [ external_id.split("/", 2).last, name ] }
       end
 
-      private_class_method :ids_of, :logs, :window, :logs_result, :deploys_result, :status_result, :compute_line, :suspends, :branch_names
+      private_class_method :ids_of, :logs, :window, :logs_result, :history_result, :operations_on, :deploys_result, :status_result, :compute_line, :suspends, :branch_names
     end
   end
 end

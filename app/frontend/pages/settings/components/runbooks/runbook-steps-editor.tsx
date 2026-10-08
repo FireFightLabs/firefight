@@ -16,10 +16,16 @@ export interface EditableStep {
   id?: string
   title: string
   instruction: string
+  // The tool Halon runs the step with, by the name Halon calls it, and its arguments as JSON text while being edited.
+  tool: string
+  argumentsText: string
 }
 
-export function RunbookStepsEditor({ steps, onChange }: {
+const ARGUMENTS_PLACEHOLDER = '{ "workflow": "release.yml", "inputs": { "bump": "{{bump}}" } }'
+
+export function RunbookStepsEditor({ steps, stepErrors, onChange }: {
   steps: EditableStep[]
+  stepErrors: Record<string, string>
   onChange: (steps: EditableStep[]) => void
 }) {
   function update(index: number, patch: Partial<EditableStep>) {
@@ -27,7 +33,7 @@ export function RunbookStepsEditor({ steps, onChange }: {
   }
 
   function add() {
-    onChange([...steps, { key: crypto.randomUUID(), title: "", instruction: "" }])
+    onChange([...steps, { key: crypto.randomUUID(), title: "", instruction: "", tool: "", argumentsText: "" }])
   }
 
   function remove(index: number) {
@@ -56,7 +62,7 @@ export function RunbookStepsEditor({ steps, onChange }: {
 
       {steps.length === 0 ? (
         <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          No steps yet. Add ordered actions responders should take.
+          No steps yet. Add ordered actions responders should take, or name a tool for Halon to run a step with.
         </p>
       ) : (
         <div className="space-y-2">
@@ -95,6 +101,24 @@ export function RunbookStepsEditor({ steps, onChange }: {
                   onChange={(event) => update(index, { instruction: event.target.value })}
                   placeholder="Instruction (optional)"
                 />
+                <Input
+                  aria-label={`Step ${index + 1} tool`}
+                  className="font-mono text-xs"
+                  value={step.tool}
+                  onChange={(event) => update(index, { tool: event.target.value })}
+                  placeholder="Tool Halon runs it with (optional)"
+                />
+                {step.tool.trim().length > 0 && (
+                  <Textarea
+                    aria-label={`Step ${index + 1} arguments`}
+                    rows={3}
+                    className="font-mono text-xs"
+                    value={step.argumentsText}
+                    onChange={(event) => update(index, { argumentsText: event.target.value })}
+                    placeholder={ARGUMENTS_PLACEHOLDER}
+                  />
+                )}
+                {stepErrors[step.key] && <p className="text-xs text-destructive">{stepErrors[step.key]}</p>}
               </div>
               <button
                 type="button"

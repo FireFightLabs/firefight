@@ -165,6 +165,18 @@ module Integrations
                      call(:list_deployments, "resource" => "api")
       end
 
+      test "an App Service app's deployments carry their start, end and status as run history" do
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/deployments" }.returns(pages([
+          { "name" => "storefront/abc123", "properties" => { "status" => 4, "start_time" => "2026-10-03T09:00:00Z", "end_time" => "2026-10-03T09:05:00Z", "message" => "Fix checkout" } },
+          { "name" => "storefront/def456", "properties" => { "status" => 1, "start_time" => "2026-10-03T10:00:00Z" } }
+        ]))
+        AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([]))
+
+        result = Azure.new(@integration).call("list_deployments", environment_row: @row, arguments: { "resource" => "storefront" })
+
+        assert_equal [ [ "def456", "running", nil ], [ "abc123", "succeeded", 300 ] ], Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
+      end
+
       test "a rollback swaps a slot the app has, or sends a Container App's traffic to an earlier revision, activating it first" do
         AzureApi.any_instance.stubs(:list).with { |path, *| path == "#{WEB_ID}/slots" }.returns(pages([ { "name" => "storefront/staging" } ]))
         AzureApi.any_instance.expects(:post).with("#{WEB_ID}/slotsswap", Azure::WEB_VERSION, { "targetSlot" => "staging", "preserveVnet" => true }).returns({})

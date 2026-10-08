@@ -86,6 +86,26 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     assert_equal "not json", call.present_result(text_result("not json")).dig("content", 0, "text")
   end
 
+  test "run history is a Pages project's deployments read stage by stage, and a Worker, whose deploys switch at once, has none" do
+    call = resolve(Integrations::Capabilities::HISTORY, "resource" => "docs", "name" => "production")
+    assert_equal [ "GET", "/accounts/#{ACCOUNT}/pages/projects/docs/deployments" ], request_of(call).values_at("method", "path")
+
+    answer = call.present_result(text_result({ "result" => [
+      { "id" => "d2", "environment" => "production", "created_on" => "2026-10-01T09:00:00Z", "url" => "https://d2.docs.pages.dev",
+        "latest_stage" => { "name" => "deploy", "status" => "success", "ended_on" => "2026-10-01T09:03:10Z" },
+        "stages" => [ { "name" => "queued", "started_on" => "2026-10-01T09:00:10Z" }, { "name" => "deploy", "started_on" => "2026-10-01T09:03:00Z" } ],
+        "deployment_trigger" => { "metadata" => { "commit_hash" => "c4e4267d46e638ac", "commit_message" => "Fix nav" } } },
+      { "id" => "d3", "environment" => "production", "created_on" => "2026-10-01T10:00:00Z",
+        "latest_stage" => { "name" => "build", "status" => "success", "ended_on" => "2026-10-01T10:01:00Z" } },
+      { "id" => "d1", "environment" => "preview", "created_on" => "2026-10-01T08:00:00Z",
+        "latest_stage" => { "name" => "build", "status" => "failure", "ended_on" => "2026-10-01T08:02:00Z" } }
+    ] }))
+    runs = Integrations::Capabilities::History.runs_of(answer)
+    assert_equal [ [ "d3", "running", nil ], [ "d2", "succeeded", 180 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
+    assert_equal "c4e4267d46e6 Fix nav", runs.second.detail
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "api-worker") }
+  end
+
   private
 
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)

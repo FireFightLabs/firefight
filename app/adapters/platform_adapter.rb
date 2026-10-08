@@ -533,6 +533,27 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # One line a watch Halon keeps said, such as a milestone or how it ended, in the chat's thread. update is a
+  # Conversation::Watches::Said.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_watch_update(channel_id:, thread_id:, update:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same line to whoever asked for the watch. conversation_id is the dashboard chat it reports to, which the message
+  # offers to open, or nil for a chat that is not on the dashboard.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_watch_update_to_user(user_id:, update:, conversation_id: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Whether a conversation's channel is a direct one with a single person, where a message to that person would land
+  # twice.
+  # @return [Boolean]
+  def direct_conversation?(channel_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A change the agent was refused in a chat's thread for want of a pack, naming the pack and the admins, with Ask an
   # admin. refusal is a Chat::PackRefusal.
   # @return [Hash] { message_id:, channel_id: }

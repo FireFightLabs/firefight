@@ -18,6 +18,19 @@ class Integrations::Capabilities::CodeHostAdapterTest < ActiveSupport::TestCase
     assert_equal({ "repo" => "acme/platform/api", "limit" => 5 }, gitlab_deploys.arguments)
   end
 
+  test "a repository's run history is its CI runs, narrowed to a workflow by name, and CircleCI is never asked for it" do
+    @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "circleci", name: "CircleCI", slug: "circleci",
+                                    settings: { "server_url" => "https://mcp.circleci.com/v1/mcp" })
+                    .tools.create!(name: "list_runs", description: "Runs", read_only: true, enabled: true, params_schema: { "type" => "object" })
+
+    github = resolve(Integrations::Capabilities::HISTORY, "resource" => "acme/web", "name" => "release", "limit" => 5)
+    gitlab = resolve(Integrations::Capabilities::HISTORY, "resource" => "acme/platform/api")
+
+    assert_equal [ @github_row, "ci_runs", { "repo" => "acme/web", "name" => "release", "limit" => 5 } ], [ github.environment_row, github.tool.name, github.arguments ]
+    assert_equal [ @gitlab_row, "ci_runs", { "repo" => "acme/platform/api" } ], [ gitlab.environment_row, gitlab.tool.name, gitlab.arguments ]
+    assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "acme/web", "connection" => "circleci") }
+  end
+
   test "a repository only keeps build logs, so another stream is refused in the host's words" do
     error = assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::LOGS, "resource" => "acme/platform/api", "stream" => "requests") }
 
@@ -26,7 +39,8 @@ class Integrations::Capabilities::CodeHostAdapterTest < ActiveSupport::TestCase
 
   test "a code host wraps none of its tools, so Halon keeps every one, and its details say what it answers for its repositories" do
     assert_not Integrations::Capabilities.adapter_for("github").wraps?("recent_deployments")
-    assert_equal "Halon can read their build logs, see what was deployed, and check how their CI stands for the repositories GitLab puts on the map, " \
+    assert_equal "Halon can read their build logs, see what was deployed, check how their CI stands, and see how long their CI runs usually take " \
+                 "for the repositories GitLab puts on the map, " \
                  "through the tools that are switched on. It also uses GitLab's other tools that are switched on.", Integrations::Capabilities.halon_sentence("gitlab", "GitLab")
     assert_equal "Halon can check how their CI stands for the repositories on the map that CircleCI builds, through the tools that are switched on. " \
                  "It also uses CircleCI's other tools that are switched on.", Integrations::Capabilities.halon_sentence("circleci", "CircleCI")

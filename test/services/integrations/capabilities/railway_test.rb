@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Integrations::Capabilities::RailwayTest < ActiveSupport::TestCase
-  TOOLS = %w[search_logs query_metrics list_deployments describe_resource rollback_deployment restart_deployment scale_service].freeze
+  TOOLS = %w[search_logs query_metrics list_deployments deploy_history describe_resource rollback_deployment restart_deployment scale_service].freeze
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -39,8 +39,13 @@ class Integrations::Capabilities::RailwayTest < ActiveSupport::TestCase
 
   test "Railway's wrapped tools are not offered twice, and its details say what Halon can do" do
     assert Integrations::Capabilities.wrapped?(@railway.tools.find_by!(name: "scale_service"))
-    assert_equal %w[logs metrics deploys status rollback restart scale], Integrations::Capabilities::Railway.capabilities
+    assert_equal %w[logs metrics deploys status history rollback restart scale], Integrations::Capabilities::Railway.capabilities
     assert_match "for anything Railway runs", Integrations::Capabilities.halon_sentence("railway", "Railway")
+  end
+
+  test "run history is Railway's deploy history of a service, by its id" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "limit" => 5)
+    assert_equal [ "deploy_history", { "resource" => "svc-web", "limit" => 5 } ], [ history.tool.name, history.arguments ]
   end
 
   private

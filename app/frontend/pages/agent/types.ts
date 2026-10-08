@@ -2,7 +2,7 @@ import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatHeldCall, AgentChatIncident, AgentChatMessage,
-  AgentChatPackRefusal, AgentChatWaitingMessage, ChatChart, ChatCompaction, EnvironmentOption,
+  AgentChatPackRefusal, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, EnvironmentOption,
   IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -31,6 +31,8 @@ export interface AgentPageProps extends SharedProps {
   compactions: ChatCompaction[]
   heldCalls: AgentChatHeldCall[]
   packRefusals: AgentChatPackRefusal[]
+  watches: AgentChatWatch[]
+  watchUpdates: AgentChatWatchUpdate[]
   setupGuide: SetupGuide | null
 }
 

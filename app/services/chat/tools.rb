@@ -179,7 +179,7 @@ module Chat::Tools
     call = (call_title(tool_call) if target)
     Confirmation.new(
       tool_call_id: tool_call.tool_call_id, question: target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?",
-      intent: intent_of(tool_call.arguments), asked: step&.asked || [], status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
+      intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
       target: target, call: call
     )
   end
@@ -196,6 +196,12 @@ module Chat::Tools
     key = IntegrationProvider.find(tool.integration.provider)&.scope_field&.key
     scope = key && arguments[key].presence
     "#{tool.name.tr('_.', '  ').humanize} · #{scope.is_a?(String) ? tool.integration.target_label(scope: scope) : tool.integration.display_name}"
+  end
+
+  # A runbook's run is confirmed as the steps it will take, read from the runbook rather than from Halon's words.
+  def self.planned(tool_call)
+    workspace = tool_call.name == Conversation::Tools::RunRunbook::NAME && tool_call.message&.chat&.workspace
+    workspace ? Conversation::Tools::RunRunbook.plan_rows(workspace, tool_call.arguments) : []
   end
 
   def self.call_title(tool_call)
@@ -237,7 +243,9 @@ module Chat::Tools
   end
 
   # kind says whether the provider answered that what was asked about is not there (Chat::StepOutcome).
+  # A runbook's run hears of it too, since its steps run with no call of their own to mark (Conversation::Tools::RunRunbook).
   def self.mark_failed(agent_run, tool_call_id, kind: Chat::StepOutcome::FAILURE_ERROR)
+    agent_run.call_failed!(kind) if agent_run.respond_to?(:call_failed!)
     return if tool_call_id.blank?
 
     Chat.find_by(owner: agent_run.chat_owner)&.mark_failed!(tool_call_id, kind: kind)

@@ -18,6 +18,8 @@ class Chat < ApplicationRecord
   # Calls an approval rule held, waiting for an approver and then for the person who asked to run them.
   has_many :held_calls, -> { order(:created_at) }, class_name: "Chat::HeldCall", dependent: :destroy, inverse_of: :chat
   has_many :pack_refusals, class_name: "Chat::PackRefusal", dependent: :destroy
+  # What Halon was asked to follow and report on later, from this chat.
+  has_many :watches, -> { order(:created_at) }, class_name: "Chat::Watch", dependent: :destroy, inverse_of: :chat
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 

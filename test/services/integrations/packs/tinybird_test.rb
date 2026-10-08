@@ -179,6 +179,20 @@ module Integrations
         assert_raises(NativePack::Error) { call(:jobs, "job_type" => "reboot") }
       end
 
+      test "jobs carry when each started and ended as run history" do
+        TinybirdApi.any_instance.stubs(:query).returns("data" => [
+          { "created_at" => "2026-10-04 09:00:00", "job_id" => "j9", "job_type" => "populate", "pipe_name" => "top_products", "status" => "done",
+            "started_at" => "2026-10-04 09:00:05", "updated_at" => "2026-10-04 09:03:05" },
+          { "created_at" => "2026-10-04 10:00:00", "job_id" => "j10", "job_type" => "deployment", "pipe_name" => "", "status" => "working",
+            "started_at" => "2026-10-04 10:00:01", "updated_at" => "2026-10-04 10:01:00" }
+        ])
+
+        result = @pack.call("jobs", environment_row: @row, arguments: {})
+
+        assert_equal [ [ "j9", "populate top_products", "succeeded", 180 ], [ "j10", "deployment", "running", nil ] ],
+                     Capabilities::History.runs_of(result).map { |run| [ run.id, run.name, run.status, run.seconds ] }
+      end
+
       test "status reads the workspace, a data source or an endpoint by its name or id, and names what it does not know" do
         stub_queries("pipe_stats_rt" => [ { "pipe_id" => "t_top", "name" => "top_pages", "requests" => "40", "failed" => "3", "server_errors" => "2", "p95" => 0.2 } ],
                      "datasources_ops_log" => [ { "datasource_id" => "t_events", "name" => "events", "ok" => "1", "failed" => "2", "last_error" => "Invalid JSON" } ],

@@ -5,6 +5,8 @@ import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HeldCallCard } from "@/pages/agent/components/held-call-card"
 import { PackRefusalCard } from "@/pages/agent/components/pack-refusal-card"
+import { WatchCard } from "@/pages/agent/components/watch-card"
+import { WatchUpdate } from "@/pages/agent/components/watch-update"
 import { ImageDialog } from "@/components/image-dialog"
 import { Message } from "@/pages/agent/components/message"
 import { MessageAttachments } from "@/pages/agent/components/message-attachments"
@@ -12,7 +14,7 @@ import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessa
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
   AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatWaitingMessage,
-  ChatCompaction,
+  AgentChatWatch, AgentChatWatchUpdate, ChatCompaction,
 } from "@/types/serializers"
 
 interface ThreadProps {
@@ -22,11 +24,15 @@ interface ThreadProps {
   compactions: ChatCompaction[]
   heldCalls: AgentChatHeldCall[]
   packRefusals: AgentChatPackRefusal[]
+  watches: AgentChatWatch[]
+  watchUpdates: AgentChatWatchUpdate[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
-export function Thread({ conversationId, confirmations, messages, compactions, heldCalls, packRefusals, waiting, stream }: ThreadProps) {
+export function Thread({
+  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, watches, watchUpdates, waiting, stream,
+}: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
   const live = liveTurn(stream, messages, compactions)
@@ -34,6 +40,9 @@ export function Thread({ conversationId, confirmations, messages, compactions, h
   const held = useMemo(() => placeAfterTurns(turns, messages, heldCalls), [ turns, messages, heldCalls ])
   // A refusal sits after the turn it happened in.
   const refused = useMemo(() => placeAfterTurns(turns, messages, packRefusals), [ turns, messages, packRefusals ])
+  // A watch sits after the answer that started it, and each line it said later sits where it was said.
+  const watched = useMemo(() => placeAfterTurns(turns, messages, watches), [ turns, messages, watches ])
+  const said = useMemo(() => placeAfterTurns(turns, messages, watchUpdates), [ turns, messages, watchUpdates ])
   // Held by id rather than by the message, which the server's copy replaces once it answers.
   const [ openImageId, setOpenImageId ] = useState<string | null>(null)
   const openImage = sentAttachments(turns, waiting).find((attachment) => attachment.id === openImageId) ?? null
@@ -44,18 +53,20 @@ export function Thread({ conversationId, confirmations, messages, compactions, h
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
-  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length ])
+  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, watchUpdates.length ])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(BEFORE_ALL_TURNS)} />}
+        {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
         {turns.map((turn) => (
           <Fragment key={turn.id}>
             <Message turn={turn} onOpenImage={setOpenImageId} />
             {conversationId && <HeldCalls conversationId={conversationId} heldCalls={held.get(turn.id)} />}
             {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(turn.id)} />}
+            {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
           </Fragment>
         ))}
         {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
@@ -79,6 +90,22 @@ function HeldCalls({ conversationId, heldCalls }: { conversationId: string; held
 
 function PackRefusals({ conversationId, refusals }: { conversationId: string; refusals: AgentChatPackRefusal[] | undefined }) {
   return refusals?.map((refusal) => <PackRefusalCard key={refusal.id} conversationId={conversationId} refusal={refusal} />)
+}
+
+interface WatchesProps {
+  conversationId: string
+  watches: AgentChatWatch[] | undefined
+  updates: AgentChatWatchUpdate[] | undefined
+}
+
+// The card first, then what was said since, so a line said after the answer reads below the card that started it.
+function Watches({ conversationId, watches, updates }: WatchesProps) {
+  return (
+    <>
+      {watches?.map((watch) => <WatchCard key={watch.id} conversationId={conversationId} watch={watch} />)}
+      {updates?.map((update) => <WatchUpdate key={update.id} update={update} />)}
+    </>
+  )
 }
 
 function sentAttachments(turns: ChatTurn[], waiting: AgentChatWaitingMessage[]): AgentChatAttachment[] {

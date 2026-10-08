@@ -223,6 +223,25 @@ module Integrations
         assert_match "It runs web:42. A rollback takes a revision of web: web:42 (running), web:41.", text
       end
 
+      test "an ECS service's deployments carry their start, finish and status as run history" do
+        answer(:list_service_deployments, service_deployments: [
+          { service_deployment_arn: "arn:aws:ecs:eu-west-1:1:service-deployment/prod/web/dep-old", started_at: Time.utc(2026, 9, 30, 10), finished_at: Time.utc(2026, 9, 30, 10, 6),
+            status: "SUCCESSFUL", target_service_revision_arn: "rev-41" },
+          { service_deployment_arn: "arn:aws:ecs:eu-west-1:1:service-deployment/prod/web/dep-new", started_at: Time.utc(2026, 10, 1), status: "IN_PROGRESS",
+            target_service_revision_arn: "rev-42" }
+        ])
+        answer(:describe_service_deployments, service_deployments: [])
+        answer(:describe_service_revisions, service_revisions: [ { service_revision_arn: "rev-42", task_definition: TASK_DEFINITION } ])
+        answer(:list_task_definitions, task_definition_arns: [ TASK_DEFINITION ])
+
+        result = @pack.call("list_deployments", environment_row: @row, arguments: { "resource" => SERVICE_ARN })
+        runs = Capabilities::History.runs_of(result)
+
+        assert_equal [ [ "dep-new", "running", nil, "task definition web:42" ], [ "dep-old", "succeeded", 360, nil ] ],
+                     runs.map { |run| [ run.id, run.status, run.seconds, run.detail ] }
+        assert_match "https://eu-west-1.console.aws.amazon.com/ecs/v2", Capabilities::RunHistory.link_of(result).url
+      end
+
       test "a service ECS has no deployment history for shows its current deployments instead" do
         answer(:list_service_deployments, raises: [ AwsApi::Error, "AWS answered InvalidParameterException: not supported" ])
         answer(:list_task_definitions, task_definition_arns: [ TASK_DEFINITION ])

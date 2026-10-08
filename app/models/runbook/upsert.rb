@@ -24,15 +24,16 @@ class Runbook::Upsert
 
   private
 
+  # inputs, aliases and watch are what makes a runbook one Halon can run, and each is touched only when sent.
   def runbook_attributes(args)
     { name: args[:name], summary: args[:summary], content: args[:content],
-      external_url: args[:external_url] }.compact
+      external_url: args[:external_url] }.compact.merge(args.to_h.symbolize_keys.slice(:inputs, :aliases, :watch))
   end
 
   def step_params(args)
     Array(args[:steps]).map do |step|
       step = step.to_h.with_indifferent_access
-      { title: step[:title], instruction: step[:instruction] }
+      { title: step[:title], instruction: step[:instruction], **step.slice(:tool, :arguments).symbolize_keys }
     end
   end
 

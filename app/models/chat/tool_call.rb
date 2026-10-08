@@ -20,4 +20,10 @@ class Chat::ToolCall
       raise
     end
   end
+
+  # Whether an approval rule covers the call, for a way in that only reads and has nobody to approve it, such as a watch.
+  def self.held_by_rule?(workspace:, action_key:, scope: {})
+    action = Ability::Action.lookup(action_key, workspace)
+    action.present? && AbilityGateway.approval_requirement(workspace, action, action_key, scope, {}).present?
+  end
 end

@@ -8,13 +8,13 @@ module Integrations
       RUNNING = [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_DATABASE ].freeze
       SUPPORTS = {
         LOGS => [ *RUNNING, ResourceMap::KIND_BUILD_SERVICE ], METRICS => RUNNING, DEPLOYS => [ ResourceMap::KIND_SERVICE ],
-        STATUS => RUNNING, ROLLBACK => [ ResourceMap::KIND_SERVICE ], RESTART => [ ResourceMap::KIND_SERVICE ],
+        STATUS => RUNNING, HISTORY => [ ResourceMap::KIND_SERVICE, ResourceMap::KIND_BUILD_SERVICE ], ROLLBACK => [ ResourceMap::KIND_SERVICE ], RESTART => [ ResourceMap::KIND_SERVICE ],
         SCALE => [ ResourceMap::KIND_SERVICE ]
       }.freeze
       API = "api_request".freeze
       TOOLS = {
         LOGS => "search_logs", METRICS => "query_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
-        ROLLBACK => API, RESTART => API, SCALE => API
+        HISTORY => "build_history", ROLLBACK => API, RESTART => API, SCALE => API
       }.freeze
       WRAPPED = TOOLS.values.uniq.excluding(API).freeze
       STREAMS = { "app" => "runtime", "build" => "build", "requests" => "ingress", "internal" => "mesh", "cdn" => "cdn", "backup" => "backup", "restore" => "restore" }.freeze
@@ -37,6 +37,8 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => id, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
+        # A service that runs another's builds has none of its own, so its history is the builds of the one that builds it.
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => builder_of(resource) }.merge(given.slice("name", "limit")))
         when ROLLBACK then change("services/#{id}/deployment", { "internal" => { "id" => builder_of(resource), "buildId" => target(given) } })
         when RESTART then change("services/#{id}/restart")
         when SCALE then change("services/#{id}/scale", { "instances" => instances(given) })
