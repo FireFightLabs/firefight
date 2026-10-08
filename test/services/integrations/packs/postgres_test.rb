@@ -10,7 +10,7 @@ module Integrations
         @integration = Integration.create!(workspace: @workspace, kind: Integration::KIND_NATIVE, provider: "postgresql", name: "Orders DB")
         @row = @integration.integration_environments.create!
         @previous = ENV[ALLOWED]
-        ENV[ALLOWED] = "127.0.0.1"
+        ENV[ALLOWED] = database_host
         Postgres.store_connection!(@row, url: test_database_url, certificates: {})
         @pack = Postgres.new(@integration)
       end
@@ -84,13 +84,13 @@ module Integrations
         database = snapshot.resources.sole
         name = ActiveRecord::Base.connection.current_database
 
-        assert_equal [ Postgres::PROVIDER, "127.0.0.1", ResourceMap::KIND_DATABASE, name ], [ database.provider, database.account, database.kind, database.name ]
-        assert_match %r{\A127\.0\.0\.1:\d+/#{name}\z}, database.external_id
+        assert_equal [ Postgres::PROVIDER, database_host, ResourceMap::KIND_DATABASE, name ], [ database.provider, database.account, database.kind, database.name ]
+        assert_match %r{\A#{Regexp.escape(database_host)}:\d+/#{name}\z}, database.external_id
         assert_match(/\APostgreSQL \d+/, database.details["engine"])
         assert_equal "primary", database.details["type"]
         assert_no_match "postgres:postgres", database.to_h.to_json
         port = database.external_id[/:(\d+)\//, 1]
-        assert_equal [ ResourceMap::Endpoint.at(resource: database.key, host: "127.0.0.1", port: port, workspace: @workspace, database: name) ], snapshot.endpoints
+        assert_equal [ ResourceMap::Endpoint.at(resource: database.key, host: database_host, port: port, workspace: @workspace, database: name) ], snapshot.endpoints
         assert_not_includes snapshot.inspect, test_database_url
       end
 
@@ -213,7 +213,12 @@ module Integrations
         config = ActiveRecord::Base.connection_db_config.configuration_hash
         user = ERB::Util.url_encode(config[:username].to_s)
         secret = ERB::Util.url_encode((password || config[:password]).to_s)
-        "postgresql://#{user}:#{secret}@127.0.0.1:#{config[:port] || 5432}/#{config[:database]}"
+        "postgresql://#{user}:#{secret}@#{database_host}:#{config[:port] || 5432}/#{config[:database]}"
+      end
+
+      # The test database's address, which is a service name rather than the loopback when CI runs in a container.
+      def database_host
+        IPSocket.getaddress(ActiveRecord::Base.connection_db_config.configuration_hash[:host].presence || "127.0.0.1")
       end
     end
   end
