@@ -1,7 +1,6 @@
-import { Card } from "@/components/card";
 import { FireFightLogo } from "@/components/fire-fight-logo";
 import { Button } from "@/components/ui/button";
-import { dashboardPath, onboardingInstallPath } from "@/lib/routes";
+import { onboardingChecklistPath } from "@/lib/routes";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { FounderAvatar } from "@/pages/onboarding/components/welcome/founder-avatar";
 import signatureUrl from "@/assets/uros-signature.png";
@@ -10,17 +9,15 @@ import type { SharedProps } from "@/types";
 interface WelcomePageProps extends SharedProps {
   [key: string]: unknown;
   userName: string;
-  workspaceName: string;
-  // A workspace created from a Slack sign-in goes on to connect that team.
-  connectSlack: boolean;
 }
 
-export default function Welcome({ userName, workspaceName, connectSlack }: WelcomePageProps) {
+// The letter alone on one background, then on to setup, where Slack is one of the steps.
+export default function Welcome({ userName }: WelcomePageProps) {
   const firstName = (userName?.trim().split(/\s+/)[0] ?? userName) || "there";
 
   return (
-    <AuthLayout title="Welcome to Firefight">
-      <Card variant="feature">
+    <AuthLayout title="Welcome to Firefight" variant="centered">
+      <div>
         <FireFightLogo className="mx-auto size-8" />
 
         <div className="mt-5 border-t border-border" />
@@ -38,7 +35,11 @@ export default function Welcome({ userName, workspaceName, connectSlack }: Welco
             where your team already works.
           </p>
 
-          <p>Start small. Expand only when you need to.</p>
+          <p>
+            And now there&apos;s Halon, an AI SRE that learns your stack and
+            works every incident alongside you, from the first alert to the
+            postmortem.
+          </p>
 
           <p>Firefight is open source and built in public.</p>
 
@@ -75,12 +76,12 @@ export default function Welcome({ userName, workspaceName, connectSlack }: Welco
         </div>
 
         <Button asChild className="mt-4 w-full cursor-pointer">
-          <a href={connectSlack ? onboardingInstallPath() : dashboardPath()}>
-            {connectSlack ? "Connect Slack" : `Continue to ${workspaceName}`}
+          <a href={onboardingChecklistPath()}>
+            Set up Firefight
             <span aria-hidden="true" className="text-base">→</span>
           </a>
         </Button>
-      </Card>
+      </div>
     </AuthLayout>
   );
 }

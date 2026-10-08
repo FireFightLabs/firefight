@@ -56,7 +56,6 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
 
     get onboarding_welcome_path, headers: inertia_headers
     assert_equal "onboarding/welcome", JSON.parse(response.body)["component"]
-    assert_equal false, inertia_props["connectSlack"]
   end
 
   test "a name the workspace refuses leaves nobody behind and says why" do
@@ -152,7 +151,7 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     assert_not workspace.chat_connected?
 
     get onboarding_welcome_path, headers: inertia_headers
-    assert_equal true, inertia_props["connectSlack"]
+    assert_equal "onboarding/welcome", JSON.parse(response.body)["component"]
 
     get onboarding_install_path, headers: inertia_headers
     assert_equal "onboarding/install", JSON.parse(response.body)["component"]
