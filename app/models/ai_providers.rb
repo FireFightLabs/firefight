@@ -120,12 +120,17 @@ module AiProviders
       Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
     end
     Provider.new(
-      slug: slug, name: entry.fetch("name"), main_model: entry["main"], fast_model: entry["fast"], code_fix_model: entry["code_fix"], fields: fields.freeze,
+      slug: slug, name: entry.fetch("name"), main_model: entry["main"], fast_model: entry["fast"], code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
       assumes_models: klass.assume_models_exist?
     )
   end
   private_class_method :build
+
+  # ANTHROPIC_CODE_FIX_MODEL and the like replace the registry's pick for that provider's accounts, since each
+  # provider names the same model its own way.
+  def self.code_fix_model(slug, entry) = ENV["#{slug.upcase}_CODE_FIX_MODEL"].presence || entry["code_fix"]
+  private_class_method :code_fix_model
 
   def self.sign_in(entry)
     return nil unless entry
