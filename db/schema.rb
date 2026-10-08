@@ -1307,6 +1307,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
     t.string "slug", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "protected_paths", default: [], null: false, array: true
     t.index ["workspace_id", "slug"], name: "index_integrations_on_active_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 

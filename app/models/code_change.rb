@@ -34,6 +34,16 @@ module CodeChange
     PATTERNS.find { |_kind, pattern| path.to_s.match?(pattern) }&.first || KIND_CODE
   end
 
+  # Files a CI system runs with the repository's secrets, on any code host or CI service.
+  CI_WORKFLOW = %r{\A(?:\.github/(?:workflows|actions)/|\.gitlab-ci\.ya?ml\z|\.gitlab/ci/|bitbucket-pipelines\.ya?ml\z|\.circleci/|
+                   azure-pipelines\.ya?ml\z|\.azure-pipelines/|\.buildkite/|Jenkinsfile\z|\.travis\.ya?ml\z|\.drone\.ya?ml\z|
+                   \.woodpecker(?:\.ya?ml\z|/)|\.(?:forgejo|gitea)/workflows/)}x
+
+  CI_WARNING = "This changes a CI workflow, which runs with this repository's secrets. Review it carefully.".freeze
+
+  # What a change's pull request and its answer lead with, or nil when it touches no CI workflow.
+  def self.ci_warning(paths) = (CI_WARNING if paths.any? { |path| path.to_s.match?(CI_WORKFLOW) })
+
   # "owner/name", however it was written: a bare owner/name, or a web or clone address on any code host. Nil for anything else.
   def self.repository_name(text)
     path = text.to_s.strip.sub(%r{\A(?:https?://|git@)[^/:]+[/:]}, "").delete_suffix(".git").delete_suffix("/")

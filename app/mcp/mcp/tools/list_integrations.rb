@@ -36,8 +36,13 @@ module Mcp
         }
       end
 
+      # A code host's connections also say which paths Halon may not change in their repositories (update_protected_paths).
       def self.row_payload(row)
-        { key: row.provider.key, name: row.provider.name, about: row.provider.description, state: row.state, connections: row.connections.pluck(:name) }
+        payload = { key: row.provider.key, name: row.provider.name, about: row.provider.description, state: row.state, connections: row.connections.pluck(:name) }
+        return payload unless row.provider.holds_code
+
+        hosts = Integration.where(id: row.connections.pluck(:id)).order(:name)
+        payload.merge(protected_paths: hosts.to_h { |connection| [ connection.slug, connection.protected_paths ] })
       end
     end
   end

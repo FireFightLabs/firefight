@@ -29,6 +29,7 @@ import {
   toEnvironmentId,
 } from "@/components/integrations/environment-select";
 import { ProviderMark } from "@/components/integrations/provider-mark";
+import { CodeChanges } from "@/pages/integrations/components/code-changes";
 import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
 import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
@@ -331,6 +332,15 @@ export function ConnectedCard({
               </a>
             ))}
           </div>
+        )}
+
+        {integration.protectedPaths && (
+          <CodeChanges
+            key={integration.protectedPaths.join("\n")}
+            integrationId={integration.id}
+            paths={integration.protectedPaths}
+            canManage={canManage}
+          />
         )}
 
         {integration.tools.length === 0 ? (

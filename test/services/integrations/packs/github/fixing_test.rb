@@ -76,12 +76,9 @@ module Integrations
           assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }
         end
 
-        test "a change to CI, from an agent that failed, or cut short, is never opened" do
+        test "a change from an agent that failed, or cut short, is never opened" do
           GithubApp.expects(:open_pull_request).never
           arguments = { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }
-
-          CodeReading.any_instance.stubs(:exec).returns("stdout" => agent_output(path: ".github/workflows/ci.yml"), "timed_out" => false)
-          assert_match "runs in CI with the repository's secrets", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
 
           CodeReading.any_instance.stubs(:exec).returns("stdout" => agent_output(exit: 1), "timed_out" => false)
           assert_match "stopped with an error", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
@@ -92,6 +89,43 @@ module Integrations
           nested = "AGENT_EXIT 0\nBASE s\nNESTED\t#{Base64.strict_encode64('vendor/lib')}\nSTAT\n\nLOG\n"
           CodeReading.any_instance.stubs(:exec).returns("stdout" => nested, "timed_out" => false)
           assert_match "a repository inside this one", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
+        end
+
+        test "a change to CI opens by default, and its pull request and answer lead with a warning" do
+          CodeReading.any_instance.stubs(:exec).returns("stdout" => agent_output(path: ".github/workflows/release.yml"), "timed_out" => false)
+          GithubApp.expects(:open_pull_request).with do |_repo, body:, **|
+            body.start_with?("#{CodeChange::CI_WARNING}\n\nPin the release action")
+          end.returns("html_url" => "https://github.com/acme/api/pull/9")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Pin the release action", "brief" => "Pin it",
+                                                                     "summary" => "Pin the release action" })
+
+          assert text.start_with?("#{CodeChange::CI_WARNING}\nOpened https://github.com/acme/api/pull/9 on acme/api against main.")
+        end
+
+        test "a change to a path the connection keeps out is refused with where the list is, and the agent is told the list" do
+          @integration.protect_paths!([ ".github/workflows/", "*.lock" ])
+          brief = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| brief = argv[5] }
+                     .returns("stdout" => agent_output(path: ".github/workflows/release.yml"), "timed_out" => false)
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) do
+            @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          assert_equal "Halon may not change .github/workflows/release.yml in acme/api. An admin can change this under Integrations, GitHub, Code changes.", error.message
+          assert_includes brief, "Leave .github/workflows/ and *.lock unchanged, since this workspace keeps those paths out of code changes."
+        end
+
+        test "a change outside the paths the connection keeps out opens as before, and the brief names nothing when it keeps none" do
+          brief = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| brief = argv[5] }.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+
+          refute_includes brief, "unchanged, since this workspace keeps"
         end
 
         test "what the agent does is reported as it happens, and the change ends with its files, tests and pull request" do
@@ -152,6 +186,22 @@ module Integrations
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 })
 
           assert_equal "Pushed #{'n' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\nconfig/database.yml | 2 +-", text
+        end
+
+        test "a CI change pushed to an open pull request leads its comment and the answer with the warning, and a kept path is never pushed" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          output = agent_output(path: ".gitlab-ci.yml").sub("BASE start-sha", "BASE #{'h' * 40}")
+          CodeReading.any_instance.stubs(:exec).returns("stdout" => output, "timed_out" => false)
+          GithubApp.expects(:push_commit).returns("n" * 40)
+          GithubApp.expects(:write).with { |_verb, _path, body, **| body[:body].start_with?("#{CodeChange::CI_WARNING}\n\nFirefight's coding agent added") }.returns({})
+          arguments = { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 }
+
+          assert @pack.fix_code(environment_row: @row, arguments: arguments).start_with?("#{CodeChange::CI_WARNING}\nPushed #{'n' * 12} to fix-pool")
+
+          @integration.protect_paths!([ ".gitlab-ci.yml" ])
+          GithubApp.expects(:push_commit).never
+          assert_match "Halon may not change .gitlab-ci.yml in acme/api.", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
         end
 
         test "a change added to an open pull request ends its steps with the pull request it went to" do

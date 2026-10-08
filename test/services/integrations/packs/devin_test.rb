@@ -60,6 +60,35 @@ module Integrations
         @pack.fix_code(environment_row: @row.reload, arguments: ARGUMENTS.merge("brief" => "The log had ghp_#{'a' * 36} in it."))
       end
 
+      test "the brief asks Devin to leave alone the paths the workspace keeps out of code changes and to warn of a CI change" do
+        github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+        github.protect_paths!([ ".github/workflows/", "infra/prod/**" ])
+        prompt = nil
+        DevinApi.any_instance.expects(:create_session).with { |body| prompt = body["prompt"] }
+                 .returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
+        DevinApi.any_instance.stubs(:session).returns(session("exit", nil, prs: [ "https://github.com/acme/web/pull/8" ]))
+        DevinApi.any_instance.stubs(:messages).returns("items" => [])
+
+        @pack.fix_code(environment_row: @row.reload, arguments: ARGUMENTS)
+
+        assert_includes prompt, "Leave .github/workflows/ and infra/prod/** unchanged, since this workspace keeps those paths out of code changes."
+        assert_includes prompt, "start the description with: #{CodeChange::CI_WARNING}"
+        refute_includes prompt, "nothing under .github/"
+      end
+
+      test "with no paths kept out, the brief names none and leaves .github/ to the review like any other file" do
+        prompt = nil
+        DevinApi.any_instance.expects(:create_session).with { |body| prompt = body["prompt"] }
+                 .returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
+        DevinApi.any_instance.stubs(:session).returns(session("exit", nil, prs: [ "https://github.com/acme/web/pull/8" ]))
+        DevinApi.any_instance.stubs(:messages).returns("items" => [])
+
+        @pack.fix_code(environment_row: @row.reload, arguments: ARGUMENTS)
+
+        refute_includes prompt, "unchanged, since this workspace keeps"
+        refute_includes prompt, "nothing under .github/"
+      end
+
       test "a question while working is reported as waiting for a person, and the limit stops the session" do
         DevinApi.any_instance.stubs(:create_session).returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
         DevinApi.any_instance.stubs(:session).returns(session("running", "waiting_for_user"))

@@ -793,4 +793,61 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_nil row.reload.map_events_webhook_id
   end
+
+  test "an admin saves the paths Halon may not change, the details stay open and a toast says what was saved" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    details = integrations_path(Integration::DETAILS_QUERY_PARAM => integration.id)
+
+    patch protected_paths_integration_url(integration), params: { paths: [ ".github/workflows/", "*.lock" ] }
+
+    assert_redirected_to details
+    assert_equal [ ".github/workflows/", "*.lock" ], integration.reload.protected_paths
+    assert_equal "Saved. Halon may not change .github/workflows/ and *.lock in GitHub's repositories.", flash[:notice]
+
+    patch protected_paths_integration_url(integration), params: { paths: [] }
+
+    assert_equal [], integration.reload.protected_paths
+    assert_equal "Saved. Halon may change any file in GitHub's repositories. Every change arrives as a pull request for review.", flash[:notice]
+  end
+
+  test "a path that cannot be read stays on the form with why, and the list is left as it was" do
+    integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    integration.protect_paths!([ ".github/" ])
+
+    patch protected_paths_integration_url(integration), params: { paths: [ "../secrets" ] }
+
+    assert_redirected_to integrations_path(Integration::DETAILS_QUERY_PARAM => integration.id)
+    assert_equal({ "paths" => "../secrets reaches outside the repository. Give a path inside it, such as infra/prod/" }, session[:inertia_errors].stringify_keys)
+    assert_equal [ ".github/" ], integration.reload.protected_paths
+  end
+
+  test "the list shows for a code host only, and only an admin changes it" do
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
+    github.protect_paths!([ "infra/prod/**" ])
+    @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "sentry", name: "Sentry", settings: { "server_url" => "https://mcp.sentry.example/mcp" })
+
+    get integrations_url, headers: inertia_headers
+
+    by_name = inertia_props["integrations"].index_by { |integration| integration["name"] }
+    assert_equal [ "infra/prod/**" ], by_name["GitHub"]["protectedPaths"]
+    assert_nil by_name["Sentry"]["protectedPaths"]
+
+    sign_in(users(:bob), @workspace)
+    patch protected_paths_integration_url(github), params: { paths: [] }
+
+    assert_equal [ "infra/prod/**" ], github.reload.protected_paths
+  end
+
+  test "connecting the same account again keeps its list" do
+    Integrations::Credentials.stubs(:refusal).returns(nil)
+    Integrations::ConnectionRefresh.stubs(:run!)
+    post integrations_url, params: { provider: "gitlab", name: "GitLab", credentials: { token: "glpat-one" } }
+    integration = @workspace.integrations.find_by!(slug: "gitlab")
+    integration.protect_paths!([ ".gitlab-ci.yml" ])
+
+    post integrations_url, params: { provider: "gitlab", name: "GitLab", credentials: { token: "glpat-two" } }
+
+    assert_equal integration, @workspace.integrations.find_by!(slug: "gitlab")
+    assert_equal [ ".gitlab-ci.yml" ], integration.reload.protected_paths
+  end
 end
