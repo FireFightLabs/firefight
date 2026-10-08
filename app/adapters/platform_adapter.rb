@@ -447,6 +447,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Ends an answer whose turn was lost partway. One that showed anything gets ending as its last line, and one that showed
+  # nothing is removed.
+  # @return [Hash] { success: true }
+  def end_interrupted_answer(channel_id:, message_id:, shown:, ending:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Ends the working state by asking the person to confirm the calls the agent paused on.
   # @return [Hash] { message_id:, channel_id: }
   def ask_agent_confirmation(channel_id:, thread_id:, answer_id:, conversation_id:, confirmations:)

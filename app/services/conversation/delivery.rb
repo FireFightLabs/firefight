@@ -1,6 +1,8 @@
 # What the agent says while it is answering someone. The platform decides how it looks.
 class Conversation::Delivery
   FAILED = "Something went wrong on my side, so I did not finish that one. Ask me again.".freeze
+  # The last line of an answer a lost turn was writing, so what it said so far never reads as finished.
+  INTERRUPTED_HERE = "Interrupted here.".freeze
 
   # Saved in the chat and said where the person asked, so a turn that could not finish is never a silence.
   def self.give_up!(conversation, text)
@@ -31,6 +33,21 @@ class Conversation::Delivery
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
       user_id: @conversation.started_by.try(:platform_user_id)
     )[:answer_id]
+    @conversation.answer_started!(@answer_id) if @answer_id
+  end
+
+  # The answer a lost turn left open, ended where it stopped. Kept on the conversation, since the turn that wrote it is gone.
+  def cut_off!
+    message_id = @conversation.answer_message_id
+    return if message_id.blank?
+
+    adapter.end_interrupted_answer(
+      channel_id: @conversation.channel_id, message_id: message_id, shown: @conversation.answer_shown, ending: INTERRUPTED_HERE
+    )
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "conversation.cut_off_undelivered", conversation_id: @conversation.id, error: error.message }.to_json)
+  ensure
+    @conversation.answer_finished!
   end
 
   # Text written so far lands before the step card, which shows the tool by name and not its query.
@@ -46,6 +63,7 @@ class Conversation::Delivery
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind,
       details: progress&.headline
     )
+    shown!
   end
 
   # A coding agent's work, as the step's one line of details, redrawn in place no more often than the platform allows.
@@ -74,6 +92,7 @@ class Conversation::Delivery
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id,
       answer_id: @answer_id, text: reply, streamed: streamed?
     )
+    @conversation.answer_finished!
     post_cards
   rescue AdapterError => error
     Rails.logger.warn({
@@ -86,14 +105,31 @@ class Conversation::Delivery
     answered!(text)
   end
 
+  # Where it was posted is kept, so it can be redrawn if the person moves past it.
   def confirm!(tool_calls)
     @text.flush!
-    adapter.ask_agent_confirmation(
+    posted = adapter.ask_agent_confirmation(
       channel_id: @conversation.channel_id, thread_id: @conversation.thread_id, answer_id: @answer_id,
       conversation_id: @conversation.id, confirmations: tool_calls.map { |tool_call| Chat::Tools.confirmation(tool_call) }
     )
+    @conversation.confirmation_posted!(posted[:message_id])
+    @conversation.answer_finished!
   rescue AdapterError => error
     Rails.logger.warn({ event: "conversation.confirmation_undelivered", conversation_id: @conversation.id, error: error.message }.to_json)
+  end
+
+  # The person asked something else instead of confirming, so the question is redrawn saying it was withdrawn, with
+  # no buttons left to press.
+  def withdrawn!(tool_calls)
+    message_id = @conversation.confirmation_message_id
+    return if message_id.blank? || tool_calls.empty?
+
+    asked_together = @conversation.chat.asked_with(tool_calls.first.tool_call_id).map { |tool_call| Chat::Tools.confirmation(tool_call) }
+    adapter.update_agent_confirmation(
+      channel_id: @conversation.channel_id, message_id: message_id, conversation_id: @conversation.id, confirmations: asked_together
+    )
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "conversation.withdrawal_undelivered", conversation_id: @conversation.id, error: error.message }.to_json)
   end
 
   private
@@ -132,9 +168,18 @@ class Conversation::Delivery
   def append(text)
     if adapter.append_agent_text(channel_id: @conversation.channel_id, answer_id: @answer_id, text: text)[:streaming]
       @sent_text = true
+      shown!
     else
       @lost_text = true
     end
+  end
+
+  # Written once, the first time the open answer shows anything.
+  def shown!
+    return if @shown || @answer_id.nil?
+
+    @shown = true
+    @conversation.answer_shown!
   end
 
   def adapter = @adapter ||= WorkspaceAdapter.for(@conversation.workspace)

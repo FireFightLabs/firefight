@@ -8,6 +8,7 @@ class Chat < ApplicationRecord
   has_many :messages, -> { order(:created_at, :id) }, class_name: "Chat::Message", dependent: :destroy, inverse_of: :chat
 
   include Chat::Compacting
+  include Chat::UnfinishedCalls
 
   belongs_to :workspace
   belongs_to :owner, polymorphic: true
@@ -129,6 +130,9 @@ class Chat < ApplicationRecord
   APPROVAL_REQUESTED = "requested"
   APPROVAL_APPROVED = "approved"
   APPROVAL_DENIED = "denied"
+  # Ours too, for a call put to the person that they moved past by asking something else. It has a result, so RubyLLM
+  # never asks about it again.
+  APPROVAL_WITHDRAWN = "withdrawn"
 
   def tool_calls
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))
@@ -212,10 +216,12 @@ class Chat < ApplicationRecord
     chat
   end
 
-  # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call this.
-  def discard_interrupted_reply!
+  # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call
+  # this, or a sweep that ended the turn, which passes when it looked so a reply begun since is kept.
+  def discard_interrupted_reply!(before: nil)
     last_message = sent_messages.reload.last
     return unless last_message&.interrupted_reply?
+    return if before && last_message.created_at >= before
 
     last_message.destroy!
     sent_messages.reset

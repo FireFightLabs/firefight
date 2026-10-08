@@ -22,4 +22,9 @@ class Conversation::QuietDelivery
   def failed!(_text = nil) = nil
 
   def confirm!(_tool_calls) = nil
+
+  def withdrawn!(_tool_calls) = nil
+
+  # Nothing of a lost turn's answer is kept here, so there is nothing to end.
+  def cut_off! = nil
 end
