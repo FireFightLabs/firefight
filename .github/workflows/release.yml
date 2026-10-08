@@ -106,7 +106,7 @@ jobs:
             --get \
             --connect-timeout 3 \
             --max-time 10 \
-            --data-urlencode "firefight.tag=${{ needs.tag.outputs.tag }}" \
+            --data-urlencode "firefight.branch=main" \
             --data-urlencode "firefight.sha=${{ needs.tag.outputs.tagged_sha }}" \
             --output /dev/null \
             "$NORTHFLANK_RELEASE_WEBHOOK_URL"
