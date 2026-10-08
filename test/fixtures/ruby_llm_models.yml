@@ -62,7 +62,16 @@ claude_opus_5_5:
   name: Claude Opus 5.5
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
-  pricing: {"text_tokens": {"standard": {"input_per_million": 4, "output_per_million": 20}}}
+  pricing: {"text_tokens": {"standard": {"input_per_million": 4, "output_per_million": 20, "cache_read_input_per_million": 0.2, "cache_write_input_per_million": 5}}}
+
+# The same id under another provider at another price, so a price is always read for the provider that served the call.
+vertex_claude_opus_5_5:
+  model_id: claude-opus-5-5
+  context_window: 1000000
+  name: Claude Opus 5.5
+  provider: vertexai
+  capabilities: ["function_calling", "reasoning"]
+  pricing: {"text_tokens": {"standard": {"input_per_million": 8, "output_per_million": 40, "cache_read_input_per_million": 0.4}}}
 
 openrouter_claude_opus_5_5:
   model_id: anthropic/claude-opus-5.5

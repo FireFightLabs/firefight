@@ -199,6 +199,7 @@ function Step({ investigationId, step }: { investigationId: string; step: Invest
             work={step.progress}
             running={step.status === REMEDIATION_STEP_STATUS_RUNNING}
             questionBlockedReason={step.questionBlockedReason}
+            pauseBlockedReason={step.pauseBlockedReason ?? null}
           />
         )}
         {step.result && !step.progress && (

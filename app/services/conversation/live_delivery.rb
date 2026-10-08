@@ -19,6 +19,8 @@ class Conversation::LiveDelivery
   EVENT_SECRET_ENTRY = "secret_entry"
   # A pull request Halon opened from this chat needs attention, or Fix it was pressed, so its card looks again.
   EVENT_PULL_REQUEST = "pull_request"
+  # A code change paused on a step, or someone decided on it, so the chat looks again.
+  EVENT_CODE_FIX = "code_fix"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -54,6 +56,10 @@ class Conversation::LiveDelivery
 
   def self.pull_request_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_PULL_REQUEST)
+  end
+
+  def self.code_fix_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_CODE_FIX)
   end
 
   def self.secret_entry_moved(conversation)

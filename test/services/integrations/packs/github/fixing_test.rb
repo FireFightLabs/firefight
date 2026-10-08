@@ -5,6 +5,7 @@ module Integrations
     class Github
       class FixingTest < ActiveSupport::TestCase
         include CodeQuestionTestHelper
+        include ActiveJob::TestHelper
         NEWEST = "n" * 40
         CHANGED = "c" * 40
         PUSHED = "To https://ff.example.com/code_agent/git/change.git\n*\trefs/halon/x:refs/heads/x\t[new branch]\nDone\nPUSH_EXIT 0\n".freeze
@@ -17,7 +18,7 @@ module Integrations
           GithubApp.stubs(:installation_token).returns("ghs_token")
           GithubApp.stubs(:get).with("/repos/acme/api", token: "ghs_token").returns("default_branch" => "main")
           FirefightAi.stubs(:choices_for).returns([ FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic") ])
-          FirefightAi.stubs(:priced?).returns(true)
+          FirefightAi.stubs(:priced_for?).returns(true)
           CodeReading.any_instance.stubs(:prepare).returns({})
           CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
           stub_compare([ "config/database.yml" ])
@@ -461,7 +462,145 @@ module Integrations
           assert_equal CodeAgentQuestion::STATUS_EXPIRED, Chat::CodeFixProgress.from_h(heard.last).question["status"]
         end
 
+        test "a change that reaches its spending limit pauses: its work is saved to its branch, nothing opens, and the person is asked" do
+          request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
+                                           place: conversation, tool_call_id: "call_1")
+          pack = Github.new(@integration, box_key: "chat-1", request: request)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && spend_all! }
+                     .returns("stdout" => agent_output(exit: 1, session: "ses_abc"), "timed_out" => false)
+          pushed = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && (pushed = argv) }.returns("stdout" => PUSHED)
+          GithubApp.expects(:open_pull_request).never
+          FirefightAi::ChangeReviewer.any_instance.expects(:review).never
+
+          said = nil
+          assert_enqueued_with(job: CodeAgentPauseJob) do
+            said = pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          pause = CodeAgentSession::Pause.find_by!(workspace: @workspace)
+          assert_match "reached its spending limit before finishing, so it is paused. Its work so far is saved on #{pause.saved_branch}", said
+          assert pause.saved_branch.start_with?(Fixing::BRANCH_PREFIX)
+          assert_equal [ pause.saved_branch, "", pause.saved_branch ], pushed.values_at(6, 7, 8), "pushed to a new branch of its own"
+          assert_equal [ CHANGED, NEWEST, "ses_abc", "chat-1", CodeAgentSession::DEFAULT_BUDGET_MICROS, "main" ],
+                       pause.values_at(:saved_commit, :copy_ref, :agent_session_id, :box_key, :budget_micros, :base)
+          assert_equal({ "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }, pause.arguments)
+          assert_in_delta CodeAgentSession::Pause::RESUMABLE_FOR.from_now, pause.resumable_until, 5.seconds
+          assert_nil pause.target_branch
+        end
+
+        test "a change for an open pull request that pauses is saved beside it, never on the pull request's branch" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION, place: conversation)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && spend_all! }
+                     .returns("stdout" => agent_output.sub("BASE start-sha", "BASE #{'h' * 40}"), "timed_out" => false)
+          pushed = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && (pushed = argv) }.returns("stdout" => PUSHED)
+          GithubApp.expects(:write).never
+
+          Github.new(@integration, box_key: "chat-1", request: request)
+                .fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise", "brief" => "Raise it", "pull_request" => 7 })
+
+          pause = CodeAgentSession::Pause.find_by!(workspace: @workspace)
+          assert_equal [ pause.saved_branch, "", "fix-pool" ], pushed.values_at(6, 7, 8)
+          assert_not_equal "fix-pool", pause.saved_branch
+          assert_equal [ "fix-pool", "h" * 40 ], pause.values_at(:target_branch, :target_sha)
+        end
+
+        test "Continue while the box is still there carries on the same agent session in the same copy, with a new budget of the same size" do
+          pause = paused_change(box: true)
+          sent = nil
+          CodeReading.any_instance.expects(:exec).with { |repo, ref:, argv:, **| argv[2] == Fixing::RUN && ref == NEWEST && (sent = argv) }
+                     .returns("stdout" => agent_output, "timed_out" => false)
+          pushed = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && (pushed = argv) }.returns("stdout" => PUSHED)
+          GithubApp.expects(:open_pull_request).with { |_repo, branch:, **| branch == pause.saved_branch }.returns("html_url" => "https://github.com/acme/api/pull/9", "number" => 9)
+
+          continued_pack(pause).fix_code(environment_row: @row, arguments: pause.arguments.merge(Fixing::CONTINUE_ARG => pause.id))
+
+          assert_equal [ "s" * 40, "ses_abc" ], sent.values_at(7, 13), "starts from the saved commit and resumes the agent's session"
+          assert_equal Fixing::CONTINUE_IN_PLACE, sent[5]
+          assert_equal [ pause.saved_branch, "s" * 40 ], pushed.values_at(6, 7), "moves the saved branch on from what it saved"
+          assert_equal 3_000_000, CodeAgentSession.where(workspace: @workspace).order(:created_at).last.budget_micros
+        end
+
+        test "Continue after the box is gone starts again from the saved branch with a handover of what was asked, answered and done" do
+          pause = paused_change(box: false)
+          sent = nil
+          CodeReading.any_instance.expects(:exec).with { |repo, ref:, argv:, **| argv[2] == Fixing::RUN && ref == "s" * 40 && (sent = argv) }
+                     .returns("stdout" => agent_output, "timed_out" => false)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
+          GithubApp.stubs(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/9", "number" => 9)
+
+          continued_pack(pause).fix_code(environment_row: @row, arguments: pause.arguments.merge(Fixing::CONTINUE_ARG => pause.id))
+
+          assert_equal [ "", "" ], sent.values_at(7, 13), "a fresh agent, nothing to resume"
+          assert_includes sent[5], "You are continuing a change an earlier session started and could not finish"
+          assert_includes sent[5], "What it already changed is committed on #{pause.saved_branch}"
+          assert_includes sent[5], "Tag or commit? Bob Jones chose: Send the tag."
+          assert_includes sent[5], "Restore the pool size", "the original request travels with it"
+        end
+
+        test "a pause nobody pressed Continue on is never carried on, whatever the arguments say" do
+          pause = paused_change(box: true)
+          pause.update_columns(status: CodeAgentSession::Pause::STATUS_OFFERED)
+          CodeReading.any_instance.expects(:exec).never
+
+          error = assert_raises(Integrations::Error) do
+            continued_pack(pause).fix_code(environment_row: @row, arguments: pause.arguments.merge(Fixing::CONTINUE_ARG => pause.id))
+          end
+          assert_equal "This paused change cannot be continued now.", error.message
+        end
+
+        test "Stop deletes the saved branch and closes the box" do
+          pause = paused_change(box: true)
+          pause.update_columns(status: CodeAgentSession::Pause::STATUS_OFFERED)
+          GithubApp.expects(:write).with(:delete, "/repos/acme/api/git/refs/heads/halon/fix-saved", token: "ghs_token").returns({})
+          WorkspaceAdapter.stubs(:for).returns(stub(update_code_pause: { success: true }))
+
+          assert_nil CodeAgentPauseService.stop!(pause, by: workspace_memberships(:bob_workspace_one))
+
+          assert pause.reload.stopped?
+          assert_not CodeBox.live.exists?(key: "chat-1")
+        end
+
         private
+
+        def conversation
+          @conversation ||= @workspace.conversations.create!(kind: Conversation::KIND_PERSONAL, started_by: workspace_memberships(:alice_workspace_one),
+                                                              max_turns: 10, max_spend_cents: 50)
+        end
+
+        def spend_all!
+          CodeAgentSession.where(workspace: @workspace, closed_at: nil).update_all(spent_micros: CodeAgentSession::DEFAULT_BUDGET_MICROS)
+          true
+        end
+
+        # A change that paused with its work saved on halon/fix-saved at s..., and Continue pressed by the person it runs as.
+        def paused_change(box:)
+          bob = workspace_memberships(:bob_workspace_one)
+          request = CodeAgent::Request.new(principal: bob, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+          session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic"),
+                                            repository: "acme/api", request: request, box_key: "chat-1")
+          session.update_columns(integration_environment_id: @row.id)
+          question = ask_question!(session, "Tag or commit?")
+          question.choose!(0, by: bob)
+          if box
+            CodeBox.create!(workspace: @workspace, key: "chat-1", address: "http://box", box_ref: "box-1", provider: "docker", secret: "s", last_used_at: Time.current)
+          end
+          CodeAgentSession::Pause.create!(
+            session: session, workspace: @workspace, conversation: conversation, status: CodeAgentSession::Pause::STATUS_CONTINUING,
+            arguments: { "repo" => "acme/api", "title" => "Restore the pool size", "brief" => "Restore the pool size to 10" }, repository: "acme/api",
+            base: "main", saved_branch: "halon/fix-saved", saved_commit: "s" * 40, copy_ref: NEWEST, agent_session_id: "ses_abc", box_key: "chat-1",
+            budget_micros: 3_000_000, resumable_until: 10.minutes.from_now
+          )
+        end
+
+        def continued_pack(pause)
+          request = CodeAgent::Request.new(principal: pause.session.principal, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation)
+          Github.new(@integration, box_key: "chat-1", request: request)
+        end
 
         def pull(number, overrides = {})
           { "number" => number, "state" => "open", "merged_at" => nil, "html_url" => "https://github.com/acme/api/pull/#{number}",
@@ -477,8 +616,8 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/api/rules/branches/#{name}?per_page=100", token: "ghs_token").returns(rules)
         end
 
-        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n")
-          "AGENT_EXIT #{exit}\nBASE start-sha\nFROM start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\n" \
+        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n", session: "")
+          "AGENT_EXIT #{exit}\nBASE start-sha\nSESSION #{session}\nFROM start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\n" \
             "TOUCHED\t#{Base64.strict_encode64(path)}\nBYTES\t40\nPATCH\t#{Base64.strict_encode64(patch)}\nLOG\ndone"
         end
 

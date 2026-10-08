@@ -50,6 +50,15 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type "#{AgentChatMessageSerializer::PROGRESS_TYPE} | null"
   def progress = step.work&.to_h
 
+  # Why whoever is looking cannot continue or stop the change paused at its spending limit, or nil.
+  type :string, optional: true
+  def pause_blocked_reason
+    pause = step.work&.pause
+    return unless pause
+
+    CodeAgentSession::Pause.find_by(id: pause["id"])&.decide_blocked_reason(Current.principal)
+  end
+
   # Why whoever is looking cannot answer the coding agent's open question, or nil.
   type :string, optional: true
   def question_blocked_reason

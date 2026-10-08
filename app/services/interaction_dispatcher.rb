@@ -93,6 +93,8 @@ class InteractionDispatcher
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,
     Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler,
+    Identifiers::CODE_PAUSE_CONTINUE => Interactions::CodePauseDecisionHandler,
+    Identifiers::CODE_PAUSE_STOP => Interactions::CodePauseDecisionHandler,
     **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler }
   }.freeze
 

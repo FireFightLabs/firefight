@@ -7,13 +7,15 @@ class Conversation::Runner
 
   # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
   # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
-  # someone pressed Fix it on, whose code change this turn runs first.
-  def initialize(conversation, asker:, held_call: nil, handed_back: nil, pull_request_fix: nil)
+  # someone pressed Fix it on, whose code change this turn runs first. code_pause is a code change paused at its spending
+  # limit that someone pressed Continue on, which this turn carries on first.
+  def initialize(conversation, asker:, held_call: nil, handed_back: nil, pull_request_fix: nil, code_pause: nil)
     @conversation = conversation
     @turn = Conversation::Turn.new(conversation, asker: asker, reads_only: handed_back.present?)
     @held_call = held_call
     @handed_back = handed_back
     @pull_request_fix = pull_request_fix
+    @code_pause = code_pause
   end
 
   def run
@@ -27,6 +29,7 @@ class Conversation::Runner
     take_queued(chat)
     run_held_call(chat) if @held_call
     run_pull_request_fix(chat) if @pull_request_fix
+    run_code_pause(chat) if @code_pause
     chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back
     # The turn before this one already answered what this job was queued for.
     if answered_already?(chat)
@@ -151,6 +154,12 @@ class Conversation::Runner
   def run_pull_request_fix(chat)
     said = PullRequestFollowing.run_fix!(@turn, @pull_request_fix)
     chat.nudge!(PullRequestFollowing.fixed_note(@pull_request_fix, said)) if room_for_a_note?(chat)
+  end
+
+  # The person pressed Continue, so the paused change carries on before Halon answers, and Halon reads what it said.
+  def run_code_pause(chat)
+    said = CodeAgentPauseService.run_continue!(@turn, @code_pause)
+    chat.nudge!(CodeAgentPauseService.continued_note(@code_pause, said)) if room_for_a_note?(chat)
   end
 
   # A provider refuses anything between a call and its result, so nothing is said while a call waits for the person.

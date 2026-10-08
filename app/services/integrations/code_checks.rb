@@ -94,7 +94,7 @@ module Integrations
         python=$(pick '\.py$')
         if [ -n "$python" ]; then
           if [ -x .venv/bin/ruff ]; then check "ruff check $python" .venv/bin/ruff check $python; elif has ruff; then check "ruff check $python" ruff check $python; fi
-          check "python compile $python" python3 -m py_compile $python
+          has python3 && check "python compile $python" python3 -m py_compile $python
         fi
         pytests=$(tests_of '(^|/)(test_[^/]*|[^/]*_test)\.py$')
         [ -n "$pytests" ] && [ -x .venv/bin/pytest ] && check "pytest $pytests" .venv/bin/pytest $pytests
@@ -108,8 +108,8 @@ module Integrations
         fi
         shells=$(pick '\.(sh|bash)$')
         [ -n "$shells" ] && has shellcheck && check "shellcheck $shells" shellcheck $shells
-        for file in $(pick '\.json$'); do check "json $file" python3 -m json.tool "$file"; done
-        for file in $(pick '\.ya?ml$'); do check "yaml $file" ruby -ryaml -e 'YAML.load_stream(File.read(ARGV[0]))' "$file"; done
+        if has python3; then for file in $(pick '\.json$'); do check "json $file" python3 -m json.tool "$file"; done; fi
+        if has ruby; then for file in $(pick '\.ya?ml$'); do check "yaml $file" ruby -ryaml -e 'YAML.load_stream(File.read(ARGV[0]))' "$file"; done; fi
         return 0
       }
     SH

@@ -119,7 +119,7 @@ module TypescriptConstants
         "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
         "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL,
         "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
-        "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST
+        "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
@@ -135,7 +135,12 @@ module TypescriptConstants
         "PASSED" => Chat::CodeFixProgress::RESULT_PASSED, "FAILED" => Chat::CodeFixProgress::RESULT_FAILED
       }, nil),
       Export.new("CODE_FIX_OUTCOMES", {
-        "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "PUSHED" => Chat::CodeFixProgress::OUTCOME_PUSHED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED
+        "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "PUSHED" => Chat::CodeFixProgress::OUTCOME_PUSHED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED,
+        "PAUSED" => Chat::CodeFixProgress::OUTCOME_PAUSED
+      }, nil),
+      Export.new("CODE_FIX_PAUSE_STATUSES", {
+        "OFFERED" => CodeAgentSession::Pause::STATUS_OFFERED, "CONTINUING" => CodeAgentSession::Pause::STATUS_CONTINUING,
+        "STOPPED" => CodeAgentSession::Pause::STATUS_STOPPED
       }, nil),
       Export.new("CODE_AGENT_QUESTION_STATUSES", {
         "OPEN" => CodeAgentQuestion::STATUS_OPEN, "ANSWERED" => CodeAgentQuestion::STATUS_ANSWERED,

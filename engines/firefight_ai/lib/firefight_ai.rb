@@ -250,13 +250,17 @@ module FirefightAi
     RubyLLM.models.chat_models.select { |model| priced_model?(model) }
   end
 
-  # What a call cost in millionths of a dollar, from the registry's price per million tokens. Zero for a model it
-  # cannot price, the same as priced? says.
-  def cost_micros(model_id, input:, output:, cache_read: 0)
-    text = RubyLLM.models.find(model_id.to_s).pricing.text_tokens
-    cached = text.respond_to?(:cached_input) && text.cached_input.to_f.positive? ? text.cached_input.to_f : text.input.to_f
-    ((input - cache_read) * text.input.to_f + cache_read * cached + output * text.output.to_f).round
-  rescue StandardError
+  # What a call cost in millionths of a dollar, priced by RubyLLM itself for the model as its provider serves it, since
+  # one id can be several providers' at different prices. input is every input token, cache reads and writes included,
+  # and each kind is charged at its own price, a cache read at the cache read price. A kind the registry has no price for
+  # is charged as plain input. Zero for a model it cannot price, the same as priced_for? says.
+  def cost_micros(model_id, provider:, input:, output:, cache_read: 0, cache_write: 0)
+    model = RubyLLM.models.find(model_id.to_s, provider: provider.presence)
+    plain = [ input - cache_read - cache_write, 0 ].max
+    total = model.cost_for(RubyLLM::Tokens.new(input: plain, output: output, cache_read: cache_read, cache_write: cache_write)).total
+    total ||= model.cost_for(RubyLLM::Tokens.new(input: input, output: output)).total
+    (total.to_f * 1_000_000).round
+  rescue RubyLLM::ModelNotFoundError
     0
   end
 

@@ -1,4 +1,6 @@
-import { CODE_AGENT_QUESTION_STATUSES, CODE_CHECK_STATUSES, CODE_FIX_LINE_RESULTS, CODE_FIX_OUTCOMES } from "@/lib/generated/constants"
+import {
+  CODE_AGENT_QUESTION_STATUSES, CODE_CHECK_STATUSES, CODE_FIX_LINE_RESULTS, CODE_FIX_OUTCOMES, CODE_FIX_PAUSE_STATUSES,
+} from "@/lib/generated/constants"
 import type { InvestigationRemediationStep } from "@/types/serializers"
 
 // What a coding agent writing a change has done so far, the same shape on a chat step and on a fix step.
@@ -34,6 +36,21 @@ export function passedLine(line: CodeFixLine): boolean {
 // Opened a pull request, or added a commit to a branch that already had one.
 export function wroteChange(work: CodeFixWork): boolean {
   return work.outcome === CODE_FIX_OUTCOMES.OPENED || work.outcome === CODE_FIX_OUTCOMES.PUSHED
+}
+
+export type CodeFixPause = NonNullable<CodeFixWork["pause"]>
+
+// Reached its spending limit and waits for the person to continue or stop it.
+export function paused(work: CodeFixWork): boolean {
+  return work.outcome === CODE_FIX_OUTCOMES.PAUSED
+}
+
+export function pauseOffered(pause: CodeFixPause): boolean {
+  return pause.status === CODE_FIX_PAUSE_STATUSES.OFFERED
+}
+
+export function pauseContinuing(pause: CodeFixPause): boolean {
+  return pause.status === CODE_FIX_PAUSE_STATUSES.CONTINUING
 }
 
 export function stopped(work: CodeFixWork): boolean {

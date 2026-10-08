@@ -28,11 +28,14 @@ module Integrations
         # comes first. What the pull request will change is measured from where the result leaves the base (FROM), as the
         # code host shows it, so a merge of the base adds nothing to check or review. The checks, the counts and the patch
         # are that, and TOUCHED names what this run changed since the copy's commit. A change sent back after its review
-        # starts from the earlier result ($4). The copy goes back to its commit and its own git settings after. What
-        # preparing installed is ignored, so cleaning keeps it.
+        # starts from the earlier result ($4), and one continued after its spending limit also carries on the agent's own
+        # session ($10), which OpenCode keeps in the box (run --session, cli/cmd/run.ts at 1.18.34). SESSION names it from
+        # the events, which each carry it. The copy goes back to its commit and its own git settings after. What preparing
+        # installed is ignored, so cleaning keeps it.
         RUN = (CodeChecks::SCRIPT + <<~'SH').freeze
           set -u
-          earlier=${4:-}; gate_url=${5:-}; credential=${6:-}; base=${7:-}; branch=${8:-}; message=${9:-}
+          earlier=${4:-}; gate_url=${5:-}; credential=${6:-}; base=${7:-}; branch=${8:-}; message=${9:-}; resume=${10:-}
+          resumed=(); [ -n "$resume" ] && resumed=(--session "$resume")
           start=$(git rev-parse HEAD)
           dir=$(mktemp -d)
           cp .git/config "$dir/git-config"
@@ -52,9 +55,10 @@ module Integrations
           git config user.name Halon
           git config user.email halon@firefight.invalid
           printf '%s' "$1" > "$dir/opencode.json"
-          OPENCODE_CONFIG="$dir/opencode.json" opencode run --model "$3" --format json "$2" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
+          OPENCODE_CONFIG="$dir/opencode.json" opencode run "${resumed[@]}" --model "$3" --format json "$2" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
           echo "AGENT_EXIT ${PIPESTATUS[0]}"
           echo "BASE $start"
+          echo "SESSION $(grep -o '"sessionID":"[^"]*"' "$dir/agent.log" | head -1 | cut -d'"' -f4)"
           git add -A
           from=$(git merge-base "refs/remotes/firefight/$base" HEAD 2> /dev/null) || from=$start
           echo "FROM $from"
@@ -86,13 +90,27 @@ module Integrations
         SH
         # The reviewed change pushed through the gate ($1, the session's token as $2) to the change's branch ($3). A branch
         # that already exists moves only from the head the change was written on ($4), so one someone pushed to meanwhile
-        # is refused rather than overwritten, and a new one only when nobody made it first.
+        # is refused rather than overwritten, and a new one only when nobody made it first. What is pushed is the change
+        # kept for that branch, or for the branch $5 names, as when a paused change is saved to a branch of its own.
         PUSH = <<~'SH'.freeze
           set -u
           if [ -n "${4:-}" ]; then lease="--force-with-lease=refs/heads/$3:$4"; else lease="--force-with-lease=refs/heads/$3:"; fi
-          git -c http.extraHeader="Authorization: Basic $2" push --porcelain --no-verify "$lease" "$1" "refs/halon/$3:refs/heads/$3" 2>&1
+          git -c http.extraHeader="Authorization: Basic $2" push --porcelain --no-verify "$lease" "$1" "refs/halon/${5:-$3}:refs/heads/$3" 2>&1
           echo "PUSH_EXIT $?"
         SH
+        CONTINUE_ARG = CodeAgentSession::Pause::CONTINUE_ARG
+        STEP_PAUSED = "This fix reached its spending limit before finishing. Its work so far is saved, and the person who asked for it decides whether it continues.".freeze
+        # The agent stopped at its spending limit, and what it wrote so far.
+        class BudgetReached < StandardError
+          attr_reader :change
+
+          def initialize(change)
+            @change = change
+            super("The change reached its spending limit.")
+          end
+        end
+        # Answered in place of a pull request when the change paused, for Halon to tell the person.
+        class Paused < StandardError; end
         EARLIER_NOT_APPLIED = "EARLIER_NOT_APPLIED".freeze
         FETCH_FAILED = "FETCH_FAILED".freeze
         PUSHED = /^PUSH_EXIT 0$/
@@ -113,8 +131,9 @@ module Integrations
         # is what this run changed on the branch, so an update to an open pull request can say what it did, and merged is
         # whether it merged another branch in. commit is the change's own commit, kept in the copy for PUSH, and nil when
         # the agent changed nothing. unresolved names a file still holding a conflict marker.
-        Change = Data.define(:commit, :log, :agent_exit, :base, :counts, :checks, :patch, :bytes, :unresolved, :touched, :merged) do
-          def initialize(commit: nil, bytes: 0, unresolved: [], touched: [], merged: false, **) = super
+        # agent_session is the agent's own session in the box, which a change continued after its spending limit carries on.
+        Change = Data.define(:commit, :log, :agent_exit, :base, :counts, :checks, :patch, :bytes, :unresolved, :touched, :merged, :agent_session) do
+          def initialize(commit: nil, bytes: 0, unresolved: [], touched: [], merged: false, agent_session: nil, **) = super
 
           def diff = Base64.decode64(patch.to_s).force_encoding(Encoding::UTF_8).scrub
 
@@ -174,16 +193,19 @@ module Integrations
           fail! AiCredit.cannot(integration.workspace, "write this code change") if choice.unpaid?
           fail! "Code fixes need an Anthropic, OpenAI or OpenRouter model, and this workspace uses #{choice.provider_name}." unless FirefightAi::ModelProxy.supported?(choice.provider_name)
           # Its budget is counted in what the model costs, so a model nobody can price would never run out.
-          fail! "Firefight cannot price #{choice.model}, so a code fix cannot be given a budget with it." unless FirefightAi.priced?(choice.model)
+          fail! "Firefight cannot price #{choice.model}, so a code fix cannot be given a budget with it." unless FirefightAi.priced_for?(choice.model, choice.provider_name)
 
           token = GithubApp.installation_token(environment_row)
+          @arguments = arguments.except(CONTINUE_ARG)
+          @pause = continued_pause(arguments)
           return add_to_branch(environment_row, repo, title, brief, choice, arguments, token) if adding_to_branch?(arguments)
 
           base = arguments["base"].presence || GithubApp.get("/repos/#{repo}", token: token)["default_branch"]
-          newest = head_of(repo, base, token)
-          branch = "#{BRANCH_PREFIX}#{SecureRandom.hex(4)}"
+          newest = @pause ? continued_ref(@pause) || head_of(repo, base, token) : head_of(repo, base, token)
+          branch = @pause&.saved_branch || "#{BRANCH_PREFIX}#{SecureRandom.hex(4)}"
           @work = Chat::CodeFixProgress.start
-          change, reviewed = write_change(environment_row, repo, newest, choice, brief, arguments["context"], title, named: base, base: base, branch: branch, lease: nil)
+          change, reviewed = write_change(environment_row, repo, newest, choice, brief, arguments["context"], title, named: base, base: base, branch: branch,
+                                          lease: @pause&.saved_commit)
           files = landed!(repo, base: base, branch: branch, head: change.commit, before: nil, environment_row: environment_row, token: token)
 
           warning = CodeChange.ci_warning(files)
@@ -200,6 +222,11 @@ module Integrations
           [ CodeWriteUp.answer(done: "Opened #{opened['html_url']} on #{repo} against #{base}.", warning: warning, reviewed: reviewed, change: change,
                                base: base, updating: false),
             standing(environment_row, repo, opened["number"]) ].join("\n\n")
+        rescue Paused => paused
+          # A run's fix step has no Continue of its own, so it ends saying where to decide.
+          fail! STEP_PAUSED if request&.place.is_a?(Investigation::RemediationStep)
+
+          paused.message
         rescue StandardError => error
           work_failed(error)
           raise
@@ -215,9 +242,11 @@ module Integrations
           target = branch_target(repo, arguments, token)
           base = target.pull&.dig("base", "ref") || default_branch(repo, token)
           @work = Chat::CodeFixProgress.start
-          change, reviewed = write_change(environment_row, repo, target.sha, choice, brief, arguments["context"], title,
+          ref = (continued_ref(@pause) if @pause) || target.sha
+          change, reviewed = write_change(environment_row, repo, ref, choice, brief, arguments["context"], title,
                                           named: target.branch, base: base, branch: target.branch, lease: target.sha)
           files = landed!(repo, base: base, branch: target.branch, head: change.commit, before: target.sha, environment_row: environment_row, token: token)
+          take_back!(repo, @pause.saved_branch, nil, token) if @pause&.saved_branch
 
           warning = CodeChange.ci_warning(files)
           @work.pushed!(files: change.counts.slice(*change.touched), pull_request: target.pull&.dig("html_url"))
@@ -347,15 +376,30 @@ module Integrations
           reading.prepare(repo, ref: ref)
           @work.add("Got #{repo} ready at #{named} (#{ref.to_s[0, 12]})")
           report(@work)
-          # Opened once the copy is ready, so its lifetime is the agent's.
-          session, agent_token = CodeAgentSession.open!(workspace: integration.workspace, choice: choice, repository: repo, request: request, box_key: box_key)
+          # Opened once the copy is ready, so its lifetime is the agent's. A change continued after its spending limit gets
+          # another budget of the same size.
+          session, agent_token = CodeAgentSession.open!(workspace: integration.workspace, choice: choice, repository: repo, request: request, box_key: box_key,
+                                                        budget_micros: @pause&.budget_micros || CodeAgentSession::DEFAULT_BUDGET_MICROS)
           session.update_columns(integration_environment_id: environment_row.id, git_branch: branch)
           @session = session
           events = SandboxAgentEvents.new(@work, hidden: [ agent_token ])
           told = [ agent_brief(environment_row, brief, context), format(GIT_BRIEF, branch: branch, base: base) ].join("\n\n")
           gate = [ "#{proxy_base}#{GATE_PATH}", Base64.strict_encode64("#{GATE_USER}:#{agent_token}"), base, branch, title ]
-          pass = ->(words, earlier, timeout) { run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate) }
-          change = pass.call(told, nil, FIX_TIMEOUT + (CodeAgentQuestion::MAX_PER_CHANGE * CodeAgentQuestion::ANSWER_WITHIN).to_i)
+          pass = lambda do |words, earlier, timeout, resume = nil|
+            run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume)
+          rescue BudgetReached => reached
+            pause!(environment_row, reading, repo, ref, gate, session, reached.change, base: base, branch: branch, lease: lease)
+          end
+          first = FIX_TIMEOUT + (CodeAgentQuestion::MAX_PER_CHANGE * CodeAgentQuestion::ANSWER_WITHIN).to_i
+          change = if @pause&.resumable_in_place?
+            @work.add("Carrying on where it stopped")
+            pass.call(CONTINUE_IN_PLACE, @pause.saved_commit, first, @pause.agent_session_id)
+          elsif @pause
+            @work.add("Starting again from #{@pause.saved_branch || base}")
+            pass.call("#{told}\n\n#{handover(@pause)}", nil, first)
+          else
+            pass.call(told, nil, first)
+          end
           fail! "The coding agent changed nothing in #{repo}.\n#{change.log}" if change.nothing?
 
           reviewed = review(session, choice, brief, change, events, updating: lease.present?)
@@ -373,9 +417,9 @@ module Integrations
           session&.close!
         end
 
-        def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate)
+        def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
           argv = [ "bash", "-c", RUN, AGENT, agent_config(choice, agent_token).to_json, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}",
-                   earlier.to_s, *gate ]
+                   earlier.to_s, *gate, resume.to_s ]
           result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv,
                                       on_output: lambda { |text|
                                         watch_questions(session)
@@ -389,6 +433,9 @@ module Integrations
           fail! "The sandbox could not fetch from GitHub through Firefight, so nothing was written: #{output.lines.first.to_s.delete_prefix(FETCH_FAILED).strip}" if output.start_with?(FETCH_FAILED)
 
           change = read_change(output)
+          # Out of budget is a pause the person decides on, whatever the agent did when its calls were refused.
+          raise BudgetReached, change if session.reload.over_budget?
+
           unanswered = session.unanswered_question
           fail! "The coding agent asked a question nobody answered within #{CodeAgentQuestion::ANSWER_WITHIN.in_minutes.to_i} minutes, so nothing is opened: #{unanswered.question}" if unanswered
           fail! "The coding agent stopped with an error, so its change is not opened.\n#{change.log}" unless change.agent_exit.zero?
@@ -402,11 +449,12 @@ module Integrations
         PUSH_TIMEOUT = 300
 
         # The reviewed change pushed through the gate, as the box's own git sends it. A branch that moved since is refused.
-        def push!(reading, repo, ref, gate, branch, lease)
+        def push!(reading, repo, ref, gate, branch, lease, from: nil)
           @work.add("Pushing #{branch}")
           report(@work)
           url, credential, = gate
-          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: PUSH_TIMEOUT, argv: [ "bash", "-c", PUSH, "push", url, credential, branch, lease.to_s ])
+          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: PUSH_TIMEOUT,
+                                argv: [ "bash", "-c", PUSH, "push", url, credential, branch, lease.to_s, (from || branch).to_s ])
           said = result["stdout"].to_s
           return if said.match?(PUSHED)
 
@@ -416,6 +464,72 @@ module Integrations
           end
           fail! "The push through Firefight did not go through: #{said.lines.reject { |line| line.start_with?('PUSH_EXIT') }.last(3).join(' ').squish.truncate(300)}"
         end
+
+        CONTINUE_IN_PLACE = "The person raised your spending limit, so carry on where you stopped and finish the change. Everything you " \
+                            "committed is on the branch.".freeze
+
+        # The pause the person continued, when this call carries one on. Only one they pressed Continue on, for the change
+        # that runs as them, is carried on.
+        def continued_pause(arguments)
+          id = arguments[CONTINUE_ARG].presence
+          return unless id
+
+          pause = CodeAgentSession::Pause.find_by(id: id, workspace_id: integration.workspace.id, status: CodeAgentSession::Pause::STATUS_CONTINUING)
+          fail! "This paused change cannot be continued now." unless pause && (request.nil? || pause.session.principal == request.principal)
+
+          pause
+        end
+
+        # The change reached its spending limit: what it wrote so far is committed and pushed through the gate to a branch
+        # of its own without opening anything, the box is kept for Continue to carry on in place, and the person is asked
+        # whether to continue. A change for an open pull request is saved beside it, never on its branch.
+        def pause!(environment_row, reading, repo, ref, gate, session, change, base:, branch:, lease:)
+          adding = @pause ? @pause.target_branch.present? : lease.present?
+          saved = @pause&.saved_branch || (adding ? "#{BRANCH_PREFIX}#{SecureRandom.hex(4)}" : branch)
+          unless change.nothing?
+            session.update_columns(git_branch: saved)
+            push!(reading, repo, ref, gate, saved, (@pause&.saved_commit if @pause&.saved_branch), from: branch)
+          end
+          CodeBox.live.find_by(key: box_key)&.used!
+          pause = CodeAgentSession::Pause.create!(
+            session: session, workspace: integration.workspace, conversation: (request&.place if request&.place.is_a?(Conversation)),
+            arguments: @arguments, repository: repo, base: base, target_branch: (branch if adding), target_sha: (lease if adding),
+            saved_branch: (saved unless change.nothing?), saved_commit: change.commit, copy_ref: ref, agent_session_id: change.agent_session,
+            box_key: box_key, budget_micros: session.budget_micros, resumable_until: CodeAgentSession::Pause::RESUMABLE_FOR.from_now
+          )
+          @work.paused!(pause.to_h)
+          report(@work)
+          CodeAgentPauseJob.perform_later(pause.id)
+          raise Paused, paused_words(pause)
+        end
+
+        def paused_words(pause)
+          saved = pause.saved_branch ? " Its work so far is saved on #{pause.saved_branch}, and no pull request was opened or changed." : ""
+          "The code change reached its spending limit before finishing, so it is paused.#{saved} The person was asked under the step " \
+            "whether to continue, with Continue and Stop. Tell them in a sentence and stop there, since it carries on only when they press Continue."
+        end
+
+        # What a fresh agent is told when the box the change stopped in is gone: the request and the person's answers, what
+        # the earlier session already changed on the saved branch, and that the rest is its to finish.
+        # Where a continued change is written: the copy it stopped in while that can carry on in place, otherwise the
+        # commit it saved, which the box fetches.
+        def continued_ref(pause) = pause.resumable_in_place? ? pause.copy_ref : pause.saved_commit
+
+        def handover(pause)
+          answers = pause.session.questions.select { |question| question.answered? || question.defaulted? }.map { |question| "- #{question.question} #{question.agent_words}" }
+          [ "You are continuing a change an earlier session started and could not finish, since it reached its spending limit.",
+            ("What it already changed is committed on #{pause.saved_branch}, which you are on. Read the diff against " \
+             "refs/remotes/firefight/#{pause.base} first, so you build on it rather than start again." if pause.saved_branch),
+            ("The person's answers to its questions:\n#{answers.join("\n")}" if answers.any?),
+            "Finish what the request asks that the branch does not do yet, then verify it." ].compact.join("\n\n")
+        end
+
+        # Stop on a paused change: its saved branch is deleted, and the box it stopped in closed.
+        def discard_pause!(environment_row, pause)
+          take_back!(pause.repository, pause.saved_branch, nil, GithubApp.installation_token(environment_row)) if pause.saved_branch
+          CodeBox.live.find_by(key: pause.box_key)&.stop! if pause.box_key
+        end
+        public :discard_pause!
 
         # The question the agent asked is shown with the step, live, and one past its time is ended here too, in case the
         # agent stopped waiting for it.
@@ -485,6 +599,7 @@ module Integrations
           unresolved = []
           touched = []
           merged = false
+          agent_session = nil
           listing, log = output.split("\nLOG\n", 2)
           exit_line, base_line, *lines = listing.to_s.lines
           lines.each do |line|
@@ -496,11 +611,14 @@ module Integrations
             when "UNRESOLVED" then unresolved << decoded(fields[0])
             when "TOUCHED" then touched << decoded(fields[0])
             when "MERGED" then merged = true
-            else commit = kind.split.last if kind.to_s.start_with?("CHANGE ")
+            else
+              commit = kind.split.last if kind.to_s.start_with?("CHANGE ")
+              agent_session = kind.split[1] if kind.to_s.start_with?("SESSION ")
             end
           end
           Change.new(commit: commit, log: log.to_s.strip, agent_exit: exit_line.to_s[/\d+/].to_i, base: base_line.to_s.split.last, counts: counts,
-                     checks: CodeChecks.read(lines), patch: patch, bytes: bytes, unresolved: unresolved, touched: touched, merged: merged)
+                     checks: CodeChecks.read(lines), patch: patch, bytes: bytes, unresolved: unresolved, touched: touched, merged: merged,
+                     agent_session: agent_session)
         end
 
         def decoded(name) = Base64.strict_decode64(name.to_s).force_encoding(Encoding::UTF_8)

@@ -19,6 +19,7 @@ export function roomStep(compaction: ChatCompaction): AgentStep {
     outcome: null,
     progress: null,
     questionBlockedReason: null,
+    pauseBlockedReason: null,
   }
 }
 

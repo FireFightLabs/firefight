@@ -2,10 +2,11 @@ import { IconAlertTriangle, IconCheck, IconExternalLink, IconMinus, IconX } from
 import { useState } from "react"
 
 import { CodeAgentQuestion } from "@/components/code-agent-question"
+import { CodeFixPauseCard } from "@/components/code-fix-pause"
 import { useElapsed } from "@/hooks/use-elapsed"
 import {
   type CodeFixCheck, type CodeFixLine, type CodeFixReview, type CodeFixWork, checkCouldNotRun, checkPassed, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests,
-  passedLine, questionOpen, shownLines, stepsWord, stopped, wroteChange,
+  passedLine, paused, questionOpen, shownLines, stepsWord, stopped, wroteChange,
 } from "@/lib/code-fix-work"
 
 interface CodeFixWorkProps {
@@ -14,13 +15,15 @@ interface CodeFixWorkProps {
   running: boolean
   // Why whoever is looking cannot answer the agent's question, from the server, or null when they can.
   questionBlockedReason?: string | null
+  // Why whoever is looking cannot continue or stop a change paused at its spending limit, or null when they can.
+  pauseBlockedReason?: string | null
 }
 
 // What a coding agent writing a change is doing, under the step that runs it. While it works, its newest steps with the
 // earlier ones a click away, how long it has been, the files it changed so far and any question it asked. Once it wrote
 // the change, what it changed, the tests and checks that ran, what Halon's review found and the link. When it stopped,
 // its last steps and why.
-export function CodeFixWorkView({ work, running, questionBlockedReason = null }: CodeFixWorkProps) {
+export function CodeFixWorkView({ work, running, questionBlockedReason = null, pauseBlockedReason = null }: CodeFixWorkProps) {
   const elapsed = useElapsed(work.startedAt, work.finishedAt, running)
   const [ allLines, setAllLines ] = useState(false)
 
@@ -77,6 +80,7 @@ export function CodeFixWorkView({ work, running, questionBlockedReason = null }:
       {waiting && <WaitingLine words="Waiting for an answer" />}
       {work.question && <CodeAgentQuestion question={work.question} blockedReason={running ? questionBlockedReason : null} />}
       {stopped(work) && work.reason && <p className="m-0 font-medium text-error [overflow-wrap:anywhere]">{work.reason}</p>}
+      {paused(work) && work.pause && <CodeFixPauseCard pause={work.pause} blockedReason={pauseBlockedReason} />}
       <span className="text-fg-muted">
         {working ? `${duration(elapsed)} so far` : `Ran for ${duration(elapsed)}`}
         {work.changed.length > 0 && ` · ${filesWord(work.changed.length)} changed: ${changedList(work.changed)}`}

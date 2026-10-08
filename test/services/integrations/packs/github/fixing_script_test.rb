@@ -174,6 +174,31 @@ module Integrations
           end
         end
 
+        test "the agent's session is named for a pause, a continued change resumes it, and a paused change is saved to a branch of its own" do
+          Dir.mktmpdir do |root|
+            gate, copy, = repository_with_gate(root)
+            agent = <<~SH
+              #!/bin/sh
+              echo "$@" > "#{root}/args"
+              echo '{"type":"step_start","sessionID":"ses_123","part":{}}'
+              printf 'b\\n' > b.txt
+            SH
+
+            change = read(run_script(root, copy, agent, gate, branch: "fix-pool"))
+            assert_equal "ses_123", change.agent_session
+            assert_no_match "--session", File.read(File.join(root, "args"))
+
+            saved = push(copy, gate, "halon/fix-saved", "", from: "fix-pool")
+            assert_match Fixing::PUSHED, saved
+            assert_equal change.commit, git(gate, "rev-parse", "refs/heads/halon/fix-saved").strip, "the work is on its own branch"
+            assert_empty git(gate, "branch", "--list", "fix-pool").strip, "and not on the branch it was for"
+
+            again = read(run_script(root, copy, agent.sub("b.txt", "c.txt"), gate, branch: "fix-pool", earlier: change.commit, resume: "ses_123"))
+            assert_match "run --session ses_123 --model", File.read(File.join(root, "args"))
+            assert_equal "b\n", git(copy, "show", "#{again.commit}:b.txt"), "it carries on from what it saved"
+          end
+        end
+
         test "the changed files are checked with what the box has" do
           Dir.mktmpdir do |root|
             gate, copy, = repository_with_gate(root) do |work|
@@ -189,7 +214,11 @@ module Integrations
 
             checks = change.checks.to_h { |check| [ check.name, check.status ] }
             assert_equal CodeChecks::FAILED, checks["actionlint .github/workflows/ci.yml"]
-            assert_equal CodeChecks::FAILED, checks["json settings.json"]
+            if system("command -v python3 > /dev/null 2>&1")
+              assert_equal CodeChecks::FAILED, checks["json settings.json"]
+            else
+              assert_not checks.key?("json settings.json"), "a check whose tool the box lacks is skipped"
+            end
             assert_not checks.key?("json untouched.json"), "only the files the change touched are checked"
           end
         end
@@ -251,18 +280,18 @@ module Integrations
           [ gate, copy, head, base ]
         end
 
-        def run_script(root, copy, agent, gate, branch: "halon/fix-1", earlier: "", env: {})
+        def run_script(root, copy, agent, gate, branch: "halon/fix-1", earlier: "", env: {}, resume: "")
           bin = File.join(root, "bin")
           FileUtils.mkdir_p(bin)
           File.write(File.join(bin, "opencode"), agent)
           File.chmod(0o755, File.join(bin, "opencode"))
           output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }.merge(env), "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y",
-                                   earlier.to_s, gate, Base64.strict_encode64("halon:token"), "main", branch, "Fix the pool", chdir: copy)
+                                   earlier.to_s, gate, Base64.strict_encode64("halon:token"), "main", branch, "Fix the pool", resume, chdir: copy)
           output
         end
 
-        def push(copy, gate, branch, lease)
-          output, = Open3.capture2("bash", "-c", Fixing::PUSH, "push", gate, Base64.strict_encode64("halon:token"), branch, lease, chdir: copy)
+        def push(copy, gate, branch, lease, from: branch)
+          output, = Open3.capture2("bash", "-c", Fixing::PUSH, "push", gate, Base64.strict_encode64("halon:token"), branch, lease, from, chdir: copy)
           output
         end
 

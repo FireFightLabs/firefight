@@ -15,7 +15,8 @@ class AgentChatMessageSerializer < BaseSerializer
                   "options: { label: string; consequence: string }[]; recommended: number | null; recommendedReason: string | null; chosen: number | null } | null; " \
                   "checks: { name: string; status: string; reason: string | null }[]; " \
                   "review: { ran: boolean; right: boolean; findings: string[]; verified: string[]; unverified: string[]; unreviewed: string[]; " \
-                  "summary: string | null; sentBack: boolean } | null }".freeze
+                  "summary: string | null; sentBack: boolean } | null; " \
+                  "pause: { id: string; status: string; question: string; savedBranch: string | null; decidedBy: string | null; resumableUntil: string | null } | null }".freeze
 
   attributes(id: { type: :string }, role: { type: :string })
 
@@ -34,7 +35,7 @@ class AgentChatMessageSerializer < BaseSerializer
   # Same shape as the live step event, so a step reads the same either way.
   type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; " \
        "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null; progress: #{PROGRESS_TYPE} | null; " \
-       "questionBlockedReason: string | null }[]"
+       "questionBlockedReason: string | null; pauseBlockedReason: string | null }[]"
   def tools
     chat = message.chat
     workspace = chat.workspace
@@ -51,7 +52,8 @@ class AgentChatMessageSerializer < BaseSerializer
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
-        progress: works[call.tool_call_id]&.to_h, questionBlockedReason: question_blocked_reason(chat, call, works[call.tool_call_id]) }
+        progress: works[call.tool_call_id]&.to_h, questionBlockedReason: question_blocked_reason(chat, call, works[call.tool_call_id]),
+        pauseBlockedReason: pause_blocked_reason(chat, works[call.tool_call_id]) }
     end
   end
 
@@ -60,6 +62,13 @@ class AgentChatMessageSerializer < BaseSerializer
     return unless work&.waiting_for_answer?
 
     CodeAgentQuestion.find_by(id: work.question["id"], workspace_id: chat.workspace_id)&.answer_blocked_reason(Current.principal)
+  end
+
+  # Why whoever is looking cannot continue or stop the change paused on this step, or nil.
+  def pause_blocked_reason(chat, work)
+    return unless work&.pause
+
+    CodeAgentSession::Pause.find_by(id: work.pause["id"], workspace_id: chat.workspace_id)&.decide_blocked_reason(Current.principal)
   end
 
   def card_for(step, call, charted)

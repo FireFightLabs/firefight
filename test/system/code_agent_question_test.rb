@@ -117,6 +117,49 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     shot("code-fix-reviewed")
   end
 
+  test "a change that reached its spending limit asks to continue under its step, and the person continues it in a click" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("Make the release job send the tag")
+    chat = conversation.chat
+    reply = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: @tool.model_facing_name, arguments: @arguments)
+    chat.add_message(role: :tool, content: "The code change reached its spending limit before finishing, so it is paused.", tool_call_id: "call_1")
+    request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    pause = CodeAgentSession::Pause.create!(
+      session: session, workspace: @workspace, conversation: conversation, arguments: @arguments, repository: "acme/api", base: "main",
+      saved_branch: "halon/fix-1a2b3c4d", saved_commit: "s" * 40, copy_ref: "c" * 40, budget_micros: 2_000_000, resumable_until: 15.minutes.from_now
+    )
+    work = running_work
+    work.paused!(pause.to_h)
+    Chat::StepProgress.keep!(chat, "call_1", work)
+    conversation.note!("It reached its spending limit, so I paused it. Continue or Stop it under the step.")
+    conversation.reply_delivered!
+
+    visit agent_chat_path(conversation)
+    trace = find("button[aria-expanded]", text: /Worked for/)
+    trace.click if trace["aria-expanded"] == "false"
+
+    assert_text "This fix has reached its spending limit before finishing. Continue?"
+    assert_text "Its work so far is saved on halon/fix-1a2b3c4d."
+    assert_no_text "$"
+    shot("code-fix-paused")
+    page.current_window.resize_to(*PHONE)
+    find("button", text: "Continue").scroll_to(:center)
+    shot("code-fix-paused-phone")
+    page.current_window.resize_to(1280, 900)
+
+    click_button "Continue"
+    assert_text "The change carries on."
+    trace = find("button[aria-expanded]", text: /Worked for/)
+    trace.click if trace["aria-expanded"] == "false"
+    assert_text "Alice Smith chose Continue."
+    assert_no_button "Stop"
+    assert pause.reload.continuing?
+    shot("code-fix-continued")
+  end
+
   test "on a run's fix step the question shows too, and someone the change does not run as is told who can answer" do
     plan = build_fix_plan(@workspace)
     plan.apply!(by: workspace_memberships(:bob_workspace_one), from: AbilityGateway::SOURCE_WEB)
