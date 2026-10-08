@@ -43,4 +43,14 @@ class EscalationAcknowledgementReminderJobTest < ActiveJob::TestCase
       EscalationAcknowledgementReminderJob.perform_now(@incident.id, @escalation_event.id)
     end
   end
+
+  test "run again after a stopped worker, a nudge already sent is not sent twice" do
+    stub_post_message
+    EscalationAcknowledgementReminderJob.perform_now(@incident.id, @escalation_event.id)
+
+    Slack::Client.expects(:post_message).never
+    assert_no_difference "IncidentEvent.count" do
+      EscalationAcknowledgementReminderJob.perform_now(@incident.id, @escalation_event.id)
+    end
+  end
 end

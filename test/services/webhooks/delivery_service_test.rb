@@ -28,6 +28,37 @@ class Webhooks::DeliveryServiceTest < ActiveSupport::TestCase
     assert_not_nil @delivery.request_body
   end
 
+  test "a delivery cut off mid send is sent again under the same id when its job runs again, and never once it ended" do
+    stub_ssrf_resolution("93.184.216.34")
+    Net::HTTP.any_instance.stubs(:request).raises(Interrupt)
+    job = Webhooks::DeliveryJob.new(@delivery)
+
+    assert_raises(Interrupt) { job.perform_now }
+    assert_equal "in_progress", @delivery.reload.state
+
+    stub_http_response(200)
+    job.perform_now
+
+    @delivery.reload
+    assert_equal [ "succeeded", 2, @delivery.id, "2" ],
+                 [ @delivery.state, @delivery.attempts, @delivery.request_headers["X-Webhook-Delivery"], @delivery.request_headers["X-Webhook-Attempt"] ]
+
+    Net::HTTP.any_instance.expects(:request).never
+    job.perform_now
+    assert_equal 2, @delivery.reload.attempts
+  end
+
+  test "a delivery whose job will not run again ends as interrupted, once" do
+    @delivery.update_columns(state: "in_progress")
+
+    travel WebhookDelivery::UNSENT_AFTER + 1.minute do
+      assert_operator WebhookDelivery.give_up_interrupted!, :>=, 1
+      assert_equal 0, WebhookDelivery.give_up_interrupted!
+    end
+
+    assert_equal [ "failed", WebhookDelivery::INTERRUPTED ], [ @delivery.reload.state, @delivery.error_message ]
+  end
+
   test "records HMAC signature, version, timestamp, and attempt headers" do
     stub_ssrf_resolution("93.184.216.34")
     stub_http_response(200)

@@ -182,6 +182,30 @@ class Conversation::HeldCallsTest < ActiveSupport::TestCase
     assert_empty Chat::HeldCall.where(approval: approval)
   end
 
+  test "a check whose job a stopped worker lost runs again, once a window" do
+    held = approved_call
+    clear_enqueued_jobs
+
+    travel Conversation::HeldCalls::CHECK_LOST_AFTER + 1.minute do
+      assert_enqueued_jobs(1, only: HeldCallCheckJob) { Conversation::HeldCalls.recover! }
+      assert_no_enqueued_jobs(only: HeldCallCheckJob) { Conversation::HeldCalls.recover! }
+    end
+    assert_equal Chat::HeldCall::STATUS_CHECKING, held.reload.status
+  end
+
+  test "a call left running by a turn that will not run again ends saying to check it, once" do
+    held = ready_call
+    assert held.claim_run!(by: @bob)
+    @adapter.expects(:update_held_call).once.returns(success: true)
+
+    travel Conversation::REPLY_CEILING + 1.minute do
+      Conversation::HeldCalls.recover!
+      Conversation::HeldCalls.recover!
+    end
+
+    assert_equal [ Chat::HeldCall::STATUS_FAILED, Conversation::HeldCalls::COULD_NOT_FINISH ], [ held.reload.status, held.result ]
+  end
+
   private
 
   def hold_call
