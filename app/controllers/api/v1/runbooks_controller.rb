@@ -40,12 +40,29 @@ class Api::V1::RunbooksController < Api::V1::ApiController
   private
 
   def runbook_params
-    params.permit(
+    permitted = params.permit(
       :name, :summary, :content, :external_url,
-      steps: [ :title, :instruction ],
-      conditions: [ :condition_field, :operator, :custom_field, values: [] ]
+      steps: [ :title, :instruction, :tool ],
+      conditions: [ :condition_field, :operator, :custom_field, values: [] ],
+      inputs: [ :key, :question, :default ],
+      aliases: []
     ).to_h.deep_symbolize_keys
+    with_free_form(permitted)
   end
+
+  # A step's arguments and the watch are objects of any shape, which the model checks.
+  def with_free_form(permitted)
+    permitted[:watch] = object_param(params[:watch]) if params.key?(:watch)
+    return permitted unless permitted[:steps] && params[:steps].is_a?(Array)
+
+    permitted[:steps] = permitted[:steps].each_with_index.map do |step, index|
+      arguments = object_param(params[:steps][index].try(:[], :arguments))
+      arguments ? step.merge(arguments: arguments) : step
+    end
+    permitted
+  end
+
+  def object_param(value) = value.is_a?(ActionController::Parameters) ? value.to_unsafe_h : nil
 
   def set_runbook
     scope = current_workspace.runbooks.active.includes(:runbook_steps)

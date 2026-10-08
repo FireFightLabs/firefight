@@ -123,11 +123,14 @@ class Conversation::Runner
   end
 
   # Held calls that ended since Halon last looked, so it never says one is still waiting, or that one ran when it did not.
+  # What its watches said since, so it never repeats a milestone or says one is still going after it ended.
   def tell_held_outcomes(chat)
     return unless room_for_a_note?(chat)
 
     note = Conversation::HeldCalls.untold_note(chat)
     chat.nudge!(note) if note
+    watched = Conversation::Watches.untold_note(chat)
+    chat.nudge!(watched) if watched
   end
 
   # A provider refuses anything between a call and its result, so nothing is said while a call waits for the person.

@@ -6,7 +6,8 @@ module Integrations
     # CPUUtilization and MemoryUtilization for an ECS service, Invocations (each run of the function, its requests),
     # Errors, Duration and Throttles for a Lambda function, CPUUtilization, NetworkIn and NetworkOut for an EC2 instance,
     # and CPUUtilization, DatabaseConnections (its client network connections), FreeableMemory and FreeStorageSpace for an
-    # RDS database. RDS reports the memory and storage left rather than used, and its charts say so.
+    # RDS database. RDS reports the memory and storage left rather than used, and its charts say so. Run history is an
+    # ECS service's deployments, which keep when each started and finished. A Lambda version keeps only when it was made.
     module Aws
       extend Adapter
 
@@ -15,19 +16,20 @@ module Integrations
         LOGS => [ PACK::SERVICE, PACK::FUNCTION, PACK::DATABASE ],
         METRICS => [ PACK::SERVICE, PACK::FUNCTION, PACK::INSTANCE, PACK::DATABASE ],
         DEPLOYS => [ PACK::SERVICE, PACK::FUNCTION ],
+        HISTORY => [ PACK::SERVICE ],
         STATUS => [ PACK::SERVICE, PACK::FUNCTION, PACK::INSTANCE, PACK::DATABASE ],
         ROLLBACK => [ PACK::SERVICE, PACK::FUNCTION ],
         RESTART => [ PACK::SERVICE ],
         SCALE => [ PACK::SERVICE ]
       }.freeze
       TOOLS = {
-        LOGS => "search_logs", METRICS => "cloudwatch_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
+        LOGS => "search_logs", METRICS => "cloudwatch_metrics", DEPLOYS => "list_deployments", HISTORY => "list_deployments", STATUS => "describe_resource",
         ROLLBACK => "rollback_deployment", RESTART => "restart_service", SCALE => "scale_service"
       }.freeze
       # Each tool answers one capability for one resource, so an agent holding the capability is not offered it as well.
       # cloudwatch_metrics reads every metric AWS documents for each kind, beyond the ones a capability names, so it stays
       # offered as it is.
-      WRAPPED = TOOLS.values.excluding(TOOLS[METRICS]).freeze
+      WRAPPED = TOOLS.values.uniq.excluding(TOOLS[METRICS]).freeze
       METRIC_MAP = {
         PACK::SERVICE => { "cpu" => "CPUUtilization", "memory" => "MemoryUtilization" },
         PACK::FUNCTION => { "requests" => "Invocations", "invocations" => "Invocations", "errors" => "Errors", "duration" => "Duration",
@@ -53,6 +55,9 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => arn, "metrics" => names.presence }.compact.merge(given.slice(*RANGE)))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => arn }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => arn })
+        when HISTORY
+          Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => arn, "limit" => Answers.limit(given, History::LIMIT) },
+                    present: RunHistory.presenter(resource.name, given))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => arn, "to" => target(given) })
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => arn })
         when SCALE then Route.new(tool_name: TOOLS[SCALE], arguments: { "resource" => arn, "desired_count" => instances(given) })

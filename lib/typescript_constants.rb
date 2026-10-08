@@ -50,6 +50,9 @@ module TypescriptConstants
         "DISMISSED" => Chat::HeldCall::STATUS_DISMISSED, "EXPIRED" => Chat::HeldCall::STATUS_EXPIRED, "DENIED" => Chat::HeldCall::STATUS_DENIED,
         "ASKED_AGAIN" => Chat::HeldCall::STATUS_ASKED_AGAIN
       }, nil),
+      Export.new("WATCH_STATUSES", Chat::Watch::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("WATCH_STEP_STATUSES", Chat::Watch::Step::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("WATCH_TONES", Conversation::Watches::TONES.to_h { |tone| [ tone.upcase, tone ] }, nil),
       Export.new("APPROVED_CALL_ACTIONS", {
         "RUN" => Chat::CurrentState::ACTION_RUN, "DISMISS" => Chat::CurrentState::ACTION_DISMISS, "ASK_AGAIN" => Chat::CurrentState::ACTION_ASK_AGAIN
       }, nil),
@@ -110,7 +113,8 @@ module TypescriptConstants
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
         "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
-        "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL
+        "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL,
+        "WATCH" => Conversation::LiveDelivery::EVENT_WATCH
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,

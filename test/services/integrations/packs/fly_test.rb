@@ -249,6 +249,18 @@ module Integrations
         assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_DATABASE, external_id: "pg1")), "a cluster is read at the sweep"
       end
 
+      test "deploy history reads a release from when it was made to when it last changed, once it no longer runs" do
+        FlyApi.any_instance.stubs(:releases).returns([
+          { "id" => "r41", "version" => 41, "status" => "complete", "createdAt" => "2026-09-30T10:00:00Z", "updatedAt" => "2026-09-30T10:02:30Z" },
+          { "id" => "r42", "version" => 42, "status" => "running", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:01:00Z" }
+        ])
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web" }))
+
+        assert_equal [ [ "42", "running", nil ], [ "41", "succeeded", 150 ] ], runs.map { |run| [ run.number, run.status, run.seconds ] }
+        assert runs.second.named?("#41")
+      end
+
       private
 
       def call(tool, arguments = {})

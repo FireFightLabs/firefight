@@ -184,6 +184,19 @@ module Integrations
         assert_raises(NetlifyApi::Error) { @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_SITE, external_id: "site-1")) }
       end
 
+      test "deploy history reads a deploy from when it was made to when a ready or failed one last changed" do
+        NetlifyApi.any_instance.stubs(:deploys).returns([
+          { "id" => "d2", "state" => "ready", "context" => "production", "created_at" => "2026-10-01T09:00:00Z", "updated_at" => "2026-10-01T09:01:30Z",
+            "admin_url" => "https://app.netlify.com/sites/shop/deploys/d2" },
+          { "id" => "d3", "state" => "building", "context" => "deploy-preview", "created_at" => "2026-10-01T10:00:00Z", "updated_at" => "2026-10-01T10:00:30Z" }
+        ])
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "site" => "shop" }))
+
+        assert_equal [ [ "deploy-preview deploy", "running", nil ], [ "production deploy", "succeeded", 90 ] ], runs.map { |run| [ run.name, run.status, run.seconds ] }
+        assert_equal "https://app.netlify.com/sites/shop/deploys/d2", runs.second.url
+      end
+
       private
 
       def call(tool, arguments = {})

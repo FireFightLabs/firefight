@@ -93,6 +93,8 @@ module Mcp
     GET_INVESTIGATION = "get_investigation".freeze
     GET_HALON_PERFORMANCE = "get_halon_performance".freeze
     ASK_HALON = "ask_halon".freeze
+    LIST_WATCHES = "list_watches".freeze
+    STOP_WATCH = "stop_watch".freeze
     UPSERT_CATALOG_TYPE = "upsert_catalog_type".freeze
     DELETE_CATALOG_TYPE = "delete_catalog_type".freeze
 
@@ -123,7 +125,7 @@ module Mcp
         ListApiKeys, UpsertApiKey, DeleteApiKey,
         GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,
         GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType,
-        StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon ]
+        StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon, ListWatches, StopWatch ]
     end
   end
 end

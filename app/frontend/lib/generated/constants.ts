@@ -137,6 +137,32 @@ export const HELD_CALL_STATUSES = {
   "ASKED_AGAIN": "asked_again"
 } as const
 
+export const WATCH_STATUSES = {
+  "ACTIVE": "active",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "TIMED_OUT": "timed_out",
+  "STOPPED": "stopped"
+} as const
+
+export const WATCH_STEP_STATUSES = {
+  "WAITING": "waiting",
+  "RUNNING": "running",
+  "SUCCEEDED": "succeeded",
+  "FAILED": "failed",
+  "UNFOLLOWABLE": "unfollowable"
+} as const
+
+export const WATCH_TONES = {
+  "STARTED": "started",
+  "MILESTONE": "milestone",
+  "SLOW": "slow",
+  "DONE": "done",
+  "FAILED": "failed",
+  "TIMED_OUT": "timed_out",
+  "STOPPED": "stopped"
+} as const
+
 export const APPROVED_CALL_ACTIONS = {
   "RUN": "run",
   "DISMISS": "dismiss",
@@ -610,7 +636,8 @@ export const AGENT_STREAM_EVENTS = {
   "INVESTIGATION": "investigation",
   "MADE_ROOM": "made_room",
   "HELD_CALL": "held_call",
-  "PACK_REFUSAL": "pack_refusal"
+  "PACK_REFUSAL": "pack_refusal",
+  "WATCH": "watch"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -677,7 +704,9 @@ export const AGENT_CHAT_PROPS = {
   "COMPACTIONS": "compactions",
   "HELD_CALLS": "heldCalls",
   "PACK_REFUSALS": "packRefusals",
-  "SETUP_GUIDE": "setupGuide"
+  "SETUP_GUIDE": "setupGuide",
+  "WATCHES": "watches",
+  "WATCH_UPDATES": "watchUpdates"
 } as const
 
 export const SETUP_STEPS = {
@@ -902,7 +931,8 @@ export const LEDGER_SOURCES = [
   "map_sweep",
   "health_check",
   "code_agent",
-  "issue_sync"
+  "issue_sync",
+  "watch"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 

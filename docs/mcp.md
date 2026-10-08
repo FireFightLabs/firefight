@@ -60,8 +60,8 @@ A parameter whose values are the workspace's own is declared on the tool with `c
 | `search_alerts` | "What's firing and how did it route?" — source, routing state, matched rule, incident link |
 | `search_catalog` | "Who owns checkout?" — entries, attributes, relationships |
 | `evaluate_routing` | "If this alert arrived, what would happen?" — matched rule, outcome, per-condition trace |
-| `search_runbooks` | "Is there a runbook for this?" — incident response procedures by name/summary |
-| `get_runbook` | "Walk me through the DB failover runbook" — full content and ordered steps |
+| `search_runbooks` | "Is there a runbook for this?" — incident response procedures by name, summary or alias, each marked `runnable` when Halon can run it |
+| `get_runbook` | "Walk me through the DB failover runbook" — full content and ordered steps, with each step's `tool` and `arguments`, the `inputs`, `aliases` and `watch` of one Halon can run |
 
 Results are workspace-scoped to the token, capped at 50 items with explicit `truncated` markers, and returned as structured JSON.
 
@@ -142,8 +142,10 @@ Three tools put Halon in front of an outside agent, such as one in a person's ed
 | `get_investigation` | One run by id, or an incident's newest: status, theories with the steps behind them, every step's label and status, the finding with each claim, its step numbers and its sources. Never a step's raw output, never a technical failure cause, which stays in `error_summary` for debugging. | `investigations: read` |
 | `get_halon_performance` | How Halon has done over 7, 30 or 90 days (30 by default): runs, answers and the median time to one, what the team said of the answers (right, partly right, wrong, not rated), what came of its fixes, and the answers marked wrong with the cause they gave and the lessons from their incident. Rehearsals are left out. | `investigations: read` |
 | `ask_halon` | One chat turn, synchronously, and the answer. The chat is a `Conversation` of `KIND_MCP`, one per principal (`Conversation.for_mcp!`), so questions carry on. Delivery is `Conversation::QuietDelivery`, nothing streams. A turn that pauses on a confirmation returns `status: waiting` with the questions in the words the dashboard shows, since an MCP call has no Confirm button. A call through a connection is asked about what the tool reaches, such as "Api request on Faylee (Northflank), project faylee?", never in the agent's words (docs/ai.md). | `investigations: create` |
+| `list_watches` | The watches Halon keeps for the caller (`Chat::Watch` whose asker is the principal), newest first, each with its steps as they stand, everything it said and how it ended (`Conversation::Watches::Shown.summary`). `active` narrows to the ones still going. A watch started from `ask_halon` is one like any other and reports the same way, with a Slack direct message when the principal is a member. | `investigations: read` |
+| `stop_watch` | Stops one of the caller's watches. It ends with one guarded update and says so where the watch reports, and a second stop is refused in words. | `investigations: create` |
 
-Every member holds `investigations: create` without a grant until an admin narrows it (docs/integrations.md, A default a grant narrows), so a personal token or OAuth connection can call `ask_halon` and `start_investigation` from the start, and a service key or agent needs a grant. `ask_halon` and `start_investigation` are never offered to Halon itself (`Chat::Tools::Groups::NOT_FOR_HALON`). `get_investigation` and `get_halon_performance` are, under Incidents and what happened before. A conversation's `started_by` is polymorphic for this, the same shape as `Investigation#triggered_by`.
+Every member holds `investigations: create` without a grant until an admin narrows it (docs/integrations.md, A default a grant narrows), so a personal token or OAuth connection can call `ask_halon` and `start_investigation` from the start, and a service key or agent needs a grant. `ask_halon`, `start_investigation`, `list_watches` and `stop_watch` are never offered to Halon itself (`Chat::Tools::Groups::NOT_FOR_HALON`), since a chat has its own. `get_investigation` and `get_halon_performance` are, under Incidents and what happened before. A conversation's `started_by` is polymorphic for this, the same shape as `Investigation#triggered_by`.
 
 ## Configuring the workspace
 

@@ -130,6 +130,20 @@ module Integrations
            },
            read_only: true
 
+      tool :deploy_history,
+           description: "A service's recent deploys, each a build and its release, with its status, when it started and finished and " \
+                        "how long it took, and how long finished ones usually take",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many deploys (optional, #{DEPLOY_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :list_deployments,
            description: "A service's deploys, newest first: when each started and finished, its status, the commit or image, and " \
                         "what triggered it (a new commit, a rollback, a manual deploy). The id of a live deploy is what " \
@@ -305,6 +319,35 @@ module Integrations
 
         rows = deploys.map { |deploy| deploy_line(resource, deploy) }
         Telemetry.result("Latest #{rows.size} deploys of #{resource[:name]}, newest first. rollback_deploy takes a deploy id.\n#{rows.join("\n")}", link: link(resource))
+      end
+
+      # Render's deploy statuses (spec, schema deployStatus) in Firefight's words. A deploy that went live and was later
+      # replaced finished well.
+      DEPLOY_STATUSES = {
+        "created" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED,
+        "build_in_progress" => Capabilities::History::RUNNING, "update_in_progress" => Capabilities::History::RUNNING,
+        "pre_deploy_in_progress" => Capabilities::History::RUNNING, "live" => Capabilities::History::SUCCEEDED,
+        "deactivated" => Capabilities::History::SUCCEEDED, "build_failed" => Capabilities::History::FAILED,
+        "update_failed" => Capabilities::History::FAILED, "pre_deploy_failed" => Capabilities::History::FAILED,
+        "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+
+      # Each deploy from when it started (startedAt, or createdAt before Render began building it) to finishedAt.
+      def deploy_history(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        fail! "#{resource[:name]} is a datastore, and only services have deploys." if DATASTORES.include?(resource[:type])
+
+        deploys = api(environment_row).deploys(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT))
+        runs = deploys.map do |deploy|
+          commit = deploy["commit"]
+          Capabilities::History::Run.new(
+            id: deploy["id"], name: "deploy", status: Capabilities::History.status(deploy["status"], DEPLOY_STATUSES),
+            started_at: Telemetry.parse_time(deploy["startedAt"] || deploy["createdAt"]), finished_at: Telemetry.parse_time(deploy["finishedAt"]),
+            url: ("#{resource[:url]}/deploys/#{deploy['id']}" if resource[:url].present?),
+            detail: commit ? "#{commit['id'].to_s.first(12)} #{commit['message'].to_s.lines.first.to_s.strip}".strip : deploy.dig("image", "ref")
+          )
+        end
+        Capabilities::History.result(runs, what: resource[:name], link: link(resource), name: arguments["name"])
       end
 
       def list_events(environment_row:, arguments:)

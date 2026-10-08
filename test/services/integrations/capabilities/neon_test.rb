@@ -7,7 +7,7 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     neon = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "neon", name: "Neon", slug: "neon", settings: { "server_url" => "https://mcp.neon.tech/mcp" })
     @row = neon.integration_environments.create!
-    Capabilities::Neon::TOOLS.each_value do |name|
+    Capabilities::Neon::TOOLS.values.uniq.each do |name|
       neon.tools.create!(name: name, description: name, read_only: name != "restart_postgres_endpoint", enabled: true, params_schema: { "type" => "object" })
     end
     found = ->(kind, id, name) { ResourceMap::Found.new(provider: "neon", account: "Acme", kind: kind, external_id: id, name: name, url: "https://console.neon.tech/app/projects/shop-123") }
@@ -85,11 +85,28 @@ class Integrations::Capabilities::NeonTest < ActiveSupport::TestCase
   end
 
   test "Halon says what it can do through Neon" do
-    assert_equal "Halon can read its logs, see what was deployed, check how a resource stands, and restart a compute for anything Neon runs, " \
+    assert_equal "Halon can read its logs, see what was deployed, check how a resource stands, see how long its operations usually take, " \
+                 "and restart a compute for anything Neon runs, " \
                  "through the tools that are switched on. It also uses Neon's other tools that are switched on.", Capabilities.halon_sentence("neon", "Neon")
   end
 
   private
+
+  test "run history is the operations Neon ran on the resource, each timed from when it was made by how long it took" do
+    call = resolve(Capabilities::HISTORY, "resource" => "shop/main", "name" => "start_compute")
+    assert_equal [ "list_operations", { "project_id" => "shop-123", "limit" => Capabilities::Neon::OPERATIONS_READ } ], [ call.tool.name, call.arguments ]
+
+    operations = { "operations" => [
+      { "id" => "op-3", "branch_id" => "br-main-1", "action" => "start_compute", "status" => "running", "created_at" => "2026-10-04T10:00:00Z" },
+      { "id" => "op-2", "branch_id" => "br-main-1", "action" => "start_compute", "status" => "finished", "created_at" => "2026-10-04T09:00:00Z", "total_duration_ms" => 4000 },
+      { "id" => "op-1", "branch_id" => "br-other-9", "action" => "start_compute", "status" => "failed", "created_at" => "2026-10-04T08:00:00Z", "total_duration_ms" => 1000 },
+      { "id" => "op-0", "branch_id" => "br-main-1", "action" => "apply_config", "status" => "finished", "created_at" => "2026-10-04T07:00:00Z", "total_duration_ms" => 900 }
+    ] }
+    result = call.present_result({ "content" => [ { "type" => "text", "text" => operations.to_json } ] })
+
+    assert_equal [ [ "op-3", "running", nil ], [ "op-2", "succeeded", 4 ] ], Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
+    assert_match "Finished ones usually take 4 seconds", result["content"].first["text"]
+  end
 
   def resolve(key, given) = Capabilities.resolve(@workspace, key, given, principal: map_reader)
 

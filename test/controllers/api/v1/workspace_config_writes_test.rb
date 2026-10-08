@@ -62,6 +62,23 @@ class Api::V1::WorkspaceConfigWritesTest < ActionDispatch::IntegrationTest
     assert_equal 1, runbook.reload.runbook_steps.count
   end
 
+  test "a runbook Halon can run is written and read back over the API with its procedure" do
+    post api_v1_runbooks_url,
+         params: { name: "Release Firefight", aliases: [ "ship it" ],
+                   inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ],
+                   steps: [ { title: "Start the release", tool: "run_workflow", arguments: { workflow: "release.yml", bump: "{{bump}}" } } ],
+                   watch: { title: "release", steps: [ { label: "Release run", capability: "run_history", resource: "firefight" } ] } },
+         headers: api_headers(token: @admin_token), as: :json
+
+    assert_response :created
+    body = response.parsed_body["runbook"]
+    assert_equal [ "ship it" ], body["aliases"]
+    assert_equal({ "workflow" => "release.yml", "bump" => "{{bump}}" }, body["steps"].first["arguments"])
+    assert_equal "run_workflow", body["steps"].first["tool"]
+    assert_equal "bump", body["inputs"].first["key"]
+    assert_equal "run_history", body["watch"]["steps"].first["capability"]
+  end
+
   test "a form says what it asks for, including the hidden fields" do
     get api_v1_form_url(IncidentForm::SLUG_DECLARE), headers: api_headers(token: @admin_token)
 

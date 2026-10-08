@@ -31,6 +31,17 @@ module Integrations
         TARGET_KEYS = %w[type ref_type ref_name source destination].freeze
         WRITE_NEEDS = "Running or stopping a pipeline needs a token that can write pipelines, the write:pipeline:bitbucket scope".freeze
         FOLLOW = "pipeline_steps with its uuid, or ci_status, follows it".freeze
+        HISTORY_LIMIT = 20
+        HISTORY_CANDIDATES = 100
+        # A pipeline's result, stage or state in Firefight's words (the pipeline_state, its stage and result objects of
+        # Bitbucket's OpenAPI description). A paused or halted pipeline waits on a manual step, so it is still going.
+        HISTORY_STATUSES = {
+          "pending" => Capabilities::History::QUEUED, "parsing" => Capabilities::History::QUEUED,
+          "in_progress" => Capabilities::History::RUNNING, "running" => Capabilities::History::RUNNING, "building" => Capabilities::History::RUNNING,
+          "paused" => Capabilities::History::RUNNING, "halted" => Capabilities::History::RUNNING,
+          "successful" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "error" => Capabilities::History::FAILED,
+          "stopped" => Capabilities::History::CANCELLED, "expired" => Capabilities::History::CANCELLED
+        }.freeze
 
         def self.included(pack)
           repo = pack::REPO_PARAM
@@ -42,6 +53,17 @@ module Integrations
                       "branch" => { "type" => "string", "description" => "Only pipelines for this branch (optional)" },
                       "status" => { "type" => "string", "enum" => PIPELINE_STATUSES, "description" => "Only pipelines in this status, such as FAILED (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{PIPELINE_LIMIT}, at most #{MAX_PIPELINES})" }
+                    }, %w[repo]),
+                    read_only: true
+
+          pack.tool :ci_runs,
+                    description: "A repository's pipelines, newest first, each with its status, when it started and finished and how " \
+                                 "long it took, and how long finished pipelines usually take",
+                    params_schema: CodeHost::Code.object_schema({
+                      "repo" => repo,
+                      "name" => { "type" => "string", "description" => "Only pipelines whose custom pipeline or branch contains this, such as release (optional)" },
+                      "branch" => { "type" => "string", "description" => "Only pipelines for this branch (optional)" },
+                      "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT})" }
                     }, %w[repo]),
                     read_only: true
 
@@ -105,6 +127,16 @@ module Integrations
           return "No pipelines in #{repo} match." if found.empty?
 
           found.map { |each| pipeline_line(repo, each) }.join("\n")
+        end
+
+        # A pipeline runs from when it was created to when it completed (created_on and completed_on), the time a person waits.
+        def ci_runs(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, HISTORY_LIMIT)
+          name = arguments["name"].to_s.strip.presence
+          found = pipelines_of(api(environment_row), repo, "target.branch" => branch_argument(arguments), "pagelen" => name ? HISTORY_CANDIDATES : limit)
+          runs = found.map { |pipeline| history_run(repo, pipeline) }
+          Capabilities::History.result(runs, what: "pipelines in #{repo}", link: found.first && pipeline_link(repo, found.first), name: name, limit: limit)
         end
 
         def pipeline_steps(environment_row:, arguments:)
@@ -272,6 +304,18 @@ module Integrations
           "#{pipeline['created_on']}  pipeline #{pipeline['build_number']} #{pipeline['uuid']}  #{outcome(pipeline)}  #{pipeline.dig('target', 'ref_name')}  " \
             "#{pipeline.dig('target', 'commit', 'hash').to_s[0, 12]}  #{pipeline.dig('trigger', 'name').to_s.downcase} by " \
             "#{pipeline.dig('creator', 'display_name') || 'unknown'}"
+        end
+
+        # A custom pipeline is called by its name, any other by the branch or tag it ran on.
+        def history_run(repo, pipeline)
+          target = pipeline["target"] || {}
+          custom = target.dig("selector", "type") == CUSTOM ? target.dig("selector", "pattern").presence : nil
+          Capabilities::History::Run.new(
+            id: pipeline["uuid"].to_s, number: pipeline["build_number"]&.to_s, name: custom || "pipeline on #{target['ref_name'] || 'a commit'}",
+            status: Capabilities::History.status(outcome(pipeline), HISTORY_STATUSES),
+            started_at: Telemetry.parse_time(pipeline["created_on"]), finished_at: Telemetry.parse_time(pipeline["completed_on"]),
+            url: pipeline_link(repo, pipeline)&.url, detail: "#{target['ref_name'] || 'commit'} at #{target.dig('commit', 'hash').to_s[0, 12]}"
+          )
         end
 
         def step_line(step)

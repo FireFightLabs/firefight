@@ -458,6 +458,24 @@ module Integrations
         assert_match "only services have builds", error.message
       end
 
+      test "build history reads a build from when it was made to when it concluded, in Firefight's words" do
+        NorthflankApi.any_instance.stubs(:builds).with("firefight", "web", limit: 20).returns([
+          { "id" => "joyous-view-2", "status" => "BUILDING", "createdAt" => "2026-10-01T10:00:00.000Z", "branch" => "main", "sha" => "c4e4267d46e638ac" },
+          { "id" => "joyous-view-1", "status" => "SUCCESS", "concluded" => true, "success" => true, "createdAt" => "2026-10-01T09:00:00.000Z",
+            "buildConcludedAt" => Time.utc(2026, 10, 1, 9, 6).to_i },
+          { "id" => "joyous-view-0", "status" => "FAILURE", "concluded" => true, "createdAt" => "2026-10-01T08:00:00.000Z",
+            "buildConcludedAt" => Time.utc(2026, 10, 1, 8, 2).to_i }
+        ])
+
+        result = @pack.call("build_history", environment_row: @row, arguments: { "resource" => "web" })
+        runs = Capabilities::History.runs_of(result)
+
+        assert_equal [ [ "running", nil ], [ "succeeded", 360 ], [ "failed", 120 ] ], runs.map { |run| [ run.status, run.seconds ] }
+        assert_equal "main, c4e4267d46e6", runs.first.detail
+        assert_equal 360, result.dig(Telemetry::STRUCTURED, Capabilities::History::USUAL_SECONDS)
+        assert_match "only services have builds", assert_raises(NativePack::Error) { call(:build_history, "resource" => "db") }.message
+      end
+
       test "a notification about a service reads that service again with the settings its secret groups give it, and nothing else" do
         NorthflankApi.any_instance.expects(:services).never
         NorthflankApi.any_instance.expects(:service).with("firefight", "web").returns(

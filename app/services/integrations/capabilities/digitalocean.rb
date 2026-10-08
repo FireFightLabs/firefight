@@ -11,17 +11,17 @@ module Integrations
       DROPLET = ResourceMap::KIND_VIRTUAL_MACHINE
       DATABASE = ResourceMap::KIND_DATABASE
       SUPPORTS = {
-        LOGS => [ APP ], METRICS => [ APP, DROPLET, DATABASE ], DEPLOYS => [ APP ], STATUS => [ APP, DROPLET, DATABASE ],
+        LOGS => [ APP ], METRICS => [ APP, DROPLET, DATABASE ], DEPLOYS => [ APP ], HISTORY => [ APP ], STATUS => [ APP, DROPLET, DATABASE ],
         ROLLBACK => [ APP ], RESTART => [ APP, DROPLET ], SCALE => [ APP ]
       }.freeze
       TOOLS = {
         LOGS => "app_logs", METRICS => "resource_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
-        ROLLBACK => "rollback_app", RESTART => %w[restart_app reboot_droplet], SCALE => "scale_app"
+        HISTORY => "deploy_history", ROLLBACK => "rollback_app", RESTART => %w[restart_app reboot_droplet], SCALE => "scale_app"
       }.freeze
       REBOOT = "reboot_droplet".freeze
       # The tools a capability answers in full. app_logs (deploy logs and crashed instances), resource_metrics (restarts),
       # restart_app and scale_app (one component of an app) take more than their capability does, so they stay offered.
-      WRAPPED = [ *TOOLS.values_at(DEPLOYS, STATUS, ROLLBACK), REBOOT ].freeze
+      WRAPPED = [ *TOOLS.values_at(DEPLOYS, STATUS, HISTORY, ROLLBACK), REBOOT ].freeze
       # The log types App Platform keeps that mean the same as a capability's stream.
       STREAMS = { STREAM_APP => "RUN", "build" => "BUILD" }.freeze
       # Metric names DigitalOcean documents an equivalent of. restarts has none among the capability's names, so it is
@@ -44,6 +44,7 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => id, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "limit")))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deployment" => target(given) })
         # A Droplet restarts by rebooting, gracefully, through droplet_actions_post with type reboot.
         when RESTART then Route.new(tool_name: resource.kind == DROPLET ? REBOOT : tool_for(RESTART), arguments: { "resource" => id })

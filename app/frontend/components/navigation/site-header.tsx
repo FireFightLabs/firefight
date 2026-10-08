@@ -21,10 +21,10 @@ export function SiteHeader({ title, actions, onSearch, searchShortcut }: SiteHea
         <SidebarTrigger className="-ml-1" />
         <h1 className="truncate text-lg font-semibold tracking-tight text-fg-headline">{title}</h1>
         <div className="ml-auto flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onSearch} aria-label="Search the map, catalog and memory" className="gap-2 text-muted-foreground">
+          <Button type="button" variant="outline" size="sm" onClick={onSearch} aria-label="Search the map, catalog and memory" className="gap-2 text-muted-foreground sm:w-56 sm:justify-start lg:w-64">
             <IconSearch className="size-4" />
             <span className="hidden sm:inline">Search</span>
-            {searchShortcut && <kbd className="hidden rounded border border-border px-1.5 font-sans text-[11px] text-muted-foreground md:inline">{SHORTCUT}</kbd>}
+            {searchShortcut && <kbd className="ml-auto hidden rounded border border-border px-1.5 font-sans text-[11px] text-muted-foreground md:inline">{SHORTCUT}</kbd>}
           </Button>
           {actions}
         </div>

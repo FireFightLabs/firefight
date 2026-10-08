@@ -125,6 +125,21 @@ module Integrations
            },
            read_only: true
 
+      tool :deploy_history,
+           description: "A service's recent deployments, each a build and its release, with its status, when it started and when " \
+                        "it went live or failed and how long that took, and how long finished ones usually take. A deployment " \
+                        "replaced since shows no length, since Railway keeps only when its status last changed",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :restart_deployment,
            description: "Restart the containers of a service's latest deployment without building it again, such as one that " \
                         "crashed and ran out of restarts",
@@ -286,6 +301,36 @@ module Integrations
         rows = deployments.map { |deployment| deployment_line(deployment) }
         Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first. rollback_deployment takes an id " \
                          "Railway can still roll back to.\n#{rows.join("\n")}", link: page)
+      end
+
+      # Railway's DeploymentStatus in Firefight's words. A deployment that slept or was replaced had gone live, and one that
+      # crashed went live and then failed.
+      DEPLOYMENT_STATUSES = {
+        "initializing" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, "waiting" => Capabilities::History::QUEUED,
+        "needs_approval" => Capabilities::History::QUEUED, "building" => Capabilities::History::RUNNING,
+        "deploying" => Capabilities::History::RUNNING, "success" => Capabilities::History::SUCCEEDED,
+        "sleeping" => Capabilities::History::SUCCEEDED, "removed" => Capabilities::History::SUCCEEDED,
+        "removing" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "crashed" => Capabilities::History::FAILED,
+        "skipped" => Capabilities::History::CANCELLED
+      }.freeze
+      # Railway keeps when a deployment's status last changed (updatedAt), which is when it went live or failed only while
+      # that is still its status.
+      ENDED_AT = %w[SUCCESS FAILED].freeze
+
+      def deploy_history(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        deployments = api(environment_row).deployments(project_of(environment_row), environment(environment_row)["id"], resource[:id],
+                                                       limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
+        runs = deployments.map do |deployment|
+          meta = deployment["meta"].is_a?(Hash) ? deployment["meta"] : {}
+          Capabilities::History::Run.new(
+            id: deployment["id"], name: "deploy", status: Capabilities::History.status(deployment["status"], DEPLOYMENT_STATUSES),
+            started_at: Telemetry.parse_time(deployment["createdAt"]),
+            finished_at: (Telemetry.parse_time(deployment["updatedAt"]) if ENDED_AT.include?(deployment["status"])),
+            detail: ("#{meta['commitHash'].to_s.first(12)} #{meta['commitMessage'].to_s.lines.first.to_s.strip}".strip if meta["commitHash"].present?)
+          )
+        end
+        Capabilities::History.result(runs, what: resource[:name], link: link(environment_row, resource), name: arguments["name"])
       end
 
       def restart_deployment(environment_row:, arguments:)

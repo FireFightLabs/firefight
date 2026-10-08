@@ -96,8 +96,12 @@ component :integration_clients, constants: INTEGRATION_CLIENT_CONSTANTS
 
 # A provider's own code: its pack, capabilities adapter, map reader, baseline reader, health probe, link builder, read
 # guard, error reader, issue tracker, map event source and definition. Found by file, so a new provider needs no line here. The shared contracts beside them
-# (Capabilities::Adapter and Capabilities::Answers) are not a provider's.
-SHARED_PROVIDER_CONTRACTS = %w[app/services/integrations/capabilities/adapter.rb app/services/integrations/capabilities/answers.rb].freeze
+# (Capabilities::Adapter, Capabilities::Answers, the run history every adapter reads into, Capabilities::History, and the
+# helper the providers that attach runs to an answer share, Capabilities::RunHistory) are not a provider's.
+SHARED_PROVIDER_CONTRACTS = %w[
+  app/services/integrations/capabilities/adapter.rb app/services/integrations/capabilities/answers.rb
+  app/services/integrations/capabilities/history.rb app/services/integrations/capabilities/run_history.rb
+].freeze
 PROVIDER_CODE_NAMESPACES = Dir.chdir(__dir__) do
   Dir.glob("app/services/integrations/{packs,capabilities,map_readers,baseline_readers,health_probes,source_links,read_guards,error_readers,issue_trackers,map_event_sources,providers}/*.rb")
 end.sort.-(SHARED_PROVIDER_CONTRACTS).map do |path|

@@ -34,6 +34,8 @@ import {
   RunbookStepsEditor,
   type EditableStep,
 } from "@/pages/settings/components/runbooks/runbook-steps-editor"
+import { RunbookProcedureEditor, type ProcedureState } from "@/pages/settings/components/runbooks/runbook-procedure-editor"
+import { objectText, procedurePayload, procedureState } from "@/pages/settings/lib/runbook-procedure"
 import {
   RunbookConditionsEditor,
   type ConditionSectionState,
@@ -59,6 +61,7 @@ interface EditModel {
   severityState: ConditionSectionState
   customFieldStates: CustomFieldConditionState[]
   alwaysAttach: boolean
+  procedure: ProcedureState
 }
 
 function sectionState(runbook: RunbookSettings | null | undefined, field: string): ConditionSectionState {
@@ -91,11 +94,14 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
       id: step.id,
       title: step.title,
       instruction: step.instruction ?? "",
+      tool: step.tool ?? "",
+      argumentsText: objectText(step.arguments),
     })),
     typeState: sectionState(runbook, CONDITION_FIELD_INCIDENT_TYPE),
     severityState: sectionState(runbook, CONDITION_FIELD_SEVERITY),
     customFieldStates: customFieldStates(runbook),
     alwaysAttach: runbook?.alwaysAttach ?? false,
+    procedure: procedureState(runbook),
   }
 }
 
@@ -103,6 +109,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
   const isEdit = Boolean(runbook)
   const [model, setModel] = useState<EditModel>(() => initModel(runbook))
   const [errors, setErrors] = useState<Errors>({})
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
   const [processing, setProcessing] = useState(false)
   const [wasOpen, setWasOpen] = useState(open)
 
@@ -118,6 +125,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
   // field changes.
   useEffect(() => {
     setErrors({})
+    setStepErrors({})
   }, [model])
 
   function patch(next: Partial<EditModel>) {
@@ -158,14 +166,25 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       })
     }
 
+    const procedure = procedurePayload(model.steps, model.procedure)
+    if (procedure.errors) {
+      setStepErrors(procedure.errors.steps)
+      const unread: Errors = procedure.errors.watch ? { watch: [ procedure.errors.watch ] } : {}
+      setErrors(unread)
+      return
+    }
+
     const payload = {
       name: model.name,
       summary: model.summary,
       content: model.content,
       external_url: model.externalUrl,
-      steps: model.steps.map((step) => ({ id: step.id, title: step.title, instruction: step.instruction })),
+      steps: procedure.payload.steps,
       conditions,
       always_attach: model.alwaysAttach,
+      inputs: procedure.payload.inputs,
+      aliases: procedure.payload.aliases,
+      watch: procedure.payload.watch,
     }
 
     const options: VisitOptions = {
@@ -239,7 +258,14 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
               />
             </div>
 
-            <RunbookStepsEditor steps={model.steps} onChange={(steps) => patch({ steps })} />
+            <RunbookStepsEditor steps={model.steps} stepErrors={stepErrors} onChange={(steps) => patch({ steps })} />
+            {(errors.tool || errors.arguments) && <p className="text-xs text-destructive">{errors.tool ?? errors.arguments}</p>}
+
+            <RunbookProcedureEditor
+              state={model.procedure}
+              errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
+              onChange={(procedure) => patch({ procedure })}
+            />
 
             <RunbookConditionsEditor
               typeState={model.typeState}

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -583,6 +583,72 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "tool_call_id"], name: "index_chat_step_progresses_on_chat_id_and_tool_call_id", unique: true
+  end
+
+  create_table "chat_watch_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "watch_id", null: false
+    t.integer "position", null: false
+    t.string "label", null: false
+    t.string "capability", null: false
+    t.jsonb "arguments", default: {}, null: false
+    t.uuid "integration_environment_id"
+    t.string "run_name"
+    t.string "run_ref"
+    t.string "followed_run_id"
+    t.string "run_url"
+    t.boolean "report_start", default: false, null: false
+    t.text "done_when"
+    t.text "failed_when"
+    t.text "goal"
+    t.integer "usual_seconds"
+    t.string "status", default: "waiting", null: false
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "started_told_at"
+    t.datetime "finished_told_at"
+    t.datetime "slow_told_at"
+    t.string "last_digest"
+    t.text "last_state"
+    t.text "reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
+    t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
+    t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"
+  end
+
+  create_table "chat_watch_updates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "watch_id", null: false
+    t.string "kind", null: false
+    t.text "text", null: false
+    t.datetime "told_at"
+    t.datetime "created_at", null: false
+    t.index ["watch_id"], name: "index_chat_watch_updates_on_watch_id"
+  end
+
+  create_table "chat_watches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "asker_type", null: false
+    t.uuid "asker_id", null: false
+    t.string "title", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "expires_at", null: false
+    t.integer "usual_seconds"
+    t.string "limit_basis", null: false
+    t.datetime "check_claimed_at"
+    t.datetime "checked_at"
+    t.text "outcome"
+    t.datetime "finished_at"
+    t.uuid "stopped_by_id"
+    t.datetime "told_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asker_type", "asker_id"], name: "index_chat_watches_on_asker"
+    t.index ["chat_id"], name: "index_chat_watches_on_chat_id"
+    t.index ["stopped_by_id"], name: "index_chat_watches_on_stopped_by_id"
+    t.index ["workspace_id", "status"], name: "index_chat_watches_on_workspace_id_and_status"
+    t.index ["workspace_id"], name: "index_chat_watches_on_workspace_id"
   end
 
   create_table "chats", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1486,9 +1552,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
   end
 
   create_table "job_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "job_class", null: false
     t.string "job_id", null: false
+    t.string "job_class", null: false
+    t.datetime "created_at", null: false
     t.index ["created_at"], name: "index_job_runs_on_created_at"
     t.index ["job_id"], name: "index_job_runs_on_job_id", unique: true
   end
@@ -1901,28 +1967,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
   end
 
   create_table "runbook_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "arguments", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.text "instruction"
     t.integer "position", null: false
     t.uuid "runbook_id", null: false
     t.string "title", null: false
+    t.string "tool"
     t.datetime "updated_at", null: false
     t.index ["runbook_id", "deleted_at"], name: "index_runbook_steps_on_runbook_id_and_deleted_at"
     t.index ["runbook_id"], name: "index_runbook_steps_on_runbook_id"
   end
 
   create_table "runbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "aliases", default: [], null: false, array: true
     t.boolean "always_attach", default: false, null: false
     t.text "content"
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.string "external_url"
+    t.jsonb "inputs", default: [], null: false
     t.string "name", null: false
     t.integer "position", null: false
     t.string "slug", null: false
     t.string "summary"
     t.datetime "updated_at", null: false
+    t.jsonb "watch"
     t.uuid "workspace_id", null: false
     t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
@@ -1989,7 +2060,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
   create_table "solid_workflow_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "attempts", default: 0, null: false
     t.jsonb "checkpoint"
-    t.string "claimed_by"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.string "depends_on", default: [], array: true
@@ -2006,6 +2076,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.uuid "workflow_id", null: false
+    t.string "claimed_by"
     t.index ["run_at"], name: "index_solid_workflow_steps_on_run_at"
     t.index ["status", "updated_at"], name: "index_solid_workflow_steps_on_status_and_updated_at"
     t.index ["status"], name: "index_solid_workflow_steps_on_status"
@@ -2303,6 +2374,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_130200) do
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
   add_foreign_key "chat_step_progresses", "chats", on_delete: :cascade
+  add_foreign_key "chat_watch_steps", "chat_watches", column: "watch_id", on_delete: :cascade
+  add_foreign_key "chat_watch_steps", "integration_environments", on_delete: :nullify
+  add_foreign_key "chat_watch_updates", "chat_watches", column: "watch_id", on_delete: :cascade
+  add_foreign_key "chat_watches", "chats", on_delete: :cascade
+  add_foreign_key "chat_watches", "workspace_memberships", column: "stopped_by_id", on_delete: :nullify
+  add_foreign_key "chat_watches", "workspaces", on_delete: :cascade
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify

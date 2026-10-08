@@ -8,8 +8,11 @@ module Integrations
 
       PACK = Packs::Vercel
       PROJECT = [ ResourceMap::KIND_SITE ].freeze
-      SUPPORTS = { LOGS => PROJECT, DEPLOYS => PROJECT, STATUS => PROJECT, ROLLBACK => PROJECT }.freeze
-      TOOLS = { LOGS => "deployment_logs", DEPLOYS => "list_deployments", STATUS => "describe_resource", ROLLBACK => "rollback_deployment" }.freeze
+      SUPPORTS = { LOGS => PROJECT, DEPLOYS => PROJECT, STATUS => PROJECT, HISTORY => PROJECT, ROLLBACK => PROJECT }.freeze
+      TOOLS = {
+        LOGS => "deployment_logs", DEPLOYS => "list_deployments", STATUS => "describe_resource", HISTORY => "deploy_history",
+        ROLLBACK => "rollback_deployment"
+      }.freeze
       # deployment_logs reads any deployment, which the capability cannot name, so it stays offered as it is.
       WRAPPED = TOOLS.values.excluding(TOOLS[LOGS]).freeze
       STREAMS = { STREAM_APP => "runtime", "build" => "build" }.freeze
@@ -20,6 +23,7 @@ module Integrations
         when LOGS then Route.new(tool_name: TOOLS[LOGS], arguments: { "resource" => id, "type" => stream(given) }.merge(logs(given)))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => id }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => id })
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => id }.merge(given.slice("name", "limit")))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => id, "deployment" => target(given) })
         end
       end

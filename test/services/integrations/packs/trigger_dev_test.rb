@@ -88,6 +88,25 @@ module Integrations
         assert_equal [ ResourceMap::Gap.new(text: "Nothing is deployed to this environment, so it has no tasks to read.", kinds: []) ], snapshot.gaps
       end
 
+      test "runs carry their times and status as run history, which the capability reads back with how long they usually take" do
+        TriggerDevApi.any_instance.stubs(:runs).returns([
+          { "id" => "run_c", "taskIdentifier" => "send-email", "status" => "EXECUTING", "createdAt" => "2026-10-03T10:20:00Z", "startedAt" => "2026-10-03T10:20:05Z" },
+          { "id" => "run_b", "taskIdentifier" => "send-email", "status" => "COMPLETED", "startedAt" => "2026-10-03T10:00:00Z", "finishedAt" => "2026-10-03T10:04:00Z" },
+          { "id" => "run_a", "taskIdentifier" => "send-email", "status" => "CRASHED", "startedAt" => "2026-10-03T09:00:00Z", "finishedAt" => "2026-10-03T09:01:00Z" }
+        ])
+        result = @pack.call("list_runs", environment_row: @row, arguments: { "task" => "send-email" })
+
+        runs = Capabilities::History.runs_of(result)
+        assert_equal %w[running succeeded failed], runs.map(&:status)
+        assert_equal [ nil, 240, 60 ], runs.map(&:seconds)
+        assert_match "run_b, send-email, COMPLETED", result["content"].sole["text"]
+
+        history = Capabilities::RunHistory.presenter("the runs of send-email", {}).call(result)
+        assert_equal 240, history.dig(Telemetry::STRUCTURED, Capabilities::History::USUAL_SECONDS)
+        assert_match "Finished ones usually take 4 minutes", history["content"].first["text"]
+        assert_match "proj_acme/runs/run_c", history["content"].first["text"]
+      end
+
       test "runs are listed newest first, filtered as asked, each with its page in the dashboard" do
         TriggerDevApi.any_instance.expects(:runs).with do |filter:, limit:|
           filter["taskIdentifier"] == [ "send-email" ] && filter["status"] == [ "FAILED" ] && filter["error"] == "error_1" && limit == 5

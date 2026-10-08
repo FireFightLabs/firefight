@@ -1,0 +1,139 @@
+import type { ErrorValue } from "@inertiajs/core"
+import { IconPlus, IconX } from "@tabler/icons-react"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+
+export interface EditableInput {
+  key: string
+  name: string
+  question: string
+  defaultValue: string
+}
+
+export interface ProcedureState {
+  aliasesText: string
+  inputs: EditableInput[]
+  watchText: string
+}
+
+interface RunbookProcedureEditorProps {
+  state: ProcedureState
+  errors: Partial<Record<"aliases" | "inputs" | "watch", ErrorValue>>
+  onChange: (state: ProcedureState) => void
+}
+
+const WATCH_PLACEHOLDER = '{ "title": "release", "steps": [ { "label": "Release run", "capability": "run_history", "resource": "my-repo", "name": "release" } ] }'
+
+// What lets Halon run the runbook by name: other names people call it, what to ask each time, and what to watch once
+// every step went through. A runbook that leaves all of it empty is an ordinary incident runbook.
+export function RunbookProcedureEditor({ state, errors, onChange }: RunbookProcedureEditorProps) {
+  function patch(next: Partial<ProcedureState>) {
+    onChange({ ...state, ...next })
+  }
+
+  function updateInput(index: number, next: Partial<EditableInput>) {
+    patch({ inputs: state.inputs.map((input, position) => (position === index ? { ...input, ...next } : input)) })
+  }
+
+  function addInput() {
+    patch({ inputs: [ ...state.inputs, { key: crypto.randomUUID(), name: "", question: "", defaultValue: "" } ] })
+  }
+
+  function removeInput(index: number) {
+    patch({ inputs: state.inputs.filter((_input, position) => position !== index) })
+  }
+
+  return (
+    <div className="space-y-4 rounded-lg border border-border px-4 py-3">
+      <div className="space-y-1">
+        <Label>Run by Halon</Label>
+        <p className="text-xs text-muted-foreground">
+          When a step names a tool, people can ask Halon to run this runbook by its name. Halon says what it will do, asks
+          for each input and waits for a confirmation before any step runs.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="runbook-aliases">Other names</Label>
+        <Input
+          id="runbook-aliases"
+          value={state.aliasesText}
+          onChange={(event) => patch({ aliasesText: event.target.value })}
+          placeholder="release firefight, ship it (separated by commas, optional)"
+        />
+        {errors.aliases && <p className="text-xs text-destructive">{errors.aliases}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Inputs</Label>
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addInput}>
+            <IconPlus className="size-3.5" />
+            Add input
+          </Button>
+        </div>
+        {state.inputs.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            None. A step or the watch names an input as {"{{key}}"}, and Halon asks for it each time.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {state.inputs.map((input, index) => (
+              <div key={input.key} className="flex items-start gap-2">
+                <div className="grid flex-1 gap-2 sm:grid-cols-[6rem_1fr_6rem]">
+                  <Input
+                    aria-label={`Input ${index + 1} key`}
+                    className="font-mono text-xs"
+                    value={input.name}
+                    onChange={(event) => updateInput(index, { name: event.target.value })}
+                    placeholder="bump"
+                  />
+                  <Input
+                    aria-label={`Input ${index + 1} question`}
+                    value={input.question}
+                    onChange={(event) => updateInput(index, { question: event.target.value })}
+                    placeholder="Which version bump?"
+                  />
+                  <Input
+                    aria-label={`Input ${index + 1} default`}
+                    value={input.defaultValue}
+                    onChange={(event) => updateInput(index, { defaultValue: event.target.value })}
+                    placeholder="Default"
+                  />
+                </div>
+                <button
+                  type="button"
+                  aria-label={`Remove input ${index + 1}`}
+                  className="pt-2 text-fg-muted hover:text-destructive"
+                  onClick={() => removeInput(index)}
+                >
+                  <IconX className="size-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {errors.inputs && <p className="text-xs text-destructive">{errors.inputs}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="runbook-watch">Watch afterwards</Label>
+        <Textarea
+          id="runbook-watch"
+          rows={4}
+          className="font-mono text-xs"
+          value={state.watchText}
+          onChange={(event) => patch({ watchText: event.target.value })}
+          placeholder={WATCH_PLACEHOLDER}
+        />
+        <p className="text-xs text-muted-foreground">
+          What Halon watches once every step went through, and reports back on in the chat and in Slack (optional).
+        </p>
+        {errors.watch && <p className="text-xs text-destructive">{errors.watch}</p>}
+      </div>
+    </div>
+  )
+}

@@ -31,6 +31,13 @@ class Integrations::Capabilities::TinybirdTest < ActiveSupport::TestCase
                  route(Integrations::Capabilities::ERRORS, "resource" => "top_pages", "text" => "Memory", "limit" => 3)
   end
 
+  test "run history is the workspace's jobs, an endpoint's are its pipe's, and a data source has none of its own" do
+    assert_equal [ "jobs", { "job_type" => "deployment", "days" => PACK::MAX_JOB_DAYS, "limit" => 20 } ],
+                 route(Integrations::Capabilities::HISTORY, "resource" => "analytics", "name" => "deployment")
+    assert_equal [ "jobs", { "days" => PACK::MAX_JOB_DAYS, "limit" => 20 } ], route(Integrations::Capabilities::HISTORY, "resource" => "top_pages")
+    assert_match "names the pipe each job ran", unroutable(Integrations::Capabilities::HISTORY, "resource" => "events")
+  end
+
   test "metrics are an endpoint's or the workspace's requests, and deploys are the workspace's deployment jobs" do
     assert_equal [ "endpoint_metrics", { "endpoint" => "t_top", "metrics" => %w[requests http_5xx], "minutes" => 120 } ],
                  route(Integrations::Capabilities::METRICS, "resource" => "top_pages", "metrics" => %w[requests http_5xx], "minutes" => 120)
@@ -58,7 +65,8 @@ class Integrations::Capabilities::TinybirdTest < ActiveSupport::TestCase
   test "status and errors are offered once, the tools that read further stay offered, and the details say what it can do" do
     adapter = Integrations::Capabilities::Tinybird
     assert_equal %w[describe_resource list_errors], PACK.tool_definitions.map(&:name).select { |name| adapter.wraps?(name) }
-    assert_equal "Halon can read its logs, read its metrics, see the workspace's deployments, check how a resource stands, and read its errors " \
+    assert_equal "Halon can read its logs, read its metrics, see the workspace's deployments, check how a resource stands, " \
+                 "see how long its jobs usually take, and read its errors " \
                  "for anything Tinybird runs, through the tools that are switched on. It also uses Tinybird's other tools that are switched on.",
                  Integrations::Capabilities.halon_sentence(PACK::PROVIDER_KEY, "Tinybird")
   end

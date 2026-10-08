@@ -256,4 +256,41 @@ class McpRunbookToolsTest < ActionDispatch::IntegrationTest
     assert is_error
     assert_equal 0, incident.incident_runbooks.count
   end
+
+  test "upsert_runbook saves a runbook Halon can run, which search and get show with its procedure" do
+    content, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Release Firefight", aliases: [ "release firefight" ],
+      inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ],
+      steps: [ { title: "Start the release", tool: "run_workflow", arguments: { workflow: "release.yml", bump: "{{bump}}" } } ],
+      watch: { title: "release", steps: [ { label: "Release run", capability: "run_history", resource: "firefight" } ] }
+    })
+    assert_not is_error
+    assert content["runnable"]
+
+    found, = call_tool(Mcp::Tools::SEARCH_RUNBOOKS, { query: "release firefight" })
+    assert_equal [ "release_firefight" ], found["runbooks"].map { |runbook| runbook["slug"] }
+
+    runbook, = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: "release_firefight" })
+    assert_equal [ { "position" => 1, "title" => "Start the release", "tool" => "run_workflow", "arguments" => { "workflow" => "release.yml", "bump" => "{{bump}}" } } ], runbook["steps"]
+    assert_equal [ "release firefight" ], runbook["aliases"]
+    assert_equal "run_history", runbook["watch"]["steps"].first["capability"]
+  end
+
+  test "upsert_runbook refuses a step that names an input the runbook does not ask for" do
+    _, is_error = call_tool(Mcp::Tools::UPSERT_RUNBOOK, {
+      name: "Release Firefight", steps: [ { title: "Start", tool: "run_workflow", arguments: { bump: "{{bump}}" } } ]
+    })
+
+    assert is_error
+    assert_nil @workspace.runbooks.find_by(slug: "release_firefight")
+  end
+
+  test "a runbook without tool steps reads exactly as before" do
+    runbook, = call_tool(Mcp::Tools::GET_RUNBOOK, { slug: @failover.slug })
+
+    assert_equal [ { "position" => 1, "title" => "Pause writes", "instruction" => "Stop the writer" },
+                   { "position" => 2, "title" => "Promote replica", "instruction" => "Run failover" } ], runbook["steps"]
+    assert_not runbook.key?("inputs")
+    assert_not runbook.key?("watch")
+  end
 end

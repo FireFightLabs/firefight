@@ -44,6 +44,13 @@ class Integrations::Capabilities::AzureTest < ActiveSupport::TestCase
     assert_match "restart an app or a PostgreSQL server", Integrations::Capabilities.halon_sentence("azure", "Azure")
   end
 
+  test "an app's run history is its deployments, and a Container App, which keeps no end to a revision, has none" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "storefront")
+    assert_equal [ "list_deployments", { "resource" => WEB_ID, "limit" => Integrations::Capabilities::History::LIMIT } ], [ history.tool.name, history.arguments ]
+    assert_match "not when it finished rolling out", unroutable(Integrations::Capabilities::HISTORY, "resource" => "api")
+    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "catalog")
+  end
+
   private
 
   def resource!(kind, id, name, type)
