@@ -17,6 +17,8 @@ class Conversation::LiveDelivery
   EVENT_WATCH = "watch"
   # A tool call asked the person for a secret or made one for them to reveal, or a value was set, so its card looks again.
   EVENT_SECRET_ENTRY = "secret_entry"
+  # A pull request Halon opened from this chat needs attention, or Fix it was pressed, so its card looks again.
+  EVENT_PULL_REQUEST = "pull_request"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -48,6 +50,10 @@ class Conversation::LiveDelivery
 
   def self.pack_refused(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_PACK_REFUSAL)
+  end
+
+  def self.pull_request_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_PULL_REQUEST)
   end
 
   def self.secret_entry_moved(conversation)

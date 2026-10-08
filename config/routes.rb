@@ -109,6 +109,10 @@ Rails.application.routes.draw do
   post "/mcp", to: "mcp#create", as: :mcp
   # A coding agent in the sandbox reaching its model, as a provider's API looks to it.
   # Declared first, so the model route never takes it as a provider's path.
+  # Git in the sandbox fetches and pushes here, before the model proxy's catch all.
+  get "/code_agent/git/change.git/info/refs", to: "code_agent_git#info_refs", as: :code_agent_git_refs, format: false
+  post "/code_agent/git/change.git/git-upload-pack", to: "code_agent_git#upload_pack", as: :code_agent_git_upload, format: false
+  post "/code_agent/git/change.git/git-receive-pack", to: "code_agent_git#receive_pack", as: :code_agent_git_receive, format: false
   post "/code_agent/tools", to: "code_agent_tools#create", as: :code_agent_tools
   match "/code_agent/tools", to: "code_agent_tools#method_not_allowed", via: [ :get, :delete, :put, :patch ]
   post "/code_agent/:provider/*path", to: "code_agent#forward", as: :code_agent, format: false
@@ -376,6 +380,7 @@ Rails.application.routes.draw do
     post "/agent/:id/secret_entries/:secret_entry_id/fill", to: "agent_chats#fill_secret", as: :agent_chat_secret_entry_fill
     post "/agent/:id/secret_entries/:secret_entry_id/reveal", to: "agent_chats#reveal_secret", as: :agent_chat_secret_entry_reveal
     post "/agent/:id/watches/:watch_id/stop", to: "agent_chats#stop_watch", as: :agent_chat_watch_stop
+    post "/agent/:id/pull-requests/:notice_id/fix", to: "agent_chats#fix_pull_request", as: :agent_chat_pull_request_fix
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

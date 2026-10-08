@@ -32,6 +32,8 @@ class Chat::Watch < ApplicationRecord
   # A check that has not let go of its claim in this long belonged to a worker that died.
   CLAIM_LAPSES = 3.minutes
   OUTCOME_LIMIT = 2_000
+  # Why the person wanted it, in their words, which every report measures what happened against.
+  PURPOSE_LIMIT = 500
 
   belongs_to :chat
   belongs_to :workspace

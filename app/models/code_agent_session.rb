@@ -2,6 +2,8 @@
 # token is the only credential the box ever holds. It reaches one model, until a budget is spent or the session ends,
 # and Firefight's own provider key never leaves Firefight.
 class CodeAgentSession < ApplicationRecord
+  include CodeAgentSession::PullRequest
+
   # A coding agent asks the model many times on one change, so the budget covers the change, not a call.
   DEFAULT_BUDGET_MICROS = 2_000_000
   LIFETIME = 30.minutes

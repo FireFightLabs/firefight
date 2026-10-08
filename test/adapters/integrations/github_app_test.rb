@@ -77,35 +77,14 @@ module Integrations
       error = assert_raises(GithubApp::Error) { GithubApp.get("/repos/acme/checkout/pulls/1", token: "t") }
       assert_match(/Not Found/, error.message)
     end
-    test "a pull request is one commit on a new branch off base, each file a blob, a deleted one dropped from the tree" do
-      GithubApp.stubs(:get).with("/repos/acme/api/git/commits/base-sha", token: "t").returns("tree" => { "sha" => "base-tree" })
-      GithubApp.expects(:post).with("/repos/acme/api/git/blobs", { content: "cG9vbA==", encoding: "base64" }, token: "t").returns("sha" => "blob-1")
-      GithubApp.expects(:post).with("/repos/acme/api/git/trees", { base_tree: "base-tree", tree: [
-        { path: "config/database.yml", mode: "100644", type: "blob", sha: "blob-1" }, { path: "old.rb", mode: "100644", type: "blob", sha: nil }
-      ] }, token: "t").returns("sha" => "tree-1")
-      GithubApp.expects(:post).with("/repos/acme/api/git/commits", { message: "Restore the pool", tree: "tree-1", parents: [ "base-sha" ] }, token: "t")
-               .returns("sha" => "commit-1")
-      GithubApp.expects(:post).with("/repos/acme/api/git/refs", { ref: "refs/heads/halon/fix-1", sha: "commit-1" }, token: "t").returns({})
+    test "a pull request opens from a branch the change was already pushed to, ready for review" do
       GithubApp.expects(:post).with("/repos/acme/api/pulls", { title: "Restore the pool", head: "halon/fix-1", base: "main", body: "Why", draft: false }, token: "t")
                .returns("html_url" => "https://github.com/acme/api/pull/7")
+      GithubApp.expects(:post).with { |path, *| path.include?("/git/") }.never
 
-      opened = GithubApp.open_pull_request("acme/api", base: "main", base_sha: "base-sha", branch: "halon/fix-1", title: "Restore the pool", body: "Why", message: "Restore the pool",
-                                                       files: { "config/database.yml" => { mode: "100644", content: "cG9vbA==" }, "old.rb" => nil }, token: "t")
+      opened = GithubApp.open_pull_request("acme/api", base: "main", branch: "halon/fix-1", title: "Restore the pool", body: "Why", token: "t")
 
       assert_equal "https://github.com/acme/api/pull/7", opened["html_url"]
-    end
-
-    test "a commit pushed to an existing branch moves it without forcing, so a branch that moved since is refused" do
-      GithubApp.stubs(:get).with("/repos/acme/api/git/commits/head-sha", token: "t").returns("tree" => { "sha" => "head-tree" })
-      GithubApp.stubs(:post).with("/repos/acme/api/git/blobs", { content: "cG9vbA==", encoding: "base64" }, token: "t").returns("sha" => "blob-1")
-      GithubApp.stubs(:post).with("/repos/acme/api/git/trees", { base_tree: "head-tree", tree: [ { path: "a.rb", mode: "100644", type: "blob", sha: "blob-1" } ] }, token: "t")
-               .returns("sha" => "tree-1")
-      GithubApp.expects(:post).with("/repos/acme/api/git/commits", { message: "Raise", tree: "tree-1", parents: [ "head-sha" ] }, token: "t").returns("sha" => "commit-2")
-      GithubApp.expects(:write).with(:patch, "/repos/acme/api/git/refs/heads/team/fix%20pool", { sha: "commit-2", force: false }, token: "t").returns({})
-      GithubApp.expects(:post).with { |path, *| path.end_with?("/pulls") }.never
-
-      assert_equal "commit-2", GithubApp.push_commit("acme/api", branch: "team/fix pool", base_sha: "head-sha", message: "Raise",
-                                                                 files: { "a.rb" => { mode: "100644", content: "cG9vbA==" } }, token: "t")
     end
 
     test "a change by any verb sends its body, reads GitHub's validation errors, and tells a missing thing from a refusal" do

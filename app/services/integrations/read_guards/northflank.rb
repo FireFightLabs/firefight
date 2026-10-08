@@ -15,7 +15,7 @@ module Integrations
       def self.reading(_tool_name, arguments)
         return arguments if arguments["method"].to_s.upcase == READ
 
-        raise PolicyRefusal, "While investigating, #{TOOL} only reads, so its method must be #{READ}. A change belongs in the fix."
+        raise PolicyRefusal, "While investigating or watching, #{TOOL} only reads, so its method must be #{READ}. A change belongs in the fix."
       end
     end
   end

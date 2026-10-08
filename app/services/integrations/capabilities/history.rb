@@ -19,11 +19,43 @@ module Integrations
       RUNS = "runs".freeze
       USUAL_SECONDS = "usual_seconds".freeze
 
+      # One job or step inside a run, where the provider breaks a run down, so a watch hears the first one that failed
+      # while the run still goes. detail says where it failed, such as the step's name. log is how its log is read: the
+      # provider's own read tool by its name and the arguments it takes, on the connection that answered.
+      Part = Data.define(:id, :name, :status, :started_at, :finished_at, :url, :detail, :log) do
+        def initialize(started_at: nil, finished_at: nil, url: nil, detail: nil, log: nil, **) = super
+
+        def failed? = [ FAILED, CANCELLED ].include?(status)
+
+        def seconds
+          return unless started_at && finished_at
+
+          (finished_at - started_at).round
+        end
+
+        def to_h
+          { "id" => id.to_s, "name" => name, "status" => status, "started_at" => started_at&.utc&.iso8601,
+            "finished_at" => finished_at&.utc&.iso8601, "url" => url, "detail" => detail, "log" => log }.compact
+        end
+
+        def self.from_h(hash)
+          log = hash["log"].is_a?(Hash) ? hash["log"].deep_transform_keys(&:to_s) : nil
+          new(id: hash["id"], name: hash["name"], status: hash["status"], started_at: Telemetry.parse_time(hash["started_at"]),
+              finished_at: Telemetry.parse_time(hash["finished_at"]), url: hash["url"], detail: hash["detail"], log: log)
+        end
+      end
+      # The log reference a part carries: the provider tool's name and its arguments.
+      LOG_TOOL = "tool".freeze
+      LOG_ARGUMENTS = "arguments".freeze
+
       # id is the provider's own, number what a person calls it when the provider numbers its runs (#46), name the
       # workflow, pipeline or kind of run (release, build, deploy), detail a short line such as the commit or the job that
-      # failed.
-      Run = Data.define(:id, :number, :name, :status, :started_at, :finished_at, :url, :detail) do
-        def initialize(number: nil, name: nil, finished_at: nil, url: nil, detail: nil, **) = super
+      # failed. parts are its jobs or steps, read only when the run was asked for by its id, and nil when not read.
+      Run = Data.define(:id, :number, :name, :status, :started_at, :finished_at, :url, :detail, :parts) do
+        def initialize(number: nil, name: nil, finished_at: nil, url: nil, detail: nil, parts: nil, **) = super
+
+        # The first job or step that failed, by when it ended.
+        def first_failed_part = parts&.select(&:failed?)&.min_by { |part| part.finished_at || Time.current }
 
         def finished? = FINISHED.include?(status)
 
@@ -44,14 +76,16 @@ module Integrations
         def to_h
           {
             "id" => id.to_s, "number" => number&.to_s, "name" => name, "status" => status, "started_at" => started_at&.utc&.iso8601,
-            "finished_at" => finished_at&.utc&.iso8601, "seconds" => seconds, "url" => url, "detail" => detail
+            "finished_at" => finished_at&.utc&.iso8601, "seconds" => seconds, "url" => url, "detail" => detail,
+            "parts" => parts&.map(&:to_h)
           }.compact
         end
 
         def self.from_h(hash)
+          parts = hash["parts"].is_a?(Array) ? hash["parts"].map { |part| Part.from_h(part.to_h.transform_keys(&:to_s)) } : nil
           new(id: hash["id"], number: hash["number"], name: hash["name"], status: hash["status"],
               started_at: Telemetry.parse_time(hash["started_at"]), finished_at: Telemetry.parse_time(hash["finished_at"]),
-              url: hash["url"], detail: hash["detail"])
+              url: hash["url"], detail: hash["detail"], parts: parts)
         end
       end
 
@@ -101,9 +135,14 @@ module Integrations
       def line(run)
         named = [ run.number ? "##{run.number}" : run.id, run.name ].compact.join(" ")
         took = run.seconds ? ", took #{duration(run.seconds)}" : ""
-        parts = [ "- #{named}: #{run.status}", run.started_at && " started #{run.started_at.utc.iso8601}", took, run.detail && " (#{run.detail})",
-                  run.url && " #{run.url}" ]
-        parts.compact.join
+        said = [ "- #{named}: #{run.status}", run.started_at && " started #{run.started_at.utc.iso8601}", took, run.detail && " (#{run.detail})",
+                 run.url && " #{run.url}" ]
+        [ said.compact.join, *Array(run.parts).map { |part| part_line(part) } ].join("\n")
+      end
+
+      def part_line(part)
+        took = part.seconds ? ", took #{duration(part.seconds)}" : ""
+        "  - #{part.name}: #{part.status}#{took}#{" (#{part.detail})" if part.detail.present?}"
       end
 
       # A duration as a person says it, such as 18 minutes or 1 hour 5 minutes.

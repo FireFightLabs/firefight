@@ -7,6 +7,8 @@ import type { AgentChatWatchUpdate } from "@/types/serializers"
 const TONE_ICONS: Record<string, { icon: Icon; className: string }> = {
   [WATCH_TONES.STARTED]: { icon: IconEye, className: "text-ink-2" },
   [WATCH_TONES.MILESTONE]: { icon: IconCheck, className: "text-success" },
+  [WATCH_TONES.PART_FAILED]: { icon: IconX, className: "text-danger" },
+  [WATCH_TONES.HANDED_BACK]: { icon: IconAlertTriangle, className: "text-warning" },
   [WATCH_TONES.SLOW]: { icon: IconHourglass, className: "text-warning" },
   [WATCH_TONES.DONE]: { icon: IconCheck, className: "text-success" },
   [WATCH_TONES.FAILED]: { icon: IconX, className: "text-danger" },

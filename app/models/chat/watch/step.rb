@@ -16,6 +16,11 @@ class Chat::Watch::Step < ApplicationRecord
   # A run that started this long before the watch is still the one asked about, since a person asks after starting it.
   STARTED_BEFORE_WATCH = 10.minutes
   STATE_LIMIT = 1_000
+  # A step that reads one of Halon's read tools by name, rather than a capability.
+  READ_TOOL = "read_tool"
+  # A run that has not shown up in its history this long after it could have is handed back to Halon to find another
+  # way to follow it, rather than waited on in silence for the whole limit.
+  HAND_BACK_AFTER = 3.minutes
 
   belongs_to :watch, class_name: "Chat::Watch", inverse_of: :steps
   belongs_to :integration_environment, optional: true
@@ -23,6 +28,8 @@ class Chat::Watch::Step < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   def history? = capability == Integrations::Capabilities::HISTORY
+
+  def read_tool? = capability == READ_TOOL
 
   def spec = Integrations::Capabilities.spec(capability)
 
@@ -63,6 +70,23 @@ class Chat::Watch::Step < ApplicationRecord
   end
 
   def slow_told! = claim(slow_told_at: nil) { { slow_told_at: Time.current } }
+
+  # A job or step inside the run failed while the run went on. True once, for whoever saw it first.
+  def part_failed!(name) = claim(failed_part_told_at: nil) { { failed_part: name.to_s.truncate(200), failed_part_told_at: Time.current } }
+
+  # No run showed up, so Halon is asked to find another way to follow it. True once.
+  def handed_back! = claim(handed_back_at: nil) { { handed_back_at: Time.current } }
+
+  # Waiting on a run that has not shown up since it could have: since the watch began, or since the step before it ended.
+  def overdue?(now = Time.current)
+    return false unless history? && status == STATUS_WAITING && handed_back_at.nil?
+
+    earlier = watch.steps.select { |step| step.position < position }
+    return false unless earlier.all?(&:over?)
+
+    since = [ watch.created_at, *earlier.filter_map(&:finished_at) ].max
+    now - since >= HAND_BACK_AFTER
+  end
 
   def unfollowable!(reason) = finished!(STATUS_UNFOLLOWABLE, reason: reason)
 

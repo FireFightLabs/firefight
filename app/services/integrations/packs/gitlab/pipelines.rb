@@ -56,6 +56,7 @@ module Integrations
                       "repo" => repo,
                       "name" => { "type" => "string", "description" => "Only pipelines whose name contains this, such as release (optional)" },
                       "ref" => { "type" => "string", "description" => "Only pipelines for this branch or tag (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this pipeline, by its id, with each job and how it ended (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT}, at most #{MAX_HISTORY})" }
                     }, %w[repo]),
                     read_only: true
@@ -127,6 +128,8 @@ module Integrations
 
         def ci_runs(environment_row:, arguments:)
           repo = repo_argument(arguments)
+          return one_pipeline(api(environment_row), repo, positive_id(arguments, "run")) if arguments["run"].present?
+
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, MAX_HISTORY)
           name = arguments["name"].to_s.strip.presence
           gitlab = api(environment_row)
@@ -250,6 +253,25 @@ module Integrations
             status: Capabilities::History.status(pipeline["status"], HISTORY_STATUSES),
             started_at: Telemetry.parse_time(pipeline["started_at"] || pipeline["created_at"]), finished_at: Telemetry.parse_time(pipeline["finished_at"]),
             url: pipeline["web_url"], detail: "#{pipeline['ref']} at #{pipeline['sha'].to_s[0, 12]}, #{pipeline['source']}"
+          )
+        end
+
+        # One pipeline with its jobs, each with its log read by job_log, so a watch hears the first job that failed while the
+        # pipeline still goes. A job allowed to fail is not a failure of the pipeline.
+        def one_pipeline(gitlab, repo, id)
+          pipeline = gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{id}")
+          jobs, = gitlab.list("#{GitlabApi.project(repo)}/pipelines/#{id}/jobs", "per_page" => GitlabApi::PAGE_SIZE)
+          parts = Array(jobs).reject { |job| job["allow_failure"] }.map { |job| history_part(repo, job) }
+          Capabilities::History.result([ history_run(pipeline).with(parts: parts) ], what: "pipelines in #{repo}", link: link(pipeline["web_url"]))
+        end
+
+        def history_part(repo, job)
+          status = Capabilities::History.status(job["status"], HISTORY_STATUSES)
+          Capabilities::History::Part.new(
+            id: job["id"].to_s, name: "#{job['stage']} / #{job['name']}", status: status, started_at: Telemetry.parse_time(job["started_at"]),
+            finished_at: Telemetry.parse_time(job["finished_at"]), url: job["web_url"],
+            detail: job["failure_reason"].present? ? "with #{job['failure_reason'].tr('_', ' ')}" : nil,
+            log: { Capabilities::History::LOG_TOOL => "job_log", Capabilities::History::LOG_ARGUMENTS => { "repo" => repo, "job_id" => job["id"] } }
           )
         end
 

@@ -196,6 +196,48 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     assert_no_match "Nothing is connected", answer
   end
 
+  test "a tool named while opening the wrong group is loaded from the group that holds it" do
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
+    github.integration_environments.create!
+    job_log = github.tools.create!(name: "job_log", description: "The end of a job's log", params_schema: {}, read_only: true, enabled: true)
+    grant!(job_log)
+    offered = []
+
+    answer = open_tool(offer: ->(tools) { offered.concat(tools) }).call(group: "coding_agents", tools: [ "github_job_log" ])
+
+    assert_includes offered.map(&:name), "github_job_log"
+    assert_match "Nothing is connected for Coding agents", answer
+    assert_match "github_job_log is in the group Code (code), so it was loaded from there", answer
+    assert_match "check whether another group answers it", answer
+  end
+
+  test "an answer that something cannot be used says it is how it stood when read, and one where all is ready does not" do
+    grant!(@tool)
+
+    assert_includes open_tool.call(group: "observability"), Chat::StaleRefusals::AS_READ
+    assert_includes open_tool.call(group: "coding_agents", tools: [ "fake_nothing" ]), Chat::StaleRefusals::AS_READ
+    assert_not_includes open_tool.call(group: "connection_#{@integration.slug}"), Chat::StaleRefusals::AS_READ
+  end
+
+  test "a code change tool named from the coding agents group says the group that holds it, and an unknown name says so" do
+    github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
+    github.integration_environments.create!
+    fix_code = github.tools.create!(name: "fix_code", description: "Writes a code change", params_schema: {}, read_only: false, enabled: true)
+    grant!(fix_code)
+
+    answer = open_tool.call(group: "coding_agents", tools: [ "github_fix_code", "github_open_pr" ])
+
+    assert_match "github_fix_code is in the group Code (code). It exists, but not used while investigating", answer
+    assert_match "There is no tool called github_open_pr in any group", answer
+  end
+
+  test "the Code group says Firefight's own coding agent writes code changes there, and Coding agents says it is only for outside agents" do
+    description = open_tool.description
+
+    assert_match(/^Code: .*Firefight's own coding agent writes here with fix_code and opens as a pull request, no coding agent needed/, description)
+    assert_match(/^Coding agents: Outside coding agents a workspace chose to write code changes instead of Firefight's own\. Never needed/, description)
+  end
+
   test "a connected provider sits under the question it answers, not under its own name" do
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     github.tools.create!(name: "recent_deployments", description: "List recent deployments", read_only: true, enabled: true)

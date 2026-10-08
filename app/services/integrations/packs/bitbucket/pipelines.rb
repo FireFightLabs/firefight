@@ -63,6 +63,7 @@ module Integrations
                       "repo" => repo,
                       "name" => { "type" => "string", "description" => "Only pipelines whose custom pipeline or branch contains this, such as release (optional)" },
                       "branch" => { "type" => "string", "description" => "Only pipelines for this branch (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this pipeline, by its uuid, with each step and how it ended (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT})" }
                     }, %w[repo]),
                     read_only: true
@@ -132,6 +133,8 @@ module Integrations
         # A pipeline runs from when it was created to when it completed (created_on and completed_on), the time a person waits.
         def ci_runs(environment_row:, arguments:)
           repo = repo_argument(arguments)
+          return one_pipeline(api(environment_row), repo, uuid_argument(arguments, "run")) if arguments["run"].present?
+
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, HISTORY_LIMIT)
           name = arguments["name"].to_s.strip.presence
           found = pipelines_of(api(environment_row), repo, "target.branch" => branch_argument(arguments), "pagelen" => name ? HISTORY_CANDIDATES : limit)
@@ -315,6 +318,23 @@ module Integrations
             status: Capabilities::History.status(outcome(pipeline), HISTORY_STATUSES),
             started_at: Telemetry.parse_time(pipeline["created_on"]), finished_at: Telemetry.parse_time(pipeline["completed_on"]),
             url: pipeline_link(repo, pipeline)&.url, detail: "#{target['ref_name'] || 'commit'} at #{target.dig('commit', 'hash').to_s[0, 12]}"
+          )
+        end
+
+        # One pipeline with its steps, each with its log read by job_log, so a watch hears the first step that failed while
+        # the pipeline still goes.
+        def one_pipeline(bitbucket, repo, uuid)
+          pipeline = bitbucket.get("#{BitbucketApi.repository(repo)}/pipelines/#{uuid}")
+          parts = steps_of(bitbucket, repo, pipeline).map { |step| history_part(repo, pipeline, step) }
+          Capabilities::History.result([ history_run(repo, pipeline).with(parts: parts) ], what: "pipelines in #{repo}", link: pipeline_link(repo, pipeline))
+        end
+
+        def history_part(repo, pipeline, step)
+          Capabilities::History::Part.new(
+            id: step["uuid"].to_s, name: step_name(step), status: Capabilities::History.status(outcome(step), HISTORY_STATUSES),
+            started_at: Telemetry.parse_time(step["started_on"]), finished_at: Telemetry.parse_time(step["completed_on"]),
+            log: { Capabilities::History::LOG_TOOL => "job_log",
+                   Capabilities::History::LOG_ARGUMENTS => { "repo" => repo, "pipeline" => pipeline["uuid"], "step" => step["uuid"] } }
           )
         end
 

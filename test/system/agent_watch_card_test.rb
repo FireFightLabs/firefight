@@ -45,6 +45,21 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-stopped.png"))
   end
 
+  test "the card says what the watch is for, and a job that failed inside a run still going" do
+    @watch.update!(purpose: "get GitHub releases deploying through the Northflank webhook again")
+    @watch.steps.find_by!(label: "Web deploy").update!(failed_part: "trigger-northflank", failed_part_told_at: Time.current)
+    @watch.updates.create!(kind: Chat::Watch::Update::KIND_PART_FAILED,
+                           text: "Web deploy: trigger-northflank failed at Notify Northflank of the release, 4 seconds in. Northflank refused the " \
+                                 "name v0.0.14. The GitHub path is still broken. Next I would change the name the release sends, shall I?")
+
+    visit agent_chat_path(@conversation)
+
+    assert_text "For: get GitHub releases deploying through the Northflank webhook again"
+    assert_text "Web deploy. Running. trigger-northflank failed."
+    assert_text "Next I would change the name the release sends, shall I?"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-purpose.png"))
+  end
+
   test "the header's search button is wider from small screens up and an icon on a phone" do
     search = "button[aria-label='Search the map, catalog and memory']"
     visit agent_chat_path(@conversation)

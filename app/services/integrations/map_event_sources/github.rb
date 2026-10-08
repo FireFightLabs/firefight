@@ -14,6 +14,12 @@ module Integrations
 
       PUSH = "push".freeze
       REPOSITORY = "repository".freeze
+      # About a pull request, its reviews and the checks on its commits, which reach a pull request Halon follows.
+      PULL_REQUEST = "pull_request".freeze
+      PULL_REQUEST_REVIEW = "pull_request_review".freeze
+      CHECK_SUITE = "check_suite".freeze
+      CHECK_RUN = "check_run".freeze
+      STATUS = "status".freeze
       # Sent to every GitHub App without subscribing (docs.github.com, Webhook events and payloads, installation_repositories).
       INSTALLATION_REPOSITORIES = "installation_repositories".freeze
       # Also sent to every GitHub App, for the installation itself (Webhook events and payloads, installation): deleted,
@@ -65,6 +71,31 @@ module Integrations
           when INSTALLATION_REPOSITORIES then reach_events(payload, delivery)
           else []
           end
+        end
+
+        # What a delivery says about pull requests, for the ones Halon follows (Integrations::PullRequests): a push to any
+        # branch moves a pull request's head or its base, and pull_request, pull_request_review, check_suite, check_run
+        # and status name the pull requests or branches they are about (Webhook events and payloads). Only push comes
+        # with the map's subscriptions. The rest arrive once the App subscribes to Pull requests, Pull request reviews,
+        # Check suites, Check runs and Statuses, and until then the follower reads on its own every few minutes.
+        def pull_request_nudges(payload, headers:)
+          repository = payload.dig("repository", "full_name")
+          return [] if repository.blank?
+
+          numbers, branches = case headers[EVENT_HEADER].to_s
+          when PUSH then [ [], [ payload["ref"].to_s.delete_prefix("refs/heads/") ] ]
+          when PULL_REQUEST, PULL_REQUEST_REVIEW then [ [ payload.dig("pull_request", "number") ], [] ]
+          when CHECK_SUITE, CHECK_RUN
+            checked = payload[headers[EVENT_HEADER].to_s].to_h
+            [ Array(checked["pull_requests"]).map { |pull| pull["number"] }, [ checked["head_branch"] || checked.dig("check_suite", "head_branch") ] ]
+          when STATUS then [ [], Array(payload["branches"]).map { |branch| branch["name"] } ]
+          else [ [], [] ]
+          end
+          numbers = numbers.compact.map(&:to_i)
+          branches = branches.compact_blank
+          return [] if numbers.empty? && branches.empty?
+
+          [ Integrations::PullRequests::Nudge.new(repository: repository, numbers: numbers, branches: branches) ]
         end
 
         private

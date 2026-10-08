@@ -27,7 +27,7 @@ class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
 
   test "it lists the web tools and Halon's read tools, a question only where the change can be seen, and an ended session reaches nothing" do
     call("tools/list")
-    assert_equal %w[search_web read_web_page list_tools describe_tool call_tool list_skills read_skill], tool_names
+    assert_equal %w[search_web read_web_page list_tools describe_tool call_tool list_skills read_skill search_docs read_doc], tool_names
 
     placed, placed_token = open_session(@member, place: @workspace.conversations.create!(kind: Conversation::KIND_PERSONAL, started_by: @member, max_turns: 10, max_spend_cents: 50))
     call("tools/list", token: placed_token)
@@ -50,7 +50,7 @@ class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
 
     @workspace.update!(web_search_enabled: false)
     call("tools/list")
-    assert_equal %w[list_tools describe_tool call_tool list_skills read_skill], tool_names
+    assert_equal %w[list_tools describe_tool call_tool list_skills read_skill search_docs read_doc], tool_names
     get "/code_agent/tools"
     assert_response :method_not_allowed
   end
@@ -85,6 +85,45 @@ class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
     call("tools/call", token: token, name: CodeAgent::ReadTools::CALL, arguments: { name: "fake_echo_text", arguments: { text: "hi" } })
     assert response.parsed_body.dig("result", "isError")
     assert_equal 0, Ability::Invocation.where(workspace: @workspace, action_key: @read.action_key, decision: Ability::Invocation::DECISION_ALLOW).count
+  end
+
+  test "the coding agent searches the docs store before the web, finding a page by its exact name and by a question in other words" do
+    store_doc_page(provider: "northflank", path: "docs/application/release/run-and-manage-workflows.md",
+                   url: "https://northflank.com/docs/v1/application/release/run-and-manage-workflows.md", content: <<~MARKDOWN)
+                     # Run and manage workflows
+
+                     ## Run a workflow using a webhook
+
+                     Treat the URL as a credential.
+
+                     ### Git trigger parameters
+
+                     Pass `release.sha` and `release.branch` as query parameters on the webhook URL.
+                   MARKDOWN
+    store_doc_page(provider: "render", path: "deploy/hooks.md", content: "# Deploy hooks\n\nA deploy hook starts a deploy.")
+    @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "northflank", name: "Northflank")
+    FirefightAi.stubs(:embed).raises(FirefightAi::TerminalError.new("no key", reason: "ConfigurationError"))
+
+    call("tools/list")
+    assert_match "before the web", response.parsed_body.dig("result", "tools").find { |tool| tool["name"] == Chat::Tools::Docs::SEARCH }["description"]
+
+    call("tools/call", name: Chat::Tools::Docs::SEARCH, arguments: { query: "release.sha" })
+    assert text.start_with?(Chat::Tools::Docs::NOTE), "it is the provider's text, framed as data"
+    assert_includes text, %(<tool_result tool="search_docs" trust="untrusted">)
+    assert_includes text, "page docs/application/release/run-and-manage-workflows.md"
+
+    call("tools/call", name: Chat::Tools::Docs::SEARCH, arguments: { query: "how do I hand the commit to a workflow webhook trigger" })
+    assert_includes text, "Northflank: Run and manage workflows > Run a workflow using a webhook"
+    assert_not_includes text, "Deploy hooks", "only the connected providers unless one is named"
+
+    call("tools/call", name: Chat::Tools::Docs::READ,
+                       arguments: { provider: "northflank", page: "docs/application/release/run-and-manage-workflows.md", section: "Git trigger parameters" })
+    assert_includes text, "release.branch"
+    assert_equal 3, @session.reload.tool_calls, "each docs call counts against the change's limit"
+
+    @session.update_columns(tool_calls: CodeAgentSession::MAX_TOOL_CALLS)
+    call("tools/call", name: Chat::Tools::Docs::SEARCH, arguments: { query: "release.sha" })
+    assert_equal CodeAgentSession::TOO_MANY_TOOL_CALLS, text
   end
 
   test "a session's read tool calls are capped" do

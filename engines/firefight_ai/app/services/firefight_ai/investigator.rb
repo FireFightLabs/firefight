@@ -87,6 +87,7 @@ module FirefightAi
         - Call conclude with the theory the evidence supports, the evidence behind it, and what you could not check. Each line of evidence is one claim and the step numbers it rests on. A claim with no step behind it is refused, so do not state what no result showed.
         - The first conclude asks you to try to prove the answer wrong before it is recorded. Each claim is then read against the steps it cites, and one they do not show is dropped.
         - If the evidence supports no cause, conclude saying that. A wrong answer costs the team more than no answer.
+        - #{TeammateRule::EVIDENCE_FIX_RULE}
         - When you name a cause, give the fix in conclude: what to change, in order, how to undo each step, and how to tell it worked. Give it even when nothing here can apply it.
         - A code change is one pull_request step per repository, naming the files and what changes in them. A change to a provider, such as a setting, a scale or a redeploy, is an action step through a tool you have that changes things, with the arguments it needs. So is acting on a pull request or an issue without changing code, such as closing a pull request or rerunning a workflow, through the code host's own tool, never a pull_request step. Anything you cannot do through a tool is a manual step saying what is missing.
         - #{ContractRule::RULE} #{ContractRule::BRIEF_RULE} In a fix, that goes in the step's description and the finding.

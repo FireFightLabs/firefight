@@ -225,7 +225,7 @@ module Integrations
         test "a pull request that is not ready is never sent to merge, and the refusal is Firefight's check with why" do
           GithubApp.expects(:write).never
           {
-            { "mergeable" => false, "mergeable_state" => "dirty" } => "it conflicts with its base, which a person resolves",
+            { "mergeable" => false, "mergeable_state" => "dirty" } => "it conflicts with its base. fix_code with this pull_request, asked to merge the base in",
             { "mergeable" => true, "mergeable_state" => "blocked" } => "a branch protection rule blocks it",
             { "mergeable" => true, "mergeable_state" => "behind" } => "its branch is behind its base, so update_pull_request_branch brings it up to date first",
             { "mergeable" => nil, "mergeable_state" => "unknown" } => "GitHub has not worked out yet whether it can merge",
@@ -235,6 +235,51 @@ module Integrations
             error = assert_raises(PolicyRefusal) { @pack.merge_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 }) }
             assert_match "Firefight checked PR #412 in acme/checkout before merging and does not merge it now, because #{words}", error.message
           end
+        end
+
+        test "a conflict on a pull request Firefight opened is Halon's to fix with the person's yes, and on anyone else's is offered" do
+          stub_pull(412, "mergeable" => false, "mergeable_state" => "dirty")
+          workspace = @integration.workspace
+          words = @pack.send(:merge_words, GithubApp.get("/repos/acme/checkout/pulls/412", token: "ghs_token"))
+          assert_match "so offer that to the person and run it once they agree", words
+
+          session = CodeAgentSession.create!(workspace: workspace, provider: "anthropic", model: "m", repository: "acme/checkout", budget_micros: 1,
+                                             expires_at: 1.hour.from_now, token_digest: SecureRandom.hex, pull_request_number: 412)
+          assert CodeAgentSession.opened_pull_request?(workspace, "acme/checkout", 412)
+          own = @pack.send(:merge_words, GithubApp.get("/repos/acme/checkout/pulls/412", token: "ghs_token"), own: true)
+          assert_match "Firefight opened it, so fixing it is yours", own
+          assert session
+        end
+
+        test "a pull request's standing reads mergeable, the checks that failed and the reviewers whose latest review asks for changes" do
+          stub_pull(412, "mergeable" => nil, "mergeable_state" => "unknown")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412", token: "ghs_token")
+                   .returns(pull(412, "mergeable" => nil, "mergeable_state" => "unknown")).then.returns(pull(412, "mergeable" => false, "mergeable_state" => "dirty"))
+          stub_checks("b" * 40)
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412/reviews?per_page=100", token: "ghs_token").returns([
+            { "id" => 1, "user" => { "login" => "ada" }, "state" => "CHANGES_REQUESTED", "body" => "Retry budget?" },
+            { "id" => 2, "user" => { "login" => "lin" }, "state" => "CHANGES_REQUESTED", "body" => "Name it." },
+            { "id" => 3, "user" => { "login" => "lin" }, "state" => "APPROVED", "body" => "" }
+          ])
+          @pack.expects(:sleep).with(Github::PullRequests::SETTLE_WAIT).once
+
+          status = @pack.pull_request_status(@row, repository: "acme/checkout", number: 412, settle: true)
+
+          assert_equal [ Integrations::PullRequests::OPEN, Integrations::PullRequests::CONFLICTED ], [ status.state, status.mergeable ]
+          assert_includes status.failing_checks.map(&:name), "test"
+          assert_equal [ "ada" ], status.reviews.map(&:reviewer), "a reviewer who approved since no longer asks"
+          assert_equal Integrations::PullRequests::PROBLEMS, status.problems
+          assert_match "The code host says PR #412 conflicts with main, so it cannot merge.", status.words
+        end
+
+        test "a merged pull request reads as merged and needs no more reads" do
+          stub_pull(412, "state" => "closed", "merged_at" => "2026-08-02T10:00:00Z")
+          GithubApp.expects(:get).with { |path, **| path.include?("check-runs") }.never
+
+          status = @pack.pull_request_status(@row, repository: "acme/checkout", number: 412)
+
+          assert_equal Integrations::PullRequests::MERGED, status.state
+          assert_empty status.problems
         end
 
         test "a merge GitHub refuses because the head moved is said with what to do" do

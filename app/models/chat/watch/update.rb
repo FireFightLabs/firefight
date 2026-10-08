@@ -3,9 +3,13 @@
 class Chat::Watch::Update < ApplicationRecord
   KIND_STARTED = "started"
   KIND_MILESTONE = "milestone"
+  # A job or step inside a run failed while the run went on.
+  KIND_PART_FAILED = "part_failed"
+  # What it followed never showed up, so Halon is finding another way to follow it.
+  KIND_HANDED_BACK = "handed_back"
   KIND_SLOW = "slow"
   KIND_ENDED = "ended"
-  KINDS = [ KIND_STARTED, KIND_MILESTONE, KIND_SLOW, KIND_ENDED ].freeze
+  KINDS = [ KIND_STARTED, KIND_MILESTONE, KIND_PART_FAILED, KIND_HANDED_BACK, KIND_SLOW, KIND_ENDED ].freeze
 
   belongs_to :watch, class_name: "Chat::Watch", inverse_of: :updates
 

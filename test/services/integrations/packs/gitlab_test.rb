@@ -196,6 +196,21 @@ module Integrations
         assert_equal [ "pipeline on main", "failed" ], [ run.name, run.status ]
       end
 
+      test "one pipeline read by its id carries its jobs, a failed one with why and how its log is read, and a job allowed to fail left out" do
+        stub_get("#{PROJECT}/pipelines/31", { "id" => 31, "status" => "running", "ref" => "main", "created_at" => "2026-10-01T10:00:00Z", "web_url" => "p31" })
+        stub_list("#{PROJECT}/pipelines/31/jobs", [ { "id" => 2, "stage" => "test", "name" => "rspec", "status" => "failed", "failure_reason" => "script_failure",
+                                                      "started_at" => "2026-10-01T10:01:00Z", "finished_at" => "2026-10-01T10:02:00Z", "web_url" => "j2" },
+                                                    { "id" => 3, "stage" => "test", "name" => "lint", "status" => "failed", "allow_failure" => true },
+                                                    { "id" => 1, "stage" => "deploy", "name" => "web", "status" => "running" } ], query: { "per_page" => GitlabApi::PAGE_SIZE })
+
+        run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "run" => "31" })).sole
+
+        assert_equal [ "test / rspec", "deploy / web" ], run.parts.map(&:name)
+        failed = run.first_failed_part
+        assert_equal [ "with script failure", 60 ], [ failed.detail, failed.seconds ]
+        assert_equal({ "tool" => "job_log", "arguments" => { "repo" => "acme/platform/web", "job_id" => 2 } }, failed.log)
+      end
+
       test "a pipeline's jobs say why each failed and link to the pipeline" do
         stub_list("#{PROJECT}/pipelines/31/jobs", [ { "id" => 2, "stage" => "test", "name" => "rspec", "status" => "failed", "failure_reason" => "script_failure",
                                                       "duration" => 61.4, "web_url" => "j2" },

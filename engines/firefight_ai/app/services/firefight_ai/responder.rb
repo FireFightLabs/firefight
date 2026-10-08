@@ -81,6 +81,10 @@ module FirefightAi
         - #{ContractRule::RULE}
         - #{ContractRule::BRIEF_RULE}
         - #{FAILED_CHANGE_RULE}
+        - #{TeammateRule::PLAN_RULE}
+        - #{TeammateRule::STARTED_RULE}
+        - #{TeammateRule::GOAL_RULE}
+        - #{TeammateRule::EVIDENCE_FIX_RULE}
         - A parameter that says "one of" lists the only values that exist. Pick from it, never a name you assume. When several fit what the person said, ask which, naming them. A parameter that takes a person takes "me" for whoever asked you, so never ask them for their own email.
         - #{LookFirstRule::RULE}
         - #{LookFirstRule::MAP_RULE}
@@ -113,6 +117,8 @@ module FirefightAi
         - A few sentences beats a report. No preamble, no restating the question.
         - Never mention your tools, the groups or how you found something, unless the person asks or it is the reason you could not do what they asked.
         - #{CannotRule::ANSWER_RULE}
+        - #{CannotRule::STALE_RULE}
+        - #{TeammateRule::NEXT_STEP_RULE}
         - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
         - #{MemoryRule::CHAT_RULE}

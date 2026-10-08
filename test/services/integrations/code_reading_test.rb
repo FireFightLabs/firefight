@@ -69,6 +69,19 @@ module Integrations
       assert_equal 2, @pushed.size
     end
 
+    test "a branch's newest head the box was handed the repository before is fetched again, so a change is written on it" do
+      reading("conversation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+      CodeBox.live.find_by!(key: "conversation-1").update_columns(repositories: { "acme/app" => { "pushed_at" => 10.minutes.ago.iso8601 } })
+      asked = []
+      Sandboxes::Client.any_instance.stubs(:prepare).with { |**given| asked << given }.raises(Sandboxes::Error, "acme__app has no commit c6ce34be")
+                       .then.returns("commit" => "c6ce34be")
+
+      reading("conversation-1").prepare("acme/app", ref: "c6ce34be")
+
+      assert_equal 2, @pushed.size, "the repository was sent again with the commit merged since"
+      assert_equal "c6ce34be", asked.last[:ref]
+    end
+
     test "without a provider the tool says code reading is not set up, and that it will not start working mid run" do
       Sandboxes.stubs(:provider).returns(nil)
 

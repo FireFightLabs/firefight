@@ -628,6 +628,27 @@ module Slack::WorkspaceAdapter::IncidentMessaging
                  blocks: Slack::Messages::WatchUpdate.build(update, direct: true, conversation_id: conversation_id))
   end
 
+  def post_pull_request_notice(channel_id:, thread_id:, notice:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
+  def post_pull_request_notice_to_user(user_id:, notice:, conversation_id: nil)
+    post_message(channel_id: user_id, text: Slack::Messages::PullRequestNotice.fallback(notice),
+                 blocks: Slack::Messages::PullRequestNotice.build(notice, conversation_id: conversation_id))
+  end
+
+  def update_pull_request_notice(channel_id:, message_id:, notice:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::PullRequestNotice.fallback(notice),
+                   blocks: Slack::Messages::PullRequestNotice.build(notice, conversation_id: (notice.conversation_id if direct_conversation?(channel_id: channel_id))))
+    { success: true }
+  end
+
   # Slack names a direct message channel with a D.
   def direct_conversation?(channel_id:) = channel_id.to_s.start_with?("D")
 

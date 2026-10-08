@@ -40,7 +40,7 @@ module Conversation::Watches::Shown
     end
 
     words = STEP_WORDS.fetch(step.status)
-    detail = step.over? ? step.reason : nil
+    detail = step.over? ? step.reason : ("#{step.failed_part} failed." if step.failed_part.present?)
     took = step.seconds_taken && step.status == Chat::Watch::Step::STATUS_SUCCEEDED ? " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}" : ""
     [ "#{words}#{took}.", detail.presence ].compact.join(" ")
   end
@@ -48,7 +48,7 @@ module Conversation::Watches::Shown
   # The watch for an outside agent over MCP, and for Halon's own list.
   def summary(watch)
     {
-      id: watch.id, title: watch.title, status: watch.status, started_at: watch.created_at.utc.iso8601, expires_at: watch.expires_at.utc.iso8601,
+      id: watch.id, title: watch.title, purpose: watch.purpose, status: watch.status, started_at: watch.created_at.utc.iso8601, expires_at: watch.expires_at.utc.iso8601,
       limit: limit_label(watch), basis: basis(watch), outcome: watch.outcome,
       steps: watch.steps.map { |step| { label: step.label, status: step_status(step), state: step_state(step), last_seen: step.last_state&.truncate(300) } },
       said: watch.updates.map { |update| { at: update.created_at.utc.iso8601, text: update.text } }

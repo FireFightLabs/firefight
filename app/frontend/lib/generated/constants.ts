@@ -174,9 +174,19 @@ export const WATCH_STEP_STATUSES = {
   "UNFOLLOWABLE": "unfollowable"
 } as const
 
+export const PULL_REQUEST_NOTICE_STATUSES = {
+  "OFFERED": "offered",
+  "FIXING": "fixing",
+  "CLEARED": "cleared",
+  "REPLACED": "replaced",
+  "ENDED": "ended"
+} as const
+
 export const WATCH_TONES = {
   "STARTED": "started",
   "MILESTONE": "milestone",
+  "PART_FAILED": "part_failed",
+  "HANDED_BACK": "handed_back",
   "SLOW": "slow",
   "DONE": "done",
   "FAILED": "failed",
@@ -659,7 +669,8 @@ export const AGENT_STREAM_EVENTS = {
   "HELD_CALL": "held_call",
   "PACK_REFUSAL": "pack_refusal",
   "WATCH": "watch",
-  "SECRET_ENTRY": "secret_entry"
+  "SECRET_ENTRY": "secret_entry",
+  "PULL_REQUEST": "pull_request"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -744,7 +755,8 @@ export const AGENT_CHAT_PROPS = {
   "SECRET_ENTRIES": "secretEntries",
   "SETUP_GUIDE": "setupGuide",
   "WATCHES": "watches",
-  "WATCH_UPDATES": "watchUpdates"
+  "WATCH_UPDATES": "watchUpdates",
+  "PULL_REQUEST_NOTICES": "pullRequestNotices"
 } as const
 
 export const SETUP_STEPS = {
