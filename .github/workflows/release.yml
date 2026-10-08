@@ -101,13 +101,14 @@ jobs:
             exit 1
           fi
 
-          # Northflank requires the release values as URL query parameters.
+          # Each query parameter becomes a workflow argument (${args.branch}, ${args.sha}), and name labels the run.
           curl --fail-with-body --silent --show-error \
             --get \
             --connect-timeout 3 \
             --max-time 10 \
-            --data-urlencode "firefight.branch=main" \
-            --data-urlencode "firefight.sha=${{ needs.tag.outputs.tagged_sha }}" \
+            --data-urlencode "branch=main" \
+            --data-urlencode "sha=${{ needs.tag.outputs.tagged_sha }}" \
+            --data-urlencode "name=${{ needs.tag.outputs.tag }}" \
             --output /dev/null \
             "$NORTHFLANK_RELEASE_WEBHOOK_URL"
 
