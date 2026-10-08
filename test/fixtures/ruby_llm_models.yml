@@ -54,3 +54,20 @@ text_embedding_3_small:
   name: Text Embedding 3 Small
   provider: openai
   capabilities: ["embeddings"]
+
+# One id under two providers that take different input, as OpenRouter and Perplexity both list openai/gpt-5.6-luna.
+shared_id_reads_images:
+  model_id: openai/shared-vision
+  context_window: 200000
+  name: Shared Vision
+  provider: openrouter
+  capabilities: ["function_calling"]
+  modalities: {"input": ["text", "image", "pdf"], "output": ["text"]}
+
+shared_id_text_only:
+  model_id: openai/shared-vision
+  context_window: 200000
+  name: Shared Vision
+  provider: perplexity
+  capabilities: []
+  modalities: {"input": [], "output": []}

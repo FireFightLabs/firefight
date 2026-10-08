@@ -91,9 +91,9 @@ class Chat < ApplicationRecord
     @shown_whole.include?(file.id)
   end
 
-  def reads_images? = FirefightAi.input_modalities(model_id).include?(Chat::Attachment::KIND_IMAGE)
+  def reads_images? = FirefightAi.input_modalities(model_id, provider: model&.provider).include?(Chat::Attachment::KIND_IMAGE)
 
-  def reads_pdfs? = FirefightAi.input_modalities(model_id).include?(Chat::Attachment::KIND_PDF)
+  def reads_pdfs? = FirefightAi.input_modalities(model_id, provider: model&.provider).include?(Chat::Attachment::KIND_PDF)
 
   def reload(...)
     forget_files!

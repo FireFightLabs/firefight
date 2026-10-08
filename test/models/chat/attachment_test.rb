@@ -237,4 +237,14 @@ class Chat::AttachmentTest < ActiveSupport::TestCase
     owner.send(:remove_const, name)
     owner.const_set(name, original)
   end
+
+  test "whether the model reads images is asked of the chat's own provider, when another lists the same id" do
+    choice = FirefightAi::ModelChoice.new(model: "openai/shared-vision", provider: "openrouter")
+    chat = Chat.open!(owner: @conversation, workspace: @workspace, model_choice: choice)
+
+    assert chat.reads_images?
+    assert chat.reads_pdfs?
+    assert Chat::Attachment.rules_for(@workspace, model_id: chat.model_id, provider: chat.model.provider).reads_images
+    assert_not Chat::Attachment.rules_for(@workspace, model_id: chat.model_id, provider: "perplexity").reads_images
+  end
 end
