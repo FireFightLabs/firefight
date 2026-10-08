@@ -9,7 +9,11 @@ class AgentChatMessageSerializer < BaseSerializer
   PROGRESS_TYPE = "{ startedAt: string; live: boolean; total: number; lines: { text: string; at: string | null; result: string | null }[]; " \
                   "changed: string[]; tests: { command: string; passed: boolean }[]; " \
                   "files: { path: string; added: number | null; removed: number | null }[]; finishedAt: string | null; " \
-                  "outcome: string | null; pullRequest: string | null; reason: string | null }".freeze
+                  "outcome: string | null; pullRequest: string | null; reason: string | null; " \
+                  "question: { id: string; text: string; askedAt: string | null; answerDueAt: string | null; status: string; " \
+                  "answer: string | null; answeredBy: string | null; byHalon: boolean; answeredAt: string | null } | null; " \
+                  "checks: { name: string; status: string }[]; " \
+                  "review: { ran: boolean; right: boolean; findings: string[]; unverified: string[]; summary: string | null; sentBack: boolean } | null }".freeze
 
   attributes(id: { type: :string }, role: { type: :string })
 
@@ -27,7 +31,8 @@ class AgentChatMessageSerializer < BaseSerializer
 
   # Same shape as the live step event, so a step reads the same either way.
   type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; " \
-       "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null; progress: #{PROGRESS_TYPE} | null }[]"
+       "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null; progress: #{PROGRESS_TYPE} | null; " \
+       "questionBlockedReason: string | null }[]"
   def tools
     chat = message.chat
     workspace = chat.workspace
@@ -44,8 +49,15 @@ class AgentChatMessageSerializer < BaseSerializer
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
-        progress: works[call.tool_call_id]&.to_h }
+        progress: works[call.tool_call_id]&.to_h, questionBlockedReason: question_blocked_reason(chat, call, works[call.tool_call_id]) }
     end
+  end
+
+  # Why whoever is looking cannot answer the coding agent's open question on this step, or nil.
+  def question_blocked_reason(chat, call, work)
+    return unless work&.waiting_for_answer?
+
+    CodeAgentQuestion.find_by(id: work.question["id"], workspace_id: chat.workspace_id)&.answer_blocked_reason(Current.principal)
   end
 
   def card_for(step, call, charted)

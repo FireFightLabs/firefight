@@ -121,6 +121,26 @@ class Investigation::RemediationStep < ApplicationRecord
       "context" => [ order, *earlier.map { |text| "Merge it after: #{text.lines.first.to_s.strip}" } ].compact.join("\n").presence }.compact
   end
 
+  # A code change written for whoever applied the fix, with what the run was asked, the notes people added and the
+  # results the finding cites.
+  def code_agent_request(applier)
+    investigation = plan.finding.investigation
+    CodeAgent::Request.new(
+      principal: applier, source: AbilityGateway::SOURCE_INVESTIGATION, label: description, place: self, box_key: investigation.code_box_key,
+      words: [ investigation.question, *investigation.notes.map(&:content) ], evidence: cited_evidence
+    )
+  end
+
+  # What Halon knows about the change, for answering the coding agent's questions before the person is asked.
+  def code_question_material
+    finding = plan.finding
+    request = code_agent_request(plan.approved_by)
+    [ "The change: #{description}", ("Why: #{finding.summary}" if finding.summary.present?),
+      ("How to tell it worked: #{plan.verify}" if plan.verify.present?),
+      ("What the person asked:\n#{request.words.join("\n")}" if request.words.any?),
+      *request.evidence.map { |item| FirefightAi::Evidence.frame(item.label, item.text) } ].compact.join("\n\n")
+  end
+
   def ready?(siblings) = depends_on.all? { |position| siblings.find { |each| each.position == position }&.done? }
 
   def held_back?(siblings) = depends_on.any? { |position| STOPPED.include?(siblings.find { |each| each.position == position }&.status) }
@@ -296,6 +316,16 @@ class Investigation::RemediationStep < ApplicationRecord
                                 .includes(:integration_environment).filter_map { |resource| resource.integration_environment&.integration_id }
     holders = tools.select { |tool| seen.include?(tool.integration_id) }
     holders.one? ? holders.first : (tools.first if tools.one?)
+  end
+
+  # The results the finding's claims rest on, each by the step it was read in.
+  def cited_evidence
+    plan.finding.evidence_items.includes(citations: :source).flat_map(&:citations).filter_map do |citation|
+      step = citation.source
+      next unless step.is_a?(Investigation::Step)
+
+      CodeAgent::Request::Evidence.new(label: step.label.presence || step.tool_name.to_s, text: step.compacted_result.presence || step.raw_result)
+    end.uniq
   end
 
   def code_runs_itself_reason

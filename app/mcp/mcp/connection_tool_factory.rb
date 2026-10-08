@@ -58,8 +58,10 @@ module Mcp
         context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do |authorization|
         environment_row = tool.integration.resolve_environment(environment_entry&.id)
+        principal = server_context[:principal]
         answer = tool.integration.executor.call(
-          tool: tool, environment_row: environment_row, arguments: arguments, box_key: server_context[:principal].code_box_key
+          tool: tool, environment_row: environment_row, arguments: arguments, box_key: principal.code_box_key,
+          request: (CodeAgent::Request.new(principal: principal, source: AbilityGateway::SOURCE_MCP) if tool.writes_code?)
         )
         ToolDispatcher.ledger_failure(authorization, answer)
         answer

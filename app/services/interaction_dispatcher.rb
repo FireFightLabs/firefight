@@ -18,7 +18,8 @@ class InteractionDispatcher
     Identifiers::ESCALATE_INCIDENT_MODAL => Interactions::EscalateIncidentHandler,
     Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
     Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler,
-    Identifiers::MEMORY_CORRECT_MODAL => Interactions::CorrectMemoryHandler
+    Identifiers::MEMORY_CORRECT_MODAL => Interactions::CorrectMemoryHandler,
+    Identifiers::CODE_QUESTION_MODAL => Interactions::AnswerCodeQuestionHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -89,7 +90,8 @@ class InteractionDispatcher
     Identifiers::FIX_STEP_ASK_AGAIN => Interactions::FixStepDecisionHandler,
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
-    Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler
+    Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,
+    Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler
   }.freeze
 
   SHORTCUT_HANDLERS = {

@@ -238,7 +238,8 @@ class Investigation::FixRunner
     authorization = step.authorize_call!(tool, scope: scope, arguments: arguments, approval_id: approval_id)
     finish_call(step, authorization) do
       integration.executor.call(tool: tool, environment_row: integration.resolve_environment(environment_entry&.id), arguments: arguments,
-                                box_key: @plan.finding.investigation.code_box_key, progress: progress_of(step))
+                                box_key: @plan.finding.investigation.code_box_key, progress: progress_of(step),
+                                request: (step.code_agent_request(@plan.approved_by) if step.pull_request?))
     end
   rescue Integration::UnknownEnvironment => error
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message)

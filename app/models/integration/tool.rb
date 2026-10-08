@@ -109,6 +109,9 @@ class Integration::Tool < ApplicationRecord
     spec["tool_name"].presence || name
   end
 
+  # The tool its provider names as the one that writes a code change, which is handed who asked and what they said.
+  def writes_code? = !read_only? && IntegrationProvider.find(integration.provider)&.code_fix_tool == name
+
   def sync_ability_action!
     return unless enabled?
 

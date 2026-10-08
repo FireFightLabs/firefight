@@ -8,10 +8,16 @@
 # A recommended model must be one RubyLLM's catalog holds for the provider, with tool calling and a known size, which
 # test/models/ai_providers_test.rb checks. Providers whose models are named by whoever runs them (an Azure deployment, a
 # local Ollama or GPUStack) recommend none.
+#
+# code_fix is the model a code fix's coding agent writes with, where the provider recommends one of its own for code.
+# It is used only while the registry holds it for the provider with a price, since a code fix's budget is counted in
+# what its model costs, and otherwise the account's main model writes code fixes. It can be newer than the catalog
+# RubyLLM ships, since the nightly refresh is what brings it into the registry.
 anthropic:
   name: Anthropic
   main: claude-sonnet-5
   fast: claude-haiku-4-5
+  code_fix: claude-opus-5-5
 openai:
   name: OpenAI
   main: gpt-5.6
@@ -45,6 +51,7 @@ openrouter:
   name: OpenRouter
   main: anthropic/claude-sonnet-5
   fast: anthropic/claude-haiku-4.5
+  code_fix: anthropic/claude-opus-5.5
 deepseek:
   name: DeepSeek
   main: deepseek-v4-pro

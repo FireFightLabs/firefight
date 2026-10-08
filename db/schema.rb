@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -667,6 +667,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
     t.index ["workspace_id"], name: "index_chats_on_workspace_id"
   end
 
+  create_table "code_agent_questions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "code_agent_session_id", null: false
+    t.uuid "workspace_id", null: false
+    t.text "question", null: false
+    t.text "answer"
+    t.string "status", default: "open", null: false
+    t.string "answered_by_type"
+    t.uuid "answered_by_id"
+    t.datetime "answer_due_at", null: false
+    t.datetime "answered_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code_agent_session_id"], name: "index_code_agent_questions_on_code_agent_session_id"
+    t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
+  end
+
   create_table "code_agent_sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "budget_micros", null: false
     t.integer "calls_running", default: 0, null: false
@@ -683,6 +701,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
     t.uuid "workspace_id", null: false
     t.string "paid_by"
     t.uuid "workspace_ai_account_id"
+    t.string "principal_type"
+    t.uuid "principal_id"
+    t.string "box_key"
+    t.string "place_type"
+    t.uuid "place_id"
+    t.string "tool_call_id"
+    t.integer "tool_calls", default: 0, null: false
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
     t.index ["workspace_ai_account_id"], name: "index_code_agent_sessions_on_workspace_ai_account_id"
     t.index ["workspace_id"], name: "index_code_agent_sessions_on_workspace_id"
@@ -2383,6 +2408,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
   add_foreign_key "chat_watches", "workspaces", on_delete: :cascade
   add_foreign_key "chats", "ruby_llm_models"
   add_foreign_key "chats", "workspaces"
+  add_foreign_key "code_agent_questions", "code_agent_sessions", on_delete: :cascade
+  add_foreign_key "code_agent_questions", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"

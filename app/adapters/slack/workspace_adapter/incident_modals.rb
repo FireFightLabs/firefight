@@ -112,6 +112,14 @@ module Slack::WorkspaceAdapter::IncidentModals
 
   def memory_correction_error(message) = { response_action: "errors", errors: { Slack::Modals::CorrectMemory::CORRECTION_BLOCK => message } }
 
+  def open_code_question_modal(trigger_id:, question:)
+    open_modal(trigger_id: trigger_id, view: Slack::Modals::CodeQuestionAnswer.build(question))
+  end
+
+  def code_question_answer(values:) = Slack::Modals::CodeQuestionAnswer.answer(values)
+
+  def code_question_error(message) = { response_action: "errors", errors: { Slack::Modals::CodeQuestionAnswer::ANSWER_BLOCK => message } }
+
   # The build returns nil when there is nothing in the workspace to link to.
   def open_link_incident_modal(trigger_id:, incident:, private_metadata: nil, default_type: IncidentRelationship::RELATED)
     view = Slack::Modals::Link.build(incident, private_metadata: private_metadata, default_type: default_type)
