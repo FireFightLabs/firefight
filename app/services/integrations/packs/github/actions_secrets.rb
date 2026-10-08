@@ -3,7 +3,7 @@ module Integrations
     class Github
       # A repository's GitHub Actions secrets, and an environment's (actions/list-repo-secrets, get-repo-public-key,
       # create-or-update-repo-secret and their environment twins in github/rest-api-description). GitHub never answers
-      # with a value, so a list is names and dates. Setting one never takes the value as an argument: the person types it
+      # with a value, so a list is names and dates. Setting one never takes the value as an argument. The person types it
       # in Firefight, or the call names a value Firefight reads itself from another connection (Integrations::
       # SecretHandoffs), and it is sealed with the repository's public key before it leaves, as GitHub asks (Encrypting
       # secrets for the REST API, libsodium sealed box). A repository's secrets are the App's Secrets permission, an
@@ -35,7 +35,7 @@ module Integrations
                                  "value Firefight reads itself from another tool, so it never passes through you",
                     params_schema: Code.object_schema({
                       "repo" => Code::REPO,
-                      "name" => { "type" => "string", "description" => "The secret's name, such as NORTHFLANK_WEBHOOK_URL. Letters, digits and underscores" },
+                      "name" => { "type" => "string", "description" => "The secret's name, such as DEPLOY_HOOK_URL. Letters, digits and underscores" },
                       "environment" => ENVIRONMENT,
                       SecretHandoffs::VALUE_FROM => SecretHandoffs::VALUE_FROM_PARAM
                     }, %w[repo name]),
@@ -116,7 +116,7 @@ module Integrations
 
         def secret_name_argument(arguments)
           name = arguments["name"].to_s.strip
-          fail!("name must be letters, digits and underscores, not starting with a digit or GITHUB_, such as NORTHFLANK_WEBHOOK_URL.") unless name.match?(SECRET_NAME)
+          fail!("name must be letters, digits and underscores, not starting with a digit or GITHUB_, such as DEPLOY_HOOK_URL.") unless name.match?(SECRET_NAME)
 
           name.upcase
         end

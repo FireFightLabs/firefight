@@ -31,7 +31,7 @@ module Integration::SecretHandoff
     end
   end
 
-  # A call that named value_from is done at once, inside the call the gateway already allowed: the value is read where
+  # A call that named value_from is done at once, inside the call the gateway already allowed. The value is read where
   # the reference says, as the same person, and sent. Any other answer comes back unchanged.
   def self.settle(result, tool:, environment_row:, principal:, workspace:, source: AbilityGateway::SOURCE_CONVERSATION)
     entry = Handoffs.entry_of(result)

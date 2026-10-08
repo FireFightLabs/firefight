@@ -5,7 +5,7 @@ module Integrations
   # answers with a reference to it, which the person reveals in the dashboard. A reference names where the value lives,
   # never the value, so it can be shown to the model, and nothing here stores a value.
   #
-  # A pack plays its part through two methods: fill_secret(environment_row:, target:, value:) sends a value where an
+  # A pack plays its part through two methods. fill_secret(environment_row:, target:, value:) sends a value where an
   # entry's target says and answers what it did, and secret_value(environment_row:, path:) reads the value a reference's
   # path names. Integration::SecretHandoff reaches each only after the gateway allowed the person the tool that asked.
   module SecretHandoffs
@@ -51,7 +51,7 @@ module Integrations
 
     def self.reveal_of(result) = result.is_a?(Hash) ? result.dig(Telemetry::STRUCTURED, REVEAL) : nil
 
-    # Where a value lives: the connection, its environment, the tool that made it and the pack's own path to it.
+    # Where a value lives, which is the connection, its environment, the tool that made it and the pack's own path to it.
     def self.reference_for(environment_row, tool_name, path)
       [ PREFIX, environment_row.integration_id, environment_row.catalog_entry_id, tool_name, path ].join(":")
     end

@@ -48,7 +48,7 @@ class ProviderDocSource
 
     def page_url(page) = format(settings.fetch("page_url", DEFAULT_PAGE_URL), site: address, page: page)
 
-    # Where its pages are named: a folder ending in / or one page, so two sources of a provider can be held apart.
+    # Where its pages are named, each a folder ending in / or one page, so two sources of a provider can be held apart.
     def roots
       case kind
       when KIND_SITE then settings.fetch("pages").keys.map { |path| "#{prefix}#{path}" }

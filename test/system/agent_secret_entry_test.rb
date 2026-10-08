@@ -15,15 +15,15 @@ class AgentSecretEntryTest < ApplicationSystemTestCase
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub")
     github.integration_environments.create!(base_config: { "installation_id" => "12345" })
     tool = github.tools.create!(name: "set_actions_secret", read_only: false, enabled: true)
-    conversation = chat_with_answer("Set NORTHFLANK_WEBHOOK_URL in acme/web. Type its value in the field below.")
+    conversation = chat_with_answer("Set DEPLOY_HOOK_URL in acme/web. Type its value in the field below.")
     conversation.chat.secret_entries.create!(kind: Chat::SecretEntry::KIND_ENTER, status: Chat::SecretEntry::STATUS_PENDING, tool: tool, requester: @alice,
-                                             title: "NORTHFLANK_WEBHOOK_URL in acme/web", target: { "repo" => "acme/web", "name" => "NORTHFLANK_WEBHOOK_URL" },
+                                             title: "DEPLOY_HOOK_URL in acme/web", target: { "repo" => "acme/web", "name" => "DEPLOY_HOOK_URL" },
                                              expires_at: 1.hour.from_now)
     Integrations::Packs::Github.any_instance.expects(:fill_secret).with(environment_row: anything, target: anything, value: "s3cret-value")
-                               .returns("Set NORTHFLANK_WEBHOOK_URL in acme/web.")
+                               .returns("Set DEPLOY_HOOK_URL in acme/web.")
 
     visit agent_chat_path(conversation)
-    within("section[aria-label='Enter the value for NORTHFLANK_WEBHOOK_URL in acme/web']") do
+    within("section[aria-label='Enter the value for DEPLOY_HOOK_URL in acme/web']") do
       assert_text "Halon never sees it"
       click_on "Enter value"
     end
@@ -35,7 +35,7 @@ class AgentSecretEntryTest < ApplicationSystemTestCase
     end
 
     assert_text "Set by Alice Smith at"
-    assert_selector "section[aria-label='NORTHFLANK_WEBHOOK_URL in acme/web']"
+    assert_selector "section[aria-label='DEPLOY_HOOK_URL in acme/web']"
     assert_no_button "Enter value"
     page.save_screenshot(Rails.root.join("tmp/screenshots/agent-secret-entry-set.png"))
   end

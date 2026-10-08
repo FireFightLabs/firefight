@@ -6,7 +6,7 @@ module Integrations
       # in the workflow's triggers, its address https://webhooks.northflank.com/workflows/<token>, and a workflow is updated
       # by sending its whole definition back (Update workflow). Firefight makes the token itself, so it never passes
       # through Halon, and the person reveals the address in Firefight or hands it to another tool by its reference
-      # (Integrations::SecretHandoffs). Every answer and every body Halon sends keeps tokens out of sight: a read shows
+      # (Integrations::SecretHandoffs). Every answer and every body Halon sends keeps tokens out of sight. A read shows
       # [hidden], and a change that sends a trigger back as [hidden] has its token put back from Northflank first.
       module WorkflowWebhooks
         ADD_WEBHOOK = "add_workflow_webhook".freeze
@@ -22,7 +22,7 @@ module Integrations
         REF = /\A[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*\z/
         REF_LIMIT = 100
         HIDDEN = "[hidden]".freeze
-        # Paths whose body carries triggers: a workflow, a release flow and a preview blueprint.
+        # Paths whose body carries triggers, which are a workflow, a release flow and a preview blueprint.
         WITH_TRIGGERS = %r{\A(workflows/[^/]+|pipelines/[^/]+/release-flows/[^/]+|preview-blueprints/[^/]+)\z}
         TOKEN_LENGTH = 48
 

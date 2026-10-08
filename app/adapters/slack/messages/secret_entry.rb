@@ -1,6 +1,6 @@
 module Slack
   module Messages
-    # A secret a tool call in a chat's thread handed to the person who asked: a value to type, or a credential to reveal.
+    # A secret a tool call in a chat's thread handed to the person who asked, either a value to type, or a credential to reveal.
     # Neither happens in Slack, so the message says what it is and links to the chat in Firefight, where the card is.
     module SecretEntry
       def self.build(entry)

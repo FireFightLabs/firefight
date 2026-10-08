@@ -1,6 +1,6 @@
 module Integrations
   module Providers
-    # redacted_patterns: a workflow webhook trigger's address, which starts a run for anyone who has it, so Northflank
+    # redacted_patterns holds a workflow webhook trigger's address, which starts a run for anyone who has it, so Northflank
     # treats it as a credential (docs, Run a workflow using a webhook).
     # status_words: an addon's states, as the API's addon list writes them (@northflank/js-client, ListAddonsResult),
     # lowercased, for those that are not already Firefight's.

@@ -37,11 +37,11 @@ module Integrations
           GithubApp.expects(:get).with("/repos/acme/web/actions/secrets/public-key", token: "ghs_token").returns(@key)
           GithubApp.expects(:write).never
 
-          result = @pack.set_actions_secret(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "northflank_webhook_url" })
+          result = @pack.set_actions_secret(environment_row: @row, arguments: { "repo" => "acme/web", "name" => "deploy_hook_url" })
 
           entry = SecretHandoffs.entry_of(result)
-          assert_equal({ "repo" => "acme/web", "name" => "NORTHFLANK_WEBHOOK_URL" }, entry["target"])
-          assert_equal "NORTHFLANK_WEBHOOK_URL in acme/web", entry["title"]
+          assert_equal({ "repo" => "acme/web", "name" => "DEPLOY_HOOK_URL" }, entry["target"])
+          assert_equal "DEPLOY_HOOK_URL in acme/web", entry["title"]
           assert_includes text_of(result), SecretHandoffs::NOT_IN_A_CHAT
           refute Github.tool_definitions.find { |tool| tool.name == "set_actions_secret" }.params_schema["properties"].key?("value")
         end

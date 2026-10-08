@@ -1,4 +1,4 @@
-# A secret a tool call in this chat handed to the person who asked: a value to type, or a credential to reveal. Never the
+# A secret a tool call in this chat handed to the person who asked, either a value to type, or a credential to reveal. Never the
 # value. Who may act and why not ships as a blocked reason, so the card decides nothing.
 class AgentChatSecretEntrySerializer < BaseSerializer
   object_as :entry

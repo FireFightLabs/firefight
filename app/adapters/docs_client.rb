@@ -1,4 +1,4 @@
-# Reads providers' documentation from the web for the docs store, the way a polite reader does: it says who it is, waits
+# Reads providers' documentation from the web for the docs store, the way a polite reader does. It says who it is, waits
 # between requests to one host, asks again only for what changed, and on a documentation site keeps to what that site's
 # robots.txt allows. GitHub's API and raw files, and npm's registry, are services rather than sites, so their own
 # limits apply instead (DocsClient::RateLimited).
@@ -105,7 +105,7 @@ class DocsClient
     end
   end
 
-  # The rules of a site's robots.txt that apply to this reader: the group naming it, else the one for every reader. The
+  # The rules of a site's robots.txt that apply to this reader, which are the group naming it or else the one for every reader. The
   # longest matching rule decides, an Allow winning a tie, with * matching anything and $ the end, as RFC 9309 says.
   class Robots
     AGENT = "firefightdocs".freeze
