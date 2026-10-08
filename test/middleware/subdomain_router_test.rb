@@ -59,6 +59,21 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     assert_allowed "app.firefight.app", "/onboarding/welcome"
   end
 
+  test "app subdomain allows sign-up, the operator console and the code sandbox's model proxy" do
+    assert_allowed "app.firefight.app", "/signup/workspace"
+    assert_allowed "app.firefight.app", "/operator"
+    assert_allowed "app.firefight.app", "/operator/jobs"
+    assert_allowed "app.firefight.app", "/code_agent/anthropic/messages"
+  end
+
+  # A page added outside the listed prefixes works everywhere but production, where this router runs.
+  test "every page the app serves outside the API is allowed on the app subdomain" do
+    paths = Rails.application.routes.routes.filter_map { |route| route.path.spec.to_s.sub("(.:format)", "") }
+    served = paths.reject { |path| path.start_with?("/api/v1", "/cable", "/up", "/assets", "/*") || %w[/404 /422 /500].include?(path) }
+    blocked = served.reject { |path| SubdomainRouter.new(nil).send(:allowed?, "app", path.gsub(/:\w+/, "x")) }
+    assert_empty blocked
+  end
+
   test "app subdomain allows the mcp endpoint and its oauth flow" do
     assert_allowed "app.firefight.app", "/mcp"
     assert_allowed "app.firefight.app", "/oauth/authorize"
