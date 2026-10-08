@@ -8,6 +8,7 @@ class Chat < ApplicationRecord
   has_many :messages, -> { order(:created_at, :id) }, class_name: "Chat::Message", dependent: :destroy, inverse_of: :chat
 
   include Chat::Compacting
+  include Chat::UnfinishedCalls
 
   belongs_to :workspace
   belongs_to :owner, polymorphic: true

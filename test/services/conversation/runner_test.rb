@@ -416,6 +416,39 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal "resolve it", @conversation.chat.readable_messages.where(role: Chat::Message::ROLE_USER).last.content
   end
 
+  # Seen in a real chat. A confirmed call never got its result, and the provider refused every question after it.
+  test "a question after a call left without its result is answered, not refused" do
+    personal = personal_chat
+    chat = personal.chat_record
+    chat.add_message(role: :user, content: "Which pipeline deploys Firefight?")
+    asking = chat.add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_jY", name: "northflank_api_request", arguments: {}, approval: Chat::APPROVAL_APPROVED)
+    personal.ask!("Does Northflank post deploys to Slack?")
+    fake(reply: "No, nothing posts deploys to Slack", during: refuse_unanswered_calls)
+
+    ConversationReplyJob.perform_now(personal.id, personal.started_by.id)
+
+    assert_equal "No, nothing posts deploys to Slack", personal.chat.reload.readable_messages.last.content
+    assert personal.chat.tool_calls.find_by!(tool_call_id: "call_jY").result_id
+  end
+
+  # Seen in a real chat too. The person asked something new while Halon waited for them to confirm a call.
+  test "a question asked while a call waits to be confirmed is answered, and the confirmation is withdrawn" do
+    personal = personal_chat
+    chat = personal.chat_record
+    chat.add_message(role: :user, content: "Restart web")
+    asking = chat.add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_r", name: "restart", arguments: {})
+    chat.request_decisions!([ "call_r" ])
+    personal.ask!("Actually, what changed today?")
+    fake(reply: "A deploy at 14:02", during: refuse_unanswered_calls)
+
+    ConversationReplyJob.perform_now(personal.id, personal.started_by.id)
+
+    assert_equal "A deploy at 14:02", personal.chat.reload.readable_messages.last.content
+    assert_empty personal.chat.awaiting_decision
+  end
+
   test "a stop ends the turn where it is, answers any tool it never ran, and says Stopped" do
     call_asked_for = lambda do |_arguments|
       reply = @conversation.chat.add_message(role: :assistant, content: "")
@@ -518,6 +551,18 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                                               result: result, failed: true, failure_kind: kind)
       arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: "search_incidents", status: :running, arguments: { "query" => "ember" }))
       arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: nil, status: :done, arguments: nil))
+    end
+  end
+
+  # What a provider does with a chat that has anything but results between a call and the next message.
+  def refuse_unanswered_calls
+    lambda do |_arguments|
+      sent = @conversation.chat.reload.sent_messages.to_a
+      sent.each_with_index do |message, index|
+        results = sent.drop(index + 1).take_while { |later| later.role == Chat::Message::ROLE_TOOL }
+        missing = message.ruby_llm_tool_calls.map(&:tool_call_id) - results.filter_map { |result| result.ruby_llm_parent_tool_call&.tool_call_id }
+        raise FirefightAi::TerminalError, "Provider returned error - No tool output found for function call #{missing.first}." if missing.any?
+      end
     end
   end
 

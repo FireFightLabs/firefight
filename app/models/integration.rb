@@ -239,7 +239,7 @@ class Integration < ApplicationRecord
     return nil if slug.blank?
 
     workspace.catalog_entries.active.find_by(slug: slug.to_s) ||
-      raise(UnknownEnvironment, "Unknown environment '#{slug}'.")
+      raise(UnknownEnvironment, "Unknown environment '#{slug}'. #{environments_named}")
   end
 
   # The slugs a caller has to choose between, empty when the connection resolves one on its own.
@@ -247,8 +247,23 @@ class Integration < ApplicationRecord
   def environment_choices
     return [] if resolve_environment(nil).present?
 
-    slugs = integration_environments.enabled.includes(:environment).filter_map { |row| row.environment&.slug }
+    slugs = environment_slugs
     slugs.size < 2 ? [] : slugs
+  end
+
+  # The slugs of the environments this connection is wired for, in the order they were added.
+  def environment_slugs
+    integration_environments.enabled.includes(:environment).order(:created_at).filter_map { |row| row.environment&.slug }
+  end
+
+  # What a caller can name instead, so a refused environment is put right on the next call.
+  def environments_named
+    slugs = environment_slugs
+    return "This connection has no environment switched on." if slugs.empty? && resolve_environment(nil).nil?
+    return "This connection has one environment, so leave environment out." if slugs.empty?
+    return "This connection has: #{slugs.join(', ')}, or leave environment out for its default." if integration_environments.enabled.exists?(catalog_entry_id: nil)
+
+    "This connection has: #{slugs.join(', ')}."
   end
 
   private

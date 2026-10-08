@@ -16,6 +16,7 @@ class Conversation::Runner
     @marked = Time.current
     chat = @conversation.chat_record
     chat.discard_interrupted_reply!
+    chat.close_unfinished_calls!
     take_queued(chat)
     run_held_call(chat) if @held_call
     # The turn before this one already answered what this job was queued for.
