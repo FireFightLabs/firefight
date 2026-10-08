@@ -5,8 +5,8 @@ module Integrations
       # Bitbucket's OpenAPI description): its pipelines, their steps, a step's log, and how a branch and the environments
       # stand now. Bitbucket gives a pipeline no web address, so its page is the repository's pipelines/results/<build
       # number>, the address Bitbucket's own app serves. Running a pipeline, running one again and stopping one are changes
-      # (POST pipelines and pipelines/{pipeline_uuid}/stopPipeline), so they arrive switched off and go through the gateway
-      # as writes. They need the write:pipeline:bitbucket scope. Bitbucket's API has no rerun, so running one again
+      # (POST pipelines and pipelines/{pipeline_uuid}/stopPipeline), so they go through the gateway as writes and a member
+      # needs a grant for them. They need the write:pipeline:bitbucket scope. Bitbucket's API has no rerun, so running one again
       # starts a new pipeline on the same target, the way its description documents for a commit on a branch or tag, a
       # commit, or a pull request.
       module Pipelines

@@ -44,14 +44,14 @@ module Integrations
 
       test "a statement that would write is refused, however it is dressed" do
         [ "DELETE FROM incidents", "CREATE TABLE halon_was_here (id int)", "SELECT 1; DELETE FROM incidents" ].each do |sql|
-          error = assert_raises(NativePack::Error) { call(:run_query, "sql" => sql) }
-          assert_match(/Only a SELECT|Only reading is allowed|cannot insert multiple commands/, error.message)
+          error = assert_raises(Integrations::Error) { call(:run_query, "sql" => sql) }
+          assert_match(/Firefight only reads this database|cannot insert multiple commands/, error.message)
         end
 
-        error = assert_raises(NativePack::Error) do
+        error = assert_raises(PolicyRefusal) do
           call(:run_query, "sql" => "WITH gone AS (DELETE FROM incidents RETURNING id) SELECT * FROM gone")
         end
-        assert_match(/Only a SELECT|Only reading is allowed/, error.message)
+        assert_match "Firefight only reads this database", error.message
         assert Incident.exists?
         error = assert_raises(NativePack::Error) { call(:explain_query, "sql" => "SELECT 1; DELETE FROM incidents") }
         assert_match "cannot insert multiple commands", error.message

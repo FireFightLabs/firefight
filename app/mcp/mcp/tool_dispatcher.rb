@@ -67,6 +67,15 @@ module Mcp
       authorization.answer_failed!(Array(answer["content"]).filter_map { |part| part["text"] }.join("\n"))
     end
 
+    # One of Firefight's own rules refused the call, such as a push to a protected branch. The agent is told it is
+    # Firefight's and final rather than the provider failing, and the ledger records it as refused.
+    REFUSED = "refused".freeze
+
+    def self.refused(authorization, reason)
+      authorization.answer_refused!(reason)
+      { "content" => [ { "type" => "text", "text" => "#{FirefightAi::Evidence::REFUSED_BY_RULE} #{reason}" } ], "isError" => true, REFUSED => true }
+    end
+
     def self.error_response(message)
       ::MCP::Tool::Response.new([ { type: "text", text: message } ], error: true)
     end

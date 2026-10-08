@@ -29,7 +29,35 @@ class AiFundingTest < ActiveSupport::TestCase
     assert_equal "claude-haiku-4-5", FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace).model
     assert_equal "claude-haiku-4-5", FirefightAi.model_for(AiPurpose::INCIDENT_RESPONSE, workspace: @workspace).model
     assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model
-    assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model
+    assert_equal "claude-opus-5-5", FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "code fixes run on the model recommended for code"
+  end
+
+  test "code fixes run on Claude Opus 5.5 where an Anthropic or OpenRouter account reaches it, and on the next best model otherwise" do
+    openai = add_ai_account!(@workspace, provider: "openai", key: "sk-own-openai", label: "OpenAI")
+    assert_equal "gpt-4o", FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "an OpenAI account writes code with its main model"
+
+    openai.destroy!
+    router = add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own", label: "OpenRouter")
+    main = router.model_for(WorkspaceAiAccount::MAIN)
+    assert_equal [ "anthropic/claude-opus-5.5", "openrouter" ], FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).to_h.values_at(:model, :provider)
+    assert_equal main, FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model, "no other purpose changes"
+
+    FirefightAi.stubs(:priced_for?).returns(false)
+    assert_equal main, FirefightAi.model_for(AiPurpose::CODE_FIX, workspace: @workspace).model, "a model the registry cannot price is never a fix's"
+  end
+
+  test "the deployment's own keys write code fixes with Opus 5.5 when they reach it, unless a model is named for code fixes" do
+    without = FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace)
+    assert_equal FirefightAi.deployment_model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model, without.model, "no key reaches it, so the investigation's model"
+
+    keyed = RubyLLM.config.dup
+    keyed.anthropic_api_key = "sk-ant-deployment"
+    RubyLLM.stubs(:config).returns(keyed)
+    assert_equal [ "claude-opus-5-5", "anthropic" ], FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace).to_h.values_at(:model, :provider)
+
+    ENV.stubs(:[]).returns(nil)
+    ENV.stubs(:[]).with("CODE_FIX_AI_MODEL").returns("gpt-4o")
+    assert_equal "gpt-4o", FirefightAi.deployment_model_for(AiPurpose::CODE_FIX, workspace: @workspace).model
   end
 
   test "Firefight's own workspaces keep Firefight's key after their own accounts" do

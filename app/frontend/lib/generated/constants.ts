@@ -662,13 +662,15 @@ export const AGENT_STEP_STATUSES = {
   "WAITING": "waiting",
   "CANCELLED": "cancelled",
   "FAILED": "failed",
-  "NOT_FOUND": "not_found"
+  "NOT_FOUND": "not_found",
+  "REFUSED": "refused"
 } as const
 
 export const STEP_OUTCOME_KINDS = {
   "ANSWERED": "answered",
   "FAILED": "failed",
-  "NOT_FOUND": "not_found"
+  "NOT_FOUND": "not_found",
+  "REFUSED": "refused"
 } as const
 
 export const CODE_FIX_LINE_RESULTS = {
@@ -680,6 +682,19 @@ export const CODE_FIX_OUTCOMES = {
   "OPENED": "opened",
   "PUSHED": "pushed",
   "FAILED": "failed"
+} as const
+
+export const CODE_AGENT_QUESTION_STATUSES = {
+  "OPEN": "open",
+  "ANSWERED": "answered",
+  "EXPIRED": "expired",
+  "WITHDRAWN": "withdrawn"
+} as const
+
+export const CODE_CHECK_STATUSES = {
+  "PASSED": "passed",
+  "FAILED": "failed",
+  "TIMED_OUT": "timed out"
 } as const
 
 export const AGENT_STEP_KINDS = {

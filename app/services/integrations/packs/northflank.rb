@@ -338,7 +338,7 @@ module Integrations
         query = query_of(verb, path, arguments["query"])
         body = arguments["body"]
         fail!("body must be an object.") unless body.nil? || body.is_a?(Hash)
-        fail!("body holds what looks like a secret. Never send a credential through Northflank's API.") if secret?(body)
+        fail_policy!("body holds what looks like a secret, and Firefight never sends a credential through Northflank's API.") if secret?(body)
 
         # Worked out first, so a change that went through is never reported as failed for want of its link.
         link = change_link(environment_row, path)
@@ -372,7 +372,7 @@ module Integrations
           end
           [ name, query_value(name, value) ]
         end.tap do |checked|
-          fail!("query holds what looks like a secret. Never send a credential through Northflank's API.") if secret?(checked)
+          fail_policy!("query holds what looks like a secret, and Firefight never sends a credential through Northflank's API.") if secret?(checked)
         end
       end
 

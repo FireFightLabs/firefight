@@ -73,11 +73,14 @@ class Chat::Attachment < ApplicationRecord
   scope :unsent, -> { where(chat_id: nil) }
   scope :abandoned, -> { unsent.where(created_at: ...UNSENT_FOR.ago) }
 
-  def self.rules_for(workspace, model_id: nil)
-    model_id ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace).model
+  def self.rules_for(workspace, model_id: nil, provider: nil)
+    unless model_id
+      choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+      model_id, provider = choice.model, choice.provider
+    end
     Rules.new(
       max_files: MAX_PER_MESSAGE, max_bytes: limits_for(workspace).values.max, accept: accept_list,
-      reads_images: FirefightAi.input_modalities(model_id).include?(KIND_IMAGE)
+      reads_images: FirefightAi.input_modalities(model_id, provider: provider).include?(KIND_IMAGE)
     )
   end
 

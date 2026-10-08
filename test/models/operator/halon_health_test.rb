@@ -59,12 +59,14 @@ class Operator::HalonHealthTest < ActiveSupport::TestCase
   test "tools are counted from the ledger with how often they failed or were refused" do
     invocation!("postgresql.run_query", outcome: Ability::Invocation::OUTCOME_ERROR, duration_ms: 600)
     invocation!("postgresql.run_query", outcome: Ability::Invocation::OUTCOME_SUCCESS, duration_ms: 400)
+    invocation!("postgresql.run_query", outcome: Ability::Invocation::OUTCOME_REFUSED, duration_ms: 500)
     invocation!("datadog.search_logs", decision: Ability::Invocation::DECISION_DENY)
 
     tools = Operator::HalonHealth.new(@filter).tools.index_by(&:action_key)
 
-    assert_equal 2, tools["postgresql.run_query"].calls
+    assert_equal 3, tools["postgresql.run_query"].calls
     assert_equal 1, tools["postgresql.run_query"].errors
+    assert_equal 1, tools["postgresql.run_query"].refused
     assert_equal 500, tools["postgresql.run_query"].median_ms
     assert_equal 1, tools["datadog.search_logs"].denied
   end

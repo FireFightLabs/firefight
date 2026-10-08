@@ -36,7 +36,7 @@ const TONE_MEANINGS: { tone: SpanTone; meaning: string }[] = [
   { tone: OPERATOR_PROCESS_TONES.INFO, meaning: "Model call or a step in its thinking" },
   { tone: OPERATOR_PROCESS_TONES.OK, meaning: "Went fine" },
   { tone: OPERATOR_PROCESS_TONES.BAD, meaning: "Failed or denied" },
-  { tone: OPERATOR_PROCESS_TONES.WARN, meaning: "Worth a look, such as a limit reached" },
+  { tone: OPERATOR_PROCESS_TONES.WARN, meaning: "Worth a look, such as a limit reached or a call Firefight's own rule refused" },
   { tone: OPERATOR_PROCESS_TONES.IDLE, meaning: "Skipped or ruled out" },
 ]
 

@@ -121,17 +121,25 @@ module TypescriptConstants
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
         "WAITING" => Conversation::LiveDelivery::STATUS_WAITING, "CANCELLED" => Conversation::LiveDelivery::STATUS_CANCELLED,
-        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED, "NOT_FOUND" => Conversation::LiveDelivery::STATUS_NOT_FOUND
+        "FAILED" => Conversation::LiveDelivery::STATUS_FAILED, "NOT_FOUND" => Conversation::LiveDelivery::STATUS_NOT_FOUND,
+        "REFUSED" => Conversation::LiveDelivery::STATUS_REFUSED
       }, nil),
       Export.new("STEP_OUTCOME_KINDS", {
         "ANSWERED" => Chat::StepOutcome::KIND_ANSWERED, "FAILED" => Chat::StepOutcome::KIND_FAILED,
-        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND
+        "NOT_FOUND" => Chat::StepOutcome::KIND_NOT_FOUND, "REFUSED" => Chat::StepOutcome::KIND_REFUSED
       }, nil),
       Export.new("CODE_FIX_LINE_RESULTS", {
         "PASSED" => Chat::CodeFixProgress::RESULT_PASSED, "FAILED" => Chat::CodeFixProgress::RESULT_FAILED
       }, nil),
       Export.new("CODE_FIX_OUTCOMES", {
         "OPENED" => Chat::CodeFixProgress::OUTCOME_OPENED, "PUSHED" => Chat::CodeFixProgress::OUTCOME_PUSHED, "FAILED" => Chat::CodeFixProgress::OUTCOME_FAILED
+      }, nil),
+      Export.new("CODE_AGENT_QUESTION_STATUSES", {
+        "OPEN" => CodeAgentQuestion::STATUS_OPEN, "ANSWERED" => CodeAgentQuestion::STATUS_ANSWERED,
+        "EXPIRED" => CodeAgentQuestion::STATUS_EXPIRED, "WITHDRAWN" => CodeAgentQuestion::STATUS_WITHDRAWN
+      }, nil),
+      Export.new("CODE_CHECK_STATUSES", {
+        "PASSED" => Integrations::CodeChecks::PASSED, "FAILED" => Integrations::CodeChecks::FAILED, "TIMED_OUT" => Integrations::CodeChecks::TIMED_OUT
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND

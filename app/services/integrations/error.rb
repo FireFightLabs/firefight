@@ -3,6 +3,11 @@ module Integrations
   # grow with new kinds.
   class Error < StandardError; end
 
+  # One of Firefight's own rules refused the call, never the provider, such as a protected branch, a path Halon may not
+  # change or a statement that would write. Its message is the rule's sentence, which says where it is changed when it
+  # is a setting. It is final, so the agent is told so and never tries another way around it.
+  class PolicyRefusal < Error; end
+
   # Something this install cannot do right now, whatever the arguments, such as a code sandbox that cannot start.
   # Its message tells the agent so, since trying again with other arguments only spends turns.
   class Unavailable < Error; end

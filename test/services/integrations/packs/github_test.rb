@@ -188,10 +188,10 @@ module Integrations
       end
 
       test "fetch_file refuses secrets-shaped and traversal paths" do
-        error = assert_raises(NativePack::Error) do
+        error = assert_raises(PolicyRefusal) do
           @pack.fetch_file(environment_row: @row, arguments: { "repo" => "acme/checkout", "path" => ".env" })
         end
-        assert_match(/not readable/, error.message)
+        assert_match "Firefight does not read files that may hold secrets", error.message
 
         assert_raises(NativePack::Error) do
           @pack.fetch_file(environment_row: @row, arguments: { "repo" => "acme/checkout", "path" => "../outside.rb" })

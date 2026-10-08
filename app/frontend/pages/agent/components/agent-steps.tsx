@@ -16,6 +16,7 @@ const ROW_STATUSES: Record<StepStatus, ThinkingRowStatus> = {
   [AGENT_STEP_STATUSES.DONE]: "done",
   [AGENT_STEP_STATUSES.FAILED]: "failed",
   [AGENT_STEP_STATUSES.NOT_FOUND]: "not_found",
+  [AGENT_STEP_STATUSES.REFUSED]: "refused",
   [AGENT_STEP_STATUSES.WAITING]: "waiting",
   [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
 }
@@ -52,7 +53,9 @@ function toRow(step: AgentStep): ThinkingRow {
     details: step.asked.map(([ label, meta ]) => ({ label, meta })),
     outcome: step.outcome ? <StepOutcomeDetails outcome={step.outcome} /> : undefined,
     quiet: step.kind === AGENT_STEP_KINDS.ROOM,
-    live: step.progress ? <CodeFixWorkView work={step.progress} running={status === "running"} /> : undefined,
+    live: step.progress
+      ? <CodeFixWorkView work={step.progress} running={status === "running"} questionBlockedReason={step.questionBlockedReason} />
+      : undefined,
   }
 }
 

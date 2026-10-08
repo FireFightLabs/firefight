@@ -27,11 +27,11 @@ module Integrations
         nil
       end
 
-      def fetch!(integration, box_key: nil, progress: nil)
+      def fetch!(integration, box_key: nil, progress: nil, request: nil)
         pack_class = self.for(integration.provider)
         raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class
 
-        pack_class.new(integration, box_key: box_key, progress: progress)
+        pack_class.new(integration, box_key: box_key, progress: progress, request: request)
       end
 
       def tool_definitions
@@ -98,13 +98,15 @@ module Integrations
     end
 
     # box_key names the run a call belongs to, so tools that read code share that run's sandbox. progress hears how a
-    # long running tool is going, through report.
-    attr_reader :integration, :box_key
+    # long running tool is going, through report. request is the CodeAgent::Request a code change was asked with, who
+    # asked and what they said, nil for any other call.
+    attr_reader :integration, :box_key, :request
 
-    def initialize(integration, box_key: nil, progress: nil)
+    def initialize(integration, box_key: nil, progress: nil, request: nil)
       @integration = integration
       @box_key = box_key
       @progress = progress
+      @request = request
     end
 
     # Tells whoever runs the tool how it is going, in a sentence, or as a Chat::CodeFixProgress for a coding agent working in
@@ -133,7 +135,7 @@ module Integrations
 
     # The same pack reading only scope, holding nothing another scope's reads cached.
     def scoped(scope)
-      self.class.new(integration, box_key: box_key, progress: @progress).tap { |pack| pack.instance_variable_set(:@scope, scope&.to_s) }
+      self.class.new(integration, box_key: box_key, progress: @progress, request: request).tap { |pack| pack.instance_variable_set(:@scope, scope&.to_s) }
     end
 
     # The one scope a call reaches, the one it was given or the connection's only one. A connection that reaches several
@@ -200,6 +202,11 @@ module Integrations
     # Inside a pack file a bare Error resolves to Integrations::Error, not this class.
     def fail!(message)
       raise Error, message
+    end
+
+    # One of Firefight's own rules refusing the call, as opposed to a call that could not be made (Integrations::PolicyRefusal).
+    def fail_policy!(message)
+      raise PolicyRefusal, message
     end
 
     # Packs override with a real probe and raise Error with a readable reason.

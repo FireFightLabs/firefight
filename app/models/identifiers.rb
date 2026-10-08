@@ -24,6 +24,7 @@ module Identifiers
   SHOUTOUT_MODAL = "shoutout_modal"
   TIMELINE_MODAL = "timeline_modal"
   MEMORY_CORRECT_MODAL = "memory_correct_modal"
+  CODE_QUESTION_MODAL = "code_question_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
@@ -174,6 +175,8 @@ module Identifiers
   MEMORY_REJECT = "memory_reject"
   # Opens a form for what is right instead, which replaces the memory.
   MEMORY_CORRECT = "memory_correct"
+  # Opens a form to answer a coding agent's question.
+  CODE_QUESTION_ANSWER = "code_question_answer"
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

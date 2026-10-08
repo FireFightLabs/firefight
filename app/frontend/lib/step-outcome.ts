@@ -10,6 +10,7 @@ export const OUTCOME_LABELS: Record<StepOutcomeKind, string> = {
   [STEP_OUTCOME_KINDS.ANSWERED]: "Returned",
   [STEP_OUTCOME_KINDS.FAILED]: "Failed",
   [STEP_OUTCOME_KINDS.NOT_FOUND]: "Not found",
+  [STEP_OUTCOME_KINDS.REFUSED]: "Refused",
 }
 
 const COUNT = new Intl.NumberFormat("en-US")

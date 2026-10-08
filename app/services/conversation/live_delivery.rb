@@ -23,6 +23,8 @@ class Conversation::LiveDelivery
   STATUS_FAILED = "failed"
   # The provider answered that what a read asked about is not there, an answer rather than a failure (Chat::StepOutcome).
   STATUS_NOT_FOUND = "not_found"
+  # One of Firefight's own rules refused the call, which is final rather than a failure (Chat::StepOutcome).
+  STATUS_REFUSED = "refused"
   STATUSES = {
     FirefightAi::AgentLoop::STEP_RUNNING => STATUS_RUNNING, FirefightAi::AgentLoop::STEP_DONE => STATUS_DONE
   }.freeze
@@ -82,7 +84,10 @@ class Conversation::LiveDelivery
     )
   end
 
-  OUTCOME_STATUSES = { Chat::StepOutcome::KIND_FAILED => STATUS_FAILED, Chat::StepOutcome::KIND_NOT_FOUND => STATUS_NOT_FOUND }.freeze
+  OUTCOME_STATUSES = {
+    Chat::StepOutcome::KIND_FAILED => STATUS_FAILED, Chat::StepOutcome::KIND_NOT_FOUND => STATUS_NOT_FOUND,
+    Chat::StepOutcome::KIND_REFUSED => STATUS_REFUSED
+  }.freeze
 
   def self.status_of(status, outcome) = OUTCOME_STATUSES.fetch(outcome&.kind) { STATUSES.fetch(status) }
 

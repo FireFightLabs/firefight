@@ -7,6 +7,8 @@ module Mcp
 
     # A call waiting for someone to approve it, which is an answer of its own and never a reason to ask elsewhere.
     class Waiting < ::MCP::Tool::Response; end
+    # One of Firefight's own rules refused the call, which is final, so no fallback is asked in its place.
+    class Refused < ::MCP::Tool::Response; end
 
     # Only what the principal could call through at least one connection, and invoke still authorizes each call.
     def self.tools_for(workspace, principal)
@@ -122,7 +124,8 @@ module Mcp
       call = Integrations::Capabilities.resolve(server_context[:workspace], key, given, callable(key, server_context), principal: server_context[:principal])
       response = invoke_call(call, server_context, approval_id: approval_id)
       answer = { content: response.content, structuredContent: response.structured_content, isError: response.error? }
-      return [ response, (call unless response.is_a?(Waiting) || response.error?) ] if call.fallback.nil? || response.is_a?(Waiting) || Integrations::Capabilities.definitive?(answer)
+      settled = call.fallback.nil? || response.is_a?(Waiting) || response.is_a?(Refused) || Integrations::Capabilities.definitive?(answer)
+      return [ response, (call unless response.is_a?(Waiting) || response.error?) ] if settled
 
       # The gateway uses an approval id only on the call it approved, so the retry carries it to both.
       backup = invoke_call(call.fallback, server_context, approval_id: approval_id)
@@ -171,10 +174,13 @@ module Mcp
         presented = call.present_result(answer)
         ToolDispatcher.ledger_failure(authorization, presented)
         presented
+      rescue Integrations::PolicyRefusal => refusal
+        ToolDispatcher.refused(authorization, refusal.message)
       end
       ToolDispatcher.log_call(tool.action_key, server_context, started_at)
 
-      ::MCP::Tool::Response.new(result["content"], structured_content: result["structuredContent"], error: result["isError"] == true)
+      answered = result[ToolDispatcher::REFUSED] ? Refused : ::MCP::Tool::Response
+      answered.new(result["content"], structured_content: result["structuredContent"], error: result["isError"] == true)
     rescue Integrations::Capabilities::Unroutable => e
       ToolDispatcher.error_response(e.message)
     rescue AbilityGateway::Denied

@@ -18,7 +18,7 @@ module Integrations
       end
 
       test "the provider's details say what Firefight does with it in its own words" do
-        assert_equal "Firefight hands a fix's code change to Devin once you choose it under Settings, Workspace and switch on fix_code. " \
+        assert_equal "Firefight hands a fix's code change to Devin once you choose it under Settings, Workspace. " \
                      "Halon follows the change with session_status. An investigation never starts one.",
                      Capabilities.halon_sentence("devin", "Devin")
       end
@@ -74,6 +74,23 @@ module Integrations
         assert_includes prompt, "Leave .github/workflows/ and infra/prod/** unchanged, since this workspace keeps those paths out of code changes."
         assert_includes prompt, "start the description with: #{CodeChange::CI_WARNING}"
         refute_includes prompt, "nothing under .github/"
+      end
+
+      test "the brief carries the person's own words and what Halon read, as Firefight's own agent gets them" do
+        request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
+                                         words: [ "Raise the timeout", "No, to 30 seconds" ],
+                                         evidence: [ CodeAgent::Request::Evidence.new(label: "Search logs", text: "gateway timeout after 10s") ])
+        pack = Devin.new(@integration, progress: ->(text) { @reports << text }, request: request)
+        prompt = nil
+        DevinApi.any_instance.expects(:create_session).with { |body| prompt = body["prompt"] }
+                 .returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
+        DevinApi.any_instance.stubs(:session).returns(session("exit", nil, prs: [ "https://github.com/acme/web/pull/8" ]))
+        DevinApi.any_instance.stubs(:messages).returns("items" => [])
+
+        pack.fix_code(environment_row: @row.reload, arguments: ARGUMENTS)
+
+        assert_includes prompt, "A later message corrects an earlier one:\n> Raise the timeout\n\n> No, to 30 seconds"
+        assert_includes prompt, "<tool_result tool=\"Search logs\" trust=\"untrusted\">\ngateway timeout after 10s"
       end
 
       test "with no paths kept out, the brief names none and leaves .github/ to the review like any other file" do

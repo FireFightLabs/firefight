@@ -170,6 +170,7 @@ export default function OperatorHalon() {
                 <TableHead>Tool</TableHead>
                 <TableHead className="text-right">Calls</TableHead>
                 <TableHead className="text-right">Failed</TableHead>
+                <TableHead className="text-right">Refused</TableHead>
                 <TableHead className="text-right">Denied</TableHead>
                 <TableHead className="text-right">Median</TableHead>
               </TableRow>
@@ -182,13 +183,14 @@ export default function OperatorHalon() {
                   <TableCell className={`text-right font-mono ${tool.errors > 0 ? "text-error" : "text-muted-foreground"}`}>
                     {percent(tool.errors, tool.calls)}
                   </TableCell>
+                  <TableCell className={`text-right font-mono ${tool.refused > 0 ? "text-warning" : "text-muted-foreground"}`}>{tool.refused}</TableCell>
                   <TableCell className={`text-right font-mono ${tool.denied > 0 ? "text-warning" : "text-muted-foreground"}`}>{tool.denied}</TableCell>
                   <TableCell className="text-muted-foreground text-right font-mono">{milliseconds(tool.medianMs)}</TableCell>
                 </TableRow>
               ))}
               {tools.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">No tool calls in this window.</TableCell>
+                  <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">No tool calls in this window.</TableCell>
                 </TableRow>
               )}
             </TableBody>

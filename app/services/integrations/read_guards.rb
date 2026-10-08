@@ -3,7 +3,8 @@ module Integrations
   # call itself is shown to read. Each provider whose tools mix the two says how to tell, and every other tool that is
   # not read only is never offered to such a run.
   module ReadGuards
-    # Raised with a reason the agent can act on when a call would not only read.
+    # Raised with a reason the agent can act on when a call is not shaped the way a guard reads it. A call that would
+    # change something is refused by Firefight's rule instead (Integrations::PolicyRefusal).
     class Refused < StandardError; end
 
     # The guard for a tool that is not read only, or nil when nothing can tell its reads from its writes. A provider's

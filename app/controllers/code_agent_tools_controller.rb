@@ -1,5 +1,6 @@
-# The tools a coding agent in the sandbox reaches besides its model, as an MCP server on its session's token. They search
-# and read the public web for a library's documentation, so the box itself never reaches the web for the agent.
+# The tools a coding agent in the sandbox reaches besides its model, as an MCP server on its session's token: the read
+# tools Halon has, as the person who asked for the change, a question to that person, and the public web for a library's
+# documentation, so the box itself never reaches the web or a connected system for the agent.
 class CodeAgentToolsController < ActionController::API
   SERVER_NAME = "firefight-code-agent".freeze
   SERVER_VERSION = "1.0.0".freeze
@@ -10,7 +11,8 @@ class CodeAgentToolsController < ActionController::API
     session = CodeAgentSession.authenticate(token)
     return render(json: { error: CodeAgentSession::ENDED }, status: :unauthorized) unless session
 
-    answer = MCP::Server.new(name: SERVER_NAME, version: SERVER_VERSION, tools: CodeAgent::WebTools.for(session)).handle_json(request.raw_post)
+    tools = CodeAgent::WebTools.for(session) + CodeAgent::ReadTools.for(session) + CodeAgent::QuestionTools.for(session)
+    answer = MCP::Server.new(name: SERVER_NAME, version: SERVER_VERSION, tools: tools).handle_json(request.raw_post)
     answer.nil? ? head(:accepted) : render(json: answer)
   end
 

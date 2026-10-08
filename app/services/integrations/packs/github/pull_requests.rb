@@ -411,11 +411,12 @@ module Integrations
 
         def mergeable!(repo, pull)
           name = "PR ##{pull['number']} in #{repo}"
-          fail! "#{name} is already merged." if pull["merged_at"]
-          fail! "#{name} is closed, so it cannot be merged." unless pull["state"] == "open"
+          fail_policy! "#{name} is already merged." if pull["merged_at"]
+          fail_policy! "#{name} is closed, so Firefight does not merge it." unless pull["state"] == "open"
           return if pull["mergeable"] == true && !pull["draft"] && MERGEABLE_STATES.include?(pull["mergeable_state"])
 
-          fail! "#{name} cannot be merged now: #{merge_words(pull).delete_prefix('no, ').delete_prefix('not known yet, ')}."
+          fail_policy! "Firefight checked #{name} before merging and does not merge it now, because " \
+                       "#{merge_words(pull).delete_prefix('no, ').delete_prefix('not known yet, ')}."
         end
 
         def reviews_text(repo, number, token)

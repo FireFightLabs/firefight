@@ -11,7 +11,9 @@ module Ability
 
     OUTCOME_SUCCESS = "success"
     OUTCOME_ERROR = "error"
-    OUTCOMES = [ OUTCOME_SUCCESS, OUTCOME_ERROR ].freeze
+    # One of Firefight's own rules refused the call once it was allowed, such as a protected branch, so it did nothing.
+    OUTCOME_REFUSED = "refused"
+    OUTCOMES = [ OUTCOME_SUCCESS, OUTCOME_ERROR, OUTCOME_REFUSED ].freeze
 
     class AlreadyFinalized < StandardError; end
 

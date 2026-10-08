@@ -235,7 +235,7 @@ class AgentChatsController < InertiaController
 
   # An open chat keeps the model it was started on. A new one gets the workspace's.
   def attachment_rules(chat)
-    AgentChatAttachmentRulesSerializer.one(Chat::Attachment.rules_for(current_workspace, model_id: chat&.model_id))
+    AgentChatAttachmentRulesSerializer.one(Chat::Attachment.rules_for(current_workspace, model_id: chat&.model_id, provider: chat&.model&.provider))
   end
 
   def came_from?(path)

@@ -20,13 +20,13 @@ class Conversation::Turn
   def chat_owner = conversation
 
   # A turn nobody can be credited with does nothing.
-  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, **, &block)
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
     raise AbilityGateway::Denied.new(action_key) unless asker
 
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: asker, action_key: action_key, params: params, scope: scope,
       context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: conversation.incident_id, approval_id: approval_id }.compact,
-      &block
+      holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)
   end
@@ -41,6 +41,14 @@ class Conversation::Turn
   def progress_listener(tool_call_id)
     listener = @progress_listener
     listener && ->(update) { listener.call(tool_call_id, update) }
+  end
+
+  # A code change asked for in this chat, written for the asker with their own words and what was read before the call.
+  def code_agent_request(tool_call_id, evidence: [])
+    CodeAgent::Request.new(
+      principal: asker, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: tool_call_id, box_key: code_box_key,
+      words: chat ? chat.readable_messages.where(role: Chat::Message::ROLE_USER).map(&:content) : [], evidence: evidence
+    )
   end
 
   # A chat keeps no steps of its own, its tool calls carry how they went.

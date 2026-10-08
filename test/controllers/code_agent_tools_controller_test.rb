@@ -3,8 +3,14 @@ require "test_helper"
 class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @workspace = workspaces(:slack_workspace_one)
-    @session, @token = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
-                                              repository: "acme/api")
+    @member = workspace_memberships(:bob_workspace_one)
+    @session, @token = open_session(@member)
+    @integration = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "fake", name: "Fake")
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id, credentials: { token: "x" }.to_json)
+    @read = @integration.tools.create!(name: "echo_text", description: "Echoes text back", read_only: true, enabled: true,
+                                       params_schema: { "type" => "object", "properties" => { "text" => { "type" => "string" } } })
+    @write = @integration.tools.create!(name: "write_thing", description: "Writes a thing", read_only: false, enabled: true, params_schema: { "type" => "object" })
+    Integrations::NativePack.stubs(:for).with("fake").returns(FakeNativePack)
   end
 
   test "the coding agent searches the web on its session's token, and the ledger holds it under the workspace" do
@@ -19,9 +25,15 @@ class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ AbilityGateway::SOURCE_CODE_AGENT, Ability::Invocation::DECISION_ALLOW ], [ call.source, call.decision ]
   end
 
-  test "it lists only the two web tools, and an ended session reaches nothing" do
-    post "/code_agent/tools", params: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json, headers: { "Authorization" => "Bearer #{@token}", "CONTENT_TYPE" => "application/json" }
-    assert_equal %w[search_web read_web_page], response.parsed_body.dig("result", "tools").map { |tool| tool["name"] }
+  test "it lists the web tools and Halon's read tools, a question only where the change can be seen, and an ended session reaches nothing" do
+    call("tools/list")
+    assert_equal %w[search_web read_web_page list_tools describe_tool call_tool list_skills read_skill], tool_names
+
+    placed, placed_token = open_session(@member, place: @workspace.conversations.create!(kind: Conversation::KIND_PERSONAL, started_by: @member, max_turns: 10, max_spend_cents: 50))
+    call("tools/list", token: placed_token)
+    assert_includes tool_names, CodeAgent::QuestionTools::ASK
+    assert_includes tool_names, CodeAgent::QuestionTools::WAIT
+    placed.close!
 
     @session.close!
     post "/code_agent/tools", params: { jsonrpc: "2.0", id: 2, method: "tools/list" }.to_json, headers: { "Authorization" => "Bearer #{@token}" }
@@ -37,9 +49,67 @@ class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
     assert_equal CodeAgentSession::TOO_MANY_LOOKUPS, response.parsed_body.dig("result", "content", 0, "text")
 
     @workspace.update!(web_search_enabled: false)
-    post "/code_agent/tools", params: { jsonrpc: "2.0", id: 2, method: "tools/list" }.to_json, headers: { "Authorization" => "Bearer #{@token}", "CONTENT_TYPE" => "application/json" }
-    assert_empty response.parsed_body.dig("result", "tools")
+    call("tools/list")
+    assert_equal %w[list_tools describe_tool call_tool list_skills read_skill], tool_names
     get "/code_agent/tools"
     assert_response :method_not_allowed
   end
+
+  test "a read tool runs as the person who asked, through the gateway, in Activity under the coding agent, and a tool that changes things is never offered" do
+    call("tools/call", name: CodeAgent::ReadTools::LIST)
+    listed = text
+    assert_includes listed, "fake_echo_text: Echoes text back"
+    refute_includes listed, "fake_write_thing", "a tool that changes something is never handed to the coding agent"
+
+    call("tools/call", name: CodeAgent::ReadTools::CALL, arguments: { name: "fake_echo_text", arguments: { text: "hi" } })
+    assert_includes text, "echo: hi"
+    assert_includes text, "trust=\"untrusted\"", "what a tool returns is framed as evidence"
+    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: @read.action_key)
+    assert_equal [ AbilityGateway::SOURCE_CODE_AGENT, @member, "Coding agent for acme/api" ],
+                 [ invocation.source, invocation.principal, invocation.triggered_by_label ]
+
+    call("tools/call", name: CodeAgent::ReadTools::CALL, arguments: { name: "fake_write_thing", arguments: {} })
+    assert response.parsed_body.dig("result", "isError")
+    assert_includes text, "There is no tool called fake_write_thing that you may read with."
+    assert_equal 0, Ability::Invocation.where(workspace: @workspace, action_key: @write.action_key).count
+    assert_equal 1, @session.reload.tool_calls
+  end
+
+  test "an agent principal without a grant reads nothing through the bridge, as it reaches nothing anywhere else" do
+    agent = @workspace.agents.create!(name: "Release bot", slug: "release_bot")
+    _, token = open_session(agent)
+
+    call("tools/call", token: token, name: CodeAgent::ReadTools::LIST)
+    refute_includes text, "fake_echo_text"
+
+    call("tools/call", token: token, name: CodeAgent::ReadTools::CALL, arguments: { name: "fake_echo_text", arguments: { text: "hi" } })
+    assert response.parsed_body.dig("result", "isError")
+    assert_equal 0, Ability::Invocation.where(workspace: @workspace, action_key: @read.action_key, decision: Ability::Invocation::DECISION_ALLOW).count
+  end
+
+  test "a session's read tool calls are capped" do
+    @session.update_columns(tool_calls: CodeAgentSession::MAX_TOOL_CALLS)
+
+    call("tools/call", name: CodeAgent::ReadTools::CALL, arguments: { name: "fake_echo_text", arguments: { text: "hi" } })
+
+    assert_equal CodeAgentSession::TOO_MANY_TOOL_CALLS, text
+  end
+
+  private
+
+  def open_session(principal, place: nil)
+    request = CodeAgent::Request.new(principal: principal, source: AbilityGateway::SOURCE_CONVERSATION, place: place)
+    CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"), repository: "acme/api",
+                           request: request)
+  end
+
+  def call(method, token: @token, **params)
+    body = { jsonrpc: "2.0", id: 1, method: method }
+    body[:params] = params if params.any?
+    post "/code_agent/tools", params: body.to_json, headers: { "Authorization" => "Bearer #{token}", "CONTENT_TYPE" => "application/json" }
+  end
+
+  def tool_names = response.parsed_body.dig("result", "tools").map { |tool| tool["name"] }
+
+  def text = response.parsed_body.dig("result", "content", 0, "text").to_s
 end

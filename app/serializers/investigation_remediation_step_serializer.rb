@@ -50,6 +50,15 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type "#{AgentChatMessageSerializer::PROGRESS_TYPE} | null"
   def progress = step.work&.to_h
 
+  # Why whoever is looking cannot answer the coding agent's open question, or nil.
+  type :string, optional: true
+  def question_blocked_reason
+    work = step.work
+    return unless work&.waiting_for_answer?
+
+    CodeAgentQuestion.find_by(id: work.question["id"])&.answer_blocked_reason(Current.principal)
+  end
+
   type :string, optional: true
   def done_by = step.done_by&.display_name
 
