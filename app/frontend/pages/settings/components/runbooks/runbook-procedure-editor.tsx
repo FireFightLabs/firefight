@@ -4,34 +4,30 @@ import { IconPlus, IconX } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-
-export interface EditableInput {
-  key: string
-  name: string
-  question: string
-  defaultValue: string
-}
-
-export interface ProcedureState {
-  aliasesText: string
-  inputs: EditableInput[]
-  watchText: string
-}
+import type { SearchableSelectOption } from "@/components/searchable-select"
+import { RunbookWatchEditor } from "@/pages/settings/components/runbooks/runbook-watch-editor"
+import type { EditableInput, ProcedureState, WatchState } from "@/pages/settings/lib/runbook-procedure"
+import type { RunbookWatchRead } from "@/types/serializers"
 
 interface RunbookProcedureEditorProps {
   state: ProcedureState
   errors: Partial<Record<"aliases" | "inputs" | "watch", ErrorValue>>
+  watchErrors: { watch: string | null; steps: Record<string, string> }
+  reads: RunbookWatchRead[] | null
+  placeholders: SearchableSelectOption[]
+  places: SearchableSelectOption[]
   onChange: (state: ProcedureState) => void
 }
 
-const WATCH_PLACEHOLDER = '{ "title": "release", "steps": [ { "label": "Release run", "capability": "run_history", "resource": "my-repo", "name": "release" } ] }'
-
 // What lets Halon run the runbook by name: other names people call it, what to ask each time, and what to watch once
 // every step went through. A runbook that leaves all of it empty is an ordinary incident runbook.
-export function RunbookProcedureEditor({ state, errors, onChange }: RunbookProcedureEditorProps) {
+export function RunbookProcedureEditor({ state, errors, watchErrors, reads, placeholders, places, onChange }: RunbookProcedureEditorProps) {
   function patch(next: Partial<ProcedureState>) {
     onChange({ ...state, ...next })
+  }
+
+  function setWatch(watch: WatchState) {
+    patch({ watch })
   }
 
   function updateInput(index: number, next: Partial<EditableInput>) {
@@ -119,21 +115,15 @@ export function RunbookProcedureEditor({ state, errors, onChange }: RunbookProce
         {errors.inputs && <p className="text-xs text-destructive">{errors.inputs}</p>}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="runbook-watch">Watch afterwards</Label>
-        <Textarea
-          id="runbook-watch"
-          rows={4}
-          className="font-mono text-xs"
-          value={state.watchText}
-          onChange={(event) => patch({ watchText: event.target.value })}
-          placeholder={WATCH_PLACEHOLDER}
-        />
-        <p className="text-xs text-muted-foreground">
-          What Halon watches once every step went through, and reports back on in the chat and in Slack (optional).
-        </p>
-        {errors.watch && <p className="text-xs text-destructive">{errors.watch}</p>}
-      </div>
+      <RunbookWatchEditor
+        watch={state.watch}
+        reads={reads}
+        placeholders={placeholders}
+        places={places}
+        errors={watchErrors}
+        serverError={errors.watch ? String(errors.watch) : null}
+        onChange={setWatch}
+      />
     </div>
   )
 }

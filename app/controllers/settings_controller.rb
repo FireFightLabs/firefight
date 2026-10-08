@@ -6,6 +6,11 @@ class SettingsController < InertiaController
   RECENT_ALERTS_LIMIT = 50
   ACTIVITY_LIMIT = 200
   RESOLVED_APPROVALS_LIMIT = 50
+  # The runbook editor asks for these by name when it opens (lib/typescript_constants.rb).
+  RUNBOOK_TOOL_CHOICES = "toolChoices".freeze
+  RUNBOOK_WATCH_READS = "watchReads".freeze
+  RUNBOOK_PLACES = "places".freeze
+  RUNBOOK_CHOICE_PROPS = { "TOOL_CHOICES" => RUNBOOK_TOOL_CHOICES, "WATCH_READS" => RUNBOOK_WATCH_READS, "PLACES" => RUNBOOK_PLACES }.freeze
 
 
   def index
@@ -54,7 +59,11 @@ class SettingsController < InertiaController
       customFields: RunbookCustomFieldSerializer.many(
         current_workspace.incident_field_definitions.active.ordered
           .where(field_type: IncidentCondition::SUPPORTED_CUSTOM_FIELD_TYPES)
-      )
+      ),
+      # What a step or a watch can be built from, read when the editor opens, since every tool's fields take a while.
+      RUNBOOK_TOOL_CHOICES => InertiaRails.optional { RunbookToolChoiceSerializer.many(Chat::Tools::Choices.tools(current_workspace)) },
+      RUNBOOK_WATCH_READS => InertiaRails.optional { RunbookWatchReadSerializer.many(Chat::Tools::Choices.reads) },
+      RUNBOOK_PLACES => InertiaRails.optional { RunbookPlaceSerializer.many(Chat::Tools::Choices.places(current_workspace, current_membership)) }
     }
   end
 

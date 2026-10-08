@@ -1,13 +1,18 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { router } from "@inertiajs/react"
+import { router, usePage } from "@inertiajs/react"
 import type { Errors, VisitOptions } from "@inertiajs/core"
 
 import type {
   IncidentSeveritySettings,
   IncidentTypeSettings,
   RunbookCustomField,
+  RunbookPlace,
   RunbookSettings,
+  RunbookToolChoice,
+  RunbookWatchRead,
 } from "@/types/serializers"
+import type { SearchableSelectOption } from "@/components/searchable-select"
+import { RUNBOOK_CHOICE_PROPS } from "@/lib/generated/constants"
 import { runbookPath, runbooksPath } from "@/lib/routes"
 import {
   CONDITION_FIELD_CUSTOM_FIELD,
@@ -34,8 +39,16 @@ import {
   RunbookStepsEditor,
   type EditableStep,
 } from "@/pages/settings/components/runbooks/runbook-steps-editor"
-import { RunbookProcedureEditor, type ProcedureState } from "@/pages/settings/components/runbooks/runbook-procedure-editor"
-import { objectText, procedurePayload, procedureState } from "@/pages/settings/lib/runbook-procedure"
+import { RunbookProcedureEditor } from "@/pages/settings/components/runbooks/runbook-procedure-editor"
+import {
+  argumentsState,
+  fieldErrors,
+  inputPlaceholders,
+  procedurePayload,
+  procedureState,
+  watchErrors,
+  type ProcedureState,
+} from "@/pages/settings/lib/runbook-procedure"
 import {
   RunbookConditionsEditor,
   type ConditionSectionState,
@@ -95,7 +108,7 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
       title: step.title,
       instruction: step.instruction ?? "",
       tool: step.tool ?? "",
-      argumentsText: objectText(step.arguments),
+      args: argumentsState(step.arguments),
     })),
     typeState: sectionState(runbook, CONDITION_FIELD_INCIDENT_TYPE),
     severityState: sectionState(runbook, CONDITION_FIELD_SEVERITY),
@@ -105,11 +118,28 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
   }
 }
 
+// What the editor builds steps and the watch from, which the page sends only once asked.
+interface ChoiceProps {
+  [key: string]: unknown
+  toolChoices?: RunbookToolChoice[]
+  watchReads?: RunbookWatchRead[]
+  places?: RunbookPlace[]
+}
+
+const CHOICES = Object.values(RUNBOOK_CHOICE_PROPS)
+
+function loadChoices() {
+  router.reload({ only: CHOICES })
+}
+
 export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, severities, customFields }: RunbookDialogProps) {
   const isEdit = Boolean(runbook)
+  const { toolChoices, watchReads, places } = usePage<ChoiceProps>().props
+  const tools = toolChoices ?? null
+  const reads = watchReads ?? null
   const [model, setModel] = useState<EditModel>(() => initModel(runbook))
   const [errors, setErrors] = useState<Errors>({})
-  const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
+  const [stepErrors, setStepErrors] = useState<Record<string, Record<string, string>>>({})
   const [processing, setProcessing] = useState(false)
   const [wasOpen, setWasOpen] = useState(open)
 
@@ -121,11 +151,23 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
     }
   }
 
+  useEffect(() => {
+    if (open) {
+      loadChoices()
+    }
+  }, [ open ])
+
+  const placeholders: SearchableSelectOption[] = inputPlaceholders(model.procedure.inputs)
+  const placeOptions: SearchableSelectOption[] = (places ?? []).map((place) => ({ value: place.name, label: place.name, group: place.kind }))
+  const watchProblems = watchErrors(model.procedure.watch, reads ?? [])
+  const [ shownWatchProblems, setShownWatchProblems ] = useState<ReturnType<typeof watchErrors>>({ watch: null, steps: {} })
+
   // A server error outlives the value that caused it, so it is cleared once the
   // field changes.
   useEffect(() => {
     setErrors({})
     setStepErrors({})
+    setShownWatchProblems({ watch: null, steps: {} })
   }, [model])
 
   function patch(next: Partial<EditModel>) {
@@ -166,25 +208,25 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       })
     }
 
-    const procedure = procedurePayload(model.steps, model.procedure)
-    if (procedure.errors) {
-      setStepErrors(procedure.errors.steps)
-      const unread: Errors = procedure.errors.watch ? { watch: [ procedure.errors.watch ] } : {}
-      setErrors(unread)
+    const problems = stepProblems(model.steps, tools)
+    if (Object.keys(problems).length > 0 || watchProblems.watch || Object.keys(watchProblems.steps).length > 0) {
+      setStepErrors(problems)
+      setShownWatchProblems(watchProblems)
       return
     }
+    const procedure = procedurePayload(model.procedure)
 
     const payload = {
       name: model.name,
       summary: model.summary,
       content: model.content,
       external_url: model.externalUrl,
-      steps: procedure.payload.steps,
+      steps: model.steps.map(sentStep),
       conditions,
       always_attach: model.alwaysAttach,
-      inputs: procedure.payload.inputs,
-      aliases: procedure.payload.aliases,
-      watch: procedure.payload.watch,
+      inputs: procedure.inputs,
+      aliases: procedure.aliases,
+      watch: procedure.watch,
     }
 
     const options: VisitOptions = {
@@ -258,12 +300,23 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
               />
             </div>
 
-            <RunbookStepsEditor steps={model.steps} stepErrors={stepErrors} onChange={(steps) => patch({ steps })} />
+            <RunbookStepsEditor
+              steps={model.steps}
+              stepErrors={stepErrors}
+              tools={tools}
+              placeholders={placeholders}
+              places={placeOptions}
+              onChange={(steps) => patch({ steps })}
+            />
             {(errors.tool || errors.arguments) && <p className="text-xs text-destructive">{errors.tool ?? errors.arguments}</p>}
 
             <RunbookProcedureEditor
               state={model.procedure}
               errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
+              watchErrors={shownWatchProblems}
+              reads={reads}
+              placeholders={placeholders}
+              places={placeOptions}
               onChange={(procedure) => patch({ procedure })}
             />
 
@@ -307,4 +360,22 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       </DialogContent>
     </Dialog>
   )
+}
+
+// What is wrong with each step's fields, by the step's key, checked against the tool's own fields once they loaded.
+function stepProblems(steps: EditableStep[], tools: RunbookToolChoice[] | null): Record<string, Record<string, string>> {
+  const problems: Record<string, Record<string, string>> = {}
+  steps.forEach((step) => {
+    const choice = tools?.find((tool) => tool.name === step.tool)
+    const found = choice ? fieldErrors(choice.fields, step.args) : {}
+    if (Object.keys(found).length > 0) {
+      problems[step.key] = found
+    }
+  })
+  return problems
+}
+
+function sentStep(step: EditableStep) {
+  const tool = step.tool.trim()
+  return { id: step.id, title: step.title, instruction: step.instruction, tool: tool.length > 0 ? tool : null, arguments: tool.length > 0 ? step.args.values : {} }
 }
