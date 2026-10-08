@@ -102,13 +102,15 @@ jobs:
           fi
 
           # Each query parameter becomes a workflow argument (${args.branch}, ${args.sha}), and name labels the run.
+          # A run name takes only letters, digits, spaces and hyphens, so the tag's dots become hyphens.
+          TAG="${{ needs.tag.outputs.tag }}"
           curl --fail-with-body --silent --show-error \
             --get \
             --connect-timeout 3 \
             --max-time 10 \
             --data-urlencode "branch=main" \
             --data-urlencode "sha=${{ needs.tag.outputs.tagged_sha }}" \
-            --data-urlencode "name=${{ needs.tag.outputs.tag }}" \
+            --data-urlencode "name=Release ${TAG//./-}" \
             "$NORTHFLANK_RELEASE_WEBHOOK_URL"
 
   # Self-host image for GHCR, public repo only. Each platform builds on its own
