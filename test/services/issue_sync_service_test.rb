@@ -78,6 +78,40 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     assert_equal "This item already has an issue.", @service.request(item, by: @alice)
   end
 
+  test "opening cut off by a stopped worker never opens a second issue, and the item says to look in the tracker" do
+    sync_with!(@workspace, @linear, creation: Workspace::IssueSync::ISSUE_CREATION_ASKED)
+    item = create_item
+    assert_nil @service.request(item, by: @alice)
+    job = IssueSyncJob.new(operation: IssueSyncService::OPEN_ISSUE, action: item, by: @alice)
+    IncidentAction.any_instance.stubs(:move_issue!).raises(Interrupt)
+
+    assert_raises(Interrupt) { job.perform_now }
+    assert_equal 1, saves.size
+
+    IncidentAction.any_instance.unstub(:move_issue!)
+    job.perform_now
+
+    item.reload
+    assert_equal 1, saves.size
+    assert_equal [ IncidentAction::ISSUE_FAILED, "Firefight restarted while opening its issue. Check Linear for it before asking again." ],
+                 [ item.issue_sync_state, item.issue_sync_note ]
+    assert item.issue_request_offered?
+  end
+
+  test "an item still opening long after its job was lost is ended the same way by the recovery sweep" do
+    sync_with!(@workspace, @linear, creation: Workspace::IssueSync::ISSUE_CREATION_ASKED)
+    item = create_item
+    assert_nil @service.request(item, by: @alice)
+
+    travel IssueSyncService::OPENING_LOST_AFTER + 1.minute do
+      IssueSyncService.give_up_lost_openings!
+      IssueSyncService.give_up_lost_openings!
+    end
+
+    assert_equal IncidentAction::ISSUE_FAILED, item.reload.issue_sync_state
+    assert_empty saves
+  end
+
   test "a member with no reach into the tracker still gets the item's issue, since sync makes it as its own agent" do
     sync_with!(@workspace, @linear, creation: Workspace::IssueSync::ISSUE_CREATION_ALL)
 

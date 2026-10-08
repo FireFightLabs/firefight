@@ -16,12 +16,23 @@ class Webhooks::DispatchJobTest < ActiveSupport::TestCase
   end
 
   test "creates webhook deliveries for matching webhooks" do
+    WebhookDelivery.where(incident_event: @event).delete_all
+
     assert_difference -> { WebhookDelivery.count }, 1 do
       Webhooks::DispatchJob.perform_now(@event_hash)
     end
 
     delivery = WebhookDelivery.find_by!(webhook: webhooks(:active_webhook), incident_event: @event)
     assert_equal "incident.created", delivery.event_type
+  end
+
+  test "run again after a stopped worker, it adds no second delivery" do
+    WebhookDelivery.where(incident_event: @event).delete_all
+
+    Webhooks::DispatchJob.perform_now(@event_hash)
+    assert_no_difference -> { WebhookDelivery.count } do
+      Webhooks::DispatchJob.perform_now(@event_hash)
+    end
   end
 
   test "a test incident reaches no webhook at all" do

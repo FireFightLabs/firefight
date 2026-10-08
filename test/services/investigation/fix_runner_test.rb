@@ -51,6 +51,23 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     assert_equal [ "C1", "1.2" ], [ @plan.progress_channel_id, @plan.progress_message_id ]
   end
 
+  test "a worker stopped mid step ends that step saying to check it, at once, and never makes the call again" do
+    Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => "delete" } }.raises(Interrupt).once
+    Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => "log" } }.returns("content" => []).once
+    assert_nil Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB)
+    job = InvestigationFixJob.new(@plan.id)
+
+    assert_raises(Interrupt) { job.perform_now }
+    assert_equal Investigation::RemediationStep::STATUS_RUNNING, @plan.steps.first.status
+
+    job.perform_now
+
+    delete, tell, purge, log = @plan.steps.reload.to_a
+    assert_equal [ "failed", Investigation::FixRunner::LOST_TRACK ], [ delete.status, delete.result ]
+    assert_equal %w[skipped skipped done], [ tell.status, purge.status, log.status ]
+    assert_not JobRun.exists?(job_id: job.job_id)
+  end
+
   test "a step that named a capability runs as the provider call it was resolved to, and a failed answer fails the step" do
     ResourceMap::Resource.create!(workspace: @workspace, provider: "cloudflare", account: "Acme", kind: ResourceMap::KIND_WORKER, external_id: "api",
                                   name: "api", url: "https://dash.cloudflare.com/acc1/workers-and-pages", integration_environment: @cloudflare.integration_environments.first,

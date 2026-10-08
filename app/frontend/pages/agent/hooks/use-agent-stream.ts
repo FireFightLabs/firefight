@@ -16,6 +16,7 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
   const [ streamed, setStreamed ] = useState(NOTHING_STREAMED)
   const working = useRef(false)
   const recovery = useRef<number | undefined>(undefined)
+  const dropped = useRef(false)
   const busy = owed && !ended
 
   useEffect(() => {
@@ -36,11 +37,23 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
       window.clearTimeout(recovery.current)
     }
 
+    // Nothing sent while the socket was away is sent again, such as an answer that finished during a deploy, so the
+    // chat is read again once it is back.
+    function catchUp() {
+      stopRecovery()
+      if (!dropped.current) {
+        return
+      }
+
+      dropped.current = false
+      refreshOpenChat()
+    }
+
     const consumer = createConsumer()
     const subscription = consumer.subscriptions.create(
       { channel: AGENT_CHANNEL, id: conversationId },
       {
-        connected: stopRecovery,
+        connected: catchUp,
         received(event: StreamEvent) {
           stopRecovery()
           if (event.type === AGENT_STREAM_EVENTS.THINKING) {
@@ -72,6 +85,7 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           }
         },
         disconnected() {
+          dropped.current = true
           if (!working.current) {
             return
           }

@@ -153,7 +153,9 @@ class Investigation::FixRunner
   end
 
   # Runs whatever is ready, then settles the fix and redraws the thread. A held step resumes first, with its approval.
-  def advance!(step_id: nil, approval_id: nil)
+  # interrupted_at is when an earlier run of the same job started, when that run was cut off part way.
+  def advance!(step_id: nil, approval_id: nil, interrupted_at: nil)
+    give_up_on_interrupted!(interrupted_at, step_id) if interrupted_at
     give_up_on_stale!
     resume(@plan.steps.find(step_id), approval_id) if step_id
     if @plan.reload.applying?
@@ -179,6 +181,17 @@ class Investigation::FixRunner
   # A step left running by a worker that died is ended, saying so, rather than holding the fix forever.
   def give_up_on_stale!
     @plan.steps.reload.select(&:stale?).each { |step| step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: LOST_TRACK) }
+  end
+
+  # A step the cut off run had started may or may not have gone through, so it ends saying to check, at once rather than
+  # once it goes stale, and is never run again. One job runs a fix at a time, so the cut off run's steps are the one it
+  # was handed and any it claimed itself after it started. A step someone pressed Run on carries its approval and waits
+  # for its own job.
+  def give_up_on_interrupted!(interrupted_at, step_id)
+    @plan.steps.reload.select do |step|
+      step.status == Investigation::RemediationStep::STATUS_RUNNING &&
+        (step.id == step_id || (step.approval_id.nil? && step.started_at.present? && step.started_at >= interrupted_at))
+    end.each { |step| step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: LOST_TRACK) }
   end
 
   def hold_back!

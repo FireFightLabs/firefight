@@ -9,6 +9,9 @@ class IssueSyncService
   OPEN_ISSUE = "open".freeze
   PUSH = "push".freeze
   OPERATIONS = [ OPEN_ISSUE, PUSH ].freeze
+  OPENING_INTERRUPTED = "Firefight restarted while opening its issue. Check %<tracker>s for it before asking again.".freeze
+  # Longer than opening one takes, so an item still opening after it lost its job.
+  OPENING_LOST_AFTER = 1.hour
 
   Issues = Integrations::Issues
 
@@ -42,8 +45,25 @@ class IssueSyncService
   end
 
   # by is whoever's change it was, which the ledger names. The call is made as Firefight's issue sync.
-  def perform(operation, action, by, fields: [], approval_id: nil)
+  # interrupted is true when a run of this job was cut off part way. Opening is never tried again then, since the
+  # tracker may already hold the issue and has no way to tell a second one apart. Pushing sets the same fields again.
+  def perform(operation, action, by, fields: [], approval_id: nil, interrupted: false)
+    return give_up_opening!(action) if interrupted && operation == OPEN_ISSUE
+
     operation == OPEN_ISSUE ? open_now(action, by, approval_id) : push_now(action, by, fields, approval_id)
+  end
+
+  # Opening was cut off, by a worker stopped mid call or a job lost before it ran. The item says to look in the tracker
+  # rather than opening a second issue, and asking again stays open to the person.
+  def give_up_opening!(action)
+    tracker = action.issue_integration&.name || "the tracker"
+    fail_open(action, [ IncidentAction::ISSUE_CREATING, IncidentAction::ISSUE_AWAITING_APPROVAL ], format(OPENING_INTERRUPTED, tracker: tracker))
+  end
+
+  # From the recovery sweep, for items still opening long after their job should have finished.
+  def self.give_up_lost_openings!
+    IncidentAction.where(issue_sync_state: IncidentAction::ISSUE_CREATING, external_url: nil, updated_at: ...OPENING_LOST_AFTER.ago)
+                  .includes(incident: :workspace).find_each { |action| new(action.incident.workspace).give_up_opening!(action) }
   end
 
   # Changes the settings under Settings, Workspace, from the page or over MCP. Choosing a tracker grants Firefight's

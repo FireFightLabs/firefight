@@ -21,6 +21,7 @@ module SolidWorkflow
       MANUAL_RETRY = "step.manual_retry"
       MANUAL_SKIP = "step.manual_skip"
       RESET = "step.reset"
+      RESUMED = "step.resumed"
     end
   end
 end

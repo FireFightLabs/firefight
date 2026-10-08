@@ -15,6 +15,11 @@ class Postmortem < ApplicationRecord
   GENERATION_GENERATING = "generating"
   GENERATION_FAILED = "failed"
   GENERATION_STATES = [ GENERATION_GENERATING, GENERATION_FAILED ].freeze
+  # Longer than writing one takes with its retries, so a draft still generating after it has lost its job.
+  GENERATION_STALE_AFTER = 30.minutes
+  # The generation_error of a draft whose worker stopped part way and whose job did not run again.
+  GENERATION_INTERRUPTED = "Interrupted".freeze
+  INTERRUPTED_NOTE = "Firefight restarted while writing this postmortem, so it was not finished.".freeze
 
   # Every heading is always rendered, an empty section gets the placeholder.
   TIMELINE_SECTION = "timeline".freeze
@@ -92,6 +97,15 @@ class Postmortem < ApplicationRecord
     nil
   end
 
+  scope :generation_stalled, -> { where(generation_state: GENERATION_GENERATING, updated_at: ...GENERATION_STALE_AFTER.ago) }
+
+  # Once, so the sweep and a job giving up never both tell the author. True for whichever did it.
+  def give_up_generation!
+    self.class.where(id: id, generation_state: GENERATION_GENERATING).update_all(
+      generation_state: GENERATION_FAILED, generation_error: GENERATION_INTERRUPTED, updated_at: Time.current
+    ) > 0
+  end
+
   def mark_generation_failed!(reason)
     reason = reason.class.name.demodulize unless reason.is_a?(String)
     update!(generation_state: GENERATION_FAILED, generation_error: reason)
@@ -99,6 +113,8 @@ class Postmortem < ApplicationRecord
 
   # A failure people are told about in words, rather than by its cause. Nil for the rest.
   def generation_failure_note
+    return INTERRUPTED_NOTE if generation_failed? && generation_error == GENERATION_INTERRUPTED
+
     AiCredit.cannot(incident.workspace, "write this postmortem") if generation_failed? && AiCredit.recorded?(generation_error)
   end
 

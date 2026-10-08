@@ -8,22 +8,11 @@ module SolidWorkflow
       @step = SolidWorkflow::Step.find(step_id)
       @workflow = @step.workflow
 
-      return if @step.succeeded? || @step.cancelled? || @step.running?
+      return if @step.succeeded? || @step.cancelled?
       return if @workflow.cancelled?
 
-      current_updated_at = @step.updated_at
-      rows_updated = SolidWorkflow::Step.where(
-        id: @step.id,
-        status: :pending,
-        updated_at: current_updated_at
-      ).update_all(
-        status: :running,
-        attempts: @step.attempts + 1,
-        started_at: Time.current,
-        updated_at: Time.current
-      )
-
-      return if rows_updated == 0
+      resuming = @step.running?
+      return unless resuming ? resume_step : claim_step
 
       @step.reload
       @workflow.reload
@@ -33,7 +22,7 @@ module SolidWorkflow
         return
       end
 
-      @workflow.record_event(SolidWorkflow::Events::Step::STARTED, step: @step)
+      @workflow.record_event(resuming ? SolidWorkflow::Events::Step::RESUMED : SolidWorkflow::Events::Step::STARTED, step: @step)
 
       Rails.logger.info({
         event: "workflow.step.started",
@@ -77,6 +66,24 @@ module SolidWorkflow
       @step.mark_failed!(e)
     ensure
       @workflow.enqueue_next_steps_later if @workflow
+    end
+
+    private
+
+    # The job that runs a step is written on it, so only that job can take it up again.
+    def claim_step
+      SolidWorkflow::Step.where(id: @step.id, status: :pending, updated_at: @step.updated_at).update_all(
+        status: :running, claimed_by: job_id, attempts: @step.attempts + 1, started_at: Time.current, updated_at: Time.current
+      ) > 0
+    end
+
+    # A running step held by this same job was cut off by a stopped worker, since Solid Queue hands a job out again only
+    # once its worker is gone. It runs again at once, as another attempt, rather than waiting for the sweeper. Any other
+    # job finds the step held and leaves it.
+    def resume_step
+      SolidWorkflow::Step.where(id: @step.id, status: :running, claimed_by: job_id).update_all(
+        attempts: @step.attempts + 1, updated_at: Time.current
+      ) > 0
     end
   end
 end
