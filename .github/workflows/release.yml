@@ -28,6 +28,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
+      tagged_sha: ${{ steps.tag.outputs.tagged_sha }}
 
     steps:
       - name: Checkout main
@@ -77,35 +78,36 @@ jobs:
       # The tag push is the deploy: Northflank builds and ships the tagged commit.
       # Commits to main on their own deploy nothing.
       - name: Tag the release
+        id: tag
         run: |
           git tag -a "${{ steps.v.outputs.tag }}" -m "Release ${{ steps.v.outputs.tag }}"
           git push origin "${{ steps.v.outputs.tag }}"
+          TAGGED_SHA="$(git rev-parse "${{ steps.v.outputs.tag }}^{commit}")"
+          echo "tagged_sha=$TAGGED_SHA" >> "$GITHUB_OUTPUT"
 
   trigger-northflank:
     if: always() && needs.tag.result == 'success'
     needs: tag
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       NORTHFLANK_RELEASE_WEBHOOK_URL: ${{ secrets.NORTHFLANK_RELEASE_WEBHOOK_URL }}
-      RELEASE_TAG: ${{ needs.tag.outputs.tag }}
-      RELEASE_SHA: ${{ github.sha }}
 
     steps:
-      # Configure NORTHFLANK_RELEASE_WEBHOOK_URL with the Northflank workflow webhook URL.
+      # Configure the NORTHFLANK_RELEASE_WEBHOOK_URL secret with the Northflank workflow webhook URL.
       - name: Notify Northflank of the release
         run: |
           if [ -z "$NORTHFLANK_RELEASE_WEBHOOK_URL" ]; then
-            echo "NORTHFLANK_RELEASE_WEBHOOK_URL is not configured, skipping Northflank notification"
-            exit 0
+            echo "::error::NORTHFLANK_RELEASE_WEBHOOK_URL secret must be configured"
+            exit 1
           fi
 
+          # Northflank requires the release values as URL query parameters.
           curl --fail-with-body --silent --show-error \
-            --request POST \
+            --get \
             --connect-timeout 3 \
             --max-time 10 \
-            --header "Content-Type: application/json" \
-            --data "{\"tag\":\"$RELEASE_TAG\",\"sha\":\"$RELEASE_SHA\"}" \
+            --data-urlencode "firefight.tag=${{ needs.tag.outputs.tag }}" \
+            --data-urlencode "firefight.sha=${{ needs.tag.outputs.tagged_sha }}" \
             --output /dev/null \
             "$NORTHFLANK_RELEASE_WEBHOOK_URL"
 
