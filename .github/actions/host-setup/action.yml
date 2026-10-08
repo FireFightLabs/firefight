@@ -1,0 +1,35 @@
+name: Set up the runner without the CI image
+description: >-
+  Installs what the CI image would have provided, for a run that cannot use it, such as a pull request from a fork
+  that changes a dependency before the image for it exists.
+inputs:
+  node:
+    description: Also install Node and the JavaScript packages
+    default: "false"
+  packages:
+    description: Also install the system libraries the app loads
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Install packages
+      if: inputs.packages == 'true'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libvips
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        bundler-cache: true
+
+    - name: Set up Node
+      if: inputs.node == 'true'
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: npm
+
+    - name: Install JavaScript dependencies
+      if: inputs.node == 'true'
+      shell: bash
+      run: npm ci
