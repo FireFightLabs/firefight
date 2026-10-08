@@ -58,7 +58,7 @@ module Integrations
         rescue PG::QueryCanceled
           raise NativePack::Error, "The query ran longer than #{STATEMENT_TIMEOUT_MS / 1000} seconds and was stopped."
         rescue PG::ReadOnlySqlTransaction
-          raise NativePack::Error, "Only reading is allowed, and that statement would write."
+          raise PolicyRefusal, "Firefight only reads this database, and that statement would write."
         rescue PG::Error => error
           raise NativePack::Error, first_line(error)
         ensure

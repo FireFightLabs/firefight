@@ -9,7 +9,7 @@ class Investigation::ToolCall
 
   NOT_RECORDED = "This call was not made in the run being replayed, so it has no recorded result.".freeze
 
-  def self.run!(investigation, action_key:, params: {}, scope: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil)
+  def self.run!(investigation, action_key:, params: {}, scope: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil, holdable: true)
     step = numbered_step(
       investigation,
       tool_name: tool_name, label: label, hypothesis: hypothesis, action_key: action_key, params: params,
@@ -23,7 +23,8 @@ class Investigation::ToolCall
         action_key: action_key,
         params: params,
         scope: scope,
-        context: investigation.ledger_context
+        context: investigation.ledger_context,
+        holdable: holdable
       ) do |authorization|
         step.update!(invocation_id: authorization.invocation_id)
         yield authorization

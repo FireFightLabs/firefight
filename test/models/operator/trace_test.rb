@@ -48,6 +48,20 @@ class Operator::TraceTest < ActiveSupport::TestCase
     assert_includes span.facts, [ "Error", "Invalid query" ]
   end
 
+  test "a call one of Firefight's own rules refused is worth a look, not a failure" do
+    invocation = Ability::Invocation.create!(
+      workspace: @workspace, principal: SystemAgent.investigator, principal_label: "Firefight Investigator", action_key: "github.fix_code",
+      idempotency_key: SecureRandom.uuid, decision: Ability::Invocation::DECISION_ALLOW, outcome: Ability::Invocation::OUTCOME_REFUSED,
+      error_summary: "release in acme/api is protected, so Firefight does not push to it.", completed_at: @started + 1.second
+    )
+    step = @run.steps.create!(position: 1, tool_name: "github_fix_code", action_key: "github.fix_code", status: Investigation::Step::STATUS_SUCCEEDED,
+                              failure_kind: Chat::StepOutcome::FAILURE_REFUSED, invocation: invocation, started_at: @started, completed_at: @started + 1.second)
+
+    span = Operator::RunTrace.new(@run).spans.find { |candidate| candidate.key == "tool-#{step.id}" }
+
+    assert_equal Operator::IncidentProcess::TONE_WARN, span.tone
+  end
+
   test "a call with no ledger row says what it was, never that it was replayed when the run is not a replay" do
     read = @run.steps.create!(position: 1, tool_name: "get_incident", action_key: "incidents.read", status: Investigation::Step::STATUS_SUCCEEDED,
                               started_at: @started, completed_at: @started + 1.second)

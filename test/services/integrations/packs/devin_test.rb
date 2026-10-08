@@ -18,7 +18,7 @@ module Integrations
       end
 
       test "the provider's details say what Firefight does with it in its own words" do
-        assert_equal "Firefight hands a fix's code change to Devin once you choose it under Settings, Workspace and switch on fix_code. " \
+        assert_equal "Firefight hands a fix's code change to Devin once you choose it under Settings, Workspace. " \
                      "Halon follows the change with session_status. An investigation never starts one.",
                      Capabilities.halon_sentence("devin", "Devin")
       end

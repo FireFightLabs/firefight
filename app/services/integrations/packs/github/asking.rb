@@ -124,8 +124,8 @@ module Integrations
           unknown = labels.reject { |label| known.any? { |name| name.casecmp?(label) } }
           return if unknown.empty?
 
-          fail! "#{repo} has no #{'label'.pluralize(unknown.size)} #{unknown.to_sentence}, and adding one would make it. " \
-                "#{known.any? ? "Its labels are #{known.first(50).join(', ')}." : 'It has no labels.'}"
+          fail_policy! "#{repo} has no #{'label'.pluralize(unknown.size)} #{unknown.to_sentence}, and Firefight never makes a label by adding one. " \
+                       "#{known.any? ? "Its labels are #{known.first(50).join(', ')}." : 'It has no labels.'}"
         end
       end
     end

@@ -141,7 +141,7 @@ module Integrations
 
         assert_includes text, "   2  two"
         assert text.end_with?("https://gitlab.com/acme/platform/web/-/blob/#{'d' * 40}/app/models/pool.rb#L1-3")
-        assert_match "not readable", assert_raises(NativePack::Error) { call(:fetch_file, "repo" => "acme/platform/web", "path" => ".env") }.message
+        assert_match "may hold secrets", assert_raises(PolicyRefusal) { call(:fetch_file, "repo" => "acme/platform/web", "path" => ".env") }.message
       end
 
       test "blame numbers GitLab's ranges from the first line asked and names the merge requests behind them" do

@@ -79,6 +79,22 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
     assert_nil response.structured_content
   end
 
+  test "when Firefight's own rule refuses the Datadog call, the platform is not asked and the agent is told it is final" do
+    datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
+                                              settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })
+    datadog.integration_environments.create!
+    datadog.tools.create!(name: "search_datadog_logs", description: "Logs", read_only: true, enabled: true,
+                          params_schema: { "type" => "object", "properties" => { "query" => {}, "from" => {}, "to" => {} } })
+    Integrations::McpExecutor.expects(:call).raises(Integrations::PolicyRefusal, "That query would change something.")
+    Integrations::NativeExecutor.expects(:call).never
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    assert response.error?
+    assert_equal [ "#{FirefightAi::Evidence::REFUSED_BY_RULE} That query would change something." ], response.content.map { |part| part[:text] || part["text"] }
+    assert_equal Ability::Invocation::OUTCOME_REFUSED, Ability::Invocation.find_by!(workspace: @workspace, action_key: "datadog.search_datadog_logs").outcome
+  end
+
   test "when Datadog fails, the platform answers and the agent is told so" do
     datadog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "datadog", name: "Datadog", slug: "datadog",
                                               settings: { "server_url" => "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp" })

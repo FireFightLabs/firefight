@@ -163,7 +163,7 @@ module Integrations
         assert_match "app/pool.rb:1-3 (of 3 lines) at the main branch, commit #{HEAD[0, 12]}", text
         assert_match "   2  b", text
         assert text.end_with?("https://bitbucket.org/acme/web/commits/#{HEAD}"), "a file has no page in Bitbucket's API, so it links the commit it was read at"
-        assert_raises(NativePack::Error) { call(:fetch_file, "repo" => "acme/web", "path" => ".env") }
+        assert_raises(PolicyRefusal) { call(:fetch_file, "repo" => "acme/web", "path" => ".env") }
       end
 
       test "blame runs git in the sandbox, since Bitbucket's API has none, and names the pull request" do

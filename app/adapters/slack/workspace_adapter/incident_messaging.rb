@@ -422,10 +422,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   STEP_STATUSES = { running: "in_progress", done: "complete" }.freeze
-  # A finished step that failed is an error, and one whose provider found nothing is complete, an answer to the check.
-  # Either says how it went in a word under its title.
+  # A finished step that failed is an error, and one whose provider found nothing, or that one of Firefight's own rules
+  # refused, is complete, an answer rather than a breakage. Each says how it went in a word under its title.
   STEP_ERROR = "error".freeze
-  STEP_OUTCOME_WORDS = { Chat::StepOutcome::KIND_FAILED => "Failed", Chat::StepOutcome::KIND_NOT_FOUND => "Not found" }.freeze
+  STEP_OUTCOME_WORDS = {
+    Chat::StepOutcome::KIND_FAILED => "Failed", Chat::StepOutcome::KIND_NOT_FOUND => "Not found", Chat::StepOutcome::KIND_REFUSED => "Refused"
+  }.freeze
 
   # A bot posts to any public channel, but not to a private one it is not in. Posting to a person opens their DM with it.
   def post_investigation_started(channel_id:, incident:, started_by:, question: nil, fallback_user_id: nil)

@@ -31,6 +31,25 @@ class FirefightAi::EvidenceTest < ActiveSupport::TestCase
     assert_equal 1, framed.scan(%r{</\s*tool_result\s*>}i).size
   end
 
+  # Seen in a real chat, Halon blamed GitHub for a path Firefight's own setting keeps out of a change, and went looking
+  # for another way to make it.
+  test "a refusal by one of Firefight's own rules hands over its reason framed, then a line saying it is Firefight's and final" do
+    reason = "Halon may not change .github/workflows/ci.yml in acme/api. An admin can change this under Integrations, GitHub, Code changes."
+
+    refused = FirefightAi::Evidence.refused("github_fix_code", reason, step: 3)
+
+    assert_equal "#{FirefightAi::Evidence.frame('github_fix_code', reason, step: 3)}\n#{FirefightAi::Evidence::REFUSED_BY_RULE}", refused
+    assert_no_match(/failed/, refused)
+  end
+
+  test "the instructions say a refusal by Firefight's own rule is final and never worked around" do
+    rule = FirefightAi::Evidence::REFUSAL_RULE
+
+    assert_includes rule, FirefightAi::Evidence::REFUSED_BY_RULE
+    assert_match(/never try to do what it refused another way/, rule)
+    assert_includes FirefightAi::Investigator.system_prompt, rule
+  end
+
   test "a file a person attached is framed as untrusted under its own name" do
     framed = FirefightAi::Evidence.frame_file("deploy.log", "10:02 deploy started")
 

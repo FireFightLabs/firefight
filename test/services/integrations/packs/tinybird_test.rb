@@ -150,7 +150,7 @@ module Integrations
         )
 
         assert_match "1 rows. Tinybird read 1200 rows, 9600 bytes, in 0.002 s.\nn: 1200", call(:run_query, "sql" => "SELECT count() AS n FROM events;")
-        assert_raises(NativePack::Error) { call(:run_query, "sql" => "INSERT INTO events VALUES (1)") }
+        assert_raises(PolicyRefusal) { call(:run_query, "sql" => "INSERT INTO events VALUES (1)") }
         assert_raises(NativePack::Error) { call(:run_query, "sql" => "SELECT 1 FORMAT CSV") }
       end
 

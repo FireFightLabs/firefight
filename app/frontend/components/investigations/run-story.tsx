@@ -68,7 +68,7 @@ function stepTone(step: InvestigationStep): Tone {
   if (step.outcome?.kind === STEP_OUTCOME_KINDS.FAILED) {
     return "error"
   }
-  if (step.outcome?.kind === STEP_OUTCOME_KINDS.NOT_FOUND) {
+  if (step.outcome?.kind === STEP_OUTCOME_KINDS.NOT_FOUND || step.outcome?.kind === STEP_OUTCOME_KINDS.REFUSED) {
     return "neutral"
   }
   return isKeyOf(STEP_TONES, step.status) ? STEP_TONES[step.status] : "neutral"

@@ -186,8 +186,8 @@ module Integrations
           pull = number ? GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token) : nil
           if pull
             name = "PR ##{pull['number']} in #{repo}"
-            fail! "#{name} is #{pull['merged_at'] ? 'merged' : 'closed'}, so nothing is added to it." unless pull["state"] == "open"
-            fail! "#{name} comes from #{pull.dig('head', 'repo', 'full_name') || 'a fork that is gone'}, and Firefight adds only to a branch in #{repo} itself." unless pull.dig("head", "repo", "full_name") == repo
+            fail_policy! "#{name} is #{pull['merged_at'] ? 'merged' : 'closed'}, so nothing is added to it." unless pull["state"] == "open"
+            fail_policy! "#{name} comes from #{pull.dig('head', 'repo', 'full_name') || 'a fork that is gone'}, and Firefight adds only to a branch in #{repo} itself." unless pull.dig("head", "repo", "full_name") == repo
             fail! "#{name} comes from #{pull.dig('head', 'ref')}, not #{branch}." if branch && branch != pull.dig("head", "ref")
 
             branch = pull.dig("head", "ref")
@@ -204,11 +204,11 @@ module Integrations
         end
 
         def pushable!(repo, branch, token)
-          fail! "#{branch} is the default branch of #{repo}, and a code change reaches it only through a pull request." if branch == default_branch(repo, token)
-          fail! "#{branch} in #{repo} is protected, so Firefight does not push to it." if GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token)["protected"]
+          fail_policy! "#{branch} is the default branch of #{repo}, and a code change reaches it only through a pull request." if branch == default_branch(repo, token)
+          fail_policy! "#{branch} in #{repo} is protected, so Firefight does not push to it." if GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token)["protected"]
 
           rules = Array(GithubApp.get("/repos/#{repo}/rules/branches/#{Http.segment(branch)}?per_page=100", token: token))
-          fail! "A ruleset in #{repo} keeps pushes off #{branch}, so Firefight does not push to it." if rules.any? { |rule| Branches::PUSH_RULES.include?(rule["type"]) }
+          fail_policy! "A ruleset in #{repo} keeps pushes off #{branch}, so Firefight does not push to it." if rules.any? { |rule| Branches::PUSH_RULES.include?(rule["type"]) }
         end
 
         def comment_on_change(repo, pull, sha, summary, change, warning, reviewed, token)
@@ -276,7 +276,7 @@ module Integrations
           fail! "The coding agent stopped with an error, so its change is not opened.\n#{change.log}" unless change.agent_exit.zero?
 
           refusal = ConnectionSettings.of(environment_row).protected_paths_refusal(repo, change.files.keys)
-          fail! refusal if refusal
+          fail_policy! refusal if refusal
 
           @work.checked!(change.checks)
           change

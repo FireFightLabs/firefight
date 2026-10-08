@@ -10,7 +10,7 @@ import DetailList, { type Detail } from "@/components/agent-ui/detail-list";
  * The trace runs while the agent works, settles, and remains expandable.
  * ───────────────────────────────────────────────────────── */
 
-export type ThinkingRowStatus = "running" | "done" | "failed" | "not_found" | "waiting" | "cancelled";
+export type ThinkingRowStatus = "running" | "done" | "failed" | "not_found" | "refused" | "waiting" | "cancelled";
 
 export type ThinkingRow = {
   /** what tells two rows with the same words apart */
@@ -38,6 +38,7 @@ function RowMark({ status }: { status: ThinkingRowStatus }) {
     done: { path: <path d="M20 6L9 17l-5-5" />, stroke: "var(--ink-3)" },
     failed: { path: <path d="M18 6L6 18M6 6l12 12" />, stroke: "var(--red)" },
     not_found: { path: <path d="M6 12h12" />, stroke: "var(--ink-3)" },
+    refused: { path: <><circle cx="12" cy="12" r="8" /><path d="M8.5 12h7" /></>, stroke: "var(--ink-3)" },
     waiting: { path: <path d="M9 6v12M15 6v12" />, stroke: "var(--orange)" },
     cancelled: { path: <><circle cx="12" cy="12" r="8" /><path d="M6.5 17.5l11-11" /></>, stroke: "var(--ink-3)" },
   };
@@ -50,7 +51,7 @@ function RowMark({ status }: { status: ThinkingRowStatus }) {
 }
 
 const STATUS_WORDS: Record<ThinkingRowStatus, string> = {
-  running: "Running", done: "Done", failed: "Failed", not_found: "Not found", waiting: "Waiting for you", cancelled: "Cancelled",
+  running: "Running", done: "Done", failed: "Failed", not_found: "Not found", refused: "Refused", waiting: "Waiting for you", cancelled: "Cancelled",
 };
 
 export default function ThinkingState({
