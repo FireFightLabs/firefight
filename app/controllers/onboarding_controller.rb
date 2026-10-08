@@ -54,15 +54,11 @@ class OnboardingController < InertiaController
   end
 
   # Set in the auth callback on first install, or when a workspace is created, and consumed here, so the founder's
-  # letter renders exactly once. A workspace created from a Slack sign-in goes on to connect that team.
+  # letter renders exactly once. It leads on to setup, where connecting Slack is one of the steps.
   def welcome
     return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
 
-    render inertia: "onboarding/welcome", props: {
-      userName: current_user.name,
-      workspaceName: current_workspace.name,
-      connectSlack: connecting_workspace == current_workspace && session[:pending_team_id].present?
-    }
+    render inertia: "onboarding/welcome", props: { userName: current_user.name }
   end
 
   private
