@@ -553,3 +553,5 @@ github:
     security/secret-scanning-alerts.md: code-security/concepts/secret-security/about-alerts
     issues/closing-an-issue.md: issues/tracking-your-work-with-issues/administering-issues/closing-an-issue
     releases/managing-releases.md: repositories/releasing-projects-on-github/managing-releases-in-a-repository
+    actions/secrets.md: actions/concepts/security/secrets
+    actions/use-secrets.md: actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
