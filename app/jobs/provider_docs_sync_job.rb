@@ -1,43 +1,44 @@
 # Reads every provider documentation source into the docs store once a day, then embeds the chunks whose words changed.
 # A source that fails keeps the copy it had and the rest carry on. unread_only reads only the sources never read yet,
-# which a fresh install asks for when its job runner starts, so the store fills in the background on first boot.
+# which a fresh install asks for when its job runner starts, so the store fills in the background on first boot. source
+# reads that one source alone, and progress says what the run is doing as it goes (bin/rails provider_docs:sync).
 class ProviderDocsSyncJob < ApplicationJob
   queue_as :background
   limits_concurrency key: "provider_docs_sync", duration: 6.hours
 
-  def perform(unread_only = false)
+  def perform(unread_only = false, source: nil, progress: ProviderDocs::Progress.new)
     keys = unread_only ? ProviderDocSource.unread_keys : nil
     return if keys&.empty?
 
-    client = DocsClient.new
-    ProviderDocSource::Definition.all.each do |definition|
-      next if keys && !keys.include?(definition.key)
+    definitions = ProviderDocSource::Definition.all.select { |definition| (keys.nil? || keys.include?(definition.key)) && (source.nil? || definition.key == source) }
+    return if definitions.empty?
 
-      read(definition, client)
-    end
-    embed
-    note_missing_guides
+    progress.started(definitions.map(&:key))
+    client = DocsClient.new
+    definitions.each { |definition| read(definition, client, progress) }
+    embed(progress)
+    note_missing_guides(progress)
+    progress.finished
   end
 
   private
 
-  def read(definition, client)
-    source = ProviderDocs::Sync.run!(definition, client: client)
-    Rails.logger.info({ event: "provider_docs.read", source: definition.key, pages: source.page_count, version: source.version, failed: source.error.present? }.to_json)
-  rescue DocsClient::Error, SystemCallError, JSON::ParserError, KeyError => error
-    Rails.logger.warn({ event: "provider_docs.unread", source: definition.key, error: error.message.truncate(300) }.to_json)
+  # Sync has already recorded and reported why a source could not be read.
+  def read(definition, client, progress)
+    ProviderDocs::Sync.run!(definition, client: client, progress: progress)
+  rescue DocsClient::Error, SystemCallError, JSON::ParserError, KeyError
+    nil
   end
 
-  def embed
-    written = ProviderDocs::Embedding.run!
-    Rails.logger.info({ event: "provider_docs.embedded", chunks: written }.to_json)
+  def embed(progress)
+    ProviderDocs::Embedding.run!(progress: progress)
   rescue FirefightAi::Error => error
-    Rails.logger.warn({ event: "provider_docs.unembedded", error: error.message.truncate(300) }.to_json)
+    progress.embedding_failed(error)
   end
 
   # A guide a skill lists that its provider's documentation no longer holds, so whoever runs Firefight sees it moved.
-  def note_missing_guides
+  def note_missing_guides(progress)
     missing = Chat::Skill.missing_references
-    Rails.logger.warn({ event: "provider_docs.missing_guides", guides: missing }.to_json) if missing.any?
+    progress.missing_guides(missing) if missing.any?
   end
 end

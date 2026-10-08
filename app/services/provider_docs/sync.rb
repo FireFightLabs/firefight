@@ -11,26 +11,31 @@ module ProviderDocs
     }.freeze
     FAILED_SHOWN = 5
 
-    def self.run!(definition, client: DocsClient.new) = new(definition, client: client).run!
+    def self.run!(definition, client: DocsClient.new, progress: Progress.new) = new(definition, client: client, progress: progress).run!
 
-    def initialize(definition, client:)
+    def initialize(definition, client:, progress:)
       @definition = definition
       @client = client
+      @progress = progress
     end
 
     def run!
+      @progress.source_started(@definition.key)
       source = ProviderDocSource.for(@definition)
       reading = reader(source).read
       now = Time.current
+      chunks = 0
       ProviderDocSource.transaction do
-        reading.pages.select(&:content).each { |fetched| write(source, fetched, now) }
+        reading.pages.select(&:content).each { |fetched| chunks += write(source, fetched, now) }
         source.pages.where.not(path: reading.listed).delete_all
         source.update!(version: reading.version, license: reading.license || source.license, page_count: source.pages.count,
                        fetched_at: now, checked_at: now, error: failures(reading.failed))
       end
+      @progress.source_finished(source, chunks: chunks)
       source
     rescue DocsClient::Error, SystemCallError, JSON::ParserError, KeyError => error
       source&.failed!(error.message)
+      @progress.source_failed(error)
       raise
     end
 
@@ -38,19 +43,20 @@ module ProviderDocs
 
     def reader(source)
       revisions = source.pages.pluck(:path, :revision).to_h
-      options = { client: @client, revisions: revisions }
+      options = { client: @client, revisions: revisions, progress: @progress }
       options[:version] = source.version if @definition.kind == ProviderDocSource::Definition::KIND_PACKAGE
       READERS.fetch(@definition.kind).new(@definition, **options)
     end
 
-    # A page another source of the same provider held before moves to this one, so a path is only ever one page.
+    # A page another source of the same provider held before moves to this one, so a path is only ever one page. Returns
+    # how many chunks it wrote, none when its words did not change.
     def write(source, fetched, now)
       page = ProviderDocPage.find_or_initialize_by(provider: source.provider, path: fetched.path)
       digest = ProviderDocPage.digest_for(fetched.content)
       changed = page.content_digest != digest
       page.update!(source: source, url: fetched.url, title: ProviderDocPage.title_for(fetched.content, fetched.path),
                    content: fetched.content, content_digest: digest, revision: fetched.revision, fetched_at: now)
-      page.rechunk! if changed
+      changed ? page.rechunk! : 0
     end
 
     def failures(failed)

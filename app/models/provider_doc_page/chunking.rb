@@ -19,7 +19,7 @@ module ProviderDocPage::Chunking
     sections.flat_map { |heading_path, text| split(text).map { |part| Piece.new(heading_path: heading_path, text: part) } }
   end
 
-  # Writes the page's chunks again, keeping the embedding of every one whose words are unchanged.
+  # Writes the page's chunks again, keeping the embedding of every one whose words are unchanged, and says how many.
   def rechunk!
     kept = chunks.where.not(embedding: nil).to_h { |chunk| [ chunk.content_digest, chunk ] }
     now = Time.current
@@ -35,6 +35,7 @@ module ProviderDocPage::Chunking
       chunks.delete_all
       ProviderDocChunk.insert_all!(rows) if rows.any?
     end
+    rows.size
   end
 
   private
