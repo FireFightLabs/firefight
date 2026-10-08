@@ -109,7 +109,6 @@ jobs:
             --data-urlencode "branch=main" \
             --data-urlencode "sha=${{ needs.tag.outputs.tagged_sha }}" \
             --data-urlencode "name=${{ needs.tag.outputs.tag }}" \
-            --output /dev/null \
             "$NORTHFLANK_RELEASE_WEBHOOK_URL"
 
   # Self-host image for GHCR, public repo only. Each platform builds on its own
