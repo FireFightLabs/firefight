@@ -84,6 +84,12 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # GitHub's runners have four cores, so the suite is split across machines that run at once. Files are dealt round
+    # robin by name, so a shard holds the same files on every run.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 0, 1, 2, 3 ]
 
     services:
       postgres:
@@ -113,7 +119,7 @@ jobs:
         with:
           bundler-cache: true
 
-      # The run includes the system tests, which render the real page.
+      # Controller tests render the page layout, which loads the built assets.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -124,7 +130,7 @@ jobs:
         run: npm ci
 
       # Built once up front. Otherwise each parallel worker that renders a page builds on its own, and one reads the
-      # manifest while another rewrites it, which fails random system tests with an empty page.
+      # manifest while another rewrites it, which fails random tests with an empty page.
       - name: Build assets
         env:
           RAILS_ENV: test
@@ -136,12 +142,17 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
         run: |
           bin/rails db:test:prepare
-          # With no path, Rails runs every test except test/system, which the system-test job runs.
-          bin/rails test
-          bin/rails test engines/firefight_ai/test
+          # test/system runs in the system-test job.
+          files=$(find test -name '*_test.rb' -not -path 'test/system/*' | sort | awk -v shard=${{ matrix.shard }} '(NR - 1) % 4 == shard')
+          bin/rails test $files
+          if [ "${{ matrix.shard }}" = "0" ]; then bin/rails test engines/firefight_ai/test; fi
 
   system-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ 0, 1, 2 ]
 
     services:
       postgres:
@@ -185,12 +196,15 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-        run: bin/rails db:test:prepare test:system
+        run: |
+          bin/rails db:test:prepare
+          files=$(find test/system -name '*_test.rb' | sort | awk -v shard=${{ matrix.shard }} '(NR - 1) % 3 == shard')
+          bin/rails test $files
 
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.shard }}
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
