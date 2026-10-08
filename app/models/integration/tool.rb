@@ -50,10 +50,19 @@ class Integration::Tool < ApplicationRecord
   def offered_schema
     schema = (params_schema.presence || { "type" => "object" }).deep_dup
     choices = integration.environment_choices
-    environment = { "type" => "string", "description" => "Environment slug, such as production. Omit when the connection has one environment." }
+    environment = { "type" => "string", "description" => environment_description }
     environment["enum"] = choices if choices.any?
     schema["properties"] = (schema["properties"] || {}).merge(ENVIRONMENT_ARG => environment).merge(Integrations::Scopes.argument(integration).to_h)
     schema
+  end
+
+  # Names only the environments this connection has, since an example it lacks is what a model then sends.
+  def environment_description
+    slugs = integration.environment_slugs
+    return "Leave this out. This connection has one environment." if slugs.empty?
+
+    named = "Environment slug, one of: #{slugs.join(', ')}."
+    integration.environment_choices.any? ? named : "#{named} Leave it out for the connection's default."
   end
 
   # Whether it is worth offering. Each call is still authorized on its own.

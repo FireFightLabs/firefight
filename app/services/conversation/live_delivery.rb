@@ -112,6 +112,12 @@ class Conversation::LiveDelivery
     broadcast(type: EVENT_WAITING)
   end
 
+  # The page reads its confirmations from the chat when the turn ends, so a withdrawn one is gone without a word.
+  def withdrawn!(_tool_calls) = nil
+
+  # Nothing of a lost turn's answer is kept here, so there is nothing to end.
+  def cut_off! = nil
+
   private
 
   def progress_pace = @progress_pace ||= Chat::CodeFixProgress::Pace.new(every: PROGRESS_EVERY)

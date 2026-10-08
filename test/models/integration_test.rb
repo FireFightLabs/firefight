@@ -63,6 +63,35 @@ class IntegrationTest < ActiveSupport::TestCase
     assert_equal global_row, global.resolve_environment(nil)
   end
 
+  # Seen in a real chat. Halon named production on a connection with one environment and was told only that it was unknown.
+  test "an unknown environment is refused naming the ones the connection has" do
+    @integration.integration_environments.create!(catalog_entry_id: nil)
+    assert_refused_with "Unknown environment 'staging'. This connection has one environment, so leave environment out.", "staging"
+
+    @integration.integration_environments.destroy_all
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id)
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id)
+    assert_refused_with "Unknown environment 'staging'. This connection has: production, development.", "staging"
+
+    @integration.integration_environments.create!(catalog_entry_id: nil)
+    assert_refused_with "Unknown environment 'staging'. This connection has: production, development, or leave environment out for its default.", "staging"
+  end
+
+  test "the environment argument names the connection's environments, never one it does not have" do
+    tool = @integration.tools.create!(name: "logs.query", enabled: true)
+    @integration.integration_environments.create!(catalog_entry_id: nil)
+    assert_equal "Leave this out. This connection has one environment.", environment_argument(tool)["description"]
+
+    @integration.integration_environments.destroy_all
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id)
+    @integration.integration_environments.create!(catalog_entry_id: catalog_entries(:development_env).id)
+    assert_equal "Environment slug, one of: production, development.", environment_argument(tool)["description"]
+    assert_equal %w[production development], environment_argument(tool)["enum"]
+
+    @integration.integration_environments.create!(catalog_entry_id: nil)
+    assert_equal "Environment slug, one of: production, development. Leave it out for the connection's default.", environment_argument(tool)["description"]
+  end
+
   test "no connection can be called all, since all asks every connection at once" do
     integration = workspaces(:slack_workspace_one).integrations.new(kind: Integration::KIND_MCP, provider: "custom", name: "All", slug: Integration::SLUG_ALL)
 
@@ -114,4 +143,13 @@ class IntegrationTest < ActiveSupport::TestCase
 
     assert integration.update(name: "All of it")
   end
+
+  private
+
+  def assert_refused_with(words, slug)
+    refusal = assert_raises(Integration::UnknownEnvironment) { @integration.reload.environment_entry_for(slug) }
+    assert_equal words, refusal.message
+  end
+
+  def environment_argument(tool) = tool.reload.offered_schema.dig("properties", Integration::Tool::ENVIRONMENT_ARG)
 end

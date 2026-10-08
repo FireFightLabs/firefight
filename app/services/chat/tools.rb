@@ -88,7 +88,8 @@ module Chat::Tools
 
   def self.intent_of(arguments) = arguments.to_h.stringify_keys[INTENT_ARG].to_s.strip.presence
   CONFIRMATION_STATUSES = {
-    Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled
+    Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled,
+    Chat::APPROVAL_WITHDRAWN => :withdrawn
   }.freeze
 
   # A run that only measures Halon reads memory and never changes it, so nothing it does reaches the Memory page.

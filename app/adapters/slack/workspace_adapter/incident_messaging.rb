@@ -513,6 +513,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
+  # The stream was never stopped, so it is stopped now with the ending as its last words.
+  def end_interrupted_answer(channel_id:, message_id:, shown:, ending:)
+    translate_errors do
+      if shown
+        Slack::Client.stop_stream(workspace: @workspace, channel: channel_id, ts: message_id, markdown_text: "\n\n#{ending}")
+      else
+        Slack::Client.delete_message(workspace: @workspace, channel: channel_id, ts: message_id)
+      end
+      { success: true }
+    end
+  end
+
   def ask_agent_confirmation(channel_id:, thread_id:, answer_id:, conversation_id:, confirmations:)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
