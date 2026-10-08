@@ -119,6 +119,14 @@ class Conversation < ApplicationRecord
 
   def confirmation_posted!(message_id) = update_in_place!(confirmation_message_id: message_id)
 
+  # The answer a turn is writing in its thread, kept until it is finished there, so a lost turn's answer can be ended
+  # where it stopped.
+  def answer_started!(message_id) = update_in_place!(answer_message_id: message_id, answer_shown: false)
+
+  def answer_shown! = update_in_place!(answer_shown: true)
+
+  def answer_finished! = update_in_place!(answer_message_id: nil, answer_shown: false)
+
   # A turn whose job died is run again at most once. One statement on the turn as it was read, so two sweeps cannot both
   # run it, and a turn started since is not touched. The mark goes once the turn ends.
   def rerun_lost_reply!(owed)

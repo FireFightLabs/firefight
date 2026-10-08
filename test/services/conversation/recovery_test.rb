@@ -75,10 +75,11 @@ class Conversation::RecoveryTest < ActiveSupport::TestCase
     assert_equal Chat::UnfinishedCalls::INTERRUPTED, @conversation.chat.tool_calls.sole.result.content
   end
 
-  test "a turn whose job is gone without failing is ended" do
+  test "a turn whose job is gone without failing is ended, and the empty reply it left on the page is removed" do
     Conversation::Recovery.sweep!(jobs: FakeJobs.new)
 
     assert_ended
+    assert_not Chat::Message.exists?(@asking.id)
   end
 
   test "a lost reply in a Slack thread is ended there, so no spinner is left" do
@@ -99,6 +100,27 @@ class Conversation::RecoveryTest < ActiveSupport::TestCase
     assert_not thread.reload.answer_owed?
   end
 
+  test "the answer a lost turn was writing in its thread is ended where it stopped, so it never reads as finished" do
+    thread = lost_thread_turn(shown: true)
+    Slack::Client.expects(:stop_stream).with do |arguments|
+      arguments[:ts] == "1700000000.000300" && arguments[:markdown_text] == "\n\n#{Conversation::Delivery::INTERRUPTED_HERE}"
+    end.returns({ ok: true, ts: "1700000000.000300" })
+
+    Conversation::Recovery.sweep!(jobs: FakeJobs.new)
+
+    assert_nil thread.reload.answer_message_id
+  end
+
+  test "an answer a lost turn opened in its thread without showing anything is removed" do
+    thread = lost_thread_turn(shown: false)
+    Slack::Client.expects(:delete_message).with(has_entries(ts: "1700000000.000300")).returns({ ok: true })
+    Slack::Client.expects(:stop_stream).never
+
+    Conversation::Recovery.sweep!(jobs: FakeJobs.new)
+
+    assert_nil thread.reload.answer_message_id
+  end
+
   test "a question asked a moment ago, or one the page stopped waiting on, is left alone" do
     @conversation.update!(answer_owed_since: 10.seconds.ago)
     Conversation::Recovery.sweep!(jobs: FakeJobs.new)
@@ -110,6 +132,19 @@ class Conversation::RecoveryTest < ActiveSupport::TestCase
   end
 
   private
+
+  def lost_thread_turn(shown:)
+    thread = @workspace.conversations.create!(
+      kind: Conversation::KIND_CHANNEL, channel_id: "C_INCIDENT", thread_id: "1700000000.000100",
+      started_by: @member, max_turns: 10, max_spend_cents: 40
+    )
+    thread.ask!("What changed today?")
+    thread.update!(answer_owed_since: 5.minutes.ago, answer_message_id: "1700000000.000300", answer_shown: shown)
+    @conversation.reply_delivered!
+    Slack::Client.stubs(:set_agent_session_status).returns({ ok: true })
+    Slack::Client.stubs(:post_message).returns({ ok: true, ts: "1700000000.000400" })
+    thread
+  end
 
   def call!(name)
     @asking.ruby_llm_tool_calls.create!(tool_call_id: "call_#{name}", name: name, arguments: {})

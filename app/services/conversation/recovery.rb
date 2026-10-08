@@ -24,9 +24,12 @@ class Conversation::Recovery
     if failed && conversation.reply_recovered_at.nil? && !changed_anything?(conversation, owed)
       jobs.retry!(failed) if conversation.rerun_lost_reply!(owed)
     elsif conversation.end_lost_reply!(owed)
+      conversation.chat&.discard_interrupted_reply!(before: checked_at)
       conversation.chat&.close_unfinished_calls!(before: checked_at)
       conversation.note!(INTERRUPTED)
-      Conversation::Delivery.for(conversation).failed!(INTERRUPTED)
+      delivery = Conversation::Delivery.for(conversation)
+      delivery.cut_off!
+      delivery.failed!(INTERRUPTED)
     end
   end
 

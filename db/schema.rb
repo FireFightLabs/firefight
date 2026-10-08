@@ -640,7 +640,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_120000) do
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "answer_message_id"
     t.datetime "answer_owed_since"
+    t.boolean "answer_shown", default: false, null: false
     t.datetime "archived_at"
     t.string "channel_id"
     t.string "confirmation_message_id"

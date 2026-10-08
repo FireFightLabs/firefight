@@ -216,10 +216,12 @@ class Chat < ApplicationRecord
     chat
   end
 
-  # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call this.
-  def discard_interrupted_reply!
+  # A killed worker leaves an empty reply that RubyLLM reads as the final answer. Only the job holding the run may call
+  # this, or a sweep that ended the turn, which passes when it looked so a reply begun since is kept.
+  def discard_interrupted_reply!(before: nil)
     last_message = sent_messages.reload.last
     return unless last_message&.interrupted_reply?
+    return if before && last_message.created_at >= before
 
     last_message.destroy!
     sent_messages.reset

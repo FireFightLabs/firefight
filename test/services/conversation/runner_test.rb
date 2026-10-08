@@ -449,6 +449,17 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_empty personal.chat.awaiting_decision
   end
 
+  test "a turn keeps the answer it is writing in the thread until it is finished there" do
+    seen = []
+    fake(reply: "A deploy at 14:02", pieces: [ "A deploy at 14:02 raised the pool size. " * 10 ], during: ->(_arguments) { seen << @conversation.reload.slice(:answer_message_id, :answer_shown) })
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1234567890.000100" })
+
+    ask(@conversation, "what changed")
+
+    assert_equal [ { "answer_message_id" => "1234567890.000100", "answer_shown" => true } ], seen
+    assert_nil @conversation.reload.answer_message_id
+  end
+
   test "a confirmation in a thread is kept where it was posted, and redrawn as withdrawn once the person moves past it" do
     pause = lambda do |_arguments|
       asking = @conversation.chat.add_message(role: :assistant, content: "")
