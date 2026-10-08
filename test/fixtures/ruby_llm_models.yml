@@ -54,3 +54,20 @@ text_embedding_3_small:
   name: Text Embedding 3 Small
   provider: openai
   capabilities: ["embeddings"]
+
+# What code fixes run on where an Anthropic or OpenRouter key reaches it, priced so a fix's budget can be counted.
+claude_opus_5_5:
+  model_id: claude-opus-5-5
+  context_window: 1000000
+  name: Claude Opus 5.5
+  provider: anthropic
+  capabilities: ["function_calling", "reasoning"]
+  pricing: {"text_tokens": {"standard": {"input_per_million": 4, "output_per_million": 20}}}
+
+openrouter_claude_opus_5_5:
+  model_id: anthropic/claude-opus-5.5
+  context_window: 1000000
+  name: "Anthropic: Claude Opus 5.5"
+  provider: openrouter
+  capabilities: ["function_calling", "reasoning"]
+  pricing: {"text_tokens": {"standard": {"input_per_million": 4, "output_per_million": 20}}}

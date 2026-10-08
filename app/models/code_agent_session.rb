@@ -16,16 +16,24 @@ class CodeAgentSession < ApplicationRecord
   belongs_to :workspace
   # The workspace's own AI account that pays for this change, when one does.
   belongs_to :workspace_ai_account, optional: true
+  # Whoever asked for the change. The agent reads connected systems as them and asks them its questions.
+  belongs_to :principal, polymorphic: true, optional: true
+  # Where the change was asked for, a chat or a fix's step, where its questions are shown.
+  belongs_to :place, polymorphic: true, optional: true
+  has_many :questions, -> { order(:created_at, :id) }, class_name: "CodeAgentQuestion", dependent: :delete_all, inverse_of: :session
 
   scope :live, -> { where(closed_at: nil).where("expires_at > ?", Time.current) }
 
   # The session and the token the box sends, which is shown once and kept only as a digest.
-  def self.open!(workspace:, choice:, repository:, budget_micros: DEFAULT_BUDGET_MICROS)
+  # request is the CodeAgent::Request the change was asked with, nil for a change nobody asked for in person.
+  # box_key names the box the run reads code in, which the agent's reads share.
+  def self.open!(workspace:, choice:, repository:, request: nil, box_key: nil, budget_micros: DEFAULT_BUDGET_MICROS)
     token = SecureRandom.urlsafe_base64(TOKEN_BYTES)
     payer = choice.payer || AiPayer.deployment(workspace)
     session = create!(workspace: workspace, provider: choice.provider_name, model: choice.model, repository: repository,
                       budget_micros: budget_micros, expires_at: LIFETIME.from_now, token_digest: digest(token),
-                      paid_by: payer.paid_by, workspace_ai_account: payer.account)
+                      paid_by: payer.paid_by, workspace_ai_account: payer.account, principal: request&.principal,
+                      place: request&.place, tool_call_id: request&.tool_call_id, box_key: box_key || request&.box_key)
     [ session, token ]
   end
 
@@ -87,6 +95,31 @@ class CodeAgentSession < ApplicationRecord
     self.class.where(id: id).where("web_lookups < ?", MAX_WEB_LOOKUPS)
         .update_all([ "web_lookups = web_lookups + 1, updated_at = ?", Time.current ]) == 1
   end
+
+  # What the agent reads of connected systems for one change. More is something else spending the asker's reach.
+  MAX_TOOL_CALLS = 80
+  TOO_MANY_TOOL_CALLS = "This code change has used its #{MAX_TOOL_CALLS} tool calls.".freeze
+
+  # Claimed in SQL, so calls at once cannot all slip past the cap. False when it is spent.
+  def count_tool_call!
+    self.class.where(id: id).where("tool_calls < ?", MAX_TOOL_CALLS)
+        .update_all([ "tool_calls = tool_calls + 1, updated_at = ?", Time.current ]) == 1
+  end
+
+  # What the change's tool calls are logged as in Activity.
+  def triggered_by_label = "Coding agent for #{repository}"
+
+  # A second pass of the same change, sent back after its review, runs on the same token and budget.
+  def extend!(by = LIFETIME)
+    self.class.where(id: id, closed_at: nil).update_all(expires_at: by.from_now, updated_at: Time.current) == 1
+  end
+
+  def time_left = [ expires_at - Time.current, 0 ].max
+
+  def open_question = questions.find_by(status: CodeAgentQuestion::STATUS_OPEN)
+
+  # A question nobody answered in time ends the change, whatever the agent did after.
+  def unanswered_question = questions.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)
 
   def close!
     self.class.where(id: id, closed_at: nil).update_all(closed_at: Time.current, updated_at: Time.current)

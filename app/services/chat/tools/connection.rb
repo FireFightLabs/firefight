@@ -111,7 +111,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
-                                         progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id))
+                                         progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id), request: code_request(tool_call_id))
       result = present.call(result) if present
       @last_result = result
       next text_of(result) unless result["isError"] == true
@@ -174,6 +174,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
     integration.target_label(integration.resolve_environment(environment_entry&.id))
   rescue Integration::UnknownEnvironment
     integration.target_label
+  end
+
+  # A code change is written for whoever the run acts for, with what they said and what was read before it.
+  def code_request(tool_call_id)
+    return unless @tool.writes_code? && @agent_run.respond_to?(:code_agent_request)
+
+    @agent_run.code_agent_request(tool_call_id, evidence: CodeAgent::ChatEvidence.for(@agent_run.chat, @agent_run.workspace, before: tool_call_id))
   end
 
   # A chart is for the person, so it is kept with the chat and never handed to the model.

@@ -39,11 +39,14 @@ class Investigation::CodeFixStepTest < ActiveSupport::TestCase
     assert_not_equal @github_row, other_row
   end
 
-  test "applying the fix asks the coding tool for the change, as the person, with the finding as its brief" do
+  test "applying the fix asks the coding tool for the change, as the person, with the finding as its brief and the results it cites" do
+    @plan.finding.investigation.steps.find_by!(position: 1).update!(compacted_result: "abc123 added the WAF rule")
     Integrations::McpExecutor.stubs(:call).returns("content" => [])
-    Integrations::NativeExecutor.expects(:call).with do |tool:, arguments:, **|
+    Integrations::NativeExecutor.expects(:call).with do |tool:, arguments:, request:, **|
       tool == @fix_code && arguments["repo"] == "acme/infra" && arguments["title"] == "Drop the rule from dns.tf" &&
-        arguments["brief"].include?("Why: A WAF rule blocked checkout") && arguments["brief"].include?("- The rule was added at 14:02")
+        arguments["brief"].include?("Why: A WAF rule blocked checkout") && arguments["brief"].include?("- The rule was added at 14:02") &&
+        request.principal == @alice && request.place == @plan.steps.third && request.evidence.map(&:text) == [ "abc123 added the WAF rule" ] &&
+        request.evidence.map(&:label) == [ "Commit lookup" ]
     end.returns("content" => [ { "type" => "text", "text" => "Opened https://github.com/acme/infra/pull/9 on acme/infra against main." } ])
 
     perform_enqueued_jobs(only: InvestigationFixJob, at: Time.current) { Investigation::FixRunner.apply!(@plan, by: @alice, from: AbilityGateway::SOURCE_WEB) }

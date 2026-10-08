@@ -184,7 +184,7 @@ module Integrations
       # Firefight cannot refuse what the agent pushes, so the paths the workspace keeps out of code changes are asked of it here.
       def handoff(repo, base, brief, summary, context, kept)
         [
-          "Fix this in the repository #{repo}#{", starting from #{base}" if base}.", brief, context.presence,
+          "Fix this in the repository #{repo}#{", starting from #{base}" if base}.", brief, context.presence, request&.asked_section, request&.evidence_section,
           "Make the smallest change that fixes it, in the repository's own style. Add or update a test when the repository " \
           "has tests for this code, and run them. Change nothing the fix does not need.",
           ("Leave #{kept.to_sentence} unchanged, since this workspace keeps those paths out of code changes. If the fix " \

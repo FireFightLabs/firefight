@@ -682,6 +682,19 @@ export const CODE_FIX_OUTCOMES = {
   "FAILED": "failed"
 } as const
 
+export const CODE_AGENT_QUESTION_STATUSES = {
+  "OPEN": "open",
+  "ANSWERED": "answered",
+  "EXPIRED": "expired",
+  "WITHDRAWN": "withdrawn"
+} as const
+
+export const CODE_CHECK_STATUSES = {
+  "PASSED": "passed",
+  "FAILED": "failed",
+  "TIMED_OUT": "timed out"
+} as const
+
 export const AGENT_STEP_KINDS = {
   "READ": "read",
   "ACT": "act",

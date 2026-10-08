@@ -21,7 +21,7 @@ module AiProviders
 
   Field = Data.define(:key, :option, :label, :secret, :required)
 
-  Provider = Data.define(:slug, :name, :main_model, :fast_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
+  Provider = Data.define(:slug, :name, :main_model, :fast_model, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
     def field(key) = fields.find { |field| field.key == key.to_s }
 
     def secret_fields = fields.select(&:secret)
@@ -29,6 +29,10 @@ module AiProviders
     def options = fields.map(&:option)
 
     def recommended(role) = role.to_s == WorkspaceAiAccount::FAST ? fast_model : main_model
+
+    # The model this provider recommends for code fixes, while the registry holds it for this provider with a price, so
+    # a code fix's budget can be counted. Nil otherwise, and a code fix runs on the next best model.
+    def code_fix_model_ready = (code_fix_model if code_fix_model && FirefightAi.priced_for?(code_fix_model, slug))
 
     # RubyLLM's own check on a configuration built from this provider's settings, for what the requirements alone do not
     # say, such as Azure taking a key or a token.
@@ -87,6 +91,17 @@ module AiProviders
 
   def self.local_slugs = RubyLLM::Provider.local_providers.keys.map(&:to_s)
 
+  # The model the deployment's own keys write code fixes with when nothing names one: the first provider in the
+  # registry's order that recommends one for code, holds a key here and can price it. Nil leaves code fixes on the
+  # investigation's model, as before.
+  def self.deployment_code_fix_choice(config = RubyLLM.config)
+    all.each do |provider|
+      model = provider.code_fix_model_ready
+      return FirefightAi::ModelChoice.new(model: model, provider: provider.slug) if model && provider.configured?(config)
+    end
+    nil
+  end
+
   # The ChatGPT sign in seam, when the flag is on and every address it needs is set. Nil otherwise.
   def self.sign_in_for(workspace)
     return nil unless FeatureFlags.enabled?(workspace, FeatureFlags::CHATGPT_SIGN_IN)
@@ -105,7 +120,7 @@ module AiProviders
       Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
     end
     Provider.new(
-      slug: slug, name: entry.fetch("name"), main_model: entry["main"], fast_model: entry["fast"], fields: fields.freeze,
+      slug: slug, name: entry.fetch("name"), main_model: entry["main"], fast_model: entry["fast"], code_fix_model: entry["code_fix"], fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
       assumes_models: klass.assume_models_exist?
     )

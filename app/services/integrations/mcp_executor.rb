@@ -2,8 +2,8 @@ module Integrations
   # The gateway has already said yes before call is reached. This only executes.
   class McpExecutor
     # A remote server keeps its own state, so the run's box key means nothing to it, and it says nothing until it
-    # answers, so nobody hears progress from it.
-    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil)
+    # answers, so nobody hears progress from it. Nor does it write code in Firefight's sandbox, so it takes no request.
+    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
       result = client_for(tool.integration, environment_row)
                .call_tool(name: tool.remote_name, arguments: arguments)
       kept = Redactions.apply(ToolResult.normalize(result), fields: Provider.for(tool.integration.provider).redacted_fields)

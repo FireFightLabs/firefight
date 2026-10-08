@@ -1,22 +1,26 @@
-import { IconCheck, IconExternalLink, IconX } from "@tabler/icons-react"
+import { IconAlertTriangle, IconCheck, IconExternalLink, IconX } from "@tabler/icons-react"
 import { useState } from "react"
 
+import { CodeAgentQuestion } from "@/components/code-agent-question"
 import { useElapsed } from "@/hooks/use-elapsed"
 import {
-  type CodeFixLine, type CodeFixWork, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests, passedLine,
-  shownLines, stepsWord, stopped, wroteChange,
+  type CodeFixLine, type CodeFixReview, type CodeFixWork, checkPassed, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests,
+  passedLine, questionOpen, shownLines, stepsWord, stopped, wroteChange,
 } from "@/lib/code-fix-work"
 
 interface CodeFixWorkProps {
   work: CodeFixWork
   // The step is still running, so the newest line is where the agent is and the clock counts.
   running: boolean
+  // Why whoever is looking cannot answer the agent's question, from the server, or null when they can.
+  questionBlockedReason?: string | null
 }
 
 // What a coding agent writing a change is doing, under the step that runs it. While it works, its newest steps with the
-// earlier ones a click away, how long it has been and the files it changed so far. Once it wrote the change, what
-// it changed, the tests it ran and the link. When it stopped, its last steps and why.
-export function CodeFixWorkView({ work, running }: CodeFixWorkProps) {
+// earlier ones a click away, how long it has been, the files it changed so far and any question it asked. Once it wrote
+// the change, what it changed, the tests and checks that ran, what Halon's review found and the link. When it stopped,
+// its last steps and why.
+export function CodeFixWorkView({ work, running, questionBlockedReason = null }: CodeFixWorkProps) {
   const elapsed = useElapsed(work.startedAt, work.finishedAt, running)
   const [ allLines, setAllLines ] = useState(false)
 
@@ -27,8 +31,11 @@ export function CodeFixWorkView({ work, running }: CodeFixWorkProps) {
   if (wroteChange(work)) {
     return (
       <div className="flex min-w-0 flex-col gap-2 text-[12px] leading-5">
+        {work.review && <Review review={work.review} />}
         <ChangedFiles work={work} />
         <Tests work={work} />
+        <Checks work={work} />
+        {work.question && <CodeAgentQuestion question={work.question} />}
         {work.pullRequest && (
           <a
             href={work.pullRequest}
@@ -56,6 +63,7 @@ export function CodeFixWorkView({ work, running }: CodeFixWorkProps) {
   const earlier = earlierCount(work, allLines)
   const kept = work.lines.length
   const working = running && !stopped(work)
+  const waiting = working && work.question !== null && questionOpen(work.question)
 
   return (
     <div className="flex min-w-0 flex-col gap-1.5 text-[12px] leading-5">
@@ -64,8 +72,10 @@ export function CodeFixWorkView({ work, running }: CodeFixWorkProps) {
           {earlierLabel(work, allLines, earlier)}
         </button>
       )}
-      <Lines lines={shownLines(work, allLines)} total={work.total} current={working && work.live} />
+      <Lines lines={shownLines(work, allLines)} total={work.total} current={working && work.live && !waiting} />
       {working && !work.live && <WaitingLine words={kept === 0 ? "Getting the repository ready" : "The coding agent is writing the change"} />}
+      {waiting && <WaitingLine words="Waiting for an answer" />}
+      {work.question && <CodeAgentQuestion question={work.question} blockedReason={running ? questionBlockedReason : null} />}
       {stopped(work) && work.reason && <p className="m-0 font-medium text-error [overflow-wrap:anywhere]">{work.reason}</p>}
       <span className="text-fg-muted">
         {working ? `${duration(elapsed)} so far` : `Ran for ${duration(elapsed)}`}
@@ -182,6 +192,65 @@ function Tests({ work }: { work: CodeFixWork }) {
               : <IconX aria-hidden className="mt-[3px] size-3.5 shrink-0 text-error" />}
             <code className="min-w-0 font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{test.command}</code>
             <span className={`shrink-0 font-medium ${test.passed ? "text-success" : "text-error"}`}>{test.passed ? "passed" : "failed"}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// What Halon's review made of the change before it opened, and what nobody could verify, which a reviewer checks first.
+function Review({ review }: { review: CodeFixReview }) {
+  if (!review.ran) {
+    return (
+      <span className="flex items-start gap-1.5 font-medium text-warning">
+        <IconAlertTriangle aria-hidden className="mt-[3px] size-3.5 shrink-0" />
+        {review.unverified[0]}
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="flex items-start gap-1.5 font-medium text-fg-primary">
+        <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
+        {review.sentBack ? "Halon's review sent it back once, and the corrected change does what was asked" : "Halon's review: it does what was asked"}
+      </span>
+      {review.findings.length > 0 && <Notes title="What the review found" notes={review.findings} />}
+      {review.unverified.length > 0 && <Notes title="Not verified, so check before merging" notes={review.unverified} warn />}
+    </div>
+  )
+}
+
+function Notes({ title, notes, warn = false }: { title: string; notes: string[]; warn?: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className={`font-medium ${warn ? "text-warning" : "text-fg-primary"}`}>{title}</span>
+      <ul className="m-0 flex list-disc flex-col gap-0.5 pl-4">
+        {notes.map((note) => (
+          <li key={note} className="text-fg-secondary [overflow-wrap:anywhere]">{note}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function Checks({ work }: { work: CodeFixWork }) {
+  if (work.checks.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className="font-medium text-fg-primary">Checks</span>
+      <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+        {work.checks.map((check) => (
+          <li key={check.name} className="flex min-w-0 items-start gap-2">
+            {checkPassed(check)
+              ? <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
+              : <IconX aria-hidden className="mt-[3px] size-3.5 shrink-0 text-error" />}
+            <code className="min-w-0 font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
+            <span className={`shrink-0 font-medium ${checkPassed(check) ? "text-success" : "text-error"}`}>{check.status}</span>
           </li>
         ))}
       </ul>
