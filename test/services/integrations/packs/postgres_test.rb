@@ -153,7 +153,7 @@ module Integrations
       end
 
       test "a database an operator allowed on the private network keeps the URL's own encryption setting" do
-        assert_nil Postgres::Connection.new("postgresql://reader:secret@127.0.0.1/app").parameters["sslmode"]
+        assert_nil Postgres::Connection.new("postgresql://reader:secret@#{database_host}/app").parameters["sslmode"]
       end
 
       test "a URL may not name files on Firefight's servers, except the system's own certificate authorities" do
