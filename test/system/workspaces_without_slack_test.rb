@@ -21,7 +21,7 @@ class WorkspacesWithoutSlackTest < ApplicationSystemTestCase
     click_on "Create workspace"
 
     assert_text "You're in"
-    click_on "Continue to Nova Labs"
+    click_on "Set up Firefight"
 
     # Setup comes next and has its own test. This one is about the dashboard after it, still without Slack.
     assert_text "Choose Halon's AI"
