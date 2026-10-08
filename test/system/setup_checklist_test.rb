@@ -20,9 +20,11 @@ class SetupChecklistTest < ApplicationSystemTestCase
     fill_in "Workspace name", with: "Nova Labs"
     click_on "Create workspace"
 
-    assert_text "You're in"
+    assert_text "You're in, Nova."
+    assert_text "And now there's Halon"
+    assert_no_text "Incident management where your team"
     screenshot("letter")
-    click_on "Continue to Nova Labs"
+    click_on "Set up Firefight"
 
     assert_text "Choose Halon's AI"
     assert_text "1 of 7 done"

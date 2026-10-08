@@ -69,8 +69,8 @@ module Integrations
                       "title" => { "type" => "string", "description" => "The pull request's title, or the commit's message when it adds to one" },
                       "summary" => { "type" => "string", "description" => "What the change does and why, for the pull request's readers (optional, the title)" },
                       "base" => { "type" => "string", "description" => "The branch to open it against (optional, the default branch)" },
-                      "pull_request" => { "type" => "integer", "description" => "An open pull request in the same repository whose branch the change is added to, instead of opening one (optional)" },
-                      "branch" => { "type" => "string", "description" => "A branch in the same repository the change is added to, instead of opening a pull request (optional)" },
+                      "pull_request" => { "type" => "integer", "description" => "An open pull request in the same repository whose branch the change is added to, instead of opening one. Leave out to open a new pull request" },
+                      "branch" => { "type" => "string", "description" => "A branch in the same repository the change is added to, instead of opening a pull request. Leave out to open a new pull request" },
                       "context" => { "type" => "string", "description" => "What other changes in the same fix did, such as pull requests opened in other repositories (optional)" }
                     }, %w[repo brief title]),
                     read_only: false
@@ -88,7 +88,7 @@ module Integrations
           fail! "Firefight cannot price #{choice.model}, so a code fix cannot be given a budget with it." unless FirefightAi.priced?(choice.model)
 
           token = GithubApp.installation_token(environment_row)
-          return add_to_branch(environment_row, repo, title, brief, choice, arguments, token) if arguments["pull_request"].present? || arguments["branch"].present?
+          return add_to_branch(environment_row, repo, title, brief, choice, arguments, token) if adding_to_branch?(arguments)
 
           base = arguments["base"].presence || GithubApp.get("/repos/#{repo}", token: token)["default_branch"]
           @work = Chat::CodeFixProgress.start
@@ -135,8 +135,13 @@ module Integrations
 
         BranchTarget = Data.define(:branch, :sha, :pull)
 
+        # A model can fill every field it was offered, sending 0 and an empty branch for the ones it means to leave out.
+        def adding_to_branch?(arguments) = pull_request_given?(arguments) || arguments["branch"].present?
+
+        def pull_request_given?(arguments) = arguments["pull_request"].present? && arguments["pull_request"].to_s != "0"
+
         def branch_target(repo, arguments, token)
-          number = number_argument(arguments, "pull_request") if arguments["pull_request"].present?
+          number = number_argument(arguments, "pull_request") if pull_request_given?(arguments)
           branch = ref_argument(arguments, "branch")
           asked = number ? "pull request #{number}" : "branch #{branch}"
           pull = number ? GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token) : nil
@@ -155,7 +160,8 @@ module Integrations
           sha = pull&.dig("head", "sha") || GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token).dig("commit", "sha")
           BranchTarget.new(branch: branch, sha: sha, pull: pull)
         rescue GithubApp::NotFound
-          fail! Sentence.all("GitHub has no #{asked} in #{repo}, or no branch it names.", Asking::NOT_GIVEN)
+          fail! Sentence.all("GitHub has no #{asked} in #{repo}, or no branch it names.", "To open a new pull request, leave pull_request and branch out.",
+                             Asking::NOT_GIVEN)
         end
 
         def pushable!(repo, branch, token)
