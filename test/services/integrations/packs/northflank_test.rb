@@ -69,6 +69,16 @@ module Integrations
         end
       end
 
+      test "a credential in a body or a query is refused by Firefight's rule, never sent" do
+        NorthflankApi.any_instance.expects(:request).never
+
+        body = { "method" => "POST", "path" => "services/web/runtime-environment", "body" => { "DATABASE_URL" => "postgres://app:hunter2@db/prod" } }
+        query = { "method" => "GET", "path" => "services", "query" => { "cursor" => "ghp_#{'a' * 36}" } }
+
+        assert_match "Firefight never sends a credential", assert_raises(PolicyRefusal) { call(:api_request, body) }.message
+        assert_match "Firefight never sends a credential", assert_raises(PolicyRefusal) { call(:api_request, query) }.message
+      end
+
       test "a list is paged and filtered with the query options the API reference lists for the call, and its next page is said first" do
         page = { "data" => { "services" => [ { "id" => "web" } ] * 400 }, "pagination" => { "hasNextPage" => true, "cursor" => "next-1", "count" => 100 } }
         NorthflankApi.any_instance.expects(:request).with("GET", "firefight", "services", nil, { "per_page" => "100", "cursor" => "abc" }).returns(page)

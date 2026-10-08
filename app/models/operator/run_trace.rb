@@ -8,6 +8,8 @@ module Operator
       Ability::Invocation::DECISION_ALLOW => "allowed", Ability::Invocation::DECISION_DENY => "denied",
       Ability::Invocation::DECISION_PENDING => "waiting for approval"
     }.freeze
+    # A call that ran and did not do what it was asked, because it failed or one of Firefight's own rules refused it.
+    UNDONE = [ Ability::Invocation::OUTCOME_ERROR, Ability::Invocation::OUTCOME_REFUSED ].freeze
 
     attr_reader :run
 
@@ -94,8 +96,9 @@ module Operator
       run.steps.includes(:invocation).map do |step|
         invocation = step.invocation
         denied = denied?(step)
-        # A tool that answered with its own error ran, so its step holds what it said, and the ledger row says it failed.
-        failed = step.status == Investigation::Step::STATUS_FAILED || invocation&.outcome == Ability::Invocation::OUTCOME_ERROR
+        # A tool that answered with its own error ran, so its step holds what it said, and the ledger row says it failed or
+        # that one of Firefight's own rules refused it.
+        failed = step.status == Investigation::Step::STATUS_FAILED || UNDONE.include?(invocation&.outcome)
         Trace.span(
           key: "tool-#{step.id}", kind: KIND_TOOL, title: step.tool_name || step.action_key.to_s,
           started_at: step.started_at || step.created_at, ended_at: step.completed_at,

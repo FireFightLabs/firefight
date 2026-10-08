@@ -111,7 +111,7 @@ module Integrations
         def delete_branch(environment_row:, arguments:)
           repo = repo_argument(arguments)
           name = ref_argument(arguments, "branch", required: true).delete_prefix("refs/heads/")
-          fail! "Only a branch Firefight made, under #{PREFIX}, is deleted, and #{name} is not one. A person deletes it on GitHub." unless name.start_with?(PREFIX)
+          fail_policy! "Only a branch Firefight made, under #{PREFIX}, is deleted, and #{name} is not one. A person deletes it on GitHub." unless name.start_with?(PREFIX)
 
           token = GithubApp.installation_token(environment_row)
           asking("delete_branch", "GitHub has no branch #{name} in #{repo}") do
@@ -124,19 +124,19 @@ module Integrations
         private
 
         def deletable!(repo, name, token)
-          fail! "#{name} is the default branch of #{repo}, which is never deleted." if name == default_branch(repo, token)
+          fail_policy! "#{name} is the default branch of #{repo}, which is never deleted." if name == default_branch(repo, token)
 
           branch = GithubApp.get("/repos/#{repo}/branches/#{Http.segment(name)}", token: token)
-          fail! "#{name} in #{repo} is protected, so it is not deleted." if branch["protected"]
+          fail_policy! "#{name} in #{repo} is protected, so it is not deleted." if branch["protected"]
 
           kept = branch_rules(repo, name, token).select { |rule| DELETE_RULES.include?(rule["type"]) }
-          fail! "A ruleset in #{repo} keeps #{name} from being deleted." if kept.any?
+          fail_policy! "A ruleset in #{repo} keeps #{name} from being deleted." if kept.any?
 
           owner = repo.split("/").first
           pulls = Array(GithubApp.get("/repos/#{repo}/pulls?#{{ 'state' => 'open', 'head' => "#{owner}:#{name}", 'per_page' => 10 }.to_query}", token: token))
           return if pulls.empty?
 
-          fail! "#{pulls.map { |pull| "PR ##{pull['number']}" }.to_sentence} still #{pulls.one? ? 'comes' : 'come'} from #{name}, and deleting it would close " \
+          fail_policy! "#{pulls.map { |pull| "PR ##{pull['number']}" }.to_sentence} still #{pulls.one? ? 'comes' : 'come'} from #{name}, and deleting it would close " \
                 "#{pulls.one? ? 'it' : 'them'}. Close #{pulls.one? ? 'it' : 'them'} first if that is what is wanted."
         end
 

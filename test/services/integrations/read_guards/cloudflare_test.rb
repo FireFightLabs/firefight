@@ -24,7 +24,7 @@ module Integrations
 
         assert_includes sent, %({"method":"POST","path":"#{path}","body":{"queryId":"q","parameters":{"view":"events"}}})
         assert_raises(Refused) { Cloudflare.reading("execute", "method" => "POST", "path" => path, "body" => "events") }
-        assert_raises(Refused) { Cloudflare.reading("execute", "method" => "POST", "path" => "/accounts/acc/workers/scripts/api/deployments", "body" => {}) }
+        assert_raises(PolicyRefusal) { Cloudflare.reading("execute", "method" => "POST", "path" => "/accounts/acc/workers/scripts/api/deployments", "body" => {}) }
       end
 
       test "a script Firefight wrote for a read is a read, and a script someone wrote is one only as a single GET" do
@@ -47,17 +47,25 @@ module Integrations
         ].each { |code| assert_not Cloudflare.reads?("execute", "code" => code), code }
       end
 
-      test "anything that is not one read is refused before anything is sent" do
+      test "a call that would change something is refused by Firefight's rule before anything is sent" do
         [
           { "method" => "DELETE", "path" => "/zones/abc" },
           { "method" => "POST", "path" => "/zones/abc/purge_cache" },
-          { "method" => "POST", "path" => "/graphql", "graphql" => "mutation { x }" },
+          { "method" => "POST", "path" => "/graphql", "graphql" => "mutation { x }" }
+        ].each do |arguments|
+          assert_raises(PolicyRefusal, arguments.inspect) { Cloudflare.reading("execute", arguments) }
+        end
+      end
+
+      test "a read that is not shaped the way the guard takes one is refused before anything is sent, for the call to be fixed" do
+        [
           { "method" => "GET", "path" => "/zones/../accounts" },
           { "method" => "GET", "path" => "zones" },
           { "method" => "GET", "path" => "/zones", "query" => "per_page=5" },
           { "code" => "async () => cloudflare.request({ method: 'DELETE', path: '/zones/abc' })" }
         ].each do |arguments|
-          assert_raises(Refused, arguments.inspect) { Cloudflare.reading("execute", arguments) }
+          error = assert_raises(Refused, arguments.inspect) { Cloudflare.reading("execute", arguments) }
+          assert_not_kind_of PolicyRefusal, error
         end
       end
     end

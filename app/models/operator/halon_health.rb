@@ -10,6 +10,8 @@ module Operator
     Prompt = Data.define(:version, :first_seen_at, :text, :runs, :answered, :finished, :median_turns, :median_micros, :confirmed, :wrong)
 
     TOOL_LIMIT = 25
+    # A tool's errors count every call that did not do what it was asked, including one Firefight's own rule refused.
+    NOT_DONE = [ Ability::Invocation::OUTCOME_ERROR, Ability::Invocation::OUTCOME_REFUSED ].freeze
     PROMPT_LIMIT = 5
 
     # Median and p90 as SQL, each written out in full so no SQL is built from strings.
@@ -68,7 +70,7 @@ module Operator
       scope = @filter.scope(Ability::Invocation.where(source: [ AbilityGateway::SOURCE_INVESTIGATION, AbilityGateway::SOURCE_CONVERSATION ], created_at: @filter.range))
       scope.group(:action_key).order(Arel.sql("COUNT(*) DESC")).limit(TOOL_LIMIT).pluck(
         :action_key, Arel.sql("COUNT(*)"),
-        Arel.sql(ActiveRecord::Base.sanitize_sql([ "COUNT(*) FILTER (WHERE outcome = ?)", Ability::Invocation::OUTCOME_ERROR ])),
+        Arel.sql(ActiveRecord::Base.sanitize_sql([ "COUNT(*) FILTER (WHERE outcome IN (?))", NOT_DONE ])),
         Arel.sql(ActiveRecord::Base.sanitize_sql([ "COUNT(*) FILTER (WHERE decision = ?)", Ability::Invocation::DECISION_DENY ])),
         Arel.sql("percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_ms)")
       ).map { |action_key, calls, errors, denied, median| Tool.new(action_key:, calls:, errors:, denied:, median_ms: median&.round) }

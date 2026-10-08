@@ -202,6 +202,11 @@ module Integrations
       raise Error, message
     end
 
+    # One of Firefight's own rules refusing the call, as opposed to a call that could not be made (Integrations::PolicyRefusal).
+    def fail_policy!(message)
+      raise PolicyRefusal, message
+    end
+
     # Packs override with a real probe and raise Error with a readable reason.
     # The default accepts so a pack without a probe still connects.
     def check_health!(environment_row)

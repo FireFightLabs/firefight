@@ -70,8 +70,15 @@ class AbilityGateway
 
     def answer_failed? = !@answer_failure.nil?
 
-    # Once the call has answered, a success unless its answer said it failed.
+    # A call one of Firefight's own rules refused after the gateway allowed it, such as a push to a protected branch, is
+    # ledgered as refused with the first line of the rule's reason, since nothing failed.
+    def answer_refused!(text)
+      @answer_refusal = Ability::Invocation.summary_of(text)
+    end
+
+    # Once the call has answered, a success unless its answer said it failed or was refused.
     def finalize_answered!
+      return finalize(Ability::Invocation::OUTCOME_REFUSED, @answer_refusal) if @answer_refusal
       return finalize_success! unless answer_failed?
 
       finalize(Ability::Invocation::OUTCOME_ERROR, @answer_failure)

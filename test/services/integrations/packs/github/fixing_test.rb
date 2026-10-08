@@ -110,7 +110,7 @@ module Integrations
                      .returns("stdout" => agent_output(path: ".github/workflows/release.yml"), "timed_out" => false)
           GithubApp.expects(:open_pull_request).never
 
-          error = assert_raises(Integrations::Error) do
+          error = assert_raises(PolicyRefusal) do
             @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
           end
 
@@ -201,7 +201,7 @@ module Integrations
 
           @integration.protect_paths!([ ".gitlab-ci.yml" ])
           GithubApp.expects(:push_commit).never
-          assert_match "Halon may not change .gitlab-ci.yml in acme/api.", assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
+          assert_match "Halon may not change .gitlab-ci.yml in acme/api.", assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments) }.message
         end
 
         test "a change added to an open pull request ends its steps with the pull request it went to" do
@@ -241,25 +241,25 @@ module Integrations
 
           stub_pull(7, "head" => { "ref" => "patch-1", "sha" => "h" * 40, "repo" => { "full_name" => "someone/api" } })
           assert_equal "PR #7 in acme/api comes from someone/api, and Firefight adds only to a branch in acme/api itself.",
-                       assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("pull_request" => 7)) }.message
+                       assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("pull_request" => 7)) }.message
 
           stub_pull(8, "state" => "closed")
           assert_equal "PR #8 in acme/api is closed, so nothing is added to it.",
-                       assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("pull_request" => 8)) }.message
+                       assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("pull_request" => 8)) }.message
 
           GithubApp.stubs(:get).with("/repos/acme/api/pulls?#{{ 'state' => 'open', 'head' => 'acme:main', 'per_page' => 1 }.to_query}", token: "ghs_token").returns([])
           assert_equal "main is the default branch of acme/api, and a code change reaches it only through a pull request.",
-                       assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "main")) }.message
+                       assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "main")) }.message
 
           GithubApp.stubs(:get).with("/repos/acme/api/pulls?#{{ 'state' => 'open', 'head' => 'acme:release', 'per_page' => 1 }.to_query}", token: "ghs_token").returns([])
           stub_branch("release", protected: true)
           assert_equal "release in acme/api is protected, so Firefight does not push to it.",
-                       assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "release")) }.message
+                       assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "release")) }.message
 
           GithubApp.stubs(:get).with("/repos/acme/api/pulls?#{{ 'state' => 'open', 'head' => 'acme:ruled', 'per_page' => 1 }.to_query}", token: "ghs_token").returns([])
           stub_branch("ruled", rules: [ { "type" => "pull_request" } ])
           assert_equal "A ruleset in acme/api keeps pushes off ruled, so Firefight does not push to it.",
-                       assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "ruled")) }.message
+                       assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: arguments.merge("branch" => "ruled")) }.message
         end
 
         test "a branch that moved while the agent worked is never overwritten" do

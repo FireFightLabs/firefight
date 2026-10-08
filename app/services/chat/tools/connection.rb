@@ -1,4 +1,4 @@
-# One integration tool. A refusal comes back as a result the agent works around, never an exception.
+# One integration tool. A refusal comes back as a result, never an exception.
 class Chat::Tools::Connection < RubyLLM::Tool
   def initialize(agent_run, tool)
     super()
@@ -73,12 +73,17 @@ class Chat::Tools::Connection < RubyLLM::Tool
     run(reading(given.except(Integration::Tool::ENVIRONMENT_ARG)), environment_entry: environment_entry, tool_call_id: tool_call_id)
   rescue Integration::UnknownEnvironment, Integrations::ReadGuards::Refused => error
     failed(tool_call_id, error.message)
+  rescue Integrations::PolicyRefusal => refusal
+    failed(tool_call_id, FirefightAi::Evidence.refused(name, refusal.message))
   end
 
   public
 
   # Whether the last run was refused or the provider failed it.
   def failed? = @failed == true
+
+  # Whether one of Firefight's own rules refused the last run, which is final, so nothing else is tried in its place.
+  def refused_by_rule? = !@refusal.nil?
 
   # Whether the last run is waiting for someone to approve it.
   def waiting? = @waiting == true
@@ -98,6 +103,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @waiting = false
     @last_result = nil
     @answered_failure = nil
+    @refusal = nil
     scope = environment_entry ? { "environment" => environment_entry.id } : {}
     # The project or workspace a call reaches is named before it is authorized, so the step, the activity log and an
     # approval say where it goes.
@@ -110,8 +116,12 @@ class Chat::Tools::Connection < RubyLLM::Tool
     ) do |authorization|
       integration = @tool.integration
       environment_row = integration.resolve_environment(environment_entry&.id)
-      result = integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
-                                         progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id))
+      result = begin
+        integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
+                                  progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id))
+      rescue Integrations::PolicyRefusal => refusal
+        next refused_by_rule!(tool_call_id, authorization, refusal.message)
+      end
       result = present.call(result) if present
       @last_result = result
       next text_of(result) unless result["isError"] == true
@@ -120,6 +130,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
       FirefightAi::Evidence.pointed(text_of(result))
     end
     @agent_run.mark_step_failed!(said.step, @answered_failure) if @answered_failure && said.step
+    return FirefightAi::Evidence.refused(shown_as, @refusal, step: said.step) if @refusal
+
     keep_charts(tool_call_id, result, said.step)
     tracked = present.nil? && Chat::Tools::TrackedIssues.after(
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
@@ -167,6 +179,17 @@ class Chat::Tools::Connection < RubyLLM::Tool
     Chat::Tools.mark_failed(@agent_run, tool_call_id, kind: @answered_failure) unless @alone == false
   end
 
+  # One of Firefight's own rules refused the call. The step keeps the rule's reason, the ledger says refused, and the
+  # model is told whose refusal it is once the step is numbered.
+  def refused_by_rule!(tool_call_id, authorization, reason)
+    @failed = true
+    @refusal = reason
+    @answered_failure = Chat::StepOutcome::FAILURE_ERROR
+    authorization.answer_refused!(reason)
+    Chat::Tools.mark_failed(@agent_run, tool_call_id) unless @alone == false
+    reason
+  end
+
   def approved_by_asker?(approval) = requires_approval? && Chat::Tools.approve_for_asker(@agent_run, approval)
 
   def target_of(environment_entry)
@@ -192,7 +215,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # A run that only reads calls a tool that can write only once the call is shown to read, as its guard rewrites it.
   def reading(arguments)
     return arguments unless guarded?
-    raise Integrations::ReadGuards::Refused, "#{name} can change things, so it is not used while investigating." unless guard
+    raise Integrations::PolicyRefusal, "#{name} can change things, so it is not used while investigating." unless guard
 
     guard.reading(@tool.name, arguments)
   end

@@ -4,7 +4,7 @@ module Integrations
       # A project's CI as GitLab keeps it (doc/api/pipelines.md, jobs.md and environments.md): its pipelines, their jobs,
       # a job's log, and how the default branch and the environments stand now. Retrying a pipeline's failed and canceled
       # jobs, running a new pipeline and canceling one are changes (doc/api/pipelines.md, retry, create and cancel), so
-      # they arrive switched off and go through the gateway as writes. They need a token with the api scope.
+      # they go through the gateway as writes and a member needs a grant for them. They need a token with the api scope.
       module Pipelines
         PIPELINE_LIMIT = 10
         MAX_PIPELINES = 50

@@ -38,7 +38,7 @@ module Integrations
       def path_argument(arguments)
         path = arguments["path"].to_s
         fail! "path must be a relative path inside the repository" unless path.match?(PATH_FORMAT) && !path.include?("..")
-        fail! "that path is not readable" if path.match?(SENSITIVE_PATHS)
+        fail_policy! "Firefight does not read files that may hold secrets, such as .env files, keys and credentials, so #{path} is not read." if path.match?(SENSITIVE_PATHS)
 
         path
       end

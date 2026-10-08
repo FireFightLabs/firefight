@@ -2,9 +2,9 @@ module Integrations
   module Packs
     # Opsgenie, read with the key of an API integration the workspace creates in Opsgenie: who is on call, the
     # escalations that page people, and the alerts and incidents open now. Acknowledging, escalating and adding a note to
-    # an alert change Opsgenie, so they arrive switched off, ask before they run in a chat and are never used while
-    # investigating. Opsgenie's API gives no page address for anything it returns and documents none, so results carry
-    # no link. The executor hides anything that looks like a credential in what comes back.
+    # an alert change Opsgenie, so a member needs a grant for them, they ask before they run in a chat and they are never
+    # used while investigating. Opsgenie's API gives no page address for anything it returns and documents none, so
+    # results carry no link. The executor hides anything that looks like a credential in what comes back.
     class Opsgenie < NativePack
       # The one credential this pack keeps. It has no plain settings to ask for.
       API_KEY = "api_key".freeze
