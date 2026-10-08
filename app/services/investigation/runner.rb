@@ -22,6 +22,8 @@ class Investigation::Runner
     delivery.start!
     chat = @investigation.chat_record(investigator.ai_model)
     chat.discard_interrupted_reply!
+    chat.close_unfinished_calls!
+    @investigation.close_interrupted_steps!
     @changes = Chat::Tools::Changes.catch_up!(@investigation, chat).then { |caught| caught if caught.note }
 
     outcome = investigator.run(

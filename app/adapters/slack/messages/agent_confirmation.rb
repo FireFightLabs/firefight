@@ -4,7 +4,8 @@ module Slack
     module AgentConfirmation
       TITLE = ":raised_hand:  *Confirm before I go ahead*".freeze
       STATUS_LINES = {
-        confirmed: ":white_check_mark: Confirmed", cancelled: ":no_entry_sign: Cancelled"
+        confirmed: ":white_check_mark: Confirmed", cancelled: ":no_entry_sign: Cancelled",
+        withdrawn: ":heavy_minus_sign: Withdrawn. Something else was asked first, so this was not run."
       }.freeze
 
       def self.build(conversation_id:, confirmations:)

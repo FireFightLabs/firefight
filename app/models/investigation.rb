@@ -314,6 +314,16 @@ class Investigation < ApplicationRecord
       ) > 0
   end
 
+  # A step still running when the run is taken up belongs to a worker that died, since only the holder runs steps. It
+  # ends saying so, rather than running on the run page forever.
+  def close_interrupted_steps!
+    now = Time.current
+    steps.where(status: Investigation::Step::STATUS_RUNNING).update_all(
+      status: Investigation::Step::STATUS_FAILED, error_summary: Chat::UnfinishedCalls::INTERRUPTED,
+      failure_kind: Chat::StepOutcome::FAILURE_ERROR, completed_at: now, updated_at: now
+    )
+  end
+
   ALREADY_FINISHED = "This investigation has already finished.".freeze
   STOPPING = "Stopping. Halon ends the run after the step it is on.".freeze
 

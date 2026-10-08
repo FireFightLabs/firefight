@@ -416,6 +416,72 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal "resolve it", @conversation.chat.readable_messages.where(role: Chat::Message::ROLE_USER).last.content
   end
 
+  # Seen in a real chat. A confirmed call never got its result, and the provider refused every question after it.
+  test "a question after a call left without its result is answered, not refused" do
+    personal = personal_chat
+    chat = personal.chat_record
+    chat.add_message(role: :user, content: "Which pipeline deploys Firefight?")
+    asking = chat.add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_jY", name: "northflank_api_request", arguments: {}, approval: Chat::APPROVAL_APPROVED)
+    personal.ask!("Does Northflank post deploys to Slack?")
+    fake(reply: "No, nothing posts deploys to Slack", during: refuse_unanswered_calls)
+
+    ConversationReplyJob.perform_now(personal.id, personal.started_by.id)
+
+    assert_equal "No, nothing posts deploys to Slack", personal.chat.reload.readable_messages.last.content
+    assert personal.chat.tool_calls.find_by!(tool_call_id: "call_jY").result_id
+  end
+
+  # Seen in a real chat too. The person asked something new while Halon waited for them to confirm a call.
+  test "a question asked while a call waits to be confirmed is answered, and the confirmation is withdrawn" do
+    personal = personal_chat
+    chat = personal.chat_record
+    chat.add_message(role: :user, content: "Restart web")
+    asking = chat.add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_r", name: "restart", arguments: {})
+    chat.request_decisions!([ "call_r" ])
+    personal.ask!("Actually, what changed today?")
+    fake(reply: "A deploy at 14:02", during: refuse_unanswered_calls)
+
+    ConversationReplyJob.perform_now(personal.id, personal.started_by.id)
+
+    assert_equal "A deploy at 14:02", personal.chat.reload.readable_messages.last.content
+    assert_empty personal.chat.awaiting_decision
+  end
+
+  test "a turn keeps the answer it is writing in the thread until it is finished there" do
+    seen = []
+    fake(reply: "A deploy at 14:02", pieces: [ "A deploy at 14:02 raised the pool size. " * 10 ], during: ->(_arguments) { seen << @conversation.reload.slice(:answer_message_id, :answer_shown) })
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1234567890.000100" })
+
+    ask(@conversation, "what changed")
+
+    assert_equal [ { "answer_message_id" => "1234567890.000100", "answer_shown" => true } ], seen
+    assert_nil @conversation.reload.answer_message_id
+  end
+
+  test "a confirmation in a thread is kept where it was posted, and redrawn as withdrawn once the person moves past it" do
+    pause = lambda do |_arguments|
+      asking = @conversation.chat.add_message(role: :assistant, content: "")
+      asking.ruby_llm_tool_calls.create!(tool_call_id: "call_r", name: "restart", arguments: {})
+    end
+    fake(outcome: FirefightAi::AgentLoop::STATUS_WAITING, during: pause)
+    Chat.any_instance.stubs(:to_llm).returns(stub(pending_approvals: [ stub(id: "call_r") ]))
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1700000000.000200" })
+    ask(@conversation, "restart web")
+    Chat.any_instance.unstub(:to_llm)
+    assert_equal "1700000000.000200", @conversation.reload.confirmation_message_id
+
+    fake(reply: "A deploy at 14:02")
+    Slack::Client.expects(:update_message).with do |arguments|
+      shown = arguments[:blocks].to_json
+      arguments[:ts] == "1700000000.000200" && shown.include?("Withdrawn") && !shown.include?(Identifiers::AGENT_CONFIRM)
+    end.returns({ ok: true, ts: "1700000000.000200" })
+    ask(@conversation.reload, "Actually, what changed today?")
+
+    assert_equal Chat::APPROVAL_WITHDRAWN, @conversation.chat.tool_calls.find_by!(tool_call_id: "call_r").approval
+  end
+
   test "a stop ends the turn where it is, answers any tool it never ran, and says Stopped" do
     call_asked_for = lambda do |_arguments|
       reply = @conversation.chat.add_message(role: :assistant, content: "")
@@ -518,6 +584,18 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                                               result: result, failed: true, failure_kind: kind)
       arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: "search_incidents", status: :running, arguments: { "query" => "ember" }))
       arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: nil, status: :done, arguments: nil))
+    end
+  end
+
+  # What a provider does with a chat that has anything but results between a call and the next message.
+  def refuse_unanswered_calls
+    lambda do |_arguments|
+      sent = @conversation.chat.reload.sent_messages.to_a
+      sent.each_with_index do |message, index|
+        results = sent.drop(index + 1).take_while { |later| later.role == Chat::Message::ROLE_TOOL }
+        missing = message.ruby_llm_tool_calls.map(&:tool_call_id) - results.filter_map { |result| result.ruby_llm_parent_tool_call&.tool_call_id }
+        raise FirefightAi::TerminalError, "Provider returned error - No tool output found for function call #{missing.first}." if missing.any?
+      end
     end
   end
 

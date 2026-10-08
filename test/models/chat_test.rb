@@ -60,6 +60,74 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal [ "user", "assistant" ], @chat.messages.pluck(:role)
   end
 
+  test "a call left without its result is closed as interrupted, right after it, so a provider takes the chat" do
+    @chat.add_message(role: :user, content: "Investigate checkout failures")
+    @chat.add_message(thinking_turn(tool_call_id: "toolu_1"))
+    @chat.add_message(role: :user, content: "Anything else?")
+
+    @chat.close_unfinished_calls!
+
+    assert_equal %w[user assistant tool user], @chat.sent_messages.reload.pluck(:role)
+    call = @chat.tool_calls.find_by!(tool_call_id: "toolu_1")
+    assert_equal Chat::UnfinishedCalls::INTERRUPTED, call.result.content
+    assert call.failed
+    assert_equal "toolu_1", Chat.find(@chat.id).sent_messages.map(&:to_llm).find(&:tool_result?).tool_call_id
+  end
+
+  test "every call of a reply that ran only some of them is closed, after the results it has" do
+    @chat.add_message(role: :user, content: "Investigate checkout failures")
+    @chat.add_message(thinking_turn(tool_call_id: "toolu_1").merge(tool_calls: {
+      "toolu_1" => RubyLLM::ToolCall.new(id: "toolu_1", name: "list_commits", arguments: {}),
+      "toolu_2" => RubyLLM::ToolCall.new(id: "toolu_2", name: "list_deploys", arguments: {}),
+      "toolu_3" => RubyLLM::ToolCall.new(id: "toolu_3", name: "search_logs", arguments: {})
+    }))
+    @chat.add_message(role: :tool, content: "abc123", tool_call_id: "toolu_1")
+
+    @chat.close_unfinished_calls!
+
+    results = @chat.sent_messages.reload.where(role: Chat::Message::ROLE_TOOL).map { |message| message.ruby_llm_parent_tool_call.tool_call_id }
+    assert_equal %w[toolu_1 toolu_2 toolu_3], results
+    assert_not @chat.tool_calls.find_by!(tool_call_id: "toolu_1").failed, "a call that answered keeps its answer"
+  end
+
+  test "closing unfinished calls twice adds nothing the second time" do
+    @chat.add_message(role: :user, content: "Investigate checkout failures")
+    @chat.add_message(thinking_turn(tool_call_id: "toolu_1"))
+
+    @chat.close_unfinished_calls!
+
+    assert_no_difference -> { @chat.messages.count } do
+      @chat.close_unfinished_calls!
+    end
+  end
+
+  test "a call waiting for the person to confirm it, or confirmed and about to run, is left alone" do
+    @chat.add_message(role: :user, content: "Restart web")
+    @chat.add_message(thinking_turn(tool_call_id: "toolu_1"))
+    @chat.request_decisions!([ "toolu_1" ])
+
+    @chat.close_unfinished_calls!
+    assert_nil @chat.tool_calls.find_by!(tool_call_id: "toolu_1").result_id
+
+    @chat.decide!("toolu_1", approved: true)
+    @chat.close_unfinished_calls!
+    assert_nil @chat.tool_calls.find_by!(tool_call_id: "toolu_1").result_id
+  end
+
+  test "a confirmation the person moved past by asking something else is withdrawn, not run" do
+    @chat.add_message(role: :user, content: "Restart web")
+    @chat.add_message(thinking_turn(tool_call_id: "toolu_1"))
+    @chat.request_decisions!([ "toolu_1" ])
+    @chat.add_message(role: :user, content: "Actually, what changed today?")
+
+    @chat.close_unfinished_calls!
+
+    call = @chat.tool_calls.find_by!(tool_call_id: "toolu_1")
+    assert_equal Chat::APPROVAL_WITHDRAWN, call.approval
+    assert_equal Chat::UnfinishedCalls::NOT_CONFIRMED, call.result.content
+    assert_empty @chat.awaiting_decision
+  end
+
   test "the same tool call id is allowed in another workspace's chat" do
     other_workspace = workspaces(:slack_workspace_two)
     other_investigation = other_workspace.investigations.create!(

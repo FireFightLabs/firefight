@@ -452,7 +452,8 @@ A deploy sends TERM to the web and job containers, then kills them once the plat
 
 `RecoverySweepJob` runs every minute on the `events` queue, one at a time, and calls `InterruptedWork.recover!`:
 
-- `InterruptedJob.run_again!`, above.
+- `InterruptedJob.run_again!`, above. A job class whose own recovery decides sets `runs_again_when_interrupted` to false and is left failed for it, which only `ConversationReplyJob` does.
+- `Conversation::Recovery.sweep!` (docs/ai.md, Conversations): a reply job a stopped worker failed is run again once when nothing in the turn could have changed anything, and otherwise the turn is ended in the chat and its thread with "I was interrupted before I finished. Ask me again."
 - `Investigation.abandoned` runs (lease ran out, or never claimed) get a new `InvestigationJob`. The claim decides, so a second job is harmless.
 - `Conversation.reply_lost`, a turn still owed past `Conversation::REPLY_CEILING`, ends with `Conversation::Delivery::FAILED` in the chat and in Slack or on the page (`Conversation::Delivery.give_up_lost!`). `Conversation#drop_lost_reply!` clears the owed answer only while it is still the same one, so it is said once.
 - `Conversation::HeldCalls.recover!`: a held call still checking after `CHECK_LOST_AFTER` gets its check job again (at most once a window, since the claim moves the row on), and one left running by a turn that will not run again ends with `COULD_NOT_FINISH`.
@@ -474,7 +475,7 @@ How long each kind of work runs, what a stop in the middle leaves, and why runni
 
 | Work | Runs for | Stopped part way | Safe to run again because |
 |---|---|---|---|
-| Chat turn (`ConversationReplyJob`) | Seconds to minutes | Again: the turn resumes from the saved chat. Lost for good: ended by the sweep after `REPLY_CEILING`, or when given up | `Chat#discard_interrupted_reply!` drops the half written reply. A tool call left without its result is closed as interrupted, never run again. One turn per conversation (`limits_concurrency`) |
+| Chat turn (`ConversationReplyJob`) | Seconds to minutes | Handed back: the turn resumes from the saved chat. Failed: `Conversation::Recovery` runs it again once if it changed nothing, or ends it saying it was interrupted | `Chat#discard_interrupted_reply!` drops the half written reply, and `Chat#close_unfinished_calls!` closes a call left without its result as interrupted, so it is never run again. One turn per conversation (`limits_concurrency`) |
 | Held call run (inside a turn) | Seconds | Again: the approval is single use, so the call cannot run twice. Given up or lost: ends `COULD_NOT_FINISH` | The gateway consumes the approval in one guarded update |
 | Held call check (`HeldCallCheckJob`) | Seconds to a minute | Again: checks again (reads only). Lost: the sweep queues it again | `HeldCall#checked!` moves the row once |
 | Investigation (`InvestigationJob`) | Minutes | The same job takes its run back at once (`claim!(by: job_id)`), steps still running are failed as interrupted, and the run continues from its saved turns | Lease and claim, turns written as they happen, `MAX_ATTEMPTS` then ends with a rerun button in the thread |

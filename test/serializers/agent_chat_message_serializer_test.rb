@@ -42,6 +42,18 @@ class AgentChatMessageSerializerTest < ActiveSupport::TestCase
     assert_equal [ Conversation::LiveDelivery::STATUS_RUNNING ] * 2, statuses(paused)
   end
 
+  test "a call cut off before it answered shows as not finished, in words, rather than spinning" do
+    cut_off = @chat.add_message(role: :assistant, content: "")
+    RubyLLM::ActiveRecord::ToolCall.create!(message: cut_off, tool_call_id: "call_8", name: "northflank_query_metrics", arguments: {})
+    @chat.add_message(role: :user, content: "Still there?")
+
+    @chat.close_unfinished_calls!
+
+    step = JSON.parse(AgentChatMessageSerializer.one(cut_off.reload).to_json)["tools"].sole
+    assert_equal Conversation::LiveDelivery::STATUS_FAILED, step["status"]
+    assert_match "Interrupted before it finished", step.dig("outcome", "said")
+  end
+
   test "a message says when it was written, to the millisecond, so the times Halon made room fall in the right place" do
     shown = JSON.parse(AgentChatMessageSerializer.one(@asking.reload).to_json)
 

@@ -146,6 +146,23 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_not Chat::Message.exists?(interrupted.id)
   end
 
+  test "a call a killed worker left running is closed as interrupted before the run resumes, and its step says so" do
+    chat = @investigation.create_chat!(workspace: @workspace, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.add_message(role: :user, content: "Investigate")
+    asking = chat.add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "search_logs", arguments: {})
+    step = @investigation.steps.create!(
+      position: @investigation.next_step_position, tool_name: "search_logs", action_key: "logs.read",
+      status: Investigation::Step::STATUS_RUNNING, started_at: 1.minute.ago
+    )
+    fake(outcome: :answered, conclude: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    assert_equal Chat::UnfinishedCalls::INTERRUPTED, chat.tool_calls.find_by!(tool_call_id: "call_1").result.content
+    assert_equal [ Investigation::Step::STATUS_FAILED, Chat::UnfinishedCalls::INTERRUPTED ], [ step.reload.status, step.error_summary ]
+  end
+
   test "a resumed run is handed back the tools it had found" do
     action = Ability::Action.system!(
       Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)

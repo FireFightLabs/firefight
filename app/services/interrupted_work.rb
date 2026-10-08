@@ -4,6 +4,7 @@
 class InterruptedWork
   def self.recover!
     InterruptedJob.run_again!
+    Conversation::Recovery.sweep!
     # A run nobody holds holds its subject's only slot. A second job for one run is harmless, the claim decides.
     Investigation.abandoned.find_each { |investigation| InvestigationJob.perform_later(investigation.id) }
     Conversation::HeldCalls.recover!
