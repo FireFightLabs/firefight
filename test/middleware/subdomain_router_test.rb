@@ -74,6 +74,16 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     assert_empty blocked
   end
 
+  test "an engine can add a prefix of its own to the app subdomain" do
+    assert_blocked "app.firefight.app", "/engine-only/webhook"
+    SubdomainRouter.allow_on_app_host("/engine-only")
+
+    assert_allowed "app.firefight.app", "/engine-only/webhook"
+    assert_blocked "api.firefight.app", "/engine-only/webhook"
+  ensure
+    SubdomainRouter.extra_app_prefixes.delete("/engine-only")
+  end
+
   test "app subdomain allows the mcp endpoint and its oauth flow" do
     assert_allowed "app.firefight.app", "/mcp"
     assert_allowed "app.firefight.app", "/oauth/authorize"

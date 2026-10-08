@@ -47,6 +47,17 @@ module Integrations
           assert_nil CodeAgentSession.authenticate(config.dig("provider", "anthropic", "options", "apiKey"))
         end
 
+        test "a pull request of 0 and an empty branch, as a model fills fields it means to leave out, open a new pull request" do
+          CodeReading.any_instance.stubs(:exec).returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:push_commit).never
+          GithubApp.expects(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/8")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it",
+                                                                     "base" => "main", "pull_request" => 0, "branch" => "" })
+
+          assert_match "Opened https://github.com/acme/api/pull/8", text
+        end
+
         test "an agent that changed nothing opens nothing and says what it said" do
           CodeReading.any_instance.stubs(:exec).returns("stdout" => "AGENT_EXIT 0\nBASE start-sha\nSTAT\n\nLOG\nI could not find the pool setting.", "timed_out" => false)
           GithubApp.expects(:open_pull_request).never
