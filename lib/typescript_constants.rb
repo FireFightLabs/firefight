@@ -139,10 +139,12 @@ module TypescriptConstants
       }, nil),
       Export.new("CODE_AGENT_QUESTION_STATUSES", {
         "OPEN" => CodeAgentQuestion::STATUS_OPEN, "ANSWERED" => CodeAgentQuestion::STATUS_ANSWERED,
-        "EXPIRED" => CodeAgentQuestion::STATUS_EXPIRED, "WITHDRAWN" => CodeAgentQuestion::STATUS_WITHDRAWN
+        "EXPIRED" => CodeAgentQuestion::STATUS_EXPIRED, "WITHDRAWN" => CodeAgentQuestion::STATUS_WITHDRAWN,
+        "DEFAULTED" => CodeAgentQuestion::STATUS_DEFAULTED
       }, nil),
       Export.new("CODE_CHECK_STATUSES", {
-        "PASSED" => Integrations::CodeChecks::PASSED, "FAILED" => Integrations::CodeChecks::FAILED, "TIMED_OUT" => Integrations::CodeChecks::TIMED_OUT
+        "PASSED" => Integrations::CodeChecks::PASSED, "FAILED" => Integrations::CodeChecks::FAILED, "TIMED_OUT" => Integrations::CodeChecks::TIMED_OUT,
+        "COULD_NOT_RUN" => Integrations::CodeChecks::COULD_NOT_RUN
       }, nil),
       Export.new("AGENT_STEP_KINDS", {
         "READ" => Chat::Tools::KIND_READ, "ACT" => Chat::Tools::KIND_ACT, "ROOM" => Chat::Compaction::STEP_KIND

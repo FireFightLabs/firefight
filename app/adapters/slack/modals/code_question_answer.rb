@@ -15,11 +15,12 @@ module Slack
           close: { type: "plain_text", text: "Cancel" },
           blocks: [
             { type: "section", text: { type: "mrkdwn", text: "*The coding agent asks*\n#{Messages::CodeQuestion.quoted(question.question)}" } },
+            *Messages::CodeQuestion.option_blocks(question),
             {
               type: "input",
               block_id: ANSWER_BLOCK,
               element: { type: "plain_text_input", action_id: ANSWER_INPUT, multiline: true, max_length: CodeAgentQuestion::ANSWER_LIMIT },
-              label: { type: "plain_text", text: "Your answer" },
+              label: { type: "plain_text", text: question.choices.empty? ? "Your answer" : "Something else" },
               hint: { type: "plain_text", text: "The coding agent carries on with it." }
             }
           ]

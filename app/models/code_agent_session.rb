@@ -120,7 +120,8 @@ class CodeAgentSession < ApplicationRecord
 
   def open_question = questions.find_by(status: CodeAgentQuestion::STATUS_OPEN)
 
-  # A question nobody answered in time ends the change, whatever the agent did after.
+  # A question nobody answered in time with nothing to fall back on ends the change, whatever the agent did after. One
+  # with a recommendation went with it.
   def unanswered_question = questions.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)
 
   def close!

@@ -92,7 +92,8 @@ class InteractionDispatcher
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,
-    Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler
+    Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler,
+    **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler }
   }.freeze
 
   SHORTCUT_HANDLERS = {

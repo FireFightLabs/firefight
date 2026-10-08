@@ -4,6 +4,7 @@ module Integrations
   module Packs
     class Github
       class FixingTest < ActiveSupport::TestCase
+        include CodeQuestionTestHelper
         NEWEST = "n" * 40
         CHANGED = "c" * 40
         PUSHED = "To https://ff.example.com/code_agent/git/change.git\n*\trefs/halon/x:refs/heads/x\t[new branch]\nDone\nPUSH_EXIT 0\n".freeze
@@ -48,7 +49,7 @@ module Integrations
                                                                      "brief" => "The pool went from 10 to 2, evidence from the logs",
                                                                      "summary" => "Put the pool back to 10. ghp_#{'a' * 36}" })
 
-          assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main, written on main at start-sha.\nconfig/database.yml | 2 +-\n" \
+          assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main.\n\nChanges:\n- `config/database.yml` (+1 -1)\n\n" \
                        "The code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
           config = JSON.parse(sent[4])
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
@@ -80,7 +81,7 @@ module Integrations
         end
 
         test "an agent that changed nothing opens nothing and says what it said" do
-          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nSTAT\n\nLOG\nI could not find the pool setting.", "timed_out" => false)
+          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\nI could not find the pool setting.", "timed_out" => false)
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
           GithubApp.expects(:open_pull_request).never
 
@@ -116,13 +117,13 @@ module Integrations
           stub_run("stdout" => agent_output(path: ".github/workflows/release.yml"), "timed_out" => false)
           stub_compare([ ".github/workflows/release.yml" ])
           GithubApp.expects(:open_pull_request).with do |_repo, body:, **|
-            body.start_with?("#{CodeChange::CI_WARNING}\n\nPin the release action")
+            body.start_with?("Pin the release action\n\n#{CodeChange::CI_WARNING}")
           end.returns("html_url" => "https://github.com/acme/api/pull/9")
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Pin the release action", "brief" => "Pin it",
                                                                      "summary" => "Pin the release action" })
 
-          assert text.start_with?("#{CodeChange::CI_WARNING}\nOpened https://github.com/acme/api/pull/9 on acme/api against main,")
+          assert text.start_with?("Opened https://github.com/acme/api/pull/9 on acme/api against main.\n\n#{CodeChange::CI_WARNING}")
         end
 
         test "a change to a path the connection keeps out is refused with where the list is, and the agent is told the list" do
@@ -214,14 +215,14 @@ module Integrations
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && argv.values_at(6, 7) == [ "fix-pool", "h" * 40 ] }.returns("stdout" => PUSHED)
           GithubApp.expects(:open_pull_request).never
           GithubApp.expects(:write).with do |verb, path, body, token:|
-            verb == :post && path == "/repos/acme/api/issues/7/comments" && body[:body].start_with?("Firefight's coding agent added #{'c' * 12} to this pull request.") &&
-              body[:body].include?("config/database.yml | 2 +-") && token == "ghs_token"
+            verb == :post && path == "/repos/acme/api/issues/7/comments" && body[:body].start_with?("Raise the pool\n\nChanged in this update: `config/database.yml`.") &&
+              body[:body].end_with?("Added by Halon in #{'c' * 12}. Review it like any other change before merging.") && token == "ghs_token"
           end.returns({})
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 })
 
-          assert_equal "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\nconfig/database.yml | 2 +-\n" \
-                       "The code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
+          assert_equal "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\n\n" \
+                       "Changed in this update: `config/database.yml`.\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
         end
 
         test "a merge with the base the agent made on the branch is pushed as it is, and the answer says only what the host says" do
@@ -260,10 +261,10 @@ module Integrations
           output = agent_output(path: ".gitlab-ci.yml").sub("BASE start-sha", "BASE #{'h' * 40}")
           stub_run("stdout" => output, "timed_out" => false)
           stub_compare([ ".gitlab-ci.yml" ])
-          GithubApp.expects(:write).with { |_verb, _path, body, **| body[:body].to_s.start_with?("#{CodeChange::CI_WARNING}\n\nFirefight's coding agent added") }.returns({})
+          GithubApp.expects(:write).with { |_verb, _path, body, **| body[:body].to_s.start_with?("Raise the pool\n\n#{CodeChange::CI_WARNING}\n\nChanged in this update") }.returns({})
           arguments = { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 }
 
-          assert @pack.fix_code(environment_row: @row, arguments: arguments).start_with?("#{CodeChange::CI_WARNING}\nPushed #{'c' * 12} to fix-pool")
+          assert_match(/\APushed #{'c' * 12} to fix-pool.*\n\n#{Regexp.escape(CodeChange::CI_WARNING)}/, @pack.fix_code(environment_row: @row, arguments: arguments))
 
           @integration.protect_paths!([ ".gitlab-ci.yml" ])
           GithubApp.expects(:write).with(:patch, "/repos/acme/api/git/refs/heads/fix-pool", { sha: "h" * 40, force: true }, token: "ghs_token").returns({})
@@ -383,9 +384,8 @@ module Integrations
                                          "- The workflow sends the commit in a body the provider ignores."
           assert_equal CHANGED, runs.last[1], "the second pass starts from the first change"
           assert_operator runs.last[2], :<=, Fixing::SEND_BACK_TIMEOUT
-          assert body.start_with?("### Check before merging\n\n**Not verified**\n- That the provider reads the tag from the ref.\n\nSends the tag"), body
-          assert_includes text, "Halon's review sent the change back once, and the corrected change does what was asked."
-          assert_includes text, "Not verified, so check before merging:\n- That the provider reads the tag from the ref."
+          assert body.start_with?("Sends the tag\n\n**Open questions**\n- That the provider reads the tag from the ref."), body
+          assert_includes text, "Open questions:\n- That the provider reads the tag from the ref."
         end
 
         test "a change still wrong after it was sent back is not opened, and says what the review found" do
@@ -416,9 +416,9 @@ module Integrations
 
           pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send it", "summary" => "Sends the tag" })
 
-          assert body.start_with?("#{CodeChange::CI_WARNING}\n\n### Check before merging\n\n**What Halon's review found**\n- No test covers the new input.\n\n" \
-                                  "**Not verified**\n- That the provider reads the tag.\n\nSends the tag"), body
-          assert_includes body, "Checks run in Firefight's sandbox on the changed files:\n- `actionlint .github/workflows/release.yml`: failed\n- `yaml .github/workflows/release.yml`: passed"
+          assert_equal "Sends the tag\n\n#{CodeChange::CI_WARNING}\n\n**Verified**\n- `yaml .github/workflows/release.yml` passed.\n\n" \
+                       "**Checks that did not pass**\n- `actionlint .github/workflows/release.yml` failed.\n\n**Found in review**\n- No test covers the new input.\n\n" \
+                       "**Open questions**\n- That the provider reads the tag.\n\n**Files**\n- `.github/workflows/release.yml` (+1 -1)\n\n#{CodeWriteUp::FOOTER}", body
         end
 
         test "a review that cannot run opens the change saying nothing was checked" do
@@ -429,8 +429,8 @@ module Integrations
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
 
-          assert body.start_with?("### Check before merging\n\n**Not verified**\n- Halon's review could not run"), body
-          assert_includes text, "Not verified, so check before merging:\n- Halon's review could not run"
+          assert body.start_with?("Fix\n\n**Open questions**\n- Halon's review could not run"), body
+          assert_includes text, "Open questions:\n- Halon's review could not run"
         end
 
         test "a question nobody answered in time ends the change with the question, and the step shows it" do
@@ -443,7 +443,7 @@ module Integrations
             next false unless argv[2] == Fixing::RUN
 
             session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
-            CodeAgentQuestion.ask!(session, "Should the job send the tag or the commit?")
+            ask_question!(session, "Should the job send the tag or the commit?").update_columns(options: nil, recommended: nil)
             on_output.call("")
             travel CodeAgentQuestion::ANSWER_WITHIN + 1.second
             on_output.call("")
@@ -478,8 +478,8 @@ module Integrations
         end
 
         def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n")
-          "AGENT_EXIT #{exit}\nBASE start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\nBYTES\t40\n" \
-            "PATCH\t#{Base64.strict_encode64(patch)}\nSTAT\n config/database.yml | 2 +-\nLOG\ndone"
+          "AGENT_EXIT #{exit}\nBASE start-sha\nFROM start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\n" \
+            "TOUCHED\t#{Base64.strict_encode64(path)}\nBYTES\t40\nPATCH\t#{Base64.strict_encode64(patch)}\nLOG\ndone"
         end
 
         # What the sandbox answers for the agent's run, the push answering as it pushed.
@@ -497,8 +497,9 @@ module Integrations
           "CHECK\t#{Base64.strict_encode64(name)}\t#{code}\t#{Base64.strict_encode64(output)}\n"
         end
 
-        def review(right: true, findings: [], unverified: [])
-          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, unverified: unverified, summary: "Sets the pool to 10.")
+        def review(right: true, findings: [], verified: [], unverified: [], unreviewed: [])
+          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, verified: verified, unverified: unverified, unreviewed: unreviewed,
+                                                  summary: "Sets the pool to 10.")
         end
       end
     end

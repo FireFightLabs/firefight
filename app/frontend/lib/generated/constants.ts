@@ -188,6 +188,7 @@ export const WATCH_TONES = {
   "PART_FAILED": "part_failed",
   "HANDED_BACK": "handed_back",
   "SLOW": "slow",
+  "PROGRESS": "progress",
   "DONE": "done",
   "FAILED": "failed",
   "TIMED_OUT": "timed_out",
@@ -705,13 +706,15 @@ export const CODE_AGENT_QUESTION_STATUSES = {
   "OPEN": "open",
   "ANSWERED": "answered",
   "EXPIRED": "expired",
-  "WITHDRAWN": "withdrawn"
+  "WITHDRAWN": "withdrawn",
+  "DEFAULTED": "defaulted"
 } as const
 
 export const CODE_CHECK_STATUSES = {
   "PASSED": "passed",
   "FAILED": "failed",
-  "TIMED_OUT": "timed out"
+  "TIMED_OUT": "timed out",
+  "COULD_NOT_RUN": "could not run"
 } as const
 
 export const AGENT_STEP_KINDS = {

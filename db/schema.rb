@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -640,6 +640,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
     t.datetime "handed_back_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "parts_told", default: {}, null: false
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
     t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"
@@ -710,6 +711,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
     t.string "message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "options"
+    t.integer "recommended"
+    t.text "recommended_reason"
+    t.integer "chosen"
     t.index ["code_agent_session_id"], name: "index_code_agent_questions_on_code_agent_session_id"
     t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
   end

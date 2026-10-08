@@ -22,6 +22,16 @@ class Chat::Watch::Step < ApplicationRecord
   # way to follow it, rather than waited on in silence for the whole limit.
   HAND_BACK_AFTER = 3.minutes
 
+  # How a job or step inside what it follows stands, in the words its progress is said in.
+  PART_WAITING = "waiting"
+  PART_RUNNING = "running"
+  PART_PASSED = "passed"
+  PART_FAILED = "failed"
+  # Starting and passing are said as progress. A failed job inside a run is said on its own with why, and one a reading
+  # shows is said with the progress, since nothing else says it.
+  PART_SAID = [ PART_RUNNING, PART_PASSED ].freeze
+  READING_SAID = [ PART_RUNNING, PART_PASSED, PART_FAILED ].freeze
+
   belongs_to :watch, class_name: "Chat::Watch", inverse_of: :steps
   belongs_to :integration_environment, optional: true
 
@@ -56,7 +66,7 @@ class Chat::Watch::Step < ApplicationRecord
     elapsed > usual_seconds * SLOW_AFTER && elapsed > usual_seconds + SLOW_AT_LEAST
   end
 
-  # The run was seen going. True once, for whoever saw it first.
+  # The run or reading was seen going. True once, for whoever saw it first.
   def started!(run_id:, at:, url: nil)
     claim(started_told_at: nil) { { status: STATUS_RUNNING, followed_run_id: run_id, started_at: at || Time.current, run_url: url, started_told_at: Time.current } }
   end
@@ -89,6 +99,19 @@ class Chat::Watch::Step < ApplicationRecord
   end
 
   def unfollowable!(reason) = finished!(STATUS_UNFOLLOWABLE, reason: reason)
+
+  # Each job or step whose state moved since it was last said, as "tag passed" or "build running", kept so each is said
+  # once. parts are [name, state] pairs in their order. Only the check holding the watch writes this.
+  def progress!(parts, said: PART_SAID)
+    moved = parts.reject { |name, state| parts_told[name] == state || (state == PART_RUNNING && parts_told[name] == PART_PASSED) }
+    return [] if moved.empty?
+
+    update_columns(parts_told: parts_told.merge(moved.to_h), updated_at: Time.current)
+    moved.select { |_name, state| said.include?(state) }.map { |name, state| "#{name} #{state}" }
+  end
+
+  # The jobs or steps that passed so far, in the order they were said.
+  def parts_passed = parts_told.select { |_name, state| state == PART_PASSED }.keys
 
   # What a read showed last, kept so a check that sees nothing new asks no model.
   def seen!(digest:, state:)

@@ -10,13 +10,15 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
                                          "when a job or step inside it fails. Any other read needs done_when, failed_when or goal. Give this or tool" },
       "tool" => { "type" => "string",
                   "description" => "Instead of a capability, any read tool you hold, by the name you call it, with its arguments, such as a " \
-                                   "provider's API request with method GET for one workflow run. A tool that can also change things only " \
+                                   "provider's API request with method GET for one workflow run by its id (workflows/release/runs/<id>), never a " \
+                                   "list of recent runs. For a code host's CI, prefer run_history with run, which brings its jobs. A tool that can also change things only " \
                                    "reads here. Needs done_when, failed_when or goal. Find the right read in the provider's skill, " \
                                    "search_docs or the web (optional)" },
       "resource" => { "type" => "string", "description" => "The resource on the map, by name or map id, as for the capability itself (a capability only)" },
       "connection" => { "type" => "string", "description" => "The connection to ask, when the capability needs one named (optional)" },
       "name" => { "type" => "string", "description" => "run_history only: follow runs whose workflow, pipeline or kind contains this, such as release, build or deploy (optional)" },
-      "run" => { "type" => "string", "description" => "run_history only: the run to follow by its id or number, such as 46. Without it, the first run of that name that starts around now (optional)" },
+      "run" => { "type" => "string", "description" => "run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it, " \
+                                       "so the watch follows that exact run. Without it, the first run of that name that starts around now (optional)" },
       "report_start" => { "type" => "boolean", "description" => "run_history only: also say when the run starts, when the person asked to hear that (optional)" },
       "done_when" => { "type" => "string", "description" => "Text in the read's answer that means it is done, such as running (optional)" },
       "failed_when" => { "type" => "string", "description" => "Text in the read's answer that means it failed, such as crashed (optional)" },
@@ -29,7 +31,7 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
   description "Watch something after you answer and report back on your own, when the person asks to be told when it finishes " \
               "or reaches a step: a CI run, a build, a deploy, a resource coming back. It only reads, as the person, through " \
               "the capabilities, about every minute and at once when a connection reports a change. Each milestone the person " \
-              "asked about and the end are posted in this chat, its thread and their direct messages, with the " \
+              "asked about, each job or step as it starts or passes, and the end are posted in this chat, its thread and their direct messages, with the " \
               "reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order. " \
               "A run that never shows up in its history is handed back to you within minutes to find another read. The time limit is learned from " \
               "run history (twice the usual, at most 24 hours). Pass minutes only when the person asked for a limit, and " \

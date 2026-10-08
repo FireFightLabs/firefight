@@ -11,9 +11,11 @@ class AgentChatMessageSerializer < BaseSerializer
                   "files: { path: string; added: number | null; removed: number | null }[]; finishedAt: string | null; " \
                   "outcome: string | null; pullRequest: string | null; reason: string | null; " \
                   "question: { id: string; text: string; askedAt: string | null; answerDueAt: string | null; status: string; " \
-                  "answer: string | null; answeredBy: string | null; byHalon: boolean; answeredAt: string | null } | null; " \
-                  "checks: { name: string; status: string }[]; " \
-                  "review: { ran: boolean; right: boolean; findings: string[]; unverified: string[]; summary: string | null; sentBack: boolean } | null }".freeze
+                  "answer: string | null; answeredBy: string | null; byHalon: boolean; answeredAt: string | null; " \
+                  "options: { label: string; consequence: string }[]; recommended: number | null; recommendedReason: string | null; chosen: number | null } | null; " \
+                  "checks: { name: string; status: string; reason: string | null }[]; " \
+                  "review: { ran: boolean; right: boolean; findings: string[]; verified: string[]; unverified: string[]; unreviewed: string[]; " \
+                  "summary: string | null; sentBack: boolean } | null }".freeze
 
   attributes(id: { type: :string }, role: { type: :string })
 

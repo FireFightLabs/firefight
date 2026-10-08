@@ -1,10 +1,10 @@
-import { IconAlertTriangle, IconCheck, IconExternalLink, IconX } from "@tabler/icons-react"
+import { IconAlertTriangle, IconCheck, IconExternalLink, IconMinus, IconX } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { CodeAgentQuestion } from "@/components/code-agent-question"
 import { useElapsed } from "@/hooks/use-elapsed"
 import {
-  type CodeFixLine, type CodeFixReview, type CodeFixWork, checkPassed, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests,
+  type CodeFixCheck, type CodeFixLine, type CodeFixReview, type CodeFixWork, checkCouldNotRun, checkPassed, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests,
   passedLine, questionOpen, shownLines, stepsWord, stopped, wroteChange,
 } from "@/lib/code-fix-work"
 
@@ -216,8 +216,10 @@ function Review({ review }: { review: CodeFixReview }) {
         <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
         {review.sentBack ? "Halon's review sent it back once, and the corrected change does what was asked" : "Halon's review: it does what was asked"}
       </span>
-      {review.findings.length > 0 && <Notes title="What the review found" notes={review.findings} />}
-      {review.unverified.length > 0 && <Notes title="Not verified, so check before merging" notes={review.unverified} warn />}
+      {review.verified.length > 0 && <Notes title="Verified" notes={review.verified} />}
+      {review.findings.length > 0 && <Notes title="Found in review" notes={review.findings} />}
+      {review.unverified.length > 0 && <Notes title="Open questions" notes={review.unverified} warn />}
+      {review.unreviewed.length > 0 && <Notes title="Not reviewed, since the change is too large to review whole" notes={review.unreviewed} warn />}
     </div>
   )
 }
@@ -245,15 +247,35 @@ function Checks({ work }: { work: CodeFixWork }) {
       <span className="font-medium text-fg-primary">Checks</span>
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
         {work.checks.map((check) => (
-          <li key={check.name} className="flex min-w-0 items-start gap-2">
-            {checkPassed(check)
-              ? <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
-              : <IconX aria-hidden className="mt-[3px] size-3.5 shrink-0 text-error" />}
-            <code className="min-w-0 font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
-            <span className={`shrink-0 font-medium ${checkPassed(check) ? "text-success" : "text-error"}`}>{check.status}</span>
-          </li>
+          <CheckRow key={check.name} check={check} />
         ))}
       </ul>
     </div>
+  )
+}
+
+function CheckRow({ check }: { check: CodeFixCheck }) {
+  if (checkCouldNotRun(check)) {
+    return (
+      <li className="flex min-w-0 items-start gap-2">
+        <IconMinus aria-hidden className="mt-[3px] size-3.5 shrink-0 text-fg-muted" />
+        <span className="flex min-w-0 flex-col">
+          <code className="font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
+          {check.reason && <span className="text-fg-muted">Could not run here, since {check.reason}.</span>}
+        </span>
+        <span className="shrink-0 font-medium text-fg-muted">could not run</span>
+      </li>
+    )
+  }
+
+  const passed = checkPassed(check)
+  return (
+    <li className="flex min-w-0 items-start gap-2">
+      {passed
+        ? <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
+        : <IconX aria-hidden className="mt-[3px] size-3.5 shrink-0 text-error" />}
+      <code className="min-w-0 font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
+      <span className={`shrink-0 font-medium ${passed ? "text-success" : "text-error"}`}>{check.status}</span>
+    </li>
   )
 }

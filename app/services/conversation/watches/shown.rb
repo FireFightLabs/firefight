@@ -40,9 +40,17 @@ module Conversation::Watches::Shown
     end
 
     words = STEP_WORDS.fetch(step.status)
-    detail = step.over? ? step.reason : ("#{step.failed_part} failed." if step.failed_part.present?)
+    detail = step.over? ? step.reason : running_detail(step)
     took = step.seconds_taken && step.status == Chat::Watch::Step::STATUS_SUCCEEDED ? " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}" : ""
     [ "#{words}#{took}.", detail.presence ].compact.join(" ")
+  end
+
+  # What went on inside a step still going: the job or step that failed, otherwise what passed so far.
+  def running_detail(step)
+    return "#{step.failed_part} failed." if step.failed_part.present?
+
+    passed = step.parts_passed
+    "Passed so far: #{passed.join(', ')}." if passed.any?
   end
 
   # The watch for an outside agent over MCP, and for Halon's own list.

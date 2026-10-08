@@ -95,6 +95,48 @@ module Integrations
           end
         end
 
+        test "after the base moved and was merged in, only what the pull request changes is counted, checked and handed to the review" do
+          Dir.mktmpdir do |root|
+            gate, copy, = conflicted_pull_request(root)
+            resolve = <<~SH
+              #!/bin/sh
+              git merge -q refs/remotes/firefight/main > /dev/null 2>&1
+              printf 'pool: 20\\ntimeout: 5\\n' > config.yml
+              git add config.yml
+              git commit -q --no-edit
+            SH
+
+            change = read(run_script(root, copy, resolve, gate, branch: "fix-pool"))
+
+            assert_equal [ "config.yml" ], change.counts.keys, "notes.txt and settings.json came from main, so they are not the pull request's"
+            assert_includes change.diff, "+timeout: 5"
+            assert_not_includes change.diff, "notes.txt"
+            assert_equal [ "config.yml" ], change.checks.map(&:name).map { |name| name.split.last }.uniq, "the broken JSON main brought is not checked"
+            assert change.merged
+            assert_equal [ "config.yml", "notes.txt", "settings.json" ], change.touched.sort
+            assert_equal [ "config.yml" ], change.updated_paths
+          end
+        end
+
+        test "a test that cannot run without a database is reported as could not run, and the test covering a changed file runs" do
+          Dir.mktmpdir do |root|
+            gate, copy, = repository_with_gate(root) do |work|
+              FileUtils.mkdir_p([ File.join(work, "app/models"), File.join(work, "test/models"), File.join(work, "bin") ])
+              File.write(File.join(work, "app/models/pool.rb"), "class Pool; end\n")
+              File.write(File.join(work, "test/models/pool_test.rb"), "# covers Pool\n")
+              File.write(File.join(work, "bin/rails"), "#!/bin/sh\necho 'PG::ConnectionBad: connection to server on socket \"/run/postgresql/.s.PGSQL.5432\" failed'\nexit 1\n")
+              File.chmod(0o755, File.join(work, "bin/rails"))
+            end
+
+            change = read(run_script(root, copy, "#!/bin/sh\nprintf 'class Pool\\n  SIZE = 10\\nend\\n' > app/models/pool.rb\n", gate))
+
+            check = change.checks.find { |found| found.name == "bin/rails test test/models/pool_test.rb" }
+            assert check, change.checks.map(&:name).inspect
+            assert_equal CodeChecks::COULD_NOT_RUN, check.status
+            assert_equal "no database was available", check.reason
+          end
+        end
+
         test "conflict markers left in a file are named, and a branch that moved since the change began refuses the push" do
           Dir.mktmpdir do |root|
             gate, copy, head, = conflicted_pull_request(root)
@@ -199,6 +241,8 @@ module Integrations
           git(root, "clone", "-q", gate, other)
           File.write(File.join(other, "config.yml"), "pool: 20\n")
           File.write(File.join(other, "notes.txt"), "base only\n")
+          File.write(File.join(other, "settings.json"), "{ broken\n")
+          git(other, "add", "settings.json")
           commit(other, "raise it further", all: true)
           git(other, "push", "-q", "origin", "main")
           base = git(other, "rev-parse", "HEAD").strip

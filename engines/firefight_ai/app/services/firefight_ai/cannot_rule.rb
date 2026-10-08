@@ -7,6 +7,13 @@ module FirefightAi
                   "one callable with open_tools or use_skill. Run the read first and say what it showed. Say something " \
                   "is unverified only after the reads that could settle it were tried, naming them.".freeze
 
+    # Seen in a real chat, Halon fetched files one at a time from a code host, then said it had no shell or file browser
+    # for the code, while it held a read-only shell in a checkout.
+    CAPABILITY_RULE = "Before you say you lack a capability, such as a shell, a way to browse or search code, or a kind of read, " \
+                      "check your own tools in this turn: call open_tools and look for it by name in every group, such as " \
+                      "run_shell, code_search or ask_language_server for code. Say you lack it only when no group holds it, " \
+                      "and then name what is missing.".freeze
+
     ANSWER_RULE = "When you cannot do or check something, open with one plain line that says exactly what is missing, " \
                   "such as the tool, the permission or the connection, and how to add it, for example \"I can't set " \
                   "repository secrets because Firefight's GitHub App lacks the Secrets permission. An admin adds it in " \

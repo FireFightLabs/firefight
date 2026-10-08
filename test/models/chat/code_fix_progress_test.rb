@@ -57,4 +57,19 @@ class Chat::CodeFixProgressTest < ActiveSupport::TestCase
     work.failed!("Stopped")
     assert pace.due?("step", work, now: 7), "the end goes at once"
   end
+
+  test "the agent waiting again and again for its answer is one line that says how long so far" do
+    asked = Time.zone.parse("2026-10-09 10:00:00")
+    work = Chat::CodeFixProgress.start(at: asked)
+    work.add("Asked a question", at: asked)
+    work.waited!(asked, at: asked + 30.seconds)
+    work.waited!(asked, at: asked + 70.seconds)
+    work.waited!(asked, at: asked + 130.seconds)
+
+    assert_equal [ "Asked a question", "Waiting for your answer, 2m" ], work.lines.map(&:text)
+    work.add("Edited release.yml")
+    work.waited!(asked, at: asked + 200.seconds)
+    assert_equal "Waiting for your answer, 3m", work.lines.last.text
+    assert_equal 4, work.lines.size, "a wait after other work is a line of its own"
+  end
 end

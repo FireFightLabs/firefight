@@ -7,6 +7,7 @@ export type CodeFixLine = CodeFixWork["lines"][number]
 export type CodeFixTest = CodeFixWork["tests"][number]
 export type CodeFixFile = CodeFixWork["files"][number]
 export type CodeFixQuestion = NonNullable<CodeFixWork["question"]>
+export type CodeFixQuestionOption = CodeFixQuestion["options"][number]
 export type CodeFixReview = NonNullable<CodeFixWork["review"]>
 export type CodeFixCheck = CodeFixWork["checks"][number]
 
@@ -82,10 +83,20 @@ export function questionAnswered(question: CodeFixQuestion): boolean {
   return question.status === CODE_AGENT_QUESTION_STATUSES.ANSWERED
 }
 
+// Nobody answered in time, so the change went with the agent's recommendation.
+export function questionDefaulted(question: CodeFixQuestion): boolean {
+  return question.status === CODE_AGENT_QUESTION_STATUSES.DEFAULTED
+}
+
 export function questionExpired(question: CodeFixQuestion): boolean {
   return question.status === CODE_AGENT_QUESTION_STATUSES.EXPIRED
 }
 
 export function checkPassed(check: CodeFixCheck): boolean {
   return check.status === CODE_CHECK_STATUSES.PASSED
+}
+
+// Stopped by something missing where the checks run, such as a database, so it says nothing about the change.
+export function checkCouldNotRun(check: CodeFixCheck): boolean {
+  return check.status === CODE_CHECK_STATUSES.COULD_NOT_RUN
 }

@@ -17,6 +17,7 @@ class Chat::CodeFixProgress
   TESTS_KEPT = 20
   REASON_LIMIT = 300
   HEADLINE_LIMIT = 250
+  WAITING = "Waiting for your answer"
 
   Line = Data.define(:text, :at, :result)
   Test = Data.define(:command, :passed)
@@ -26,7 +27,13 @@ class Chat::CodeFixProgress
   # review what Halon's review of it found (Github::Fixing::Reviewed#to_h).
   attr_reader :started_at, :lines, :total, :changed, :tests, :files, :finished_at, :outcome, :pull_request, :reason, :question, :checks, :review
 
-  Check = Data.define(:name, :status)
+  # A review kept before it said what it verified and left out reads as having said nothing of either.
+  REVIEW_LISTS = { "verified" => [], "unreviewed" => [] }.freeze
+  # A question kept before questions had options reads as one with none.
+  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil }.freeze
+
+  # reason says what a check that could not run was missing.
+  Check = Data.define(:name, :status, :reason)
 
   def self.start(at: Time.current) = new(started_at: at)
 
@@ -41,8 +48,8 @@ class Chat::CodeFixProgress
       tests: Array(data["tests"]).map { |test| Test.new(command: test["command"].to_s, passed: test["passed"] == true) },
       files: Array(data["files"]).map { |file| ChangedFile.new(path: file["path"].to_s, added: file["added"], removed: file["removed"]) },
       finished_at: parse_time(data["finishedAt"]), outcome: data["outcome"], pull_request: data["pullRequest"], reason: data["reason"],
-      question: data["question"].presence, review: data["review"].presence,
-      checks: Array(data["checks"]).map { |check| Check.new(name: check["name"].to_s, status: check["status"].to_s) }
+      question: data["question"].presence && QUESTION_CHOICES.merge(data["question"].to_h), review: data["review"].presence && REVIEW_LISTS.merge(data["review"].to_h),
+      checks: Array(data["checks"]).map { |check| Check.new(name: check["name"].to_s, status: check["status"].to_s, reason: check["reason"]) }
     )
   end
 
@@ -87,6 +94,16 @@ class Chat::CodeFixProgress
     @total += 1
   end
 
+  # The agent waited again for the answer to its question. Waits in a row are one line that says how long so far, since
+  # the agent asks again every few seconds.
+  def waited!(since, at: Time.current)
+    so_far = since && at > since ? ", #{waited_words(at - since)}" : ""
+    last = @lines.last
+    return add("#{WAITING}#{so_far}", at: at) unless last&.text&.start_with?(WAITING)
+
+    @lines = [ *@lines[0...-1], Line.new(text: "#{WAITING}#{so_far}", at: last.at, result: nil) ]
+  end
+
   def changed!(path)
     shown = clean(path, LINE_LIMIT)
     @changed = [ *@changed, shown ].uniq.last(CHANGED_KEPT) if shown.present?
@@ -107,14 +124,18 @@ class Chat::CodeFixProgress
   # Waiting on a person, so the headline says so rather than the agent's last step.
   def waiting_for_answer? = question.present? && question["status"] == CodeAgentQuestion::STATUS_OPEN && !finished?
 
-  # Only a check's name and how it went are kept, never what it printed, which can quote the repository.
+  # Only a check's name, how it went and what one that could not run was missing are kept, never what it printed, which
+  # can quote the repository.
   def checked!(found)
-    @checks = found.map { |check| Check.new(name: clean(check.name, LINE_LIMIT), status: check.status) }
+    @checks = found.map { |check| Check.new(name: clean(check.name, LINE_LIMIT), status: check.status, reason: check.reason) }
     return if found.empty?
 
-    failed = found.reject(&:passed?)
-    add(failed.empty? ? "Checked the change: #{found.size} #{'check'.pluralize(found.size)} passed" : "Checked the change: #{failed.size} of #{found.size} failed",
-        result: failed.empty? ? RESULT_PASSED : RESULT_FAILED)
+    not_run = found.count(&:could_not_run?)
+    failed = found.size - not_run - found.count(&:passed?)
+    ran = found.size - not_run
+    words = failed.zero? ? "#{ran} #{'check'.pluralize(ran)} passed" : "#{failed} of #{ran} failed"
+    add([ "Checked the change: #{words}", ("#{not_run} could not run here" if not_run.positive?) ].compact.join(", "),
+        result: failed.zero? ? RESULT_PASSED : RESULT_FAILED)
   end
 
   def reviewed!(found) = (@review = found)
@@ -147,13 +168,17 @@ class Chat::CodeFixProgress
       "changed" => changed, "tests" => tests.map { |test| { "command" => test.command, "passed" => test.passed } },
       "files" => files.map { |file| { "path" => file.path, "added" => file.added, "removed" => file.removed } },
       "finishedAt" => finished_at&.utc&.iso8601, "outcome" => outcome, "pullRequest" => pull_request, "reason" => reason,
-      "question" => question, "checks" => checks.map { |check| { "name" => check.name, "status" => check.status } }, "review" => review
+      "question" => question, "checks" => checks.map { |check| { "name" => check.name, "status" => check.status, "reason" => check.reason } }, "review" => review
     }
   end
 
   def to_json(*) = to_h.to_json(*)
 
   private
+
+  def waited_words(seconds)
+    seconds < 60 ? "#{seconds.round}s" : "#{(seconds / 60).floor}m"
+  end
 
   def waiting_words = ("Waiting for an answer: #{question['text']}" if waiting_for_answer?)
 
