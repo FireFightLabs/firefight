@@ -4,7 +4,7 @@ module Integrations
   # same scope never run at once.
   class MapEventJob < ApplicationJob
     queue_as :background
-    limits_concurrency key: ->(environment_row, scope_key) { "#{environment_row.id}:#{scope_key}" }, duration: 15.minutes
+    limits_concurrency key: ->(environment_row, scope_key) { "#{environment_row.id}:#{scope_key}" }, duration: ResourceMap::ReceivedEvent::READ_LEASE
 
     def perform(environment_row, scope_key)
       MapEvents.reread!(environment_row, scope_key)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_150200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1552,6 +1552,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_140000) do
     t.index ["redeemed_by_id"], name: "index_invite_codes_on_redeemed_by_id"
   end
 
+  create_table "job_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "job_id", null: false
+    t.string "job_class", null: false
+    t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_job_runs_on_created_at"
+    t.index ["job_id"], name: "index_job_runs_on_job_id", unique: true
+  end
+
   create_table "login_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "email", null: false
     t.string "token_digest", null: false
@@ -2069,6 +2077,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_140000) do
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.uuid "workflow_id", null: false
+    t.string "claimed_by"
     t.index ["run_at"], name: "index_solid_workflow_steps_on_run_at"
     t.index ["status", "updated_at"], name: "index_solid_workflow_steps_on_status_and_updated_at"
     t.index ["status"], name: "index_solid_workflow_steps_on_status"

@@ -48,10 +48,13 @@ class Investigation::Regression
 
     # A case whose worker died is settled, so its run can finish.
     def settle_stale!
-      Investigation::RegressionResult.stale.includes(:regression_run, :replay).find_each do |result|
-        result.settle!(status: Investigation::RegressionResult::STATUS_ERRORED, reason: LOST, spent_micros: result.replay&.spent_micros.to_i)
-        result.regression_run.finish_if_done!
-      end
+      Investigation::RegressionResult.stale.includes(:regression_run, :replay).find_each { |result| settle_lost!(result) }
+    end
+
+    # Also when the same job comes back after its worker was stopped mid replay, since the claim keeps it from running twice.
+    def settle_lost!(result)
+      result.settle!(status: Investigation::RegressionResult::STATUS_ERRORED, reason: LOST, spent_micros: result.replay&.spent_micros.to_i)
+      result.regression_run.finish_if_done!
     end
 
     def prompt_version = FirefightAi::Investigator.prompt_version

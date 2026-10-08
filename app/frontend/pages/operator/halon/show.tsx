@@ -55,7 +55,7 @@ const CHART: ChartConfig = {
   answered: { label: "Answered", color: "var(--chart-3)" },
   stopped: { label: "Stopped", color: "var(--chart-4)" },
   failed: { label: "Failed", color: "var(--destructive)" },
-  live: { label: "Working", color: "var(--chart-2)" },
+  live: { label: "Working", color: "var(--stage-active)" },
 }
 
 function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {

@@ -2,7 +2,7 @@ import type { ResourceMapHealth, ResourceMapKind } from "@/lib/generated/constan
 
 // One chart colour per family of resource, so a database reads apart from a service at a glance.
 // Lime is left out, since on this page it means healthy.
-const SERVING = "bg-stage-active-tint text-chart-2 ring-stage-active-border"
+const SERVING = "bg-chart-2-tint text-chart-2 ring-chart-2-border"
 const ROUTING = "bg-surface-selected text-fg-body ring-border-strong"
 const STORING = "bg-stage-triage-tint text-chart-3 ring-stage-triage-border"
 const RUNNING = "bg-warning-tint text-chart-4 ring-warning/30"

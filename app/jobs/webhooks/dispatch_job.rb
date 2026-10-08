@@ -11,7 +11,9 @@ class Webhooks::DispatchJob < ApplicationJob
 
     workspace = incident.workspace
 
-    workspace.webhooks.triggered_by(event.event_type).find_each do |webhook|
+    # Run again after a stopped worker, or retried part way, it adds only the deliveries still missing.
+    sent = WebhookDelivery.where(incident_event: event.incident_event, event_type: event.event_type).select(:webhook_id)
+    workspace.webhooks.triggered_by(event.event_type).where.not(id: sent).find_each do |webhook|
       WebhookDelivery.create!(
         webhook: webhook,
         incident_event: event.incident_event,

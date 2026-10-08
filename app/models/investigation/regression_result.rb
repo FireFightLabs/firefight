@@ -11,7 +11,8 @@ class Investigation::RegressionResult < ApplicationRecord
   STATUS_SKIPPED = "skipped"
   STATUSES = [ STATUS_PENDING, STATUS_PASSED, STATUS_FAILED, STATUS_ERRORED, STATUS_SKIPPED ].freeze
   EXPECTED = [ Investigation::Finding::OUTCOME_CONFIRMED, Investigation::Finding::OUTCOME_WRONG ].freeze
-  # Longer than any replay is allowed to run, so a case still pending after it was started has lost its worker.
+  # Longer than any replay is allowed to run, so a case still pending this long after it was started, or after it was
+  # made and never started, has lost its worker or its job.
   STALE_AFTER = 2.hours
 
   belongs_to :regression_run, class_name: "Investigation::RegressionRun", inverse_of: :results
@@ -21,7 +22,10 @@ class Investigation::RegressionResult < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :expected, inclusion: { in: EXPECTED }
 
-  scope :stale, -> { where(status: STATUS_PENDING).where(started_at: ...STALE_AFTER.ago) }
+  scope :stale, lambda {
+    pending = where(status: STATUS_PENDING)
+    pending.where(started_at: ...STALE_AFTER.ago).or(pending.where(started_at: nil, created_at: ...STALE_AFTER.ago))
+  }
 
   # Starts the replay once, so a retried job never runs and pays for the same case twice.
   def claim!

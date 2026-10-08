@@ -74,6 +74,15 @@ class Investigation::ApprovedFixStepTest < ActiveSupport::TestCase
     approve
   end
 
+  test "a step someone pressed Run on waits for its own job, and another job of the fix coming back after a stop leaves it" do
+    approve
+    assert_nil Investigation::FixRunner.run_approved!(@step, by: @alice)
+
+    Investigation::FixRunner.new(@plan).advance!(interrupted_at: 1.minute.ago)
+
+    assert_equal Investigation::RemediationStep::STATUS_RUNNING, @step.reload.status
+  end
+
   private
 
   def approve

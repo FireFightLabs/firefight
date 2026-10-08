@@ -16,6 +16,15 @@ class PostmortemGenerationJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
+  def self.interrupted_too_often(incident_id) = give_up_interrupted!(Incident.find_by(id: incident_id)&.postmortem)
+
+  # A draft whose job will not run again ends failed, which the page offers to try again, and its author is told.
+  def self.give_up_interrupted!(postmortem)
+    return unless postmortem&.give_up_generation!
+
+    new(postmortem.incident_id).notify(reason: Postmortem::GENERATION_INTERRUPTED, retrying: false)
+  end
+
   # The postmortem records who started it. A copy on the job could only disagree
   # and could not name an agent at all.
   def perform(incident_id)
@@ -51,6 +60,10 @@ class PostmortemGenerationJob < ApplicationJob
 
   # An agent has no account to message, the failure is on the record either way.
   def notify_failure(error, terminal:)
+    notify(reason: failure_reason(error), retrying: !terminal, out_of_credit: AiCredit.out?(error))
+  end
+
+  def notify(reason:, retrying:, out_of_credit: false)
     incident_id, = arguments
     incident = Incident.find_by(id: incident_id)
     author = incident&.postmortem&.generated_by
@@ -60,9 +73,9 @@ class PostmortemGenerationJob < ApplicationJob
       channel_id: incident.channel_id,
       user_id: author.platform_user_id,
       incident: incident,
-      reason: failure_reason(error),
-      retrying: !terminal,
-      note: (AiCredit.cannot(incident.workspace, "write this postmortem") if AiCredit.out?(error))
+      reason: reason,
+      retrying: retrying,
+      note: (AiCredit.cannot(incident.workspace, "write this postmortem") if out_of_credit)
     )
   rescue StandardError => e
     Rails.logger.error({

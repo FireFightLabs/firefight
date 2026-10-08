@@ -87,6 +87,25 @@ module Conversation::HeldCalls
     end
   end
 
+  # Longer than any check takes, so a call still checking after it lost its job to a stopped worker.
+  CHECK_LOST_AFTER = 15.minutes
+
+  # From the recovery sweep. A check whose job was lost runs again, at most once per CHECK_LOST_AFTER, since the claim
+  # moves the row on. A call left running by a turn that will not run again ends saying so.
+  def self.recover!
+    Chat::HeldCall.where(status: Chat::HeldCall::STATUS_CHECKING, updated_at: ...CHECK_LOST_AFTER.ago).find_each do |held|
+      relooked = Chat::HeldCall.where(id: held.id, status: Chat::HeldCall::STATUS_CHECKING, updated_at: held.updated_at)
+                               .update_all(updated_at: Time.current)
+      HeldCallCheckJob.perform_later(held.id) if relooked.positive?
+    end
+    Chat::HeldCall.where(status: Chat::HeldCall::STATUS_RUNNING, decided_at: ...Conversation::REPLY_CEILING.ago).find_each { |held| give_up!(held) }
+  end
+
+  # The call may or may not have gone through, so whoever asked is told to look before asking again. Once, by the move.
+  def self.give_up!(held)
+    tell!(held) if held.finish!(ok: false, result: COULD_NOT_FINISH)
+  end
+
   # Runs the claimed call through the gateway with its approval, as whoever asked, from the chat's turn. Returns the text
   # the call answered, which the turn hands to Halon, and keeps a short form of it with the call.
   def self.execute!(held)

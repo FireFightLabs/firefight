@@ -23,6 +23,12 @@ class QueueConfigTest < ActiveSupport::TestCase
     end
   end
 
+  # docs/architecture.md, Deploys, asks the platform for a grace period longer than both, so neither is cut short.
+  test "a stopped worker and a stopped web server give work in flight the same time to finish" do
+    assert_equal 25.seconds, SolidQueue.shutdown_timeout
+    assert_match(/^force_shutdown_after 25$/, Rails.root.join("config/puma.rb").read)
+  end
+
   test "a chat answer does not wait behind investigations" do
     assert_equal "conversations", ConversationReplyJob.new.queue_name
     assert_equal "investigations", InvestigationJob.new.queue_name
