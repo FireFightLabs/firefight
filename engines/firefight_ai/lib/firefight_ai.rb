@@ -270,9 +270,10 @@ module FirefightAi
   end
 
   # What the registry says a model takes besides text, such as image or pdf. A model it does not know takes only text,
-  # since nothing is assumed in its place.
-  def input_modalities(model_id)
-    RubyLLM.models.find(model_id.to_s).modalities.input
+  # since nothing is assumed in its place. The provider matters, since one id can be listed under several providers
+  # that take different things, and without it the registry picks one by its own preference.
+  def input_modalities(model_id, provider: nil)
+    RubyLLM.models.find(model_id.to_s, provider: provider.presence).modalities.input
   rescue RubyLLM::ModelNotFoundError
     []
   end

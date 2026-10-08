@@ -71,3 +71,20 @@ openrouter_claude_opus_5_5:
   provider: openrouter
   capabilities: ["function_calling", "reasoning"]
   pricing: {"text_tokens": {"standard": {"input_per_million": 4, "output_per_million": 20}}}
+
+# One id under two providers that take different input, as OpenRouter and Perplexity both list openai/gpt-5.6-luna.
+shared_id_reads_images:
+  model_id: openai/shared-vision
+  context_window: 200000
+  name: Shared Vision
+  provider: openrouter
+  capabilities: ["function_calling"]
+  modalities: {"input": ["text", "image", "pdf"], "output": ["text"]}
+
+shared_id_text_only:
+  model_id: openai/shared-vision
+  context_window: 200000
+  name: Shared Vision
+  provider: perplexity
+  capabilities: []
+  modalities: {"input": [], "output": []}
