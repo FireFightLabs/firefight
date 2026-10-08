@@ -304,6 +304,22 @@ module FirefightAi
     embedding
   end
 
+  # Many vectors in one call, for text that serves every workspace at once, such as the providers' documentation in the
+  # docs store. Run on the deployment's own model and account, and recorded with no workspace. Answers the vectors in
+  # the order of texts, and the model that wrote them.
+  def embed_documents(texts)
+    choice = deployment_model_for(AiPurpose::EMBEDDING)
+    embedding, = translating_errors do
+      Inference.track(workspace: nil, feature: Inference::FEATURE_PROVIDER_DOCS, **choice.ledger.merge(AiPayer.deployment_only.ledger)) do
+        RubyLLM.embed(texts, model: choice.model, provider: choice.provider&.to_sym)
+      end
+    rescue RubyLLM::ConfigurationError => e
+      raise TerminalError.new(e.message, reason: e.class.name.demodulize)
+    end
+    vectors = embedding.vectors
+    [ vectors.first.is_a?(Numeric) ? [ vectors ] : vectors, choice.model ]
+  end
+
   # Every vector in a workspace has to come from this one, so a search ignores rows written by
   # anything else.
   def embedding_model = deployment_model_for(AiPurpose::EMBEDDING).model

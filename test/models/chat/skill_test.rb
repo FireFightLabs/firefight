@@ -143,15 +143,12 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
-  test "every guide a skill lists is one its source keeps, and a source's guides carry their license and origin" do
+  test "every guide a skill lists is a page one of its provider's documentation sources can hold" do
     Chat::Skill.all.each do |skill|
+      sources = ProviderDocSource::Definition.of(skill.source)
       skill.references.each do |path|
-        assert_includes Chat::Skill.references_of(skill.source), path, "#{skill.name} lists #{path}, which #{skill.source} does not keep"
+        assert sources.any? { |source| source.could_hold?(path) }, "#{skill.name} lists #{path}, which no #{skill.source} documentation source holds"
       end
-    end
-    Dir[Chat::Skill::DIRECTORY.join("*", Chat::Skill::REFERENCES)].each do |folder|
-      assert File.exist?(File.join(folder, "LICENSE")), "#{folder} has no LICENSE"
-      assert File.exist?(File.join(folder, "SOURCE")), "#{folder} does not say where it came from"
     end
   end
 
@@ -163,7 +160,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
     assert_match "every ( has its )", skill.steps
     assert_match "20127", skill.steps
     assert_includes skill.references, "rules/operators.md"
-    assert_includes Chat::Skill.reference("cloudflare", "rules/operators.md"), "Grouping symbols"
+    assert ProviderDocSource::Definition.find("cloudflare").could_hold?("rules/operators.md")
   end
 
   # Seen in a real chat, a zone already on the map was found with execute, which asks the person to confirm every call.
@@ -217,10 +214,22 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
-  test "a guide is never read as a skill, and nothing outside a source's guides can be read" do
-    assert Chat::Skill.all.none? { |skill| skill.domain == Chat::Skill::REFERENCES }
-    assert_includes Chat::Skill.reference("planetscale", "postgres/ps-connections.md"), "PgBouncer"
+  test "a guide is read from the docs store with where it came from, and nothing the store does not hold can be named" do
+    store_doc_page(provider: "planetscale", path: "postgres/ps-connections.md", content: "# Connections\n\nUse PgBouncer.",
+                   url: "https://github.com/planetscale/database-skills/blob/HEAD/skills/postgres/references/ps-connections.md")
+
+    guide = Chat::Skill.reference("planetscale", "postgres/ps-connections.md")
+    assert guide.start_with?("Source: Connections, https://github.com/planetscale/database-skills/blob/HEAD/skills/postgres/references/ps-connections.md")
+    assert_includes guide, "PgBouncer"
     assert_nil Chat::Skill.reference("planetscale", "../databases/triage.md")
     assert_nil Chat::Skill.reference("planetscale", "../../../master.key")
+    assert_equal [ "postgres/ps-connections.md" ], Chat::Skill.references_of("planetscale")
+  end
+
+  test "a guide the provider's documentation dropped is named as missing, and one not read yet is not" do
+    store_doc_page(provider: "planetscale", path: "postgres/other.md", content: "# Other")
+
+    assert_includes Chat::Skill.missing_references.keys, "planetscale_connections"
+    assert_not Chat::Skill.missing_references.key?("cloudflare_triage")
   end
 end

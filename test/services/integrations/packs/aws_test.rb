@@ -543,10 +543,9 @@ module Integrations
 
         assert_equal %w[aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_triage], skills.map(&:name).sort
         skills.each { |skill| assert skill.references.any?, "#{skill.name} lists the guides behind it" }
-        references = Chat::Skill::DIRECTORY.join(Aws::PROVIDER_KEY, Chat::Skill::REFERENCES)
-        assert_match "Apache License", references.join("LICENSE").read
-        assert_match "Amazon.com", references.join("NOTICE").read
-        assert_match "Status check failed", Chat::Skill.reference(Aws::PROVIDER_KEY, "compute/troubleshooting.md")
+        source = ProviderDocSource::Definition.find(Aws::PROVIDER_KEY)
+        assert_equal %w[LICENSE NOTICE], [ source["license"], source["notice"] ]
+        assert source.could_hold?("compute/troubleshooting.md")
       end
 
       test "every state AWS reports for a resource on the map reads a health Firefight knows" do

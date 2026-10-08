@@ -16,6 +16,7 @@ module Integrations
       include Releases
       include Branches
       include Security
+      include ActionsSecrets
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       FILE_LIMIT = 30
@@ -177,7 +178,8 @@ module Integrations
       PERMISSION_NAMES = {
         "actions" => "Actions", "administration" => "Administration", "checks" => "Checks", "contents" => "Contents", "deployments" => "Deployments",
         "issues" => "Issues", "pull_requests" => "Pull requests", "statuses" => "Commit statuses", "vulnerability_alerts" => "Dependabot alerts",
-        "security_events" => "Code scanning alerts", "secret_scanning_alerts" => "Secret scanning alerts", "workflows" => "Workflows"
+        "security_events" => "Code scanning alerts", "secret_scanning_alerts" => "Secret scanning alerts", "workflows" => "Workflows",
+        "secrets" => "Secrets", "environments" => "Environments"
       }.freeze
       # The permissions each tool cannot answer without, from GitHub's list of the permission every REST endpoint needs
       # (docs.github.com, REST API, Permissions required for GitHub Apps). A tool that reads a further endpoint only to
@@ -189,7 +191,9 @@ module Integrations
       # is an issue to GitHub, so its comments and labels go through issues/{number}, which takes Pull requests write for
       # one. Merging (PUT pulls/{number}/merge) and draft releases (POST releases) are Contents write, and a branch's
       # rules (rules/branches/{branch}) and tags are Metadata, which every App holds. pr_lookup, branch_protection and
-      # ref_checks read checks, statuses, Dependabot alerts and branch protection only to add to their answer.
+      # ref_checks read checks, statuses, Dependabot alerts and branch protection only to add to their answer. A
+      # repository's Actions secrets are Secrets, and an environment's are Environments, which the secrets tools name
+      # themselves when GitHub refuses one.
       NEEDS = {
         "pr_lookup" => { "pull_requests" => READ },
         "commit_lookup" => { "contents" => READ },
@@ -259,7 +263,9 @@ module Integrations
         "diff_refs" => { "contents" => READ },
         "ask_language_server" => { "contents" => READ },
         "run_shell" => { "contents" => READ },
-        "run_tests" => { "contents" => READ }
+        "run_tests" => { "contents" => READ },
+        "list_actions_secrets" => { "secrets" => READ },
+        "set_actions_secret" => { "secrets" => WRITE }
       }.freeze
 
       # The installation a connection was made through, as Integrations::Installations reads it. One that is suspended

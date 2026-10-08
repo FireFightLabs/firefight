@@ -148,7 +148,7 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   test "a webhook is created with the events it subscribes to" do
     events = [ Webhook::SUBSCRIBABLE_EVENTS.first ]
 
-    content, is_error = call_tool(Mcp::Tools::UPSERT_WEBHOOK, {
+    content, is_error = call_tool(Mcp::Tools::UPSERT_OUTBOUND_WEBHOOK, {
       name: "Ops relay", url: "https://example.com/hooks/firefight", subscribed_events: events
     })
 
@@ -158,19 +158,19 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "a webhook signing secret is never returned by a write" do
-    content, = call_tool(Mcp::Tools::UPSERT_WEBHOOK, {
+    content, = call_tool(Mcp::Tools::UPSERT_OUTBOUND_WEBHOOK, {
       name: "Ops relay", url: "https://example.com/hooks/firefight"
     })
 
     assert_not content.key?("signing_secret")
   end
 
-  test "test_webhook queues a signed delivery of the newest subscribed event" do
+  test "test_outbound_webhook queues a signed delivery of the newest subscribed event" do
     webhook = webhooks(:active_webhook)
 
     content, is_error = nil
     assert_difference -> { webhook.webhook_deliveries.count }, 1 do
-      content, is_error = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id })
+      content, is_error = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id })
     end
 
     assert_not is_error, content.inspect
@@ -182,32 +182,32 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     assert_not content.key?("signing_secret")
   end
 
-  test "test_webhook says why when nothing the webhook subscribes to has happened" do
+  test "test_outbound_webhook says why when nothing the webhook subscribes to has happened" do
     webhook = Webhook.create!(
       workspace: @workspace, name: "Canceled only",
       url: "https://example.com/test", subscribed_events: [ IncidentEvent::INCIDENT_CANCELED ]
     )
 
     assert_no_difference -> { WebhookDelivery.count } do
-      _, is_error, text = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id })
+      _, is_error, text = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id })
 
       assert is_error
       assert_equal webhook.test_blocked_reason, text
     end
   end
 
-  test "test_webhook cannot reach another workspace's webhook" do
+  test "test_outbound_webhook cannot reach another workspace's webhook" do
     other = webhooks(:workspace_two_webhook)
 
     assert_no_difference -> { WebhookDelivery.count } do
-      _, is_error, text = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: other.id })
+      _, is_error, text = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: other.id })
 
       assert is_error
       assert_match(/Not found in this workspace/, text)
     end
   end
 
-  test "test_webhook needs webhooks:update, which a key granted only reads lacks" do
+  test "test_outbound_webhook needs webhooks:update, which a key granted only reads lacks" do
     _, reader = create_service_key(
       workspace: @workspace, created_by: @membership, name: "Reader",
       permissions: { Ability::Action::RESOURCE_WEBHOOKS => %w[read] }
@@ -218,18 +218,18 @@ class McpCredentialToolsTest < ActionDispatch::IntegrationTest
     )
     webhook = webhooks(:active_webhook)
 
-    _, is_error, text = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id }, token: reader)
+    _, is_error, text = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id }, token: reader)
     assert is_error
     assert_match(/webhooks:update/, text)
 
-    _, is_error = call_tool(Mcp::Tools::TEST_WEBHOOK, { id: webhook.id }, token: writer)
+    _, is_error = call_tool(Mcp::Tools::TEST_OUTBOUND_WEBHOOK, { id: webhook.id }, token: writer)
     assert_not is_error
   end
 
-  test "test_webhook is offered as a send, not a destructive or idempotent call" do
-    tool = rpc("tools/list").dig("result", "tools").find { |offered| offered["name"] == Mcp::Tools::TEST_WEBHOOK }
+  test "test_outbound_webhook is offered as a send, not a destructive or idempotent call" do
+    tool = rpc("tools/list").dig("result", "tools").find { |offered| offered["name"] == Mcp::Tools::TEST_OUTBOUND_WEBHOOK }
 
-    assert tool, "test_webhook should be offered"
+    assert tool, "test_outbound_webhook should be offered"
     assert_not tool.dig("annotations", "destructiveHint")
     assert_not tool.dig("annotations", "idempotentHint")
     assert tool.dig("annotations", "openWorldHint")

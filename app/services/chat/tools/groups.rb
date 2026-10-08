@@ -115,13 +115,15 @@ module Chat::Tools::Groups
       ]
     ),
     Firefight.new(
-      key: ACCESS, title: "Agents, API keys and webhooks",
-      covers: "machine accounts and their tokens, API keys, outbound webhooks",
+      key: ACCESS, title: "Agents, API keys and Firefight outbound webhooks",
+      covers: "machine accounts and their tokens, API keys, and Firefight's own outbound webhooks, which post this " \
+              "workspace's incident events to a URL the team owns. Never a provider's webhooks, such as a deploy or " \
+              "workflow trigger at a hosting provider or a code host's webhooks, which that provider's own tools reach",
       tools: [
         Mcp::Tools::LIST_AGENTS, Mcp::Tools::UPSERT_AGENT, Mcp::Tools::ROTATE_AGENT_TOKEN,
         Mcp::Tools::REVOKE_AGENT_TOKEN, Mcp::Tools::DELETE_AGENT, Mcp::Tools::LIST_API_KEYS,
-        Mcp::Tools::UPSERT_API_KEY, Mcp::Tools::DELETE_API_KEY, Mcp::Tools::UPSERT_WEBHOOK,
-        Mcp::Tools::DELETE_WEBHOOK, Mcp::Tools::TEST_WEBHOOK
+        Mcp::Tools::UPSERT_API_KEY, Mcp::Tools::DELETE_API_KEY, Mcp::Tools::UPSERT_OUTBOUND_WEBHOOK,
+        Mcp::Tools::DELETE_OUTBOUND_WEBHOOK, Mcp::Tools::TEST_OUTBOUND_WEBHOOK
       ]
     )
   ].freeze

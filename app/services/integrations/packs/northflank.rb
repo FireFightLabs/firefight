@@ -3,7 +3,7 @@ module Integrations
     # Northflank for the projects an environment reads, one, several or every one its token can read (the project
     # connect field, a scope). It reads what runs there, its logs, its metrics and its builds, with the API token the
     # workspace creates in Northflank. Every tool reads, except api_request, which reaches all of Northflank's API inside
-    # one project when the token's role allows it and it is switched on. A call reaches one project, the one it
+    # one project when the token's role allows it and it is switched on, and add_workflow_webhook (WorkflowWebhooks). A call reaches one project, the one it
     # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every project.
     class Northflank < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -240,6 +240,8 @@ module Integrations
            },
            read_only: true
 
+      include WorkflowWebhooks
+
       # The project is not a secret, so it is a connect field in the registry, shown on the connection's card, and read
       # with ConnectionSettings#field.
       def self.credential_fields
@@ -339,6 +341,7 @@ module Integrations
         body = arguments["body"]
         fail!("body must be an object.") unless body.nil? || body.is_a?(Hash)
         fail_policy!("body holds what looks like a secret, and Firefight never sends a credential through Northflank's API.") if secret?(body)
+        body = webhook_tokens_restored(environment_row, path, body) unless verb == "GET"
 
         # Worked out first, so a change that went through is never reported as failed for want of its link.
         link = change_link(environment_row, path)

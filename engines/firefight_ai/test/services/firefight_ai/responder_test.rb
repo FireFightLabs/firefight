@@ -131,13 +131,30 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     guide = FirefightAi::LookFirstRule::API_GUIDE_RULE
     guessed = FirefightAi::LookFirstRule::GUESSED_CALL_RULE
 
-    assert_match "Before searching the web for how a provider's API works", guide
-    assert_match "the provider's skill and the guides it lists, through use_skill, and its tools' own descriptions", guide
+    assert_match "Before searching the web for how a provider works, such as which calls its API offers", guide
+    assert_match "how one of its features such as a trigger or a webhook is set up", guide
+    assert_match "the provider's skill and the guides it lists, through use_skill, its documentation through search_docs and read_doc, and its tools' own descriptions", guide
     assert_no_match "where you hold it", guide
     assert_match "Search the web only when they do not answer", guide
     assert_match "404 or 405", guessed
     assert_match "Check the provider's API reference before trying again, never send the same call again", guessed
     assert_match "say plainly that the provider's API does not offer it", guessed
+  end
+
+  # Seen in a real chat, Halon called a provider's webhook setup unverifiable while it held the tool that read it, then
+  # answered a missing permission with paragraphs of apology before saying what was missing.
+  test "Halon tries the read before calling something unverifiable, and leads with what is missing when it cannot do something" do
+    verify = FirefightAi::CannotRule::VERIFY_RULE
+    answer = FirefightAi::CannotRule::ANSWER_RULE
+
+    assert_match "Never say something cannot be checked or verified while you hold a tool that reads it", verify
+    assert_match "Run the read first and say what it showed", verify
+    assert_match "open with one plain line that says exactly what is missing", answer
+    assert_match "never apologise for it", answer
+    prompt = FirefightAi::Responder.new(nil, inferable: nil).send(:template_text)
+    assert_includes prompt, verify
+    assert_includes prompt, answer
+    assert_includes FirefightAi::Investigator.system_prompt, verify
   end
 
   test "a connection's tool is said to reach only its own account, and a cause is stated only when a result said it" do

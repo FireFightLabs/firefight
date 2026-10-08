@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -564,6 +564,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
     t.string "tool_name", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "handle"], name: "index_chat_saved_results_on_chat_id_and_handle", unique: true
+  end
+
+  create_table "chat_secret_entries", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.string "tool_call_id"
+    t.string "kind", null: false
+    t.uuid "integration_tool_id", null: false
+    t.uuid "catalog_entry_id"
+    t.uuid "requester_id", null: false
+    t.string "title", null: false
+    t.jsonb "target", default: {}, null: false
+    t.string "reference"
+    t.string "status", null: false
+    t.datetime "expires_at"
+    t.uuid "done_by_id"
+    t.datetime "done_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "created_at"], name: "index_chat_secret_entries_on_chat_id_and_created_at"
+    t.index ["done_by_id"], name: "index_chat_secret_entries_on_done_by_id"
+    t.index ["integration_tool_id"], name: "index_chat_secret_entries_on_integration_tool_id"
+    t.index ["requester_id"], name: "index_chat_secret_entries_on_requester_id"
   end
 
   create_table "chat_skill_problems", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1251,7 +1275,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
     t.string "provider_request_id"
     t.string "status", null: false
     t.string "stop_reason"
-    t.uuid "workspace_id", null: false
+    t.uuid "workspace_id"
     t.integer "max_output_tokens"
     t.string "error_kind"
     t.string "paid_by", null: false
@@ -1744,6 +1768,56 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
     t.datetime "updated_at", null: false
     t.string "version", null: false
     t.index ["template", "version"], name: "index_prompt_versions_on_template_and_version", unique: true
+  end
+
+  create_table "provider_doc_chunks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "provider_doc_page_id", null: false
+    t.string "provider", null: false
+    t.integer "position", null: false
+    t.string "heading_path", null: false
+    t.text "text", null: false
+    t.string "content_digest", null: false
+    t.virtual "document", type: :tsvector, as: "to_tsvector('simple'::regconfig, (((heading_path)::text || ' '::text) || text))", stored: true
+    t.vector "embedding", limit: 1536
+    t.string "embedding_model"
+    t.string "embedded_digest"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document"], name: "index_provider_doc_chunks_on_document", using: :gin
+    t.index ["embedding"], name: "index_provider_doc_chunks_on_embedding", opclass: :vector_cosine_ops, using: :hnsw
+    t.index ["provider"], name: "index_provider_doc_chunks_on_provider"
+    t.index ["provider_doc_page_id", "position"], name: "index_provider_doc_chunks_on_provider_doc_page_id_and_position", unique: true
+  end
+
+  create_table "provider_doc_pages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "provider_doc_source_id", null: false
+    t.string "provider", null: false
+    t.string "path", null: false
+    t.string "url", null: false
+    t.string "title", null: false
+    t.text "content", null: false
+    t.string "content_digest", null: false
+    t.string "revision"
+    t.datetime "fetched_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "path"], name: "index_provider_doc_pages_on_provider_and_path", unique: true
+    t.index ["provider_doc_source_id"], name: "index_provider_doc_pages_on_provider_doc_source_id"
+  end
+
+  create_table "provider_doc_sources", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "key", null: false
+    t.string "provider", null: false
+    t.string "version"
+    t.text "license"
+    t.integer "page_count", default: 0, null: false
+    t.datetime "fetched_at"
+    t.datetime "checked_at"
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_provider_doc_sources_on_key", unique: true
+    t.index ["provider"], name: "index_provider_doc_sources_on_provider"
   end
 
   create_table "resource_map_baselines", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2399,6 +2473,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"
+  add_foreign_key "chat_secret_entries", "chats", on_delete: :cascade
+  add_foreign_key "chat_secret_entries", "integration_tools", on_delete: :cascade
+  add_foreign_key "chat_secret_entries", "workspace_memberships", column: "done_by_id", on_delete: :nullify
+  add_foreign_key "chat_secret_entries", "workspace_memberships", column: "requester_id", on_delete: :cascade
   add_foreign_key "chat_step_progresses", "chats", on_delete: :cascade
   add_foreign_key "chat_watch_steps", "chat_watches", column: "watch_id", on_delete: :cascade
   add_foreign_key "chat_watch_steps", "integration_environments", on_delete: :nullify
@@ -2514,6 +2592,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_170100) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "provider_doc_chunks", "provider_doc_pages", on_delete: :cascade
+  add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "integration_environments", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "workspaces"

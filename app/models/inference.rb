@@ -13,12 +13,15 @@ class Inference < ApplicationRecord
   PAID_BY_FIREFIGHT = "firefight"
   PAYERS = [ PAID_BY_ACCOUNT, PAID_BY_CREDITS, PAID_BY_OPERATOR, PAID_BY_FIREFIGHT ].freeze
 
+  # Embedding the providers' documentation serves every workspace at once, so it is the one call recorded with none.
+  FEATURE_PROVIDER_DOCS = "provider_docs".freeze
+
   CONTEXT_KEYS = %i[
     workspace feature provider model inferable member api_key prompt_template prompt_version max_output_tokens
     paid_by workspace_ai_account
   ].freeze
 
-  belongs_to :workspace
+  belongs_to :workspace, optional: true
   belongs_to :workspace_ai_account, optional: true
   belongs_to :member, class_name: "WorkspaceMembership", optional: true
   belongs_to :api_key, optional: true
@@ -26,6 +29,7 @@ class Inference < ApplicationRecord
 
   validates :feature, :provider, :model, :status, presence: true
   validates :paid_by, inclusion: { in: PAYERS }
+  validates :workspace, presence: true, unless: -> { feature == FEATURE_PROVIDER_DOCS }
 
   before_validation :default_payer
 

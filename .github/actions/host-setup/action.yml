@@ -15,7 +15,7 @@ runs:
     - name: Install packages
       if: inputs.packages == 'true'
       shell: bash
-      run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libvips
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev libsodium23 libvips
 
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1

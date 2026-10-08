@@ -1,10 +1,12 @@
 module Integrations
   module Packs
     class Northflank < NativePack
-      # The query options each call inside the project takes, read from the API reference written out from Northflank's
-      # own client, so api_request sends a call only the names Northflank reads for it.
+      # The query options each call inside the project takes, read from the API reference the docs store writes out from
+      # Northflank's own client, so api_request sends a call only the names Northflank reads for it. Before the store is
+      # filled nothing is listed, and api_request checks no names.
       module ApiReference
-        DIRECTORY = Rails.root.join("config/skills/northflank/references/api/project")
+        FOLDER = "api/project/".freeze
+        CACHE = 10.minutes
         HEADING = /\A### (?<verb>[A-Z]+) (?<path>\S+)\z/
         QUERY = /\AQuery: (?<names>.+)\.\z/
         PLACEHOLDER = /\A\{[^}]+\}\z/
@@ -26,8 +28,12 @@ module Integrations
         end
 
         def self.calls
-          @calls ||= Dir[DIRECTORY.join("*.md")].sort.flat_map { |file| parse(File.readlines(file, chomp: true)) }.freeze
+          Rails.cache.fetch([ "northflank_api_reference", pages.maximum(:updated_at)&.to_i ], expires_in: CACHE) do
+            pages.order(:path).pluck(:content).flat_map { |content| parse(content.lines(chomp: true)) }
+          end
         end
+
+        def self.pages = ProviderDocPage.where(provider: PROVIDER_KEY).where("path LIKE ?", "#{FOLDER}%").where.not("path LIKE ?", "#{FOLDER}%/%")
 
         def self.parse(lines)
           lines.each_with_object([]) do |line, found|

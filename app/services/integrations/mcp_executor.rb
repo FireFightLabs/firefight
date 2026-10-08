@@ -6,7 +6,7 @@ module Integrations
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
       result = client_for(tool.integration, environment_row)
                .call_tool(name: tool.remote_name, arguments: arguments)
-      kept = Redactions.apply(ToolResult.normalize(result), fields: Provider.for(tool.integration.provider).redacted_fields)
+      kept = Redactions.apply(ToolResult.normalize(result), **Redactions.rules(tool.integration.provider))
       SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
     end
 

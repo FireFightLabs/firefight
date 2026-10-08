@@ -710,6 +710,8 @@ GEM
       ffi (~> 1.0)
     rb_sys (0.9.128)
       rake-compiler-dock (= 1.12.0)
+    rbnacl (7.1.2)
+      ffi (~> 1)
     rbs (4.2.0)
       logger
       prism (>= 1.6.0)
@@ -953,6 +955,7 @@ DEPENDENCIES
   rack-attack
   rails (~> 8.1.4)
   rails_semantic_logger
+  rbnacl (~> 7.1)
   rotp (~> 6.3)
   rqrcode (~> 3.2)
   rubocop-rails-omakase

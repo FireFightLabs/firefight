@@ -25,6 +25,8 @@ class AgentChatsController < InertiaController
   PROP_HELD_CALLS = "heldCalls"
   # Changes Halon was refused in the open chat for want of a pack, each with Ask an admin.
   PROP_PACK_REFUSALS = "packRefusals"
+  # Secrets a tool call in the open chat handed to the person who asked, to type or to reveal, never their values.
+  PROP_SECRET_ENTRIES = "secretEntries"
   # What Halon watches for the open chat, going and ended, and every line the watches said, placed by when they said it.
   PROP_WATCHES = "watches"
   PROP_WATCH_UPDATES = "watchUpdates"
@@ -37,17 +39,19 @@ class AgentChatsController < InertiaController
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
-    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES
+    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
   NOTHING_ASKED = "Say something first."
+  SECRET_GONE = "That secret is no longer in this chat."
   CHAT_DELETED = "Chat deleted."
 
   include ServesChatAttachment
 
   # Asking spends money, so it needs the same permission as starting an investigation.
-  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file], update: %i[update ask_pack], delete: %i[destroy]
+  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file],
+                                             update: %i[update ask_pack fill_secret reveal_secret], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
@@ -60,7 +64,7 @@ class AgentChatsController < InertiaController
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
-      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => []
+      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => []
     )
   end
 
@@ -77,6 +81,8 @@ class AgentChatsController < InertiaController
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
       PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership),
       PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership),
+      PROP_SECRET_ENTRIES => AgentChatSecretEntrySerializer.many(conversation.chat&.secret_entries&.includes(:requester, :done_by, tool: :integration) || [],
+                                                                 member: current_membership),
       PROP_WATCHES => AgentChatWatchSerializer.many(watches_shown, member: current_membership),
       PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown)
     )
@@ -166,6 +172,29 @@ class AgentChatsController < InertiaController
 
     result = PackRequestService.ask!(refusal.pack_request, by: current_membership)
     redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
+  end
+
+  # Sends the value the person typed for a secret a tool call asked for, straight to the provider. The value is never
+  # kept, and the parameter's name keeps it out of the logs.
+  def fill_secret
+    entry = conversation.chat&.secret_entries&.find_by(id: params[:secret_entry_id])
+    return redirect_to(agent_chat_path(conversation), alert: SECRET_GONE) unless entry
+
+    result = SecretEntryService.fill!(entry, value: params[:secret_value].to_s, by: current_membership)
+    redirect_to agent_chat_path(conversation), (result.ok ? :notice : :alert) => result.words
+  end
+
+  # A credential a tool call made, read from the provider now for the person it was made for. Answered as JSON for the
+  # dialog that shows it, and never cached.
+  def reveal_secret
+    response.headers["Cache-Control"] = "no-store"
+    entry = conversation.chat&.secret_entries&.find_by(id: params[:secret_entry_id], kind: Chat::SecretEntry::KIND_REVEAL)
+    return render(json: { error: SECRET_GONE }, status: :not_found) unless entry
+
+    revealed = SecretEntryService.reveal(entry, by: current_membership)
+    return render(json: { error: revealed.words }, status: :unprocessable_content) unless revealed.value
+
+    render json: { value: revealed.value }
   end
 
   def update

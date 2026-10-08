@@ -15,6 +15,8 @@ class Conversation::LiveDelivery
   EVENT_PACK_REFUSAL = "pack_refusal"
   # A watch this chat started began, said something or ended, so its card and lines look again.
   EVENT_WATCH = "watch"
+  # A tool call asked the person for a secret or made one for them to reveal, or a value was set, so its card looks again.
+  EVENT_SECRET_ENTRY = "secret_entry"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -46,6 +48,10 @@ class Conversation::LiveDelivery
 
   def self.pack_refused(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_PACK_REFUSAL)
+  end
+
+  def self.secret_entry_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_SECRET_ENTRY)
   end
 
   def initialize(conversation)

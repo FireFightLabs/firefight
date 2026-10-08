@@ -209,6 +209,16 @@ module Integrations
       raise PolicyRefusal, message
     end
 
+    # A pack whose tools hand secrets over (Integrations::SecretHandoffs) sends a value where a target says, answering
+    # what it did, and reads the value a reference's path names. Reached only through Integration::SecretHandoff.
+    def fill_secret(environment_row:, target:, value:)
+      fail!("#{self.class.name.demodulize} sets no secrets.")
+    end
+
+    def secret_value(environment_row:, path:)
+      fail!("#{self.class.name.demodulize} keeps no secrets Firefight can read.")
+    end
+
     # Packs override with a real probe and raise Error with a readable reason.
     # The default accepts so a pack without a probe still connects.
     def check_health!(environment_row)

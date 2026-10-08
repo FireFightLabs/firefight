@@ -1,9 +1,0 @@
-errors/error-codes.md https://docs.fly.io/monitoring/error-codes.md
-deploy/troubleshooting.md https://docs.fly.io/getting-started/troubleshooting.md
-deploy/health-checks.md https://docs.fly.io/reference/health-checks.md
-deploy/rollback-guide.md https://docs.fly.io/blueprints/rollback-guide.md
-machines/restart-policy.md https://docs.fly.io/machines/guides-examples/machine-restart-policy.md
-machines/machine-states.md https://docs.fly.io/machines/machine-states.md
-machines/autostop-autostart.md https://docs.fly.io/launch/autostop-autostart.md
-monitoring/metrics.md https://docs.fly.io/monitoring/metrics.md
-monitoring/logs-api-options.md https://docs.fly.io/monitoring/logs-api-options.md

@@ -133,6 +133,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
         next refused_by_rule!(tool_call_id, authorization, refusal.message)
       end
       result = present.call(result) if present
+      result = handed_over(result, tool_call_id, environment_row) if present.nil?
       @last_result = result
       next text_of(result) unless result["isError"] == true
 
@@ -207,6 +208,24 @@ class Chat::Tools::Connection < RubyLLM::Tool
     integration.target_label(integration.resolve_environment(environment_entry&.id))
   rescue Integration::UnknownEnvironment
     integration.target_label
+  end
+
+  # A tool that hands a secret over (Integrations::SecretHandoffs) does it at once when the call names where the value
+  # comes from. Otherwise it leaves a card in the chat for the person the call ran as, and the model is told where they
+  # find it. A held call run once approved has no tool call of its own, and its card sits where it ran. A call outside a
+  # chat keeps the tool's own words.
+  def handed_over(result, tool_call_id, environment_row)
+    person = @agent_run.acting_principal
+    result = Integration::SecretHandoff.settle(result, tool: @tool, environment_row: environment_row, principal: person, workspace: @agent_run.workspace)
+    chat = @agent_run.chat
+    return result unless chat && person.is_a?(WorkspaceMembership)
+
+    entry = Chat::SecretEntry.record_from!(result, chat: chat, tool_call_id: tool_call_id, tool: @tool,
+                                                   catalog_entry_id: environment_row&.catalog_entry_id, requester: person)
+    return result unless entry
+
+    SecretEntryJob.perform_later(entry.id)
+    entry.enter? ? result.merge("content" => [ { "type" => "text", "text" => entry.waiting_words } ]) : result
   end
 
   # A code change is written for whoever the run acts for, with what they said and what was read before it.

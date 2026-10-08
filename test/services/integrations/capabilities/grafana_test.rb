@@ -157,10 +157,10 @@ class Integrations::Capabilities::GrafanaTest < ActiveSupport::TestCase
                  Integrations::Capabilities.halon_sentence("grafana", "Grafana")
   end
 
-  # Grafana's server is run by each team, so its skills are held to the tools the server documents, in the reference
-  # table copied with its guides, and to the capabilities Grafana answers. So are the tools Firefight itself calls.
+  # Grafana's server is run by each team, so its skills are held to the tools the server documents, in its tools reference
+  # table, and to the capabilities Grafana answers. So are the tools Firefight itself calls.
   test "every tool a Grafana skill or Firefight's own Grafana reads name is one Grafana's server documents" do
-    documented = Chat::Skill.reference("grafana", "reference/mcp-tools-table.md").scan(/^\| `([a-z0-9_]+)`/).flatten
+    documented = file_fixture("grafana_mcp_tools.txt").readlines(chomp: true).reject { |line| line.start_with?("#") }
     adapter = Integrations::Capabilities::Grafana
     capabilities = adapter.capabilities.map { |key| Integrations::Capabilities.spec(key).tool_name }
 

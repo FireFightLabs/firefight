@@ -604,6 +604,19 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A secret a tool call in a chat's thread handed to the person who asked, pointing to the card in the dashboard where
+  # it is typed or revealed, never asking for it here. entry is a Chat::SecretEntry.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_secret_entry(channel_id:, thread_id:, entry:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once the value was set.
+  # @return [Hash] { success: true }
+  def update_secret_entry(channel_id:, message_id:, entry:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # How an admin answered a member's request for a pack, to that member. pack_request is an Ability::PackRequest.
   # @return [Hash] { message_id:, channel_id: }
   def post_pack_answer_to_user(user_id:, pack_request:)

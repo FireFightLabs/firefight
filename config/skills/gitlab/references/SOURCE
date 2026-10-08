@@ -1,7 +1,0 @@
-ci/debugging.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/debugging.md
-ci/job-troubleshooting.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/jobs/job_troubleshooting.md
-ci/job-logs.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/jobs/job_logs.md
-environments/environments.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/environments/_index.md
-environments/deployments.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/environments/deployments.md
-environments/deployment-safety.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/environments/deployment_safety.md
-ci/pipelines.md https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/ci/pipelines/_index.md

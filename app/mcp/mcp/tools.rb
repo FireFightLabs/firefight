@@ -74,9 +74,9 @@ module Mcp
     DELETE_INCIDENT_ROLE = "delete_incident_role".freeze
     UPSERT_ALERT_SOURCE = "upsert_alert_source".freeze
     DELETE_ALERT_SOURCE = "delete_alert_source".freeze
-    UPSERT_WEBHOOK = "upsert_webhook".freeze
-    DELETE_WEBHOOK = "delete_webhook".freeze
-    TEST_WEBHOOK = "test_webhook".freeze
+    UPSERT_OUTBOUND_WEBHOOK = "upsert_outbound_webhook".freeze
+    DELETE_OUTBOUND_WEBHOOK = "delete_outbound_webhook".freeze
+    TEST_OUTBOUND_WEBHOOK = "test_outbound_webhook".freeze
     LIST_AGENTS = "list_agents".freeze
     UPSERT_AGENT = "upsert_agent".freeze
     ROTATE_AGENT_TOKEN = "rotate_agent_token".freeze
@@ -121,7 +121,7 @@ module Mcp
         FindResources, SearchMap, GetResource, GetResourceLinks, GetResourceNeighbours, TraverseResourceMap, BlastRadius, ResourceMapStats,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
-        UpsertAlertSource, DeleteAlertSource, UpsertWebhook, DeleteWebhook, TestWebhook,
+        UpsertAlertSource, DeleteAlertSource, UpsertOutboundWebhook, DeleteOutboundWebhook, TestOutboundWebhook,
         ListAgents, UpsertAgent, RotateAgentToken, RevokeAgentToken, DeleteAgent,
         ListApiKeys, UpsertApiKey, DeleteApiKey,
         GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,
