@@ -6,34 +6,55 @@ import {
   IconX,
 } from "@tabler/icons-react"
 
+import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { RunbookToolFields } from "@/pages/settings/components/runbooks/runbook-tool-fields"
+import { emptyArguments, type ArgumentsState } from "@/pages/settings/lib/runbook-procedure"
+import type { RunbookToolChoice } from "@/types/serializers"
 
 export interface EditableStep {
   key: string
   id?: string
   title: string
   instruction: string
-  // The tool Halon runs the step with, by the name Halon calls it, and its arguments as JSON text while being edited.
+  // The tool Halon runs the step with, by the name Halon calls it, or empty for a step a person does.
   tool: string
-  argumentsText: string
+  args: ArgumentsState
 }
 
-const ARGUMENTS_PLACEHOLDER = '{ "workflow": "release.yml", "inputs": { "bump": "{{bump}}" } }'
+// A step with no tool is one a person does, as every incident runbook step was before.
+const BY_HAND = ""
 
-export function RunbookStepsEditor({ steps, stepErrors, onChange }: {
+interface RunbookStepsEditorProps {
   steps: EditableStep[]
-  stepErrors: Record<string, string>
+  // What is wrong with each step's fields, by the step's key and then the field's.
+  stepErrors: Record<string, Record<string, string>>
+  // null while the editor's choices load.
+  tools: RunbookToolChoice[] | null
+  placeholders: SearchableSelectOption[]
+  places: SearchableSelectOption[]
   onChange: (steps: EditableStep[]) => void
-}) {
+}
+
+export function RunbookStepsEditor({ steps, stepErrors, tools, placeholders, places, onChange }: RunbookStepsEditorProps) {
+  const toolOptions: SearchableSelectOption[] = [
+    { value: BY_HAND, label: "None, a person does this step" },
+    ...(tools ?? []).map((tool) => ({ value: tool.name, label: tool.name, group: tool.group })),
+  ]
+
+  function chooseTool(index: number, tool: string | null) {
+    update(index, { tool: tool ?? BY_HAND, args: emptyArguments() })
+  }
+
   function update(index: number, patch: Partial<EditableStep>) {
     onChange(steps.map((step, position) => (position === index ? { ...step, ...patch } : step)))
   }
 
   function add() {
-    onChange([...steps, { key: crypto.randomUUID(), title: "", instruction: "", tool: "", argumentsText: "" }])
+    onChange([...steps, { key: crypto.randomUUID(), title: "", instruction: "", tool: BY_HAND, args: emptyArguments() }])
   }
 
   function remove(index: number) {
@@ -101,24 +122,30 @@ export function RunbookStepsEditor({ steps, stepErrors, onChange }: {
                   onChange={(event) => update(index, { instruction: event.target.value })}
                   placeholder="Instruction (optional)"
                 />
-                <Input
-                  aria-label={`Step ${index + 1} tool`}
-                  className="font-mono text-xs"
-                  value={step.tool}
-                  onChange={(event) => update(index, { tool: event.target.value })}
-                  placeholder="Tool Halon runs it with (optional)"
-                />
-                {step.tool.trim().length > 0 && (
-                  <Textarea
-                    aria-label={`Step ${index + 1} arguments`}
-                    rows={3}
-                    className="font-mono text-xs"
-                    value={step.argumentsText}
-                    onChange={(event) => update(index, { argumentsText: event.target.value })}
-                    placeholder={ARGUMENTS_PLACEHOLDER}
+                <div className="space-y-1">
+                  <Label className="text-xs">Tool Halon runs it with</Label>
+                  <SearchableSelect
+                    value={step.tool}
+                    onValueChange={(tool) => chooseTool(index, tool)}
+                    options={withSavedTool(toolOptions, step.tool)}
+                    placeholder={tools ? "None, a person does this step" : "Loading tools"}
+                    searchPlaceholder="Search tools"
+                    emptyText="No tool by that name"
+                    renderSelected={renderTool}
+                  />
+                </div>
+                {step.tool !== BY_HAND && (
+                  <StepToolFields
+                    stepKey={step.key}
+                    tool={step.tool}
+                    tools={tools}
+                    args={step.args}
+                    errors={stepErrors[step.key] ?? {}}
+                    placeholders={placeholders}
+                    places={places}
+                    onChange={(args) => update(index, { args })}
                   />
                 )}
-                {stepErrors[step.key] && <p className="text-xs text-destructive">{stepErrors[step.key]}</p>}
               </div>
               <button
                 type="button"
@@ -131,6 +158,53 @@ export function RunbookStepsEditor({ steps, stepErrors, onChange }: {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// A tool a step was saved with that is not among the choices, such as one this person cannot see, still shows by name.
+function withSavedTool(options: SearchableSelectOption[], tool: string): SearchableSelectOption[] {
+  if (tool === BY_HAND || options.some((option) => option.value === tool)) {
+    return options
+  }
+  return [ { value: tool, label: tool }, ...options ]
+}
+
+function renderTool(option: SearchableSelectOption) {
+  return <span className="font-mono text-xs">{option.label}</span>
+}
+
+interface StepToolFieldsProps {
+  stepKey: string
+  tool: string
+  tools: RunbookToolChoice[] | null
+  args: ArgumentsState
+  errors: Record<string, string>
+  placeholders: SearchableSelectOption[]
+  places: SearchableSelectOption[]
+  onChange: (args: ArgumentsState) => void
+}
+
+function StepToolFields({ stepKey, tool, tools, args, errors, placeholders, places, onChange }: StepToolFieldsProps) {
+  const choice = tools?.find((candidate) => candidate.name === tool) ?? null
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/60 px-3 py-2.5">
+      {choice && <p className="text-xs text-muted-foreground">{choice.description}</p>}
+      {tools && !choice && (
+        <p className="text-xs text-muted-foreground">
+          {tool} is not among the tools you can use here, so its arguments are kept as they were saved.
+        </p>
+      )}
+      <RunbookToolFields
+        idPrefix={`step-${stepKey}`}
+        fields={choice?.fields ?? null}
+        state={args}
+        errors={errors}
+        placeholders={placeholders}
+        places={places}
+        onChange={onChange}
+      />
     </div>
   )
 }

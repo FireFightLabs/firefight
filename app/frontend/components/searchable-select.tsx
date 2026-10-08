@@ -9,6 +9,8 @@ export interface SearchableSelectOption {
   value: string
   label: string
   icon?: ReactNode
+  // Options that share a group are listed under its heading, in the order the groups first appear.
+  group?: string
 }
 
 interface SearchableSelectProps {
@@ -36,6 +38,7 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const selected = options.find((candidate) => candidate.value === value)
+  const groups = groupedOptions(options)
 
   const defaultRender = (option: SearchableSelectOption) => (
     <div className="flex items-center gap-2">
@@ -75,22 +78,32 @@ export function SearchableSelect({
           </div>
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.label}
-                  onSelect={() => selectOption(option.value)}
-                  className="cursor-pointer"
-                >
-                  {renderOption?.(option) ?? defaultRender(option)}
-                  {option.value === value && <IconCheck className="ml-auto size-4" />}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {groups.map(([ heading, grouped ]) => (
+              <CommandGroup key={heading ?? ""} heading={heading}>
+                {grouped.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.group ? `${option.label} ${option.group} ${option.value}` : option.label}
+                    onSelect={() => selectOption(option.value)}
+                    className="cursor-pointer"
+                  >
+                    {renderOption?.(option) ?? defaultRender(option)}
+                    {option.value === value && <IconCheck className="ml-auto size-4" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
   )
+}
+
+function groupedOptions(options: SearchableSelectOption[]): [string | undefined, SearchableSelectOption[]][] {
+  const groups = new Map<string | undefined, SearchableSelectOption[]>()
+  options.forEach((option) => {
+    groups.set(option.group, [ ...(groups.get(option.group) ?? []), option ])
+  })
+  return [ ...groups.entries() ]
 }

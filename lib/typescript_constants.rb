@@ -51,6 +51,8 @@ module TypescriptConstants
         "ASKED_AGAIN" => Chat::HeldCall::STATUS_ASKED_AGAIN
       }, nil),
       Export.new("WATCH_STATUSES", Chat::Watch::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("RUNBOOK_CHOICE_PROPS", SettingsController::RUNBOOK_CHOICE_PROPS, nil),
+      Export.new("RUNBOOK_FIELD_KINDS", Chat::Tools::Choices::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("WATCH_STEP_STATUSES", Chat::Watch::Step::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("WATCH_TONES", Conversation::Watches::TONES.to_h { |tone| [ tone.upcase, tone ] }, nil),
       Export.new("APPROVED_CALL_ACTIONS", {

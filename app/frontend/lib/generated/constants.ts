@@ -145,6 +145,22 @@ export const WATCH_STATUSES = {
   "STOPPED": "stopped"
 } as const
 
+export const RUNBOOK_CHOICE_PROPS = {
+  "TOOL_CHOICES": "toolChoices",
+  "WATCH_READS": "watchReads",
+  "PLACES": "places"
+} as const
+
+export const RUNBOOK_FIELD_KINDS = {
+  "TEXT": "text",
+  "NUMBER": "number",
+  "SELECT": "select",
+  "TOGGLE": "toggle",
+  "LIST": "list",
+  "KEPT": "kept",
+  "RESOURCE": "resource"
+} as const
+
 export const WATCH_STEP_STATUSES = {
   "WAITING": "waiting",
   "RUNNING": "running",
