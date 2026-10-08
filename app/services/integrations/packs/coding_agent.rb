@@ -3,8 +3,8 @@ module Integrations
     # A coding agent that writes a code change in its own environment and opens the pull request itself, such as Devin,
     # Cursor's cloud agents or Factory's Droids. fix_code hands it the change through the provider's API with the
     # evidence and the repository, follows the session until it opens a pull request, stops or runs out of time, and
-    # reports how it is going onto the fix's step. fix_code changes code, so it arrives switched off and goes through the
-    # gateway as a write like GitHub's fix_code, and an investigation, which only reads, never starts one.
+    # reports how it is going onto the fix's step. fix_code changes code, so it goes through the gateway as a write like
+    # GitHub's fix_code, a member needs a grant for it, and an investigation, which only reads, never starts one.
     # session_status reads how a session went. A subclass knows its provider's API.
     class CodingAgent < NativePack
       # The provider's fields on an environment row, which only these packs read.
@@ -80,7 +80,7 @@ module Integrations
 
       # Its work is a fix's code change rather than a capability, so it says so in its own words.
       def self.halon_sentence(name)
-        "Firefight hands a fix's code change to #{name} once you choose it under Settings, Workspace and switch on fix_code. " \
+        "Firefight hands a fix's code change to #{name} once you choose it under Settings, Workspace. " \
           "Halon follows the change with session_status. An investigation never starts one."
       end
 

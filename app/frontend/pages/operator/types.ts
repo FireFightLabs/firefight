@@ -83,6 +83,7 @@ export interface HalonTool {
   actionKey: string
   calls: number
   errors: number
+  refused: number
   denied: number
   medianMs: number | null
 }

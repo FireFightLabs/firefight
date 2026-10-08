@@ -62,21 +62,21 @@ module Integrations
         test "only a halon/ branch that is not the default, protected, kept by a rule or still under an open pull request is deleted" do
           GithubApp.expects(:write).never
           assert_equal "Only a branch Firefight made, under halon/, is deleted, and main is not one. A person deletes it on GitHub.",
-                       assert_raises(NativePack::Error) { delete("main") }.message
+                       assert_raises(PolicyRefusal) { delete("main") }.message
 
           GithubApp.stubs(:get).with("/repos/acme/web", token: "ghs_token").returns("default_branch" => "halon/main")
-          assert_equal "halon/main is the default branch of acme/web, which is never deleted.", assert_raises(NativePack::Error) { delete("halon/main") }.message
+          assert_equal "halon/main is the default branch of acme/web, which is never deleted.", assert_raises(PolicyRefusal) { delete("halon/main") }.message
           GithubApp.stubs(:get).with("/repos/acme/web", token: "ghs_token").returns("default_branch" => "main")
 
           stub_branch("halon/locked", protected: true)
-          assert_equal "halon/locked in acme/web is protected, so it is not deleted.", assert_raises(NativePack::Error) { delete("halon/locked") }.message
+          assert_equal "halon/locked in acme/web is protected, so it is not deleted.", assert_raises(PolicyRefusal) { delete("halon/locked") }.message
 
           stub_branch("halon/ruled", rules: [ { "type" => "deletion" } ])
-          assert_equal "A ruleset in acme/web keeps halon/ruled from being deleted.", assert_raises(NativePack::Error) { delete("halon/ruled") }.message
+          assert_equal "A ruleset in acme/web keeps halon/ruled from being deleted.", assert_raises(PolicyRefusal) { delete("halon/ruled") }.message
 
           stub_branch("halon/fix-1", pulls: [ { "number" => 12 } ])
           assert_equal "PR #12 still comes from halon/fix-1, and deleting it would close it. Close it first if that is what is wanted.",
-                       assert_raises(NativePack::Error) { delete("halon/fix-1") }.message
+                       assert_raises(PolicyRefusal) { delete("halon/fix-1") }.message
         end
 
         test "a halon/ branch nothing holds is deleted" do

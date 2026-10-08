@@ -16,6 +16,7 @@ const ROW_STATUSES: Record<StepStatus, ThinkingRowStatus> = {
   [AGENT_STEP_STATUSES.DONE]: "done",
   [AGENT_STEP_STATUSES.FAILED]: "failed",
   [AGENT_STEP_STATUSES.NOT_FOUND]: "not_found",
+  [AGENT_STEP_STATUSES.REFUSED]: "refused",
   [AGENT_STEP_STATUSES.WAITING]: "waiting",
   [AGENT_STEP_STATUSES.CANCELLED]: "cancelled",
 }

@@ -258,7 +258,7 @@ module Integrations
       def run_query(environment_row:, arguments:)
         sql = arguments["sql"].to_s.strip.sub(/;\s*\z/, "")
         fail! "Give the SQL to run." if sql.empty?
-        fail! "Only a SELECT, WITH, DESCRIBE, SHOW or EXPLAIN statement runs here." unless sql.match?(READ_ONLY)
+        fail_policy! "Firefight only reads Tinybird, so only a SELECT, WITH, DESCRIBE, SHOW or EXPLAIN statement runs here." unless sql.match?(READ_ONLY)
         fail! "Leave out FORMAT. Firefight asks Tinybird for JSON itself." if sql.match?(FORMAT_CLAUSE)
 
         answer = query(api(environment_row), sql)

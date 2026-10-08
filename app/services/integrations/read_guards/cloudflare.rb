@@ -80,7 +80,7 @@ module Integrations
         options = case method
         when GET then get(path, arguments["query"])
         when POST then path.match?(LOG_QUERY) ? log_query(path, arguments["body"]) : graphql(path, arguments["graphql"], arguments["variables"])
-        else raise Refused, DESCRIPTION
+        else raise PolicyRefusal, DESCRIPTION
         end
         arguments_for(options, arguments[ACCOUNT])
       end
@@ -103,9 +103,9 @@ module Integrations
       end
 
       def self.graphql(path, text, variables)
-        raise Refused, DESCRIPTION unless path == GRAPHQL
+        raise PolicyRefusal, DESCRIPTION unless path == GRAPHQL
         raise Refused, "graphql must be the query to run." if text.to_s.strip.empty?
-        raise Refused, "A GraphQL mutation changes something. #{DESCRIPTION}" if text.match?(MUTATION)
+        raise PolicyRefusal, "A GraphQL mutation changes something. #{DESCRIPTION}" if text.match?(MUTATION)
         raise Refused, "variables must be an object." unless variables.nil? || variables.is_a?(Hash)
 
         { "method" => POST, "path" => GRAPHQL, "body" => { "query" => text, "variables" => variables }.compact }

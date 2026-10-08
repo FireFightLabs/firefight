@@ -184,8 +184,8 @@ module Integrations
 
           assert_includes text, "Added incident to PR #412 Fix payment retries in acme/checkout. PR #412 Fix payment retries did not have needs review."
           GithubApp.expects(:write).never
-          assert_match "acme/checkout has no label sev1, and adding one would make it. Its labels are incident, hotfix.",
-                       assert_raises(NativePack::Error) { @pack.label_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "add" => "sev1" }) }.message
+          assert_match "acme/checkout has no label sev1, and Firefight never makes a label by adding one. Its labels are incident, hotfix.",
+                       assert_raises(PolicyRefusal) { @pack.label_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "add" => "sev1" }) }.message
         end
 
         test "closing posts the reason first, and a closed or merged one is left alone" do
@@ -222,7 +222,7 @@ module Integrations
           assert text.end_with?("https://github.com/acme/checkout/pull/412")
         end
 
-        test "a pull request GitHub says cannot merge is never sent to merge, and says why" do
+        test "a pull request that is not ready is never sent to merge, and the refusal is Firefight's check with why" do
           GithubApp.expects(:write).never
           {
             { "mergeable" => false, "mergeable_state" => "dirty" } => "it conflicts with its base, which a person resolves",
@@ -232,8 +232,8 @@ module Integrations
             { "draft" => true } => "it is a draft"
           }.each do |state, words|
             stub_pull(412, state)
-            error = assert_raises(NativePack::Error) { @pack.merge_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 }) }
-            assert_match "PR #412 in acme/checkout cannot be merged now: #{words}", error.message
+            error = assert_raises(PolicyRefusal) { @pack.merge_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 }) }
+            assert_match "Firefight checked PR #412 in acme/checkout before merging and does not merge it now, because #{words}", error.message
           end
         end
 

@@ -6,15 +6,19 @@ Chat::StepOutcome = Data.define(:kind, :said, :lines, :total, :size, :link)
 
 class Chat::StepOutcome
   # How a failed call is kept, on its tool call and on a run's step. Not found is the provider saying the thing a read
-  # named is not there (Integrations::Outcomes), which answers a check rather than breaking it.
+  # named is not there (Integrations::Outcomes), which answers a check rather than breaking it. Refused is one of
+  # Firefight's own rules saying no (Integrations::PolicyRefusal), which is final rather than broken.
   FAILURE_ERROR = "error".freeze
   FAILURE_NOT_FOUND = "not_found".freeze
-  FAILURE_KINDS = [ FAILURE_ERROR, FAILURE_NOT_FOUND ].freeze
+  FAILURE_REFUSED = "refused".freeze
+  FAILURE_KINDS = [ FAILURE_ERROR, FAILURE_NOT_FOUND, FAILURE_REFUSED ].freeze
 
   KIND_ANSWERED = "answered".freeze
   KIND_FAILED = "failed".freeze
   KIND_NOT_FOUND = "not_found".freeze
-  KINDS = [ KIND_ANSWERED, KIND_FAILED, KIND_NOT_FOUND ].freeze
+  KIND_REFUSED = "refused".freeze
+  KINDS = [ KIND_ANSWERED, KIND_FAILED, KIND_NOT_FOUND, KIND_REFUSED ].freeze
+  FAILURE_SHOWN_AS = { FAILURE_NOT_FOUND => KIND_NOT_FOUND, FAILURE_REFUSED => KIND_REFUSED }.freeze
 
   # Enough of an answer to see what came back. The whole of it is the model's, and a run's page shows it in full.
   SHOWN_LINES = 4
@@ -66,7 +70,7 @@ class Chat::StepOutcome
   def self.kind_of(failed:, failure_kind:)
     return KIND_ANSWERED unless failed
 
-    failure_kind == FAILURE_NOT_FOUND ? KIND_NOT_FOUND : KIND_FAILED
+    FAILURE_SHOWN_AS.fetch(failure_kind, KIND_FAILED)
   end
 
   def self.build(kind, text)

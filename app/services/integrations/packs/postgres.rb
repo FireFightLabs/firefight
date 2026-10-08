@@ -146,7 +146,7 @@ module Integrations
       rescue NativePack::Error => refused
         raise refused unless not_a_read?(refused.message, sql)
 
-        fail! "Only a SELECT, WITH or VALUES statement can be run here."
+        fail_policy! "Firefight only reads this database, so only a SELECT, WITH or VALUES statement runs here."
       end
 
       def explain_query(environment_row:, arguments:)

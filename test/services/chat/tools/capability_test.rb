@@ -208,6 +208,21 @@ class Chat::Tools::CapabilityTest < ActiveSupport::TestCase
     assert_equal [ "call_1" ], chat.failed_tool_call_ids
   end
 
+  test "Datadog refused by Firefight's own rule is the answer, the platform is not asked, and the card fails" do
+    logs = connect_datadog!
+    grant!([ *@tools.values, logs ])
+    chat = card_for("call_1", "search_logs")
+    Integrations::McpExecutor.stubs(:call).raises(Integrations::PolicyRefusal, "That query would change something.")
+    Integrations::NativeExecutor.expects(:call).never
+    search = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "search_logs" }.tool
+
+    answer = search.call(tool_call: RubyLLM::ToolCall.new(id: "call_1", name: "search_logs", arguments: {}), "resource" => "web")
+
+    assert answer.end_with?("That query would change something.\n</tool_result>\n#{FirefightAi::Evidence::REFUSED_BY_RULE}")
+    assert_equal [ "call_1" ], chat.failed_tool_call_ids
+    assert_equal Ability::Invocation::OUTCOME_REFUSED, @investigation.steps.find_by!(action_key: "datadog.search_datadog_logs").invocation.outcome
+  end
+
   test "under connection all a provider's own error counts as not answering, so the card fails only when none answered" do
     logs = connect_datadog!
     grant!([ *@tools.values, logs ])

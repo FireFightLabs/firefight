@@ -107,6 +107,7 @@ const OUTCOME_ROWS: Record<StepOutcomeKind, ThinkingRowStatus> = {
   [STEP_OUTCOME_KINDS.ANSWERED]: "done",
   [STEP_OUTCOME_KINDS.FAILED]: "failed",
   [STEP_OUTCOME_KINDS.NOT_FOUND]: "not_found",
+  [STEP_OUTCOME_KINDS.REFUSED]: "refused",
 }
 
 function toRow(step: RunStep): ThinkingRow {
