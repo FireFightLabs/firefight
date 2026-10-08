@@ -39,7 +39,8 @@
 # not listed here still renders, it just shows no tagline, so adding a provider in a new category stays a registry edit
 # rather than a code change. Each has a tagline, halon (what Halon can do with a tool from it, in a sentence or two,
 # which setup shows as it walks through every category), required (setup asks for a connection in it and offers no
-# "We don't use this") and in_first_question (setup's first question to Halon names the tools connected in it).
+# "We don't use this") and in_first_question (setup's first question to Halon names the tools connected in it). group,
+# when set, is what Halon's map of tool groups says of the category in place of the tagline.
 categories:
   Cloud and hosting:
     tagline: Where your apps run, and what you can change there
@@ -62,6 +63,7 @@ categories:
     in_first_question: true
   Code:
     tagline: Correlate incidents with what shipped
+    group: Commits, pull requests, deploys and CI of your repositories, and code changes, which Firefight's own coding agent writes here with fix_code and opens as a pull request, no coding agent needed
     halon: Halon matches an incident to the commits, pull requests and deploys that shipped just before it. It can also write a fix and open a pull request when you ask.
     required: true
   CI:
@@ -69,6 +71,7 @@ categories:
     halon: Halon reads builds and test runs with their logs, and reruns one when you allow it.
   Coding agents:
     tagline: Agents that write a fix's code change and open the pull request
+    group: Outside coding agents a workspace chose to write code changes instead of Firefight's own. Never needed for a code change or a pull request, which Firefight's own coding agent writes from the Code group
     halon: Halon hands a fix to your coding agent, which writes the change and opens the pull request.
   Issues:
     tagline: Tickets and follow-up work tied to incidents

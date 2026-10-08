@@ -197,23 +197,10 @@ module Integrations
         end
       end
 
-      # One commit on a new branch, holding every changed file, and a pull request for it into base, ready for review.
-      # The commit's parent is base_sha, the commit the change was written against, so the pull request never undoes
-      # what reached base since. files maps a path to its new content as base64 with its mode, or to nil when the change
-      # deletes it. Returns the pull request as GitHub gives it.
-      def open_pull_request(repo, base:, base_sha:, branch:, title:, body:, message:, files:, token:)
-        commit = commit_files(repo, base_sha: base_sha, message: message, files: files, token: token)
-        post("/repos/#{repo}/git/refs", { ref: "refs/heads/#{branch}", sha: commit }, token: token)
+      # A pull request into base from a branch the change was already pushed to, ready for review. Returns the pull
+      # request as GitHub gives it.
+      def open_pull_request(repo, base:, branch:, title:, body:, token:)
         post("/repos/#{repo}/pulls", { title: title, head: branch, base: base, body: body, draft: false }, token: token)
-      end
-
-      # One commit holding every changed file on top of base_sha, the branch's head the change was written against, and
-      # the branch moved to it. The move is never forced (git/update-ref with force false), so a branch that moved
-      # since is refused rather than overwritten. Returns the new commit's SHA.
-      def push_commit(repo, branch:, base_sha:, message:, files:, token:)
-        commit = commit_files(repo, base_sha: base_sha, message: message, files: files, token: token)
-        write(:patch, "/repos/#{repo}/git/refs/heads/#{branch.split('/').map { |part| Http.segment(part) }.join('/')}", { sha: commit, force: false }, token: token)
-        commit
       end
 
       # A file GitHub answers with a redirect to a short-lived signed address, such as a job's log. The address is fetched
@@ -265,18 +252,6 @@ module Integrations
       end
 
       private
-
-      def commit_files(repo, base_sha:, message:, files:, token:)
-        base_tree = get("/repos/#{repo}/git/commits/#{base_sha}", token: token).dig("tree", "sha")
-        entries = files.map do |path, file|
-          next { path: path, mode: "100644", type: "blob", sha: nil } if file.nil?
-
-          blob = post("/repos/#{repo}/git/blobs", { content: file[:content], encoding: "base64" }, token: token)
-          { path: path, mode: file[:mode], type: "blob", sha: blob["sha"] }
-        end
-        tree = post("/repos/#{repo}/git/trees", { base_tree: base_tree, tree: entries }, token: token)
-        post("/repos/#{repo}/git/commits", { message: message, tree: tree["sha"], parents: [ base_sha ] }, token: token)["sha"]
-      end
 
       # Runs the call with the token, and once more with a fresh one when GitHub refused a token minted before the
       # installation changed (InstallationToken#refresh!). A plain string, such as the App's own JWT, is never refreshed.

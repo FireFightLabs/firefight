@@ -33,7 +33,7 @@ module Integrations
           Route.new(tool_name: TOOLS[LOGS], arguments: repo.merge(given.slice(*PASSED)))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: repo.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: repo)
-        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: repo.merge(given.slice("name", "limit").compact_blank))
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: repo.merge(given.slice("name", "run", "limit").compact_blank))
         end
       end
     end

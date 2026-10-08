@@ -54,6 +54,14 @@ module Integrations
       kept.rows.size
     end
 
+    # What a delivery says about pull requests reaches the ones Halon follows through each of these connections at once.
+    def nudge_pull_requests!(rows, payload, headers:)
+      return if rows.empty?
+
+      nudges = PullRequests.nudges(rows.first.integration.provider, payload, headers: headers)
+      rows.each { |row| PullRequestFollowing.nudged!(row, nudges) } if nudges.any?
+    end
+
     # Reads again what the events waiting on one scope name, and writes it onto the map. A scope the provider cannot read
     # on its own, or a change to what the connection reaches, sweeps the connection in full instead.
     def reread!(environment_row, scope_key)

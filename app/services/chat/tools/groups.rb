@@ -179,7 +179,9 @@ module Chat::Tools::Groups
   end
 
   def self.category_views(entries, integrations)
-    IntegrationProvider.categories.except(CUSTOM_CATEGORY).map do |category, tagline|
+    IntegrationProvider.category_list.reject { |each| each.name == CUSTOM_CATEGORY }.map do |listed|
+      category = listed.name
+      tagline = listed.group_line
       key = category_key(category)
       behind = integrations.select { |integration| of_connection(integration) == key }
       connected = behind.map(&:name)

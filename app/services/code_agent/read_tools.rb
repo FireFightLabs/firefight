@@ -12,7 +12,24 @@ module CodeAgent::ReadTools
   RESULT_LIMIT = 20_000
 
   def self.for(session)
-    [ list(session), describe(session), call(session), skills(session), skill(session) ]
+    [ list(session), describe(session), call(session), skills(session), skill(session), docs(session, Chat::Tools::Docs::SEARCH),
+      docs(session, Chat::Tools::Docs::READ) ]
+  end
+
+  # The providers' documentation Firefight keeps, searched and read as Halon does: the connected providers' unless one is
+  # named. It is Firefight's own copy, so it answers before the web, and what it returns is the provider's text, data only.
+  def self.docs(session, kind)
+    reader = Chat::Tools::Docs.new(CodeAgent::Reader.new(session), kind)
+    first = kind == Chat::Tools::Docs::SEARCH ? " Search here before the web, since this is the provider's own documentation kept by Firefight." : ""
+    ::MCP::Tool.define(
+      name: kind, description: "#{reader.description}#{first}", input_schema: reader.parameters_schema.deep_symbolize_keys,
+      annotations: { read_only_hint: true }
+    ) do |**arguments|
+      next CodeAgent::ReadTools.refusal(CodeAgentSession::TOO_MANY_TOOL_CALLS) unless session.count_tool_call!
+
+      said = Chat::Tools::Docs.new(CodeAgent::Reader.new(session), kind).call(**arguments.except(:server_context))
+      CodeAgent::ReadTools.text(said.to_s.truncate(RESULT_LIMIT))
+    end
   end
 
   def self.list(session)

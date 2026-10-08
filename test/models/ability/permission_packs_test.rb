@@ -84,9 +84,9 @@ class Ability::PermissionPacksTest < ActiveSupport::TestCase
     turn = Conversation::Turn.new(Conversation.start_personal!(workspace: @workspace, member: @member), asker: @member)
     assert_equal "Not allowed: Bob Jones cannot use faylee.restart_service in this workspace. Tell them they do not have permission for it and " \
                  "that it needs the Faylee (Northflank): changes pack. The workspace admin is Alice Smith. A card in the chat lets them ask the " \
-                 "admins for it.", turn.refusal(@restart.action_key)
-    assert_equal "Not allowed: Bob Jones cannot use faylee.list_services in this workspace. Tell them, and that a workspace admin can grant it.",
-                 turn.refusal(@list.action_key)
+                 "admins for it. #{Chat::StaleRefusals::AS_READ}", turn.refusal(@restart.action_key)
+    assert_equal "Not allowed: Bob Jones cannot use faylee.list_services in this workspace. Tell them, and that a workspace admin can grant it. " \
+                 "#{Chat::StaleRefusals::AS_READ}", turn.refusal(@list.action_key)
   end
 
   test "a changes pack scoped to an environment lets a member change things only there" do

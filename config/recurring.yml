@@ -45,6 +45,10 @@ development:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
     schedule: every minute
+  pull_request_sweep:
+    class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
+    queue: background
+    schedule: every 5 minutes
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background
@@ -145,6 +149,10 @@ staging:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
     schedule: every minute
+  pull_request_sweep:
+    class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
+    queue: background
+    schedule: every 5 minutes
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background
@@ -267,6 +275,10 @@ production:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
     schedule: every minute
+  pull_request_sweep:
+    class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
+    queue: background
+    schedule: every 5 minutes
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background

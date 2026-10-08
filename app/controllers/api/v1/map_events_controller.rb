@@ -25,6 +25,7 @@ class Api::V1::MapEventsController < ActionController::API
     payload = JSON.parse(raw_body)
     Integrations::MapEvents.delivered!(row, source, payload)
     Integrations::MapEvents.receive!(row, source.events(payload, headers: request.headers))
+    Integrations::MapEvents.nudge_pull_requests!([ row ], payload, headers: request.headers)
     head :ok
   rescue JSON::ParserError
     head :bad_request

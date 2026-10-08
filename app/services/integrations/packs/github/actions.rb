@@ -70,6 +70,7 @@ module Integrations
                       "repo" => Code::REPO,
                       "name" => { "type" => "string", "description" => "Only runs of a workflow whose name contains this, such as release (optional)" },
                       "branch" => { "type" => "string", "description" => "Only runs for this branch (optional)" },
+                      "run" => { "type" => "string", "description" => "Only this run, by its id, with each job and the step it failed at (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT})" }
                     }, %w[repo]),
                     read_only: true
@@ -156,6 +157,8 @@ module Integrations
         # GitHub gives a workflow run no completion time, so a finished run ended when it last changed, its updated_at.
         def ci_runs(environment_row:, arguments:)
           repo = repo_argument(arguments)
+          return one_run(repo, GithubApp.installation_token(environment_row), arguments["run"]) if arguments["run"].present?
+
           limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, HISTORY_LIMIT)
           name = arguments["name"].to_s.strip.presence
           query = { "branch" => arguments["branch"].presence, "per_page" => name ? HISTORY_CANDIDATES : limit }
@@ -281,6 +284,28 @@ module Integrations
             started_at: Telemetry.parse_time(run["run_started_at"] || run["created_at"]),
             finished_at: (Telemetry.parse_time(run["updated_at"]) if Capabilities::History::FINISHED.include?(status)),
             url: run["html_url"], detail: "#{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}, #{run['event']}"
+          )
+        end
+
+        # One run with its jobs, each failed one with the step it failed at and its log read by job_log, so a watch hears
+        # the first job that failed while the run still goes.
+        def one_run(repo, token, given)
+          id = Integer(given.to_s.strip.delete_prefix("#"), exception: false)
+          fail! "run must be the run's id, a whole number" unless id&.positive?
+
+          run = GithubApp.get("/repos/#{repo}/actions/runs/#{id}", token: token)
+          parts = jobs_of(repo, id, token).map { |job| history_part(repo, job) }
+          Capabilities::History.result([ history_run(run).with(parts: parts) ], what: "GitHub Actions in #{repo}", link: actions_link(run["html_url"]))
+        end
+
+        def history_part(repo, job)
+          status = Capabilities::History.status(outcome(job), HISTORY_STATUSES)
+          failed = Array(job["steps"]).find { |step| FAILED_CONCLUSIONS.include?(step["conclusion"]) }&.dig("name")
+          Capabilities::History::Part.new(
+            id: job["id"].to_s, name: job["name"], status: status, started_at: Telemetry.parse_time(job["started_at"]),
+            finished_at: (Telemetry.parse_time(job["completed_at"]) if Capabilities::History::FINISHED.include?(status)),
+            url: job["html_url"], detail: failed && "at #{failed}",
+            log: { Capabilities::History::LOG_TOOL => "job_log", Capabilities::History::LOG_ARGUMENTS => { "repo" => repo, "job_id" => job["id"] } }
           )
         end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -634,6 +634,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
     t.string "last_digest"
     t.text "last_state"
     t.text "reason"
+    t.string "tool_name"
+    t.string "failed_part"
+    t.datetime "failed_part_told_at"
+    t.datetime "handed_back_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
@@ -666,6 +670,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
     t.datetime "finished_at"
     t.uuid "stopped_by_id"
     t.datetime "told_at"
+    t.text "purpose"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["asker_type", "asker_id"], name: "index_chat_watches_on_asker"
@@ -709,6 +714,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
     t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
   end
 
+  create_table "code_agent_session_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "base"
+    t.uuid "conversation_id"
+    t.datetime "created_at", null: false
+    t.datetime "fix_at"
+    t.uuid "fix_by_id"
+    t.string "fingerprint", null: false
+    t.string "head_sha"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.jsonb "problems", default: [], null: false
+    t.uuid "session_id", null: false
+    t.string "status", null: false
+    t.datetime "told_at"
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["conversation_id"], name: "index_code_agent_session_notices_on_conversation_id"
+    t.index ["session_id", "fingerprint"], name: "index_code_agent_session_notices_on_session_id_and_fingerprint", unique: true
+    t.index ["workspace_id"], name: "index_code_agent_session_notices_on_workspace_id"
+  end
+
   create_table "code_agent_sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "budget_micros", null: false
     t.integer "calls_running", default: 0, null: false
@@ -732,8 +758,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
     t.uuid "place_id"
     t.string "tool_call_id"
     t.integer "tool_calls", default: 0, null: false
+    t.uuid "integration_environment_id"
+    t.string "git_branch"
+    t.integer "pull_request_number"
+    t.string "pull_request_url"
+    t.string "pull_request_base"
+    t.string "pull_request_branch"
+    t.string "pull_request_state"
+    t.datetime "pull_request_checked_at"
+    t.datetime "pull_request_check_claimed_at"
+    t.datetime "pull_request_ended_at"
+    t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
     t.index ["workspace_ai_account_id"], name: "index_code_agent_sessions_on_workspace_ai_account_id"
+    t.index ["workspace_id", "repository", "pull_request_number"], name: "index_code_agent_sessions_on_pull_request", where: "(pull_request_number IS NOT NULL)"
     t.index ["workspace_id"], name: "index_code_agent_sessions_on_workspace_id"
   end
 
@@ -2488,6 +2526,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_181100) do
   add_foreign_key "chats", "workspaces"
   add_foreign_key "code_agent_questions", "code_agent_sessions", on_delete: :cascade
   add_foreign_key "code_agent_questions", "workspaces", on_delete: :cascade
+  add_foreign_key "code_agent_session_notices", "code_agent_sessions", column: "session_id", on_delete: :cascade
+  add_foreign_key "code_agent_session_notices", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"

@@ -21,6 +21,25 @@ class FirefightAi::WatchJudgeTest < ActiveSupport::TestCase
     assert_nil @judge.why_failed(what: "Release run #46", evidence: "exit 1")
   end
 
+  test "where something leaves the person's goal is said with the next step as a question, and nothing when nothing useful can be said" do
+    stub_model(content: "The GitHub path is still broken. Next I would read the webhook's error, shall I?")
+    chat = RubyLLM.chat
+    chat.expects(:ask).with { |text| text.include?("fix the release webhook") && text.include?("Manual run succeeded.") }
+        .returns(llm_reply(content: "The GitHub path is still broken. Next I would read the webhook's error, shall I?", input: 100, output: 20, cost: 0.0001))
+    assert_equal "The GitHub path is still broken. Next I would read the webhook's error, shall I?",
+                 @judge.standing(purpose: "fix the release webhook", happened: "Manual run succeeded.")
+
+    stub_model(content: "unknown")
+    assert_nil @judge.standing(purpose: "fix the release webhook", happened: "Started.")
+  end
+
+  test "the standing prompt never claims a goal met or a fix without what happened showing it" do
+    prompt = FirefightAi::WatchJudge::STANDING_PROMPT
+    assert_match "Never say the goal is reached unless what happened shows it", prompt
+    assert_match "offer the check that would show it", prompt
+    assert_match "shall I?", prompt
+  end
+
   private
 
   def reading_of(said) = [ said.state, said.said ]

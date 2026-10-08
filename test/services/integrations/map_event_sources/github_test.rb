@@ -66,6 +66,19 @@ module Integrations
         assert_empty Github.events({ "action" => "opened" }, headers: headers_for("issues"))
       end
 
+      test "a push, a pull request, a review and the checks on a branch each name what a followed pull request should read again" do
+        repository = { "repository" => { "full_name" => "acme/web" } }
+        nudge = ->(event, payload) { Github.pull_request_nudges(repository.merge(payload), headers: headers_for(event)).sole }
+
+        assert_equal [ [], [ "main" ] ], nudge.call("push", "ref" => "refs/heads/main").then { |found| [ found.numbers, found.branches ] }
+        assert_equal [ 689 ], nudge.call("pull_request", "action" => "synchronize", "pull_request" => { "number" => 689 }).numbers
+        assert_equal [ 689 ], nudge.call("pull_request_review", "pull_request" => { "number" => 689 }).numbers
+        suite = nudge.call("check_suite", "check_suite" => { "head_branch" => "halon/fix-1", "pull_requests" => [ { "number" => 689 } ] })
+        assert_equal [ [ 689 ], [ "halon/fix-1" ] ], [ suite.numbers, suite.branches ]
+        assert_equal [ "halon/fix-1" ], nudge.call("status", "branches" => [ { "name" => "halon/fix-1" } ]).branches
+        assert_empty Github.pull_request_nudges(repository.merge("action" => "opened"), headers: headers_for("issues"))
+      end
+
       private
 
       def signed(body) = { "x-hub-signature-256" => "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', SECRET, body)}" }

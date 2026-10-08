@@ -194,10 +194,10 @@ provider_code.can_only_be_used_by :integrations_layer
 
 # A provider's API client is used only by that provider's own files, the ones named for it (packs/northflank.rb,
 # packs/northflank/, capabilities/northflank.rb), so how one provider reaches its API is never another one's concern.
-# The shared clients (MCP, OAuth, HTTP and the public address check) are every provider's, and a client may build on
-# another, such as several coding agents' clients on one base.
+# The shared clients (MCP, OAuth, HTTP, the public address check and git's smart HTTP for any code host) are every
+# provider's, and a client may build on another, such as several coding agents' clients on one base.
 class ProviderClientsStayHome
-  SHARED = %w[Integrations::McpClient Integrations::OauthClient Integrations::Http Integrations::PublicAddress].freeze
+  SHARED = %w[Integrations::McpClient Integrations::OauthClient Integrations::Http Integrations::PublicAddress Integrations::GitHttp].freeze
 
   def initialize(clients)
     @owners = (clients - SHARED).to_h { |client| [ client, client.delete_prefix("Integrations::").sub(/(Api|App)\z/, "").gsub(/(?<!\A)([A-Z])/, '_\1').downcase ] }

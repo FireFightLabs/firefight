@@ -87,6 +87,7 @@ module Integrations
                             "runs, or a service's builds and deploys, each with its status, when it started and finished and how long it " \
                             "took, and how long finished ones usually take. Use it to learn how long something usually takes or to follow one run",
                params: { "name" => { "type" => "string", "description" => "Only runs whose workflow, pipeline or kind contains this, such as release or build (optional)" },
+                         "run" => { "type" => "string", "description" => "Only this run, by its id, with its jobs or steps where the provider breaks a run down (optional)" },
                          "limit" => LIMIT }, required: []),
       Spec.new(key: ERRORS, tool_name: "search_errors", writes: false, what: "errors",
                description: "Errors one resource on the map raised, newest first, grouped by kind with how often each happened",

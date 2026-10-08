@@ -28,6 +28,17 @@ module FirefightAi
       said.presence unless said.casecmp?(UNKNOWN)
     end
 
+    # Where what happened leaves the goal the person had, and the next step offered as a question, or nil when nothing
+    # useful can be said.
+    def standing(purpose:, happened:)
+      response, = FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context(STANDING_PROMPT)) do |chat|
+        chat.with_instructions(STANDING_PROMPT)
+        chat.ask("## What the person wanted\n#{purpose}\n\n## What just happened\n#{happened}")
+      end
+      said = response.content.to_s.strip
+      said.presence unless said.casecmp?(UNKNOWN)
+    end
+
     UNKNOWN = "unknown".freeze
 
     READING_PROMPT = <<~PROMPT.freeze
@@ -43,6 +54,19 @@ module FirefightAi
 
       - Use only the evidence. Quote an error message briefly when it says it best.
       - When the evidence does not show why, answer exactly: #{UNKNOWN}
+      - #{Punctuation::RULE}
+    PROMPT
+
+    # Seen in a real chat, a manual deploy was reported as a success when what the person wanted was the webhook path
+    # fixed, and later nobody could say why it had been run.
+    STANDING_PROMPT = <<~PROMPT.freeze
+      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words and what just happened. Say in one short sentence where this leaves the goal, then offer the most useful next step as a question, such as "The manual run worked, but the GitHub path is still broken. Next I would read the webhook's error, shall I?"
+
+      - Use only what happened. Never say the goal is reached unless what happened shows it.
+      - Never offer a fix that what happened does not show the cause of. When the cause is unknown, offer the check that would show it.
+      - Offer to do it. Never say it was done.
+      - At most two sentences, plain words, no preamble.
+      - When nothing useful can be said, answer exactly: #{UNKNOWN}
       - #{Punctuation::RULE}
     PROMPT
 

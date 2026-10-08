@@ -33,39 +33,79 @@ class Conversation::Watches::Reader
     raise Refused, refusal_for(key, given, error.message)
   end
 
-  def read(key, given)
-    call = route(key, given)
+  def read(key, given) = read_call(route(key, given))
+
+  def read_call(call)
     answer = Answer.new(result: run(call), call: call)
     return answer if call.fallback.nil? || Integrations::Capabilities.definitive?(answer.result)
 
     Answer.new(result: run(call.fallback), call: call.fallback)
   end
 
+  # What one of Halon's read tools answered, by the name Halon calls it, as the person who asked. Text, and whether the
+  # call failed.
+  Said = Data.define(:text, :failed) do
+    def failed? = failed
+  end
+
+  def read_tool(agent, name, arguments)
+    entry = agent.tools[name.to_s]
+    raise Refused, "#{name} is not a read tool #{who} may use, so a watch cannot read with it." unless entry
+
+    agent.started_call!
+    text = entry.tool.call(**arguments.to_h.transform_keys(&:to_sym))
+    Said.new(text: FirefightAi::Evidence.unframe(text).body, failed: agent.failed?)
+  end
+
+  # A job's or step's log, read with the provider tool the run named on the connection that answered for the run. Only a
+  # tool that reads, and only when nothing holds it for approval.
+  def read_log(environment_row, log)
+    handle = log[Integrations::Capabilities::History::LOG_TOOL].to_s
+    tool = environment_row.integration.tools.enabled.available.find_by(name: handle)
+    raise Refused, "#{handle} is not switched on, so the log could not be read." unless tool&.read_only?
+
+    arguments = log[Integrations::Capabilities::History::LOG_ARGUMENTS].to_h
+    scope = environment_row.catalog_entry_id ? { "environment" => environment_row.catalog_entry_id } : {}
+    raise Refused, held_tool_words(tool) if Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: tool.action_key, scope: scope)
+
+    result = authorized(tool, scope, arguments) do
+      tool.integration.executor.call(tool: tool, environment_row: environment_row, arguments: arguments, box_key: @conversation.code_box_key)
+    end
+    Answer.new(result: result, call: nil)
+  end
+
   private
 
   def run(call)
-    tool = call.tool
+    authorized(call.tool, call.scope, call.arguments) do
+      answer = call.tool.integration.executor.call(tool: call.tool, environment_row: call.environment_row, arguments: call.arguments,
+                                                   box_key: @conversation.code_box_key)
+      call.present_result(answer)
+    end
+  end
+
+  def authorized(tool, scope, arguments)
     Chat::ToolCall.run!(
-      workspace: @workspace, principal: @principal, action_key: tool.action_key, scope: call.scope, params: call.arguments,
+      workspace: @workspace, principal: @principal, action_key: tool.action_key, scope: scope, params: arguments,
       context: { source: Chat::Watch::SOURCE, incident_id: @conversation.incident_id }.compact
     ) do |authorization|
-      answer = tool.integration.executor.call(tool: tool, environment_row: call.environment_row, arguments: call.arguments,
-                                              box_key: @conversation.code_box_key)
-      presented = call.present_result(answer)
+      presented = yield
       Mcp::ToolDispatcher.ledger_failure(authorization, presented)
       presented
     end
   rescue AbilityGateway::Denied
     raise Refused, "#{who} may no longer use #{tool.integration.name}'s #{tool.name}."
   rescue AbilityGateway::PendingApproval
-    raise Refused, held_words(call)
+    raise Refused, held_tool_words(tool)
   rescue Integrations::Error => error
     raise Unanswered, "#{tool.integration.name} did not answer: #{error.message.truncate(200)}"
   end
 
   def held?(call) = Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: call.tool.action_key, scope: call.scope)
 
-  def held_words(call) = "An approval rule covers #{call.tool.integration.name}'s #{call.tool.name}, and nobody is there to approve each read."
+  def held_words(call) = held_tool_words(call.tool)
+
+  def held_tool_words(tool) = "An approval rule covers #{tool.integration.name}'s #{tool.name}, and nobody is there to approve each read."
 
   # A resource whose provider keeps no run history says why, in the provider's own note.
   def refusal_for(key, given, said)

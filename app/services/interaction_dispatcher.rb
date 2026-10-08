@@ -83,6 +83,7 @@ class InteractionDispatcher
     Identifiers::HELD_CALL_RUN => Interactions::HeldCallHandler,
     Identifiers::HELD_CALL_DISMISS => Interactions::HeldCallHandler,
     Identifiers::HELD_CALL_ASK_AGAIN => Interactions::HeldCallHandler,
+    Identifiers::PULL_REQUEST_FIX => Interactions::PullRequestFixHandler,
     Identifiers::PACK_REQUEST_ASK => Interactions::PackRequestAskHandler,
     Identifiers::PACK_REQUEST_GIVE => Interactions::PackRequestGiveHandler,
     Identifiers::FIX_STEP_RUN => Interactions::FixStepDecisionHandler,

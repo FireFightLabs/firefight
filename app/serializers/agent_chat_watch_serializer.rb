@@ -14,6 +14,12 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.title
   end
 
+  # Why the person wanted it, in their words, such as get GitHub releases deploying through the webhook again.
+  type :string, optional: true
+  def purpose
+    watch.purpose
+  end
+
   type Chat::Watch::STATUSES.map(&:inspect).join(" | ")
   def status
     watch.status
