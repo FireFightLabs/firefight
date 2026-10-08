@@ -108,6 +108,11 @@ ENV FIREFIGHT_CLOUD=${FIREFIGHT_CLOUD}
 ARG SERVICE_VERSION="dev"
 ENV OTEL_SERVICE_VERSION=${SERVICE_VERSION}
 
+# Set only by the release workflow, which publishes the sandbox image under the same version, so a released image
+# starts its code sandboxes from the box released with it. Empty everywhere else, where the box is the edge build.
+ARG FIREFIGHT_RELEASE=""
+ENV FIREFIGHT_RELEASE=${FIREFIGHT_RELEASE}
+
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash

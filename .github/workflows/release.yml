@@ -99,6 +99,7 @@ jobs:
       cache-mode: max
       build-args: |
         SERVICE_VERSION=${{ needs.tag.outputs.version }}
+        FIREFIGHT_RELEASE=${{ needs.tag.outputs.version }}
       set-meta-labels: true
       meta-images: ghcr.io/${{ github.repository }}
       meta-tags: |

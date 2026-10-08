@@ -103,13 +103,25 @@ Every variable Firefight reads is listed in [`.env.example`](.env.example).
 
 ## Letting Halon read code
 
-Halon reads a repository in a sandbox of its own, one per investigation or conversation, holding the repository's whole history and no credential. It starts from `ghcr.io/firefightlabs/firefight-sandbox`, pulled by the same version as the app.
+Halon reads a repository in a sandbox of its own, one per investigation or conversation, holding the repository's whole history and no credential. It starts from `ghcr.io/firefightlabs/firefight-sandbox` at the same version as the app. An app image that is not a release, such as one you built yourself, uses the `edge` build of the sandbox instead. Set `SANDBOX_IMAGE` to choose another.
 
 With the compose file, uncomment the three lines under the Halon comment and the socket mount, then set `DOCKER_GID` in `.env` to the group that owns the socket (`stat -c %g /var/run/docker.sock`). Mounting the socket gives Firefight control of your Docker daemon, which is why it is off by default. `firefight_default` is the network compose makes for this project, so check `docker network ls` if you named the project something else.
 
 Boxes can reach the internet, so a repository's own tests can too. Running commands and tests is only offered to workspaces with Halon switched on.
 
 Every setting is described in [`.env.example`](.env.example).
+
+### On Northflank
+
+When Firefight itself runs on Northflank, each box can be a private service there instead. Keep the boxes in a project of their own, so they never share the app's secrets.
+
+1. Create a project for the boxes in the same team and on the same cluster as the app's project. Northflank only lets projects talk to each other within one team and cluster.
+2. Give that project no secret groups. A secret group reaches every service in its project, and a box must hold no credential.
+3. In the boxes' project settings, under networking, allow ingress from the app's project. This is one-way, so the app reaches the boxes and the boxes cannot reach the app.
+4. Create a Northflank API token whose role can read the boxes' project and create, read and delete its services.
+5. On the app, set `SANDBOX_PROVIDER=northflank`, `NORTHFLANK_API_TOKEN` to that token and `NORTHFLANK_SANDBOX_PROJECT` to the boxes' project id, then redeploy.
+
+Firefight reads its own project from Northflank, so it knows the boxes are elsewhere and reaches them at the address Northflank gives other projects. If the boxes' project does not allow ingress from the app's project, code reading says the sandbox did not come up, or names the ingress setting when Northflank reports it, so check step 3 first. `NORTHFLANK_SANDBOX_PROJECT` can also be the app's own project, and then boxes are reached inside it.
 
 ## Signing in with Google or an email link
 
