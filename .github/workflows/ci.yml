@@ -136,7 +136,9 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
         run: |
           bin/rails db:test:prepare
-          bin/rails test test engines/firefight_ai/test
+          # With no path, Rails runs every test except test/system, which the system-test job runs.
+          bin/rails test
+          bin/rails test engines/firefight_ai/test
 
   system-test:
     runs-on: ubuntu-latest
