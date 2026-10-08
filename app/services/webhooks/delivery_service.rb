@@ -16,7 +16,11 @@ class Webhooks::DeliveryService
     @webhook  = webhook_delivery.webhook
   end
 
+  # A delivery that already ended is not sent again, so a job run again after its worker stopped sends only what never
+  # got an answer, with the same delivery id for the endpoint to recognise.
   def deliver
+    return unless @delivery.pending? || @delivery.in_progress?
+
     @delivery.in_progress!
     @delivery.increment!(:attempts)
 

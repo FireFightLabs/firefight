@@ -7,12 +7,12 @@ class IntegrationsController < InertiaController
     read: :index,
     create: %i[create oauth_start oauth_callback list_scopes],
     update: %i[sync toggle_tool set_all_tools toggle retarget_environment choose scope_options scopes map_events_secret forget_map_events_secrets live_updates
-               live_updates_setup],
+               live_updates_setup protected_paths],
     delete: :destroy
   before_action :set_integration,
                 only: [ :sync, :toggle_tool, :set_all_tools, :toggle, :retarget_environment, :choose, :scope_options, :scopes, :map_events_secret,
                       :forget_map_events_secrets,
-                      :live_updates, :live_updates_setup, :destroy ]
+                      :live_updates, :live_updates_setup, :protected_paths, :destroy ]
   # Connecting leaves for the provider and comes back here, setup or not.
   skip_before_action :continue_setup, only: %i[oauth_start oauth_callback]
 
@@ -147,6 +147,16 @@ class IntegrationsController < InertiaController
     settings = Integrations::ConnectionSettings.of(row.reload)
     named = settings.all_scopes? ? settings.chosen_scopes : settings.chosen_scopes.map { |id| settings.scope_name(id) }
     redirect_to integrations_path, notice: "#{@integration.name} now reads #{field.reach_words(named)}."
+  end
+
+  # The paths Halon may not change in the repositories a code host connection holds. A refusal stays on the form beside
+  # what was typed, and the connection's details stay open either way.
+  def protected_paths
+    details = integrations_path(Integration::DETAILS_QUERY_PARAM => @integration.id)
+    refusal = @integration.protect_paths!(params[:paths])
+    return redirect_to details, inertia: { errors: { paths: refusal } } if refusal
+
+    redirect_to details, notice: "Saved. #{@integration.protected_paths_words}"
   end
 
   # The signing secret an admin pasted from a provider set up by hand to send its changes to the connection's address.

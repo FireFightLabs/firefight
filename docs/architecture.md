@@ -425,6 +425,78 @@ FeatureFlags.enabled?(workspace, FeatureFlags::CHATGPT_SIGN_IN)   # → true/fal
 
 All callback_ids, action_ids, and subcommand strings are centralized in the platform-agnostic `Identifiers` module (`app/models/identifiers.rb`). Never use magic strings. Reference as `Identifiers::INCIDENT_CREATION_MODAL`, `Identifiers::SUBCOMMAND_CLOSE`, etc.
 
+## Deploys
+
+Firefight deploys many times a day, so every job and every long running path is written to be stopped part way and picked up again without anything left hanging or done twice.
+
+### What a stopped worker does
+
+A deploy sends TERM to the web and job containers, then kills them once the platform's grace period runs out.
+
+- **Job workers** (`config.solid_queue.shutdown_timeout`, 25 seconds in `config/application.rb`). The supervisor stops taking jobs and gives the ones in flight 25 seconds. A job that finishes is done. One still running is either handed back (the worker deregisters, Solid Queue releases the claim and the same job, with the same `job_id`, runs again on the new version) or, when the supervisor's QUIT or the platform's KILL lands first, failed with `SolidQueue::Processes::ProcessExitError`, `ProcessPrunedError` (heartbeat stopped, found after `process_alive_threshold`, five minutes) or `ProcessMissingError`. Solid Queue never runs a failed job again on its own.
+- **`InterruptedJob`** closes that gap. The recovery sweep puts every job failed with one of those process errors back on the queue, keeping its `job_id` and its retry counters, so an interrupted job runs again whichever way its worker stopped. The count is kept on the job's own arguments (`interruptions`). A job interrupted `InterruptedJob::GIVE_UP_AFTER` (3) times is taken to be what stops its worker, such as one that runs it out of memory. It stays failed, where the operator console shows it, and its class's `interrupted_too_often(*arguments)` is called once so whoever waits on it is told.
+- **So every job must be safe to run again from the top.** Most are, by a guard on the row they change (a status moved by one guarded `update_all`, a checkpoint, a unique index, a lease). A job that makes a change Firefight cannot look up afterwards calls `notices_interruptions` (`ApplicationJob`): it notes its start in `job_runs` (`JobRun`) and clears the note when it finishes or raises, never when its thread is killed, so the same job starting again reads `interrupted_at` and knows an earlier run was cut off. It then ends what that run was doing with a plain reason instead of doing it again.
+- **Web** (`force_shutdown_after 25` in `config/puma.rb`). Thruster passes TERM to Puma, which stops taking requests and lets those in flight finish for up to 25 seconds. Action Cable sockets close, and the browser reconnects to the new version (see Live updates below).
+- **Health check.** `GET /up` is `Rails::HealthController`: 200 once the app has booted (production eager loads, so a class that fails to load fails the check), 500 otherwise. It does not touch the database, so a database blip never marks every web container unhealthy at once.
+
+### Platform settings
+
+| Service | Termination grace period | Health check |
+|---|---|---|
+| Web (`./bin/thrust ./bin/rails server`, port 80) | 45 seconds | Readiness: HTTP `GET /up` on port 80, initial delay 10 s, every 5 s, timeout 3 s, 3 failures. Liveness: the same path, every 10 s, 6 failures. Rolling deploy keeps the old containers serving until the new ones pass readiness. |
+| Jobs (`bundle exec rake solid_queue:start`) | 45 seconds | None, it serves no HTTP. The supervisor replaces a worker process that dies. |
+
+45 seconds is the 25 seconds work gets to finish, plus the supervisor's QUIT, deregistering and exit, with room to spare. Anything shorter than 30 cuts the worker off before it hands its jobs back, which still recovers (the sweep runs them again) but later.
+
+### Recovery sweep
+
+`RecoverySweepJob` runs every minute on the `events` queue, one at a time, and calls `InterruptedWork.recover!`:
+
+- `InterruptedJob.run_again!`, above. A job class whose own recovery decides sets `runs_again_when_interrupted` to false and is left failed for it, which only `ConversationReplyJob` does.
+- `Conversation::Recovery.sweep!` (docs/ai.md, Conversations): a reply job a stopped worker failed is run again once when nothing in the turn could have changed anything, and otherwise the turn is ended in the chat and its thread with "I was interrupted before I finished. Ask me again."
+- `Investigation.abandoned` runs (lease ran out, or never claimed) get a new `InvestigationJob`. The claim decides, so a second job is harmless.
+- `Conversation.reply_lost`, a turn still owed past `Conversation::REPLY_CEILING`, ends with `Conversation::Delivery::FAILED` in the chat and in Slack or on the page (`Conversation::Delivery.give_up_lost!`). `Conversation#drop_lost_reply!` clears the owed answer only while it is still the same one, so it is said once.
+- `Conversation::HeldCalls.recover!`: a held call still checking after `CHECK_LOST_AFTER` gets its check job again (at most once a window, since the claim moves the row on), and one left running by a turn that will not run again ends with `COULD_NOT_FINISH`.
+- `Postmortem.generation_stalled`, a draft generating past `GENERATION_STALE_AFTER`, ends failed with `GENERATION_INTERRUPTED`. The page says Firefight restarted while writing it and offers Try again, and the author is told in Slack, once (`Postmortem#give_up_generation!`).
+- `IssueSyncService.give_up_lost_openings!`, an item still opening its issue after `OPENING_LOST_AFTER`, ends failed, saying to check the tracker before asking again.
+- `WebhookDelivery.give_up_interrupted!`, a delivery still pending or in progress after `UNSENT_AFTER`, ends failed as `interrupted` on the webhook's delivery list.
+- `ResourceMap::ReceivedEvent.give_up_interrupted!`, a map change still being read after `READ_LEASE`, is handed to the next full sweep as a failed re-read.
+- `JobRun.forget_old!` drops run notes no job came back for.
+
+Workflows have their own sweeper in the engine (docs/workflows.md, Recovery), since the app never names `SolidWorkflow`.
+
+### Live updates
+
+Nothing broadcast while a socket is away is sent again. The chat page (`use-agent-stream.ts`) reads the open chat again (`refreshOpenChat`) whenever its socket reconnects after a drop, so an answer that finished during a deploy shows without a reload, and it still reads it once after four seconds if the socket stays away mid answer. The investigation page polls while a run is live, so it needs nothing.
+
+### Inventory
+
+How long each kind of work runs, what a stop in the middle leaves, and why running it again is safe. "Again" is the same job run again, by Solid Queue or by `InterruptedJob`.
+
+| Work | Runs for | Stopped part way | Safe to run again because |
+|---|---|---|---|
+| Chat turn (`ConversationReplyJob`) | Seconds to minutes | Handed back: the turn resumes from the saved chat. Failed: `Conversation::Recovery` runs it again once if it changed nothing, or ends it saying it was interrupted | `Chat#discard_interrupted_reply!` drops the half written reply, and `Chat#close_unfinished_calls!` closes a call left without its result as interrupted, so it is never run again. One turn per conversation (`limits_concurrency`) |
+| Held call run (inside a turn) | Seconds | Again: the approval is single use, so the call cannot run twice. Given up or lost: ends `COULD_NOT_FINISH` | The gateway consumes the approval in one guarded update |
+| Held call check (`HeldCallCheckJob`) | Seconds to a minute | Again: checks again (reads only). Lost: the sweep queues it again | `HeldCall#checked!` moves the row once |
+| Investigation (`InvestigationJob`) | Minutes | The same job takes its run back at once (`claim!(by: job_id)`), steps still running are failed as interrupted, and the run continues from its saved turns | Lease and claim, turns written as they happen, `MAX_ATTEMPTS` then ends with a rerun button in the thread |
+| Code fix step (`InvestigationFixJob`, a coding agent in the sandbox for up to 15 minutes, or one provider call) | Seconds to 15 minutes | Again (`notices_interruptions`): the step the cut off run had started ends at once with `LOST_TRACK` (check whether it went through) and is never called again, and the rest of the fix carries on. Lost: the job booked for `stale_after` ends it the same way | A change to someone's systems is never repeated without them. The sandbox is restored by the box's own trap, and `CodeBoxSweepJob` stops a box no run knows about |
+| Fix state check (`FixStepCheckJob`), undo writing (`InvestigationUndoJob`) | Seconds to a minute | Again: reads or writes the undo again | `checked!` and `writing_undo?` guard the row |
+| Workflow step (`SolidWorkflow::RunStepJob`) | Seconds (Slack calls) | Again: the step carries its job (`claimed_by`), so the same job takes up its own running step at once (`step.resumed` event). Lost: the sweeper resets it after `orphaned_step_threshold` | Every step that posts a new message is `checkpointed`, so a post that went out is not sent again. Narrow window: a kill after Slack answered and before the checkpoint or record was written can post twice, and `create_slack_channel` can make a second `name-<time>` channel |
+| Postmortem draft (`PostmortemGenerationJob`) | Under two minutes | Again: written again (paid again). Lost: ended by the sweep with a plain reason and Try again | `start_generation!` is one guarded update, `generating?` guard |
+| Issue sync (`IssueSyncJob`) | Seconds | Opening, again (`notices_interruptions`): never tried a second time, the item says to look in the tracker. Pushing: sets the same fields again. Lost: the sweep ends the opening | Trackers have no way to tell a second issue apart, so it is never opened twice |
+| Webhook dispatch (`Webhooks::DispatchJob`) | Milliseconds | Again: adds only the deliveries still missing | Looks up deliveries for the event before creating |
+| Webhook delivery (`Webhooks::DeliveryJob`) | Up to about 15 seconds | Again: sent again with the same `X-Webhook-Delivery` id and the next attempt number, never once it ended. Lost: the sweep ends it as `interrupted` | The stored signed payload is resent byte for byte |
+| Domain events (`ProcessDomainEventJob`), Slack events (`ProcessEventJob`) | Milliseconds | Again: routed again. A message is recorded once (unique `message_id`), a file once | A mention handled twice can ask twice, only if the worker dies in the milliseconds between asking and finishing |
+| Alert routing (`Alerts::RoutingSweepJob`) | Seconds | Rolled back with its transaction, routed again in two minutes | Row lock, `pending` check, advisory lock per signature |
+| Map sweeps (`Integrations::MapSweepJob`, `MapEventJob`, `MapEventPollJob`, `MapEventSweepJob`) | Seconds to many minutes | Again or next run: connections already swept are skipped (`map_swept_at`), a change read left `reading` goes to the next sweep | `ResourceMap.record!` is one transaction, the poll cursor moves only after events are kept |
+| Baselines and log patterns (`BaselineSweepJob`, `LogPatternSweepJob`, `LogPatternReadJob`) | Minutes to tens of minutes | Again: read again (costs reads, changes nothing twice) | Each write is a transaction |
+| Halon regression case (`HalonRegressionCaseJob`) | Up to two hours | Again (`notices_interruptions`): settled as `LOST` at once. Never started: settled after `STALE_AFTER` | `claim!` stops a second replay, so nothing is paid twice |
+| Approval notices and resumption (`AbilityApprovalNotificationJob`, `AbilityApprovalResumptionJob`) | Seconds | Again: the replayed request is guarded by `consumed_at` | Narrow window: a notice posted just before the worker died can be posted twice |
+| Escalation nudge (`EscalationAcknowledgementReminderJob`) | Under a second | Again: a recorded nudge is not sent twice | Looks for the nudge event before sending |
+| Short notices (`MemoryNoteJob`, `PackRefusalJob`, `PackRequestSettledJob`, `IncidentUpdateReminderJob`, `WorkspaceAiAccountNoticeJob`, `AiAccountAlertJob`, `SignupNotificationJob`) | Under a second | Again: posted again only if the worker died between the post and the end of the job | They finish well inside the 25 seconds a deploy gives |
+| AI follow ups (`IncidentAiResponseJob`, `IncidentLearningJob`, `IncidentMistakeLearningJob`, `MilestoneNotingJob`) | Up to a minute or two | Again: asks the model again. Lessons and milestones are not duplicated | `Chat::Memory.learn!` dedupes, milestones keep a watermark |
+| Recurring upkeep (cleanups, health checks, token refresh, registry refresh, search backfill, expiry, retention) | Seconds to minutes | Next run picks up where the data is | Each recomputes from the database. A token refresh cut off between the provider's answer and the save loses a rotated refresh token, a window only a kill inside that call reaches |
+
 ## Key Files
 
 ```

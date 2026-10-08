@@ -37,6 +37,15 @@ class ResourceMap::ReceivedEvent < ApplicationRecord
     end
   end
 
+  # Longer than any re-read of one scope takes, so a row still being read after it belongs to a reader whose worker stopped.
+  READ_LEASE = 15.minutes
+
+  # Handed to the next sweep, which reads the whole connection, as a failed re-read is. Once, since the update names
+  # the reading state.
+  def self.give_up_interrupted!
+    where(outcome: OUTCOME_READING, updated_at: ...READ_LEASE.ago).update_all(outcome: OUTCOME_FAILED, updated_at: Time.current)
+  end
+
   def self.finish!(events, outcome)
     where(id: events.map(&:id), outcome: OUTCOME_READING).update_all(outcome: outcome, applied_at: Time.current, updated_at: Time.current)
   end

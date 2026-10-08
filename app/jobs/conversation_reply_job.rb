@@ -18,6 +18,8 @@ class ConversationReplyJob < ApplicationJob
     Conversation::Delivery.give_up!(conversation, AiCredit.cannot(conversation.workspace)) if conversation
   end
   discard_on ActiveRecord::RecordNotFound
+  # A turn that may have changed something is never run again, so Conversation::Recovery decides, not InterruptedJob.
+  self.runs_again_when_interrupted = false
 
   # The person is told when the job gives up, or they would wait forever.
   def self.say_nothing_came_of_it(job)

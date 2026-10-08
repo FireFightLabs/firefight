@@ -5,8 +5,12 @@ class HalonRegressionCaseJob < ApplicationJob
   limits_concurrency key: "halon_regression", to: 2, duration: Investigation::RegressionResult::STALE_AFTER
 
   discard_on ActiveRecord::RecordNotFound
+  notices_interruptions
 
   def perform(result_id)
-    Investigation::Regression.run_case!(Investigation::RegressionResult.find(result_id))
+    result = Investigation::RegressionResult.find(result_id)
+    return Investigation::Regression.settle_lost!(result) if interrupted_at
+
+    Investigation::Regression.run_case!(result)
   end
 end

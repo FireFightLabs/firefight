@@ -2,6 +2,7 @@
 # runs a first-party Integrations::NativePack.
 class Integration < ApplicationRecord
   include Sluggable
+  include CodeChanges
 
   KIND_MCP = "mcp"
   KIND_HTTP = "http"

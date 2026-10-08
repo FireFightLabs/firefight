@@ -122,6 +122,25 @@ class Investigation::RegressionTest < ActiveSupport::TestCase
     assert_equal [ Investigation::RegressionResult::STATUS_ERRORED, Investigation::Regression::LOST ], [ result.reload.status, result.reason ]
   end
 
+  test "a case whose job was lost before it started, or whose worker stopped mid replay, is settled so its run can finish" do
+    run = Investigation::Regression.start!(trigger: Investigation::RegressionRun::TRIGGER_OPERATOR)
+    never_started = run.results.find_by!(finding: @confirmed)
+    never_started.update_columns(created_at: 3.hours.ago)
+    HalonRegressionWatchJob.perform_now
+    assert_equal [ Investigation::RegressionResult::STATUS_ERRORED, Investigation::Regression::LOST ], [ never_started.reload.status, never_started.reason ]
+
+    cut_off = run.results.where.not(id: never_started.id).first
+    job = HalonRegressionCaseJob.new(cut_off.id)
+    assert cut_off.claim!
+    Investigation::Regression.stubs(:run_case!).raises(Interrupt)
+    assert_raises(Interrupt) { job.perform_now }
+    Investigation::Regression.unstub(:run_case!)
+
+    Investigation::Rehearsal.expects(:replay!).never
+    job.perform_now
+    assert_equal [ Investigation::RegressionResult::STATUS_ERRORED, Investigation::Regression::LOST ], [ cut_off.reload.status, cut_off.reason ]
+  end
+
   test "two workers noticing the same deployed prompt start one run" do
     Investigation::RegressionRun.create!(trigger: Investigation::RegressionRun::TRIGGER_PROMPT_CHANGE, prompt_version: Investigation::Regression.prompt_version)
     Investigation::RegressionRun.stubs(:exists?).returns(false)

@@ -58,7 +58,9 @@ After each step completes, the engine finds newly ready steps (all dependencies 
 
 ## Recovery
 
-`SweeperJob` handles crashes: resumes stuck workflows (idle >5min), resets orphaned running steps (idle >10min), fails timed-out workflows.
+A deploy can stop a worker in the middle of a step (docs/architecture.md, Deploys). `RunStepJob` writes its `job_id` on the step it claims (`claimed_by`), and Solid Queue hands a stopped worker's job out again with the same id, so the same job finding its own step still running takes it up again at once, as another attempt, and records `step.resumed`. Any other job finds the step held and leaves it. A step only re-runs safely because every step that posts a new message is `checkpointed`: the post is kept on the step once it went out, so running the step again does not post twice. The window left is a stop after the platform answered and before the checkpoint was written.
+
+`SweeperJob` handles the rest: resumes stuck workflows (idle >5min), resets orphaned running steps whose job never came back (idle >10min), fails timed-out workflows.
 
 ## Event Timeline
 

@@ -24,7 +24,7 @@ module Workspace::CatalogueDefaults
       system_key: CatalogType::SYSTEM_KEY_SERVICE,
       kind: CatalogType::KIND_SYSTEM,
       icon: "server",
-      color: "#70D5ED",
+      color: "#EFD369",
       description: "Services and applications in your infrastructure",
       position: 2,
       attributes: [

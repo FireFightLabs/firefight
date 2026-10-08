@@ -19,4 +19,12 @@ class CodeChangeTest < ActiveSupport::TestCase
   test "every kind is ordered and labelled" do
     assert_equal CodeChange::KINDS.sort, CodeChange::KIND_LABELS.keys.sort
   end
+
+  test "a change to a CI workflow on any host leads with a warning, and any other change does not" do
+    [ ".github/workflows/release.yml", ".github/actions/setup/action.yml", ".gitlab-ci.yml", ".gitlab/ci/deploy.yml", "bitbucket-pipelines.yml",
+      ".circleci/config.yml", "azure-pipelines.yml", ".buildkite/pipeline.yml", "Jenkinsfile" ].each do |path|
+      assert_equal CodeChange::CI_WARNING, CodeChange.ci_warning([ "app/models/pool.rb", path ]), path
+    end
+    assert_nil CodeChange.ci_warning([ "app/models/pool.rb", ".github/CODEOWNERS", "docs/.gitlab-ci.yml" ])
+  end
 end

@@ -62,9 +62,10 @@
   --stage-triage: #a98aea;
   --stage-triage-tint: #271e39;
   --stage-triage-border: #483867;
-  --stage-active: #70d5ed;
-  --stage-active-tint: #002a33;
-  --stage-active-border: #004c5d;
+  /* In progress is a muted lime, a step short of done, so the two never read the same side by side */
+  --stage-active: #b7cf9a;
+  --stage-active-tint: #1f2318;
+  --stage-active-border: #3a4230;
   --stage-closed: #9ee464;
   --stage-closed-tint: #1a290e;
   --stage-closed-border: #314b1b;
@@ -79,12 +80,12 @@
   --error-tint: #391917;
   --warning: #f18336;
   --warning-tint: #371c0b;
-  --info: #70d5ed;
-  --info-tint: #002a33;
+  --info: #b7cf9a;
+  --info-tint: #1f2318;
   --success-border: #314b1b;
   --error-border: #6e3330;
   --warning-border: #6b3916;
-  --info-border: #004c5d;
+  --info-border: #3a4230;
 
   /* Controls */
   --toggle-on-track: #9ee464;
@@ -109,7 +110,9 @@
 
   /* Charts, used in this order */
   --chart-1: #9ee464;
-  --chart-2: #70d5ed;
+  --chart-2: #efd369;
+  --chart-2-tint: #2b2610;
+  --chart-2-border: #574a1b;
   --chart-3: #a98aea;
   --chart-4: #f18336;
   --chart-5: #9d9f9d;
