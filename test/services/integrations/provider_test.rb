@@ -74,6 +74,13 @@ module Integrations
       end
     end
 
+    test "every provider whose pack reads code is a code host, so its connections keep the paths Halon may not change" do
+      reads_code = IntegrationProvider.all.select { |entry| Provider.for(entry.key).pack&.include?(Packs::CodeHost::Code) }.map(&:key)
+
+      assert_equal %w[bitbucket github gitlab], reads_code.sort
+      assert_equal reads_code.sort, IntegrationProvider.all.select(&:holds_code).map(&:key).sort
+    end
+
     test "a provider whose stores settings are named for is on the map, and its words are whole words in capitals" do
       IntegrationProvider.all.select { |entry| entry.setting_words.any? }.each do |entry|
         assert_equal IntegrationProvider::MAP_FIREFIGHT, entry.map, "#{entry.key} names setting words for stores that are not on the map"

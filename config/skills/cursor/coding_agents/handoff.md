@@ -12,3 +12,4 @@ A Cursor cloud agent writes a code change in its own machine, pushes a branch an
 5. One step is one repository and one pull request. A second repository is a second step that waits on the first, told about it in `context`.
 6. Cursor has no spending limit for one agent, so Firefight's limit is time: it cancels the run after 30 minutes. A change too large for that is a person's step, or several smaller ones.
 7. In a chat, call `fix_code` only once the person agreed to the change. It runs as them, and an approval rule can hold it. The answer names the pull request and the agent's page, and gives both links to the person.
+8. Firefight cannot refuse what Cursor pushes, so the brief asks it to leave alone the paths the code host connections list under Code changes as ones Halon may not change, and to start the pull request's description with a warning when the change touches a CI workflow. The protected_paths skill reads and changes that list.

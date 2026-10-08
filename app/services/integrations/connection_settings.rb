@@ -111,5 +111,15 @@ module Integrations
     end
 
     def environment_id = @row.catalog_entry_id
+
+    # The paths the connection keeps out of the code changes Halon writes, as an admin listed them (Integration::CodeChanges).
+    def protected_paths = @integration.protected_paths
+
+    # Why a change to these paths in repo is not opened, naming them and where an admin changes the list, or nil.
+    def protected_paths_refusal(repo, paths) = @integration.protected_paths_refusal(repo, paths)
+
+    # The paths the workspace's code hosts keep out of a change to repo, for a coding agent that pushes its own change and
+    # so is told them rather than refused (Integration.protected_paths_for).
+    def protected_paths_for(repo) = Integration.protected_paths_for(workspace, repo)
   end
 end

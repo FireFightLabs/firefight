@@ -71,6 +71,13 @@ class IntegrationSerializer < BaseSerializer
     end
   end
 
+  # The paths Halon may not change in the connection's repositories, as an admin listed them. null for a provider that
+  # holds no code.
+  type "string[] | null"
+  def protected_paths
+    integration.protected_paths if integration.holds_code?
+  end
+
   # The app installations disconnecting may also remove from their account at the provider, one for each the connection
   # was made through, with what the choice reads and why it cannot be made (another connection still uses it), or null.
   type "{ installationId: string; label: string; page: string | null; blockedReason: string | null }[]"

@@ -167,9 +167,9 @@ class IntegrationProvider
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
-                      :app, :setting_words) do
+                      :app, :setting_words, :holds_code) do
     def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], **) = super
+                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, **) = super
 
     # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
     def app_connect? = kind == Integration::KIND_MCP && app.present? && IntegrationProvider.app_client(key).present?
@@ -276,6 +276,8 @@ class IntegrationProvider
         # A coding agent writes a change for any repository in its own environment and opens the pull request itself.
         # It writes a fix's code changes only once an admin chooses it under Settings, Workspace.
         code_agent: raw["code_agent"] == true,
+        # A code host holds repositories a code change can be written to, so its connections keep the paths Halon may not change.
+        holds_code: raw["holds_code"] == true,
         app: raw["app"] && App.new(**raw["app"].symbolize_keys),
         # Words in a setting's name that point at this provider's stores, such as NEON in NEON_DATABASE_URL. A clue the
         # map's matcher reads when a setting's value is hidden or names no address a store reported.

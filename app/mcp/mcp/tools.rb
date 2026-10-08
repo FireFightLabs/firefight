@@ -52,6 +52,7 @@ module Mcp
     INVITE_RESPONDERS = "invite_responders".freeze
     GET_WORKSPACE_CONFIG = "get_workspace_config".freeze
     UPDATE_WORKSPACE_SETTINGS = "update_workspace_settings".freeze
+    UPDATE_PROTECTED_PATHS = "update_protected_paths".freeze
     LIST_INTEGRATIONS = "list_integrations".freeze
     GET_RESOURCE_MAP = "get_resource_map".freeze
     FIND_RESOURCES = "find_resources".freeze
@@ -114,7 +115,7 @@ module Mcp
         CreateActionItem, AssignActionItem, CompleteActionItem, RenameActionItem, ReopenActionItem, UnassignActionItem,
         CreateActionItemIssue, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
-        GetWorkspaceConfig, UpdateWorkspaceSettings, ListIntegrations, GetResourceMap, SuggestResourceLink,
+        GetWorkspaceConfig, UpdateWorkspaceSettings, UpdateProtectedPaths, ListIntegrations, GetResourceMap, SuggestResourceLink,
         FindResources, SearchMap, GetResource, GetResourceLinks, GetResourceNeighbours, TraverseResourceMap, BlastRadius, ResourceMapStats,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,

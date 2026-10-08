@@ -224,6 +224,7 @@ Rails.application.routes.draw do
         delete :map_events_secrets, action: :forget_map_events_secrets
         patch :live_updates
         get :live_updates_setup
+        patch :protected_paths
       end
       collection do
         get :oauth_start
