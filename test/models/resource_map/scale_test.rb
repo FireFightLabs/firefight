@@ -3,22 +3,31 @@ require "test_helper"
 # A workspace holding 100,000 resources among other workspaces' resources, read through its indexes. A plan that scans
 # either table in full would read every workspace's rows, so each query's plan is checked rather than its time, which
 # varies by machine. Rows are written by the database itself, since building them in Ruby takes far longer than the test.
+# The map takes most of the time to build, so one test builds it once and runs every check on it, the matchers last
+# since they rename resources.
 class ResourceMap::ScaleTest < ActiveSupport::TestCase
   RESOURCES = 100_000
   OTHERS = 150_000
   CHAIN = 10
   FULL_SCANS = /Seq Scan on resource_map_(resources|links)\b/
 
-  setup do
+  test "on a map of 100,000 resources the queries read through indexes, the map tools answer, and the matchers compare only likely pairs" do
     @workspace = workspaces(:slack_workspace_one)
     fill(@workspace, RESOURCES, linked: true)
     fill(workspaces(:slack_workspace_two), OTHERS)
     fill(workspaces(:slack_workspace_expired), OTHERS)
     connection.execute("ANALYZE resource_map_resources")
     connection.execute("ANALYZE resource_map_links")
+
+    assert_queries_read_through_indexes
+    assert_map_tools_answer
+    assert_matchers_compare_likely_pairs
   end
 
-  test "every filter, a later page, the capped count and the walk along links read through indexes" do
+  private
+
+  # Every filter, a later page, the capped count and the walk along links.
+  def assert_queries_read_through_indexes
     first = ResourceMap::Query.new(@workspace).page(limit: 50)
     assert_equal [ ResourceMap::Query::COUNT_CAP, true, "10,000+" ], [ first.total, first.capped, first.total_label ]
 
@@ -48,7 +57,8 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
     assert_equal graph.resources.pluck(:id).sort, ResourceMap::BlastRadius.new(root).dependent_ids.sort
   end
 
-  test "the map tools answer on the large map, and get_resource_map gives its numbers rather than reading every resource" do
+  # get_resource_map gives its numbers rather than reading every resource.
+  def assert_map_tools_answer
     admin = workspace_memberships(:alice_workspace_one)
     timings = {
       Mcp::Tools::GetResourceMap => {}, Mcp::Tools::FindResources => { provider: [ "aws" ], name_starts_with: "resource-01" },
@@ -72,7 +82,8 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
     timings.each { |tool, (_, seconds)| assert_operator seconds, :<, 10, tool.name }
   end
 
-  test "the matchers read only the pairs that share a word or an address, so a sweep on the large map stays quick" do
+  # Only the pairs that share a word or an address, so a sweep on the large map stays quick.
+  def assert_matchers_compare_likely_pairs
     row = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "aws", name: "AWS", slug: "aws_scale").integration_environments.create!
     # Each database is named for its own project, and three services for each of the first thousand projects share it.
     connection.execute(ResourceMap::Resource.sanitize_sql_array([ <<~SQL.squish, { workspace: @workspace.id } ]))
@@ -107,8 +118,6 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
     # Generous, since machines differ. Comparing every service with every database in Ruby would take far longer.
     assert_operator seconds, :<, 60
   end
-
-  private
 
   def assert_indexed(relation, label) = assert_no_match FULL_SCANS, explain(relation.to_sql), label
 
