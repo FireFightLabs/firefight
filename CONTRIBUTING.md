@@ -10,8 +10,9 @@ We use [mise](https://mise.jdx.dev/) to pin language and tool versions. After in
 - PostgreSQL 18.3
 - Node (for the frontend toolchain)
 - libvips (Active Storage resizes images through it, and Rails loads it at boot)
+- libsodium (a GitHub Actions secret is encrypted with it before it is sent)
 
-Install libvips with `brew install vips` on macOS, or `apt install libvips` on Debian and Ubuntu. The app will not boot without it.
+Install libvips with `brew install vips` on macOS, or `apt install libvips` on Debian and Ubuntu. The app will not boot without it. Install libsodium with `brew install libsodium` or `apt install libsodium23`.
 
 ## PostgreSQL via Docker
 

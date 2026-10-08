@@ -61,6 +61,8 @@ module Mcp
         answer = tool.integration.executor.call(
           tool: tool, environment_row: environment_row, arguments: arguments, box_key: server_context[:principal].code_box_key
         )
+        answer = Integration::SecretHandoff.settle(answer, tool: tool, environment_row: environment_row, principal: server_context[:principal],
+                                                           workspace: workspace, source: AbilityGateway::SOURCE_MCP)
         ToolDispatcher.ledger_failure(authorization, answer)
         answer
       rescue Integrations::PolicyRefusal => refusal

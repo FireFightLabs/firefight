@@ -20,9 +20,9 @@ module Integrations
         NorthflankApi.any_instance.stubs(:secret_groups).returns(listed([]))
       end
 
-      test "the token and project are stored trimmed, and every tool only reads except the one that changes the project" do
+      test "the token and project are stored trimmed, and every tool only reads except the ones that change the project" do
         assert_equal "nf-token", @row.reload.credentials_hash[Northflank::API_TOKEN]
-        assert_equal [ "api_request" ], Northflank.tool_definitions.reject(&:read_only).map(&:name)
+        assert_equal %w[api_request add_workflow_webhook], Northflank.tool_definitions.reject(&:read_only).map(&:name)
       end
 
       test "a change goes to a path inside the project only, with its body, and links to what it changed" do
@@ -248,8 +248,10 @@ module Integrations
       test "every tool's answer links to where it is on Northflank" do
         NorthflankApi.any_instance.stubs(logs: [], metrics: {}, builds: [], deployments: [], containers: [], build_logs: [],
                                          service: { "deployment" => {}, "healthChecks" => [] },
-                                         jobs: listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]), job_runs: [], request: {})
-        arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart" }
+                                         jobs: listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]), job_runs: [], request: {},
+                                         workflow: { "name" => "Release", "triggers" => [] }, update_workflow: {})
+        arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart",
+                      "workflow" => "release", "ref" => "release-webhook" }
         links = Northflank.tool_definitions.to_h { |definition| [ definition.name.to_s, call(definition.name, arguments).lines.last ] }
 
         assert links.values.all? { |line| line.start_with?("Open this in Northflank") }, links.inspect
@@ -262,6 +264,7 @@ module Integrations
         assert_match %r{/services/web/observe\z}, links["list_containers"]
         assert_match %r{/services/web\z}, links["describe_resource"]
         assert_match %r{/services/web\z}, links["api_request"]
+        assert_match %r{/project/firefight\z}, links["add_workflow_webhook"]
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do

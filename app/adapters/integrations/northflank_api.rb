@@ -91,6 +91,16 @@ module Integrations
 
     def job(project_id, job_id) = get("/projects/#{segment(project_id)}/jobs/#{segment(job_id)}")["data"] || {}
 
+    # A workflow's whole definition, its triggers' tokens included (@northflank/js-client, GetWorkflowResult, GET
+    # /v1/projects/{projectId}/workflows/{workflowId}).
+    def workflow(project_id, workflow_id) = get("/projects/#{segment(project_id)}/workflows/#{segment(workflow_id)}")["data"] || {}
+
+    # Replaces a workflow's definition, which Northflank takes whole (UpdateWorkflowData, POST
+    # /v1/projects/{projectId}/workflows/{workflowId}).
+    def update_workflow(project_id, workflow_id, body)
+      changing(Net::HTTP::Post, "/projects/#{segment(project_id)}/workflows/#{segment(workflow_id)}", body)["data"] || {}
+    end
+
     # The token's team's notification integrations, each with its type and webhook address but never its secret
     # (@northflank/js-client, ListNotificationsResult, GET /v1/integrations/notifications), read only to find one Firefight
     # made at the same address.
