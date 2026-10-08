@@ -35,6 +35,15 @@ class Integrations::Capabilities::NetlifyTest < ActiveSupport::TestCase
     assert Integrations::Capabilities.wrapped?(Integration::Tool.in_workspace(@workspace).find_by!(name: "restore_deploy"))
   end
 
+  test "run history is a site's deploy history, by its Netlify id, and needs that tool switched on" do
+    integration = @workspace.integrations.find_by!(slug: "netlify")
+    assert_match "deploy_history tool, which is switched off", assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::HISTORY, "resource" => "shop") }.message
+
+    integration.tools.create!(name: "deploy_history", description: "History", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "shop", "name" => "production")
+    assert_equal [ "deploy_history", { "site" => "site-1", "name" => "production" } ], [ history.tool.name, history.arguments ]
+  end
+
   private
 
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)

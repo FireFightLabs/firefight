@@ -17,6 +17,28 @@ class RunbookSettingsSerializer < BaseSerializer
 
   has_many :runbook_steps, as: :steps, serializer: RunbookStepSettingsSerializer
 
+  # What Halon asks the person each time it runs the runbook, each by the key its steps name as {{key}}.
+  type "{ key: string; question: string; default?: string }[]"
+  def inputs
+    runbook.inputs.map { |input| { key: input["key"], question: input["question"], default: input["default"].presence }.compact }
+  end
+
+  type "string[]"
+  def aliases
+    runbook.aliases
+  end
+
+  # What Halon watches once every step went through, as start_watch takes it.
+  type "Record<string, unknown>", optional: true
+  def watch
+    runbook.watch
+  end
+
+  type :boolean
+  def runnable
+    runbook.procedure?
+  end
+
   type "IncidentConditionSettings[]", optional: true
   def conditions
     runbook.incident_conditions.map do |c|

@@ -12,6 +12,9 @@
 # map says whether what a provider holds is on the resource map: firefight (a pack's map_of or the map_reader its
 # provider definition names puts it there), none (it holds no infrastructure, and map_note says why) or unchecked (it
 # may, and no reader exists yet). A new provider that holds infrastructure lands with its reader.
+# history says whether Halon can read how long the provider's runs take (its CI runs, builds or deploys, through the
+# run_history capability its adapter answers), which a watch learns its time limit from: firefight (its adapter answers
+# it) or none (it has no such runs, or does not say when they started and finished, and history_note says why).
 # site is the address of the app of a provider that runs in one place, which links open, read through
 # Integrations::ConnectionSettings#site.
 # regions lists where a provider runs its service when it offers more than one place, such as a US and an EU site. Each
@@ -89,6 +92,7 @@ providers:
     site: https://github.com
     source_links: firefight
     map: firefight
+    history: firefight
     code_fix_tool: fix_code
     holds_code: true
   - key: gitlab
@@ -112,6 +116,7 @@ providers:
         allowed: an https address, without a query or credentials
     source_links: firefight
     map: firefight
+    history: firefight
     holds_code: true
   - key: bitbucket
     name: Bitbucket
@@ -132,6 +137,7 @@ providers:
         scope: true
     source_links: firefight
     map: firefight
+    history: firefight
     holds_code: true
   - key: circleci
     name: CircleCI
@@ -144,6 +150,8 @@ providers:
     site: https://app.circleci.com
     source_links: firefight
     map: none
+    history: none
+    history_note: "CircleCI's hosted server documents its tools by name only, not what list_runs answers, so when a run started and finished cannot be read with confidence. The code host that holds the repository answers how long its runs take."
     map_note: "It builds and tests code that its host puts on the map and runs nothing of its own."
   - key: newrelic
     name: New Relic
@@ -165,6 +173,8 @@ providers:
         numeric: true
     source_links: firefight
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: datadog
     name: Datadog
@@ -185,6 +195,8 @@ providers:
       - { key: uk1, label: UK1 (uk1.datadoghq.com), server_url: "https://mcp.uk1.datadoghq.com/v1/mcp", site: "https://uk1.datadoghq.com" }
     source_links: firefight
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: northflank
     name: Northflank
@@ -204,6 +216,7 @@ providers:
         scope: true
     source_links: firefight
     map: firefight
+    history: firefight
   - key: grafana
     name: Grafana
     category: Observability
@@ -218,6 +231,8 @@ providers:
       - { key: metrics_datasource, label: Metrics datasource, hint: The Prometheus datasource that holds the metrics Halon reads., learned: prometheus }
       - { key: traces_datasource, label: Traces datasource, hint: The Tempo datasource that holds the traces Halon reads., learned: tempo }
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: cloudflare
     name: Cloudflare
@@ -230,6 +245,7 @@ providers:
     read_only_tools: [search, docs]
     source_links: firefight
     map: firefight
+    history: firefight
   - key: kubernetes
     name: Kubernetes
     category: Cloud and hosting
@@ -256,6 +272,8 @@ providers:
     source_links: none
     source_links_note: "Kubernetes has no hosted console of its own, and the dashboard a team may run sits at an address Firefight does not know, so each answer names the kubectl command that shows the same."
     map: firefight
+    history: none
+    history_note: "Kubernetes keeps each rollout's revision and when its ReplicaSet was made, but not when the rollout finished, so no rollout has a length to read."
   - key: modal
     name: Modal
     category: Cloud and hosting
@@ -268,6 +286,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    history: none
+    history_note: "Modal's app history records when each version went live, not when its deploy started, so no deploy has a length to read."
     connect_fields:
       # The name rule of Modal's client, is_valid_environment_name in modal/_utils/name_utils.py.
       - { key: environment, label: Environment, placeholder: main, optional: true, pattern: '[a-zA-Z0-9][a-zA-Z0-9._-]{1,63}',
@@ -285,6 +305,7 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    history: firefight
   - key: netlify
     name: Netlify
     category: Cloud and hosting
@@ -296,6 +317,7 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    history: firefight
   - key: convex
     name: Convex
     category: Cloud and hosting
@@ -308,6 +330,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    history: none
+    history_note: "Convex's audit log records each push once, when it was made, with no start and finish to time it by."
     connect_fields:
       - { key: deployment_url, label: Deployment URL, placeholder: "https://happy-animal-123.convex.cloud",
           pattern: 'https://[a-z0-9-]+(\.[a-z0-9-]+)*\.convex\.cloud/?', allowed: "an https address ending in convex.cloud",
@@ -324,6 +348,7 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: firefight
+    history: firefight
     connect_fields:
       - { key: project, label: Project ref, placeholder: proj_..., pattern: 'proj_[a-z0-9]+', allowed: "proj_ followed by lowercase letters and numbers",
           hint: "The project's ref, starting with proj_, as in your trigger.config.ts. Links to runs use it." }
@@ -380,6 +405,7 @@ providers:
           - { value: sa-east-1, label: "South America (São Paulo)" }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: google_cloud
     name: Google Cloud
     category: Cloud and hosting
@@ -395,6 +421,7 @@ providers:
       - { key: project, label: Projects, scope: true, hint: "The Google Cloud projects this environment runs in. Choose one or several, or all this key can read, which takes in a project added later at the next sweep.", placeholder: Choose projects, pattern: "[a-z][a-z0-9-]{4,28}[a-z0-9]", allowed: "6 to 30 lowercase letters, numbers and dashes, starting with a letter and not ending with a dash" }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: azure
     name: Azure
     category: Cloud and hosting
@@ -416,6 +443,7 @@ providers:
       - { key: subscription_id, label: Subscriptions, scope: true, hint: "The Azure subscriptions this environment runs in. Choose one or several, or all this service principal can read, which takes in a subscription added later at the next sweep. Halon reads every region in each.", placeholder: Choose subscriptions, pattern: "\\h{8}-\\h{4}-\\h{4}-\\h{4}-\\h{12}", allowed: "a GUID such as 00000000-0000-0000-0000-000000000000" }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: vercel
     name: Vercel
     category: Cloud and hosting
@@ -430,6 +458,7 @@ providers:
       - { key: team, label: Teams, placeholder: Choose teams, optional: true, scope: true, hint: "The Vercel teams this environment runs in. Choose one or several, or all this token can reach, which takes in a team joined later at the next sweep. Leave it empty for a token made for one team." }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: render
     name: Render
     category: Cloud and hosting
@@ -443,6 +472,7 @@ providers:
       - { key: workspace, label: Workspaces, placeholder: Choose workspaces, scope: true, pattern: "tea-[a-z0-9]+", allowed: "tea- followed by lowercase letters and numbers", hint: "The Render workspaces this environment runs in. Choose one or several, or all this API key can read, which takes in a workspace added later at the next sweep." }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: railway
     name: Railway
     category: Cloud and hosting
@@ -458,6 +488,7 @@ providers:
       - { key: environment, label: Environment, placeholder: production, hint: "The Railway environment this connection reads in each project, by its name, or by its id when it reads one project." }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: fly
     name: Fly.io
     category: Cloud and hosting
@@ -472,6 +503,7 @@ providers:
       - { key: organization, label: Organization, placeholder: my-org, hint: "The slug of the Fly.io organization this environment runs in, as fly orgs list shows it." }
     source_links: firefight
     map: firefight
+    history: firefight
   - key: sentry
     name: Sentry
     category: Observability
@@ -501,6 +533,8 @@ providers:
     source_links: server
     source_links_note: "Its results carry the page of each issue, search, release and trace they name. A list of releases names each by its short version, which is not always the one its page is under, so a release's page comes from its details."
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
   - key: pagerduty
     name: PagerDuty
@@ -517,6 +551,8 @@ providers:
     read_only_tools: [browse_incidents, browse_services, browse_schedules, browse_teams, browse_event_orchestrations, browse_alert_grouping, browse_status_pages, browse_escalation_policies, browse_users, browse_change_events, browse_activity]
     source_links: firefight
     map: none
+    history: none
+    history_note: "It pages people about what runs elsewhere and keeps no builds or deploys whose length could be read."
     map_note: "It pages people about what runs elsewhere and runs nothing of its own."
   - key: opsgenie
     name: Opsgenie
@@ -534,6 +570,8 @@ providers:
     source_links: none
     source_links_note: "Opsgenie's API gives no page address for an alert, an incident or a schedule, and its documentation names none, so Firefight builds no link."
     map: none
+    history: none
+    history_note: "It pages people about what runs elsewhere and keeps no builds or deploys whose length could be read."
     map_note: "It pages people about what runs elsewhere and runs nothing of its own."
   - key: posthog
     name: PostHog
@@ -550,6 +588,8 @@ providers:
       - { key: eu, label: EU (eu.posthog.com), server_url: "https://mcp-eu.posthog.com/mcp?mode=tools", site: "https://eu.posthog.com" }
     source_links: firefight
     map: none
+    history: none
+    history_note: "It holds what people do in your product, not builds or deploys."
     map_note: "It holds what people do in your product, not infrastructure."
   - key: mixpanel
     name: Mixpanel
@@ -573,6 +613,8 @@ providers:
                       get_feature_flag_setup_guidance, get_feature_flag_lifecycle_guidance, get_audit_log]
     source_links: firefight
     map: none
+    history: none
+    history_note: "It holds what people do in your product, not builds or deploys."
     map_note: "It holds what people do in your product, not infrastructure."
   - key: honeycomb
     name: Honeycomb
@@ -587,6 +629,8 @@ providers:
     source_links: server
     source_links_note: "Its query results carry a link to the same query in Honeycomb."
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It watches what runs elsewhere and runs nothing of its own."
     connect_fields:
       - key: environment_slug
@@ -605,6 +649,8 @@ providers:
     site: https://app.axiom.co
     source_links: firefight
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It holds what apps send it and runs nothing of its own."
     connect_fields:
       - key: org_id
@@ -635,6 +681,8 @@ providers:
     source_links: server
     source_links_note: "Its incidents, errors and dashboards carry their own page in Better Stack."
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: logfire
     name: Logfire
@@ -648,6 +696,8 @@ providers:
       - { key: eu, label: EU (logfire-eu.pydantic.dev), server_url: "https://logfire-eu.pydantic.dev/mcp", site: "https://logfire-eu.pydantic.dev" }
     source_links: firefight
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It holds what apps send it and runs nothing of its own."
   - key: openstatus
     name: OpenStatus
@@ -661,6 +711,8 @@ providers:
     site: https://app.openstatus.dev
     source_links: firefight
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It checks addresses from outside and runs nothing of its own."
   - key: honeybadger
     name: Honeybadger
@@ -675,6 +727,8 @@ providers:
     source_links: server
     source_links_note: "Its faults, notices, Insights queries and check-ins carry their own page in Honeybadger."
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It collects errors from what runs elsewhere and runs nothing of its own."
   - key: signoz
     name: SigNoz
@@ -691,6 +745,8 @@ providers:
       - { key: in, label: India (in.signoz.cloud), server_url: "https://mcp.in.signoz.cloud/mcp" }
     source_links: firefight
     map: none
+    history: none
+    history_note: "It watches what runs elsewhere and keeps no builds or deploys of its own whose length could be read."
     map_note: "It watches what runs elsewhere and runs nothing of its own."
   - key: linear
     name: Linear
@@ -712,6 +768,8 @@ providers:
       pkce: true
     source_links: unchecked
     map: none
+    history: none
+    history_note: "It holds issues, not builds or deploys."
     map_note: "It holds issues, not infrastructure."
   - key: jira
     name: Jira
@@ -736,6 +794,8 @@ providers:
     read_only_tools: [atlassianuserinfo, getaccessibleatlassianresources, getjiraissue, searchjiraissuesusingjql, listjiraprojects, listjiraprojectissuetypesmetadata, getjiraissuetypemetawithfields, listjiraissuetransitions, listjiraissuelinktypes, listjiraissueremoteissuelinks, listjiraissueworklogs, lookupjiraaccountid, listjiraissueassignableusers, listjiraissuecomments, listjiraissuechangelogs, getjiracurrentuser, getjirauser, listjirastatuses, listjiraprojectcomponents, getjiraprojectversions, getjiraprojectversionrelatedwork, listjiraboards, getjiraboardconfig, getjiraboardissuedata, getjiraboardsprintdata, listjiraboardsprints, listjirafilters, listjiradashboards, getjiraentityproperty]
     source_links: firefight
     map: none
+    history: none
+    history_note: "It holds issues, not builds or deploys."
     map_note: "It holds issues, not infrastructure."
   - key: notion
     name: Notion
@@ -747,6 +807,8 @@ providers:
     source_links: server
     source_links_note: "Its results carry each page's own address."
     map: none
+    history: none
+    history_note: "It holds documents, not builds or deploys."
     map_note: "It holds documents, not infrastructure."
   - key: confluence
     name: Confluence
@@ -757,6 +819,8 @@ providers:
     server_url: ""
     source_links: unchecked
     map: none
+    history: none
+    history_note: "It holds documents, not builds or deploys."
     map_note: "It holds documents, not infrastructure."
   - key: neon
     name: Neon
@@ -768,6 +832,7 @@ providers:
     site: https://console.neon.tech
     source_links: firefight
     map: firefight
+    history: firefight
     setting_words: [NEON]
   - key: supabase
     name: Supabase
@@ -794,6 +859,8 @@ providers:
           - { value: "false", label: Read and write }
     source_links: firefight
     map: firefight
+    history: none
+    history_note: "Its server lists migrations by version and name without when they ran, and Supabase keeps no builds or deploys a tool reads."
     setting_words: [SUPABASE]
   - key: planetscale
     name: PlanetScale
@@ -804,6 +871,8 @@ providers:
     server_url: https://mcp.pscale.dev/mcp/planetscale
     source_links: firefight
     map: firefight
+    history: none
+    history_note: "Its server reads branches and their logs and offers no deploy requests, the only runs PlanetScale times."
     setting_words: [PLANETSCALE, PSCALE]
   - key: clickhouse
     name: ClickHouse
@@ -815,6 +884,8 @@ providers:
     site: https://console.clickhouse.cloud
     source_links: firefight
     map: firefight
+    history: none
+    history_note: "Its server reads a service's details and runs read only queries, and ClickHouse Cloud keeps no builds or deploys of a service."
     setting_words: [CLICKHOUSE]
   - key: tinybird
     name: Tinybird
@@ -841,6 +912,7 @@ providers:
       - { key: aws-ap-southeast-2, label: "Sydney, AWS (api.ap-southeast-2.aws.tinybird.co)", site: "https://cloud.tinybird.co/aws/ap-southeast-2" }
     source_links: firefight
     map: firefight
+    history: firefight
     setting_words: [TINYBIRD]
   - key: turso
     name: Turso
@@ -852,6 +924,8 @@ providers:
     source_links: none
     source_links_note: "Turso documents no dashboard address for a database, and its tools' answers carry none."
     map: firefight
+    history: none
+    history_note: "Its server reads a database as it stands now, and Turso keeps no builds, deploys or runs of one."
     setting_words: [TURSO, LIBSQL]
   - key: upstash
     name: Upstash
@@ -863,6 +937,8 @@ providers:
     site: https://console.upstash.com
     source_links: firefight
     map: firefight
+    history: none
+    history_note: "A Redis database and QStash have no builds or deploys, and its server keeps no runs whose length could be read."
     setting_words: [UPSTASH]
   - key: postgresql
     name: PostgreSQL
@@ -876,6 +952,8 @@ providers:
     source_links: none
     source_links_note: "A database reached by its own connection URL has no page to open."
     map: firefight
+    history: none
+    history_note: "A database reached by its connection URL keeps no record of deploys or runs."
   # A coding agent writes a fix's code change in its own environment and opens the pull request itself. code_agent marks
   # one, which writes code changes only once an admin chooses it under Settings, Workspace, instead of Firefight's own.
   - key: devin
@@ -889,6 +967,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: none
+    history: none
+    history_note: "It writes code changes and runs nothing of yours whose length could be read."
     map_note: "It writes code changes and runs nothing of yours."
     code_fix_tool: fix_code
     code_agent: true
@@ -907,6 +987,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: none
+    history: none
+    history_note: "It writes code changes and runs nothing of yours whose length could be read."
     map_note: "It writes code changes and runs nothing of yours."
     code_fix_tool: fix_code
     code_agent: true
@@ -927,6 +1009,8 @@ providers:
     connect_with: api_token
     source_links: firefight
     map: none
+    history: none
+    history_note: "It writes code changes and runs nothing of yours whose length could be read."
     map_note: "It writes code changes and runs nothing of yours."
     code_fix_tool: fix_code
     code_agent: true
@@ -940,4 +1024,6 @@ providers:
     source_links: none
     source_links_note: "A custom server is the team's own, so its results carry whatever links it gives."
     map: none
+    history: none
+    history_note: "A custom server is the team's own, so Firefight cannot know what its runs look like."
     map_note: "A custom server is the team's own, so Firefight cannot know what it holds."

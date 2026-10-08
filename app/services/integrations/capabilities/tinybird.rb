@@ -4,7 +4,8 @@ module Integrations
     # databases on the map and its API endpoints functions, told apart by the type the map keeps in their details. Logs
     # are an endpoint's requests or a data source's operations, errors what failed, metrics an endpoint's requests over
     # time, and deploys the workspace's deployment jobs, all from Tinybird's service data sources. Tinybird documents no
-    # rollback, restart or scale, and keeps no metrics for a data source, so those are not offered.
+    # rollback, restart or scale, and keeps no metrics for a data source, so those are not offered. Run history is the
+    # jobs log too: the workspace's jobs, or those of the pipe an endpoint is.
     module Tinybird
       extend Adapter
 
@@ -18,10 +19,11 @@ module Integrations
       JOBS = "jobs".freeze
       SUPPORTS = {
         LOGS => [ DATABASE, FUNCTION ], METRICS => [ DATABASE, FUNCTION ], DEPLOYS => [ DATABASE, FUNCTION ],
-        STATUS => [ DATABASE, FUNCTION ], ERRORS => [ DATABASE, FUNCTION ]
+        STATUS => [ DATABASE, FUNCTION ], ERRORS => [ DATABASE, FUNCTION ], HISTORY => [ DATABASE, FUNCTION ]
       }.freeze
       TOOLS = {
-        LOGS => [ REQUEST_LOG, OPERATION_LOG ], METRICS => METRICS_TOOL, DEPLOYS => JOBS, STATUS => "describe_resource", ERRORS => "list_errors"
+        LOGS => [ REQUEST_LOG, OPERATION_LOG ], METRICS => METRICS_TOOL, DEPLOYS => JOBS, STATUS => "describe_resource", ERRORS => "list_errors",
+        HISTORY => JOBS
       }.freeze
       # The status and errors tools answer one to one. The logs, metrics and jobs tools also read what no capability asks,
       # such as one endpoint's latency or a copy job, so they stay offered.
@@ -50,7 +52,22 @@ module Integrations
         when DEPLOYS then Route.new(tool_name: JOBS, arguments: { "job_type" => PACK::Queries::JOB_DEPLOYMENT }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: named(resource))
         when ERRORS then Route.new(tool_name: TOOLS[ERRORS], arguments: named(resource).merge(given.slice("text", "limit", *RANGE_ARGS)))
+        when HISTORY then history(resource, given)
         end
+      end
+
+      # A kind of job named outright is asked for alone, and an endpoint's runs are its pipe's jobs, kept by the pipe's name.
+      def self.history(resource, given)
+        if datasource?(resource)
+          raise Unroutable, "Tinybird's jobs log names the pipe each job ran, not the data source it wrote, so #{resource.name} has no run " \
+                            "history of its own. Ask for the workspace's."
+        end
+
+        type = given["name"].to_s.strip.presence_in(PACK::Queries::JOB_TYPES)
+        name = resource.kind == FUNCTION ? [ given["name"].presence, resource.name ].compact.join(" ") : given["name"]
+        arguments = { "job_type" => type, "days" => PACK::MAX_JOB_DAYS, "limit" => Answers.limit(given, History::LIMIT) }.compact
+        Route.new(tool_name: JOBS, arguments: arguments,
+                  present: RunHistory.presenter(resource.name, given.merge("name" => name)))
       end
 
       # Stream requests reads the requests an endpoint or the workspace answered, and stream app, the default, what a
@@ -72,10 +89,12 @@ module Integrations
         Route.new(tool_name: OPERATION_LOG, arguments: datasource.merge(passed))
       end
 
-      # Deployments belong to the whole workspace, so the details say so.
-      def self.phrase(key) = key == DEPLOYS ? "see the workspace's deployments" : super
+      # Deployments belong to the whole workspace, and run history is its jobs, so the details say so.
+      OWN_PHRASES = { DEPLOYS => "see the workspace's deployments", HISTORY => "see how long its jobs usually take" }.freeze
 
-      private_class_method :named, :workspace?, :datasource?, :logs
+      def self.phrase(key) = OWN_PHRASES.fetch(key) { super }
+
+      private_class_method :named, :workspace?, :datasource?, :logs, :history
     end
   end
 end

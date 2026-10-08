@@ -136,6 +136,20 @@ module Integrations
            },
            read_only: true
 
+      tool :deploy_history,
+           description: "An app's recent releases, each a deploy, with its status, when it started and finished and how long it " \
+                        "took, and how long finished ones usually take",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many releases (optional, #{RELEASE_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :restart_app,
            description: "Restart every running machine of an app, one at a time, for an app stuck in a bad state while its code is " \
                         "fine. Each machine reboots on the image it already runs. Stopped machines are left as they are",
@@ -238,6 +252,29 @@ module Integrations
         rows = releases.map { |release| release_line(release) }
         Telemetry.result("Latest #{rows.size} releases of #{resource[:name]}, newest first. rollback_release takes a version.\n#{rows.join("\n")}",
                          link: link(environment_row, resource))
+      end
+
+      # flyctl's release statuses (superfly/flyctl, internal/command/deploy) in Firefight's words.
+      RELEASE_STATUSES = {
+        "pending" => Capabilities::History::QUEUED, "running" => Capabilities::History::RUNNING,
+        "complete" => Capabilities::History::SUCCEEDED, "succeeded" => Capabilities::History::SUCCEEDED,
+        "failed" => Capabilities::History::FAILED, "interrupted" => Capabilities::History::CANCELLED
+      }.freeze
+
+      # A release from createdAt to updatedAt, which is when it ended once it no longer runs.
+      def deploy_history(environment_row:, arguments:)
+        resource = find_app(environment_row, arguments["resource"])
+        releases = sorted_releases(environment_row, resource, Capabilities::Answers.limit(arguments, RELEASE_LIMIT))
+        runs = releases.map do |release|
+          status = Capabilities::History.status(release["status"], RELEASE_STATUSES)
+          Capabilities::History::Run.new(
+            id: release["id"], number: release["version"], name: "deploy", status: status,
+            started_at: Telemetry.parse_time(release["createdAt"]),
+            finished_at: (Telemetry.parse_time(release["updatedAt"]) if Capabilities::History::FINISHED.include?(status)),
+            detail: [ release["description"].presence, ("image #{release['imageRef']}" if release["imageRef"].present?) ].compact.join(", ").presence
+          )
+        end
+        Capabilities::History.result(runs, what: resource[:name], link: link(environment_row, resource), name: arguments["name"])
       end
 
       # One restart per running machine (spec, POST /v1/apps/{app_name}/machines/{machine_id}/restart), one machine at a

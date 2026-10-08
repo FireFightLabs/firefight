@@ -5,7 +5,7 @@ class Integrations::Capabilities::VercelTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @vercel = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "vercel", name: "Vercel", slug: "vercel")
     @row = @vercel.integration_environments.create!(catalog_entry_id: catalog_entries(:production_env).id, credentials: { api_token: "x" }.to_json)
-    %w[list_resources describe_resource list_deployments deployment_logs rollback_deployment promote_deployment].each do |name|
+    %w[list_resources describe_resource list_deployments deploy_history deployment_logs rollback_deployment promote_deployment].each do |name|
       @vercel.tools.create!(name: name, description: name, read_only: !name.end_with?("_deployment") || name == "list_deployments", enabled: true,
                             params_schema: { "type" => "object" })
     end
@@ -26,10 +26,15 @@ class Integrations::Capabilities::VercelTest < ActiveSupport::TestCase
     assert_match "stream must be app or build", unroutable(Integrations::Capabilities::LOGS, "stream" => "requests")
     assert_match "regular expression", unroutable(Integrations::Capabilities::LOGS, "regex" => "5..")
     assert_match "no connection offers metrics", unroutable(Integrations::Capabilities::METRICS)
-    assert_equal %w[logs deploys status rollback], Integrations::Capabilities::Vercel.capabilities
+    assert_equal %w[logs deploys status history rollback], Integrations::Capabilities::Vercel.capabilities
     assert_not Integrations::Capabilities.wrapped?(@vercel.tools.find_by!(name: "deployment_logs"))
     assert_not Integrations::Capabilities.wrapped?(@vercel.tools.find_by!(name: "promote_deployment"))
     assert Integrations::Capabilities.wrapped?(@vercel.tools.find_by!(name: "rollback_deployment"))
+  end
+
+  test "run history is a project's deployments, by its Vercel id" do
+    history = resolve(Integrations::Capabilities::HISTORY, "name" => "production")
+    assert_equal [ "deploy_history", { "resource" => "prj_1", "name" => "production" } ], [ history.tool.name, history.arguments ]
   end
 
   private

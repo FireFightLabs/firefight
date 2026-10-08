@@ -54,6 +54,19 @@ class Integrations::Capabilities::TriggerDevTest < ActiveSupport::TestCase
 
   private
 
+  test "a task's run history is its own runs over the last week, read from list_runs, which stays offered for its other filters" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "send-email", "limit" => 5)
+    assert_equal [ "list_runs", { "task" => "send-email", "minutes" => Integrations::Capabilities::MAX_MINUTES, "limit" => 5 } ], [ history.tool.name, history.arguments ]
+    assert_not Integrations::Capabilities.wrapped?(history.tool)
+
+    answer = Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "2 runs" } ] }, [
+      Integrations::Capabilities::History::Run.new(id: "run_b", name: "send-email", status: "succeeded", started_at: Time.utc(2026, 10, 3, 10), finished_at: Time.utc(2026, 10, 3, 10, 2))
+    ])
+    text = history.present_result(answer)["content"].first["text"]
+    assert_match "1 recent runs of send-email, newest first. Finished ones usually take 2 minutes.", text
+    assert_equal "2 runs", history.present_result({ "content" => [ { "type" => "text", "text" => "2 runs" } ] })["content"].first["text"]
+  end
+
   def resolve(key, given) = Integrations::Capabilities.resolve(@workspace, key, given, principal: map_reader)
 
   def unroutable(key, given)

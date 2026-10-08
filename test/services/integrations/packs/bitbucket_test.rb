@@ -202,6 +202,21 @@ module Integrations
         assert_raises(NativePack::Error) { call(:pipelines, "repo" => "acme/web", "status" => "BROKEN") }
       end
 
+      test "CI runs say when each pipeline was created and completed, a custom pipeline by its name" do
+        release = pipeline(8, "SUCCESSFUL").merge("target" => { "ref_name" => "main", "commit" => { "hash" => HEAD }, "selector" => { "type" => "custom", "pattern" => "release" } })
+        running = pipeline(9, nil).merge("state" => { "name" => "IN_PROGRESS", "stage" => { "name" => "RUNNING" } }, "completed_on" => nil)
+        BitbucketApi.any_instance.expects(:get).with("#{REPO}/pipelines", { "sort" => "-created_on", "target.branch" => nil, "pagelen" => 20 })
+                    .returns("values" => [ running, release, pipeline(7, "FAILED") ])
+
+        result = @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web" })
+        runs = Capabilities::History.runs_of(result)
+
+        assert_equal [ [ "9", "running", nil ], [ "8", "succeeded", 600 ], [ "7", "failed", 600 ] ], runs.map { |run| [ run.number, run.status, run.seconds ] }
+        assert_equal [ "pipeline on main", "release" ], runs.first(2).map(&:name)
+        assert_equal 600, result["structuredContent"]["usual_seconds"]
+        assert_equal "https://bitbucket.org/acme/web/commits/#{HEAD}", runs.second.url
+      end
+
       test "a pipeline's steps say how each ended, linked to the commit it built" do
         get("#{REPO}/pipelines/#{ERB::Util.url_encode(PIPELINE)}", pipeline(7, "FAILED"))
         list("#{REPO}/pipelines/#{PIPELINE}/steps", [ step("Build", "SUCCESSFUL"), step("Test", "FAILED") ])

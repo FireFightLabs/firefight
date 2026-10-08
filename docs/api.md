@@ -25,7 +25,7 @@ app/controllers/api/v1/catalog/                  # Catalogue read/write endpoint
 app/controllers/api/v1/severities_controller.rb  # Read-only
 app/controllers/api/v1/statuses_controller.rb    # Read-only
 app/controllers/api/v1/incident_types_controller.rb # Read-only
-app/controllers/api/v1/runbooks_controller.rb    # Read-only (index + show by slug or id)
+app/controllers/api/v1/runbooks_controller.rb    # CRUD by slug or id, steps with tool and arguments, inputs, aliases, watch
 app/controllers/api/v1/abilities_controller.rb   # Gateway: grantable abilities (permissions:read)
 app/controllers/api/v1/principals_controller.rb  # Gateway: people, agents, service keys and their grants
 app/controllers/api/v1/permission_sets_controller.rb # Gateway: sets by slug, abilities by key, built-in packs read only

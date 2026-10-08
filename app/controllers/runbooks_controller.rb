@@ -8,7 +8,8 @@ class RunbooksController < InertiaController
       summary: params[:summary],
       content: params[:content],
       external_url: params[:external_url],
-      always_attach: params[:always_attach] || false
+      always_attach: params[:always_attach] || false,
+      **procedure_params
     )
 
     Runbook.transaction do
@@ -29,7 +30,7 @@ class RunbooksController < InertiaController
       content: params[:content],
       external_url: params[:external_url],
       always_attach: params[:always_attach]
-    }.compact
+    }.compact.merge(procedure_params)
 
     Runbook.transaction do
       @runbook.update!(attrs)
@@ -77,8 +78,20 @@ class RunbooksController < InertiaController
   def step_params
     Array(params[:steps])
       .select { |s| s.is_a?(ActionController::Parameters) }
-      .map { |s| { id: s[:id], title: s[:title], instruction: s[:instruction] } }
+      .map { |s| { id: s[:id], title: s[:title], instruction: s[:instruction], tool: s[:tool].presence, arguments: object_param(s[:arguments]) || {} } }
   end
+
+  # What makes a runbook one Halon can run, each touched only when the form sends it.
+  def procedure_params
+    {
+      inputs: (Array(params[:inputs]).select { |input| input.is_a?(ActionController::Parameters) }.map { |input| input.permit(:key, :question, :default).to_h } if params.key?(:inputs)),
+      aliases: (Array(params[:aliases]).map(&:to_s) if params.key?(:aliases)),
+      watch: (object_param(params[:watch]) if params.key?(:watch))
+    }.compact.tap { |given| given[:watch] = nil if params.key?(:watch) && params[:watch].blank? }
+  end
+
+  # A free form object, such as a tool's arguments or a watch, which the model checks.
+  def object_param(value) = value.is_a?(ActionController::Parameters) ? value.to_unsafe_h : nil
 
   def condition_params
     Array(params[:conditions])

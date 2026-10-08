@@ -5,12 +5,13 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_RUNBOOKS
       description "Search this workspace's incident response runbooks: documented procedures " \
                   "for handling incidents (e.g. how to fail over a database, roll back a deploy). " \
-                  "Matches name and summary. Use get_runbook for the full step-by-step content. " \
+                  "Matches name, summary and other names. runnable says Halon can run it with run_runbook. " \
+                  "Use get_runbook for the full step-by-step content. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
       input_schema(
         properties: {
-          query: { type: "string", description: "Matches runbook name or summary" },
+          query: { type: "string", description: "Matches runbook name, summary or another name it goes by" },
           limit: { type: "integer", description: "Max results, up to 50 (default 25)" }
         },
         required: []
@@ -20,7 +21,7 @@ module Mcp
         scope = workspace.runbooks.active.ordered.includes(:runbook_steps)
         if args[:query].present?
           pattern = "%#{ActiveRecord::Base.sanitize_sql_like(args[:query])}%"
-          scope = scope.where("runbooks.name ILIKE :q OR runbooks.summary ILIKE :q", q: pattern)
+          scope = scope.where("runbooks.name ILIKE :q OR runbooks.summary ILIKE :q OR array_to_string(runbooks.aliases, ' ') ILIKE :q", q: pattern)
         end
 
         runbooks, truncated = capped(scope, args)
@@ -33,7 +34,9 @@ module Mcp
           name: runbook.name,
           summary: runbook.summary,
           external_url: runbook.external_url,
-          steps_count: runbook.runbook_steps.size
+          steps_count: runbook.runbook_steps.size,
+          aliases: runbook.aliases.presence,
+          runnable: runbook.procedure?
         }.compact
       end
     end

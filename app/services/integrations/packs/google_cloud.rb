@@ -45,6 +45,11 @@ module Integrations
       # Error Reporting reads a time range as one of these periods, so the shortest that covers the range is asked.
       ERROR_PERIODS = { 60 => "PERIOD_1_HOUR", 360 => "PERIOD_6_HOURS", 1440 => "PERIOD_1_DAY", 10_080 => "PERIOD_1_WEEK" }.freeze
       READY = "Ready".freeze
+      # The Ready condition's state, as Cloud Run's Condition.State names it, in the words every run history uses.
+      READY_STATES = {
+        "condition_succeeded" => Capabilities::History::SUCCEEDED, "condition_failed" => Capabilities::History::FAILED,
+        "condition_pending" => Capabilities::History::QUEUED, "condition_reconciling" => Capabilities::History::RUNNING
+      }.freeze
       MANUAL = "MANUAL".freeze
       REVISION_TRAFFIC = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION".freeze
       POSTGRES = "POSTGRES".freeze
@@ -277,11 +282,13 @@ module Integrations
         service = api(environment_row).run_service(target.project, target.location, target.name)
         revisions = api(environment_row).run_revisions(target.project, target.location, target.name, limit: Capabilities::Answers.limit(arguments, REVISION_LIMIT))
         link = page_link(environment_row, target.project, TYPE_RUN)
-        return Telemetry.result("#{target.name} has no revisions.", link: link) if revisions.empty?
+        return Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link) if revisions.empty?
 
         shares = traffic_shares(service)
-        rows = revisions.sort_by { |revision| revision["createTime"].to_s }.reverse.map { |revision| revision_line(revision, shares) }
-        Telemetry.result("Latest #{rows.size} revisions of #{target.name}, newest first. rollback_service takes a revision's name.\n#{rows.join("\n")}", link: link)
+        newest = revisions.sort_by { |revision| revision["createTime"].to_s }.reverse
+        rows = newest.map { |revision| revision_line(revision, shares) }
+        result = Telemetry.result("Latest #{rows.size} revisions of #{target.name}, newest first. rollback_service takes a revision's name.\n#{rows.join("\n")}", link: link)
+        Capabilities::RunHistory.with_runs(result, newest.map { |revision| history_run(revision) }, link: link)
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -799,6 +806,19 @@ module Integrations
         image = Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ")
         [ revision["createTime"], short(revision["name"]), ("by #{revision['creator']}" if revision["creator"]), "image #{image}",
           "ready #{state}", "#{shares[short(revision['name'])]}% of traffic" ].compact.join(", ")
+      end
+
+      # A revision's rollout as every run history reads it: from when it was made (createTime) to when its Ready condition
+      # last moved (lastTransitionTime), from Cloud Run Admin API v2's Revision and Condition. A revision still reconciling
+      # has not finished.
+      def history_run(revision)
+        ready = Array(revision["conditions"]).find { |condition| condition["type"] == READY }
+        status = revision["reconciling"] ? Capabilities::History::RUNNING : Capabilities::History.status(ready&.dig("state"), READY_STATES)
+        Capabilities::History::Run.new(
+          id: short(revision["name"]), name: "revision", status: status, started_at: Capabilities::RunHistory.time(revision["createTime"]),
+          finished_at: (Capabilities::RunHistory.time(ready["lastTransitionTime"]) if ready && Capabilities::History::FINISHED.include?(status)),
+          detail: Array(revision["containers"]).filter_map { |container| container["image"] }.join(", ").presence
+        )
       end
 
       def error_line(group)

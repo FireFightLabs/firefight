@@ -13,6 +13,8 @@ class Conversation::LiveDelivery
   EVENT_HELD_CALL = "held_call"
   # A change was refused for want of a pack, or the admins were asked for it, so its card looks again.
   EVENT_PACK_REFUSAL = "pack_refusal"
+  # A watch this chat started began, said something or ended, so its card and lines look again.
+  EVENT_WATCH = "watch"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -34,6 +36,10 @@ class Conversation::LiveDelivery
   # Said from outside a turn, so it carries no place among the turn's events.
   def self.held_call_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_HELD_CALL)
+  end
+
+  def self.watch_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_WATCH)
   end
 
   def self.pack_refused(conversation)

@@ -171,4 +171,35 @@ class RunbooksControllerTest < ActionDispatch::IntegrationTest
     end
     assert_response :redirect
   end
+
+  test "the settings page saves what lets Halon run a runbook, and a later save without a tool clears it" do
+    patch runbook_url(@runbook, format: :html), params: {
+      aliases: [ "ship it" ],
+      inputs: [ { key: "bump", question: "Which version bump?", default: "patch" } ],
+      steps: [ { id: @runbook.runbook_steps.first.id, title: "Old step", instruction: "Old", tool: "run_workflow", arguments: { bump: "{{bump}}" } } ],
+      watch: { title: "release", steps: [ { label: "Release run", capability: "run_history", resource: "firefight" } ] }
+    }
+    assert_response :redirect
+    assert_equal "Existing was updated.", flash[:notice]
+
+    @runbook.reload
+    assert_equal [ "ship it" ], @runbook.aliases
+    assert_equal "patch", @runbook.inputs.first["default"]
+    assert_equal [ "run_workflow", { "bump" => "{{bump}}" } ], [ @runbook.runbook_steps.first.tool, @runbook.runbook_steps.first.arguments ]
+    assert_equal "run_history", @runbook.watch["steps"].first["capability"]
+
+    patch runbook_url(@runbook, format: :html), params: { steps: [ { id: @runbook.runbook_steps.first.id, title: "Old step", instruction: "Old", tool: "" } ], watch: "" }
+
+    @runbook.reload
+    assert_nil @runbook.runbook_steps.first.tool
+    assert_nil @runbook.watch
+    assert_not @runbook.procedure?
+  end
+
+  test "a watch that names nothing to check is refused with why" do
+    patch runbook_url(@runbook, format: :html), params: { watch: { title: "release" } }
+
+    assert_response :redirect
+    assert_nil @runbook.reload.watch
+  end
 end

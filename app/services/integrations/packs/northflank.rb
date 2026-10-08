@@ -154,6 +154,20 @@ module Integrations
            },
            read_only: true
 
+      tool :build_history,
+           description: "A service's recent builds, with each one's status, when it started and finished and how long it took, " \
+                        "and how long finished ones usually take. Northflank keeps no end time for a deployment, so this reads builds",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "name" => { "type" => "string", "description" => "Only runs of this kind, build (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many builds (optional, #{BUILD_LIMIT * 2})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :describe_resource,
            description: "How one service or database is set up and how it stands now. A service: its rollout status, " \
                         "instances, plan, the repository, branch and commit it runs or the image, ephemeral storage, health " \
@@ -432,6 +446,31 @@ module Integrations
             build["message"].presence ].compact.join(", ")
         end
         Telemetry.result("Latest #{rows.size} builds of #{resource[:name]}, newest first.\n#{rows.join("\n")}", link: link)
+      end
+
+      # A build's status (@northflank/js-client, GetServiceBuildsResult) in Firefight's words.
+      BUILD_STATUSES = {
+        "queued" => Capabilities::History::QUEUED, "pending" => Capabilities::History::QUEUED, "unschedulable" => Capabilities::History::QUEUED,
+        "success" => Capabilities::History::SUCCEEDED, "failure" => Capabilities::History::FAILED,
+        "submission_failure" => Capabilities::History::FAILED, "crashed" => Capabilities::History::FAILED,
+        "aborted" => Capabilities::History::CANCELLED
+      }.freeze
+
+      # A build from createdAt, an ISO 8601 time, to buildConcludedAt, in Unix seconds (GetServiceBuildsResult).
+      def build_history(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"])
+        fail! "#{resource[:name]} is a database, and only services have builds." unless resource[:kind] == KIND_SERVICES
+
+        builds = api(environment_row).builds(project_of(environment_row), resource[:id], limit: limit(arguments, BUILD_LIMIT * 2))
+        runs = builds.map do |build|
+          Capabilities::History::Run.new(
+            id: build["id"], name: "build", status: Capabilities::History.status(build["status"], BUILD_STATUSES),
+            started_at: Telemetry.parse_time(build["createdAt"]),
+            finished_at: (Time.zone.at(build["buildConcludedAt"].to_i).utc if build["buildConcludedAt"].to_i.positive?),
+            detail: [ build["branch"], build["sha"].to_s.first(12).presence, build["message"].presence ].compact.join(", ").presence
+          )
+        end
+        Capabilities::History.result(runs, what: resource[:name], link: resource_link(environment_row, resource, "builds"), name: arguments["name"])
       end
 
       def describe_resource(environment_row:, arguments:)

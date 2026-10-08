@@ -47,6 +47,20 @@ module Integrations
            },
            read_only: true
 
+      tool :deploy_history,
+           description: "A site's recent deploys, each a build and its publish, with its context, state, when it started and " \
+                        "finished and how long it took, and how long finished ones usually take",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "site" => SITE,
+               "name" => { "type" => "string", "description" => "Only deploys of this context, such as production or deploy-preview (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many deploys (optional, #{DEPLOY_LIMIT})" }
+             },
+             "required" => [ "site" ]
+           },
+           read_only: true
+
       tool :describe_deploy,
            description: "One deploy of a site in full: its state and the error Netlify gave when it failed, its context, branch, " \
                         "commit and title, when it was created, updated and published, whether it is locked, and the functions " \
@@ -113,6 +127,30 @@ module Integrations
         rows = deploys.first(limit).map { |deploy| deploy_line(deploy, live) }
         Telemetry.result("Latest #{rows.size} deploys of #{site['name']}, newest first. restore_deploy and rollback take a " \
                          "deploy id, and only a #{READY} deploy can be published.\n#{rows.join("\n")}", link: site_link(site))
+      end
+
+      # Netlify's deploy states (swagger.yml, deploy.state) in Firefight's words. Everything between enqueued and ready is
+      # the build and its upload.
+      DEPLOY_STATES = {
+        "new" => Capabilities::History::QUEUED, "pending_review" => Capabilities::History::QUEUED, "accepted" => Capabilities::History::QUEUED,
+        "enqueued" => Capabilities::History::QUEUED, "ready" => Capabilities::History::SUCCEEDED, "error" => Capabilities::History::FAILED,
+        "rejected" => Capabilities::History::CANCELLED
+      }.freeze
+
+      # A deploy from created_at to updated_at, which is when it last changed and so when a ready or failed one ended.
+      def deploy_history(environment_row:, arguments:)
+        site = find_site(environment_row, arguments["site"])
+        deploys = api(environment_row).deploys(site["id"], limit: Capabilities::Answers.limit(arguments, DEPLOY_LIMIT), production: nil, branch: nil)
+        runs = deploys.map do |deploy|
+          status = Capabilities::History.status(deploy["state"], DEPLOY_STATES)
+          Capabilities::History::Run.new(
+            id: deploy["id"], name: "#{deploy['context'] || 'production'} deploy", status: status,
+            started_at: Telemetry.parse_time(deploy["created_at"]),
+            finished_at: (Telemetry.parse_time(deploy["updated_at"]) if Capabilities::History::FINISHED.include?(status)), url: deploy["admin_url"],
+            detail: [ ("#{deploy['commit_ref'].to_s.first(12)} #{title(deploy)}".strip if deploy["commit_ref"]), deploy["error_message"].presence ].compact.join(", ").presence
+          )
+        end
+        Capabilities::History.result(runs, what: site["name"], link: site_link(site), name: arguments["name"])
       end
 
       def describe_deploy(environment_row:, arguments:)

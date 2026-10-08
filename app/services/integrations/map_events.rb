@@ -49,6 +49,8 @@ module Integrations
       end
       kept = ResourceMap::ReceivedEvent.insert_all(rows, unique_by: :index_resource_map_events_once, returning: %w[scope_key])
       kept.rows.flatten.uniq.each { |scope_key| MapEventJob.set(wait: COALESCE).perform_later(environment_row, scope_key) }
+      # A watch reading through this connection checks now rather than at its next minute.
+      Conversation::Watches.wake!(environment_row) if kept.rows.any?
       kept.rows.size
     end
 

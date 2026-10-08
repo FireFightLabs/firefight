@@ -61,6 +61,10 @@ module Integrations
       ELASTIC_TIERS = %w[Dynamic FlexConsumption ElasticPremium].freeze
       # Kudu's deployment states, as its DeployStatus names them.
       DEPLOY_STATES = { 0 => "pending", 1 => "building", 2 => "deploying", 3 => "failed", 4 => "succeeded" }.freeze
+      HISTORY_STATES = {
+        0 => Capabilities::History::QUEUED, 1 => Capabilities::History::RUNNING, 2 => Capabilities::History::RUNNING,
+        3 => Capabilities::History::FAILED, 4 => Capabilities::History::SUCCEEDED
+      }.freeze
       MISSING_TABLE = /resolve (?:table|scalar|column)/i
 
       LOG_LIMIT = 200
@@ -295,11 +299,14 @@ module Integrations
       def list_deployments(environment_row:, arguments:)
         target = find(environment_row, arguments["resource"])
         limit = Capabilities::Answers.limit(arguments, DEPLOY_LIMIT)
-        text = if target.site? then site_deployments(environment_row, target, limit)
-        elsif target.container? then container_revisions(environment_row, target, limit)
-        else fail!("#{target.name} is a #{target.type}, which has no deployments. This works on an app.")
+        link = portal_link(environment_row, target.id)
+        if target.site?
+          text, runs = site_deployments(environment_row, target, limit)
+          return Capabilities::RunHistory.with_runs(Telemetry.result(text, link: link), runs, link: link)
         end
-        Telemetry.result(text, link: portal_link(environment_row, target.id))
+        fail!("#{target.name} is a #{target.type}, which has no deployments. This works on an app.") unless target.container?
+
+        Telemetry.result(container_revisions(environment_row, target, limit), link: link)
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -795,8 +802,20 @@ module Integrations
             ("by #{properties['author'].presence || properties['deployer']}" if properties["author"].present? || properties["deployer"].present?),
             ("\"#{properties['message'].to_s.lines.first.to_s.strip}\"" if properties["message"].present?), "deployment #{deployment['name']}" ].compact.join(", ")
         end
-        [ rows.any? ? "Latest #{rows.size} deployments of #{target.name}, newest first.\n#{rows.join("\n")}" : "#{target.name} has no deployments recorded.",
-          slots.any? ? "Deployment slots, which rollback_app swaps with production: #{slots.join(', ')}." : "It has no deployment slots, so it cannot be rolled back by a swap." ].join("\n")
+        text = [ rows.any? ? "Latest #{rows.size} deployments of #{target.name}, newest first.\n#{rows.join("\n")}" : "#{target.name} has no deployments recorded.",
+                 slots.any? ? "Deployment slots, which rollback_app swaps with production: #{slots.join(', ')}." : "It has no deployment slots, so it cannot be rolled back by a swap." ].join("\n")
+        [ text, deployments.map { |deployment| history_run(deployment) } ]
+      end
+
+      # A deployment as every run history reads it, from the start_time, end_time and status App Service's Deployment
+      # resource keeps (Web Apps, List Deployments).
+      def history_run(deployment)
+        properties = deployment["properties"].to_h
+        Capabilities::History::Run.new(
+          id: deployment["name"].to_s.split("/").last, name: "deploy", status: HISTORY_STATES.fetch(properties["status"], Capabilities::History::RUNNING),
+          started_at: Capabilities::RunHistory.time(properties["start_time"]), finished_at: Capabilities::RunHistory.time(properties["end_time"]),
+          detail: properties["message"].to_s.lines.first.to_s.strip.truncate(120).presence
+        )
       end
 
       def container_revisions(environment_row, target, limit)

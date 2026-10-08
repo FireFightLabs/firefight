@@ -168,6 +168,34 @@ module Integrations
         assert_match "status must be one of", assert_raises(NativePack::Error) { call(:pipelines, "repo" => "acme/platform/web", "status" => "broken") }.message
       end
 
+      test "CI runs read each pipeline for when it started and finished, narrowed to a pipeline by name" do
+        stub_get("#{PROJECT}/pipelines", { "ref" => nil, "per_page" => 50 }, [
+          { "id" => 32, "iid" => 12, "status" => "running", "name" => "Release", "ref" => "main" },
+          { "id" => 31, "iid" => 11, "status" => "success", "name" => nil, "ref" => "main" },
+          { "id" => 30, "iid" => 10, "status" => "success", "name" => "Release", "ref" => "main" }
+        ])
+        stub_get("#{PROJECT}/pipelines/32", { "id" => 32, "iid" => 12, "status" => "running", "name" => "Release", "ref" => "main", "sha" => "a" * 40,
+                                              "source" => "web", "started_at" => "2026-10-02T10:00:00Z", "web_url" => "https://gitlab.com/acme/platform/web/-/pipelines/32" })
+        stub_get("#{PROJECT}/pipelines/30", { "id" => 30, "iid" => 10, "status" => "success", "name" => "Release", "ref" => "main", "sha" => "b" * 40,
+                                              "source" => "web", "started_at" => "2026-10-01T10:00:00Z", "finished_at" => "2026-10-01T10:12:00Z" })
+
+        result = @pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web", "name" => "release" })
+        runs = Capabilities::History.runs_of(result)
+
+        assert_equal [ [ "32", "12", "running", nil ], [ "30", "10", "succeeded", 720 ] ], runs.map { |run| [ run.id, run.number, run.status, run.seconds ] }
+        assert_equal 720, result["structuredContent"]["usual_seconds"]
+        assert_includes result["content"].first["text"], "https://gitlab.com/acme/platform/web/-/pipelines"
+      end
+
+      test "a pipeline without a name is called by its branch" do
+        stub_get("#{PROJECT}/pipelines", { "ref" => nil, "per_page" => 10 }, [ { "id" => 31, "status" => "failed", "ref" => "main" } ])
+        stub_get("#{PROJECT}/pipelines/31", { "id" => 31, "status" => "failed", "ref" => "main", "created_at" => "2026-10-01T10:00:00Z" })
+
+        run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/platform/web" })).sole
+
+        assert_equal [ "pipeline on main", "failed" ], [ run.name, run.status ]
+      end
+
       test "a pipeline's jobs say why each failed and link to the pipeline" do
         stub_list("#{PROJECT}/pipelines/31/jobs", [ { "id" => 2, "stage" => "test", "name" => "rspec", "status" => "failed", "failure_reason" => "script_failure",
                                                       "duration" => 61.4, "web_url" => "j2" },

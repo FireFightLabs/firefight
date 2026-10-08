@@ -84,6 +84,15 @@ module Integrations
       QUERY_POLL = 1
       QUERY_DONE = %w[Complete Failed Cancelled Timeout Unknown].freeze
       DEPLOYMENT_LIMIT = 20
+      # A service deployment's status, as ECS names it, in the words every run history uses. A deployment ECS rolled back
+      # did not go out, and one stopped was replaced or stopped by hand.
+      DEPLOYMENT_HISTORY_STATUSES = {
+        "pending" => Capabilities::History::QUEUED, "in_progress" => Capabilities::History::RUNNING,
+        "stop_requested" => Capabilities::History::RUNNING, "rollback_requested" => Capabilities::History::RUNNING,
+        "rollback_in_progress" => Capabilities::History::RUNNING, "successful" => Capabilities::History::SUCCEEDED,
+        "rollback_successful" => Capabilities::History::FAILED, "rollback_failed" => Capabilities::History::FAILED,
+        "stopped" => Capabilities::History::CANCELLED
+      }.freeze
       VERSION_LIMIT = 20
       VERSION_PAGES = 100
       # ListTasks answers at most 100 a page and DescribeTasks takes at most 100 tasks a call.
@@ -1142,8 +1151,22 @@ module Integrations
           "ECS has no deployment history for #{entry.name}. It keeps the last 90 days of deployments made on or after " \
             "October 25, 2024.#{"\n#{current}" if current}"
         end
-        Telemetry.result("#{text}\nIt runs #{running}. A rollback takes a revision of #{family}: #{choices.map { |each| each == running ? "#{each} (running)" : each }.join(', ')}.",
-                         link: resource_link(entry))
+        link = resource_link(entry)
+        result = Telemetry.result("#{text}\nIt runs #{running}. A rollback takes a revision of #{family}: #{choices.map { |each| each == running ? "#{each} (running)" : each }.join(', ')}.",
+                                  link: link)
+        runs = recent.map { |deployment| history_run(deployment, revisions[deployment[:target_service_revision_arn]] || {}) }
+        Capabilities::RunHistory.with_runs(result, runs, link: link)
+      end
+
+      # A service deployment as every run history reads it, from the startedAt, finishedAt and status ListServiceDeployments
+      # gives (ECS API reference, ServiceDeploymentBrief).
+      def history_run(listed, revision)
+        Capabilities::History::Run.new(
+          id: listed[:service_deployment_arn].to_s.split("/").last, name: "deployment",
+          status: Capabilities::History.status(listed[:status], DEPLOYMENT_HISTORY_STATUSES),
+          started_at: Capabilities::RunHistory.time(listed[:started_at] || listed[:created_at]), finished_at: Capabilities::RunHistory.time(listed[:finished_at]),
+          detail: [ ("task definition #{family_revision(revision[:task_definition])}" if revision[:task_definition]), listed[:status_reason].presence ].compact.join(", ").presence
+        )
       end
 
       # A refusal other than a permission or a slow down reads as no history, and the current deployments are shown instead.

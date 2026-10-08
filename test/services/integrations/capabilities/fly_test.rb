@@ -49,7 +49,13 @@ class Integrations::Capabilities::FlyTest < ActiveSupport::TestCase
     assert_empty Integrations::Capabilities::Fly::TOOLS.values - declared
     assert_empty Integrations::Packs::Fly::METRICS.keys - Integrations::Capabilities::METRIC_NAMES
     assert Integrations::Capabilities.wrapped?(@fly.tools.find_by!(name: "rollback_release"))
-    assert_equal %w[logs metrics deploys status rollback restart], Integrations::Capabilities::Fly.capabilities
+    assert_equal %w[logs metrics deploys status history rollback restart], Integrations::Capabilities::Fly.capabilities
+  end
+
+  test "run history is an app's releases, by its name, and a Postgres cluster has none" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "deploy")
+    assert_equal [ "deploy_history", { "resource" => "web", "name" => "deploy" } ], [ history.tool.name, history.arguments ]
+    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "main-db")
   end
 
   private

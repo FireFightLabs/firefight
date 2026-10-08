@@ -135,6 +135,20 @@ module Integrations
            },
            read_only: true
 
+      tool :deploy_history,
+           description: "An App Platform app's recent deployments, each a build and its release, with its phase, when it started " \
+                        "and finished and how long it took, and how long finished ones usually take",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => APP,
+               "name" => { "type" => "string", "description" => "Only runs of this kind, deploy (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :resource_metrics,
            description: "Metrics of one app, Droplet or MySQL database over time, with min, average, max and latest for each, " \
                         "and the person sees each as a chart. An app keeps cpu, memory and restarts per instance, a Droplet " \
@@ -261,6 +275,33 @@ module Integrations
         rows = deployments.map { |deployment| deployment_line(deployment) }
         Telemetry.result("Latest #{rows.size} deployments of #{resource[:name]}, newest first. rollback_app takes a deployment id.\n#{rows.join("\n")}",
              link: link_of(environment_row, resource))
+      end
+
+      # App Platform's deployment phases (digitalocean/openapi, apps_deployment_phase) in Firefight's words. A deployment
+      # superseded since had gone live.
+      DEPLOYMENT_PHASES = {
+        "unknown" => Capabilities::History::QUEUED, "pending_build" => Capabilities::History::QUEUED,
+        "building" => Capabilities::History::RUNNING, "pending_deploy" => Capabilities::History::RUNNING,
+        "deploying" => Capabilities::History::RUNNING, "active" => Capabilities::History::SUCCEEDED,
+        "superseded" => Capabilities::History::SUCCEEDED, "error" => Capabilities::History::FAILED,
+        "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+
+      # A deployment from created_at to when its last step ended (progress.steps, ended_at), or to when its phase last
+      # changed (phase_last_updated_at) when it gives no steps.
+      def deploy_history(environment_row:, arguments:)
+        resource = find_resource(environment_row, arguments["resource"], only: KIND_APP)
+        deployments = api(environment_row).deployments(resource[:id], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
+        runs = deployments.map do |deployment|
+          status = Capabilities::History.status(deployment["phase"], DEPLOYMENT_PHASES)
+          commits = Array(deployment["services"]).filter_map { |service| "#{service['name']} #{service['source_commit_hash'].to_s.first(12)}" if service["source_commit_hash"].present? }
+          Capabilities::History::Run.new(
+            id: deployment["id"], name: "deploy", status: status, started_at: Telemetry.parse_time(deployment["created_at"]),
+            finished_at: (deployment_ended_at(deployment) if Capabilities::History::FINISHED.include?(status)),
+            detail: [ deployment["cause"].presence, ("commits #{commits.join(', ')}" if commits.any?) ].compact.join(", ").presence
+          )
+        end
+        Capabilities::History.result(runs, what: resource[:name], link: link_of(environment_row, resource), name: arguments["name"])
       end
 
       def resource_metrics(environment_row:, arguments:)
@@ -630,6 +671,11 @@ module Integrations
           ("Version end of life: #{database['version_end_of_life']}" if database["version_end_of_life"]),
           "Created #{database['created_at']}"
         ]
+      end
+
+      def deployment_ended_at(deployment)
+        ended = Array(deployment.dig("progress", "steps")).filter_map { |step| Telemetry.parse_time(step["ended_at"]) }.max
+        ended || Telemetry.parse_time(deployment["phase_last_updated_at"])
       end
 
       def deployment_line(deployment)

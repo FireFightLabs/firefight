@@ -71,6 +71,13 @@ module Integrations
         if entry.kind == Integration::KIND_MCP && entry.source_links == IntegrationProvider::SOURCE_LINKS_FIREFIGHT
           assert definition.source_links, "#{entry.key} says Firefight links its results and names no builder"
         end
+        answers_history = definition.adapter&.capabilities.to_a.include?(Capabilities::HISTORY)
+        if entry.history == IntegrationProvider::HISTORY_FIREFIGHT
+          assert answers_history, "#{entry.key} says Halon reads its run history and its adapter does not answer #{Capabilities::HISTORY}"
+        else
+          refute answers_history, "#{entry.key} answers #{Capabilities::HISTORY} and says history none"
+          assert entry.history_note.present?, "#{entry.key} says history none without a history_note saying why"
+        end
       end
     end
 

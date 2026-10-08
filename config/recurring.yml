@@ -41,6 +41,10 @@ development:
     class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
     schedule: every minute
+  watch_sweep:
+    class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
+    queue: background
+    schedule: every minute
   resource_map_event_webhook_refresh:
     class: Integrations::MapEventWebhookRefreshJob # extends map change webhooks Firefight registered before their provider lets them lapse
     queue: background
@@ -135,6 +139,10 @@ staging:
     schedule: every hour
   resource_map_event_poll:
     class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
+    queue: background
+    schedule: every minute
+  watch_sweep:
+    class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
     schedule: every minute
   resource_map_event_webhook_refresh:
@@ -253,6 +261,10 @@ production:
     schedule: every hour
   resource_map_event_poll:
     class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
+    queue: background
+    schedule: every minute
+  watch_sweep:
+    class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
     schedule: every minute
   resource_map_event_webhook_refresh:
