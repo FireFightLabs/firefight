@@ -178,6 +178,11 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # @return [String] the connected team as the people running Firefight would recognise it, such as its address.
+  def team_label
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [String, nil] nil when the incident has no channel.
   def channel_url(channel_id:)
     raise NotImplementedError

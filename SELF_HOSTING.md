@@ -133,6 +133,16 @@ Slack sign-in works out of the box. Google and email links are optional and stay
 
 With the flag on, someone who signs in and belongs to no workspace names a new one, and can connect Slack to it then or later from the banner on every page. Until Slack is connected, incidents cannot be declared. Admins invite teammates by email from Members, which needs the email settings above. Each person sees and removes their sign-in methods under Profile.
 
+## Hearing about new workspaces
+
+Set `INSTALL_NOTIFICATION_WEBHOOK_URL` to a Slack incoming webhook, or any URL that accepts a JSON POST, and Firefight posts one short message there for each of these:
+
+- A workspace is created, however the person signed in: `New workspace: Acme, created by Ada Lovelace (ada@acme.com) with Google`. The method reads `Google`, `an email link` or `Slack`.
+- A workspace that started without Slack connects it later: `Acme connected Slack (acme.slack.com)`.
+- One of your AI accounts runs out of credit.
+
+Besides `text`, the workspace messages carry `event` (`workspace.created` or `workspace.chat_connected`), `workspace_name`, `platform`, `platform_id`, `installer_name`, `installer_email`, `sign_up_method`, `created_at` and `installed_at`. A message that cannot be delivered is retried once and then logged, and never holds up the person signing up. Leave the variable unset and nothing is sent.
+
 ## The operator console
 
 `/operator` shows your install's background jobs: what is waiting, what failed and why, with retry. Only people you name can open it. Everyone else sees a not found page.

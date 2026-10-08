@@ -201,6 +201,13 @@ module Slack
       end
     end
 
+    def team_label
+      team = @workspace.platform_data || {}
+      return "#{team["domain"]}.slack.com" if team["domain"].present?
+
+      team["name"].presence || @workspace.platform_id
+    end
+
     # A deep link carrying the team, otherwise a browser signed into several
     # workspaces opens the last used one, where the channel does not exist.
     def channel_url(channel_id:)
