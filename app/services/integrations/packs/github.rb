@@ -203,6 +203,7 @@ module Integrations
         "blame" => { "contents" => READ },
         "list_workflows" => { "actions" => READ },
         "workflow_runs" => { "actions" => READ },
+        "ci_runs" => { "actions" => READ },
         "workflow_jobs" => { "actions" => READ },
         "job_log" => { "actions" => READ },
         "ci_status" => { "actions" => READ, "deployments" => READ },

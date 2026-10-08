@@ -7,6 +7,7 @@ import type {
   RunbookSettings,
 } from "@/types/serializers"
 import { conditionSummary } from "@/pages/settings/lib/runbook-conditions"
+import { stepCall, watchedSummary } from "@/pages/settings/lib/runbook-procedure"
 import { MarkdownText } from "@/components/markdown-text"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -60,6 +61,20 @@ export function RunbookDetailSheet({
             <p className="text-sm">{conditions ?? "Always shown"}</p>
           </div>
 
+          {runbook.runnable && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-medium uppercase text-muted-foreground">Run by Halon</h3>
+              {runbook.aliases.length > 0 && <p className="text-sm">Also called {runbook.aliases.join(", ")}</p>}
+              {runbook.inputs.map((input) => (
+                <p key={input.key} className="text-sm text-muted-foreground">
+                  <span className="font-mono text-xs text-foreground">{input.key}</span> {input.question}
+                  {input.default && ` (default ${input.default})`}
+                </p>
+              ))}
+              {runbook.watch && <p className="text-sm">Then watches {watchedSummary(runbook.watch)}</p>}
+            </div>
+          )}
+
           {runbook.externalUrl && (
             <a
               href={runbook.externalUrl}
@@ -99,6 +114,11 @@ export function RunbookDetailSheet({
                       <p className="text-sm font-medium">{step.title}</p>
                       {step.instruction && (
                         <p className="whitespace-pre-wrap text-sm text-muted-foreground">{step.instruction}</p>
+                      )}
+                      {step.tool && (
+                        <pre className="whitespace-pre-wrap rounded-md border border-border bg-surface-code px-2.5 py-2 font-mono text-xs text-fg-body">
+                          {stepCall(step.tool, step.arguments)}
+                        </pre>
                       )}
                     </div>
                   </li>

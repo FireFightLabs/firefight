@@ -371,6 +371,7 @@ Rails.application.routes.draw do
     post "/agent/:id/held_calls/:held_call_id/dismiss", to: "agent_chats#dismiss_held_call", as: :agent_chat_held_call_dismiss
     post "/agent/:id/held_calls/:held_call_id/ask_again", to: "agent_chats#ask_held_call_again", as: :agent_chat_held_call_ask_again
     post "/agent/:id/pack_refusals/:pack_refusal_id/ask", to: "agent_chats#ask_pack", as: :agent_chat_pack_refusal_ask
+    post "/agent/:id/watches/:watch_id/stop", to: "agent_chats#stop_watch", as: :agent_chat_watch_stop
     get "/catalogue", to: "catalogue#index", as: :catalogue
     get "/catalogue/:type_slug", to: "catalogue#show", as: :catalogue_type
     post "/catalogue/types", to: "catalogue#create_type"

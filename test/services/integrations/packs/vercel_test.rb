@@ -235,6 +235,21 @@ module Integrations
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
+      test "deploy history reads a deployment from when it started building to when it was ready, named by its target" do
+        VercelApi.any_instance.stubs(:deployments).with("prj_1", limit: 20).returns([
+          { "uid" => "dpl_2", "target" => "production", "readyState" => "READY", "createdAt" => 1_759_312_800_000,
+            "buildingAt" => 1_759_312_805_000, "ready" => 1_759_312_925_000, "inspectorUrl" => "https://vercel.com/acme/shop/dpl_2" },
+          { "uid" => "dpl_1", "readyState" => "ERROR", "createdAt" => 1_759_309_200_000, "errorCode" => "BUILD_FAILED" }
+        ])
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "SHOP" }))
+
+        assert_equal [ [ "production deploy", "succeeded", 120 ], [ "preview deploy", "failed", nil ] ], runs.map { |run| [ run.name, run.status, run.seconds ] }
+        assert_equal "BUILD_FAILED", runs.second.detail
+        only = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "SHOP", "name" => "production" }))
+        assert_equal [ "dpl_2" ], only.map(&:id)
+      end
+
       private
 
       def call(tool, arguments = {})

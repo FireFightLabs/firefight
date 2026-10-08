@@ -1,6 +1,7 @@
 class Runbook < ApplicationRecord
   include Positioned
   include OptionGuards
+  include Runbook::Procedure
 
   NOUN = "runbook".freeze
 
@@ -70,6 +71,8 @@ class Runbook < ApplicationRecord
 
       steps_params.each_with_index do |step_params, index|
         attrs = { title: step_params[:title], instruction: step_params[:instruction], position: index + 1 }
+        # A caller that says nothing of a tool leaves the step as it was, so an older client never clears one.
+        attrs.merge!(step_params.to_h.symbolize_keys.slice(:tool, :arguments))
         step = live[step_params[:id].to_s]
 
         if step

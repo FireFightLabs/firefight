@@ -46,8 +46,14 @@ class Integrations::Capabilities::DigitaloceanTest < ActiveSupport::TestCase
   test "Halon is offered the tools that take more than their capability, and not the ones a capability answers in full" do
     wrapped = Integration::Tool.in_workspace(@workspace).select { |tool| Integrations::Capabilities.wrapped?(tool) }.map(&:name).sort
 
-    assert_equal %w[describe_resource list_deployments reboot_droplet rollback_app], wrapped
+    assert_equal %w[deploy_history describe_resource list_deployments reboot_droplet rollback_app], wrapped
     assert_match "roll a resource back", Integrations::Capabilities.halon_sentence(Integrations::Packs::Digitalocean::PROVIDER_KEY, "DigitalOcean")
+  end
+
+  test "run history is an app's deployments, and a Droplet or database has none" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "shop", "limit" => 3)
+    assert_equal [ "deploy_history", { "resource" => "app-1", "limit" => 3 } ], [ history.tool.name, history.arguments ]
+    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "bastion")
   end
 
   private

@@ -57,9 +57,16 @@ class Integrations::Capabilities::RenderTest < ActiveSupport::TestCase
     assert_empty TOOLS - Integrations::Packs::Render.tool_definitions.map(&:name)
     assert Integrations::Capabilities.wrapped?(@workspace.integrations.find_by!(slug: "render").tools.find_by!(name: "scale_service"))
     assert_not Integrations::Capabilities.wrapped?(@workspace.integrations.find_by!(slug: "render").tools.find_by!(name: "list_events"))
-    assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, roll a resource back, " \
-                 "restart a service, and scale a service for anything Render runs, through the tools that are switched on. It also uses " \
+    assert_equal "Halon can read its logs, read its metrics, see what was deployed, check how a resource stands, see how long its runs usually take, " \
+                 "roll a resource back, restart a service, and scale a service for anything Render runs, through the tools that are switched on. It also uses " \
                  "Render's other tools that are switched on.", Integrations::Capabilities.halon_sentence("render", "Render")
+  end
+
+  test "run history is Render's deploy history of a service or site, and a datastore has none" do
+    history = resolve(Integrations::Capabilities::HISTORY, "resource" => "web", "name" => "deploy", "limit" => 5)
+    assert_equal [ "deploy_history", { "resource" => "srv-web", "name" => "deploy", "limit" => 5 } ], [ history.tool.name, history.arguments ]
+    assert_equal "deploy_history", resolve(Integrations::Capabilities::HISTORY, "resource" => "docs").tool.name
+    assert_match "no connection offers run history", unroutable(Integrations::Capabilities::HISTORY, "resource" => "cache")
   end
 
   private

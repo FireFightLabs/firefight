@@ -30,6 +30,19 @@ module Integrations
         CHOICE_INPUT = "choice".freeze
         NUMBER_INPUT = "number".freeze
         FOLLOW = "workflow_jobs with its run_id, or ci_status, follows it".freeze
+        HISTORY_LIMIT = 20
+        # A name filter is applied to GitHub's newest runs, so more are read to find enough of that workflow.
+        HISTORY_CANDIDATES = 100
+        # A run's status, or its conclusion once completed, in Firefight's words (the status and conclusion enums of a
+        # workflow run in github/rest-api-description). action_required waits for someone to approve it.
+        HISTORY_STATUSES = {
+          "requested" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, "waiting" => Capabilities::History::QUEUED,
+          "pending" => Capabilities::History::QUEUED, "action_required" => Capabilities::History::QUEUED,
+          "in_progress" => Capabilities::History::RUNNING,
+          "success" => Capabilities::History::SUCCEEDED, "neutral" => Capabilities::History::SUCCEEDED, "skipped" => Capabilities::History::SUCCEEDED,
+          "failure" => Capabilities::History::FAILED, "timed_out" => Capabilities::History::FAILED, "startup_failure" => Capabilities::History::FAILED,
+          "cancelled" => Capabilities::History::CANCELLED, "stale" => Capabilities::History::CANCELLED
+        }.freeze
 
         def self.included(pack)
           pack.tool :list_workflows,
@@ -47,6 +60,17 @@ module Integrations
                       "status" => { "type" => "string", "enum" => RUN_STATUSES, "description" => "Only runs in this status or with this outcome, such as failure (optional)" },
                       "event" => { "type" => "string", "description" => "Only runs started by this event, such as push or pull_request (optional)" },
                       "limit" => { "type" => "integer", "description" => "At most this many (optional, #{RUN_LIMIT}, at most #{MAX_RUNS})" }
+                    }, %w[repo]),
+                    read_only: true
+
+          pack.tool :ci_runs,
+                    description: "A repository's GitHub Actions runs, newest first, each with its workflow, status, when it started and " \
+                                 "finished and how long it took, and how long finished runs usually take",
+                    params_schema: Code.object_schema({
+                      "repo" => Code::REPO,
+                      "name" => { "type" => "string", "description" => "Only runs of a workflow whose name contains this, such as release (optional)" },
+                      "branch" => { "type" => "string", "description" => "Only runs for this branch (optional)" },
+                      "limit" => { "type" => "integer", "description" => "At most this many (optional, #{HISTORY_LIMIT})" }
                     }, %w[repo]),
                     read_only: true
 
@@ -127,6 +151,16 @@ module Integrations
           return "No workflow runs in #{repo} match." if runs.empty?
 
           runs.map { |run| run_line(run) }.join("\n")
+        end
+
+        # GitHub gives a workflow run no completion time, so a finished run ended when it last changed, its updated_at.
+        def ci_runs(environment_row:, arguments:)
+          repo = repo_argument(arguments)
+          limit = whole_number_argument(arguments, "limit", HISTORY_LIMIT, HISTORY_LIMIT)
+          name = arguments["name"].to_s.strip.presence
+          query = { "branch" => arguments["branch"].presence, "per_page" => name ? HISTORY_CANDIDATES : limit }
+          runs = runs_of(repo, GithubApp.installation_token(environment_row), query).map { |run| history_run(run) }
+          Capabilities::History.result(runs, what: "GitHub Actions in #{repo}", link: actions_link("https://github.com/#{repo}/actions"), name: name, limit: limit)
         end
 
         def workflow_jobs(environment_row:, arguments:)
@@ -238,6 +272,16 @@ module Integrations
           fail! Sentence.join("GitHub refused to #{what}", error, after: "Firefight's GitHub App needs the #{WRITE_PERMISSION} permission " \
                                                                           "on this installation for that. An owner of the GitHub account grants it " \
                                                                           "under Settings, GitHub Apps, by accepting the App's new permissions")
+        end
+
+        def history_run(run)
+          status = Capabilities::History.status(outcome(run), HISTORY_STATUSES)
+          Capabilities::History::Run.new(
+            id: run["id"].to_s, number: run["run_number"]&.to_s, name: run["name"], status: status,
+            started_at: Telemetry.parse_time(run["run_started_at"] || run["created_at"]),
+            finished_at: (Telemetry.parse_time(run["updated_at"]) if Capabilities::History::FINISHED.include?(status)),
+            url: run["html_url"], detail: "#{run['head_branch']} at #{run['head_sha'].to_s[0, 12]}, #{run['event']}"
+          )
         end
 
         def run_name(run, repo) = "#{run['name']} run #{run['run_number']} (#{run['id']}) in #{repo}"

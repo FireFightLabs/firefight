@@ -25,6 +25,9 @@ class AgentChatsController < InertiaController
   PROP_HELD_CALLS = "heldCalls"
   # Changes Halon was refused in the open chat for want of a pack, each with Ask an admin.
   PROP_PACK_REFUSALS = "packRefusals"
+  # What Halon watches for the open chat, going and ended, and every line the watches said, placed by when they said it.
+  PROP_WATCHES = "watches"
+  PROP_WATCH_UPDATES = "watchUpdates"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
   PROPS = {
@@ -34,7 +37,7 @@ class AgentChatsController < InertiaController
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
-    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SETUP_GUIDE" => PROP_SETUP_GUIDE
+    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -45,7 +48,7 @@ class AgentChatsController < InertiaController
 
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file], update: %i[update ask_pack], delete: %i[destroy]
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
@@ -57,7 +60,7 @@ class AgentChatsController < InertiaController
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
-      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => []
+      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => []
     )
   end
 
@@ -73,7 +76,9 @@ class AgentChatsController < InertiaController
       PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat),
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
       PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership),
-      PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership)
+      PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership),
+      PROP_WATCHES => AgentChatWatchSerializer.many(watches_shown, member: current_membership),
+      PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown)
     )
   end
 
@@ -143,6 +148,17 @@ class AgentChatsController < InertiaController
     decide_held_call("Asked for approval again.") { |held| Conversation::HeldCalls.ask_again!(held, by: current_membership) }
   end
 
+  # Stops what Halon was watching for this chat. It says so where the watch reports.
+  def stop_watch
+    watch = conversation.chat&.watches&.find_by(id: params[:watch_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That watch is no longer in this chat.") unless watch
+
+    blocked = Conversation::Watches.stop!(watch, by: current_membership)
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    redirect_to agent_chat_path(conversation), notice: "Stopped watching #{watch.title}."
+  end
+
   # Asks the workspace admins for the pack a change in this chat was refused for, at most once a day.
   def ask_pack
     refusal = conversation.chat&.pack_refusals&.find_by(id: params[:pack_refusal_id])
@@ -175,6 +191,16 @@ class AgentChatsController < InertiaController
   def held_calls_shown
     chat = conversation.chat
     chat ? chat.held_calls.where.not(status: Chat::HeldCall::STATUS_ASKED_AGAIN).includes(:decided_by, approval: :approver) : []
+  end
+
+  def watches_shown
+    chat = conversation.chat
+    chat ? chat.watches.includes(:steps, :asker) : []
+  end
+
+  def watch_updates_shown
+    chat = conversation.chat
+    chat ? Chat::Watch::Update.joins(:watch).where(chat_watches: { chat_id: chat.id }).includes(:watch).order(:created_at) : []
   end
 
   def pack_refusals_shown

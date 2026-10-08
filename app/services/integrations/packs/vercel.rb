@@ -66,6 +66,20 @@ module Integrations
            },
            read_only: true
 
+      tool :deploy_history,
+           description: "A project's recent deployments, each a build and its release, with production or preview, its state, " \
+                        "when it started building and when it was ready and how long that took, and how long finished ones usually take",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "resource" => RESOURCE,
+               "name" => { "type" => "string", "description" => "Only runs of this kind, production or preview (optional)" },
+               "limit" => { "type" => "integer", "description" => "At most this many deployments (optional, #{DEPLOYMENT_LIMIT})" }
+             },
+             "required" => [ "resource" ]
+           },
+           read_only: true
+
       tool :deployment_logs,
            description: "Log lines of one deployment of a project. type build reads its build output, newest first, of the " \
                         "newest deployment unless one is named. type runtime watches what its functions log live, for up to #{MAX_SECONDS} " \
@@ -193,6 +207,32 @@ module Integrations
         rows = deployments.map { |deployment| deployment_line(deployment, current: current) }
         Telemetry.result("Latest #{rows.size} deployments of #{project['name']}, newest first. rollback_deployment and promote_deployment take an id.\n" \
                          "#{rows.join("\n")}", link: link)
+      end
+
+      # Vercel's deployment states (spec, getDeployments, readyState) in Firefight's words.
+      DEPLOYMENT_STATES = {
+        "initializing" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED,
+        "building" => Capabilities::History::RUNNING, "ready" => Capabilities::History::SUCCEEDED,
+        "error" => Capabilities::History::FAILED, "canceled" => Capabilities::History::CANCELLED
+      }.freeze
+
+      # A deployment from when it started building (buildingAt, or createdAt before it did) to when it was ready (ready),
+      # each in milliseconds (spec, getDeployments). A failed one keeps no end.
+      def deploy_history(environment_row:, arguments:)
+        project = find_project(environment_row, arguments["resource"])
+        deployments = api(environment_row).deployments(project["id"], limit: Capabilities::Answers.limit(arguments, DEPLOYMENT_LIMIT))
+        runs = deployments.map do |deployment|
+          sha = meta(deployment, COMMIT_SHA)
+          error = [ deployment["errorCode"], deployment["errorMessage"] ].compact.join(": ").presence
+          Capabilities::History::Run.new(
+            id: deployment["uid"] || deployment["id"], name: "#{deployment['target'] || 'preview'} deploy",
+            status: Capabilities::History.status(deployment["readyState"] || deployment["state"], DEPLOYMENT_STATES),
+            started_at: millis(deployment["buildingAt"] || deployment["createdAt"] || deployment["created"]), finished_at: millis(deployment["ready"]),
+            url: deployment["inspectorUrl"],
+            detail: [ ("#{sha.first(12)} #{meta(deployment, COMMIT_MESSAGE).to_s.lines.first.to_s.strip}".strip if sha), error ].compact.join(", ").presence
+          )
+        end
+        Capabilities::History.result(runs, what: project["name"], link: project_link(environment_row, project), name: arguments["name"])
       end
 
       def deployment_logs(environment_row:, arguments:)

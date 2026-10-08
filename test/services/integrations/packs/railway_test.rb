@@ -258,6 +258,21 @@ module Integrations
         assert_raises(NativePack::Error) { Railway.new(@integration).check_health!(@row) }
       end
 
+      test "deploy history ends a deployment when it went live or failed, and one replaced since shows no length" do
+        RailwayApi.any_instance.stubs(:deployments).returns([
+          { "id" => "dep-3", "status" => "BUILDING", "createdAt" => "2026-10-01T10:00:00Z", "updatedAt" => "2026-10-01T10:01:00Z" },
+          { "id" => "dep-2", "status" => "SUCCESS", "createdAt" => "2026-10-01T09:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z",
+            "meta" => { "commitHash" => "c4e4267d46e638ac", "commitMessage" => "Speed up checkout" } },
+          { "id" => "dep-1", "status" => "REMOVED", "createdAt" => "2026-10-01T08:00:00Z", "updatedAt" => "2026-10-01T09:03:00Z" }
+        ])
+
+        runs = Capabilities::History.runs_of(@pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web" }))
+
+        assert_equal %w[running succeeded succeeded], runs.map(&:status)
+        assert_equal [ nil, 180, nil ], runs.map(&:seconds)
+        assert_equal "c4e4267d46e6 Speed up checkout", runs.second.detail
+      end
+
       private
 
       def call(tool, arguments = {})

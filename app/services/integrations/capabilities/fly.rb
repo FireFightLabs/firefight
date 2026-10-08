@@ -10,11 +10,11 @@ module Integrations
       PACK = Packs::Fly
       APP = [ ResourceMap::KIND_SERVICE ].freeze
       SUPPORTS = {
-        LOGS => APP, METRICS => APP, DEPLOYS => APP, STATUS => [ *APP, ResourceMap::KIND_DATABASE ], ROLLBACK => APP, RESTART => APP
+        LOGS => APP, METRICS => APP, DEPLOYS => APP, HISTORY => APP, STATUS => [ *APP, ResourceMap::KIND_DATABASE ], ROLLBACK => APP, RESTART => APP
       }.freeze
       TOOLS = {
         LOGS => "search_logs", METRICS => "query_metrics", DEPLOYS => "list_deployments", STATUS => "describe_resource",
-        ROLLBACK => "rollback_release", RESTART => "restart_app"
+        HISTORY => "deploy_history", ROLLBACK => "rollback_release", RESTART => "restart_app"
       }.freeze
       WRAPPED = TOOLS.values.freeze
       METRIC_MAP = PACK::METRICS.keys.index_with(&:itself).freeze
@@ -34,6 +34,7 @@ module Integrations
           Route.new(tool_name: TOOLS[METRICS], arguments: { "resource" => name, "metrics" => names.presence }.compact.merge(given.slice("minutes", "start", "end")))
         when DEPLOYS then Route.new(tool_name: TOOLS[DEPLOYS], arguments: { "resource" => name }.merge(given.slice("limit")))
         when STATUS then Route.new(tool_name: TOOLS[STATUS], arguments: { "resource" => name })
+        when HISTORY then Route.new(tool_name: TOOLS[HISTORY], arguments: { "resource" => name }.merge(given.slice("name", "limit")))
         when ROLLBACK then Route.new(tool_name: TOOLS[ROLLBACK], arguments: { "resource" => name, "release" => target(given) })
         when RESTART then Route.new(tool_name: TOOLS[RESTART], arguments: { "resource" => name })
         end

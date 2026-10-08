@@ -21,6 +21,13 @@ module Integrations
       RUN_STATUSES = %w[PENDING_VERSION QUEUED EXECUTING REATTEMPTING FROZEN COMPLETED CANCELED FAILED CRASHED INTERRUPTED SYSTEM_FAILURE].freeze
       FAILED_STATUSES = %w[FAILED CRASHED SYSTEM_FAILURE].freeze
       WAITING_STATUSES = %w[PENDING_VERSION QUEUED].freeze
+      HISTORY_STATUSES = {
+        "pending_version" => Capabilities::History::QUEUED, "queued" => Capabilities::History::QUEUED, "delayed" => Capabilities::History::QUEUED,
+        "executing" => Capabilities::History::RUNNING, "reattempting" => Capabilities::History::RUNNING, "frozen" => Capabilities::History::RUNNING,
+        "completed" => Capabilities::History::SUCCEEDED, "failed" => Capabilities::History::FAILED, "crashed" => Capabilities::History::FAILED,
+        "system_failure" => Capabilities::History::FAILED, "interrupted" => Capabilities::History::FAILED, "timed_out" => Capabilities::History::FAILED,
+        "canceled" => Capabilities::History::CANCELLED, "expired" => Capabilities::History::CANCELLED
+      }.freeze
       DEPLOYED = "DEPLOYED".freeze
       DEPLOYMENT_STATUSES = %w[PENDING BUILDING DEPLOYING DEPLOYED FAILED CANCELED TIMED_OUT].freeze
       ERROR_STATUSES = %w[unresolved resolved ignored].freeze
@@ -214,11 +221,12 @@ module Integrations
         runs = api(environment_row).runs(filter: run_filter(arguments, started, ended).merge("error" => arguments["error"].presence),
                                          limit: Capabilities::Answers.limit(arguments, RUN_LIMIT))
         asked = [ ("of #{arguments['task']}" if arguments["task"].present?), "created from #{started.utc.iso8601} to #{ended.utc.iso8601}" ].compact.join(" ")
-        return Telemetry.result("No runs #{asked}.", link: nil) if runs.empty?
+        return Capabilities::RunHistory.with_runs(Telemetry.result("No runs #{asked}.", link: nil), []) if runs.empty?
 
         rows = runs.map { |run| run_line(environment_row, run) }
-        Telemetry.result("#{rows.size} runs #{asked}, newest first. Each ends with its page in Trigger.dev.\n#{rows.join("\n")}",
-                         link: run_link(environment_row, runs.first["id"]))
+        link = run_link(environment_row, runs.first["id"])
+        result = Telemetry.result("#{rows.size} runs #{asked}, newest first. Each ends with its page in Trigger.dev.\n#{rows.join("\n")}", link: link)
+        Capabilities::RunHistory.with_runs(result, runs.map { |run| history_run(environment_row, run) }, link: link)
       end
 
       def run_details(environment_row:, arguments:)
@@ -477,6 +485,15 @@ module Integrations
         [ run["createdAt"], run["id"], run["taskIdentifier"], run["status"], ("version #{run['version']}" if run["version"]),
           ("started #{run['startedAt']}" if run["startedAt"]), ("finished #{run['finishedAt']}" if run["finishedAt"]),
           ("computed #{run['durationMs']} ms" if run["durationMs"]), run_link(environment_row, run["id"])&.url ].compact.join(", ")
+      end
+
+      # A run in the words every run history uses, its status read from the runs API's own (CommonRunsFilter).
+      def history_run(environment_row, run)
+        Capabilities::History::Run.new(
+          id: run["id"], name: run["taskIdentifier"], status: Capabilities::History.status(run["status"], HISTORY_STATUSES),
+          started_at: Capabilities::RunHistory.time(run["startedAt"] || run["createdAt"]), finished_at: Capabilities::RunHistory.time(run["finishedAt"]),
+          url: run_link(environment_row, run["id"])&.url, detail: ("version #{run['version']}" if run["version"])
+        )
       end
 
       def related_line(related)

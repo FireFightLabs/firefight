@@ -129,6 +129,22 @@ module Integrations
                      "2026-10-01T09:00:00Z, web-00001-abc, image web:v1, ready succeeded, 0% of traffic", text
       end
 
+      test "a revision runs from when it was made to when it became ready, which is kept as run history" do
+        GoogleCloudApi.any_instance.stubs(:run_revisions).returns([
+          { "name" => "#{RUN_ID}/revisions/web-00001-abc", "createTime" => "2026-10-01T09:00:00Z", "containers" => [ { "image" => "web:v1" } ],
+            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_SUCCEEDED", "lastTransitionTime" => "2026-10-01T09:01:30Z" } ] },
+          { "name" => "#{RUN_ID}/revisions/web-00002-xyz", "createTime" => "2026-10-03T09:00:00Z", "reconciling" => true,
+            "containers" => [ { "image" => "web:v2" } ], "conditions" => [ { "type" => "Ready", "state" => "CONDITION_PENDING" } ] },
+          { "name" => "#{RUN_ID}/revisions/web-00003-bad", "createTime" => "2026-10-02T09:00:00Z",
+            "conditions" => [ { "type" => "Ready", "state" => "CONDITION_FAILED", "lastTransitionTime" => "2026-10-02T09:02:00Z" } ] }
+        ])
+
+        result = GoogleCloud.new(@integration).call("list_revisions", environment_row: @row, arguments: { "resource" => "web" })
+
+        assert_equal [ [ "web-00002-xyz", "running", nil ], [ "web-00003-bad", "failed", 120 ], [ "web-00001-abc", "succeeded", 90 ] ],
+                     Capabilities::History.runs_of(result).map { |run| [ run.id, run.status, run.seconds ] }
+      end
+
       test "errors are asked of Error Reporting for the service over the shortest period that covers the range, and filtered by text" do
         GoogleCloudApi.any_instance.expects(:error_group_stats).with do |project, query|
           project == "acme-prod" && query == { "serviceFilter.service" => "web", "timeRange.period" => "PERIOD_6_HOURS", "order" => "COUNT_DESC", "pageSize" => 20 }

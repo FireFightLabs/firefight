@@ -298,6 +298,25 @@ module Integrations
         assert_raises(NativePack::Error) { @pack.check_health!(@row) }
       end
 
+      test "deploy history reads each deploy from when it started to when it finished, in Firefight's words" do
+        RenderApi.any_instance.stubs(:deploys).with("srv-web", limit: 20).returns([
+          { "id" => "dep-3", "status" => "build_in_progress", "createdAt" => "2026-10-01T10:00:00Z", "startedAt" => "2026-10-01T10:00:05Z" },
+          { "id" => "dep-2", "status" => "live", "createdAt" => "2026-10-01T09:00:00Z", "startedAt" => "2026-10-01T09:00:10Z",
+            "finishedAt" => "2026-10-01T09:04:10Z", "commit" => { "id" => "c4e4267d46e638ac", "message" => "Speed up checkout" } },
+          { "id" => "dep-1", "status" => "build_failed", "createdAt" => "2026-10-01T08:00:00Z", "finishedAt" => "2026-10-01T08:01:00Z" }
+        ])
+
+        result = @pack.call("deploy_history", environment_row: @row, arguments: { "resource" => "web" })
+        runs = Capabilities::History.runs_of(result)
+
+        assert_equal %w[running succeeded failed], runs.map(&:status)
+        assert_equal 240, runs.second.seconds
+        assert_equal "#{WEB_PAGE}/deploys/dep-2", runs.second.url
+        assert_equal "c4e4267d46e6 Speed up checkout", runs.second.detail
+        assert_equal 240, result.dig(Telemetry::STRUCTURED, Capabilities::History::USUAL_SECONDS)
+        assert_match "usually take 4 minutes", result["content"].sole["text"]
+      end
+
       private
 
       def call(tool, arguments = {})

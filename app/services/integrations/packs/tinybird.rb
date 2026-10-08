@@ -28,6 +28,11 @@ module Integrations
       MAX_ROWS = 500
       ERROR_LIMIT = 50
       JOB_LIMIT = 20
+      # A job's status in tinybird.jobs_log, in the words every run history uses.
+      JOB_HISTORY_STATUSES = {
+        "waiting" => Capabilities::History::QUEUED, "working" => Capabilities::History::RUNNING, "done" => Capabilities::History::SUCCEEDED,
+        "error" => Capabilities::History::FAILED, "cancelled" => Capabilities::History::CANCELLED
+      }.freeze
       JOB_DAYS = 7
       MAX_JOB_DAYS = 30
       CELL_LIMIT = 300
@@ -340,10 +345,11 @@ module Integrations
         rows = data_of(query(api(environment_row), Queries.jobs(arguments, days, Capabilities::Answers.limit(arguments, JOB_LIMIT))))
         what = arguments["job_type"].present? ? "#{arguments['job_type']} jobs" : "jobs"
         link = jobs_link(environment_row)
-        return Telemetry.result("No #{what} in the last #{days} days.", link: link) if rows.empty?
+        return Capabilities::RunHistory.with_runs(Telemetry.result("No #{what} in the last #{days} days.", link: link), [], link: link) if rows.empty?
 
         lines = rows.map { |row| job_line(row) }
-        Telemetry.result("Latest #{rows.size} #{what} in the last #{days} days, newest first.\n#{lines.join("\n")}", link: link)
+        result = Telemetry.result("Latest #{rows.size} #{what} in the last #{days} days, newest first.\n#{lines.join("\n")}", link: link)
+        Capabilities::RunHistory.with_runs(result, rows.map { |row| history_run(row) }, link: link)
       end
 
       # The workspace, its data sources and its API endpoints on the resource map, each endpoint linked to the data
@@ -545,6 +551,18 @@ module Integrations
           ("#{statistics['bytes']} bytes" unless statistics["bytes"].nil?),
           ("#{datasource['quarantine_rows']} rows in quarantine" if datasource["quarantine_rows"].to_i.positive?),
           ("read by #{used_by.join(', ')}" if used_by.any?), datasource["description"].presence&.squish&.truncate(CELL_LIMIT) ].compact.join(", ")
+      end
+
+      # A job as every run history reads it, named by its kind and the pipe it ran. tinybird.jobs_log keeps when a job
+      # started (started_at) and when it last moved (updated_at), which for a job that ended is when it ended.
+      def history_run(row)
+        status = Capabilities::History.status(row["status"], JOB_HISTORY_STATUSES)
+        Capabilities::History::Run.new(
+          id: row["job_id"], name: [ row["job_type"], row["pipe_name"].presence ].compact.join(" "), status: status,
+          started_at: Capabilities::RunHistory.time(row["started_at"].presence || row["created_at"]),
+          finished_at: (Capabilities::RunHistory.time(row["updated_at"]) if Capabilities::History::FINISHED.include?(status)),
+          detail: row["message"].presence
+        )
       end
 
       def job_line(row)

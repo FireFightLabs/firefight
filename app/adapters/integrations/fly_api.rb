@@ -31,9 +31,11 @@ module Integrations
     WAIT_MARGIN = 10
     READ_TIMEOUT = 30
 
+    # updatedAt is when a release last changed state, so when a complete or failed one ended (superfly/fly-go, schema.graphql,
+    # ReleaseUnprocessed).
     RELEASES_QUERY = <<~GRAPHQL.squish.freeze
       query($appName: String!, $limit: Int!) { app(name: $appName) { releases: releasesUnprocessed(first: $limit) {
-      nodes { id version description reason status imageRef stable user { id email name } createdAt } } } }
+      nodes { id version description reason status imageRef stable user { id email name } createdAt updatedAt } } } }
     GRAPHQL
 
     def initialize(token)
