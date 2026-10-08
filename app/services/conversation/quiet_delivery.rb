@@ -22,4 +22,6 @@ class Conversation::QuietDelivery
   def failed!(_text = nil) = nil
 
   def confirm!(_tool_calls) = nil
+
+  def withdrawn!(_tool_calls) = nil
 end

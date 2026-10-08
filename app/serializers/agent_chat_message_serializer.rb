@@ -68,7 +68,8 @@ class AgentChatMessageSerializer < BaseSerializer
 
   STEP_STATUS_BY_APPROVAL = {
     Chat::APPROVAL_REQUESTED => Conversation::LiveDelivery::STATUS_WAITING,
-    Chat::APPROVAL_DENIED => Conversation::LiveDelivery::STATUS_CANCELLED
+    Chat::APPROVAL_DENIED => Conversation::LiveDelivery::STATUS_CANCELLED,
+    Chat::APPROVAL_WITHDRAWN => Conversation::LiveDelivery::STATUS_CANCELLED
   }.freeze
 
   # An approved call has not run while another asked with it is still open, since the turn resumes only once every

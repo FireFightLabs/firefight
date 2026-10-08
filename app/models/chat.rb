@@ -130,6 +130,9 @@ class Chat < ApplicationRecord
   APPROVAL_REQUESTED = "requested"
   APPROVAL_APPROVED = "approved"
   APPROVAL_DENIED = "denied"
+  # Ours too, for a call put to the person that they moved past by asking something else. It has a result, so RubyLLM
+  # never asks about it again.
+  APPROVAL_WITHDRAWN = "withdrawn"
 
   def tool_calls
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))

@@ -16,7 +16,7 @@ class Conversation::Runner
     @marked = Time.current
     chat = @conversation.chat_record
     chat.discard_interrupted_reply!
-    chat.close_unfinished_calls!
+    withdraw(chat.close_unfinished_calls!)
     take_queued(chat)
     run_held_call(chat) if @held_call
     # The turn before this one already answered what this job was queued for.
@@ -89,6 +89,12 @@ class Conversation::Runner
 
     @conversation.note!(NO_ROOM_LEFT)
     NO_ROOM_LEFT
+  end
+
+  # A confirmation the person moved past is redrawn where it was asked, so its buttons are gone.
+  def withdraw(closed)
+    withdrawn = closed.select { |call| call.approval == Chat::APPROVAL_WITHDRAWN }
+    delivery.withdrawn!(withdrawn) if withdrawn.any?
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED

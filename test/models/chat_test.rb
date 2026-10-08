@@ -123,7 +123,7 @@ class ChatTest < ActiveSupport::TestCase
     @chat.close_unfinished_calls!
 
     call = @chat.tool_calls.find_by!(tool_call_id: "toolu_1")
-    assert_equal Chat::APPROVAL_DENIED, call.approval
+    assert_equal Chat::APPROVAL_WITHDRAWN, call.approval
     assert_equal Chat::UnfinishedCalls::NOT_CONFIRMED, call.result.content
     assert_empty @chat.awaiting_decision
   end

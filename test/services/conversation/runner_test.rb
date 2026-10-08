@@ -449,6 +449,28 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_empty personal.chat.awaiting_decision
   end
 
+  test "a confirmation in a thread is kept where it was posted, and redrawn as withdrawn once the person moves past it" do
+    pause = lambda do |_arguments|
+      asking = @conversation.chat.add_message(role: :assistant, content: "")
+      asking.ruby_llm_tool_calls.create!(tool_call_id: "call_r", name: "restart", arguments: {})
+    end
+    fake(outcome: FirefightAi::AgentLoop::STATUS_WAITING, during: pause)
+    Chat.any_instance.stubs(:to_llm).returns(stub(pending_approvals: [ stub(id: "call_r") ]))
+    Slack::Client.stubs(:stop_stream).returns({ ok: true, ts: "1700000000.000200" })
+    ask(@conversation, "restart web")
+    Chat.any_instance.unstub(:to_llm)
+    assert_equal "1700000000.000200", @conversation.reload.confirmation_message_id
+
+    fake(reply: "A deploy at 14:02")
+    Slack::Client.expects(:update_message).with do |arguments|
+      shown = arguments[:blocks].to_json
+      arguments[:ts] == "1700000000.000200" && shown.include?("Withdrawn") && !shown.include?(Identifiers::AGENT_CONFIRM)
+    end.returns({ ok: true, ts: "1700000000.000200" })
+    ask(@conversation.reload, "Actually, what changed today?")
+
+    assert_equal Chat::APPROVAL_WITHDRAWN, @conversation.chat.tool_calls.find_by!(tool_call_id: "call_r").approval
+  end
+
   test "a stop ends the turn where it is, answers any tool it never ran, and says Stopped" do
     call_asked_for = lambda do |_arguments|
       reply = @conversation.chat.add_message(role: :assistant, content: "")
