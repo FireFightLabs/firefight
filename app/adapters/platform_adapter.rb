@@ -584,6 +584,26 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A pull request Halon opened that needs attention, with why and Fix it, in the thread of the chat or run it came
+  # from. notice is a CodeAgentSession::Notice.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_pull_request_notice(channel_id:, thread_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same to whoever asked for the change, for a chat with no thread. conversation_id is the dashboard chat, which
+  # the message offers to open.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_pull_request_notice_to_user(user_id:, notice:, conversation_id: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once Fix it was pressed or the pull request moved on.
+  # @return [Hash] { success: true }
+  def update_pull_request_notice(channel_id:, message_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Whether a conversation's channel is a direct one with a single person, where a message to that person would land
   # twice.
   # @return [Boolean]

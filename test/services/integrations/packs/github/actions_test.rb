@@ -55,6 +55,22 @@ module Integrations
           assert_includes text_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "branch" => "main", "limit" => 5 })), "No runs of GitHub Actions in acme/web"
         end
 
+        test "one run read by its id carries each job, a failed one with the step it failed at and how its log is read" do
+          running = history_run(41, "Release", "in_progress", nil, "2026-10-01T09:00:00Z", "2026-10-01T09:01:00Z").merge("id" => 41)
+          GithubApp.expects(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(running)
+          GithubApp.expects(:get).with("/repos/acme/web/actions/runs/41/jobs?filter=latest&per_page=100", token: "ghs_token")
+                   .returns("jobs" => [ job(8, "success"), job(9, "failure"), job(10, nil).merge("status" => "in_progress", "completed_at" => nil) ])
+
+          run = Capabilities::History.runs_of(@pack.ci_runs(environment_row: @row, arguments: { "repo" => "acme/web", "run" => "41" })).sole
+
+          assert_equal [ "41", Capabilities::History::RUNNING ], [ run.id, run.status ]
+          assert_equal %w[succeeded failed running], run.parts.map(&:status)
+          failed = run.first_failed_part
+          assert_equal [ "9", "at Run specs", 65 ], [ failed.id, failed.detail, failed.seconds ]
+          assert_equal({ "tool" => "job_log", "arguments" => { "repo" => "acme/web", "job_id" => 9 } }, failed.log)
+          assert_nil run.parts.last.finished_at
+        end
+
         test "a run's jobs name the steps that failed, and link to the run" do
           GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41", token: "ghs_token").returns(workflow_run(41, "CI", "failure"))
           GithubApp.stubs(:get).with("/repos/acme/web/actions/runs/41/jobs?filter=latest&per_page=100", token: "ghs_token").returns("jobs" => [ job(9, "failure"), job(8, "success") ])

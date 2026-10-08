@@ -5,20 +5,29 @@ class Conversation::Runner
   # What the model is told for a tool it asked for and never got, so the chat stays one a provider accepts.
   STOPPED_BEFORE_RUNNING = "Not run. The person stopped this answer first.".freeze
 
-  # held_call is an approved call someone pressed Run on, which this turn runs first.
-  def initialize(conversation, asker:, held_call: nil)
+  # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
+  # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
+  # someone pressed Fix it on, whose code change this turn runs first.
+  def initialize(conversation, asker:, held_call: nil, handed_back: nil, pull_request_fix: nil)
     @conversation = conversation
-    @turn = Conversation::Turn.new(conversation, asker: asker)
+    @turn = Conversation::Turn.new(conversation, asker: asker, reads_only: handed_back.present?)
     @held_call = held_call
+    @handed_back = handed_back
+    @pull_request_fix = pull_request_fix
   end
 
   def run
     @marked = Time.current
     chat = @conversation.chat_record
+    # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, where its line is told.
+    return nil if @handed_back && !room_for_a_note?(chat)
+
     chat.discard_interrupted_reply!
     withdraw(chat.close_unfinished_calls!)
     take_queued(chat)
     run_held_call(chat) if @held_call
+    run_pull_request_fix(chat) if @pull_request_fix
+    chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back
     # The turn before this one already answered what this job was queued for.
     if answered_already?(chat)
       @conversation.reply_delivered!
@@ -123,7 +132,8 @@ class Conversation::Runner
   end
 
   # Held calls that ended since Halon last looked, so it never says one is still waiting, or that one ran when it did not.
-  # What its watches said since, so it never repeats a milestone or says one is still going after it ended.
+  # What its watches said since, so it never repeats a milestone or says one is still going after it ended. And that a
+  # result the last turn read saying something could not be used may be out of date, so a refusal is checked again.
   def tell_held_outcomes(chat)
     return unless room_for_a_note?(chat)
 
@@ -131,6 +141,16 @@ class Conversation::Runner
     chat.nudge!(note) if note
     watched = Conversation::Watches.untold_note(chat)
     chat.nudge!(watched) if watched
+    noticed = PullRequestFollowing.untold_note(@conversation)
+    chat.nudge!(noticed) if noticed
+    stale = Chat::StaleRefusals.note(chat)
+    chat.nudge!(stale) if stale
+  end
+
+  # The person said yes with Fix it, so the code change runs before Halon answers, and Halon reads what it said.
+  def run_pull_request_fix(chat)
+    said = PullRequestFollowing.run_fix!(@turn, @pull_request_fix)
+    chat.nudge!(PullRequestFollowing.fixed_note(@pull_request_fix, said)) if room_for_a_note?(chat)
   end
 
   # A provider refuses anything between a call and its result, so nothing is said while a call waits for the person.

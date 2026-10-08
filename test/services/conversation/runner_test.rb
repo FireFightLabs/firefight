@@ -46,6 +46,65 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     stub_agent_session
   end
 
+  test "a watch step handed back starts a turn that only reads, told what it could not find and why the person wanted it" do
+    personal_chat
+    @conversation.ask!("watch the release")
+    fake(reply: "Done.").tap { Conversation::Runner.new(@conversation, asker: @conversation.started_by).run }
+    watch = Chat::Watch.create!(chat: @conversation.chat, workspace: @workspace, asker: @conversation.started_by, title: "the release",
+                                purpose: "ship main", expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
+    step = watch.steps.create!(position: 0, label: "Northflank release", capability: Integrations::Capabilities::HISTORY, arguments: { "resource" => "firefight" })
+    responder = fake(reply: "I am now following the release run through its own page.")
+    Conversation::Tools.expects(:for).with { |turn, **| turn.reads_only? }.returns([])
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by, handed_back: step).run
+
+    note = @conversation.chat.messages.where(nudge: true).reorder(:created_at).last
+    assert_match "could not follow Northflank release", note.content
+    assert_match "It was started for: ship main", note.content
+    assert_equal 1, responder.calls.size
+  end
+
+  test "a hand back waits while the person is asked to confirm something, so their question is never withdrawn" do
+    personal_chat
+    @conversation.chat_record
+    Chat.any_instance.stubs(:calls_in_play).returns(stub(where: stub(none?: false)))
+    responder = fake(reply: "no")
+
+    assert_nil Conversation::Runner.new(@conversation, asker: @conversation.started_by, handed_back: Chat::Watch::Step.new).run
+    assert_empty responder.calls
+  end
+
+  # Seen in a real chat, told "you do have access", Halon made the same wrong call and gave the same refusal.
+  test "after a turn that said something could not be used, the next message reaches the agent with a note to check again first" do
+    personal_chat
+    said = Chat::Tools::Open.new(Conversation::Turn.new(@conversation, asker: @conversation.started_by), offer: ->(_tools) { })
+                            .call(group: "coding_agents")
+    fake(reply: "No coding agent is connected, so I cannot open the pull request.", during: refused_open_tools(said))
+    ask(@conversation, "open the pull request")
+
+    seen = nil
+    second = fake(reply: "You were right, it is in the Code group.", during: ->(_) { seen = @conversation.chat.reload.sent_messages.last })
+    ask(@conversation.reload, "you do have access, I granted it")
+
+    assert seen.nudge
+    assert_match "your last answer rested on results that said something could not be used", seen.content
+    assert_match "open_tools: Nothing is connected for Coding agents", seen.content
+    assert_match "check again in this turn before you answer", seen.content
+    assert_equal 1, second.calls.size
+  end
+
+  test "a turn whose results said nothing could not be used adds no such note" do
+    personal_chat
+    fake(reply: "Three incidents mention checkout.")
+    ask(@conversation, "what mentions checkout?")
+
+    fake(reply: "And last week, two.")
+    ask(@conversation.reload, "and last week?")
+
+    assert_nil Chat::StaleRefusals.note(@conversation.chat.reload)
+    assert_no_match "could not be used", @conversation.chat.messages.where(nudge: true).map(&:content).join
+  end
+
   test "the agent's reply is posted in the thread it was asked in" do
     fake(reply: "The 14:02 deploy raised the pool size")
     Slack::Client.expects(:stop_stream).with do |arguments|
@@ -584,6 +643,17 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
                                               result: result, failed: true, failure_kind: kind)
       arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: "search_incidents", status: :running, arguments: { "query" => "ember" }))
       arguments[:on_step].call(FirefightAi::AgentLoop::Step.new(key: id, tool: nil, status: :done, arguments: nil))
+    end
+  end
+
+  # An open_tools call the agent made in the turn, saved with what it answered, as RubyLLM keeps one.
+  def refused_open_tools(said)
+    lambda do |_arguments|
+      chat = @conversation.reload.chat
+      asking = chat.add_message(role: :assistant, content: "")
+      result = chat.add_message(role: :tool, content: said)
+      RubyLLM::ActiveRecord::ToolCall.create!(message: asking, tool_call_id: "call_open", name: Chat::Tools::Open.tool_name,
+                                              arguments: { "group" => "coding_agents" }, result: result)
     end
   end
 

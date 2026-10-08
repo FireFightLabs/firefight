@@ -5,6 +5,7 @@ import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
 import { HeldCallCard } from "@/pages/agent/components/held-call-card"
 import { PackRefusalCard } from "@/pages/agent/components/pack-refusal-card"
+import { PullRequestNoticeCard } from "@/pages/agent/components/pull-request-notice-card"
 import { SecretEntryCard } from "@/pages/agent/components/secret-entry-card"
 import { WatchCard } from "@/pages/agent/components/watch-card"
 import { WatchUpdate } from "@/pages/agent/components/watch-update"
@@ -14,7 +15,7 @@ import { MessageAttachments } from "@/pages/agent/components/message-attachments
 import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/pages/agent/lib/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
-  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatSecretEntry, AgentChatWaitingMessage,
+  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage,
   AgentChatWatch, AgentChatWatchUpdate, ChatCompaction,
 } from "@/types/serializers"
 
@@ -28,12 +29,13 @@ interface ThreadProps {
   secretEntries: AgentChatSecretEntry[]
   watches: AgentChatWatch[]
   watchUpdates: AgentChatWatchUpdate[]
+  pullRequestNotices: AgentChatPullRequestNotice[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
 export function Thread({
-  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, waiting, stream,
+  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
@@ -47,6 +49,8 @@ export function Thread({
   // A watch sits after the answer that started it, and each line it said later sits where it was said.
   const watched = useMemo(() => placeAfterTurns(turns, messages, watches), [ turns, messages, watches ])
   const said = useMemo(() => placeAfterTurns(turns, messages, watchUpdates), [ turns, messages, watchUpdates ])
+  // A pull request Halon opened sits where Halon said it needs attention.
+  const noticed = useMemo(() => placeAfterTurns(turns, messages, pullRequestNotices), [ turns, messages, pullRequestNotices ])
   // Held by id rather than by the message, which the server's copy replaces once it answers.
   const [ openImageId, setOpenImageId ] = useState<string | null>(null)
   const openImage = sentAttachments(turns, waiting).find((attachment) => attachment.id === openImageId) ?? null
@@ -57,7 +61,7 @@ export function Thread({
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
-  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length ])
+  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length ])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
@@ -66,6 +70,7 @@ export function Thread({
         {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
+        {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(BEFORE_ALL_TURNS)} />}
         {turns.map((turn) => (
           <Fragment key={turn.id}>
             <Message turn={turn} onOpenImage={setOpenImageId} />
@@ -73,6 +78,7 @@ export function Thread({
             {conversationId && <PackRefusals conversationId={conversationId} refusals={refused.get(turn.id)} />}
             {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(turn.id)} />}
             {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
+            {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(turn.id)} />}
           </Fragment>
         ))}
         {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
@@ -96,6 +102,10 @@ function HeldCalls({ conversationId, heldCalls }: { conversationId: string; held
 
 function PackRefusals({ conversationId, refusals }: { conversationId: string; refusals: AgentChatPackRefusal[] | undefined }) {
   return refusals?.map((refusal) => <PackRefusalCard key={refusal.id} conversationId={conversationId} refusal={refusal} />)
+}
+
+function PullRequestNotices({ conversationId, notices }: { conversationId: string; notices: AgentChatPullRequestNotice[] | undefined }) {
+  return notices?.map((notice) => <PullRequestNoticeCard key={notice.id} conversationId={conversationId} notice={notice} />)
 }
 
 function SecretEntries({ conversationId, entries }: { conversationId: string; entries: AgentChatSecretEntry[] | undefined }) {

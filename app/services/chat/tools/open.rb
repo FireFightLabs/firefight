@@ -38,7 +38,7 @@ class Chat::Tools::Open < RubyLLM::Tool
         "group" => { "type" => "string", "enum" => views.map(&:key), "description" => "The group to open" },
         "tools" => {
           "type" => "array", "items" => { "type" => "string" },
-          "description" => "Only for a large group that listed its tools first: the names to load"
+          "description" => "Tools to load by name. A large group that listed its tools first loads only these, and a name that sits in another group is loaded from there (optional)"
         }
       },
       "required" => [ "group" ]
@@ -57,15 +57,40 @@ class Chat::Tools::Open < RubyLLM::Tool
   def views = @views ||= Chat::Tools::Groups.for(@agent_run)
 
   def open(key, wanted)
-    view = Chat::Tools::Groups.for(@agent_run).find { |one| one.key == key }
-    return "There is no group called #{key}. The groups are: #{views.map(&:key).join(', ')}." unless view
-    return switched_off(view) if view.state == Chat::Tools::STATE_SWITCHED_OFF
-    return nothing_connected(view) if view.entries.empty?
+    current = Chat::Tools::Groups.for(@agent_run)
+    view = current.find { |one| one.key == key }
+    elsewhere = elsewhere(current, view, wanted)
+    return [ "There is no group called #{key}. The groups are: #{views.map(&:key).join(', ')}.", elsewhere ].compact.join("\n\n") unless view
+    return [ switched_off(view), elsewhere ].compact.join("\n\n") if view.state == Chat::Tools::STATE_SWITCHED_OFF
+    return [ nothing_connected(view), elsewhere ].compact.join("\n\n") if view.entries.empty?
     chosen = chosen_from(view, wanted)
-    return listed_first(view) if chosen.empty?
+    return [ listed_first(view), elsewhere ].compact.join("\n\n") if chosen.empty?
 
     @offer.call(chosen.filter_map(&:tool))
-    [ listing(chosen), idle(view), skills_for(chosen) ].compact.join("\n\n")
+    [ listing(chosen), elsewhere, idle(view), skills_for(chosen), as_read(chosen) ].compact.join("\n\n")
+  end
+
+  # Anything not ready describes the moment it was read, so a person who says they changed it is checked again.
+  def as_read(entries) = (Chat::StaleRefusals::AS_READ if entries.any? { |entry| entry.tool.nil? })
+
+  # Seen in a real chat, Halon opened Coding agents for the code host's own code change tool, read that nothing was
+  # connected there and twice told the person no pull request could be opened. A tool is found by its name in whichever
+  # group holds it, and loaded when whoever acts may use it.
+  def elsewhere(current, view, wanted)
+    names = wanted.uniq - (view ? view.entries.map(&:name) : [])
+    return if names.empty?
+
+    found = current.reject { |one| one.key == view&.key }.flat_map { |one| one.entries.map { |entry| [ entry, one ] } }.index_by { |entry, _| entry.name }
+    ready = names.filter_map { |name| found[name]&.first }.select(&:tool)
+    @offer.call(ready.map(&:tool)) if ready.any?
+    said = names.map do |name|
+      entry, holder = found[name]
+      next "There is no tool called #{name} in any group." unless entry
+      next "#{name} is in the group #{holder.title} (#{holder.key}), so it was loaded from there: #{entry.description} (ready to call)" if entry.tool
+
+      "#{name} is in the group #{holder.title} (#{holder.key}). It exists, but #{STATE_WORDS.fetch(entry.state)}."
+    end
+    [ *said, (Chat::StaleRefusals::AS_READ if ready.size < names.size) ].compact.join("\n")
   end
 
   # A connection with every tool off has nothing to list, so it would go unseen beside the others in its group.
@@ -108,14 +133,18 @@ class Chat::Tools::Open < RubyLLM::Tool
     ].compact.join("\n\n")
   end
 
+  # An empty group says nothing about the others, so it never ends the search for what the person asked.
+  OTHER_GROUPS = "That is only this group. Before telling the person something cannot be done, check whether another group " \
+                 "answers it, and open that one. Say it could not be checked only once no group does.".freeze
+
   def nothing_connected(view)
-    "Nothing is connected for #{view.title} in this workspace. #{view.could_connect.to_sentence} can be connected by an admin. Say this is what you could not check rather than guessing."
+    "Nothing is connected for #{view.title} in this workspace. #{view.could_connect.to_sentence} can be connected by an admin. #{OTHER_GROUPS} #{Chat::StaleRefusals::AS_READ}"
   end
 
   def switched_off(view)
     one = view.connected.one?
     "#{view.connected.to_sentence} #{one ? 'is' : 'are'} connected, but none of #{one ? 'its' : 'their'} tools are switched on. " \
-      "An admin can switch them on under Integrations. Say this is what you could not check rather than guessing."
+      "An admin can switch them on under Integrations. #{OTHER_GROUPS} #{Chat::StaleRefusals::AS_READ}"
   end
 
   def listing(entries)

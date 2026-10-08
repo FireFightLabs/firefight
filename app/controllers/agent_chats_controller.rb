@@ -30,6 +30,8 @@ class AgentChatsController < InertiaController
   # What Halon watches for the open chat, going and ended, and every line the watches said, placed by when they said it.
   PROP_WATCHES = "watches"
   PROP_WATCH_UPDATES = "watchUpdates"
+  # What Halon said about pull requests it opened from this chat that need attention, each with Fix it.
+  PROP_PULL_REQUEST_NOTICES = "pullRequestNotices"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
   PROPS = {
@@ -39,7 +41,8 @@ class AgentChatsController < InertiaController
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
-    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES
+    "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
+    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -52,7 +55,7 @@ class AgentChatsController < InertiaController
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file],
                                              update: %i[update ask_pack fill_secret reveal_secret], delete: %i[destroy]
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   before_action :require_agent!
@@ -64,7 +67,8 @@ class AgentChatsController < InertiaController
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
-      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => []
+      PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
+      PROP_PULL_REQUEST_NOTICES => []
     )
   end
 
@@ -84,7 +88,8 @@ class AgentChatsController < InertiaController
       PROP_SECRET_ENTRIES => AgentChatSecretEntrySerializer.many(conversation.chat&.secret_entries&.includes(:requester, :done_by, tool: :integration) || [],
                                                                  member: current_membership),
       PROP_WATCHES => AgentChatWatchSerializer.many(watches_shown, member: current_membership),
-      PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown)
+      PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown),
+      PROP_PULL_REQUEST_NOTICES => AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership)
     )
   end
 
@@ -165,6 +170,17 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: "Stopped watching #{watch.title}."
   end
 
+  # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
+  def fix_pull_request
+    notice = CodeAgentSession::Notice.find_by(id: params[:notice_id], conversation_id: conversation.id)
+    return redirect_to(agent_chat_path(conversation), alert: "That pull request is no longer in this chat.") unless notice
+
+    blocked = PullRequestFollowing.fix!(notice, by: current_membership)
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    redirect_to agent_chat_path(conversation), notice: "Halon is fixing #{notice.session.pull_request_label}."
+  end
+
   # Asks the workspace admins for the pack a change in this chat was refused for, at most once a day.
   def ask_pack
     refusal = conversation.chat&.pack_refusals&.find_by(id: params[:pack_refusal_id])
@@ -230,6 +246,10 @@ class AgentChatsController < InertiaController
   def watch_updates_shown
     chat = conversation.chat
     chat ? Chat::Watch::Update.joins(:watch).where(chat_watches: { chat_id: chat.id }).includes(:watch).order(:created_at) : []
+  end
+
+  def pull_request_notices_shown
+    CodeAgentSession::Notice.where(conversation_id: conversation.id).includes(:fix_by, session: :principal).order(:created_at)
   end
 
   def pack_refusals_shown

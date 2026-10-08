@@ -14,6 +14,7 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
   AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.HELD_CALLS,
   AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
+  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
@@ -24,6 +25,8 @@ const PACK_REFUSALS = [ AGENT_CHAT_PROPS.PACK_REFUSALS ]
 const SECRET_ENTRIES = [ AGENT_CHAT_PROPS.SECRET_ENTRIES ]
 // A watch starts, says a line or ends on its own, long after the answer, so the chat is told to look.
 const WATCHES = [ AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES ]
+// A pull request Halon opened needs attention long after the answer, or Fix it was pressed, so the chat is told to look.
+const PULL_REQUEST_NOTICES = [ AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
@@ -128,6 +131,10 @@ export function refreshSecretEntries() {
 
 export function refreshWatches() {
   router.reload({ only: WATCHES })
+}
+
+export function refreshPullRequestNotices() {
+  router.reload({ only: PULL_REQUEST_NOTICES })
 }
 
 export function refreshOpenChat() {

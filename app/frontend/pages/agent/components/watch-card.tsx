@@ -56,6 +56,7 @@ export function WatchCard({ conversationId, watch }: WatchCardProps) {
         <IconEye className="mt-0.5 size-4 shrink-0 text-ink-2" />
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-[14px] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{watch.headline}</h3>
+          {watch.purpose && <p className="text-[13px] leading-snug text-ink-2 [overflow-wrap:anywhere]">For: {watch.purpose}</p>}
           {watch.basis && <p className="text-[12.5px] text-ink-3">{watch.basis}</p>}
         </div>
       </div>

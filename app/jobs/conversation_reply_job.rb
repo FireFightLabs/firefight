@@ -4,7 +4,8 @@ class ConversationReplyJob < ApplicationJob
 
   # A second turn would clear away the empty reply RubyLLM saves while the first is working, orphaning its tool results.
   # The lock outlives a dead worker no longer than the page waits on it.
-  limits_concurrency key: ->(conversation_id, _asker_id = nil, _held_call_id = nil) { conversation_id }, duration: Conversation::REPLY_CEILING
+  limits_concurrency key: ->(conversation_id, _asker_id = nil, _held_call_id = nil, _watch_step_id = nil, _pull_request_notice_id = nil) { conversation_id },
+                     duration: Conversation::REPLY_CEILING
 
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, _error|
     say_nothing_came_of_it(job)
@@ -28,12 +29,16 @@ class ConversationReplyJob < ApplicationJob
   end
 
   # A job queued before the asker was passed along falls back to whoever started the conversation. A held call someone
-  # pressed Run on runs at the start of the turn, so it never lands in the middle of another.
-  def perform(conversation_id, asker_id = nil, held_call_id = nil)
+  # pressed Run on runs at the start of the turn, so it never lands in the middle of another. A watch step handed back
+  # to Halon starts a turn of its own that only reads. Fix it pressed on a pull request Halon opened runs its code change
+  # at the start of the turn too.
+  def perform(conversation_id, asker_id = nil, held_call_id = nil, watch_step_id = nil, pull_request_notice_id = nil)
     conversation = Conversation.find(conversation_id)
     asker = conversation.workspace.workspace_memberships.find_by(id: asker_id) || conversation.started_by
     held = conversation.chat&.held_calls&.find_by(id: held_call_id) if held_call_id
-    Conversation::Runner.new(conversation, asker: asker, **{ held_call: held }.compact).run
+    handed_back = Chat::Watch::Step.joins(:watch).find_by(id: watch_step_id, chat_watches: { chat_id: conversation.chat&.id }) if watch_step_id
+    fixing = CodeAgentSession::Notice.find_by(id: pull_request_notice_id, conversation_id: conversation.id) if pull_request_notice_id
+    Conversation::Runner.new(conversation, asker: asker, **{ held_call: held, handed_back: handed_back, pull_request_fix: fixing }.compact).run
     # The next question may read the same code, so the box waits a while before it is let go.
     CodeBoxIdleJob.set(wait: CodeBox::IDLE_AFTER).perform_later(conversation.code_box_key) if CodeBox.live.exists?(key: conversation.code_box_key)
   end

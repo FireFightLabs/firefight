@@ -4,15 +4,18 @@ class Conversation::Turn
 
   delegate :workspace, :incident, :chat, :code_box_key, to: :conversation
 
-  def initialize(conversation, asker:)
+  # reads_only is for a turn nobody asked for in the moment, such as a watch handing back to Halon, which may read and
+  # re-plan but never change anything.
+  def initialize(conversation, asker:, reads_only: false)
     @conversation = conversation
     @asker = asker
+    @reads_only = reads_only
   end
 
   def acting_principal = asker
 
   # A chat may change things, each one confirmed by the person who asked.
-  def reads_only? = false
+  def reads_only? = @reads_only
 
   def changes_memory? = true
 
@@ -90,10 +93,14 @@ class Conversation::Turn
   # what to request and from whom.
   def refusal(action_key)
     pack = Ability::Role.to_ask_for(Ability::Action.lookup(action_key, workspace))
-    return "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it." unless pack
+    unless pack
+      return "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them, and that a workspace admin can grant it. " \
+             "#{Chat::StaleRefusals::AS_READ}"
+    end
 
     [ "Not allowed: #{asker_name} cannot use #{action_key} in this workspace. Tell them they do not have permission for it and that it " \
-      "needs the #{pack.name} pack.", Ability::PackRequest.admins_sentence(workspace), "A card in the chat lets them ask the admins for it." ].compact.join(" ")
+      "needs the #{pack.name} pack.", Ability::PackRequest.admins_sentence(workspace), "A card in the chat lets them ask the admins for it.",
+      Chat::StaleRefusals::AS_READ ].compact.join(" ")
   end
 
   # A change refused for want of a pack leaves a card in the chat with Ask an admin, and a message in its Slack thread

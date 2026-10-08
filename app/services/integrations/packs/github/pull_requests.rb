@@ -17,10 +17,18 @@ module Integrations
         STATE_WORDS = {
           "behind" => "its branch is behind its base, so update_pull_request_branch brings it up to date first",
           "blocked" => "a branch protection rule blocks it, such as a required review or a required check that has not passed",
-          "dirty" => "it conflicts with its base, which a person resolves",
+          "dirty" => "it conflicts with its base. fix_code with this pull_request, asked to merge the base in, resolves the " \
+                     "conflict, so offer that to the person and run it once they agree",
           "draft" => "it is a draft, which a person marks ready for review",
           "unknown" => "GitHub has not worked out yet whether it can merge, so ask again in a moment"
         }.freeze
+        # Halon opened it, so the conflict is Halon's to fix, with the person's yes, rather than a suggestion.
+        OWN_CONFLICT = "it conflicts with its base. Firefight opened it, so fixing it is yours: offer fix_code with this pull_request, " \
+                       "asked to merge the base in and resolve the conflict, and run it once the person agrees".freeze
+        # How long the code host may take to work out whether a pull request can merge after a push, read again meanwhile.
+        SETTLE_TRIES = 5
+        SETTLE_WAIT = 2
+        CHANGES_REQUESTED = "CHANGES_REQUESTED".freeze
         REVIEWS_SHOWN = 20
         COMMENTS_SHOWN = 30
         FILES_SHOWN = 30
@@ -349,7 +357,83 @@ module Integrations
           end
         end
 
+        # A pull request as Integrations::PullRequests reads it: its state, whether it can merge, the checks that failed on
+        # its head and the reviews whose latest word from each reviewer asks for changes. GitHub works out mergeable after
+        # a push, answering null meanwhile, so settle reads it again a few times.
+        def pull_request_status(environment_row, repository:, number:, settle: false)
+          token = GithubApp.installation_token(environment_row)
+          pull = settled_pull(repository, number, token, settle)
+          state = if pull["merged_at"] then Integrations::PullRequests::MERGED
+          elsif pull["state"] == "open" then Integrations::PullRequests::OPEN
+          else Integrations::PullRequests::CLOSED
+          end
+          base = pull.dig("base", "ref")
+          return closed_status(pull, number, state, base) unless state == Integrations::PullRequests::OPEN
+
+          failing, pending = failing_checks(repository, pull.dig("head", "sha"), token)
+          Integrations::PullRequests::Status.new(
+            number: number, url: pull["html_url"], state: state, mergeable: mergeable_of(pull), blocked: blocked_words(pull),
+            head_sha: pull.dig("head", "sha"), base: base, base_sha: pull.dig("base", "sha"), failing_checks: failing, checks_pending: pending,
+            reviews: changes_requested(repository, number, token)
+          )
+        end
+
         private
+
+        def settled_pull(repository, number, token, settle)
+          tries = settle ? SETTLE_TRIES : 1
+          pull = nil
+          tries.times do |attempt|
+            sleep(SETTLE_WAIT) if attempt.positive?
+            pull = GithubApp.get("/repos/#{repository}/pulls/#{number}", token: token)
+            break unless pull["state"] == "open" && pull["mergeable"].nil?
+          end
+          pull
+        end
+
+        def closed_status(pull, number, state, base)
+          Integrations::PullRequests::Status.new(number: number, url: pull["html_url"], state: state, mergeable: Integrations::PullRequests::UNKNOWN,
+                                                 head_sha: pull.dig("head", "sha"), base: base)
+        end
+
+        def mergeable_of(pull)
+          return Integrations::PullRequests::CONFLICTED if pull["mergeable"] == false && pull["mergeable_state"] == "dirty"
+          return Integrations::PullRequests::UNKNOWN if pull["mergeable"].nil?
+          return Integrations::PullRequests::MERGEABLE if pull["mergeable"] && MERGEABLE_STATES.include?(pull["mergeable_state"])
+
+          Integrations::PullRequests::BLOCKED
+        end
+
+        def blocked_words(pull)
+          return STATE_WORDS.fetch("draft") if pull["draft"]
+          return if pull["mergeable"].nil? || MERGEABLE_STATES.include?(pull["mergeable_state"]) || pull["mergeable_state"] == "dirty"
+
+          STATE_WORDS.fetch(pull["mergeable_state"].to_s, "GitHub says #{pull['mergeable_state'] || 'it cannot'}")
+        end
+
+        # Check runs and commit statuses on the head that ended failing, and whether any has not finished.
+        def failing_checks(repository, sha, token)
+          runs = Array(GithubApp.get("/repos/#{repository}/commits/#{sha}/check-runs?filter=latest&per_page=#{Github::Checks::RUNS_SHOWN}", token: token)["check_runs"])
+          failing = runs.select { |run| Github::Checks::FAILING.include?(run["conclusion"]) }
+                        .map { |run| Integrations::PullRequests::Check.new(name: run["name"], url: run["html_url"] || run["details_url"]) }
+          pending = runs.any? { |run| run["status"] != "completed" }
+          statuses = Array(GithubApp.get("/repos/#{repository}/commits/#{sha}/status?per_page=100", token: token)["statuses"])
+          failing += statuses.select { |status| Github::Checks::STATUS_FAILING.include?(status["state"]) }
+                             .map { |status| Integrations::PullRequests::Check.new(name: status["context"], url: status["target_url"]) }
+          [ failing, pending || statuses.any? { |status| status["state"] == "pending" } ]
+        rescue GithubApp::NotPermitted
+          [ failing || [], false ]
+        end
+
+        # The latest review from each reviewer, kept when it asks for changes.
+        def changes_requested(repository, number, token)
+          reviews = Array(GithubApp.get("/repos/#{repository}/pulls/#{number}/reviews?per_page=100", token: token))
+          latest = reviews.select { |review| %w[APPROVED CHANGES_REQUESTED DISMISSED].include?(review["state"]) }.group_by { |review| review.dig("user", "login") }
+                          .transform_values(&:last)
+          latest.values.select { |review| review["state"] == CHANGES_REQUESTED }.map do |review|
+            Integrations::PullRequests::Review.new(id: review["id"].to_s, reviewer: review.dig("user", "login").to_s, body: review["body"].to_s)
+          end
+        end
 
         def pull_target(arguments, environment_row)
           [ repo_argument(arguments), number_argument(arguments), GithubApp.installation_token(environment_row) ]
@@ -394,17 +478,18 @@ module Integrations
             "State: #{state}",
             "Author: #{login_of(pull)}",
             "Branch: #{pull.dig('head', 'ref')} -> #{pull.dig('base', 'ref')}#{" from the fork #{head_repo}" if head_repo && head_repo != repo}, head #{pull.dig('head', 'sha').to_s[0, 12]}",
-            ("Can merge: #{merge_words(pull)}" if pull["state"] == "open"),
+            ("Can merge: #{merge_words(pull, own: CodeAgentSession.opened_pull_request?(integration.workspace, repo, pull['number']))}" if pull["state"] == "open"),
             "Changes: #{pull['changed_files']} files, +#{pull['additions']} -#{pull['deletions']}",
             ("Review requested from #{requested.to_sentence}" if requested.any?),
             ("Labels: #{label_names(pull).join(', ')}" if label_names(pull).any?)
           ].compact.join("\n")
         end
 
-        def merge_words(pull)
+        def merge_words(pull, own: false)
           return "no, #{STATE_WORDS.fetch('draft')}" if pull["draft"]
           return "not known yet, #{STATE_WORDS.fetch('unknown')}" if pull["mergeable"].nil?
           return "yes#{', though a check that is not required fails' if pull['mergeable_state'] == 'unstable'}" if pull["mergeable"] && MERGEABLE_STATES.include?(pull["mergeable_state"])
+          return "no, #{OWN_CONFLICT}" if own && pull["mergeable_state"] == "dirty"
 
           "no, #{STATE_WORDS.fetch(pull['mergeable_state'].to_s, "GitHub says #{pull['mergeable_state'] || 'it cannot'}")}"
         end

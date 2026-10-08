@@ -260,6 +260,123 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
   end
 
+  test "the first job that fails inside a run is said at once with why from its own log, while the run still goes" do
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    answers("ci_runs" => History.result(finished_runs("Release", 7.minutes), what: "repo"))
+    Conversation::Watches.start(@turn, watch_of([ { "label" => "GitHub Release workflow", "capability" => "run_history", "resource" => "firefight",
+                                                     "name" => "Release", "run" => "37831890378" } ],
+                                                 purpose: "get GitHub releases deploying through the Northflank webhook again"))
+    watch = @conversation.chat.watches.sole
+    started = Time.current
+    failed_job = History::Part.new(
+      id: "113499155075", name: "trigger-northflank", status: History::FAILED, started_at: started + 2.seconds, finished_at: started + 6.seconds,
+      url: "https://github.com/acme/firefight/actions/runs/37831890378/job/113499155075", detail: "at Notify Northflank of the release",
+      log: { History::LOG_TOOL => "job_log", History::LOG_ARGUMENTS => { "repo" => "acme/firefight", "job_id" => 113499155075 } }
+    )
+    tagging = History::Part.new(id: "113499083801", name: "tag", status: History::SUCCEEDED, started_at: started, finished_at: started + 30.seconds)
+    running = History::Run.new(id: "37831890378", number: "50", name: "Release", status: History::RUNNING, started_at: started, parts: [ tagging, failed_job ])
+    answers("ci_runs" => History.result([ running ], what: "repo"),
+            "job_log" => { "content" => [ { "type" => "text", "text" => "Notify Northflank of the release\n\"name\" with value \"v0.0.14\" fails to match the required pattern\ncurl: (22) The requested URL returned error: 400" } ] })
+    FirefightAi::WatchJudge.any_instance.expects(:why_failed).once
+                           .with { |what:, evidence:| what.include?("trigger-northflank") && evidence.include?("fails to match the required pattern") }
+                           .returns("Northflank refused the webhook because the name v0.0.14 has dots it does not take.")
+    FirefightAi::WatchJudge.any_instance.expects(:standing).once
+                           .with { |purpose:, happened:| purpose.include?("Northflank webhook") && happened.include?("trigger-northflank failed") }
+                           .returns("The GitHub path is still broken. Next I would change the name the release sends, shall I?")
+
+    2.times { check!(watch) }
+
+    said = watch.updates.reload.sole
+    assert_equal "GitHub Release workflow: trigger-northflank failed at Notify Northflank of the release, 4 seconds in. Northflank refused the webhook " \
+                 "because the name v0.0.14 has dots it does not take. https://github.com/acme/firefight/actions/runs/37831890378/job/113499155075 " \
+                 "The GitHub path is still broken. Next I would change the name the release sends, shall I?", said.text
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
+    assert_equal "trigger-northflank", watch.steps.sole.failed_part
+    assert_match "trigger-northflank failed.", Conversation::Watches::Shown.step_state(watch.steps.sole)
+    invoked = Ability::Invocation.where(workspace: @workspace, action_key: "github.job_log")
+    assert_equal [ AbilityGateway::SOURCE_WATCH ], invoked.map(&:source).uniq
+    assert_match "(for: get GitHub releases deploying through the Northflank webhook again)", Conversation::Watches.untold_note(@conversation.chat)
+  end
+
+  test "a followed run is read by its id, which brings its jobs" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    answers("ci_runs" => History.result([ run_of("46", History::RUNNING, Time.current) ], what: "repo"))
+    check!(watch)
+    Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, **| tool.name == "ci_runs" && arguments["run"] == "run-46" }
+                                .returns(History.result([ run_of("46", History::RUNNING, Time.current).with(parts: []) ], what: "repo"))
+
+    check!(watch)
+  end
+
+  test "a step can read any read tool Halon holds by name, a tool that can change things only with a read" do
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
+    northflank.tools.create!(name: "api_request", description: "Any call to Northflank's API", read_only: false, enabled: true,
+                             params_schema: { "type" => "object", "properties" => { "method" => { "type" => "string" }, "path" => { "type" => "string" } } })
+    Ability::Approval.stubs(:self_approvable_by?).returns(false)
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(true)
+    run = { "content" => [ { "type" => "text", "text" => '{"data":{"id":"90a3ba2f","status":"running"}}' } ] }
+    answers("api_request" => run)
+    step = { "label" => "Northflank release workflow", "tool" => "northflank_api_request",
+             "arguments" => { "method" => "GET", "path" => "workflows/release/runs/90a3ba2f" },
+             "done_when" => '"status":"success"', "failed_when" => '"status":"failure"' }
+
+    refused = Conversation::Watches.start(@turn, watch_of([ step.merge("arguments" => { "method" => "POST", "path" => "workflows/release/runs" }) ], title: "posted"))
+    assert_match "Nothing was started", refused
+    assert_match "only reads, so its method must be GET", refused
+
+    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ step ], title: "the release workflow", purpose: "ship main"))
+    watch = @conversation.chat.watches.sole
+    assert_equal [ Chat::Watch::Step::READ_TOOL, "northflank_api_request" ], [ watch.steps.sole.capability, watch.steps.sole.tool_name ]
+    check!(watch)
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
+
+    answers("api_request" => { "content" => [ { "type" => "text", "text" => '{"data":{"id":"90a3ba2f","status":"failure"}}' } ] })
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
+    check!(watch)
+
+    assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
+    assert_match "Northflank release workflow failed", watch.outcome
+    assert_match "This was for: ship main", watch.outcome
+    calls = Ability::Invocation.where(workspace: @workspace, action_key: "northflank.api_request", decision: Ability::Invocation::DECISION_ALLOW)
+    assert calls.all? { |invocation| invocation.source == AbilityGateway::SOURCE_WATCH }
+    assert calls.any?
+  end
+
+  test "a run that never shows up in its history is handed back to Halon to re-plan, once, while a step before it still goes it waits" do
+    answers("ci_runs" => History.result(finished_runs("release", 7.minutes), what: "repo"),
+            "deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
+    Conversation::Watches.start(@turn, watch_of([ release_step, deploy_step ], purpose: "release main"))
+    watch = @conversation.chat.watches.sole
+    answers("ci_runs" => History.result([ run_of("46", History::RUNNING, Time.current) ], what: "repo"),
+            "deploy_history" => History.result([], what: "web"))
+
+    travel 5.minutes do
+      assert_no_enqueued_jobs(only: ConversationReplyJob) { check!(watch) }
+    end
+
+    answers("ci_runs" => History.result([ run_of("46", History::SUCCEEDED, Time.current, finished: 6.minutes.from_now) ], what: "repo"),
+            "deploy_history" => History.result([], what: "web"))
+    travel 6.minutes do
+      check!(watch)
+    end
+    deploy = watch.steps.find_by!(label: "Web deploy")
+    assert_equal Chat::Watch::Step::STATUS_WAITING, deploy.status
+
+    travel 10.minutes do
+      assert_enqueued_with(job: ConversationReplyJob, args: [ @conversation.id, @alice.id, nil, deploy.id ]) { check!(watch) }
+      assert_no_enqueued_jobs(only: ConversationReplyJob) { check!(watch) }
+    end
+
+    assert_equal Chat::Watch::Step::STATUS_UNFOLLOWABLE, deploy.reload.status
+    assert_includes watch.updates.reload.map(&:text), "I could not find a run of Web deploy in its history after 4 minutes, so I am finding another way to follow it."
+    note = Conversation::Watches.hand_back_note(deploy)
+    assert_match "It was started for: release main", note
+    assert_match "Change nothing in this turn", note
+  end
+
   private
 
   def connect!(provider, name, tools)

@@ -55,6 +55,7 @@ module TypescriptConstants
       Export.new("RUNBOOK_CHOICE_PROPS", SettingsController::RUNBOOK_CHOICE_PROPS, nil),
       Export.new("RUNBOOK_FIELD_KINDS", Chat::Tools::Choices::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("WATCH_STEP_STATUSES", Chat::Watch::Step::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("PULL_REQUEST_NOTICE_STATUSES", CodeAgentSession::Notice::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
       Export.new("WATCH_TONES", Conversation::Watches::TONES.to_h { |tone| [ tone.upcase, tone ] }, nil),
       Export.new("APPROVED_CALL_ACTIONS", {
         "RUN" => Chat::CurrentState::ACTION_RUN, "DISMISS" => Chat::CurrentState::ACTION_DISMISS, "ASK_AGAIN" => Chat::CurrentState::ACTION_ASK_AGAIN
@@ -117,7 +118,8 @@ module TypescriptConstants
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
         "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
         "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL,
-        "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY
+        "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
+        "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
