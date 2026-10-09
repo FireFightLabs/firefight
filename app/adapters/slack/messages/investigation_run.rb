@@ -161,7 +161,11 @@ module Slack
       # The fix in order, each step saying how it gets done and where, then how to tell it worked.
       # An undo is posted on its own once written, to apply the same way as the fix.
       def self.undo(plan:)
-        blocks = [ fix_block(plan, title: "How to undo it") ]
+        blocks = [
+          { type: "section", text: { type: "mrkdwn", text: ":leftwards_arrow_with_hook:  *How to undo it*" } },
+          { type: "divider" },
+          fix_block(plan, title: nil)
+        ]
         blocks << { type: "actions", elements: [ apply_button(plan) ] } if plan.apply_blocked_reason.nil?
         blocks
       end
@@ -182,7 +186,7 @@ module Slack
         hidden = all.size - FIX_STEPS_SHOWN
         more = hidden.positive? ? "\n#{hidden} more #{'step'.pluralize(hidden)} on the run page." : ""
         verify = plan.verify.present? ? "\n_How to tell it worked:_ #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(plan.verify))}" : ""
-        text = "*#{title}*\n#{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(plan.summary))}\n#{steps.join("\n")}#{more}#{verify}"
+        text = "#{"*#{title}*\n" if title}#{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(plan.summary))}\n#{steps.join("\n")}#{more}#{verify}"
         { type: "section", text: { type: "mrkdwn", text: text.truncate(SECTION_TEXT_LIMIT) } }
       end
 

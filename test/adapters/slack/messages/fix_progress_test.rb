@@ -62,7 +62,9 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
 
     undo = @plan.propose_undo!("summary" => "Put it back", "steps" => [ { "kind" => "manual", "description" => "Re-add the rule" } ])
     assert_nil undo_button(@plan.reload)
-    assert_equal "*How to undo it*", Slack::Messages::InvestigationRun.undo(plan: undo).first.dig(:text, :text).lines.first.strip
+    written = Slack::Messages::InvestigationRun.undo(plan: undo)
+    assert_equal [ ":leftwards_arrow_with_hook:  *How to undo it*", "divider" ], [ written.first.dig(:text, :text), written.second[:type] ]
+    assert_not written.third.dig(:text, :text).include?("How to undo it"), "the title is not repeated in the body"
     assert_equal "Apply undo", Slack::Messages::InvestigationRun.undo(plan: undo).last.dig(:elements, 0, :text, :text) if undo.apply_blocked_reason.nil?
     undo.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
     assert Slack::Messages::FixProgress.build(undo.reload).first.dig(:text, :text).start_with?("*Undoing the fix*")
