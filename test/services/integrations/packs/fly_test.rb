@@ -38,6 +38,27 @@ module Integrations
         assert_match "main-db (pg1), Managed Postgres cluster, ready", text
       end
 
+      test "the resources list says when clusters could not be read or the apps were cut short, and never calls a resource missing for it" do
+        FlyApi.any_instance.stubs(:app_list).with("acme")
+              .returns(Integrations::Pages::Read.new(items: [ { "name" => "web", "status" => "deployed", "machine_count" => 2 } ], complete: false))
+        FlyApi.any_instance.stubs(:postgres_clusters).raises(FlyApi::Error, "Fly answered 403: forbidden")
+
+        text = call(:list_resources)
+
+        assert_match "Only the first 1 apps were read.", text
+        assert_match "Managed Postgres clusters could not be read: Fly answered 403: forbidden.", text
+        assert_match "describe_resource", text
+
+        FlyApi.any_instance.stubs(:app).with("far").returns("name" => "far", "status" => "suspended")
+        FlyApi.any_instance.stubs(:machines).with("far").returns([])
+        assert_match "far, app, status suspended", call(:describe_resource, "resource" => "far")
+
+        FlyApi.any_instance.stubs(:app).with("main-db").raises(FlyApi::Error, "Fly answered 404: not found")
+        error = assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "main-db") }
+        assert_equal "Nothing called main-db among the first 1 apps read, and Managed Postgres clusters could not be read: Fly answered 403: forbidden.",
+                     error.message
+      end
+
       test "logs are read from the range's start, kept by text and regex on Firefight's side, newest first, linked to monitoring" do
         started = Time.zone.parse("2026-10-01T10:00:00Z")
         FlyApi.any_instance.expects(:logs).with("web", next_token: (started.to_r * 1_000_000_000).to_i.to_s).returns(
