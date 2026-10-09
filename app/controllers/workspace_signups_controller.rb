@@ -20,7 +20,9 @@ class WorkspaceSignupsController < InertiaController
       nameMaxLength: Workspace::NAME_MAX_LENGTH,
       inviteRequired: InviteCode.required?,
       askName: asks_name?,
-      unconnectedWorkspaces: unconnected_memberships.map { |membership| { id: membership.workspace_id, name: membership.workspace.name } }
+      unconnectedWorkspaces: unconnected_memberships.map do |membership|
+        { id: membership.workspace_id, name: membership.workspace.name, createdAt: membership.workspace.created_at.utc.iso8601 }
+      end
     }
   end
 

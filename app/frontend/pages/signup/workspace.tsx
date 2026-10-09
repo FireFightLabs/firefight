@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginPath, reuseSignupWorkspacePath, signInWithSlackPath, signupWorkspacePath } from "@/lib/routes";
 import { retryWait, TOO_MANY_STATUS } from "@/lib/http";
+import { formatDate, formatTime } from "@/lib/formatters";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
 import type { SharedProps } from "@/types";
@@ -27,6 +28,7 @@ interface SignupWorkspacePageProps extends SharedProps {
 interface UnconnectedWorkspace {
   id: string;
   name: string;
+  createdAt: string;
 }
 
 const LINK_CLASS =
@@ -198,11 +200,14 @@ function ChooseWorkspace({ workspaces, teamName, email, onCreateNew }: ChooseWor
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 w-full cursor-pointer justify-start font-medium"
+                className="h-auto w-full cursor-pointer flex-col items-start gap-0.5 py-2.5 font-medium"
                 disabled={choosingId !== null}
                 onClick={() => choose(workspace.id)}
               >
-                {workspace.name}
+                <span>{workspace.name}</span>
+                <span className="text-xs font-normal text-fg-muted">
+                  Created {formatDate(workspace.createdAt)} at {formatTime(workspace.createdAt)}
+                </span>
               </Button>
             </li>
           ))}

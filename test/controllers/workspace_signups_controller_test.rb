@@ -368,8 +368,10 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
 
     get signup_workspace_path, headers: inertia_headers
     assert_equal "signup/workspace", JSON.parse(response.body)["component"]
-    assert_equal [ { "id" => first.id, "name" => "First Co" }, { "id" => second.id, "name" => "Second Co" } ],
-                 inertia_props["unconnectedWorkspaces"]
+    assert_equal [
+      { "id" => first.id, "name" => "First Co", "createdAt" => first.reload.created_at.utc.iso8601 },
+      { "id" => second.id, "name" => "Second Co", "createdAt" => second.created_at.utc.iso8601 }
+    ], inertia_props["unconnectedWorkspaces"]
 
     assert_no_difference -> { Workspace.count } do
       post signup_workspace_path, params: { name: "Silent Co" }
