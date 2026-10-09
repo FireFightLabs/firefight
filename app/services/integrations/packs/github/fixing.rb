@@ -674,7 +674,7 @@ module Integrations
 
         def proxy_base
           base = ENV["CODE_AGENT_PROXY_URL"].presence
-          base ||= "#{ENV.fetch('APP_PROTOCOL', 'https')}://#{ENV['APP_HOST']}" if ENV["APP_HOST"].present?
+          base ||= AppUrl.root
           base || fail!("Firefight's own address is not set (APP_HOST), so the sandbox cannot reach the model.")
         end
 

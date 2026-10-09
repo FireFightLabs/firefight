@@ -56,10 +56,7 @@ class SearchDocument::Search
       end
     end
 
-    def url
-      host = ENV["APP_HOST"].presence
-      host ? "#{ENV.fetch('APP_PROTOCOL', 'https')}://#{host}#{path}" : path
-    end
+    def url = AppUrl.absolute(path)
   end
 
   # left_out names the types asked for that the reader may not read, so a caller can say so rather than read nothing

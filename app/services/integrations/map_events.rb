@@ -19,10 +19,10 @@ module Integrations
 
     # The connection's own address, or nil while Firefight's own address is not set or the row has none yet.
     def url_for(environment_row)
-      host = ENV["APP_HOST"].presence
-      return unless host && environment_row.map_events_token
+      options = AppUrl.options
+      return unless options && environment_row.map_events_token
 
-      Rails.application.routes.url_helpers.api_v1_map_events_url(environment_row.map_events_token, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+      Rails.application.routes.url_helpers.api_v1_map_events_url(environment_row.map_events_token, **options)
     end
 
     # The secret every delivery to a provider's app wide address is signed with, set by whoever runs Firefight.

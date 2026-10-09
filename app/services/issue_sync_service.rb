@@ -354,8 +354,8 @@ class IssueSyncService
   end
 
   def incident_url(incident)
-    host = ENV["APP_HOST"].presence
-    host && Rails.application.routes.url_helpers.incident_url(incident, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+    options = AppUrl.options
+    options && Rails.application.routes.url_helpers.incident_url(incident, **options)
   end
 
   # The agent lost a grant it needs, which the setting says how to fix.
@@ -366,8 +366,8 @@ class IssueSyncService
   def target_changed?(changes) = changes.to_h.stringify_keys.key?("issue_tracker_target")
 
   def webhook_url
-    host = ENV["APP_HOST"].presence
-    host && Rails.application.routes.url_helpers.api_v1_issue_events_url(@workspace.issue_webhook_token, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+    options = AppUrl.options
+    options && Rails.application.routes.url_helpers.api_v1_issue_events_url(@workspace.issue_webhook_token, **options)
   end
 
   # A connection made with Firefight's own app registers the tracker's webhook itself, replacing one it had. Any other

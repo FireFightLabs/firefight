@@ -29,7 +29,7 @@ class WorkspaceAiAccountNoticeJob < ApplicationJob
   end
 
   def self.settings_link
-    host = ENV["APP_HOST"].presence
-    host && Rails.application.routes.url_helpers.settings_workspace_url(host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+    options = AppUrl.options
+    options && Rails.application.routes.url_helpers.settings_workspace_url(**options)
   end
 end
