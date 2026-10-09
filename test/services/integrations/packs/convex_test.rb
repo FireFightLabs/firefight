@@ -109,6 +109,22 @@ module Integrations
         assert_match "pause_deployment, by a member in the dashboard", text
       end
 
+      test "status never says the deployment runs as usual from an audit log cut short" do
+        ConvexApi.any_instance.stubs(:canonical_urls).returns("convexCloudUrl" => URL)
+        ConvexApi.any_instance.stubs(:audit_log).returns("items" => [ event("push_config", 6.days.ago) ], "pagination" => { "hasMore" => true, "nextCursor" => "more" })
+
+        text = call(:deployment_status, {})
+
+        assert_no_match "running as usual", text
+        assert_match "only the oldest were read, so whether it was paused since is not known", text
+
+        ConvexApi.any_instance.stubs(:audit_log).returns("items" => [ event("pause_deployment", 6.days.ago) ], "pagination" => { "hasMore" => true, "nextCursor" => "more" })
+        text = call(:deployment_status, {})
+
+        assert_match "pause_deployment", text
+        assert_match "only the oldest were read, so whether it was paused since is not known", text
+      end
+
       test "the deployment's environment variables are read in memory for where they point, and a key that may not read them is a gap" do
         ConvexApi.any_instance.stubs(:audit_log).returns("items" => [], "pagination" => { "hasMore" => false })
         ConvexApi.any_instance.stubs(:environment_variables).returns("DATABASE_URL" => "postgres://app:convex-pass@ep-a.neon.tech/app", "OPENAI_MODEL" => "gpt")

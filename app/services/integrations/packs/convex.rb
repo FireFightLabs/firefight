@@ -216,9 +216,10 @@ module Integrations
         [ ResourceMap::Use.read(from: found.key, workspace: ConnectionSettings.of(environment_row).workspace, values: values), [] ]
       rescue Integrations::RateLimited
         [ [], [ ResourceMap::Gap.new(text: "Convex asked Firefight to slow down, so the deployment's settings are read at the next sweep.", kinds: [], settings: true) ] ]
-      rescue ConvexApi::Error
-        [ [], [ ResourceMap::Gap.new(text: "Convex refused the deployment's environment variables, so what they point at is not on the map. " \
-                                           "A deploy key that may read environment variables lets Firefight read them.", kinds: [], settings: true) ] ]
+      rescue ConvexApi::Error => error
+        text = Sentence.join("The deployment's environment variables could not be read", error,
+                             after: "A deploy key that may read environment variables lets Firefight link what they point at")
+        [ [], [ ResourceMap::Gap.new(text: text, kinds: [], settings: true) ] ]
       end
 
       def check_health!(environment_row)
@@ -248,7 +249,6 @@ module Integrations
         name.present? ? Telemetry::Link.new(provider: PROVIDER, url: "#{ConnectionSettings.of(environment_row).site.to_s.chomp('/')}/#{DEPLOYMENT_PAGE}/#{Http.segment(name)}") : nil
       end
 
-
       def identity_line(environment_row, info)
         return "#{deployment_name(environment_row)} is a self-hosted Convex deployment." unless info["kind"] == KIND_CLOUD
 
@@ -274,13 +274,18 @@ module Integrations
         nil
       end
 
+      # The audit log is read oldest first, so one cut short may hide the latest pause and says so.
       def state_lines(api)
-        events, _complete = audit_events(api, STATE_DAYS.days.ago)
+        events, complete = audit_events(api, STATE_DAYS.days.ago)
         changes = events.select { |event| STATE_CHANGES.include?(event["action"]) }.reverse
-        return "No pause, usage limit stop or state change in the last #{STATE_DAYS} days, so it is running as usual." if changes.empty?
+        cut = "The audit log has more than #{AUDIT_PAGES * ConvexApi::AUDIT_PAGE} events in the last #{STATE_DAYS} days and only the oldest " \
+              "were read, so whether it was paused since is not known."
+        if changes.empty?
+          return complete ? "No pause, usage limit stop or state change in the last #{STATE_DAYS} days, so it is running as usual." : cut
+        end
 
         "State changes in the last #{STATE_DAYS} days, newest first. A paused or stopped deployment fails every function call:\n" \
-          "#{changes.map { |event| event_line(event) }.join("\n")}"
+          "#{changes.map { |event| event_line(event) }.join("\n")}#{"\n#{cut}" unless complete}"
       rescue Integrations::RateLimited
         raise
       rescue ConvexApi::Error => error
