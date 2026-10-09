@@ -108,7 +108,7 @@ module Integrations
             ("live deploy #{site.dig('published_deploy', 'state')}" if site["published_deploy"]) ].compact.join(", ")
         end
         cut = read.incomplete? ? " Only the first #{rows.size} were read." : ""
-        Telemetry.result("#{rows.size} Netlify sites.#{cut}\n#{rows.join("\n")}", link: nil)
+        Telemetry.result("#{rows.size} Netlify sites.#{cut} describe_site gives each one's page in Netlify.\n#{rows.join("\n")}", link: nil)
       end
 
       def describe_site(environment_row:, arguments:)

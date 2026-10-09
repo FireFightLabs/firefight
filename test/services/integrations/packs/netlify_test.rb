@@ -37,6 +37,14 @@ module Integrations
         assert_raises(Integrations::Error) { @pack.send(:find_site, @row, "nowhere") }
       end
 
+      test "the site list says when it was cut short and where each site's page comes from" do
+        NetlifyApi.any_instance.stubs(:sites).returns(Pages::Read.new(items: [ SITE ], complete: false))
+
+        text = @pack.call("list_sites", environment_row: @row, arguments: {})["content"].sole["text"]
+
+        assert_match "1 Netlify sites. Only the first 1 were read. describe_site gives each one's page in Netlify.", text
+      end
+
       test "a wrong token is said on the form before anything is saved" do
         NetlifyApi.any_instance.stubs(:user).raises(NetlifyApi::Error, "Netlify answered 401: Access Denied")
 
