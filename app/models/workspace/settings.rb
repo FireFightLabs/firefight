@@ -25,7 +25,10 @@ module Workspace::Settings
 
   # A write-only setting left empty keeps what is saved, since the page never has it to send back.
   def update_settings!(changes)
-    given = changes.to_h.symbolize_keys.slice(*KEYS)
-    update!(given.reject { |key, value| WRITE_ONLY.include?(key) && value.blank? })
+    given = changes.to_h.symbolize_keys.slice(*KEYS).reject { |key, value| WRITE_ONLY.include?(key) && value.blank? }
+    transaction do
+      update!(given.except(*WRITE_ONLY))
+      save_issue_webhook_secret!(given[:issue_webhook_secret]) if given.key?(:issue_webhook_secret)
+    end
   end
 end

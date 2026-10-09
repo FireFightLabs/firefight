@@ -3,6 +3,7 @@
 class IntegrationEnvironment < ApplicationRecord
   include IntegrationEnvironment::LiveUpdates
   include IntegrationEnvironment::AppInstallation
+  include IntegrationEnvironment::IssueWebhook
 
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"

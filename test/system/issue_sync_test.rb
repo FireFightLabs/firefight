@@ -35,7 +35,7 @@ class IssueSyncTest < ApplicationSystemTestCase
     assert_no_text "do not reach Firefight until"
     page.scroll_to(find("#issue-webhook-secret"), align: :center)
     assert_equal [ "linear", Workspace::IssueSync::ISSUE_CREATION_FOLLOW_UPS, { "team" => "ENG" }, "lin_wh_secret" ],
-                 [ @workspace.reload.issue_tracker, @workspace.issue_creation, @workspace.issue_tracker_target, @workspace.issue_webhook_secret ]
+                 [ @workspace.reload.issue_tracker, @workspace.issue_creation, @workspace.issue_tracker_target, @workspace.issue_webhook_row.issue_webhook_secret ]
     page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-setting-saved.png"))
   end
 
@@ -140,7 +140,7 @@ class IssueSyncTest < ApplicationSystemTestCase
 
     assert_text "Firefight registered the tracker's webhook itself"
     assert_no_field "issue-webhook-secret"
-    assert_equal "wh-1", @workspace.reload.issue_webhook_id
+    assert_equal "wh-1", @workspace.reload.issue_webhook_row.issue_webhook_id
     page.scroll_to(find("#issue-tracker"), align: :center)
     page.save_screenshot(Rails.root.join("tmp/screenshots/issue-sync-setting-registered.png"))
   ensure
