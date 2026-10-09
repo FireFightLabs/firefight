@@ -18,13 +18,14 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { resendWorkspaceInvitationPath, workspaceInvitationPath } from "@/lib/routes"
 import type { WorkspaceInvitation } from "@/types/serializers"
-import { TOO_MANY_MESSAGE, TOO_MANY_STATUS } from "@/pages/settings/lib/invitations"
+import { TOO_MANY_STATUS } from "@/lib/http"
+import { tooManyInvitationsMessage } from "@/pages/settings/lib/invitations"
 
 function refuseThrottled(response: HttpResponse) {
   if (response.status !== TOO_MANY_STATUS) {
     return
   }
-  toast.error(TOO_MANY_MESSAGE)
+  toast.error(tooManyInvitationsMessage(response))
   return false
 }
 

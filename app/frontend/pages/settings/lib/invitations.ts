@@ -1,3 +1,8 @@
+import type { HttpResponse } from "@inertiajs/core"
+
+import { retryWait } from "@/lib/http"
+
 // The network throttle answers an invitation with a plain page, which a visit would otherwise open over Settings.
-export const TOO_MANY_STATUS = 429
-export const TOO_MANY_MESSAGE = "Too many invitations were sent from this network. Try again later."
+export function tooManyInvitationsMessage(response: HttpResponse): string {
+  return `Too many invitations were sent from this network. Try again ${retryWait(response)}.`
+}

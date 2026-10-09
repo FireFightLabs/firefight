@@ -30,6 +30,8 @@ export function postJson<T>(path: string, body?: unknown, init: Omit<JsonRequest
   return requestJson<T>(path, { ...init, method: "POST", body })
 }
 
+export const TOO_MANY_STATUS = 429
+
 const HOUR_SECONDS = 3600
 
 // "in an hour" or "in a minute", from the Retry-After a throttled answer carries, so the page never restates the throttle.

@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { emailSignInPath } from "@/lib/routes";
+import { TOO_MANY_STATUS } from "@/lib/http";
 
-const TOO_MANY_STATUS = 429;
 const TOO_MANY_MESSAGE = "Too many sign-in links were asked for. Wait a little, then try again.";
 
 export function EmailSignInForm() {
