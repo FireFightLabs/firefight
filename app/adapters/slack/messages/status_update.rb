@@ -23,20 +23,11 @@ module Slack
         end
 
         blocks << { type: "divider" }
-        body_sections(message).each { |text| blocks << { type: "section", text: { type: "mrkdwn", text: text } } } if message.present?
+        Formatting.body_sections(message).each { |text| blocks << { type: "section", text: { type: "mrkdwn", text: text } } } if message.present?
         blocks << { type: "section", text: { type: "mrkdwn", text: field_lines.join("  ·  ") } }
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: context_text(incident, updated_by_platform_user_id, updated_by_name) } ] }
 
         blocks
-      end
-
-      # Quoting adds two characters a line, so a long update runs on into another section rather than failing the post.
-      def self.body_sections(message)
-        sections = Formatting.quoted_markdown(message).each_line.each_with_object([ +"" ]) do |line, built|
-          built << +"" if built.last.present? && built.last.length + line.length > Formatting::SECTION_TEXT_LIMIT
-          built.last << line
-        end
-        sections.map { |section| section.chomp.truncate(Formatting::SECTION_TEXT_LIMIT) }
       end
 
       def self.context_text(incident, updated_by_platform_user_id, updated_by_name = nil)
