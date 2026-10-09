@@ -64,6 +64,27 @@ module Integrations
     # How often a change log is read unless the source says otherwise.
     POLL_EVERY = 5.minutes
 
+    # Standard Webhooks (standardwebhooks.com, the spec's Verifying webhooks): each signature in webhook-signature is a
+    # version and a base64 HMAC-SHA256 of "<id>.<timestamp>.<body>", and a delivery is refused when its timestamp is
+    # further from now than tolerance. key is the signing key as bytes, which each provider reads from its secret its way.
+    STANDARD_ID_HEADER = "webhook-id".freeze
+    STANDARD_TIMESTAMP_HEADER = "webhook-timestamp".freeze
+    STANDARD_SIGNATURE_HEADER = "webhook-signature".freeze
+    STANDARD_SIGNATURE_VERSION = "v1".freeze
+
+    def self.standard_webhook?(raw_body:, headers:, key:, tolerance:)
+      id = headers[STANDARD_ID_HEADER].to_s
+      stamp = headers[STANDARD_TIMESTAMP_HEADER].to_s
+      return false if key.blank? || id.empty? || !stamp.match?(/\A\d+\z/)
+      return false if (Time.current.to_i - stamp.to_i).abs > tolerance
+
+      expected = Base64.strict_encode64(OpenSSL::HMAC.digest("SHA256", key, "#{id}.#{stamp}.#{raw_body}"))
+      headers[STANDARD_SIGNATURE_HEADER].to_s.split.any? do |entry|
+        version, signature = entry.split(",", 2)
+        version == STANDARD_SIGNATURE_VERSION && signature.present? && ActiveSupport::SecurityUtils.secure_compare(signature, expected)
+      end
+    end
+
     # What one read of a change log found, and where the next read starts. error is why a part of it could not be read,
     # such as one project of several, while the rest was.
     Polled = Data.define(:events, :cursor, :error) do
