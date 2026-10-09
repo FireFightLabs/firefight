@@ -15,16 +15,19 @@ module FirefightAi
     end
 
     # A verdict for each known fact the model judged same or contradicts. A known fact it left out, or gave a verdict it
-    # does not know, is unrelated, so a doubtful answer never stops a fact being saved.
+    # does not know, is unrelated, so a doubtful answer never stops a fact being saved. Any failure, choosing the model
+    # included, is raised as a FirefightAi::Error.
     def verdicts(fact:, known:)
       return [] if known.empty?
 
       numbered = known.each_with_index.to_h { |each, index| [ index + 1, each ] }
       listed = numbered.map { |number, each| "#{number}. #{each.text}" }.join("\n")
-      response, = FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context) do |chat|
-        chat.with_instructions(PROMPT)
-        chat.with_schema(Schemas::MemoryVerdicts)
-        chat.ask("## The new fact\n#{fact}\n\n## Already remembered\n#{listed}")
+      response, = FirefightAi.translating_errors do
+        FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context) do |chat|
+          chat.with_instructions(PROMPT)
+          chat.with_schema(Schemas::MemoryVerdicts)
+          chat.ask("## The new fact\n#{fact}\n\n## Already remembered\n#{listed}")
+        end
       end
       Array(parsed(response)[:verdicts]).filter_map do |each|
         each = each.to_h.with_indifferent_access
@@ -32,6 +35,8 @@ module FirefightAi
         verdict = each[:verdict].presence_in(Schemas::MemoryVerdicts::VERDICTS)
         Verdict.new(id: judged.id, verdict: verdict) if judged && verdict && verdict != Schemas::MemoryVerdicts::UNRELATED
       end
+    rescue RubyLLM::Error, RubyLLM::ConfigurationError => error
+      raise TerminalError.new(error.message, reason: error.class.name.demodulize)
     end
 
     PROMPT = <<~PROMPT.freeze

@@ -79,8 +79,6 @@ class Chat::Memory < ApplicationRecord
   JUDGED_LIMIT = 30
   # Judged against a new fact. A disputed memory already waits on a person, so it is left alone.
   JUDGED_STATES = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED, STATE_EXPIRED, STATE_REJECTED ].freeze
-  # A judge that fails with one of these is read as having judged nothing.
-  JUDGE_ERRORS = [ FirefightAi::Error, RubyLLM::Error, RubyLLM::ConfigurationError ].freeze
   # What a new fact may dispute.
   CONTRADICTABLE_FROM = [ STATE_UNCONFIRMED, STATE_CONFIRMED, STATE_OUTDATED ].freeze
 
@@ -225,7 +223,7 @@ class Chat::Memory < ApplicationRecord
 
     known = memories.map { |memory| FirefightAi::MemoryJudge::Known.new(id: memory.id, text: memory.text) }
     judge.verdicts(fact: text, known: known).to_h { |verdict| [ verdict.id, verdict.verdict ] }
-  rescue *JUDGE_ERRORS => error
+  rescue FirefightAi::Error => error
     Rails.logger.info({ event: "memory.judge_failed", workspace_id: memories.first.workspace_id, error: error.class.name }.to_json)
     {}
   end
@@ -411,8 +409,8 @@ class Chat::Memory < ApplicationRecord
 
   # A person saying it is wrong, or a postmortem nobody signed off when by is nil. Kept as rejected with who and why,
   # and a correction replaces it as confirmed by them.
-  # A memory a newer one contradicted is settled with it: a person saying it is not right takes the newer one as
-  # what is right, confirmed by them, and a correction replaces both.
+  # A memory a newer one contradicted is settled with it. A person saying it is not right takes the newer one as what
+  # is right, confirmed by them, and a correction replaces both.
   def reject!(by:, reason:, correction: nil, postmortem: nil)
     transaction do
       if !decide!(STATE_REJECTED, from: REJECTABLE_FROM, state_reason: reason.presence, rejected_by_id: by&.id, rejected_at: Time.current,

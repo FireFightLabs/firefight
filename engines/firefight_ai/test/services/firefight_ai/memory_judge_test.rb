@@ -27,6 +27,16 @@ class FirefightAi::MemoryJudgeTest < ActiveSupport::TestCase
     assert_empty @judge.verdicts(fact: "web deploys from main", known: [])
   end
 
+  test "a model that fails, or one that cannot be chosen, is raised as a FirefightAi error" do
+    chat = stub_model(content: {})
+    chat.stubs(:ask).raises(RubyLLM::Error.new("the provider failed"))
+    assert_raises(FirefightAi::Error) { @judge.verdicts(fact: "web deploys from main", known: @known) }
+
+    FirefightAi.stubs(:model_for).raises(RubyLLM::ConfigurationError, "no key")
+    error = assert_raises(FirefightAi::TerminalError) { FirefightAi::MemoryJudge.new(workspaces(:slack_workspace_one)).verdicts(fact: "web deploys from main", known: @known) }
+    assert_equal "ConfigurationError", error.reason
+  end
+
   private
 
   def stub_model(content:)
