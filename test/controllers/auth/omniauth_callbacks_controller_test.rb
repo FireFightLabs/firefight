@@ -218,10 +218,17 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "failure with access_denied redirects with denial alert" do
-    get "/auth/failure?message=access_denied"
+    get "/auth/failure?message=access_denied&strategy=slack_openid"
 
     assert_redirected_to login_path
     assert_equal "You denied access to your Slack account.", flash[:alert]
+  end
+
+  test "cancelling at Google names Google, not Slack" do
+    get "/auth/failure?message=access_denied&strategy=google_oauth2"
+
+    assert_redirected_to login_path
+    assert_equal "You denied access to your Google account.", flash[:alert]
   end
 
   test "failure with invalid_credentials redirects with support alert" do
