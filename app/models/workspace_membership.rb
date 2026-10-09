@@ -175,6 +175,8 @@ class WorkspaceMembership < ApplicationRecord
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }
   scope :admins, -> { where(role: :admin) }
+  # Whoever runs the workspace: who gives packs, approves by role and is told about its AI accounts.
+  scope :admins_and_owners, -> { where(role: %i[admin owner]) }
   scope :members, -> { where(role: :member) }
 
   # Never provisions, creating a member is billable and belongs to a deliberate flow.

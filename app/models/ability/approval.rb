@@ -163,7 +163,7 @@ module Ability
 
       case required_role
       when WorkspaceMembership.roles[:owner] then workspace.workspace_memberships.where(role: WorkspaceMembership.roles[:owner])
-      else workspace.workspace_memberships.where(role: [ WorkspaceMembership.roles[:admin], WorkspaceMembership.roles[:owner] ])
+      else workspace.workspace_memberships.admins_and_owners
       end
     end
 

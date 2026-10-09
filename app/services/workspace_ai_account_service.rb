@@ -49,7 +49,34 @@ class WorkspaceAiAccountService
     Result.new(account: account.check_failed!(e), error: account.last_error)
   end
 
+  # A direct message to each admin and owner, through the workspace's platform, saying which account stopped and what
+  # Halon does now.
+  def notify_admins!(account, notice)
+    text = notice_text(account, notice)
+    adapter = WorkspaceAdapter.for(@workspace)
+    @workspace.workspace_memberships.admins_and_owners.where.not(platform_user_id: nil).find_each do |admin|
+      adapter.post_direct_message(user_id: admin.platform_user_id, text: text)
+    rescue AdapterError => e
+      Rails.logger.warn({ event: "ai_account.notice_failed", account_id: account.id, error: e.class.name }.to_json)
+    end
+    Rails.logger.info({ event: "ai_account.noticed", account_id: account.id, notice: notice }.to_json)
+  end
+
+  def notice_text(account, notice)
+    what = notice == WorkspaceAiAccount::NOTICE_KEY_REFUSED ? "had its key refused" : "ran out of credit"
+    following = AiFunding.for(@workspace, AiPurpose::INVESTIGATION).any?
+    next_step = following ? "Halon is using the next one in the list." : "Halon has no other account to use, so it cannot answer until this is fixed."
+    link = settings_link
+    where = link ? "Fix it under Settings, Workspace, AI accounts: #{link}" : "Fix it under Settings, Workspace, AI accounts."
+    "Halon's AI account \"#{account.label}\" #{what}. #{next_step} #{where}"
+  end
+
   private
+
+  def settings_link
+    options = AppUrl.options
+    options && Rails.application.routes.url_helpers.settings_workspace_url(**options)
+  end
 
   # The address as written was checked when the account was validated, which also says why a private one is refused.
   # Where private networks are refused, the name must also resolve to an address every call may reach, checked the

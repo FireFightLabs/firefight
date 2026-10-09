@@ -89,7 +89,7 @@ module Ability
     end
 
     # The people who can give a pack, by name, for a refusal to point at.
-    def self.admins_of(workspace) = workspace.workspace_memberships.where(role: %i[admin owner]).includes(:user).order(:created_at)
+    def self.admins_of(workspace) = workspace.workspace_memberships.admins_and_owners.includes(:user).order(:created_at)
 
     def self.admin_names(workspace) = admins_of(workspace).map(&:display_name).to_sentence(two_words_connector: " or ", last_word_connector: " or ")
 
