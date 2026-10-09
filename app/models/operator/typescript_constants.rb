@@ -24,7 +24,7 @@ module Operator
       }
     end
 
-    def self.render
+    def self.source
       exports.each_with_object(::TypescriptConstants::HEADER.dup) do |(name, value), out|
         out << "\nexport const #{name} = #{JSON.pretty_generate(value)} as const\n"
       end
@@ -32,11 +32,11 @@ module Operator
 
     def self.write!
       OUTPUT.dirname.mkpath
-      OUTPUT.write(render)
+      OUTPUT.write(source)
     end
 
     def self.current?
-      OUTPUT.exist? && OUTPUT.read == render
+      OUTPUT.exist? && OUTPUT.read == source
     end
   end
 end
