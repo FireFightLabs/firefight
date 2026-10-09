@@ -42,7 +42,7 @@ class Investigation::RemediationPlanTest < ActiveSupport::TestCase
                                   first_seen_at: Time.current, last_seen_at: Time.current)
 
     checked = Investigation::RemediationPlan.check!(@workspace, { "summary" => "Roll api back", "steps" => [
-      { "kind" => "action", "description" => "Put api back on the last good version", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "ver-8" } }
+      { "kind" => "action", "description" => "Put api back on the last good version", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "8a0c5e2f-3b1d-4c6e-9f7a-2d4b6c8e0a1f" } }
     ] }, principal: map_reader)
 
     step = checked.steps.sole

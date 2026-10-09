@@ -75,7 +75,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     @plan.destroy!
     finding = @investigation.reload.finding
     Investigation::RemediationPlan.propose!(finding, { "summary" => "Roll api back", "steps" => [
-      { "kind" => "action", "description" => "Put api back on version 8", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "ver-8" } }
+      { "kind" => "action", "description" => "Put api back on version 8", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "8a0c5e2f-3b1d-4c6e-9f7a-2d4b6c8e0a1f" } }
     ] })
     plan = finding.reload.remediation_plan
     Integrations::McpExecutor.expects(:call).with { |tool:, arguments:, **| tool == @execute && arguments["code"].include?("/accounts/acc1/workers/scripts/api/deployments") }

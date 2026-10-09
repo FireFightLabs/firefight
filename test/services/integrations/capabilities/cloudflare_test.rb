@@ -62,10 +62,20 @@ class Integrations::Capabilities::CloudflareTest < ActiveSupport::TestCase
     assert_match "version ver-9 at 100%", answer.dig("content", 0, "text")
     assert_match "rollback takes a version id", answer.dig("content", 0, "text")
 
-    worker = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "api-worker", "to" => "ver-8")
-    assert_equal [ { "version_id" => "ver-8", "percentage" => 100 } ], request_of(worker).dig("body", "versions")
-    site = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "docs", "to" => "dep-3")
-    assert_equal "/accounts/#{ACCOUNT}/pages/projects/docs/deployments/dep-3/rollback", request_of(site)["path"]
+    version = "5f9e1a2b-0c3d-4e5f-8a9b-0c1d2e3f4a5b"
+    worker = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "api-worker", "to" => version)
+    assert_equal [ { "version_id" => version, "percentage" => 100 } ], request_of(worker).dig("body", "versions")
+    deployment = "f64788e9-fccd-4d4a-a28a-cb84f88f6a1c"
+    site = resolve(Integrations::Capabilities::ROLLBACK, "resource" => "docs", "to" => deployment)
+    assert_equal "/accounts/#{ACCOUNT}/pages/projects/docs/deployments/#{deployment}/rollback", request_of(site)["path"]
+  end
+
+  test "a rollback target that is not an id is refused, so it can never reach another endpoint" do
+    escape = "x/../../../../../zones/z-1/purge_cache?"
+    [ "api-worker", "docs" ].each do |resource|
+      refusal = assert_raises(Integrations::Capabilities::Unroutable) { resolve(Integrations::Capabilities::ROLLBACK, "resource" => resource, "to" => escape) }
+      assert_match "recent_deploys", refusal.message
+    end
   end
 
   test "the same request reads the same each time, so a replay matches it, and a failed answer is thrown as an error" do
