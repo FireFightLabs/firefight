@@ -22,7 +22,5 @@ class Chat::MemoryPost < ApplicationRecord
     memory_ids.filter_map { |id| found[id] }
   end
 
-  def shows?(memory) = memory_ids.include?(memory.id)
-
   def posted!(message_id) = update!(message_id: message_id)
 end
