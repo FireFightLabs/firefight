@@ -167,13 +167,23 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     watch = @conversation.chat.watches.sole
     extend_watch = Conversation::Tools::ExtendWatch.new(@turn)
 
-    assert_match "now watched for up to 1 hr 30 min", extend_watch.call(watch: watch.id, minutes: 90)
+    assert_match "now watched for up to 1 hr 30 min", extend_watch.call(**{ "watch" => watch.id, "minutes" => 90 })
     assert_equal [ watch.created_at + 90.minutes, Chat::Watch::BASIS_ASKED ], [ watch.reload.expires_at, watch.limit_basis ]
-    extend_watch.call(watch: watch.id, minutes: 5000)
+    assert_equal "Say how many minutes, more than the 90 it has now.", extend_watch.call(**{ "watch" => watch.id, "minutes" => 30 })
+    assert_equal watch.created_at + 90.minutes, watch.reload.expires_at
+    extend_watch.call(**{ "watch" => watch.id, "minutes" => 5000 })
     assert_equal watch.created_at + 24.hours, watch.reload.expires_at
 
     Conversation::Watches.stop!(watch, by: @alice)
-    assert_equal Chat::Watch::NOTHING_TO_STOP, extend_watch.call(watch: watch.id, minutes: 120)
+    assert_equal Chat::Watch::NOTHING_TO_STOP, extend_watch.call(**{ "watch" => watch.id, "minutes" => 2000 })
+  end
+
+  test "stop_watch stops the watch it is named by, the way the model calls it" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+
+    assert_match "Stopped watching", Conversation::Tools::StopWatch.new(@turn).call(**{ "watch" => watch.id })
+    assert_equal Chat::Watch::STATUS_STOPPED, watch.reload.status
   end
 
   test "a check another worker holds is left alone, a claim a dead worker left lapses, and a milestone is claimed once" do
