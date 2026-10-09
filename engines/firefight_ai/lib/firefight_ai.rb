@@ -150,9 +150,8 @@ module FirefightAi
   # The payer is out from this call on, which the app records once, however many calls are refused.
   def refused_for_good(choice, error)
     return unless error.is_a?(RubyLLM::Error)
-    return choice.payer.refused!(error) if choice.own_account?
 
-    AiAccount.ran_out!(choice.provider_name) if Credit.from(error).out_of_credit?
+    configuration.on_refused&.call(choice.payer, choice.provider_name, error)
   end
 
   # A call refused for good is recorded against whoever paid. When the workspace's own account ran dry or refused its

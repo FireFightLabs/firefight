@@ -1,6 +1,8 @@
 require "test_helper"
 
 class FirefightAi::CreditTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   Response = Struct.new(:status, :body, :headers)
 
   # OpenRouter's documented error shape, with the words it said in dev when the balance was $0.07.
@@ -132,6 +134,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     assert_equal 1, calls
     assert_equal 1, Inference.where(workspace: @workspace, feature: "credit_test", error_kind: Inference::ERROR_OUT_OF_CREDIT).count
     assert_equal [ "openai" ], AiAccount.out_of_credit.pluck(:provider)
+    assert_enqueued_with(job: AiAccountAlertJob, args: [ "openai" ])
   end
 
   test "a second refusal after the shorter try is out of credit, never a third call" do
