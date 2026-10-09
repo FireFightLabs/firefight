@@ -276,7 +276,7 @@ module Slack
           thread_ts: parent_message_id
         )
 
-        { message_id: result[:ts], channel_id: result[:channel] }
+        { message_id: result[:ts], channel_id: result[:channel] || channel_id }
       end
     end
 
