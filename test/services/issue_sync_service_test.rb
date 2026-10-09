@@ -365,7 +365,7 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     sync_with!(@workspace, @linear)
     item = linked_item
     tracker_answers("list_users" => json_answer([]), "list_issue_statuses" => json_answer(STATUSES),
-                    "save_issue" => error_answer("Entity not found: Issue"))
+                    "save_issue" => error_answer("Entity not found: Issue"), "get_issue" => error_answer("Entity not found: Issue"))
 
     perform_enqueued_jobs { @items.complete_action(action: item, completed_by: @alice) }
 
