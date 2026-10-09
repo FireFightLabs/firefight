@@ -34,8 +34,8 @@ export function ConnectedAgentsCard({ agents }: { agents: ConnectedAgent[] }) {
       <CardHeader>
         <CardTitle>Connected agents</CardTitle>
         <CardDescription className="mt-1">
-          MCP clients you authorized via OAuth (Claude Code, claude.ai, …). They read as you; revoking
-          disconnects them immediately.
+          MCP clients you authorized with OAuth, such as Claude Code or claude.ai. They read as you, and
+          revoking one disconnects it immediately.
         </CardDescription>
       </CardHeader>
       <CardContent>
