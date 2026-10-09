@@ -6,11 +6,13 @@ class MapSearchController < InertiaController
   def index
     @web_authorization = AbilityGateway.authorize!(
       principal: current_membership, action_key: Ability::Action::MAP_READ, workspace: current_workspace,
-      params: web_authorization_params, context: { source: AbilityGateway::SOURCE_WEB }
+      params: web_authorization_params, context: { source: AbilityGateway::SOURCE_WEB, approval_id: replayed_approval_id }
     )
     page = MapSearchService.new(current_workspace, current_membership).search(params[:q].to_s)
     render json: { results: MapSearchResultSerializer.many(page.results), refusal: nil }
   rescue AbilityGateway::Denied
     render json: { results: [], refusal: NO_MAP_REACH }
+  rescue AbilityGateway::PendingApproval => e
+    render json: { results: [], refusal: WebAuthorization.pending_message(e.approval) }
   end
 end

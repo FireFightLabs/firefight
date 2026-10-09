@@ -47,4 +47,14 @@ class MapSearchControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal({ "results" => [], "refusal" => MapSearchController::NO_MAP_REACH }, response.parsed_body)
   end
+
+  test "a search held for approval says so instead of failing" do
+    @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
+
+    get map_search_url(q: "web"), as: :json
+
+    assert_response :success
+    approval = @workspace.ability_approvals.find_by!(action_key: Ability::Action::MAP_READ)
+    assert_equal({ "results" => [], "refusal" => WebAuthorization.pending_message(approval) }, response.parsed_body)
+  end
 end
