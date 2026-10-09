@@ -40,8 +40,11 @@ class Chat::Tools::Web < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
     params = @kind == SEARCH ? asked.slice("query", "domains") : asked.slice("url")
-    blocked = @agent_run.workspace.web_lookup_blocked_reason
-    return blocked if blocked
+    if (blocked = @agent_run.workspace.web_lookup_blocked_reason)
+      Chat::Tools.mark_failed(@agent_run, tool_call&.id)
+      return blocked
+    end
+
     said = @agent_run.tool_call(action_key: ACTION, params: params, tool_name: name, label: label(params)) { look_up(params) }
     Chat::Tools.hand_over(@agent_run, name, said)
   rescue Integrations::WebSearch::NotConfigured, ArgumentError => error
