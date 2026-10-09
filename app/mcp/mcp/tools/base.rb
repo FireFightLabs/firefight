@@ -21,6 +21,8 @@ module Mcp
 
       # What a person parameter's description ends with, so a model knows it can name whoever is asking.
       ME = "Pass \"me\" for the person you are acting for".freeze
+      # How the ledger and an approval keep a write-only argument, by its digest and never its value.
+      LEDGER_DIGEST = "sha256:".freeze
 
       class << self
         def call(server_context:, **args)
@@ -41,6 +43,22 @@ module Mcp
         end
 
         def people = @people ||= []
+
+        # Arguments that are never shown again once given, such as a signing secret.
+        def write_only(*parameters)
+          write_only_params.concat(parameters.map(&:to_sym))
+        end
+
+        def write_only_params = @write_only_params ||= []
+
+        # What the ledger and an approval keep of a call's arguments. A write-only one is kept as its digest, which still
+        # tells an approved retry with the same value from one with another.
+        def ledger_params(args)
+          args.to_h do |key, value|
+            kept = write_only_params.include?(key.to_sym) && value.present? ? "#{LEDGER_DIGEST}#{Digest::SHA256.hexdigest(value.to_s)}" : value
+            [ key, kept ]
+          end
+        end
 
         # The schema as this workspace should see it, choices filled in from what it has now.
         def schema_for(workspace)

@@ -29,9 +29,14 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     invoke(arguments.symbolize_keys.except(Chat::Tools::INTENT_ARG.to_sym), tool_call_id: tool_call&.id)
   end
 
-  # Runs a call an approval rule held, once it was approved and the person pressed Run, exactly as it was asked.
+  # Runs a call an approval rule held, once it was approved and the person pressed Run, exactly as it was asked. The
+  # approval keeps a write-only argument only as its digest, so a call that gave one cannot run from it.
   def run_approved(action_key, arguments, approval_id:)
-    attempt(action_key, arguments.to_h.symbolize_keys, tool_call_id: nil, approval_id: approval_id)
+    arguments = arguments.to_h.symbolize_keys
+    kept_out = @tool_class.write_only_params.select { |key| arguments[key].present? }
+    return "Firefight never keeps #{kept_out.to_sentence} while a call waits for approval, so it did not run. Make the call again with it." if kept_out.any?
+
+    attempt(action_key, arguments, tool_call_id: nil, approval_id: approval_id)
   end
 
   private
@@ -54,7 +59,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     # The block answers with the text, so a run's step keeps what the tool said rather than a response object.
     # An error response is still text the model reads, and the call is marked so a reader and the ledger see it failed.
     said = @agent_run.tool_call(
-      action_key: action_key, params: arguments.transform_keys(&:to_s), tool_name: name,
+      action_key: action_key, params: @tool_class.ledger_params(arguments).transform_keys(&:to_s), tool_name: name,
       label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
     ) do |authorization|
       response = Mcp::ToolDispatcher.run(

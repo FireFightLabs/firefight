@@ -16,6 +16,7 @@ module Mcp
 
       tool_name UPDATE_WORKSPACE_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
+      write_only(*Workspace::Settings::WRITE_ONLY)
       description "Change the workspace's own settings: whether incident transcripts may be read at all, " \
                   "how many days they are kept, how long after an incident ends its channel is " \
                   "archived, whether Halon may search and read the public web, whether Firefight may test Halon on answers the team rated, " \

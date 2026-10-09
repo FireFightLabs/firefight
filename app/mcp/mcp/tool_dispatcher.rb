@@ -1,6 +1,7 @@
 module Mcp
   # Every MCP tool call flows through here. approval_id rides outside the
-  # digested params so an approved retry matches the original request.
+  # digested params so an approved retry matches the original request. A write-only argument reaches the ledger only as
+  # its digest (Tools::Base.ledger_params).
   class ToolDispatcher
     APPROVAL_ID_ARG = :approval_id
     # Rescued outside the authorized block, so the ledger still records these calls as failed.
@@ -20,7 +21,7 @@ module Mcp
         principal: server_context[:principal],
         action_key: Ability::Action.system_key(resource, crud_action),
         workspace: workspace,
-        params: args.except(APPROVAL_ID_ARG),
+        params: tool.ledger_params(args.except(APPROVAL_ID_ARG)),
         context: { source: AbilityGateway::SOURCE_MCP, approval_id: args[APPROVAL_ID_ARG] }
       ) do |authorization|
         answered = run(tool: tool, workspace: workspace, principal: server_context[:principal], args: args)

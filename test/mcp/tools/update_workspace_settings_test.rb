@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
+  include IssueTrackerTestHelper
+
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @admin = workspace_memberships(:alice_workspace_one)
@@ -120,5 +122,25 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
     assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay,
                    web_search_enabled: true, halon_regression_enabled: false, memory_expiry_days: nil, code_fix_agent: nil, issue_tracker: nil,
                    issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER, issue_tracker_target: {}, issue_webhook_secret_set: false }, body[:settings])
+  end
+
+  test "a secret given in a chat is ledgered as its digest, and a held call that gave one never runs from its approval" do
+    linear = connect_tracker!(@workspace, provider: "linear")
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @admin)
+    turn = Conversation::Turn.new(conversation, asker: @admin)
+    action = Ability::Action.system!(Ability::Action.system_key(Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE))
+    tool = Chat::Tools::Firefight.new(turn, Mcp::Tools::UpdateWorkspaceSettings, action)
+    secret = "whsec-said-in-a-chat"
+
+    tool.call(issue_tracker: linear.slug, issue_webhook_secret: secret)
+
+    assert_equal secret, linear.integration_environments.sole.issue_webhook_secret
+    ledgered = Ability::Invocation.where(workspace: @workspace, action_key: action.key).pluck(:params)
+    assert ledgered.any?
+    assert ledgered.none? { |params| params.to_json.include?(secret) }
+
+    said = tool.run_approved(action.key, Mcp::Tools::UpdateWorkspaceSettings.ledger_params(issue_webhook_secret: secret).stringify_keys, approval_id: SecureRandom.uuid)
+    assert_match "never keeps issue_webhook_secret", said
+    assert_equal secret, linear.integration_environments.sole.issue_webhook_secret
   end
 end
