@@ -2,8 +2,8 @@
 # call. Halon reads how things stand now, the person who asked is told where the chat lives, and nothing runs until someone
 # presses Run. The run goes through the gateway again with the approval, once.
 module Conversation::HeldCalls
-  # What the card and the Slack message draw. call and target name the call as the confirmation does ("Api request" on
-  # "Faylee (Northflank), project faylee"). offers is what may be done now, whoever does it.
+  # What the card and the platform's message draw. call and target name the call as the confirmation does ("Api request"
+  # on "Production (Hosting), project shop"). offers is what may be done now, whoever does it.
   Shown = Data.define(
     :id, :conversation_id, :status, :headline, :call, :target, :asked, :state, :warning, :checked_at, :expires_at,
     :decided_by, :result, :offers
@@ -161,7 +161,7 @@ module Conversation::HeldCalls
     when Chat::HeldCall::STATUS_FAILED then "#{held.decided_by&.display_name || 'The person'} ran it once it was approved, and it failed: #{held.result}"
     when Chat::HeldCall::STATUS_DENIED then "#{approver_name(held.approval)} denied it."
     when Chat::HeldCall::STATUS_DISMISSED then "#{held.decided_by&.display_name || 'The person'} dismissed it after it was approved."
-    else "it was approved but nobody ran it within the hour, so the approval expired."
+    else "it was approved but nobody ran it within #{Integrations::Capabilities::History.duration(Ability::Approval::RUN_WINDOW.to_i)}, so the approval expired."
     end
   end
   private_class_method :outcome_words
