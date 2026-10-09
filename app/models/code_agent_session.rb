@@ -106,6 +106,14 @@ class CodeAgentSession < ApplicationRecord
                                                          triggered_by_label: triggered_by_label }, &)
   end
 
+  # A service the coding agent starts in its sandbox, through the gateway as Halon's agent so the ledger holds it under
+  # this workspace. Returns what the block returns.
+  def start_sandbox_service!(name, &)
+    AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: Ability::Action::SANDBOX_SERVICE, workspace: workspace,
+                              params: { "name" => name }, context: { source: AbilityGateway::SOURCE_CODE_AGENT,
+                                                                     triggered_by_label: triggered_by_label }, &)
+  end
+
   # A coding agent looks a few things up for one change. More is something else spending Firefight's searches.
   MAX_WEB_LOOKUPS = 40
   TOO_MANY_LOOKUPS = "This code change has used its #{MAX_WEB_LOOKUPS} web lookups.".freeze

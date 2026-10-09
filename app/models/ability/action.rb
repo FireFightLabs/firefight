@@ -58,6 +58,9 @@ module Ability
     # Reading the public web through Firefight's own search key reaches nothing of the workspace's, so every person and
     # agent may, with no grant. It leaves Firefight, so the ledger still holds every call. Never on a permission screen.
     RESOURCE_WEB = "web"
+    # Starting a database or cache inside the sandbox a coding agent already writes a change in reaches nothing of the
+    # workspace's either, so it is open the same way and ledgered the same way.
+    RESOURCE_SANDBOX = "sandbox"
 
     RESOURCE_LABELS = {
       RESOURCE_INCIDENTS => "Incidents",
@@ -119,7 +122,8 @@ module Ability
     }.freeze
 
     WEB_READ = "#{RESOURCE_WEB}.#{ACTION_READ}".freeze
-    OPEN_KEYS = [ WEB_READ ].freeze
+    SANDBOX_SERVICE = "#{RESOURCE_SANDBOX}.#{ACTION_CREATE}".freeze
+    OPEN_KEYS = [ WEB_READ, SANDBOX_SERVICE ].freeze
 
     RISK_READ = "read"
     RISK_WRITE = "write"

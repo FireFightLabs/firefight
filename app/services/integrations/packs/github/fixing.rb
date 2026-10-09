@@ -387,7 +387,8 @@ module Integrations
         def write_change(environment_row, repo, ref, choice, brief, context, title, named:, base:, branch:, lease:)
           reading = code(environment_row)
           report(@work)
-          reading.prepare(repo, ref: ref)
+          @setup = repository_setup(environment_row, repo)&.for_box
+          reading.prepare(repo, ref: ref, setup: @setup)
           @work.add("Got #{repo} ready at #{named} (#{ref.to_s[0, 12]})")
           report(@work)
           # Opened once the copy is ready, so its lifetime is the agent's. A change continued after its spending limit gets
@@ -449,7 +450,7 @@ module Integrations
         def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
           argv = [ "bash", "-c", RUN, AGENT, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}", earlier.to_s, *gate, resume.to_s ]
           stdin = "#{gate_credential(agent_token)}\n#{agent_config(choice, agent_token).to_json}\n"
-          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv, stdin: stdin,
+          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv, stdin: stdin, setup: @setup,
                                       on_output: ->(text) { report(events.read(text)) })
           fail! "The coding agent did not finish in #{timeout / 60} minutes." if result["timed_out"]
           fail! "The change was too large for the sandbox to hand back whole, so nothing is opened." if result["truncated"]
@@ -781,6 +782,7 @@ module Integrations
                     "#{Chat::Tools::Docs::SEARCH} searches the providers' own documentation that Firefight keeps, by an exact name, path or " \
                     "error text or by a question in plain words, and #{Chat::Tools::Docs::READ} reads a page or section of it. Search there " \
                     "before the web." ]
+          lines << "When a check needs a database or a cache, start it with #{CodeAgent::SandboxTools::START} rather than setting one up yourself."
           if request&.place
             lines << "When a choice only the person can make is left open, ask them with #{CodeAgent::QuestionTools::ASK} rather than guess. " \
                      "Read the code for how the app already behaves in the same situation first, then give a few options, each with what " \
