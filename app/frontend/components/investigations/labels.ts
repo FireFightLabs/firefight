@@ -2,7 +2,6 @@ import type {
   FindingOutcome,
   RemediationPlanStatus,
   RemediationStepKind,
-  RemediationStepStatus,
   HypothesisStatus,
   InvestigationStatus,
   InvestigationTrigger,
@@ -33,17 +32,6 @@ export const UNDO_STATUS_LABELS: Record<RemediationPlanStatus, string | null> = 
   applied: "Undone",
   partly_applied: "Partly undone",
   cancelled: "Cancelled",
-}
-
-export const FIX_STEP_STATUS_LABELS: Record<RemediationStepStatus, string | null> = {
-  proposed: null,
-  running: "Running",
-  waiting_approval: "Waiting for approval",
-  approved: "Approved, waiting for someone to run it",
-  done: "Done",
-  failed: "Failed",
-  declined: "Declined",
-  skipped: "Skipped, since a step it waits on did not go through",
 }
 
 export const STATUS_LABELS: Record<InvestigationStatus, string> = {

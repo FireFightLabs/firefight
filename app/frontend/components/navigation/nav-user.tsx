@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar"
 import { logoutPath, profilePath, workspaceSwitchPath } from "@/lib/routes"
 import type { CurrentWorkspace } from "@/types/serializers"
+import { initialsOf } from "@/lib/initials"
 
 type WorkspaceOption = Pick<CurrentWorkspace, "id" | "name" | "avatarUrl">
 
@@ -40,11 +41,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
 
-  const initials = user.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
+  const initials = initialsOf(user.name)
 
   const handleLogout = () => {
     router.delete(logoutPath())
@@ -117,7 +114,7 @@ export function NavUser({
                     <Avatar className="h-5 w-5 rounded">
                       <AvatarImage src={workspace.avatarUrl} alt={workspace.name} />
                       <AvatarFallback className="rounded bg-avatar text-[10px] text-avatar-foreground">
-                        {workspace.name.slice(0, 2).toUpperCase()}
+                        {initialsOf(workspace.name)}
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate">{workspace.name}</span>

@@ -2,13 +2,15 @@
 # was wrong and who can fix it. The workspace's own AI accounts and its Firefight credits are an admin's to fix under
 # Settings, Workspace, the operator's keys are whoever runs Firefight's, and Firefight's own account is Firefight's.
 # When the house's keys ran out and an alert can reach the team, people are told only that Halon could not reach its
-# AI, never anything about balances or credit.
+# AI, never anything about balances or credit. A self-hosted install with no alert set up says the same without
+# claiming anyone was told.
 module AiCredit
   # FirefightAi::OutOfCredit's reason, as a job or a run records it.
   REASON = FirefightAi::OutOfCredit.name.demodulize
   ANSWER = "answer".freeze
   WHERE_TO_FIX = "An admin can fix this under Settings, Workspace, AI accounts".freeze
-  TEAM_TOLD = "Halon couldn't reach its AI just now. The team has been told.".freeze
+  COULD_NOT_REACH = "Halon couldn't reach its AI just now.".freeze
+  TEAM_TOLD = "#{COULD_NOT_REACH} The team has been told.".freeze
   HOUSE = %i[operator firefight].freeze
 
   def self.out?(error) = error.is_a?(FirefightAi::OutOfCredit)
@@ -17,7 +19,9 @@ module AiCredit
 
   # "Halon cannot answer right now because ...", with what it could not do in place of answer.
   def self.cannot(workspace, doing = ANSWER)
-    return TEAM_TOLD if AiAccount.alerting? && HOUSE.include?(situation(workspace))
+    situation = situation(workspace)
+    return TEAM_TOLD if AiAccount.alerting? && HOUSE.include?(situation)
+    return COULD_NOT_REACH if situation == :operator
 
     "Halon cannot #{doing} right now because #{why(workspace)}. #{who(workspace)}."
   end
@@ -28,14 +32,12 @@ module AiCredit
     when :credits_used then "this workspace's Firefight credits are used up"
     when :key_refused then "this workspace's AI account refused its key"
     when :own_out then "this workspace's AI account is out of credit"
-    when :firefight then "the AI account behind this workspace is out of credit"
-    else "the AI account behind this Firefight is out of credit"
+    else "the AI account behind this workspace is out of credit"
     end
   end
 
   def self.who(workspace)
     case situation(workspace)
-    when :operator then "Whoever runs Firefight needs to add credit"
     when :firefight then "Firefight's team can see this"
     # Where credits are topped up is the hosted build's to say, since only it sells them.
     when :credits_used then Entitlements.ai_credit(workspace).try(:top_up).presence || WHERE_TO_FIX

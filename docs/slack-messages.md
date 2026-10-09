@@ -116,7 +116,7 @@ The shared button only ever subscribes.
 - **An item carries Rename, and Unassign while someone holds it**, and its
   done message carries Reopen and Rename (`Action.done_controls`). Rename
   opens `Modals::RenameAction`, pushed over the item list when it came from
-  there.
+  there, its input capped at `IncidentAction::TITLE_LIMIT`.
 - **An item without an issue offers Create issue** while the workspace opens
   issues (`Action.issue_button`, `Identifiers::CREATE_ACTION_ISSUE`), and
   "Try the issue again" once one failed. Why it is missing, or that it is being

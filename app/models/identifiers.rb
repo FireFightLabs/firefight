@@ -187,6 +187,8 @@ module Identifiers
   # Continue or Stop on a code change paused at its spending limit.
   CODE_PAUSE_CONTINUE = "code_pause_continue"
   CODE_PAUSE_STOP = "code_pause_stop"
+  # Stop on a line a watch said in Slack. Anyone who may stop the watch may press it.
+  WATCH_STOP = "watch_stop"
   CODE_QUESTION_CHOOSE_IDS = (0...CodeAgentQuestion::MAX_OPTIONS).map { |index| "#{CODE_QUESTION_CHOOSE}_#{index}" }.freeze
 
   # Slack event types (top-level Events API)

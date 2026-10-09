@@ -172,8 +172,8 @@ module Integrations
           error = assert_raises(NativePack::Error) { @pack.rerun_workflow(environment_row: @row, arguments: { "repo" => "acme/web", "run_id" => 41 }) }
 
           assert_equal "GitHub refused to run acme/web run 41 again: GitHub answered 403: Resource not accessible by integration. Firefight's GitHub App " \
-                       "needs the Actions: read and write permission on this installation for that. An owner of the GitHub account grants it under " \
-                       "Settings, GitHub Apps, by accepting the App's new permissions.", error.message
+                       "needs the Actions: read and write permission on this installation for that. #{Integrations::Packs::Github::Asking::GRANT_WHERE}.",
+                       error.message
         end
 
         test "a workflow is started by hand on a ref with the inputs it declares, and the run it started is linked" do

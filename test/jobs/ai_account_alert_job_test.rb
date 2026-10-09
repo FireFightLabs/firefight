@@ -17,9 +17,9 @@ class AiAccountAlertJobTest < ActiveSupport::TestCase
     AiAccountAlertJob.perform_now("openrouter", AiAccountAlert::OUT_OF_CREDIT)
   end
 
-  test "a key running low says what it has left, what it spent and where alerts start, in plain text" do
-    TeamWebhook.expects(:post!).with({ text: "The openrouter AI key is running low. It has $7.25 left to spend, and has spent $92.75 in all. " \
-                                             "Alerts start below $10.00. Add credit or raise the key's limit before Halon stops answering." }, mention: nil)
+  test "an account running low says what it has left, what it spent and where alerts start, in plain text" do
+    TeamWebhook.expects(:post!).with({ text: "The openrouter AI account is running low. It has $7.25 of credit left, and has spent $92.75 in all. " \
+                                             "Alerts start below $10.00. Add credit before Halon stops answering." }, mention: nil)
 
     AiAccountAlertJob.perform_now("openrouter", AiAccountAlert::LOW_BALANCE, 7.25, 92.75)
   end

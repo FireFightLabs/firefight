@@ -14,13 +14,15 @@ interface WatchStepEditorProps {
   history: boolean
   readOptions: SearchableSelectOption[]
   resourceOptions: SearchableSelectOption[]
-  error: string | undefined
   onChange: (field: string, entered: string | boolean) => void
   onRemove: () => void
 }
 
-export function WatchStepEditor({ number, spec, history, readOptions, resourceOptions, error, onChange, onRemove }: WatchStepEditorProps) {
+export function WatchStepEditor({ number, spec, history, readOptions, resourceOptions, onChange, onRemove }: WatchStepEditorProps) {
   const resource = stepText(spec, WATCH_SPEC_KEYS.RESOURCE)
+  // An item left without a name is named after what it reads, as the server names it when the runbook runs.
+  const read = readOptions.find((option) => option.value === stepText(spec, WATCH_SPEC_KEYS.CAPABILITY))
+  const namePlaceholder = read ? `Name (optional), ${read.label} if left empty` : "Name (optional)"
   const resources = resource && !resourceOptions.some((option) => option.value === resource)
     ? [ { value: resource, label: resource }, ...resourceOptions ]
     : resourceOptions
@@ -45,7 +47,7 @@ export function WatchStepEditor({ number, spec, history, readOptions, resourceOp
           <IconX className="size-4" />
         </button>
       </div>
-      <Input aria-label={`Watch ${number} label`} value={stepText(spec, WATCH_SPEC_KEYS.LABEL)} onChange={typed(WATCH_SPEC_KEYS.LABEL)} placeholder="Release run" />
+      <Input aria-label={`Watch ${number} label`} value={stepText(spec, WATCH_SPEC_KEYS.LABEL)} onChange={typed(WATCH_SPEC_KEYS.LABEL)} placeholder={namePlaceholder} />
       <div className="grid gap-2 sm:grid-cols-2">
         <SearchableSelect value={stepText(spec, WATCH_SPEC_KEYS.CAPABILITY) || null} onValueChange={chosen(WATCH_SPEC_KEYS.CAPABILITY)} options={readOptions} placeholder="How to check it" />
         <SearchableSelect
@@ -75,7 +77,6 @@ export function WatchStepEditor({ number, spec, history, readOptions, resourceOp
           <Input aria-label={`Watch ${number} goal`} className="sm:col-span-2" value={stepText(spec, WATCH_SPEC_KEYS.GOAL)} onChange={typed(WATCH_SPEC_KEYS.GOAL)} placeholder="Or the goal in a sentence, such as web runs the new version" />
         </div>
       )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }

@@ -25,11 +25,11 @@ module AiRefusal
     moved
   end
 
-  # The deployment's own account, whose alert goes to the people running Firefight. Every refusal asks to alert, and
-  # AiAccountAlert sends one per interval, so a key that stays refused is reported again after it.
+  # The deployment's own account, whose alert goes to the people running Firefight. Running out is always told, and
+  # AiAccountAlert tells a key that stays refused again once per interval.
   def house_ran_out!(provider)
     moved = AiAccount.ran_out!(provider)
-    AiAccountAlert.out_of_credit!(provider)
+    AiAccountAlert.out_of_credit!(provider, fresh: moved)
     moved
   end
 end

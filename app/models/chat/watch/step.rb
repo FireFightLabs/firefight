@@ -43,11 +43,24 @@ class Chat::Watch::Step < ApplicationRecord
     spec.key if spec && !spec.writes
   end
 
+  # What a read is called where a person picks it, such as Run history.
+  def self.read_label(spec) = spec.what.upcase_first
+
+  # What a step given to start_watch, with string keys, is called when it names nothing. That is the read tool it names,
+  # as tool_title calls it, or what it reads. Nil when it names neither.
+  def self.default_label(step, &tool_title)
+    tool = step[Chat::Watch::SPEC_KEYS[:tool]]
+    return (tool_title ? tool_title.call(tool.to_s) : tool.to_s) if tool.present?
+
+    key = read_key(step[Chat::Watch::SPEC_KEYS[:capability]])
+    key && read_label(Integrations::Capabilities.spec(key))
+  end
+
   # Whether a step given to start_watch, with string keys, lacks what counts as its end. A run in a resource's history
   # ends on its own, anything else needs done_when, failed_when or a goal. Checked when a runbook saves and when a watch starts.
   def self.undecided?(step)
     keys = Chat::Watch::SPEC_KEYS
-    return false if step["tool"].blank? && read_key(step[keys[:capability]]) == Integrations::Capabilities::HISTORY
+    return false if step[keys[:tool]].blank? && read_key(step[keys[:capability]]) == Integrations::Capabilities::HISTORY
 
     step.values_at(keys[:done_when], keys[:failed_when], keys[:goal]).all?(&:blank?)
   end

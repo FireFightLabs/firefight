@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_131100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_142000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -196,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_131100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "alerted_at"
+    t.datetime "out_of_credit_alerted_at"
     t.index ["provider"], name: "index_ai_accounts_on_provider", unique: true
   end
 
@@ -953,7 +954,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_131100) do
     t.uuid "issue_integration_id"
     t.string "issue_sync_state"
     t.text "issue_sync_note"
-    t.uuid "issue_approval_id"
     t.datetime "issue_status_synced_at"
     t.datetime "issue_assignee_synced_at"
     t.datetime "issue_title_synced_at"

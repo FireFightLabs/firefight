@@ -4,8 +4,6 @@ module Slack
     module RenameAction
       BLOCK = "title_block".freeze
       INPUT = "title_input".freeze
-      # The most a Slack text input holds.
-      TITLE_LIMIT = 3000
 
       def self.build(action)
         {
@@ -19,7 +17,7 @@ module Slack
             {
               type: "input",
               block_id: BLOCK,
-              element: { type: "plain_text_input", action_id: INPUT, multiline: true, max_length: TITLE_LIMIT, initial_value: action.description },
+              element: { type: "plain_text_input", action_id: INPUT, multiline: true, max_length: IncidentAction::TITLE_LIMIT, initial_value: action.description },
               label: { type: "plain_text", text: "Title" },
               hint: { type: "plain_text", text: hint(action) }
             }

@@ -10,14 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { WorkspaceMembership } from "@/types/serializers"
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("")
-}
+import { initialsOf } from "@/lib/initials"
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -48,7 +41,7 @@ export function MembersTable({ members }: { members: WorkspaceMembership[] }) {
                       {member.avatarUrl ? (
                         <AvatarImage src={member.avatarUrl} alt={member.name} />
                       ) : null}
-                      <AvatarFallback>{initials(member.name)}</AvatarFallback>
+                      <AvatarFallback>{initialsOf(member.name)}</AvatarFallback>
                     </Avatar>
                     <div className="leading-tight">
                       <div className="font-medium text-foreground">{member.name}</div>

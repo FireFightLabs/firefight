@@ -612,6 +612,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
                  blocks: Slack::Messages::WatchUpdate.build(update, direct: true, conversation_id: conversation_id))
   end
 
+  def update_watch_update(channel_id:, message_id:, update:, direct: false, conversation_id: nil)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::WatchUpdate.fallback(update),
+                   blocks: Slack::Messages::WatchUpdate.build(update, direct: direct, conversation_id: conversation_id))
+    { success: true }
+  end
+
   def post_pull_request_notice(channel_id:, thread_id:, notice:)
     post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
                           text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice))

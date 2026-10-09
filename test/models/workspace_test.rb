@@ -51,11 +51,12 @@ class WorkspaceTest < ActiveSupport::TestCase
                  workspace.incident_types.pluck(:slug).sort
   end
 
-  test "a new workspace grants Firefight's investigator the map in every environment, as an ordinary grant" do
+  test "a new workspace grants Firefight's investigator the map in every environment and saving to memory, as ordinary grants" do
     workspace = Workspace.process_slack_installation(mock_slack_auth_hash)[:workspace]
 
-    grant = workspace.ability_grants.find_by!(principal: SystemAgent.investigator)
-    assert_equal [ Ability::Action::MAP_READ, {} ], [ grant.action.key, grant.scope ]
+    grants = workspace.ability_grants.where(principal: SystemAgent.investigator).includes(:action)
+    assert_equal [ Ability::Action::MAP_READ, "memory.create", "memory.update" ].sort, grants.map { |grant| grant.action.key }.sort
+    assert(grants.all? { |grant| grant.scope == {} })
     assert_equal({}, AbilityGateway.reach(principal: SystemAgent.investigator, action_key: Ability::Action::MAP_READ, workspace: workspace))
   end
 

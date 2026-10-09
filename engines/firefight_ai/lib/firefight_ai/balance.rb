@@ -1,35 +1,34 @@
 module FirefightAi
-  # What is left on the deployment's keys, in dollars, for the providers whose API says. Each such provider has one
-  # reader in READERS, and a provider without one has nothing to read.
+  # What is left on the deployment's own accounts, in dollars, for the providers whose API says. Each such provider has
+  # one reader in READERS, and a provider without one has nothing to read.
   module Balance
     TIMEOUT = 10
 
-    # What a key itself may still spend. remaining is nil when the key has no spending limit of its own, so it spends
-    # whatever the account holds, which a key that makes calls cannot read.
-    Key = Data.define(:remaining, :usage) do
-      def unlimited? = remaining.nil?
-    end
+    # What the account holds and has spent in all, in dollars.
+    Account = Data.define(:remaining, :usage)
 
-    # OpenRouter says what an account holds through its credits endpoint, which takes only a management key, and what a
-    # key may still spend through its key endpoint, which takes the key itself.
+    # OpenRouter says what an account holds only through its credits endpoint, which takes a management key, never the
+    # key calls are made with. OPENROUTER_MANAGEMENT_KEY holds one, read-only use is all it gets here.
     module OpenRouter
       BASE = "https://openrouter.ai/api/v1".freeze
 
       module_function
 
-      def remaining
-        data = Balance.get_json("#{base}/credits", key)
-        data && (data.dig("data", "total_credits").to_f - data.dig("data", "total_usage").to_f)
-      end
-
-      def key_balance
-        data = Balance.get_json("#{base}/key", key)&.dig("data")
+      def account
+        data = Balance.get_json("#{base}/credits", balance_key)&.dig("data")
         return nil unless data
 
-        Key.new(remaining: data["limit_remaining"]&.to_f, usage: data["usage"].to_f)
+        credits = data["total_credits"].to_f
+        usage = data["total_usage"].to_f
+        Account.new(remaining: credits - usage, usage: usage)
       end
 
-      def key = FirefightAi.configuration.provider_settings[:openrouter_api_key]
+      # Whether the deployment makes calls on OpenRouter at all.
+      def used? = FirefightAi.configuration.provider_settings[:openrouter_api_key].present?
+
+      def balance_key = FirefightAi.configuration.openrouter_management_key
+
+      def balance_key_name = "OPENROUTER_MANAGEMENT_KEY"
 
       def base = FirefightAi.configuration.provider_settings[:openrouter_api_base].presence || BASE
     end
@@ -40,16 +39,21 @@ module FirefightAi
 
     def providers = READERS.keys
 
-    # The account's balance. Nil when the provider has no balance to read, its key is not set, or the read failed.
-    def remaining(provider)
+    # The account's balance as an Account. Nil when the provider has no balance to read, the key that reads it is not
+    # set, or the read failed.
+    def account(provider)
       reader = READERS[provider.to_s]
-      reader.remaining if reader&.key.present?
+      reader.account if readable?(provider)
     end
 
-    # What the key calls are made with may still spend, as a Key. Nil the same way as remaining.
-    def key(provider)
-      reader = READERS[provider.to_s]
-      reader.key_balance if reader&.key.present?
+    def remaining(provider) = account(provider)&.remaining
+
+    def readable?(provider) = READERS[provider.to_s]&.balance_key.present?
+
+    # The providers the deployment calls whose balance goes unchecked because the key that reads it is not set, each
+    # with that key's env var name.
+    def unchecked
+      READERS.filter_map { |provider, reader| [ provider, reader.balance_key_name ] if reader.used? && reader.balance_key.blank? }.to_h
     end
 
     def get_json(address, key)

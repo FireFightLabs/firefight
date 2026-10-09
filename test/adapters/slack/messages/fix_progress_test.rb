@@ -25,6 +25,21 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     assert_equal "Applying the fix: 1 of 3 steps done", Slack::Messages::FixProgress.fallback(@plan)
   end
 
+  test "each step's status is in the run page's words, the same as the step serializer ships, and a step not started says none" do
+    @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
+    waiting, done, proposed = @plan.steps.to_a
+    waiting.update_columns(status: Investigation::RemediationStep::STATUS_WAITING_APPROVAL)
+    done.update_columns(status: Investigation::RemediationStep::STATUS_DONE, done_by_id: workspace_memberships(:alice_workspace_one).id)
+
+    texts = Slack::Messages::FixProgress.build(@plan.reload).select { |block| block[:type] == "section" }.drop(1).map { |block| block.dig(:text, :text) }
+
+    @plan.steps.each_with_index do |step, index|
+      label = InvestigationRemediationStepSerializer.one(step)[:statusLabel]
+      label ? assert_includes(texts[index], "_#{label}_") : assert_not_includes(texts[index], "\n_")
+    end
+    assert_equal [ "Waiting for approval", "Done by Alice Smith", nil ], [ waiting, done, proposed ].map { |step| step.reload.status_label }
+  end
+
   test "words the agent wrote are escaped, and a fix longer than Slack takes sends the rest to the run page" do
     @plan.steps.first.update_columns(description: "Tell <!channel> about <https://evil.example|this>")
     50.times { |index| @plan.steps.create!(position: index + 4, kind: Investigation::RemediationStep::KIND_MANUAL, description: "Check #{index}") }

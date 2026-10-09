@@ -28,7 +28,7 @@ export function RenameItemDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { data, setData, patch, processing } = useForm({ description: action.description })
+  const { data, setData, patch, processing, errors } = useForm({ description: action.description })
 
   function close() {
     onOpenChange(false)
@@ -65,6 +65,7 @@ export function RenameItemDialog({
               onChange={changeDescription}
               required
             />
+            {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
           </div>
           <DialogFooter>
             <DialogClose asChild>

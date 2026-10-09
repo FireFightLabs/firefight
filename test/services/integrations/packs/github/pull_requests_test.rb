@@ -301,14 +301,14 @@ module Integrations
                           "GitHub is merging main into fix-retries for PR #412 Fix payment retries in acme/checkout."
         end
 
-        test "GitHub refusing for a missing permission names every permission the tool needs, and a missing pull request says why it may be" do
+        test "GitHub refusing for a missing permission names every permission the tool needs and where an owner accepts it, and a missing pull request says why it may be" do
+          assert_includes Integrations::Packs::Github::Asking::GRANT_WHERE, "Configure next to Firefight's App, then Review request and Accept new permissions"
           stub_pull(412)
           GithubApp.stubs(:write).raises(GithubApp::NotPermitted, "GitHub answered 403: Resource not accessible by integration")
 
           error = assert_raises(NativePack::Error) { @pack.merge_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 }) }
           assert_equal "GitHub refused this: GitHub answered 403: Resource not accessible by integration. Firefight's GitHub App needs Contents read and " \
-                       "write and Pull requests read on this installation for that. An owner of the GitHub account grants it under Settings, GitHub " \
-                       "Apps, by accepting the App's new permissions.", error.message
+                       "write and Pull requests read on this installation for that. #{Integrations::Packs::Github::Asking::GRANT_WHERE}.", error.message
 
           GithubApp.stubs(:get).with("/repos/acme/secret/pulls/1", token: "ghs_token").raises(GithubApp::NotFound, "GitHub: Not Found")
           error = assert_raises(NativePack::Error) { @pack.close_pull_request(environment_row: @row, arguments: { "repo" => "acme/secret", "number" => 1 }) }
