@@ -118,8 +118,8 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, notice: "#{@integration.name} now uses #{field.shown(row.fields[field.key], choices: field.options_from(row.learned))} for #{field.label.downcase_first}."
   end
 
-  # What the credentials typed on the connect form can read, such as a Northflank token's projects, listed before
-  # anything is saved so the form offers them. The credentials go no further than the provider.
+  # What the credentials typed on the connect form can read, such as a token's projects, listed before anything is saved
+  # so the form offers them. The credentials go no further than the provider.
   def list_scopes
     provider = IntegrationProvider.find(params[:provider].to_s)
     return render(json: { options: [], error: "#{params[:provider]} chooses nothing to read." }, status: :unprocessable_entity) unless provider&.scope_field
