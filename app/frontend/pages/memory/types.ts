@@ -1,11 +1,8 @@
 import type { MEMORY_PAGE_TABS } from "@/lib/generated/constants"
 import type { SharedProps } from "@/types"
-import type { ChatInstruction, ChatMemory } from "@/types/serializers"
+import type { ChatInstruction, ChatMemory, MemorySubjectOption } from "@/types/serializers"
 
-export interface SubjectOption {
-  value: string
-  label: string
-}
+export type SubjectOption = MemorySubjectOption
 
 export interface MemoryPageProps extends SharedProps {
   [key: string]: unknown

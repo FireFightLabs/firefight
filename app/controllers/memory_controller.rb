@@ -19,7 +19,7 @@ class MemoryController < InertiaController
     render inertia: "memory/index", props: {
       memories: ChatMemorySerializer.many(memories),
       instructions: ChatInstructionSerializer.many(Chat::Instruction.with_history(current_workspace, principal: current_membership)),
-      subjects: subject_options
+      subjects: MemorySubjectOptionSerializer.many(Chat::Memory.subject_choices(current_workspace, principal: current_membership))
     }
   end
 
@@ -101,15 +101,4 @@ class MemoryController < InertiaController
   def instructions = Chat::Instruction.visible_to(current_membership, current_workspace)
 
   def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject], principal: current_membership)
-
-  def subject_options
-    entries = current_workspace.catalog_entries.active.includes(:catalog_type).order(:name).map do |entry|
-      { value: Chat::Memory.subject_key(entry), label: "#{entry.name} · #{entry.catalog_type.name}" }
-    end
-    # Only what the person reads on the map, so the picker never names a resource outside their environments.
-    resources = ResourceMap::Resource.visible_to(current_membership, current_workspace).present.order(:name).map do |resource|
-      { value: Chat::Memory.subject_key(resource), label: "#{resource.name} · #{ResourceMap.provider_name(resource.provider)}" }
-    end
-    entries + resources
-  end
 end
