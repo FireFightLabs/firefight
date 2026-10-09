@@ -108,6 +108,14 @@ module Ability
       action&.key || role&.name
     end
 
+    # What a member can no longer do while this no access grant stands, as the end of "Ana can no longer ...". Only a
+    # default can be withheld, and every one is described, so the key is a last resort.
+    def withheld_words
+      return role.default_words if role
+
+      Ability::Action.described(action.key)&.fetch(:title)&.downcase_first || action.key
+    end
+
     def environment_ids
       Array(scope[Ability::Scope::DIMENSION_ENVIRONMENT])
     end
