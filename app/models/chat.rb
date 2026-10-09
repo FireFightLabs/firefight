@@ -51,8 +51,10 @@ class Chat < ApplicationRecord
   end
 
   def queue_message!(content, sender:, files: [])
-    files.each_with_index { |file, index| file.update!(chat: self, position: index) }
-    queued_messages.create!(content: content, sender: sender, attached_files: files)
+    transaction do
+      files.each_with_index { |file, index| file.update!(chat: self, position: index) }
+      queued_messages.create!(content: content, sender: sender, attached_files: files)
+    end
   end
 
   # Adds what was sent while the agent worked, in the order it was sent, and returns what it added. from limits it to one
