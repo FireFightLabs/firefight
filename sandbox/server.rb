@@ -151,7 +151,7 @@ module Sandbox
     KNOWN = %w[postgres redis].freeze
     DEFAULT_PORTS = { "postgres" => 5432, "redis" => 6379 }.freeze
     # A role or database a setup asks for, which goes into SQL inside double quotes.
-    IDENTIFIER = /\A[A-Za-z_][\w$-]{0,62}\z/
+    IDENTIFIER = /\A[A-Za-z_][\w-]{0,62}\z/
 
     # names is a list of service names, or of { "name", "port", "env" } as a setup gives them. Any other name is refused.
     def self.start(names)

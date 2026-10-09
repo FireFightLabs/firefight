@@ -61,7 +61,7 @@ class CodeAgentQuestionService
   end
 
   # The person changes a settled answer to another option or their own words. The agent reads it with its next call
-  # (CodeAgent::QuestionTools.correct), and the thread's message is drawn again.
+  # (CodeAgent::QuestionTools.with_corrections), and the thread's message is drawn again.
   def self.change!(question, text, by:, option: nil)
     blocked = question.change_answer_blocked_reason(by)
     return Answered.new(ok: false, words: blocked) if blocked

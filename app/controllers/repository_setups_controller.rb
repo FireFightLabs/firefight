@@ -34,8 +34,10 @@ class RepositorySetupsController < InertiaController
 
     setup = Integrations::CiSetup.derive!(@integration.resolve_environment(nil), @setup.repository)
     redirect_to details, notice: @integration.repository_setup_read_words(setup)
-  rescue Integrations::Error => error
+  rescue Integrations::CiSetup::Missing => error
     redirect_to details, alert: "Could not read #{@setup.repository}'s setup from CI. #{error.message}"
+  rescue Integrations::Error => error
+    redirect_to details, alert: ci_unreachable(@setup.repository, error)
   end
 
   def destroy
@@ -51,8 +53,17 @@ class RepositorySetupsController < InertiaController
 
     setup = Integrations::CiSetup.derive!(@integration.resolve_environment(nil), repository)
     redirect_to details, notice: @integration.repository_setup_read_words(setup)
-  rescue Integrations::Error => error
+  rescue Integrations::CiSetup::Missing => error
     refused(repository: error.message)
+  rescue Integrations::Error => error
+    refused(repository: ci_unreachable(repository, error))
+  end
+
+  # A transport error's words are for the log, so a person reads a plain sentence.
+  def ci_unreachable(repository, error)
+    Rails.logger.warn({ event: "repository_setup.ci_read_failed", integration_id: @integration.id, repository: repository,
+                        error: Chat::SecretFree.redacted(error.message) }.to_json)
+    "Could not reach the code host to read #{repository}'s CI. Try again in a moment."
   end
 
   # Variables arrive as name and value pairs, so one named twice is refused rather than kept once.

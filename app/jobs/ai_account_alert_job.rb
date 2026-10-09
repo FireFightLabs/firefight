@@ -1,4 +1,4 @@
-# Posts one AiAccountAlert to the team webhook, tagging the Slack user FIREFIGHT_AI_ALERT_SLACK_USER_ID names.
+# Posts one AiAccountAlert to the team webhook, naming the person FIREFIGHT_AI_ALERT_SLACK_USER_ID gives.
 class AiAccountAlertJob < ApplicationJob
   queue_as :default
 
@@ -12,7 +12,7 @@ class AiAccountAlertJob < ApplicationJob
     words = kind == AiAccountAlert::LOW_BALANCE ? low_balance(provider, remaining, usage) : out_of_credit(provider)
     return unless words
 
-    TeamWebhook.post!(text: [ tag, words ].compact.join(" "))
+    TeamWebhook.post!({ text: words }, mention: Rails.configuration.x.ai_alert_slack_user_id)
     Rails.logger.info({ event: "ai.account_alerted", provider: provider, kind: kind }.to_json)
   end
 
@@ -30,11 +30,6 @@ class AiAccountAlertJob < ApplicationJob
   def low_balance(provider, remaining, usage)
     "The #{provider} AI key is running low. It has #{dollars(remaining)} left to spend, and has spent #{dollars(usage)} in all. " \
       "Alerts start below #{dollars(Rails.configuration.x.ai_low_balance_usd)}. Add credit or raise the key's limit before Halon stops answering."
-  end
-
-  def tag
-    user = Rails.configuration.x.ai_alert_slack_user_id
-    "<@#{user}>" if user.present?
   end
 
   def dollars(amount) = format("$%.2f", amount.to_f)

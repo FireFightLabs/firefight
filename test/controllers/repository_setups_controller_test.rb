@@ -73,7 +73,7 @@ class RepositorySetupsControllerTest < ActionDispatch::IntegrationTest
 
     post derive_integration_repository_setup_url(@github, setup)
 
-    assert_equal "Could not read acme/api's setup from CI. GitHub answered 500", flash[:alert]
+    assert_equal "Could not reach the code host to read acme/api's CI. Try again in a moment.", flash[:alert]
     assert_equal [ "bin/setup" ], setup.reload.commands
 
     post derive_integration_repository_setup_url(@github, setup)

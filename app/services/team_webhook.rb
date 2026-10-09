@@ -10,7 +10,9 @@ class TeamWebhook
 
   def self.url = Rails.configuration.x.install_notification_webhook_url
 
-  def self.post!(payload)
+  # mention names the person the note is for, by their id in the chat the webhook posts to.
+  def self.post!(payload, mention: nil)
+    payload = payload.merge(text: "<@#{mention}> #{payload[:text]}") if mention.present? && payload[:text]
     uri = URI.parse(url)
     request = Net::HTTP::Post.new(uri, "Content-Type" => "application/json")
     request.body = payload.to_json

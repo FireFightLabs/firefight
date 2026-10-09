@@ -12,21 +12,21 @@ class AiAccountAlertJobTest < ActiveSupport::TestCase
   end
 
   test "the people running Firefight are told which account ran out and when, where new installs are announced" do
-    TeamWebhook.expects(:post!).with { |payload| payload[:text].start_with?("The openrouter AI account ran out of credit at 14:29 UTC on 6 October.") }
+    TeamWebhook.expects(:post!).with { |payload, mention:| payload[:text].start_with?("The openrouter AI account ran out of credit at 14:29 UTC on 6 October.") && mention.nil? }
 
     AiAccountAlertJob.perform_now("openrouter", AiAccountAlert::OUT_OF_CREDIT)
   end
 
   test "a key running low says what it has left, what it spent and where alerts start, in plain text" do
-    TeamWebhook.expects(:post!).with(text: "The openrouter AI key is running low. It has $7.25 left to spend, and has spent $92.75 in all. " \
-                                           "Alerts start below $10.00. Add credit or raise the key's limit before Halon stops answering.")
+    TeamWebhook.expects(:post!).with({ text: "The openrouter AI key is running low. It has $7.25 left to spend, and has spent $92.75 in all. " \
+                                             "Alerts start below $10.00. Add credit or raise the key's limit before Halon stops answering." }, mention: nil)
 
     AiAccountAlertJob.perform_now("openrouter", AiAccountAlert::LOW_BALANCE, 7.25, 92.75)
   end
 
-  test "the configured Slack user is tagged" do
+  test "the configured person is named in the alert" do
     Rails.configuration.x.ai_alert_slack_user_id = "U012AB3CD"
-    TeamWebhook.expects(:post!).with { |payload| payload[:text].start_with?("<@U012AB3CD> The openrouter AI account ran out of credit") }
+    TeamWebhook.expects(:post!).with { |payload, mention:| payload[:text].start_with?("The openrouter AI account ran out of credit") && mention == "U012AB3CD" }
 
     AiAccountAlertJob.perform_now("openrouter", AiAccountAlert::OUT_OF_CREDIT)
   end

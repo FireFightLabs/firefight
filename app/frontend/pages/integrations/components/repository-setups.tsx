@@ -21,13 +21,13 @@ import {
 import type { RepositorySetup } from "@/types/serializers"
 
 function originWords(setup: RepositorySetup) {
+  if (!setup.derivedFrom || !setup.derivedAt) {
+    return setup.editedAt ? `Set up here ${timeAgo(setup.editedAt)}` : "Set up here"
+  }
   if (setup.editedAt) {
     return `Changed here ${timeAgo(setup.editedAt)}`
   }
-  if (setup.derivedFrom && setup.derivedAt) {
-    return `Read from ${setup.derivedFrom} ${timeAgo(setup.derivedAt)}`
-  }
-  return "Set up here"
+  return `Read from ${setup.derivedFrom} ${timeAgo(setup.derivedAt)}`
 }
 
 function serviceWords(service: RepositorySetup["services"][number]) {
