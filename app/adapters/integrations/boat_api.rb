@@ -17,7 +17,12 @@ module Integrations
     REFUSALS = { 401 => Unauthorized, 403 => Forbidden, 404 => NotFound, 503 => NoCapacity }.freeze
     VERBS = { get: Net::HTTP::Get, post: Net::HTTP::Post, patch: Net::HTTP::Patch, delete: Net::HTTP::Delete }.freeze
     # boat's error envelope puts its words in message and its code in code (docs.boat.dev/api/v1, Error model).
-    REASON = ->(body) { [ Http.words(body["message"]) || Http.words(body["error"]), body["code"].presence && "(#{body['code']})" ].compact.join(" ").presence }
+    # A message that is only the code, as boat answers some 404s, is said once.
+    REASON = lambda do |body|
+      said = Http.words(body["message"]) || Http.words(body["error"])
+      code = body["code"].presence
+      [ said, (code && code != said ? "(#{code})" : nil) ].compact.join(" ").presence
+    end
 
     # A new sandbox, or one deployed from a named snapshot when the body says from. The idempotency key makes a retry
     # after a lost answer return the same sandbox instead of a second billable one.

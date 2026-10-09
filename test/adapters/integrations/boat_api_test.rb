@@ -43,9 +43,14 @@ module Integrations
       Http.stubs(:request).returns(response(401, { "ok" => false, "code" => "unauthorized", "message" => "Provide a valid bearer token." }))
       assert_raises(BoatApi::Unauthorized) { @api.sandbox("bx_23456789") }
 
-      Http.stubs(:request).returns(response(404, { "ok" => false, "code" => "not_found", "message" => "Sandbox not found." }))
+      Http.stubs(:request).returns(response(404, { "ok" => false, "code" => "not_found", "message" => "not_found" }))
       gone = assert_raises(BoatApi::NotFound) { @api.sandbox("bx_23456789") }
       assert_kind_of Integrations::NotFound, gone
+      assert_equal "boat.dev answered 404: not_found", gone.message, "a message that is only the code is said once, as boat answers a missing snapshot"
+
+      Http.stubs(:request).returns(response(402, { "ok" => false, "code" => "billing_required", "message" => "Start the $20/month Boat plan to create sandboxes." }))
+      unpaid = assert_raises(BoatApi::Error) { @api.create({}, idempotency_key: "k") }
+      assert_kind_of Sandboxes::Error, unpaid, "an account that cannot create sandboxes fails over like any refusal"
     end
 
     test "every page of sandboxes is read" do
