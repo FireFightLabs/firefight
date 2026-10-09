@@ -169,9 +169,14 @@ interface ChooseWorkspaceProps {
   onCreateNew: () => void;
 }
 
-// Several workspaces of theirs have no Slack yet, so which one this Slack joins is theirs to say.
+// Workspaces of theirs have no Slack yet, even just one, so whether this Slack joins one of them or a new one is theirs
+// to say.
 function ChooseWorkspace({ workspaces, teamName, email, onCreateNew }: ChooseWorkspaceProps) {
   const [choosingId, setChoosingId] = useState<string | null>(null);
+  const intro =
+    workspaces.length === 1
+      ? "This workspace of yours is not connected to Slack yet. Choose it to connect it to"
+      : "These workspaces of yours are not connected to Slack yet. Choose the one to connect to";
 
   function stopChoosing() {
     setChoosingId(null);
@@ -189,7 +194,7 @@ function ChooseWorkspace({ workspaces, teamName, email, onCreateNew }: ChooseWor
           title="Choose your workspace"
           subtitle={
             <>
-              These workspaces of yours are not connected to Slack yet. Choose the one to connect to{" "}
+              {intro}{" "}
               <span className="font-medium text-fg-primary">{teamName || "this Slack"}</span>.
             </>
           }

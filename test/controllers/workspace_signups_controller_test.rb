@@ -284,7 +284,7 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs only: SignupNotificationJob
   end
 
-  test "a Slack sign-in from a new team by someone who owns one workspace without Slack carries on in it" do
+  test "a Slack sign-in from a new team by someone who owns one workspace without Slack chooses it and carries on in it" do
     configure_team_webhook!
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.expects(:start!).once.returns(OpenStruct.new(id: "wf-1", status: "running"))
@@ -299,6 +299,14 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference -> { Workspace.count } do
       assert_no_difference -> { WorkspaceOnboarding.count } do
         slack_openid_sign_in(owner, uid: "U_RAE", team_id: "T_RETURNING", team_name: "Returning Slack")
+        assert_redirected_to signup_workspace_path
+        assert_nil session[:user_id]
+
+        get signup_workspace_path, headers: inertia_headers
+        assert_equal [ { "id" => workspace.id, "name" => "Returning Co", "createdAt" => workspace.created_at.utc.iso8601 } ],
+                     inertia_props["unconnectedWorkspaces"]
+
+        post reuse_signup_workspace_path, params: { workspace_id: workspace.id }
       end
     end
 
@@ -342,12 +350,66 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     owner = User.create!(email: "careful@example.com", name: "Cass Careful")
     workspace = Workspace.sign_up!(name: "Careful Co", user: owner).workspace
     slack_openid_sign_in(owner, uid: "U_CASS", team_id: "T_CAREFUL", team_name: "Careful Slack")
+    post reuse_signup_workspace_path, params: { workspace_id: workspace.id }
 
     slack_install(uid: "U_CASS", team_id: "T_SOMEONE_ELSE")
 
     assert_redirected_to dashboard_path
     assert_equal SlackAuthenticationService::WORKSPACE_MISMATCH_MESSAGE, flash[:alert]
     assert_not workspace.reload.chat_connected?
+  end
+
+  test "someone who owns one workspace without Slack may say to create a new one for another company's Slack" do
+    owner = User.create!(email: "two-companies@example.com", name: "Tess Two")
+    first_company = Workspace.sign_up!(name: "Acme", user: owner).workspace
+    slack_openid_sign_in(owner, uid: "U_TESS", team_id: "T_GLOBEX", team_name: "Globex")
+
+    assert_no_difference -> { Workspace.count } do
+      post signup_workspace_path, params: { name: "Globex" }
+    end
+    assert_redirected_to signup_workspace_path
+
+    assert_difference -> { Workspace.count }, 1 do
+      post signup_workspace_path, params: { name: "Globex", create_new: true }
+    end
+
+    globex = Workspace.find_by!(name: "Globex")
+    assert_redirected_to onboarding_welcome_path
+    assert_equal globex.id, session[:workspace_id]
+    assert_equal globex.id, session[:connecting_workspace_id]
+    assert_equal "T_GLOBEX", session[:pending_team_id]
+    assert_not first_company.reload.chat_connected?
+  end
+
+  test "a reused workspace with no plan yet chooses one first, and its founder letter still waits" do
+    send_unpaid_workspaces_to!("/app/billing/plans")
+    owner = User.create!(email: "unpaid@example.com", name: "Uma Unpaid")
+    workspace = Workspace.sign_up!(name: "Unpaid Co", user: owner).workspace
+    slack_openid_sign_in(owner, uid: "U_UMA", team_id: "T_UNPAID", team_name: "Unpaid Slack")
+
+    post reuse_signup_workspace_path, params: { workspace_id: workspace.id }
+
+    assert_redirected_to "/app/billing/plans"
+    assert_equal workspace.id, session[:workspace_id]
+    assert_equal "T_UNPAID", session[:pending_team_id]
+    assert workspace.onboarding.reload.founder_letter_pending?
+
+    get onboarding_welcome_path, headers: inertia_headers
+    assert_equal "onboarding/welcome", JSON.parse(response.body)["component"]
+    assert_not workspace.onboarding.reload.founder_letter_pending?
+  end
+
+  test "a reused workspace that already pays goes straight on to its founder letter" do
+    owner = User.create!(email: "subscribed@example.com", name: "Sid Subscribed")
+    workspace = Workspace.sign_up!(name: "Subscribed Co", user: owner).workspace
+    send_unpaid_workspaces_to!("/app/billing/plans", subscribed: [ workspace ])
+    slack_openid_sign_in(owner, uid: "U_SID", team_id: "T_SUBSCRIBED", team_name: "Subscribed Slack")
+
+    post reuse_signup_workspace_path, params: { workspace_id: workspace.id }
+
+    assert_redirected_to onboarding_welcome_path
+    assert_equal workspace.id, session[:workspace_id]
+    assert_equal "T_SUBSCRIBED", session[:pending_team_id]
   end
 
   test "someone who owns several workspaces without Slack chooses one, and only their own are offered" do

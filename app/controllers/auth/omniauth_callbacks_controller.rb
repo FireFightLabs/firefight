@@ -117,14 +117,9 @@ module Auth
     end
 
     # With self-serve signup on, a team Firefight does not know names its workspace first, like any other sign-in.
-    # Someone who owns one workspace without Slack carries on in it, and someone with several chooses on the signup page.
+    # Someone who owns workspaces without Slack, even just one, chooses on the signup page between one of them and a new one.
     def start_install_and_redirect(outcome)
       if SignInMethods.self_serve?
-        unconnected = outcome.user.owned_unconnected_memberships.to_a
-        if unconnected.one?
-          return continue_in_unconnected(unconnected.sole, team_id: outcome.team_id, team_name: outcome.team_name)
-        end
-
         return start_signup(user: outcome.user, team_id: outcome.team_id, team_name: outcome.team_name, method: UserIdentity::SLACK)
       end
 

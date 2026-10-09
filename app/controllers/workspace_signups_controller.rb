@@ -1,6 +1,6 @@
 # Naming a new workspace, after a sign-in that reached nobody with one. Whoever signed in is held in the session
 # (SignInSession#start_signup) until the workspace exists, and only then signed in to the dashboard. A Slack sign-in by
-# someone who owns several workspaces without Slack chooses one of them here first, or says to make another.
+# someone who owns workspaces without Slack, even just one, chooses one of them here first, or says to make another.
 class WorkspaceSignupsController < InertiaController
   include SignInSession
 
@@ -26,7 +26,7 @@ class WorkspaceSignupsController < InertiaController
     }
   end
 
-  # A Slack sign-in by someone who owns several workspaces without Slack, carrying on in the one they chose.
+  # A Slack sign-in by someone who owns workspaces without Slack, carrying on in the one they chose.
   def reuse
     membership = unconnected_memberships.find { |candidate| candidate.workspace_id == params[:workspace_id] }
     return redirect_to(signup_workspace_path, alert: UNKNOWN_WORKSPACE_MESSAGE) unless membership
