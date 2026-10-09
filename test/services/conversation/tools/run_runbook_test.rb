@@ -77,6 +77,18 @@ class Conversation::Tools::RunRunbookTest < ActiveSupport::TestCase
     assert_match "I will watch for up to 40.", said
   end
 
+  test "a connection's change the person may not make names the pack to ask an admin for" do
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Faylee")
+    northflank.integration_environments.create!
+    restart = northflank.tools.create!(name: "restart_service", read_only: false, enabled: true)
+    runbook = release_runbook
+    runbook.sync_steps!([ { title: "Restart web", tool: restart.model_facing_name, arguments: {} } ])
+
+    said = Conversation::Tools::RunRunbook.new(turn(@member)).call(runbook: runbook.name, inputs: { "bump" => "patch" })
+
+    assert_match "may not use #{restart.model_facing_name}. Needs the Faylee (Northflank): changes pack, which a workspace admin can give.", said
+  end
+
   test "a change the person may not make stops the run with the reason, and nothing after it runs or is watched" do
     runbook = release_runbook
     runbook.sync_steps!([
