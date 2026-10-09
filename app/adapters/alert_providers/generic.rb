@@ -16,11 +16,8 @@ module AlertProviders
     }.freeze
 
     def self.verify(headers:, raw_body:, source:)
-      provided = headers["Authorization"].to_s.delete_prefix("Bearer ").presence ||
-                 headers["X-Firefight-Token"].to_s.presence
-      return false if provided.blank?
-
-      ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
+      provided = headers["Authorization"].to_s.delete_prefix("Bearer ").presence || headers[TOKEN_HEADER].to_s.presence
+      token_matches?(provided, source)
     end
 
     def self.normalize(payload, source:)

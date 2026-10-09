@@ -6,12 +6,7 @@ module AlertProviders
     SETUP_INSTRUCTIONS = "In Northflank, create a webhook notification integration with this URL and paste the token into its " \
                          "integration token field (sent as #{TOKEN_HEADER}).".freeze
 
-    def self.verify(headers:, raw_body:, source:)
-      provided = headers[TOKEN_HEADER].to_s
-      return false if provided.blank?
-
-      ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
-    end
+    def self.verify(headers:, raw_body:, source:) = token_matches?(headers[TOKEN_HEADER].to_s, source)
 
     def self.normalize(payload, source:)
       return [] unless payload.is_a?(Hash) && payload["event"].present?
