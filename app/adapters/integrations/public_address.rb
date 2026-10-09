@@ -10,9 +10,6 @@ module Integrations
   module PublicAddress
     class Refused < Integrations::Error; end
 
-    # Reserved ranges IPAddr does not call private, such as the shared range clouds use inside their own networks.
-    RESERVED_RANGES = %w[0.0.0.0/8 100.64.0.0/10 192.0.0.0/24 198.18.0.0/15 224.0.0.0/4 240.0.0.0/4 ff00::/8].map { |range| IPAddr.new(range) }.freeze
-
     # The address checked, and whether it is a private one an operator allowed.
     Checked = Data.define(:ip, :private)
 
@@ -33,11 +30,7 @@ module Integrations
       raise Refused, "#{host} could not be found."
     end
 
-    def self.private?(ip)
-      ip.private? || ip.loopback? || ip.link_local? || ip.to_s == "::" ||
-        RESERVED_RANGES.any? { |range| range.family == ip.family && range.include?(ip) } ||
-        (ip.ipv4_mapped? && private?(ip.native))
-    end
+    def self.private?(ip) = NetworkAddress.private_ip?(ip)
 
     def self.allowed?(host, ip, allowed)
       allowed.to_s.split(",").map(&:strip).compact_blank.any? do |entry|

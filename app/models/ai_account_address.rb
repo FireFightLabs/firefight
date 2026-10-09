@@ -22,13 +22,8 @@ module AiAccountAddress
     name = host.to_s.delete_prefix("[").delete_suffix("]")
     return true if name.match?(LOCAL_NAMES)
 
-    private_ip?(IPAddr.new(name))
+    NetworkAddress.private_ip?(IPAddr.new(name))
   rescue IPAddr::InvalidAddressError
     false
-  end
-
-  def self.private_ip?(ip)
-    ip.private? || ip.loopback? || ip.link_local? || ip.to_s == "::" || ip.to_s == "0.0.0.0" ||
-      (ip.ipv4_mapped? && private_ip?(ip.native))
   end
 end

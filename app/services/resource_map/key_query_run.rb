@@ -43,7 +43,7 @@ class ResourceMap::KeyQueryRun
 
   # A provider's own error is an answer that failed, as a chat and MCP read it.
   def self.ask(call, principal, approval_id)
-    AbilityGateway.authorize!(
+    Chat::ToolCall.run!(
       principal: principal, action_key: call.tool.action_key, workspace: call.resource.workspace, scope: call.scope, params: call.arguments,
       context: { source: AbilityGateway::SOURCE_WEB, approval_id: approval_id }.compact
     ) do |authorization|
