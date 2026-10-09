@@ -1,5 +1,5 @@
 # How a coding agent asks the person it writes a change for. The question is shown under the change's step in the chat
-# or the fix, and in its Slack thread, Halon answers when what it read settles it, and otherwise the person does. A call
+# or the fix, and in its thread, Halon answers when what it read settles it, and otherwise the person does. A call
 # waits a little for the answer and says to wait again, since one request held for minutes would outlive the agent's.
 module CodeAgent::QuestionTools
   ASK = "ask_question".freeze

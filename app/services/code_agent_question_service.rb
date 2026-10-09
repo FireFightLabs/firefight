@@ -1,5 +1,5 @@
-# Where a coding agent's question is shown and answered. It is posted in the Slack thread of the chat or fix it was asked
-# in, Halon answers it when what it already knows settles it, and otherwise the person the change runs as answers it from
+# Where a coding agent's question is shown and answered. It is posted in the thread of the chat or fix it was asked in,
+# the same thread as the change's pause and pull request notices, Halon answers it when what it already knows settles it, and otherwise the person the change runs as answers it from
 # the dashboard or the thread. Every surface is redrawn once it settles.
 class CodeAgentQuestionService
   Answered = Data.define(:ok, :words)
@@ -54,17 +54,18 @@ class CodeAgentQuestionService
     )
     return unless reply
 
-    picked = choices.index { |choice| choice.label == reply.option }
+    picked = choices.index { |choice| choice.label.casecmp?(reply.option.to_s.strip) }
     redraw!(question) if question.answer_as_halon!(reply.text, option: picked)
   rescue FirefightAi::Error => error
     Rails.logger.warn({ event: "code_question.halon_did_not_answer", question_id: question.id, error: error.class.name }.to_json)
   end
 
   def self.post!(question)
-    channel_id, thread_id = thread_of(question.session.place)
-    return if channel_id.blank? || thread_id.blank? || question.message_id.present?
+    destination = PullRequestFollowing.destination_of(question.session)
+    return if destination.channel_id.blank? || destination.thread_id.blank? || question.message_id.present?
 
-    posted = WorkspaceAdapter.for(question.workspace).post_code_question(channel_id: channel_id, thread_id: thread_id, question: question)
+    posted = WorkspaceAdapter.for(question.workspace).post_code_question(channel_id: destination.channel_id, thread_id: destination.thread_id,
+                                                                         question: question)
     question.update_columns(message_channel_id: posted[:channel_id], message_id: posted[:message_id])
   rescue AdapterError => error
     Rails.logger.warn({ event: "code_question.unposted", question_id: question.id, error: error.class.name }.to_json)
@@ -97,16 +98,4 @@ class CodeAgentQuestionService
     end
   end
   private_class_method :known
-
-  # A chat's own thread, or the thread of the run whose fix is being applied.
-  def self.thread_of(place)
-    case place
-    when Conversation then [ place.channel_id, place.thread_id ]
-    when Investigation::RemediationStep
-      investigation = place.plan.finding.investigation
-      [ investigation.channel_id, investigation.thread_id ]
-    else [ nil, nil ]
-    end
-  end
-  private_class_method :thread_of
 end

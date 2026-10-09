@@ -704,6 +704,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
+  def post_code_pause_to_user(user_id:, pause:)
+    post_message(channel_id: user_id, text: Slack::Messages::CodePause.fallback(pause), blocks: Slack::Messages::CodePause.build(pause))
+  end
+
   def update_code_pause(channel_id:, message_id:, pause:)
     update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::CodePause.fallback(pause),
                    blocks: Slack::Messages::CodePause.build(pause))

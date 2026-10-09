@@ -529,10 +529,16 @@ class PlatformAdapter
   end
 
   # A code change paused at its spending limit, asking whether to continue, with Continue and Stop, in the thread of the
-  # chat or run it came from, or to whoever asked when the chat has no thread (thread_id nil). pause is a
-  # CodeAgentSession::Pause.
+  # chat or run it came from. pause is a CodeAgentSession::Pause.
   # @return [Hash] { message_id:, channel_id: }
   def post_code_pause(channel_id:, thread_id:, pause:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same, in a direct message to whoever asked, when the run it came from has no thread. channel_id is the direct
+  # message conversation, where Continue carries the change on under this message.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_code_pause_to_user(user_id:, pause:)
     raise NotImplemented.new(__method__, self.class)
   end
 

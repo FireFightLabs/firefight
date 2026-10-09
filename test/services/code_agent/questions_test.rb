@@ -56,6 +56,30 @@ class CodeAgent::QuestionsTest < ActionDispatch::IntegrationTest
     assert @session.questions.sole.by_halon?
   end
 
+  test "Halon's pick of an option is matched whatever its case, so the agent hears the option and what it leads to" do
+    FirefightAi::QuestionAnswerer.any_instance.expects(:answer)
+                               .returns(FirefightAi::QuestionAnswerer::Reply.new(text: "The person asked for the tag.", option: TAG_OR_COMMIT.first["label"].downcase))
+    @adapter.stubs(:post_code_question).returns(channel_id: "C9", message_id: "5.6")
+
+    perform_enqueued_jobs { ask("Tag or commit?") }
+
+    assert_equal 0, @session.questions.sole.chosen
+  end
+
+  test "two questions asked at once leave one open, and a change never asks more than its cap" do
+    CodeAgentSession.any_instance.stubs(:open_question).returns(nil)
+    ask_question!(@session, "Tag or commit?")
+
+    error = assert_raises(CodeAgentQuestion::Refused) { ask_question!(@session, "And the branch?") }
+    assert_equal CodeAgentQuestion::WAITING, error.message
+    assert_equal 1, @session.questions.count
+    assert_equal 1, @session.reload.questions_asked, "the refused question gave its place back"
+
+    @session.questions.update_all(status: CodeAgentQuestion::STATUS_ANSWERED)
+    @session.update_columns(questions_asked: CodeAgentQuestion::MAX_PER_CHANGE)
+    assert_match "asked its #{CodeAgentQuestion::MAX_PER_CHANGE} questions", assert_raises(CodeAgentQuestion::Refused) { ask_question!(@session, "One more?") }.message
+  end
+
   test "only the person the change runs as can answer, and a second question waits for the first" do
     @adapter.stubs(:post_code_question).returns(channel_id: "C9", message_id: "5.6")
     question = ask_question!(@session, "Tag or commit?")

@@ -44,13 +44,15 @@ class CodeAgentQuestion < ApplicationRecord
 
   class Refused < StandardError; end
 
+  WAITING = "Your earlier question is still waiting for an answer. Call wait_for_answer.".freeze
+
   # A second question waits for the first, and a change asks only a few, so the agent is told plainly when it cannot ask.
-  # options are hashes with a label and a consequence, recommended the label of the one it recommends.
+  # options are hashes with a label and a consequence, recommended the label of the one it recommends. The agent can ask
+  # twice at once, so the cap is claimed in SQL and the database keeps a second open question out.
   def self.ask!(session, text, options:, recommended:, reason:)
     words = clean(text, QUESTION_LIMIT)
     raise Refused, "Ask a question in words." if words.blank?
-    raise Refused, "Your earlier question is still waiting for an answer. Call wait_for_answer." if session.open_question
-    raise Refused, "This change has asked its #{MAX_PER_CHANGE} questions. Work from what you have, and say in your summary what you assumed." if session.questions.count >= MAX_PER_CHANGE
+    raise Refused, WAITING if session.open_question
 
     given = Array(options).map { |option| option.to_h.transform_keys(&:to_s) }
               .map { |option| Option.new(label: clean(option["label"], LABEL_LIMIT), consequence: clean(option["consequence"], CONSEQUENCE_LIMIT)) }
@@ -61,9 +63,17 @@ class CodeAgentQuestion < ApplicationRecord
     pick = given.index { |option| option.label.casecmp?(clean(recommended, LABEL_LIMIT)) }
     raise Refused, "Name the option you recommend by its label, as one of the options you gave." unless pick
     raise Refused, "Say in a sentence why you recommend it." if reason.to_s.strip.blank?
+    raise Refused, "This change has asked its #{MAX_PER_CHANGE} questions. Work from what you have, and say in your summary what you assumed." unless session.count_question!
 
-    create!(session: session, workspace: session.workspace, question: words, options: given.map(&:to_h), recommended: pick,
-            recommended_reason: clean(reason, REASON_LIMIT), answer_due_at: ANSWER_WITHIN.from_now)
+    begin
+      transaction(requires_new: true) do
+        create!(session: session, workspace: session.workspace, question: words, options: given.map(&:to_h), recommended: pick,
+                recommended_reason: clean(reason, REASON_LIMIT), answer_due_at: ANSWER_WITHIN.from_now)
+      end
+    rescue ActiveRecord::RecordNotUnique
+      session.uncount_question!
+      raise Refused, WAITING
+    end
   end
 
   def self.clean(text, limit) = Chat::SecretFree.redacted(text.to_s.squish).truncate(limit)

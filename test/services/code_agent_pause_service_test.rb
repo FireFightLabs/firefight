@@ -4,6 +4,7 @@ require "test_helper"
 # stops it, from the step or from Slack.
 class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
+  include FixPlanTestHelper
 
   setup do
     @workspace = workspaces(:slack_workspace_one)
@@ -91,7 +92,78 @@ class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
     assert_match "The person pressed Continue on the code change in acme/api", CodeAgentPauseService.continued_note(@pause, said)
   end
 
+  test "a fix's pause with no thread is asked in a direct message, and Continue there carries the change on under that message" do
+    pause = step_pause
+    pause.session.place.plan.finding.investigation.update_columns(thread_id: nil)
+    @adapter.expects(:post_code_pause_to_user).with(user_id: @bob.platform_user_id, pause: pause).returns(channel_id: "D7", message_id: "8.1")
+    CodeAgentPauseService.tell!(pause)
+    assert_equal [ "D7", "8.1" ], pause.reload.values_at(:message_channel_id, :message_id)
+
+    assert_enqueued_jobs(1, only: ConversationReplyJob) { assert_nil CodeAgentPauseService.continue!(pause, by: @bob) }
+
+    conversation = @workspace.conversations.find_by!(channel_id: "D7", thread_id: "8.1")
+    assert_equal conversation, pause.reload.conversation
+    assert pause.continuing?
+  end
+
+  test "a Continue with nowhere to carry the change on leaves Continue and Stop to choose from" do
+    pause = step_pause
+    pause.session.place.plan.finding.investigation.update_columns(thread_id: nil)
+
+    assert_equal CodeAgentPauseService::COULD_NOT_CONTINUE, CodeAgentPauseService.continue!(pause, by: @bob)
+
+    assert pause.reload.offered?
+    assert_nil CodeAgentPauseService.stop!(pause, by: @bob), "Stop still works"
+  end
+
+  test "a Continue that fails before carrying the change on offers the choice again, and one that carried it on never does" do
+    @pause.session.update_columns(integration_environment_id: integration_row.id)
+    @pause.update_columns(status: CodeAgentSession::Pause::STATUS_CONTINUING, decided_by_id: @bob.id, decided_at: Time.current)
+    Chat::Tools::Connection.any_instance.stubs(:run).raises(ActiveRecord::ConnectionTimeoutError)
+
+    assert_equal CodeAgentPauseService::COULD_NOT_CONTINUE, CodeAgentPauseService.run_continue!(Conversation::Turn.new(@conversation, asker: @bob), @pause)
+    assert @pause.reload.offered?
+    assert_nil @pause.decided_by_id
+
+    @pause.update_columns(status: CodeAgentSession::Pause::STATUS_CONTINUING, resumed_at: Time.current)
+    CodeAgentPauseService.run_continue!(Conversation::Turn.new(@conversation, asker: @bob), @pause)
+    assert @pause.reload.continuing?
+  end
+
+  test "Stop says the saved branch may still be there when the code host would not delete it, and closes the box either way" do
+    row = integration_row
+    @pause.session.update_columns(integration_environment_id: row.id)
+    CodeBox.create!(workspace: @workspace, key: "chat-1", address: "http://box", box_ref: "box-1", provider: "docker", secret: "s", last_used_at: Time.current)
+    Integrations::GithubApp.stubs(:installation_token).returns("ghs_token")
+    Integrations::GithubApp.expects(:write).with(:delete, "/repos/acme/api/git/refs/heads/halon/fix-1a2b", token: "ghs_token")
+                           .raises(Integrations::GithubApp::Error, "GitHub answered 500")
+
+    assert_equal CodeAgentPauseService::COULD_NOT_STOP, CodeAgentPauseService.stop!(@pause, by: @bob)
+
+    assert @pause.reload.stopped?
+    assert_not CodeBox.live.exists?(key: "chat-1")
+  end
+
+  test "Stop closes the box of a change whose code host connection is gone" do
+    CodeBox.create!(workspace: @workspace, key: "chat-1", address: "http://box", box_ref: "box-1", provider: "docker", secret: "s", last_used_at: Time.current)
+
+    assert_nil CodeAgentPauseService.stop!(@pause, by: @bob)
+    assert_not CodeBox.live.exists?(key: "chat-1")
+  end
+
   private
+
+  # A pause from a fix's step, which has no chat of its own.
+  def step_pause
+    step = build_fix_plan(@workspace).steps.third
+    request = CodeAgent::Request.new(principal: @bob, source: AbilityGateway::SOURCE_WEB, place: step)
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    CodeAgentSession::Pause.create!(
+      session: session, workspace: @workspace, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }, repository: "acme/api",
+      base: "main", saved_branch: "halon/fix-1a2b", saved_commit: "s" * 40, copy_ref: "c" * 40, budget_micros: 2_000_000, resumable_until: 15.minutes.from_now
+    )
+  end
 
   def integration_row
     github = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "github", name: "GitHub", slug: "github")
