@@ -24,4 +24,12 @@ class FirefightAi::CopyTest < ActiveSupport::TestCase
     assert_includes FirefightAi::Investigator.new(@workspace, inferable: nil).send(:system_prompt), FirefightAi::Copy::RULE
     assert_includes FirefightAi::IncidentResponder.new(@workspace).send(:system_prompt), FirefightAi::Copy::RULE
   end
+
+  test "a check that could not run is listed under Could not run here and never called blocked, in a chat, an investigation and a review" do
+    assert_includes FirefightAi::Copy::RULE, FirefightAi::Copy::NOT_RUN
+    assert_includes FirefightAi::Copy::NOT_RUN, "goes under Could not run here"
+    assert_includes FirefightAi::Copy::NOT_RUN, "Never call it blocked or a blocker"
+    assert_includes FirefightAi::Investigator.new(@workspace, inferable: nil).send(:system_prompt), FirefightAi::Copy::NOT_RUN
+    assert_includes FirefightAi::ChangeReviewer::PROMPT, FirefightAi::Copy::NOT_RUN
+  end
 end

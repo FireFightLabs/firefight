@@ -18,7 +18,7 @@ class RepositorySetupTest < ActiveSupport::TestCase
     assert_equal({ "RAILS_ENV" => "test" }, @setup.env)
     assert_equal [ "cd web\nnpm run build", "bin/rails db:prepare" ], @setup.commands
     assert @setup.edited_at
-    assert_equal({ "services" => [ { "name" => "postgres", "port" => 5433, "env" => { "POSTGRES_DB" => "app_test" } } ],
+    assert_equal({ "services" => [ { "name" => "postgres", "image" => "postgres:16", "port" => 5433, "env" => { "POSTGRES_DB" => "app_test" } } ],
                    "env" => { "RAILS_ENV" => "test" }, "commands" => [ "cd web\nnpm run build", "bin/rails db:prepare" ] }, @setup.for_box)
   end
 

@@ -189,7 +189,7 @@ module Integrations
           "has tests for this code, and run them when they can run. Change nothing the fix does not need.",
           "Running the tests is best effort. A test that cannot run in your environment is never a reason to stop or to leave " \
           "the change unwritten. Open the pull request anyway, list what could not run and why under #{CodeWriteUp::NOT_RUN} in its " \
-          "description, and the repository's own CI, when it has one, runs it there.",
+          "description, and the repository's own CI, when it has one, runs it there. #{FirefightAi::Copy::NOT_RUN}",
           ("Leave #{kept.to_sentence} unchanged, since this workspace keeps those paths out of code changes. If the fix " \
            "needs one of them changed, stop and say so instead of changing it." if kept.any?),
           "Open the change as one pull request into #{base || 'the default branch'}, ready for review, and do not merge it. " \
