@@ -27,6 +27,14 @@ module Mcp
         }.compact)
       end
 
+      # How many links lead to resources in environments the caller cannot read, or nil when none do.
+      def out_of_reach_words(count, within_two_hops: false)
+        return nil unless count.positive?
+
+        "#{count} more #{'link'.pluralize(count)}#{' within two hops' if within_two_hops} #{count == 1 ? 'leads' : 'lead'} " \
+          "to resources in environments you cannot read"
+      end
+
       # One row per resource, with how many resources directly depend on it, counted in one query and only among those
       # the caller reads.
       def rows(resources, visible)

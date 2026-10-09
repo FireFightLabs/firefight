@@ -88,7 +88,7 @@ module Mcp
                          .update!(origin: ResourceMap::ORIGIN_MATCHED, integration_environment: nil, variables: [ "DATABASE_URL" ],
                                   clues: [ "DATABASE_URL on web names the address Northflank reports for orders-db" ])
 
-        link = call(GetResourceLinks, resource: "orders-db", direction: GetResourceLinks::DIRECTION_IN)[:links].sole
+        link = call(GetResourceLinks, resource: "orders-db", direction: ResourceMap::Link::DIRECTION_IN)[:links].sole
         assert_equal [ ResourceMap::ORIGIN_MATCHED, [ "DATABASE_URL" ] ], link.values_at(:origin, :settings)
         assert_equal "matched from web's DATABASE_URL setting, which names its address", link[:how]
         assert_includes call(GetResourceMap, resource: "orders-db")[:resources].sole[:links], "web uses orders-db (matched from web's DATABASE_URL setting, which names its address)"

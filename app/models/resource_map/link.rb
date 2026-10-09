@@ -11,11 +11,30 @@ class ResourceMap::Link < ApplicationRecord
   belongs_to :added_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :confirmed_by, class_name: "WorkspaceMembership", optional: true
 
+  DIRECTION_IN = "in".freeze
+  DIRECTION_OUT = "out".freeze
+  DIRECTION_BOTH = "both".freeze
+  DIRECTIONS = [ DIRECTION_IN, DIRECTION_OUT, DIRECTION_BOTH ].freeze
+
   # A dismissed suggestion is kept, so the same wrong link is not suggested again, but it is no longer part of the map.
   scope :standing, -> { where(dismissed_at: nil) }
   scope :to_review, -> { standing.where(origin: ResourceMap::SUGGESTION_ORIGINS, confirmed_at: nil) }
   # Facts: every standing link except a suggestion no one has confirmed.
   scope :facts, -> { standing.where.not(origin: ResourceMap::SUGGESTION_ORIGINS).or(standing.where.not(confirmed_at: nil)) }
+
+  # The standing links out of a resource, into it or both. With within, only those whose other end is among those
+  # resource ids, such as the ones a principal reads.
+  def self.touching(resource, direction:, within: nil)
+    out = standing.where(from_resource_id: resource.id)
+    into = standing.where(to_resource_id: resource.id)
+    out = out.where(to_resource_id: within) if within
+    into = into.where(from_resource_id: within) if within
+    case direction
+    when DIRECTION_OUT then out
+    when DIRECTION_IN then into
+    else out.or(into)
+    end
+  end
 
   validates :certainty, inclusion: { in: ResourceMap::CERTAINTIES }, allow_nil: true
 

@@ -95,7 +95,7 @@ module Mcp
           key_checks: (key_checks(resource, principal) unless resource.removed_at),
           usual_log_lines: (usual_log_lines(resource, principal) unless resource.removed_at),
           links: (resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) } if links),
-          out_of_reach: (hidden&.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
+          out_of_reach: (out_of_reach_words(hidden, within_two_hops: true) if hidden)
         }.compact
       end
 
