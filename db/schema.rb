@@ -649,6 +649,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "parts_told", default: {}, null: false
+    t.datetime "hand_back_noted_at"
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
     t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"

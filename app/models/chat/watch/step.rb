@@ -102,6 +102,14 @@ class Chat::Watch::Step < ApplicationRecord
   # No run showed up, so Halon is asked to find another way to follow it. True once.
   def handed_back! = claim(handed_back_at: nil) { { handed_back_at: Time.current } }
 
+  # Halon is told to re-plan once, in the turn that first has room for it.
+  def hand_back_noted! = claim(hand_back_noted_at: nil) { { hand_back_noted_at: Time.current } }
+
+  # Handed back in this chat and not yet told to Halon, such as when the turn meant for it found a confirmation waiting.
+  def self.hand_back_untold(chat)
+    joins(:watch).where(chat_watches: { chat_id: chat.id }).where.not(handed_back_at: nil).where(hand_back_noted_at: nil).order(:handed_back_at)
+  end
+
   # Waiting on a run that has not shown up since it could have: since the watch began, or since the step before it ended.
   def overdue?(now = Time.current)
     return false unless history? && status == STATUS_WAITING && handed_back_at.nil?
