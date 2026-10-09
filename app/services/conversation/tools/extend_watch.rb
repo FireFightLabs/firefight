@@ -29,6 +29,6 @@ class Conversation::Tools::ExtendWatch < RubyLLM::Tool
     return Chat::Watch::NOTHING_TO_STOP unless watch.extend_to!(given["minutes"])
 
     Conversation::LiveDelivery.watch_moved(watch.conversation)
-    "#{watch.title} is now watched for up to #{Conversation::Watches::Shown.limit_label(watch)} from when it started. Tell the person in a few words."
+    "#{watch.title} is now watched for up to #{Chat::Watch::Shown.limit_label(watch)} from when it started. Tell the person in a few words."
   end
 end

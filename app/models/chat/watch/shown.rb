@@ -1,5 +1,5 @@
 # How a watch reads on its card, in the chat and over MCP, worked out once so every place says the same.
-module Conversation::Watches::Shown
+module Chat::Watch::Shown
   STEP_WORDS = {
     Chat::Watch::Step::STATUS_WAITING => "Waiting for it to start", Chat::Watch::Step::STATUS_RUNNING => "Running",
     Chat::Watch::Step::STATUS_SUCCEEDED => "Succeeded", Chat::Watch::Step::STATUS_FAILED => "Failed",
@@ -29,7 +29,7 @@ module Conversation::Watches::Shown
     when Chat::Watch::BASIS_ASKED then "Watching as long as #{watch.asker_name} asked."
     when Chat::Watch::BASIS_HISTORY then "It usually takes about #{usual}."
     when Chat::Watch::BASIS_MEMORY then "Halon remembers it taking about #{usual}."
-    else "No history of how long it takes, so Halon watches for an hour."
+    else "No history of how long it takes, so Halon watches for #{Integrations::Capabilities::History.duration(Chat::Watch::DEFAULT_LIMIT.to_i)}."
     end
   end
 

@@ -17,7 +17,7 @@ module Mcp
         blocked = Conversation::Watches.stop!(watch, by: principal)
         return Mcp::ToolDispatcher.error_response(blocked) if blocked
 
-        respond(Conversation::Watches::Shown.summary(watch.reload))
+        respond(Chat::Watch::Shown.summary(watch.reload))
       end
     end
   end

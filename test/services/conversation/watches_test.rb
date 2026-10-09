@@ -317,7 +317,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
                  "The GitHub path is still broken. Next I would change the name the release sends, shall I?", said.text
     assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
     assert_equal "trigger-northflank", watch.steps.sole.failed_part
-    assert_match "trigger-northflank failed.", Conversation::Watches::Shown.step_state(watch.steps.sole)
+    assert_match "trigger-northflank failed.", Chat::Watch::Shown.step_state(watch.steps.sole)
     invoked = Ability::Invocation.where(workspace: @workspace, action_key: "github.job_log")
     assert_equal [ AbilityGateway::SOURCE_WATCH ], invoked.map(&:source).uniq
     assert_match "(for: get GitHub releases deploying through the Northflank webhook again)", Conversation::Watches.untold_note(@conversation.chat)
@@ -391,14 +391,14 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     check!(watch)
     followed = watch.steps.sole
-    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "Waiting for it to start." ], [ followed.reload.status, Conversation::Watches::Shown.step_state(followed) ]
+    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "Waiting for it to start." ], [ followed.reload.status, Chat::Watch::Shown.step_state(followed) ]
     assert_empty watch.updates.reload
 
     answers("api_request" => northflank_run("running", jobs: 1))
     check!(watch)
     assert_equal Chat::Watch::Step::STATUS_RUNNING, followed.reload.status
     assert followed.started_at
-    assert_equal "Running. Passed so far: tag.", Conversation::Watches::Shown.step_state(followed)
+    assert_equal "Running. Passed so far: tag.", Chat::Watch::Shown.step_state(followed)
     assert_equal [ "Northflank release workflow: tag passed, trigger-northflank running." ], watch.updates.reload.map(&:text)
 
     answers("api_request" => northflank_run("running", jobs: 2))

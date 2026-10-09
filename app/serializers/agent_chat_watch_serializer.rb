@@ -27,7 +27,7 @@ class AgentChatWatchSerializer < BaseSerializer
 
   # Such as "Watching: release run #46, up to 40 min".
   type :string
-  def headline = Conversation::Watches::Shown.headline(watch)
+  def headline = Chat::Watch::Shown.headline(watch)
 
   type :string, optional: true
   def outcome
@@ -37,7 +37,7 @@ class AgentChatWatchSerializer < BaseSerializer
   # Where the limit came from, such as "It usually takes about 18 minutes."
   type :string, optional: true
   def basis
-    Conversation::Watches::Shown.basis(watch)
+    Chat::Watch::Shown.basis(watch)
   end
 
   type :string
@@ -53,7 +53,7 @@ class AgentChatWatchSerializer < BaseSerializer
 
   type "{ id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(" | ")}; state: string | null }[]"
   def steps
-    watch.steps.map { |step| { id: step.id, label: step.label, status: Conversation::Watches::Shown.step_status(step), state: Conversation::Watches::Shown.step_state(step) } }
+    watch.steps.map { |step| { id: step.id, label: step.label, status: Chat::Watch::Shown.step_status(step), state: Chat::Watch::Shown.step_state(step) } }
   end
 
   type :string, optional: true
