@@ -33,16 +33,16 @@ class IncidentActionsController < InertiaController
   # Taking and handing over are different events, which is why there are two buttons.
   # The service owns the difference.
   def pick_up
-    act(:claimable?, :pick_up_action, "You picked up the item.", picked_up_by: current_member)
+    act(:pick_up_blocked_reason, :pick_up_action, "You picked up the item.", picked_up_by: current_member)
   end
 
   def assign
     assignee = current_workspace.workspace_memberships.find(params.require(:member_id))
-    act(:completable?, :reassign_action, "#{assignee.display_name} holds the item now.", assignee: assignee, reassigned_by: current_member)
+    act(:completion_blocked_reason, :reassign_action, "#{assignee.display_name} holds the item now.", assignee: assignee, reassigned_by: current_member)
   end
 
   def complete
-    act(:completable?, :complete_action, "The item was marked done.", completed_by: current_member)
+    act(:completion_blocked_reason, :complete_action, "The item was marked done.", completed_by: current_member)
   end
 
   def rename
@@ -82,11 +82,12 @@ class IncidentActionsController < InertiaController
 
   def service = IncidentActionService.new(current_workspace)
 
-  def act(guard, operation, done, **arguments)
+  def act(blocked_reason, operation, done, **arguments)
     incident = current_workspace.incidents.find(params[:incident_id])
     action = incident.incident_actions.active.find(params[:id])
 
-    return redirect_to(incident_path(incident)) unless action.public_send(guard)
+    refusal = action.public_send(blocked_reason)
+    return redirect_to(incident_path(incident), alert: refusal) if refusal
 
     begin
       IncidentActionService.new(current_workspace).public_send(operation, action: action, **arguments)

@@ -39,7 +39,14 @@ class IncidentAction < ApplicationRecord
   scope :tracking, ->(url) { active.where(external_url: url) }
 
   def claimable?
-    open? && !assigned?
+    pick_up_blocked_reason.nil?
+  end
+
+  def pick_up_blocked_reason
+    return "That item is done. Reopen it first." if done?
+    return "#{assignee&.actor_display_name || "Someone"} already holds that item." if assigned?
+
+    "That item is already under way." unless open?
   end
 
   def completable?

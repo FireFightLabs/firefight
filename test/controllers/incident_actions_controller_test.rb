@@ -180,6 +180,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference -> { @incident.incident_events.where(event_type: IncidentEvent::ACTION_COMPLETED).count } do
       patch complete_incident_action_path(@incident, action)
     end
+    assert_equal "That item is already done.", flash[:alert]
   end
 
   test "picking up an item someone already holds does nothing" do
@@ -190,6 +191,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     patch pick_up_incident_action_path(@incident, action)
 
     assert_equal other, action.reload.assignee
+    assert_equal "#{other.actor_display_name} already holds that item.", flash[:alert]
   end
 
   test "another workspace's item is not reachable" do
