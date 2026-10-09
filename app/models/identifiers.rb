@@ -162,9 +162,9 @@ module Identifiers
   HELD_CALL_RUN = "held_call_run"
   HELD_CALL_DISMISS = "held_call_dismiss"
   HELD_CALL_ASK_AGAIN = "held_call_ask_again"
-  # On a pull request Halon opened that needs attention: runs the code change on its branch as whoever asked for it.
+  # On a pull request Halon opened that needs attention. It runs the code change on its branch as whoever asked for it.
   PULL_REQUEST_FIX = "pull_request_fix"
-  # A change refused for want of a pack: the person refused asks the admins, and an admin gives it.
+  # A change refused for want of a pack. The person refused asks the admins, and an admin gives it.
   PACK_REQUEST_ASK = "pack_request_ask"
   PACK_REQUEST_GIVE = "pack_request_give"
   # The same for an approved step of a fix.

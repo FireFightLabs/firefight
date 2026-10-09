@@ -1,5 +1,5 @@
 # What a person is told when a model call could not be paid for. It never names the provider. Who pays decides what
-# was wrong and who can fix it: the workspace's own AI accounts and its Firefight credits are an admin's to fix under
+# was wrong and who can fix it. The workspace's own AI accounts and its Firefight credits are an admin's to fix under
 # Settings, Workspace, the operator's keys are whoever runs Firefight's, and Firefight's own account is Firefight's,
 # whose team is said to have been told only when an alert actually reaches it.
 module AiCredit

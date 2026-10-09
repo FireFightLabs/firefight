@@ -40,7 +40,7 @@ module Entitlements
   end
 
   # Firefight's own workspaces run on Firefight's key and are never billed for it. Only a hosted build asks, and one
-  # that has not said keeps every workspace on Firefight's key, as before workspaces could bring their own.
+  # that has not said keeps every workspace on Firefight's key.
   def self.firefight_pays_for_ai?(workspace)
     return false if ai_account(workspace) == AI_ACCOUNT_OPERATOR
     return true unless backend.respond_to?(:firefight_pays_for_ai?)

@@ -43,7 +43,7 @@ AiPayer = Data.define(:paid_by, :account) do
   end
 
   # The account is out from this call on. A workspace's own account is skipped until it works again, and its admins
-  # are told once. The deployment's account is the operator's to fix, as before.
+  # are told once. The deployment's account is the operator's to fix.
   def refused!(error)
     return unless own_account?
     return account.ran_out!(error) if self.class.out_of_credit?(error)

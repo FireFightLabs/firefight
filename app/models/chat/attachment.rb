@@ -29,8 +29,6 @@ class Chat::Attachment < ApplicationRecord
   MAX_PER_MESSAGE = 4
   # Anthropic takes an image up to 5 MB, and a PDF the provider reads whole stays well inside every provider's request.
   MAX_BYTES = { KIND_IMAGE => 5.megabytes, KIND_PDF => 10.megabytes, KIND_TEXT => 5.megabytes }.freeze
-  # Bedrock's Converse API takes smaller images and documents inline than the others.
-  PROVIDER_MAX_BYTES = { "bedrock" => { KIND_IMAGE => 3.5.megabytes, KIND_PDF => 4.megabytes } }.freeze
   # A platform is told this before it downloads anything, since the kind is known only from the bytes.
   LARGEST = MAX_BYTES.values.max
   # Anthropic reads at most 100 pages of a PDF, so a longer one is read as text.
@@ -90,7 +88,7 @@ class Chat::Attachment < ApplicationRecord
 
   def self.limits_for(workspace)
     provider = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace).provider_name.to_s
-    MAX_BYTES.merge(PROVIDER_MAX_BYTES.fetch(provider, {}))
+    MAX_BYTES.merge(AiProviders.inline_file_limits(provider))
   end
 
   # Raises Refused when the file is not one Halon reads, is empty or is too large for its kind.
