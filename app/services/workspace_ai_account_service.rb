@@ -56,8 +56,8 @@ class WorkspaceAiAccountService
     adapter = WorkspaceAdapter.for(@workspace)
     @workspace.workspace_memberships.admins_and_owners.where.not(platform_user_id: nil).find_each do |admin|
       adapter.post_direct_message(user_id: admin.platform_user_id, text: text)
-    rescue AdapterError => e
-      Rails.logger.warn({ event: "ai_account.notice_failed", account_id: account.id, error: e.class.name }.to_json)
+    rescue AdapterError => error
+      Rails.logger.warn({ event: "ai_account.notice_failed", account_id: account.id, error: error.class.name }.to_json)
     end
     Rails.logger.info({ event: "ai_account.noticed", account_id: account.id, notice: notice }.to_json)
   end
@@ -89,8 +89,8 @@ class WorkspaceAiAccountService
     return if AiAccountAddress.private_host?(host)
 
     Integrations::ModelAddress.ip_for!(host)
-  rescue Integrations::ModelAddress::Refused => e
-    account.errors.add(:base, e.message)
+  rescue Integrations::ModelAddress::Refused => error
+    account.errors.add(:base, error.message)
     raise ActiveRecord::RecordInvalid, account
   rescue URI::InvalidURIError
     nil

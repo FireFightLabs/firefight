@@ -50,8 +50,8 @@ class AiAccountSignIn
     tokens = token_request(sign_in, grant_type: "refresh_token", refresh_token: refresh_token)
     account.store_tokens!({ "access_token" => tokens["access_token"], "refresh_token" => tokens["refresh_token"].presence || refresh_token },
                           expires_at: expires_at(tokens))
-  rescue Unreachable => e
-    Rails.logger.warn({ event: "ai_account.token_refresh_unreachable", workspace_ai_account_id: account.id, error: e.message }.to_json)
+  rescue Unreachable => error
+    Rails.logger.warn({ event: "ai_account.token_refresh_unreachable", workspace_ai_account_id: account.id, error: error.message }.to_json)
   rescue Failed => e
     AiRefusal.key_refused!(account, FirefightAi::TerminalError.new(e.message, reason: AiAccountError::KEY_REASONS.first))
   end

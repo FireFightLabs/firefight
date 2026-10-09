@@ -1,6 +1,7 @@
 # Where a coding agent's question is shown and answered. It is posted in the thread of the chat or fix it was asked in,
-# the same thread as the change's pause and pull request notices, Halon answers it when what it already knows settles it, and otherwise the person the change runs as answers it from
-# the dashboard or the thread. Every surface is redrawn once it settles.
+# the same thread as the change's pause and pull request notices. Halon answers it when what it already knows settles
+# it, and otherwise the person the change runs as answers it from the dashboard or the thread. Every surface is redrawn
+# once it settles.
 class CodeAgentQuestionService
   Answered = Data.define(:ok, :words)
 

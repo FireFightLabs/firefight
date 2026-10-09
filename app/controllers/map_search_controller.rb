@@ -12,7 +12,7 @@ class MapSearchController < InertiaController
     render json: { results: MapSearchResultSerializer.many(page.results), refusal: nil }
   rescue AbilityGateway::Denied
     render json: { results: [], refusal: NO_MAP_REACH }
-  rescue AbilityGateway::PendingApproval => e
-    render json: { results: [], refusal: WebAuthorization.pending_message(e.approval) }
+  rescue AbilityGateway::PendingApproval => error
+    render json: { results: [], refusal: WebAuthorization.pending_message(error.approval) }
   end
 end

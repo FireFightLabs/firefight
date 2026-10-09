@@ -5,7 +5,7 @@ class MemorySubjectOptionSerializer < BaseSerializer
   type :string
   def value = Chat::Memory.subject_key(subject)
 
-  # Such as "Checkout · Service" or "web · Northflank".
+  # Such as "Checkout · Service" or "web · Acme Cloud".
   type :string
   def label
     case subject

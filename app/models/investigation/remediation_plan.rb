@@ -71,7 +71,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   # done step by step.
   def appliable? = steps.any?(&:runs_itself?)
 
-  # Whether Apply fix shows: something in it runs through a connection and nobody applied it yet.
+  # Apply fix shows when something in it runs through a connection and nobody applied it yet.
   def apply_offered? = appliable? && status == STATUS_PROPOSED
 
   def applying? = status == STATUS_APPLYING

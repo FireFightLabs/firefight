@@ -39,8 +39,8 @@ module Integrations
       Net::HTTP.start(uri.hostname, uri.port, **options) do |connection|
         connection.request(request, &)
       end
-    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error => e
-      raise error_class, "could not reach #{uri.host} (#{e.class.name})"
+    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error => error
+      raise error_class, "could not reach #{uri.host} (#{error.class.name})"
     end
 
     # The answer read as JSON. A 2xx answer that is not JSON still counts as done and reads as {}, so a change that went
