@@ -191,19 +191,25 @@ class Workspace < ApplicationRecord
     )
 
     workspace.assign_attributes(
-      name: team_info["name"],
-      platform_data: team_info,
-      access_token: auth_hash.credentials.token,
-      refresh_token: auth_hash.credentials.refresh_token,
-      token_expires_at: auth_hash.credentials.expires_at ? Time.at(auth_hash.credentials.expires_at) : nil,
-      installed_at: workspace.new_record? ? Time.current : workspace.installed_at,
-      disconnected_at: nil,
-      disconnected_reason: nil
+      name: team_info["name"], installed_at: workspace.new_record? ? Time.current : workspace.installed_at, **slack_install_attributes(auth_hash)
     )
     workspace.created_by ||= created_by if workspace.new_record?
 
     workspace.save!
     workspace
+  end
+
+  # What a Slack install stores on the workspace, whether it made the workspace or connected one already there.
+  def self.slack_install_attributes(auth_hash)
+    credentials = auth_hash.credentials
+    {
+      platform_data: auth_hash.extra.team_info,
+      access_token: credentials.token,
+      refresh_token: credentials.refresh_token,
+      token_expires_at: credentials.expires_at ? Time.at(credentials.expires_at) : nil,
+      disconnected_at: nil,
+      disconnected_reason: nil
+    }
   end
 
   # user comes from the prior OIDC sign-in. The bot install's users.info fetch
