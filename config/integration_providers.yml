@@ -364,12 +364,13 @@ providers:
     server_url: ""
     kind: native
     connect_with: api_token
-    # The commercial regions in AWS's own list (docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html),
-    # by code and name. China and GovCloud are other partitions, with keys and consoles of their own.
+    # The regions in AWS's own list (docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html), by code
+    # and name, with GovCloud's (GovCloud user guide) and China's (Amazon Web Services in China). GovCloud and China are
+    # partitions of their own, with keys and consoles of their own, so one environment reads regions of one partition.
     connect_fields:
       - key: regions
         label: Regions
-        hint: The regions this environment runs in. Halon reads only these, including a region that needs opting in once you enable it for the account.
+        hint: The regions this environment runs in. Halon reads only these, including a region that needs opting in once you enable it for the account. GovCloud and China regions need keys of their own, so connect them as a separate environment.
         multiple: true
         options:
           - { value: us-east-1, label: "US East (N. Virginia)" }
@@ -406,6 +407,10 @@ providers:
           - { value: me-south-1, label: "Middle East (Bahrain)" }
           - { value: me-central-1, label: "Middle East (UAE)" }
           - { value: sa-east-1, label: "South America (São Paulo)" }
+          - { value: us-gov-east-1, label: "AWS GovCloud (US-East)" }
+          - { value: us-gov-west-1, label: "AWS GovCloud (US-West)" }
+          - { value: cn-north-1, label: "China (Beijing)" }
+          - { value: cn-northwest-1, label: "China (Ningxia)" }
     source_links: firefight
     map: firefight
     history: firefight
