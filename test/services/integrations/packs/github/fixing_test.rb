@@ -160,6 +160,18 @@ module Integrations
           assert_raises(PolicyRefusal) { @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }
         end
 
+        test "an agent stopped by a credit refusal on the deployment's keys never passes on what it said about the balance" do
+          Rails.configuration.x.install_notification_webhook_url = "https://hooks.example.test/services/T0/B0/x"
+          said = "AGENT_EXIT 1\nBASE start-sha\nSESSION \nFROM start-sha\nNOTHING\nLOG\n402 You requested up to 8000 tokens, but can only afford 120"
+          stub_run("stdout" => said, "timed_out" => false)
+          CodeAgentSession.any_instance.stubs(:house_refused_for_credit?).returns(true)
+
+          error = assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }
+          assert_equal "Halon couldn't reach its AI just now. The team has been told.", error.message
+        ensure
+          Rails.configuration.x.install_notification_webhook_url = nil
+        end
+
         test "an agent that failed or changed nothing never shows a credential from its log" do
           leaked = "AGENT_EXIT 1\nBASE start-sha\nSESSION \nFROM start-sha\nNOTHING\nLOG\nDATABASE_URL=postgres://app:s3cret@db.internal/app"
           stub_run("stdout" => leaked, "timed_out" => false)

@@ -23,4 +23,18 @@ class CodeAgentSessionTest < ActiveSupport::TestCase
 
     assert_equal 500, session.reload.spent_micros
   end
+
+  test "a call refused for credit on the deployment's keys is the house's, and one on the workspace's own account is not" do
+    workspace = workspaces(:slack_workspace_one)
+    choice = FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai")
+    house, = CodeAgentSession.open!(workspace: workspace, choice: choice, repository: "acme/api")
+    assert_not house.house_refused_for_credit?
+
+    Inference.create!(workspace: workspace, feature: CodeAgentSession::FEATURE, provider: "openai", model: "gpt-4o", inferable: house,
+                      status: Inference::STATUS_ERROR, error_kind: Inference::ERROR_OUT_OF_CREDIT, **house.payer.ledger)
+    assert house.house_refused_for_credit?
+
+    house.update_columns(paid_by: Inference::PAID_BY_ACCOUNT, workspace_ai_account_id: add_ai_account!(workspace).id)
+    assert_not house.reload.house_refused_for_credit?
+  end
 end

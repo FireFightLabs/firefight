@@ -443,6 +443,8 @@ module Integrations
           change = read_change(output)
           # Out of budget is a pause the person decides on, whatever the agent did when its calls were refused.
           raise BudgetReached, change if session.reload.over_budget?
+          # The agent's own words about a refusal on the deployment's keys could name a balance, so they are not passed on.
+          fail! AiCredit.cannot(integration.workspace, "write this code change") if (change.nothing? || !change.agent_exit.zero?) && session.house_refused_for_credit?
 
           unanswered = session.unanswered_question
           fail! "The coding agent asked a question nobody answered within #{CodeAgentQuestion::ANSWER_WITHIN.in_minutes.to_i} minutes, so nothing is opened: #{unanswered.question}" if unanswered

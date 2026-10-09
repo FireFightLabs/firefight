@@ -66,6 +66,11 @@ class CodeAgentSession < ApplicationRecord
 
   def payer = AiPayer.new(paid_by: paid_by || AiPayer.deployment(workspace).paid_by, account: workspace_ai_account)
 
+  # The deployment's own keys refused one of the agent's calls for credit, which people hear only as AiCredit says it.
+  def house_refused_for_credit?
+    !payer.own_account? && Inference.where(inferable: self, error_kind: Inference::ERROR_OUT_OF_CREDIT).exists?
+  end
+
   # The configuration the model proxy forwards with: the paying account's own, or the deployment's. Nil means the
   # deployment's, and an account removed since the change began is never replaced by it.
   def llm_config
