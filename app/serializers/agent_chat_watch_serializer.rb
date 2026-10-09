@@ -14,7 +14,7 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.title
   end
 
-  # Why the person wanted it, in their words, such as get GitHub releases deploying through the webhook again.
+  # Why the person wanted it, in their words, such as get releases deploying through the webhook again.
   type :string, optional: true
   def purpose
     watch.purpose

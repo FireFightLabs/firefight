@@ -45,8 +45,7 @@ class IntegrationProviderSerializer < BaseSerializer
   type "{ key: string; label: string; serverUrl: string }[]"
   def regions = provider.regions.map { |region| { key: region.key, label: region.label, serverUrl: region.server_url } }
 
-  # What the connect form asks beside the credentials, as the registry declares it. A path field is part of the server's
-  # address, so the form for a pasted address does not ask it.
+  # What the connect form asks beside the credentials, as the registry declares it.
   # A field with options is a choice from them, and one marked multiple holds several. allowed says what a value may hold.
   # Fields chosen after connecting are not asked here. address says a field is part of the server's address, which the
   # form for a pasted address does not ask.

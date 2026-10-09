@@ -13,7 +13,7 @@ class AgentChatHeldCallSerializer < BaseSerializer
     shown.status
   end
 
-  # Such as "Ana approved: Api request on Faylee (Northflank), project faylee. Run it now?"
+  # Such as "Ana approved: Api request on Production (Acme Cloud), project shop. Run it now?"
   type :string
   def headline
     shown.headline
