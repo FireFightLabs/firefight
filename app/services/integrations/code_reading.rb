@@ -51,13 +51,19 @@ module Integrations
         end
       end
 
-      # In process memory, since one run's reads happen in the job that holds it.
+      # In process memory, since one run's reads happen in the job that holds it. An entry past its time is dropped
+      # when it is next read or another is added, so a long-lived worker does not keep one per run.
       def unavailable(key)
         failed = unavailable_by_key[key]
-        failed[:message] if failed && failed[:at] > UNAVAILABLE_FOR.ago
+        return unless failed
+        return failed[:message] if failed[:at] > UNAVAILABLE_FOR.ago
+
+        unavailable_by_key.delete_pair(key, failed)
+        nil
       end
 
       def unavailable!(key, message)
+        unavailable_by_key.each_pair { |stale, entry| unavailable_by_key.delete_pair(stale, entry) if entry[:at] <= UNAVAILABLE_FOR.ago }
         unavailable_by_key[key] = { message: message, at: Time.current }
         message
       end

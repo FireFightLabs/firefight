@@ -81,6 +81,7 @@ module Integrations
                                          words: [ "Raise the timeout", "No, to 30 seconds" ],
                                          evidence: [ CodeAgent::Request::Evidence.new(label: "Search logs", text: "gateway timeout after 10s") ])
         pack = Devin.new(@integration, progress: ->(text) { @reports << text }, request: request)
+        pack.stubs(:pause)
         prompt = nil
         DevinApi.any_instance.expects(:create_session).with { |body| prompt = body["prompt"] }
                  .returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")

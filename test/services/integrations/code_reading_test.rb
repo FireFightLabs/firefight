@@ -178,6 +178,20 @@ module Integrations
       assert_equal [ "box-1", "orphan" ], @provider.stopped
     end
 
+    test "a box remembered as unavailable is forgotten once its time passes, so a long-lived worker keeps none for old runs" do
+      CodeReading.unavailable!("run-old", "The sandbox did not start.")
+      assert_equal "The sandbox did not start.", CodeReading.unavailable("run-old")
+
+      travel CodeReading::UNAVAILABLE_FOR + 1.second do
+        CodeReading.unavailable!("run-new", "The sandbox did not start.")
+
+        remembered = CodeReading.send(:unavailable_by_key)
+        assert_not remembered.key?("run-old")
+        assert_nil CodeReading.unavailable("run-new-other")
+      end
+      CodeReading.send(:unavailable_by_key).delete("run-new")
+    end
+
     private
 
     def reading(key)
