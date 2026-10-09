@@ -405,7 +405,7 @@ module Slack
         redirect_uri = URI(redirect_location)
 
         if redirect_uri.query.to_s.include?("redir=")
-          raise AdapterError, "Slack file download redirected to auth page — bot may be missing files:read scope"
+          raise AdapterError::MissingPermission, "Slack file download redirected to auth page — bot may be missing files:read scope"
         end
 
         redirect_request = Net::HTTP::Get.new(redirect_uri)
@@ -417,7 +417,7 @@ module Slack
       end
 
       content_type = response["content-type"].to_s.split(";").first.strip
-      raise AdapterError, "Slack file download returned HTML — bot may be missing files:read scope" if content_type == "text/html"
+      raise AdapterError::MissingPermission, "Slack file download returned HTML — bot may be missing files:read scope" if content_type == "text/html"
 
       {
         body: response.body,

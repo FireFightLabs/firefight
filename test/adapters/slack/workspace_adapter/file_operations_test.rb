@@ -35,7 +35,7 @@ class Slack::WorkspaceAdapter::FileOperationsTest < ActiveSupport::TestCase
   end
 
   test "a download Slack refuses for want of files:read says how to fix it" do
-    Slack::Client.expects(:download_file).raises(AdapterError, "Slack file download redirected to auth page, bot may be missing files:read scope")
+    Slack::Client.expects(:download_file).raises(AdapterError::MissingPermission, "Slack file download redirected to auth page, bot may be missing files:read scope")
 
     fetched = @adapter.fetch_shared_files(files: [ { "id" => "F1", "name" => "a.log", "size" => 4, "url_private" => "https://files.slack.com/a.log" } ], max_bytes: 10)
 

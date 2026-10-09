@@ -240,6 +240,15 @@ class Slack::ClientTest < ActiveSupport::TestCase
     assert_equal "image/png", result[:content_type]
   end
 
+  test "download_file says a login page in place of the file is a missing permission" do
+    pool = mock_pool
+    pool.expects(:request).returns(http_response(200, "<html>", content_type: "text/html"))
+
+    assert_raises(AdapterError::MissingPermission) do
+      Slack::Client.download_file(workspace: @workspace, url: "https://files.slack.com/files-pri/T1/F1/x.log")
+    end
+  end
+
   test "download_file accepts root slack.com" do
     pool = mock_pool
     pool.expects(:request).returns(http_response(200, "x"))

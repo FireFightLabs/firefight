@@ -89,7 +89,7 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
   test "a file Halon does not read, one too large and one Slack would not hand over are kept with why, so Halon says so" do
     Slack::Client.stubs(:download_file).with { |arguments| arguments[:url].end_with?("dump.zip") }.returns({ body: "PK\u0003\u0004\u0000\u0000".b, content_type: "application/zip" })
     Slack::Client.stubs(:download_file).with { |arguments| arguments[:url].end_with?("locked.log") }
-      .raises(AdapterError, "Slack file download returned HTML, bot may be missing files:read scope")
+      .raises(AdapterError::MissingPermission, "Slack file download returned HTML, bot may be missing files:read scope")
 
     mention("look", files: [
       slack_file("F1", "dump.zip", size: 6),
