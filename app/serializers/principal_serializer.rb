@@ -21,6 +21,11 @@ class PrincipalSerializer < BaseSerializer
     principal.implicit_authority.to_s
   end
 
+  type :string, optional: true
+  def implicit_authority_note
+    principal.implicit_authority_note
+  end
+
   # Set grants and single-action grants share a row shape. What it covers is a label plus a count.
   type "{ id: string; kind: string; targetId: string; label: string; title: string | null; description: string | null; " \
        "riskLevel: string | null; actionCount: number; environmentIds: string[]; expiresAt: string | null; expired: boolean }[]"

@@ -77,6 +77,7 @@ module TypescriptConstants
         "MEMORY" => SearchDocument::Search::TYPE_MEMORY
       }, nil),
       Export.new("RESOURCE_MAP_RELATIONS", ResourceMap::RELATIONS, "ResourceMapRelation"),
+      Export.new("RESOURCE_MAP_RELATION", ResourceMap::RELATIONS.to_h { |relation| [ relation.upcase, relation ] }, nil),
       Export.new("RESOURCE_MAP_ORIGINS", ResourceMap::ORIGINS, "ResourceMapOrigin"),
       Export.new("RESOURCE_MAP_ORIGIN", ResourceMap::ORIGINS.to_h { |origin| [ origin.upcase, origin ] }, nil),
       Export.new("RESOURCE_MAP_CHANGE_KINDS", ResourceMap::Change::KINDS, "ResourceMapChangeKind"),
@@ -84,6 +85,8 @@ module TypescriptConstants
       Export.new("RESOURCE_MAP_LOG_LEVELS", ResourceMap::LogMiner::LEVELS, "ResourceMapLogLevel"),
       Export.new("RESOURCE_MAP_CERTAINTIES", ResourceMap::CERTAINTIES, "ResourceMapCertainty"),
       Export.new("RESOURCE_MAP_CERTAINTY", { "LIKELY" => ResourceMap::CERTAINTY_LIKELY, "POSSIBLE" => ResourceMap::CERTAINTY_POSSIBLE }, nil),
+      Export.new("RESOURCE_MAP_INCIDENT_WINDOW_DAYS", ResourceMap::View::INCIDENT_WINDOW.in_days.to_i, nil),
+      Export.new("RESOURCE_MAP_CHANGE_WINDOW_HOURS", ResourceMap::View::CHANGE_WINDOW.in_hours.to_i, nil),
       Export.new("INCIDENT_RELATIONSHIPS", {
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
       }, nil),
@@ -211,6 +214,12 @@ module TypescriptConstants
       Export.new("PRINCIPAL_KINDS", {
         "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT,
         "API_KEY" => Ability::Principal::KIND_API_KEY, "SYSTEM_AGENT" => Ability::Principal::KIND_SYSTEM_AGENT
+      }, nil),
+      Export.new("AI_ACCOUNT_STATES", WorkspaceAiAccount::STATES.to_h { |state| [ state.to_s.upcase, state.to_s ] }, nil),
+      Export.new("APPROVAL_RUN_WINDOW_MINUTES", Ability::Approval::RUN_WINDOW.in_minutes.to_i, nil),
+      Export.new("WATCH_SPEC_KEYS", Chat::Watch::SPEC_KEYS.transform_keys { |key| key.to_s.upcase }, nil),
+      Export.new("IMPLICIT_AUTHORITIES", {
+        "ADMIN" => Principal::IMPLICIT_ADMIN.to_s, "MEMBER" => Principal::IMPLICIT_MEMBER.to_s, "NONE" => Principal::IMPLICIT_NONE.to_s
       }, nil),
       Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
       Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole")

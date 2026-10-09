@@ -13,6 +13,7 @@ import type {
 } from "@/types/serializers"
 import type { SearchableSelectOption } from "@/components/searchable-select"
 import { RUNBOOK_CHOICE_PROPS } from "@/lib/generated/constants"
+import type { SharedProps } from "@/types"
 import { runbookPath, runbooksPath } from "@/lib/routes"
 import {
   CONDITION_FIELD_CUSTOM_FIELD,
@@ -119,11 +120,10 @@ function initModel(runbook: RunbookSettings | null | undefined): EditModel {
 }
 
 // What the editor builds steps and the watch from, which the page sends only once asked.
-interface ChoiceProps {
-  [key: string]: unknown
-  toolChoices?: RunbookToolChoice[]
-  watchReads?: RunbookWatchRead[]
-  places?: RunbookPlace[]
+interface ChoiceProps extends SharedProps {
+  [RUNBOOK_CHOICE_PROPS.TOOL_CHOICES]?: RunbookToolChoice[]
+  [RUNBOOK_CHOICE_PROPS.WATCH_READS]?: RunbookWatchRead[]
+  [RUNBOOK_CHOICE_PROPS.PLACES]?: RunbookPlace[]
 }
 
 const CHOICES = Object.values(RUNBOOK_CHOICE_PROPS)
@@ -159,7 +159,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
   const placeholders: SearchableSelectOption[] = inputPlaceholders(model.procedure.inputs)
   const placeOptions: SearchableSelectOption[] = (places ?? []).map((place) => ({ value: place.name, label: place.name, group: place.kind }))
-  const watchProblems = watchErrors(model.procedure.watch, reads ?? [])
+  const watchProblems = watchErrors(model.procedure.watch)
   const [ shownWatchProblems, setShownWatchProblems ] = useState<ReturnType<typeof watchErrors>>({ watch: null, steps: {} })
 
   // A server error outlives the value that caused it, so it is cleared once the

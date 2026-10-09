@@ -13,6 +13,7 @@ import type { WorkspaceSettings } from "@/types/serializers"
 
 // No tracker is no connection, and a connection's slug never holds a hyphen, so this never names one.
 const NO_TRACKER = "no-tracker"
+const COPIED_MS = 2000
 
 export function trackerChoice(slug: string | null | undefined): string {
   return slug ?? NO_TRACKER
@@ -70,6 +71,11 @@ export function IssueTrackingCard({
 
   function markCopied() {
     setCopied(true)
+    window.setTimeout(clearCopied, COPIED_MS)
+  }
+
+  function clearCopied() {
+    setCopied(false)
   }
 
   function copyAddress() {

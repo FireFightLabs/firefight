@@ -171,6 +171,7 @@ class SettingsController < InertiaController
       alertSources: AlertSourceSettingsSerializer.many(
         current_workspace.alert_sources.order(:created_at)
       ),
+      setupInstructions: AlertProviders.setup_instructions,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered.with_usage_counts
       )

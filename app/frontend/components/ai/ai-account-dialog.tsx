@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { whenClosed } from "@/lib/handlers"
 import { aiAccountPath, aiAccountsPath } from "@/lib/routes"
+import { orList } from "@/lib/formatters"
 import { FormErrors } from "@/components/form-errors"
 import { AiAccountModelField } from "@/components/ai/ai-account-model-field"
 import type { AiProviderOption, WorkspaceAiAccount } from "@/types/serializers"
@@ -76,6 +77,7 @@ export function AiAccountDialog({
   }
 
   const provider = providers.find((option) => option.slug === draft.provider)
+  const codeFixProviders = orList(providers.filter((option) => option.codeFixes).map((option) => option.name))
   const fieldId = (field: string) => `ai-account-${field}-${editing?.id ?? "new"}`
   const baseErrors = errorText(errors.base)
   const keyField = provider?.fields.find((candidate) => candidate.secret)
@@ -165,8 +167,8 @@ export function AiAccountDialog({
               {errorText(errors.provider) && <p className="text-xs text-destructive">{errorText(errors.provider)}</p>}
               {provider && !provider.codeFixes && (
                 <p className="text-xs text-muted-foreground">
-                  Halon answers and investigates on this provider. Code fixes need an Anthropic, OpenAI or OpenRouter account, so a
-                  fix uses the next account in the list that is one.
+                  Halon answers and investigates on this provider. Code fixes need an account with {codeFixProviders}, so a fix
+                  uses the next account in the list that is one.
                 </p>
               )}
             </div>

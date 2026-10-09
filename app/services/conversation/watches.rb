@@ -90,9 +90,7 @@ module Conversation::Watches
       next cannot << "#{label} cannot be followed, since #{step['capability'].presence || 'it names no capability, and that'} is not a read a watch can make." unless key
 
       arguments = arguments_for(step, key)
-      if key != HISTORY && [ step["done_when"], step["failed_when"], step["goal"] ].all?(&:blank?)
-        next cannot << "#{label} needs what counts as done for it (done_when, failed_when or goal)."
-      end
+      next cannot << "#{label} needs what counts as done for it (done_when, failed_when or goal)." if Chat::Watch::Step.undecided?(step)
 
       usual, row = first_read(reader, key, arguments, step)
       planned << { label: label, key: key, arguments: arguments, step: step, usual: usual, row: row }
@@ -103,9 +101,7 @@ module Conversation::Watches
   end
 
   def self.plan_tool_step(step, label, reader, agent, planned, cannot)
-    if [ step["done_when"], step["failed_when"], step["goal"] ].all?(&:blank?)
-      return cannot << "#{label} needs what counts as done for it (done_when, failed_when or goal)."
-    end
+    return cannot << "#{label} needs what counts as done for it (done_when, failed_when or goal)." if Chat::Watch::Step.undecided?(step)
 
     arguments = step["arguments"].is_a?(Hash) ? step["arguments"].transform_keys(&:to_s).except(Chat::Tools::INTENT_ARG) : {}
     said = reader.read_tool(agent, step["tool"], arguments)
@@ -147,10 +143,7 @@ module Conversation::Watches
     end
   end
 
-  def self.key_for(name)
-    spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name.to_s || each.key == name.to_s }
-    spec.key if spec && !spec.writes
-  end
+  def self.key_for(name) = Chat::Watch::Step.read_key(name)
 
   def self.arguments_for(step, key)
     extra = step["arguments"].is_a?(Hash) ? step["arguments"].transform_keys(&:to_s) : {}

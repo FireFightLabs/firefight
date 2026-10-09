@@ -37,6 +37,21 @@ class Chat::Watch::Step < ApplicationRecord
 
   validates :status, inclusion: { in: STATUSES }
 
+  # A read a watch can make, by its key or the name Halon calls it. Nil for one that writes or that nothing knows.
+  def self.read_key(name)
+    spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name.to_s || each.key == name.to_s }
+    spec.key if spec && !spec.writes
+  end
+
+  # Whether a step given to start_watch, with string keys, lacks what counts as its end. A run in a resource's history
+  # ends on its own, anything else needs done_when, failed_when or a goal. Checked when a runbook saves and when a watch starts.
+  def self.undecided?(step)
+    keys = Chat::Watch::SPEC_KEYS
+    return false if step["tool"].blank? && read_key(step[keys[:capability]]) == Integrations::Capabilities::HISTORY
+
+    step.values_at(keys[:done_when], keys[:failed_when], keys[:goal]).all?(&:blank?)
+  end
+
   def history? = capability == Integrations::Capabilities::HISTORY
 
   def read_tool? = capability == READ_TOOL

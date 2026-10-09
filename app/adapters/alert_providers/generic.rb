@@ -2,6 +2,7 @@ module AlertProviders
   # Fields are dot-path lookups a source overrides through config["field_map"].
   # config["items_path"] naming an array turns each element into its own alert.
   class Generic < Base
+    SETUP_INSTRUCTIONS = "Send alerts as POST requests with the token in an Authorization: Bearer header (or X-Firefight-Token).".freeze
     DEFAULT_FIELD_MAP = {
       "external_id" => "id",
       "fingerprint" => "fingerprint",

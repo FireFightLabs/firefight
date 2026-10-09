@@ -91,7 +91,10 @@ module Runbook::Procedure
 
     steps = watch.is_a?(Hash) ? watch["steps"] : nil
     unless steps.is_a?(Array) && steps.any? && steps.all? { |step| step.is_a?(Hash) && step["capability"].present? && step["resource"].present? }
-      errors.add(:watch, "needs steps, each naming the capability to check and the resource")
+      return errors.add(:watch, "needs steps, each naming the capability to check and the resource")
     end
+    return unless steps.any? { |step| Chat::Watch::Step.undecided?(step) }
+
+    errors.add(:watch, "needs what counts as done for each step that does not follow a run (done when, failed when or a goal)")
   end
 end

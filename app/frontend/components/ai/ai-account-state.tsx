@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { checkAiAccountPath } from "@/lib/routes"
+import { AI_ACCOUNT_STATES } from "@/lib/generated/constants"
 import type { WorkspaceAiAccount } from "@/types/serializers"
 
 const WORDS: Record<WorkspaceAiAccount["state"], string> = {
@@ -21,10 +22,12 @@ const VARIANTS: Record<WorkspaceAiAccount["state"], "secondary" | "destructive" 
   disabled: "outline",
 }
 
+const EXPLAINED: WorkspaceAiAccount["state"][] = [ AI_ACCOUNT_STATES.OUT_OF_CREDIT, AI_ACCOUNT_STATES.FAILING, AI_ACCOUNT_STATES.UNCHECKED ]
+
 // What Halon makes of the account, why when it is skipping it, and a way to check it again once it is fixed.
 export function AiAccountState({ account, readOnly }: { account: WorkspaceAiAccount; readOnly: boolean }) {
-  const recheckable = !readOnly && account.enabled && account.state !== "verified"
-  const explained = account.state === "out_of_credit" || account.state === "failing" || account.state === "unchecked"
+  const recheckable = !readOnly && account.enabled && account.state !== AI_ACCOUNT_STATES.VERIFIED
+  const explained = EXPLAINED.includes(account.state)
 
   function check() {
     router.post(checkAiAccountPath(account.id), {}, { preserveScroll: true })

@@ -271,6 +271,17 @@ export const RESOURCE_MAP_RELATIONS = [
 ] as const
 export type ResourceMapRelation = (typeof RESOURCE_MAP_RELATIONS)[number]
 
+export const RESOURCE_MAP_RELATION = {
+  "RUNS_BUILDS_OF": "runs_builds_of",
+  "BUILT_FROM": "built_from",
+  "SERVED_BY": "served_by",
+  "BRANCH_OF": "branch_of",
+  "USES": "uses",
+  "PART_OF": "part_of",
+  "PROTECTED_BY": "protected_by",
+  "MANAGED_BY": "managed_by"
+} as const
+
 export const RESOURCE_MAP_ORIGINS = [
   "declared",
   "matched",
@@ -322,6 +333,10 @@ export const RESOURCE_MAP_CERTAINTY = {
   "LIKELY": "likely",
   "POSSIBLE": "possible"
 } as const
+
+export const RESOURCE_MAP_INCIDENT_WINDOW_DAYS = 30 as const
+
+export const RESOURCE_MAP_CHANGE_WINDOW_HOURS = 24 as const
 
 export const INCIDENT_RELATIONSHIPS = {
   "RELATED": "related",
@@ -902,6 +917,8 @@ export const OPERATOR_SPAN_PARAM = "span" as const
 
 export const OPERATOR_SPAN_BODY_PROP = "spanBody" as const
 
+export const OPERATOR_REGRESSION_MODELS_PROP = "models" as const
+
 export const INVESTIGATION_EVENT_TYPES = [
   "investigation.started",
   "investigation.answered",
@@ -1014,6 +1031,37 @@ export const PRINCIPAL_KINDS = {
   "AGENT": "agent",
   "API_KEY": "api_key",
   "SYSTEM_AGENT": "system_agent"
+} as const
+
+export const AI_ACCOUNT_STATES = {
+  "VERIFIED": "verified",
+  "UNCHECKED": "unchecked",
+  "OUT_OF_CREDIT": "out_of_credit",
+  "FAILING": "failing",
+  "DISABLED": "disabled"
+} as const
+
+export const APPROVAL_RUN_WINDOW_MINUTES = 60 as const
+
+export const WATCH_SPEC_KEYS = {
+  "TITLE": "title",
+  "MINUTES": "minutes",
+  "STEPS": "steps",
+  "LABEL": "label",
+  "CAPABILITY": "capability",
+  "RESOURCE": "resource",
+  "NAME": "name",
+  "RUN": "run",
+  "REPORT_START": "report_start",
+  "DONE_WHEN": "done_when",
+  "FAILED_WHEN": "failed_when",
+  "GOAL": "goal"
+} as const
+
+export const IMPLICIT_AUTHORITIES = {
+  "ADMIN": "admin",
+  "MEMBER": "member",
+  "NONE": "none"
 } as const
 
 export const APPROVAL_NOTIFY_OPTIONS = [

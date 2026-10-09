@@ -2,7 +2,8 @@ import { router } from "@inertiajs/react"
 
 import type { AbilityApproval } from "@/types/serializers"
 import { approveApprovalPath, denyApprovalPath } from "@/lib/routes"
-import { formatDateTime } from "@/lib/formatters"
+import { formatDateTime, minutesInWords } from "@/lib/formatters"
+import { APPROVAL_RUN_WINDOW_MINUTES } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,6 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
+
+const RUN_WINDOW = minutesInWords(APPROVAL_RUN_WINDOW_MINUTES)
 
 const STATUS_VARIANT: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
   approved: "default",
@@ -61,7 +64,7 @@ export function ApprovalsTab({
             Requests parked behind an approval policy. Approving admits exactly the parked request, once.
             A request from the dashboard or Slack then runs on its own, and an API or agent caller
             retries with the approval id. A call Halon made in a chat, or a step of a fix, never runs on
-            approval. The person who asked runs it, within an hour.
+            approval. The person who asked runs it, within {RUN_WINDOW}.
           </CardDescription>
         </CardHeader>
         {pendingApprovals.length > 0 ? (

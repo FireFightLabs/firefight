@@ -37,6 +37,7 @@ export function AiAccountModelField({
       <Label htmlFor={id}>{label}</Label>
       {options.length > 0 ? (
         <SearchableSelect
+          id={id}
           value={value || null}
           onValueChange={choose}
           options={options}

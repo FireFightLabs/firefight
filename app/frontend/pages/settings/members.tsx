@@ -19,12 +19,12 @@ interface MembersPageProps extends SharedProps {
 
 function membersHint(chatConnected: boolean, invitationsOffered: boolean) {
   if (!invitationsOffered) {
-    return "Anyone in your Slack workspace who uses Firefight is added here automatically."
+    return "Anyone in your team's chat who uses Firefight is added here automatically."
   }
   if (!chatConnected) {
-    return "Invite teammates by email. Once Slack is connected, anyone in it who uses Firefight is added here too."
+    return "Invite teammates by email. Once your chat is connected, anyone in it who uses Firefight is added here too."
   }
-  return "Anyone in your Slack workspace who uses Firefight is added here automatically. Invite anyone else by email."
+  return "Anyone in your team's chat who uses Firefight is added here automatically. Invite anyone else by email."
 }
 
 export default function Members() {

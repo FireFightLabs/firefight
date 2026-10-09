@@ -6,7 +6,6 @@ import { alertSourcePath } from "@/lib/routes"
 import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
 import { omitErrors } from "@/lib/form-errors"
-import { setupInstructionsFor } from "@/pages/settings/lib/alerts"
 import { FormErrors } from "@/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Button } from "@/components/ui/button"
@@ -47,10 +46,13 @@ interface SourceFormData {
 export function EditSourceDialog({
   source,
   severities,
+  setupInstructions,
   onClose,
 }: {
   source: AlertSourceSettings
   severities: IncidentSeveritySettings[]
+  // From the provider's own adapter. Null for a provider the server no longer knows.
+  setupInstructions: string | null
   onClose: () => void
 }) {
   const form = useForm<SourceFormData>({
@@ -91,8 +93,6 @@ export function EditSourceDialog({
     form.patch(alertSourcePath(source.id), { onSuccess: onClose })
   }
 
-  const setupInstructions = setupInstructionsFor(source.provider)
-
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
@@ -108,7 +108,7 @@ export function EditSourceDialog({
             <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
               <p className="mb-1 font-medium text-foreground">Setup</p>
               <p className="break-all font-mono">{`${window.location.origin}${source.ingestPath}`}</p>
-              <p className="mt-1.5">{setupInstructions}</p>
+              {setupInstructions && <p className="mt-1.5">{setupInstructions}</p>}
             </div>
 
             <div className="flex flex-col gap-2">

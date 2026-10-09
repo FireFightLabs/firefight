@@ -15,11 +15,18 @@ module Principal
     ActiveRecord::Associations::Preloader.new(records: people, associations: [ :user ]).call
   end
 
+  IMPLICIT_ADMIN = :admin
+  IMPLICIT_MEMBER = :member
+  IMPLICIT_NONE = :none
+
   # A stable key the permissions UI explains and implicitly_allowed? enforces.
   # Keep the two in step.
   def implicit_authority
-    :none
+    IMPLICIT_NONE
   end
+
+  # What the Permissions screen says this principal holds without a grant. Nil when it holds nothing.
+  def implicit_authority_note = nil
 
   # Only a member holds defaults a grant can narrow.
   def default_access = []

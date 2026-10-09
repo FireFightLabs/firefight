@@ -110,8 +110,24 @@ class WorkspaceMembership < ApplicationRecord
   end
 
   def implicit_authority
-    admin_access? ? :admin : :member
+    admin_access? ? Principal::IMPLICIT_ADMIN : Principal::IMPLICIT_MEMBER
   end
+
+  # Explains implicitly_allowed? on the Permissions screen. Change the two together.
+  IMPLICIT_AUTHORITY_NOTES = {
+    Principal::IMPLICIT_ADMIN =>
+      "Admins hold every catalogued ability without a grant, every connected tool included. Approval policies still gate " \
+      "the risky ones.",
+    Principal::IMPLICIT_MEMBER =>
+      "Members read Firefight's own data, including the resource map in every environment, read every connected tool, " \
+      "take part in incidents, and ask Halon or start investigations without a grant, whether from Slack, the dashboard, " \
+      "the API, or MCP. A grant of map.read limits the map to the environments it names, a grant of investigations.create " \
+      "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. No access " \
+      "below takes any of these away at once, and Restore gives it back. Configuring the workspace and any tool that " \
+      "changes something needs one of the grants below, such as a connection's changes pack."
+  }.freeze
+
+  def implicit_authority_note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
 
   # Where each default stands for this member, which the Permissions screen shows and lets an admin take away. A
   # connection's reads are one row, its read pack, rather than a row for each tool.

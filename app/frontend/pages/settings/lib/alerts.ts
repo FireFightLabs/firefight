@@ -63,20 +63,8 @@ export function providerLabel(value: string): string {
   return isAlertProvider(value) ? PROVIDER_LABELS[value] : value
 }
 
-// How each provider is pointed at a source's URL, typed against the providers so a new one cannot be left without.
-const SETUP_INSTRUCTIONS: Record<AlertProvider, string> = {
-  generic: "Send alerts as POST requests with the token in an Authorization: Bearer header (or X-Firefight-Token).",
-  northflank:
-    "In Northflank, create a webhook notification integration with this URL and paste the token into its integration token field (sent as X-Northflank-Notification-Integration-Token).",
-  pagerduty:
-    "In PagerDuty, add a generic webhook (v3) subscription with this URL and the events incident.triggered, incident.reopened and incident.resolved. Add a custom header named X-Firefight-Token holding the token. Firefight accepts and ignores other events.",
-  opsgenie:
-    "In Opsgenie, add a Webhook integration with this URL, send the alert description with it, and post to the URL when an alert is created and when it is closed. Add a custom header named X-Firefight-Token holding the token. Firefight accepts and ignores other actions.",
-}
-
-export function setupInstructionsFor(value: string): string {
-  return isAlertProvider(value) ? SETUP_INSTRUCTIONS[value] : SETUP_INSTRUCTIONS.generic
-}
+// How each provider is pointed at a source's URL, from its adapter on the server.
+export type SetupInstructions = Partial<Record<string, string>>
 
 export const NORMALIZED_FIELDS = ALERT_NORMALIZED_FIELDS
 

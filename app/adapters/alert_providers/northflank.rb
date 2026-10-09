@@ -3,6 +3,8 @@ module AlertProviders
   # Fingerprinting on event, project and service collapses a crash loop into one alert.
   class Northflank < Base
     TOKEN_HEADER = "X-Northflank-Notification-Integration-Token".freeze
+    SETUP_INSTRUCTIONS = "In Northflank, create a webhook notification integration with this URL and paste the token into its " \
+                         "integration token field (sent as #{TOKEN_HEADER}).".freeze
 
     def self.verify(headers:, raw_body:, source:)
       provided = headers[TOKEN_HEADER].to_s

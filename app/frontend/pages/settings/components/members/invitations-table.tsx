@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { router } from "@inertiajs/react"
+import type { HttpResponse } from "@inertiajs/core"
 import { IconDotsVertical } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +18,15 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { resendWorkspaceInvitationPath, workspaceInvitationPath } from "@/lib/routes"
 import type { WorkspaceInvitation } from "@/types/serializers"
+import { TOO_MANY_MESSAGE, TOO_MANY_STATUS } from "@/pages/settings/lib/invitations"
+
+function refuseThrottled(response: HttpResponse) {
+  if (response.status !== TOO_MANY_STATUS) {
+    return
+  }
+  toast.error(TOO_MANY_MESSAGE)
+  return false
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
@@ -31,7 +42,7 @@ function InvitationActions({
   onRevoke: (invitation: WorkspaceInvitation) => void
 }) {
   function resend() {
-    router.post(resendWorkspaceInvitationPath(invitation.id), {}, { preserveScroll: true })
+    router.post(resendWorkspaceInvitationPath(invitation.id), {}, { preserveScroll: true, onHttpException: refuseThrottled })
   }
 
   function revoke() {

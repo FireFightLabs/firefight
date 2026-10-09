@@ -130,13 +130,20 @@ class WorkspaceAiAccount < ApplicationRecord
   # What the usable scope leaves out.
   def skipped? = !enabled || out_of_credit_since.present? || failing_since.present?
 
-  def state
-    return :disabled unless enabled
-    return :out_of_credit if out_of_credit_since
-    return :failing if failing_since
-    return :verified if verified_at
+  STATE_DISABLED = :disabled
+  STATE_OUT_OF_CREDIT = :out_of_credit
+  STATE_FAILING = :failing
+  STATE_VERIFIED = :verified
+  STATE_UNCHECKED = :unchecked
+  STATES = [ STATE_VERIFIED, STATE_UNCHECKED, STATE_OUT_OF_CREDIT, STATE_FAILING, STATE_DISABLED ].freeze
 
-    :unchecked
+  def state
+    return STATE_DISABLED unless enabled
+    return STATE_OUT_OF_CREDIT if out_of_credit_since
+    return STATE_FAILING if failing_since
+    return STATE_VERIFIED if verified_at
+
+    STATE_UNCHECKED
   end
 
   # One statement moves it, so of two calls refused at once only one tells the admins.

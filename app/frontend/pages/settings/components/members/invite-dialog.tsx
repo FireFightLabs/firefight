@@ -18,9 +18,8 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Blocked } from "@/components/blocked-tooltip"
+import { TOO_MANY_MESSAGE, TOO_MANY_STATUS } from "@/pages/settings/lib/invitations"
 
-const TOO_MANY_STATUS = 429
-const TOO_MANY_MESSAGE = "Too many invitations were sent from this network. Try again in an hour."
 
 export function InviteDialog({ unavailableReason, days }: { unavailableReason: string | null; days: number }) {
   const [open, setOpen] = useState(false)

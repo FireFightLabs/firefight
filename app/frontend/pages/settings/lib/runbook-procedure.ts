@@ -1,6 +1,6 @@
 import type { FormDataConvertible } from "@inertiajs/core"
 
-import { RUNBOOK_FIELD_KINDS } from "@/lib/generated/constants"
+import { RUNBOOK_FIELD_KINDS, WATCH_SPEC_KEYS } from "@/lib/generated/constants"
 import type { RunbookSettings, RunbookToolChoice, RunbookWatchRead } from "@/types/serializers"
 
 // What JSON gives back for an object, which is also what a form request can carry.
@@ -40,8 +40,7 @@ const PLACEHOLDER = /^\s*\{\{\s*[a-z0-9_]+\s*\}\}\s*$/
 const NUMBER = /^\s*-?\d+(\.\d+)?\s*$/
 export const NOT_A_NUMBER = "A number, or an input such as {{count}}."
 export const REQUIRED = "Required."
-const WATCH_STEP_REQUIRED = "Name what to watch and on which resource."
-const WATCH_DONE_REQUIRED = "Say what counts as done, failed, or the goal."
+const WATCH_LABEL_REQUIRED = "Name what is watched."
 const WATCH_NO_STEPS = "Add at least one thing to watch, or turn the watch off."
 
 export function isObject(value: unknown): value is JsonObject {
@@ -130,13 +129,13 @@ export function written(value: unknown): string {
 }
 
 function watchSteps(spec: JsonObject): { key: string; spec: JsonObject }[] {
-  const steps = Array.isArray(spec.steps) ? spec.steps : []
-  return steps.filter(isObject).map((step) => ({ key: crypto.randomUUID(), spec: { ...step } }))
+  const steps = spec[WATCH_SPEC_KEYS.STEPS]
+  return (Array.isArray(steps) ? steps : []).filter(isObject).map((step) => ({ key: crypto.randomUUID(), spec: { ...step } }))
 }
 
 export function watchState(saved: Record<string, unknown> | null | undefined): WatchState {
   const spec: JsonObject = isObject(saved) ? { ...saved } : {}
-  const minutes = spec.minutes
+  const minutes = spec[WATCH_SPEC_KEYS.MINUTES]
   return {
     on: isObject(saved),
     spec,
@@ -175,23 +174,19 @@ export function withStepField(spec: JsonObject, key: string, entered: string | b
 }
 
 export function isHistoryRead(spec: JsonObject, reads: RunbookWatchRead[]): boolean {
-  return reads.some((read) => read.history && read.name === spec.capability)
+  return reads.some((read) => read.history && read.name === spec[WATCH_SPEC_KEYS.CAPABILITY])
 }
 
-// What is wrong with the watch, as one sentence for the section and one per step by its key.
-export function watchErrors(watch: WatchState, reads: RunbookWatchRead[]): { watch: string | null; steps: Record<string, string> } {
+// What is wrong with the watch before it is sent, as one sentence for the section and one per step by its key. What
+// each step must name to be followed is checked by the server when it saves (Runbook::Procedure).
+export function watchErrors(watch: WatchState): { watch: string | null; steps: Record<string, string> } {
   const steps: Record<string, string> = {}
   if (!watch.on) {
     return { watch: null, steps }
   }
   watch.steps.forEach((step) => {
-    if (!stepText(step.spec, "label") || !stepText(step.spec, "capability") || !stepText(step.spec, "resource")) {
-      steps[step.key] = WATCH_STEP_REQUIRED
-      return
-    }
-    const decided = [ "done_when", "failed_when", "goal" ].some((key) => stepText(step.spec, key).length > 0)
-    if (!isHistoryRead(step.spec, reads) && !decided) {
-      steps[step.key] = WATCH_DONE_REQUIRED
+    if (!stepText(step.spec, WATCH_SPEC_KEYS.LABEL)) {
+      steps[step.key] = WATCH_LABEL_REQUIRED
     }
   })
   const minutes = watch.minutesDraft.trim()
@@ -204,12 +199,12 @@ function sentWatch(watch: WatchState): JsonObject | null {
   if (!watch.on) {
     return null
   }
-  const spec: JsonObject = { ...watch.spec, steps: watch.steps.map((step) => step.spec) }
+  const spec: JsonObject = { ...watch.spec, [WATCH_SPEC_KEYS.STEPS]: watch.steps.map((step) => step.spec) }
   const minutes = watch.minutesDraft.trim()
   if (minutes.length === 0) {
-    delete spec.minutes
+    delete spec[WATCH_SPEC_KEYS.MINUTES]
   } else {
-    spec.minutes = NUMBER.test(minutes) ? Number(minutes) : minutes
+    spec[WATCH_SPEC_KEYS.MINUTES] = NUMBER.test(minutes) ? Number(minutes) : minutes
   }
   return spec
 }
@@ -250,9 +245,12 @@ export function inputPlaceholders(inputs: EditableInput[]): { value: string; lab
 
 // What a watch follows, as a person reads it: its title, then the label of each thing it checks.
 export function watchedSummary(watch: Record<string, unknown>): string {
-  const steps = Array.isArray(watch.steps) ? watch.steps : []
-  const labels = steps.flatMap((step: unknown) => (isObject(step) && typeof step.label === "string" ? [ step.label ] : []))
-  const title = typeof watch.title === "string" ? watch.title : ""
+  const steps = watch[WATCH_SPEC_KEYS.STEPS]
+  const labels = (Array.isArray(steps) ? steps : []).flatMap((step: unknown) => {
+    const label = isObject(step) ? step[WATCH_SPEC_KEYS.LABEL] : undefined
+    return typeof label === "string" ? [ label ] : []
+  })
+  const title = typeof watch[WATCH_SPEC_KEYS.TITLE] === "string" ? String(watch[WATCH_SPEC_KEYS.TITLE]) : ""
   return [ title, labels.join(", ") ].filter((part) => part.length > 0).join(": ")
 }
 

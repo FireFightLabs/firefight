@@ -7,6 +7,9 @@ module AlertProviders
     TOKEN_HEADER = "X-Firefight-Token".freeze
     CREATE = "Create".freeze
     CLOSE = "Close".freeze
+    SETUP_INSTRUCTIONS = "In Opsgenie, add a Webhook integration with this URL, send the alert description with it, and post to " \
+                         "the URL when an alert is created and when it is closed. Add a custom header named #{TOKEN_HEADER} " \
+                         "holding the token. Firefight accepts and ignores other actions.".freeze
 
     def self.verify(headers:, raw_body:, source:)
       provided = headers[TOKEN_HEADER].to_s

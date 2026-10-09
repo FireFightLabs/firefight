@@ -4,6 +4,7 @@ import { IconTrash } from "@tabler/icons-react"
 
 import type { EnvironmentOption, Principal } from "@/types/serializers"
 import { abilityGrantPath } from "@/lib/routes"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -18,15 +19,18 @@ type Grant = Principal["grants"][number]
 
 export function GrantRow({
   grant,
+  principalName,
   environments,
   canManage,
 }: {
   grant: Grant
+  principalName: string
   environments: EnvironmentOption[]
   canManage: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [expiryOpen, setExpiryOpen] = useState(false)
+  const [revoking, setRevoking] = useState(false)
   const scoped = environments.filter((environment) => grant.environmentIds.includes(environment.id))
   const label = scoped.length === 0 ? "All environments" : scoped.map((environment) => environment.name).join(", ")
   const expiryLabel = grant.expiresAt
@@ -49,6 +53,21 @@ export function GrantRow({
       { environment_ids: grant.environmentIds, expires_at: value },
       { preserveScroll: true, onSuccess: () => setExpiryOpen(false) },
     )
+  }
+
+  const where = scoped.length === 0 ? "every environment" : label
+  const revokeDescription = `${principalName} stops holding ${grant.label} through this grant, in ${where}. You can grant it again later.`
+
+  function confirmRevoke() {
+    setRevoking(true)
+  }
+
+  function stopRevoking() {
+    setRevoking(false)
+  }
+
+  function revoke() {
+    router.delete(abilityGrantPath(grant.id), { preserveScroll: true, onFinish: stopRevoking })
   }
 
   return (
@@ -136,11 +155,19 @@ export function GrantRow({
             size="icon"
             className="text-muted-foreground hover:text-destructive size-8"
             aria-label={`Revoke ${grant.label}`}
-            onClick={() => router.delete(abilityGrantPath(grant.id), { preserveScroll: true })}
+            onClick={confirmRevoke}
           >
             <IconTrash className="size-4" />
           </Button>
         )}
+        <ConfirmDeleteDialog
+          open={revoking}
+          title={`Revoke ${grant.label} from ${principalName}?`}
+          description={revokeDescription}
+          confirmLabel="Revoke"
+          onConfirm={revoke}
+          onCancel={stopRevoking}
+        />
       </div>
     </div>
   )

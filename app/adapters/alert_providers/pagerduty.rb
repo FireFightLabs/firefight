@@ -10,6 +10,9 @@ module AlertProviders
     INCIDENT = "incident".freeze
     FIRING_EVENTS = %w[incident.triggered incident.reopened].freeze
     RESOLVED_EVENT = "incident.resolved".freeze
+    SETUP_INSTRUCTIONS = "In PagerDuty, add a generic webhook (v3) subscription with this URL and the events " \
+                         "#{FIRING_EVENTS.join(', ')} and #{RESOLVED_EVENT}. Add a custom header named #{TOKEN_HEADER} holding " \
+                         "the token. Firefight accepts and ignores other events.".freeze
 
     def self.verify(headers:, raw_body:, source:)
       provided = headers[TOKEN_HEADER].to_s

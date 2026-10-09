@@ -3,7 +3,7 @@
 class WorkspaceAiAccountSerializer < BaseSerializer
   object_as :account
 
-  STATE_UNION = "\"verified\" | \"unchecked\" | \"out_of_credit\" | \"failing\" | \"disabled\"".freeze
+  STATE_UNION = WorkspaceAiAccount::STATES.map { |state| state.to_s.inspect }.join(" | ")
 
   type :string
   def id = account.id
