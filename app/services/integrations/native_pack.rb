@@ -219,7 +219,7 @@ module Integrations
     end
 
     # A pack whose tools hand secrets over (Integrations::SecretHandoffs) sends a value where a target says, answering
-    # what it did, and reads the value a reference's path names. Reached only through Integration::SecretHandoff.
+    # what it did, and reads the value a reference's path names. Reached only through Integrations::SecretHandoffs::Gate.
     def fill_secret(environment_row:, target:, value:)
       fail!("#{self.class.name.demodulize} sets no secrets.")
     end

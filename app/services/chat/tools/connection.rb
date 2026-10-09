@@ -216,7 +216,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # chat keeps the tool's own words.
   def handed_over(result, tool_call_id, environment_row)
     person = @agent_run.acting_principal
-    result = Integration::SecretHandoff.settle(result, tool: @tool, environment_row: environment_row, principal: person, workspace: @agent_run.workspace)
+    result = Integrations::SecretHandoffs::Gate.settle(result, tool: @tool, environment_row: environment_row, principal: person, workspace: @agent_run.workspace)
     chat = @agent_run.chat
     return result unless chat && person.is_a?(WorkspaceMembership)
 

@@ -1,6 +1,6 @@
 # Moves a secret for a person between their connections through the gateway, so neither the value nor a way around a
 # grant ever reaches Halon (Integrations::SecretHandoffs says how a tool asks for one). Nothing here keeps a value.
-module Integration::SecretHandoff
+module Integrations::SecretHandoffs::Gate
   Handoffs = Integrations::SecretHandoffs
 
   # The value a reference names, read live from its connection as principal, who must be allowed the tool that made it.
@@ -60,8 +60,8 @@ module Integration::SecretHandoff
   # its second half.
   def self.authorized(tool, environment_row, principal:, source:, params:, &)
     scope = environment_row.catalog_entry_id ? { "environment" => environment_row.catalog_entry_id } : {}
-    AbilityGateway.authorize!(principal: principal, action_key: tool.action_key, workspace: tool.integration.workspace, scope: scope,
-                              params: params, context: { source: source }, holdable: false, &)
+    Chat::ToolCall.run!(principal: principal, action_key: tool.action_key, workspace: tool.integration.workspace, scope: scope,
+                        params: params, context: { source: source }, holdable: false, &)
   end
   private_class_method :located, :authorized
 end

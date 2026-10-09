@@ -63,7 +63,7 @@ module Mcp
           tool: tool, environment_row: environment_row, arguments: arguments, box_key: principal.code_box_key,
           request: (CodeAgent::Request.new(principal: principal, source: AbilityGateway::SOURCE_MCP) if tool.writes_code?)
         )
-        answer = Integration::SecretHandoff.settle(answer, tool: tool, environment_row: environment_row, principal: server_context[:principal],
+        answer = Integrations::SecretHandoffs::Gate.settle(answer, tool: tool, environment_row: environment_row, principal: server_context[:principal],
                                                            workspace: workspace, source: AbilityGateway::SOURCE_MCP)
         ToolDispatcher.ledger_failure(authorization, answer)
         answer

@@ -25,7 +25,7 @@ class SecretEntryService
     return Result.new(ok: false, words: entry.reload.fill_blocked_reason(by) || "This field is closed.") unless entry.claim!
 
     begin
-      said = Integration::SecretHandoff.fill!(tool: entry.tool, catalog_entry_id: entry.catalog_entry_id, target: entry.target, value: value,
+      said = Integrations::SecretHandoffs::Gate.fill!(tool: entry.tool, catalog_entry_id: entry.catalog_entry_id, target: entry.target, value: value,
                                               principal: by, source: AbilityGateway::SOURCE_WEB)
     rescue AbilityGateway::Denied
       entry.released!
@@ -45,7 +45,7 @@ class SecretEntryService
     blocked = entry.reveal_blocked_reason(by)
     return Revealed.new(value: nil, words: blocked) if blocked
 
-    Revealed.new(value: Integration::SecretHandoff.resolve(entry.reference, workspace: entry.workspace, principal: by, source: AbilityGateway::SOURCE_WEB),
+    Revealed.new(value: Integrations::SecretHandoffs::Gate.resolve(entry.reference, workspace: entry.workspace, principal: by, source: AbilityGateway::SOURCE_WEB),
                  words: nil)
   rescue AbilityGateway::Denied
     Revealed.new(value: nil, words: "You can no longer use #{entry.tool.integration.display_name}'s #{entry.tool.name}, so it cannot be shown.")

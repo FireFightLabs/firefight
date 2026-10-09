@@ -7,7 +7,7 @@ module Integrations
   #
   # A pack plays its part through two methods. fill_secret(environment_row:, target:, value:) sends a value where an
   # entry's target says and answers what it did, and secret_value(environment_row:, path:) reads the value a reference's
-  # path names. Integration::SecretHandoff reaches each only after the gateway allowed the person the tool that asked.
+  # path names. SecretHandoffs::Gate reaches each only after the gateway allowed the person the tool that asked.
   module SecretHandoffs
     ENTRY = "secret_entry".freeze
     REVEAL = "secret_reveal".freeze
