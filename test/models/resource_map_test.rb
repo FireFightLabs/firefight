@@ -121,6 +121,13 @@ class ResourceMapTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_REJECTED, decided.reload.state
   end
 
+  test "a hostname's account is its registered domain, under a two label suffix too" do
+    assert_equal "acme.com", ResourceMap.domain("app.acme.com").account
+    assert_equal "acme.co.uk", ResourceMap.domain("api.acme.co.uk").account
+    assert_equal "example.com.au", ResourceMap.domain("shop.example.com.au").account
+    assert_equal "corp.internal", ResourceMap.domain("db.corp.internal").account
+  end
+
   test "a link reaches something another connection reported, and a hostname both name keeps what each said" do
     web = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: ResourceMap::KIND_SERVICE, external_id: "web", name: "web")
     app = ResourceMap.domain("app.acme.com")
