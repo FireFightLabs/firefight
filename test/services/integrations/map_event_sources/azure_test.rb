@@ -54,6 +54,15 @@ module Integrations
         assert_equal Time.iso8601("2026-10-06T12:01:00Z"), polled.events.first.at
       end
 
+      test "a busy subscription whose log is cut short is swept in full" do
+        AzureApi.any_instance.stubs(:activity_log).returns(Pages::Read.new(items: [ event("e1", "Microsoft.Web/sites/write", WEB_ID) ], complete: false))
+
+        polled = travel_to(Time.zone.parse("2026-10-06T12:05:00Z")) { Azure.poll(@row, since: "2026-10-06T12:00:00.000000Z") }
+
+        assert_equal [ "e1", "activity-log-busy #{SUBSCRIPTION} 2026-10-06T12:05:00.000000Z" ], polled.events.map(&:id)
+        assert_predicate polled.events.last.scope, :everything?
+      end
+
       test "each subscription is read from its own cursor, and one the principal cannot read leaves the others read" do
         other = "99999999-2222-3333-4444-555555555555"
         @row.store_fields!(Packs::Azure::TENANT => "contoso.onmicrosoft.com", Packs::Azure::CLIENT => "22222222-2222-3333-4444-555555555555",
