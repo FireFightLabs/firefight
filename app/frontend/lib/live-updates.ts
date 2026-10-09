@@ -1,4 +1,4 @@
-import { timeAgo } from "@/pages/map/lib/time"
+import { timeAgo } from "@/lib/time"
 
 interface LiveUpdatesState {
   on: boolean

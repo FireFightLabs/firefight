@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { whenClosed } from "@/lib/handlers"
 import { aiAccountPath, aiAccountsPath } from "@/lib/routes"
-import { FormErrors } from "@/pages/settings/components/form-errors"
-import { AiAccountModelField } from "@/pages/settings/components/workspace/ai-account-model-field"
+import { FormErrors } from "@/components/form-errors"
+import { AiAccountModelField } from "@/components/ai/ai-account-model-field"
 import type { AiProviderOption, WorkspaceAiAccount } from "@/types/serializers"
 
 export type AiAccountDialogState = { mode: "create" } | { mode: "edit"; account: WorkspaceAiAccount } | null

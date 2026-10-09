@@ -2,7 +2,7 @@ import { IconExternalLink } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
 import { liveUpdatesSetupIntegrationPath } from "@/lib/routes"
-import { timeAgo } from "@/pages/map/lib/time"
+import { timeAgo } from "@/lib/time"
 import type { Integration } from "@/types/serializers"
 
 type Offer = NonNullable<NonNullable<Integration["environments"][number]["liveUpdates"]>["offer"]>

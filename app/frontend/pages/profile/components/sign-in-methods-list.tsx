@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/formatters"
 import { SIGN_IN_PROVIDERS } from "@/lib/generated/constants"
 import { signInMethodPath } from "@/lib/routes"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
 import type { SignInMethod } from "@/types/serializers"
 
 function ProviderIcon({ provider }: { provider: string }) {

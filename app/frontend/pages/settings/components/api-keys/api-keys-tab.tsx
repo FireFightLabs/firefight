@@ -30,7 +30,7 @@ import { ApiKeyEditSheet } from "@/pages/settings/components/api-keys/api-key-ed
 import { Button } from "@/components/ui/button"
 import { CreateKeyDialog } from "@/pages/settings/components/api-keys/create-key-dialog"
 import { TokenRevealedDialog } from "@/pages/settings/components/api-keys/token-revealed-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RowActions } from "@/components/row-actions"
 import { ConnectedAgentsCard } from "@/pages/settings/components/api-keys/connected-agents-card"
 import type { ConnectedAgent } from "@/pages/settings/api-keys"
 import { whenClosed } from "@/lib/handlers"

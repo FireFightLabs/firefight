@@ -17,8 +17,8 @@ import { MapCanvas } from "@/pages/map/components/map-canvas"
 import { ResourcePanel } from "@/pages/map/components/resource-panel"
 import { ResourceTable } from "@/pages/map/components/resource-table"
 import { linksAmong, matchesFilters, neighborhood } from "@/pages/map/lib/graph"
-import { KIND_LABELS } from "@/pages/map/lib/labels"
-import { timeAgo } from "@/pages/map/lib/time"
+import { KIND_LABELS } from "@/lib/resource-map-kinds"
+import { timeAgo } from "@/lib/time"
 import {
   DEPTHS,
   type Depth,

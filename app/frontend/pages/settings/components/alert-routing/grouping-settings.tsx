@@ -3,7 +3,7 @@ import { toast } from "sonner"
 
 import type { AlertRoutingPolicy } from "@/types/serializers"
 import { alertRoutingPath } from "@/lib/routes"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { FormErrors } from "@/components/form-errors"
 import { Button } from "@/components/ui/button"
 import {
   Card,

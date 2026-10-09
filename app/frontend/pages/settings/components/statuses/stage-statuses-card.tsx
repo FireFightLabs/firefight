@@ -18,8 +18,8 @@ import {
   CardHeader,
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
-import { HeaderHint } from "@/pages/settings/components/header-hint"
-import { OptionsTable } from "@/pages/settings/components/options-table"
+import { HeaderHint } from "@/components/header-hint"
+import { OptionsTable } from "@/components/options-table"
 import { DEFAULT_STATUS_HINT, slugColumnHint } from "@/pages/settings/lib/constants"
 
 const stageColors: Record<string, string> = {

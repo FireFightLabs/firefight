@@ -13,7 +13,7 @@ import {
   mapEventsSecretIntegrationPath,
   mapEventsSecretsIntegrationPath,
 } from "@/lib/routes"
-import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
+import { liveUpdatesLine } from "@/lib/live-updates"
 import type { Integration } from "@/types/serializers"
 
 type LiveUpdatesState = NonNullable<Integration["environments"][number]["liveUpdates"]>

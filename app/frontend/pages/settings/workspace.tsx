@@ -12,8 +12,8 @@ import { Switch } from "@/components/ui/switch"
 import { ARCHIVE_CHANNEL_DELAY_CHOICES, MEMORY_EXPIRY_DAY_CHOICES } from "@/lib/generated/constants"
 import { useCan } from "@/lib/permissions"
 import { integrationsPath, settingsWorkspacePath } from "@/lib/routes"
-import { AiAccountsCard, type AiSignIn } from "@/pages/settings/components/workspace/ai-accounts-card"
-import type { AiCredits } from "@/pages/settings/components/workspace/ai-credits-row"
+import { AiAccountsCard, type AiSignIn } from "@/components/ai/ai-accounts-card"
+import type { AiCredits } from "@/components/ai/ai-credits-row"
 import {
   IssueTrackingCard,
   trackerChoice,

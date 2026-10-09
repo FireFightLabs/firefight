@@ -8,7 +8,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { formatDate, formatDateTime } from "@/lib/formatters"
 import { memoryInstructionPath } from "@/lib/routes"
 import { InstructionDialog } from "@/pages/memory/components/instruction-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RowActions } from "@/components/row-actions"
 import { type SubjectOption, WHOLE_WORKSPACE } from "@/pages/memory/types"
 import type { ChatInstruction } from "@/types/serializers"
 

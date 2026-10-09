@@ -14,7 +14,7 @@ import { useChatListCollapsed } from "@/pages/agent/hooks/use-chat-list-collapse
 import { OPEN_CHAT_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
 import { InvestigationSheet } from "@/components/investigations/investigation-sheet"
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
 

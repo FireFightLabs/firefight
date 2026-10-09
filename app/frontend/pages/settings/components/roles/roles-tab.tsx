@@ -22,7 +22,7 @@ import {
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
-import { OptionsTable } from "@/pages/settings/components/options-table"
+import { OptionsTable } from "@/components/options-table"
 
 export function RolesTab({ roles, canManage }: { roles: IncidentRole[]; canManage: boolean }) {
   const [dialog, setDialog] = useState<OptionDialogState<IncidentRole>>(null)

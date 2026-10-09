@@ -12,10 +12,10 @@ import {
   enableAiAccountPath,
   reorderAiAccountsPath,
 } from "@/lib/routes"
-import { OptionsTable } from "@/pages/settings/components/options-table"
-import { AiAccountDialog, type AiAccountDialogState } from "@/pages/settings/components/workspace/ai-account-dialog"
-import { AiAccountState } from "@/pages/settings/components/workspace/ai-account-state"
-import { AiCreditsRow, type AiCredits } from "@/pages/settings/components/workspace/ai-credits-row"
+import { OptionsTable } from "@/components/options-table"
+import { AiAccountDialog, type AiAccountDialogState } from "@/components/ai/ai-account-dialog"
+import { AiAccountState } from "@/components/ai/ai-account-state"
+import { AiCreditsRow, type AiCredits } from "@/components/ai/ai-credits-row"
 import type { AiProviderOption, WorkspaceAiAccount } from "@/types/serializers"
 
 export interface AiSignIn {

@@ -5,8 +5,9 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { incidentPath } from "@/lib/routes"
-import { changeLabel, KIND_LABELS } from "@/pages/map/lib/labels"
-import { shortAgo } from "@/pages/map/lib/time"
+import { changeLabel } from "@/pages/map/lib/labels"
+import { KIND_LABELS } from "@/lib/resource-map-kinds"
+import { shortAgo } from "@/lib/time"
 import type { ResourceMapLink, ResourceMapResource } from "@/types/serializers"
 
 interface ResourceTableProps {

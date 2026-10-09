@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
 
 const TOO_MANY_STATUS = 429
 const TOO_MANY_MESSAGE = "Too many invitations were sent from this network. Try again in an hour."

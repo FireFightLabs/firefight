@@ -29,7 +29,7 @@ import type {
 } from "@/pages/settings/lib/types"
 import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import { reorderIncidentFormFieldsPath } from "@/lib/routes"
-import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
+import { useOptimisticOrder } from "@/hooks/use-optimistic-order"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {

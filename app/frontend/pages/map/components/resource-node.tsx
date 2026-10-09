@@ -1,8 +1,8 @@
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react"
 
 import { cn } from "@/lib/utils"
-import { KIND_ICONS } from "@/pages/map/lib/icons"
-import { KIND_LABELS } from "@/pages/map/lib/labels"
+import { KIND_ICONS } from "@/lib/resource-map-kinds"
+import { KIND_LABELS } from "@/lib/resource-map-kinds"
 import { HEALTH_DOTS, KIND_TONES } from "@/pages/map/lib/tones"
 import type { ResourceMapResource } from "@/types/serializers"
 

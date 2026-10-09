@@ -14,8 +14,8 @@ import {
 
 import { router } from "@inertiajs/react"
 
-import type { ConfigurableOption } from "@/pages/settings/lib/types"
-import { useOptimisticOrder } from "@/pages/settings/lib/reorder"
+import type { ConfigurableOption } from "@/types/configurable-option"
+import { useOptimisticOrder } from "@/hooks/use-optimistic-order"
 import { cn } from "@/lib/utils"
 import { RadioGroup } from "@/components/ui/radio-group"
 import {
@@ -25,8 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { HeaderHint } from "@/pages/settings/components/header-hint"
-import { SortableOptionRow, StaticOptionRow } from "@/pages/settings/components/sortable-option-row"
+import { HeaderHint } from "@/components/header-hint"
+import { SortableOptionRow, StaticOptionRow } from "@/components/sortable-option-row"
 
 export function OptionsTable<T extends ConfigurableOption>({
   options,

@@ -50,3 +50,28 @@ export const KIND_ICONS: Record<ResourceMapKind, Icon> = {
   cluster: IconTopologyStar3,
   compute: IconCpu,
 }
+
+export const KIND_LABELS: Record<ResourceMapKind, string> = {
+  service: "Service",
+  build_service: "Build service",
+  job: "Job",
+  database: "Database",
+  branch: "Database branch",
+  repository: "Repository",
+  domain: "Domain",
+  zone: "Zone",
+  worker: "Worker",
+  site: "Static site",
+  bucket: "Bucket",
+  kv_namespace: "Key value store",
+  queue: "Queue",
+  database_proxy: "Database proxy",
+  tunnel: "Tunnel",
+  load_balancer: "Load balancer",
+  origin_pool: "Origin pool",
+  access_app: "Access policy",
+  virtual_machine: "Virtual machine",
+  function: "Function",
+  cluster: "Cluster",
+  compute: "Compute",
+}

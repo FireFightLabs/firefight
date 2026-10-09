@@ -18,12 +18,13 @@ import {
   resourceMapResourceEntryPath,
 } from "@/lib/routes"
 import { CHAT_MEMORY_STATES } from "@/lib/generated/constants"
-import { STATE_LABELS, STATE_TONES } from "@/pages/memory/lib/labels"
+import { STATE_LABELS, STATE_TONES } from "@/lib/memory-labels"
 import { Clues } from "@/pages/map/components/clues"
 import { KeyChecks } from "@/pages/map/components/key-checks"
 import { UsualLogLines } from "@/pages/map/components/usual-log-lines"
-import { changeLabel, howFound, KIND_LABELS, RELATION_SENTENCES } from "@/pages/map/lib/labels"
-import { shortAgo } from "@/pages/map/lib/time"
+import { changeLabel, howFound, RELATION_SENTENCES } from "@/pages/map/lib/labels"
+import { KIND_LABELS } from "@/lib/resource-map-kinds"
+import { shortAgo } from "@/lib/time"
 import type { SharedProps } from "@/types"
 import type {
   ResourceMapChange,

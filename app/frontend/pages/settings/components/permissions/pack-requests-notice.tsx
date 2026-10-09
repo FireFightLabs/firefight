@@ -6,7 +6,7 @@ import { dismissPackRequestPath, givePackRequestPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDateTime } from "@/lib/formatters"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
 
 // Packs members asked for after being refused a change, waiting on an admin. Give pack is the same grant as the screen
 // makes, in every environment, and each answer confirms with a toast.

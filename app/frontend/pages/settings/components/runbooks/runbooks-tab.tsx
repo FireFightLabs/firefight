@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { OptionsTable } from "@/pages/settings/components/options-table"
+import { OptionsTable } from "@/components/options-table"
 import { RunbookDetailSheet } from "@/pages/settings/components/runbooks/runbook-detail-sheet"
 import { RunbookDialog } from "@/pages/settings/components/runbooks/runbook-dialog"
 import { attachSummary } from "@/pages/settings/lib/runbook-conditions"

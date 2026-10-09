@@ -3,8 +3,8 @@ import { usePage } from "@inertiajs/react"
 
 import { Button } from "@/components/ui/button"
 import { SETUP_STEP_STATES } from "@/lib/generated/constants"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { Blocked } from "@/components/blocked-tooltip"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import type { SetupPageProps } from "@/pages/setup/types"
 import type { OnboardingStep } from "@/types/serializers"
 

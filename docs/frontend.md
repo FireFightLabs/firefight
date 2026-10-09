@@ -96,6 +96,9 @@ app/frontend/pages/dashboard/types.ts             # Manual TS types (DashboardFi
 app/frontend/
   components/              # Cross-page shared components
     confirm-delete-dialog.tsx  # Used by settings, incidents and the agent chat
+    options-table.tsx, sortable-option-row.tsx, row-actions.tsx, blocked-tooltip.tsx, form-errors.tsx  # the option list kit, used by settings, memory, setup and the AI accounts card
+    ai/                    # AI accounts card, its dialog and credits row (Settings, Workspace and the setup checklist)
+    incidents/             # lifecycle-form-dialog, declaring and updating an incident from any page
     permissions/           # who-can-do-what, the quick grant panel (Permissions screen and the setup checklist)
     agent-ui/              # Vendored from Beautiful UI, outside eslint, see its README
     auth/                  # auth-layout, card-header, slack-button (used by login + onboarding)
@@ -134,7 +137,7 @@ app/frontend/
     settings/
       index.tsx            # /settings
       <tab>.tsx            # /settings/<tab>
-      components/          # cross-tab shared (color-dot, row-actions)
+      components/          # cross-tab shared (option-dialog, confirm and form pieces only settings uses)
         <tab>/             # one folder per settings tab; holds *-tab.tsx + its dialogs/sheets
       hooks/               # use-sync-form-data, use-permissions-matrix
       lib/                 # types.ts (data types; lives under lib/ to avoid colliding with types.tsx page)
@@ -148,8 +151,8 @@ app/frontend/
       lib/                 # step titles, typed against the generated SETUP_STEPS
   types/                   # Cross-page app-level types (SharedProps, Pagination)
     serializers/           # Auto-generated from oj_serializers — never edit by hand
-  hooks/                   # Cross-page hooks (use-mobile)
-  lib/                     # Cross-page utilities (routes, utils, formatters)
+  hooks/                   # Cross-page hooks (use-mobile, use-optimistic-order)
+  lib/                     # Cross-page utilities (routes, utils, formatters, time, resource-map-kinds, memory-labels)
     generated/             # constants.ts, emitted by bin/rails typescript:constants
   styles/                  # theme.css (the palette) and agent-ui.css, imported by application.css, never entrypoints themselves
   entrypoints/             # Vite entrypoints (inertia.tsx, application.css)
@@ -190,7 +193,7 @@ app/frontend/
   - Don't keep file-local hooks inline in a component file — every hook is its own `.ts`, named `use-<kebab>.ts`.
 - **Multi-page features group sub-components per page:**
   - When a feature has multiple page files (e.g. `pages/settings/` with one `.tsx` per tab), components used by exactly one page live in a subfolder named after that page: `pages/<feature>/components/<page>/<component>.tsx`.
-  - Components shared by ≥2 pages within the feature stay flat at `pages/<feature>/components/` (e.g. `pages/settings/components/row-actions.tsx`, used by every settings tab).
+  - Components shared by ≥2 pages within the feature stay flat at `pages/<feature>/components/` (e.g. `pages/settings/components/option-dialog.tsx`, used by every option tab). Once a page outside the feature needs one, it moves to top-level `components/`, as `row-actions.tsx` did.
   - Features with a single page (e.g. `pages/dashboard/`) keep the flat `components/` layout — no per-page subfolder needed.
 - The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
@@ -212,7 +215,7 @@ its own table.
 | Model | `ConfigurableOption`, plus `DefaultableOption` when one row is the workspace default, plus `NormalizedDescription` when the row has a description |
 | Controller | `ManagesConfigurableOptions` supplies create/update/disable/enable/make_default/destroy/reorder |
 | Serializer | `enabled`, `incidentCount`, and the `*BlockedReason` strings |
-| Frontend | `OptionsTable` + `SortableOptionRow` + `OptionDialog`, all flat in `pages/settings/components/` |
+| Frontend | `OptionsTable` + `SortableOptionRow` in `components/`, `OptionDialog` in `pages/settings/components/` |
 
 **Guard rules live on the model, once.** `deletion_blocked_reason`,
 `disable_blocked_reason` and `default_blocked_reason` return a sentence or nil.
@@ -225,7 +228,7 @@ controller actually enforces, which is exactly what these replaced.
 model whose blocking association is not `incidents` overrides `usage_association`
 (roles block on `incident_role_assignments`).
 
-**A list with its own form reuses the table, not the dialog.** Settings, Workspace, AI accounts (`pages/settings/components/workspace/ai-accounts-card.tsx`) is positioned and switchable like these, so it renders `OptionsTable` with reorder through `useOptimisticOrder`, `RowActions` and `ConfirmDeleteDialog`, but its fields come from the provider, so it has its own dialog in the shape of `OptionDialog`. A secret field is a password input that starts empty and keeps the stored value when left empty, with the account's `keySummary` under it.
+**A list with its own form reuses the table, not the dialog.** Settings, Workspace, AI accounts (`components/ai/ai-accounts-card.tsx`, also drawn on the setup checklist) is positioned and switchable like these, so it renders `OptionsTable` with reorder through `useOptimisticOrder`, `RowActions` and `ConfirmDeleteDialog`, but its fields come from the provider, so it has its own dialog in the shape of `OptionDialog`. A secret field is a password input that starts empty and keeps the stored value when left empty, with the account's `keySummary` under it.
 
 **Colour and default are capabilities, not flags.** A list without a `color`
 column gets no colour field; a model that omits `DefaultableOption` gets no

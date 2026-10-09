@@ -19,7 +19,7 @@ import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { actionAnchorId } from "@/pages/incidents/lib/action-anchor"
 import { newTabAttributes } from "@/lib/links"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
 import { RenameItemDialog } from "@/pages/incidents/components/index/rename-item-dialog"
 import {
   assignIncidentActionPath,

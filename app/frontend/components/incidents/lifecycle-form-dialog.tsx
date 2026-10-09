@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { router } from "@inertiajs/react"
+import type { VisitOptions } from "@inertiajs/core"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,7 +18,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SearchableSelect } from "@/components/searchable-select"
 import { SearchableMultiSelect } from "@/components/searchable-multi-select"
 import { whenClosed } from "@/lib/handlers"
-import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import {
   declareIncidentFormPath,
   declareIncidentPath,
@@ -187,6 +187,7 @@ export function LifecycleFormDialog({
   test = false,
   fromInvestigationId = null,
   suggestedName = null,
+  updateVisit = { preserveScroll: true },
 }: {
   // Null while declaring.
   incidentId: string | null
@@ -199,6 +200,8 @@ export function LifecycleFormDialog({
   fromInvestigationId?: string | null
   // What the name starts as, which the person can change. Declare form only.
   suggestedName?: string | null
+  // How the page that owns the incident reloads after an update, so it can keep its deferred props.
+  updateVisit?: VisitOptions
 }) {
   const seed: Answers = suggestedName ? { [INCIDENT_NAME_FIELD_KEY]: suggestedName } : {}
   const { fields, answers, setAnswers, resolve } = useResolvedForm(incidentId, form, open, seed)
@@ -230,7 +233,7 @@ export function LifecycleFormDialog({
     // Declaring lands on a page this dialog has never seen, so it takes a whole
     // visit rather than a partial reload.
     if (incidentId) {
-      router.patch(path, { answers }, { ...afterMutation("incident", "timelineEvents"), ...callbacks })
+      router.patch(path, { answers }, { ...updateVisit, ...callbacks })
     } else {
       router.post(path, { answers, test, investigation_id: fromInvestigationId }, { preserveScroll: true, ...callbacks })
     }

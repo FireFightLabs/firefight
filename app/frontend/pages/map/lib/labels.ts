@@ -1,36 +1,10 @@
 import type {
   ResourceMapCertainty,
   ResourceMapChangeKind,
-  ResourceMapKind,
   ResourceMapOrigin,
   ResourceMapRelation,
 } from "@/lib/generated/constants"
 import type { ResourceMapChange, ResourceMapLink } from "@/types/serializers"
-
-export const KIND_LABELS: Record<ResourceMapKind, string> = {
-  service: "Service",
-  build_service: "Build service",
-  job: "Job",
-  database: "Database",
-  branch: "Database branch",
-  repository: "Repository",
-  domain: "Domain",
-  zone: "Zone",
-  worker: "Worker",
-  site: "Pages site",
-  bucket: "Bucket",
-  kv_namespace: "KV namespace",
-  queue: "Queue",
-  database_proxy: "Database proxy",
-  tunnel: "Tunnel",
-  load_balancer: "Load balancer",
-  origin_pool: "Origin pool",
-  access_app: "Access application",
-  virtual_machine: "Virtual machine",
-  function: "Function",
-  cluster: "Cluster",
-  compute: "Compute",
-}
 
 // Read between the two names, as in "web runs builds of firefight".
 export const RELATION_SENTENCES: Record<ResourceMapRelation, string> = {

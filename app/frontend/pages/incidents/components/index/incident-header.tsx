@@ -13,7 +13,8 @@ import { MetaCell } from "@/pages/incidents/components/index/meta-cell"
 import { ActorChip } from "@/components/actor-chip"
 import { IncidentMenu } from "@/pages/incidents/components/index/incident-menu"
 import { InlineSelect } from "@/pages/incidents/components/index/inline-select"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
+import { UPDATE_VISIT } from "@/pages/incidents/lib/after-mutation"
 import { StartInvestigationButton } from "@/pages/incidents/components/index/start-investigation-button"
 import type { LinkableIncident } from "@/pages/incidents/components/index/link-incident-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -232,6 +233,7 @@ export function IncidentHeader({
         form="update"
         open={updating}
         onOpenChange={closeUpdate}
+        updateVisit={UPDATE_VISIT}
       />
     </header>
   )

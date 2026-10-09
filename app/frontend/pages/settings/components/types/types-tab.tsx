@@ -20,9 +20,9 @@ import {
 } from "@/components/ui/card"
 import { TableCell, TableHead } from "@/components/ui/table"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { HeaderHint } from "@/pages/settings/components/header-hint"
+import { HeaderHint } from "@/components/header-hint"
 import { OptionDialog, type OptionDialogState } from "@/pages/settings/components/option-dialog"
-import { OptionsTable } from "@/pages/settings/components/options-table"
+import { OptionsTable } from "@/components/options-table"
 import { slugColumnHint } from "@/pages/settings/lib/constants"
 
 const DEFAULT_TYPE_COLOR = "#A98AEA"

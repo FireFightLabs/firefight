@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { AddWebhookDialog } from "@/pages/settings/components/webhooks/add-webhook-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RowActions } from "@/components/row-actions"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { WebhookDetailSheet } from "@/pages/settings/components/webhooks/webhook-detail-sheet"
 import { whenClosed } from "@/lib/handlers"

@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
 
 // A row keeps its id across a rename, which stops the rename orphaning the
 // incidents pointing at it. Unsaved rows have no id yet.

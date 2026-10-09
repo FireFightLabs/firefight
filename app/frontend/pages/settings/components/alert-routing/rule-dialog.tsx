@@ -14,7 +14,7 @@ import {
 } from "@/pages/settings/components/alert-routing/rule-form"
 import { ConditionRowFields } from "@/pages/settings/components/alert-routing/condition-row"
 import { OutcomeFields } from "@/pages/settings/components/alert-routing/outcome-fields"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { FormErrors } from "@/components/form-errors"
 import { AddRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Button } from "@/components/ui/button"
 import {

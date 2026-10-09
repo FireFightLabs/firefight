@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useRemoteSearch } from "@/hooks/use-remote-search"
 import { MAP_SEARCH_TYPE } from "@/lib/generated/constants"
 import { mapSearchPath } from "@/lib/routes"
-import { KIND_ICONS } from "@/pages/map/lib/icons"
-import { KIND_LABELS } from "@/pages/map/lib/labels"
+import { KIND_ICONS } from "@/lib/resource-map-kinds"
+import { KIND_LABELS } from "@/lib/resource-map-kinds"
 import type { MapSearchResult } from "@/types/serializers"
 
 // What the search answers with. refusal says why nothing can be found, such as a person who reads no part of the map.

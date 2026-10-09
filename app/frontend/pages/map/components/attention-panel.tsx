@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { confirmResourceMapLinkPath, dismissResourceMapLinkPath } from "@/lib/routes"
 import { Clues } from "@/pages/map/components/clues"
 import { changeLabel, howFound, RELATION_SENTENCES } from "@/pages/map/lib/labels"
-import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
-import { shortAgo } from "@/pages/map/lib/time"
+import { liveUpdatesLine } from "@/lib/live-updates"
+import { shortAgo } from "@/lib/time"
 import type {
   ResourceMapChange,
   ResourceMapConnection,

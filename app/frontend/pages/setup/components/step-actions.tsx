@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
+import { Blocked } from "@/components/blocked-tooltip"
 
 // The foot of a step: whatever else it offers, then the button that moves setup on. A blocked button says why.
 export function StepActions({

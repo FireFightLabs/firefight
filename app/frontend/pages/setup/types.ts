@@ -1,6 +1,6 @@
 import type { SharedProps } from "@/types"
-import type { AiCredits } from "@/pages/settings/components/workspace/ai-credits-row"
-import type { AiSignIn } from "@/pages/settings/components/workspace/ai-accounts-card"
+import type { AiCredits } from "@/components/ai/ai-credits-row"
+import type { AiSignIn } from "@/components/ai/ai-accounts-card"
 import type {
   AbilityRole,
   AiProviderOption,

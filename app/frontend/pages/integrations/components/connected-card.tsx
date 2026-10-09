@@ -33,7 +33,7 @@ import { CodeChanges } from "@/pages/integrations/components/code-changes";
 import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
 import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
-import { Blocked } from "@/pages/settings/components/blocked-tooltip";
+import { Blocked } from "@/components/blocked-tooltip";
 
 type Environment = Integration["environments"][number];
 type HealthStatus = Environment["healthStatus"];

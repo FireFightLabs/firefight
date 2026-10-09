@@ -7,7 +7,7 @@ import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settin
 import { FieldMappingEditor, type MappingRow } from "@/pages/settings/components/alert-sources/field-mapping-editor"
 import { omitErrors } from "@/lib/form-errors"
 import { setupInstructionsFor } from "@/pages/settings/lib/alerts"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { FormErrors } from "@/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 import { Button } from "@/components/ui/button"
 import {

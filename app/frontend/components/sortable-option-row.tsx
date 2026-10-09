@@ -3,14 +3,14 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { IconGripVertical } from "@tabler/icons-react"
 
-import type { ConfigurableOption } from "@/pages/settings/lib/types"
+import type { ConfigurableOption } from "@/types/configurable-option"
 import { cn } from "@/lib/utils"
 import { RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { ColorDot } from "@/pages/settings/components/color-dot"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { ColorDot } from "@/components/color-dot"
+import { RowActions } from "@/components/row-actions"
 
 // A disabled control swallows pointer events, so the tooltip rides on a span.
 function Blocked({ reason, children }: { reason: string; children: ReactNode }) {
