@@ -147,7 +147,7 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
   test "anything that looks like a secret is never remembered" do
     answer = Chat::Tools::Remember.new(@turn).call("fact" => "Prod is postgres://app:hunter2@db.internal:5432/app")
 
-    assert_match "looks like it holds a secret (credential url)", answer[:error]
+    assert_match "looks like it holds a secret (credential url)", answer
     assert_not Chat::Memory.exists?(workspace: @workspace)
   end
 
@@ -192,7 +192,36 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_equal 1, memory.reload.use_count
   end
 
+  test "a memory tool that did nothing marks its call failed, a missing memory as not found, and already remembered is no failure" do
+    rejected = Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_REJECTED)
+    Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
+
+    called(Chat::Tools::Remember, "remember_1", "fact" => "Ledger is slow", "about" => "ledger")
+    called(Chat::Tools::Remember, "remember_2", "fact" => "Checkout currently runs 3 replicas")
+    called(Chat::Tools::Remember, "remember_3", "fact" => "Checkout uses MySQL")
+    secret = called(Chat::Tools::Remember, "remember_4", "fact" => "Prod is postgres://app:hunter2@db.internal:5432/app")
+    called(Chat::Tools::Remember, "remember_5", "fact" => "deploys happen from main")
+    called(Chat::Tools::CorrectMemory, "correct_1", "memory" => "nothing", "reason" => "wrong")
+    called(Chat::Tools::CorrectMemory, "correct_2", "memory" => rejected.id, "reason" => "wrong")
+    called(Chat::Tools::DisputeMemory, "dispute_1", "memory" => "nothing", "reason" => "wrong")
+    called(Chat::Tools::DisputeMemory, "dispute_2", "memory" => rejected.id, "reason" => "wrong")
+
+    assert_kind_of String, secret
+    assert_match "looks like it holds a secret", secret
+    chat = @conversation.chat_record
+    failed = %w[remember_1 remember_2 remember_3 remember_4 correct_2 dispute_2].map { |id| chat.outcome_call(id).failure_kind }
+    assert_equal [ Chat::StepOutcome::FAILURE_ERROR ] * 6, failed
+    assert_equal [ Chat::StepOutcome::FAILURE_NOT_FOUND ] * 2, %w[correct_1 dispute_1].map { |id| chat.outcome_call(id).failure_kind }
+    assert_not chat.outcome_call("remember_5").failed
+  end
+
   private
 
   def memory(text) = Chat::Memory.where(workspace: @workspace).to_a.find { |each| each.text == text }
+
+  def called(tool, id, **arguments)
+    llm_call = RubyLLM::ToolCall.new(id: id, name: tool.tool_name, arguments: arguments)
+    @conversation.chat_record.add_message(RubyLLM::Message.new(role: :assistant, content: "", tool_calls: { id => llm_call }))
+    tool.new(@turn).call(tool_call: llm_call, **arguments.transform_keys(&:to_sym))
+  end
 end

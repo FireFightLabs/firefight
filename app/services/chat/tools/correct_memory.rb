@@ -30,15 +30,22 @@ class Chat::Tools::CorrectMemory < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
     memory = Chat::Memory.visible_to(@agent_run.acting_principal, @agent_run.workspace).find_by(id: asked["memory"].to_s)
-    return "There is no memory #{asked['memory']}." unless memory
+    return refused(tool_call, "There is no memory #{asked['memory']}.", kind: Chat::StepOutcome::FAILURE_NOT_FOUND) unless memory
 
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
       outcome = memory.reject!(by: @agent_run.memory_teacher, reason: asked["reason"].to_s.strip, correction: asked["correction"].to_s.strip)
-      next memory.reject_blocked_reason unless outcome
+      next refused(tool_call, memory.reject_blocked_reason) unless outcome
 
       outcome == memory ? "Forgotten. It is kept as rejected, so it is not learned again." : "Corrected. The old one is rejected, and this replaces it, confirmed by #{@agent_run.memory_teacher&.display_name || 'the person'}."
     end
   rescue ActiveRecord::RecordInvalid => error
-    { error: error.record.errors.full_messages.to_sentence }
+    refused(tool_call, error.record.errors.full_messages.to_sentence)
+  end
+
+  private
+
+  def refused(tool_call, words, kind: Chat::StepOutcome::FAILURE_ERROR)
+    Chat::Tools.mark_failed(@agent_run, tool_call&.id, kind: kind)
+    words
   end
 end

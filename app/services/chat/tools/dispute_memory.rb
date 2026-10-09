@@ -28,12 +28,20 @@ class Chat::Tools::DisputeMemory < RubyLLM::Tool
   def call(tool_call: nil, **arguments)
     asked = arguments.stringify_keys
     memory = Chat::Memory.visible_to(@agent_run.acting_principal, @agent_run.workspace).find_by(id: asked["memory"].to_s)
-    return "There is no memory #{asked['memory']}." unless memory
+    return refused(tool_call, "There is no memory #{asked['memory']}.", kind: Chat::StepOutcome::FAILURE_NOT_FOUND) unless memory
+
     Chat::Tools.memory_change(@agent_run, Ability::Action::ACTION_UPDATE, tool_name: name, params: asked.slice("memory"), tool_call_id: tool_call&.id) do
-      next "It is #{memory.state} already, so it is not in use." unless memory.dispute!(asked["reason"].to_s.strip)
+      next refused(tool_call, "It is #{memory.state} already, so it is not in use.") unless memory.dispute!(asked["reason"].to_s.strip)
 
       Chat::Tools.tell_incident(@agent_run, memory, Chat::MemoryPost::KIND_DISPUTED)
       "Disputed. It is not used again until a person confirms or rejects it."
     end
+  end
+
+  private
+
+  def refused(tool_call, words, kind: Chat::StepOutcome::FAILURE_ERROR)
+    Chat::Tools.mark_failed(@agent_run, tool_call&.id, kind: kind)
+    words
   end
 end
