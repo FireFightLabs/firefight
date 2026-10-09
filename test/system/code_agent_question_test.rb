@@ -80,6 +80,92 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     shot("code-question-answered-phone")
   end
 
+  test "an answer Halon gave keeps Change answer while the change runs, and the person picks another option and sees what it changed to" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("Make the release job send the tag")
+    question = ask(conversation, "Today the release workflow tells Northflank to start a run named after the commit. When you tag v1.4.0, " \
+                                 "what should the Northflank run be called?")
+    question.answer_as_halon!("You asked for the tag in your first message.", option: 0)
+    chat = conversation.chat
+    reply = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: @tool.model_facing_name, arguments: @arguments)
+    work = running_work
+    work.asked!(question.to_h)
+    work.add("Edited .github/workflows/release.yml")
+    Chat::StepProgress.keep!(chat, "call_1", work)
+
+    visit agent_chat_path(conversation)
+    trace = find("button[aria-expanded]", text: /Working|Worked for/)
+    trace.click if trace["aria-expanded"] == "false"
+
+    assert_text "Halon chose: Send the tag"
+    assert_no_selector "button", text: "Send the commit"
+    find("button", text: "Change answer").scroll_to(:center)
+    shot("code-question-change-offered")
+
+    click_button "Change answer"
+    assert_button "Submit", disabled: true
+    find("button", text: "Send the tag").click
+    assert_button "Submit", disabled: true
+    find("button", text: "Send the commit").click
+    assert_selector "button[aria-pressed=true]", text: "Send the commit"
+    assert_button "Submit", disabled: false
+    fill_in "Or write your own answer", with: "Send both"
+    assert_no_selector "button[aria-pressed=true]"
+    fill_in "Or write your own answer", with: ""
+    find("button", text: "Send the commit").click
+    find("button", text: "Submit").scroll_to(:center)
+    shot("code-question-changing")
+
+    click_button "Submit"
+    assert_text "Your new answer was sent to the coding agent."
+    assert_text "Changed to Send the commit by Alice Smith"
+    assert_text "Halon chose: Send the tag"
+    assert_no_button "Submit"
+    assert_button "Change answer"
+    assert_equal [ 1, @member ], question.reload.values_at(:changed_chosen, :changed_by)
+    assert_equal 1, CodeAgentQuestion.correction_waiting.where(id: question.id).count
+    find("button", text: "Change answer").scroll_to(:center)
+    shot("code-question-changed")
+
+    question.session.close!
+    visit agent_chat_path(conversation)
+    trace = find("button[aria-expanded]", text: /Working|Worked for/)
+    trace.click if trace["aria-expanded"] == "false"
+    assert_text "Changed to Send the commit by Alice Smith"
+    assert_no_button "Change answer"
+  end
+
+  test "on a run's fix step the person the change runs as changes a settled answer in their own words" do
+    plan = build_fix_plan(@workspace)
+    plan.apply!(by: @member, from: AbilityGateway::SOURCE_WEB)
+    code = plan.steps.third
+    code.move!(from: Investigation::RemediationStep::STATUS_PROPOSED, to: Investigation::RemediationStep::STATUS_RUNNING, started_at: 2.minutes.ago)
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/infra", request: code.code_agent_request(@member))
+    question = ask_question!(session, "Should the rule go from dns.tf only, or from the staging copy too?")
+    question.update_columns(answer_due_at: 1.minute.ago)
+    question.expire_if_overdue!
+    work = running_work
+    work.asked!(question.reload.to_h)
+    code.track!(work)
+    investigation = plan.finding.investigation
+
+    visit incident_path(investigation.incident, Investigation::QUERY_PARAM => investigation.id)
+
+    within("[role=dialog]") do
+      assert_text "Nobody answered in time, so the change went with the recommendation."
+      click_button "Change answer"
+      fill_in "Or write your own answer", with: "From dns.tf only, and leave staging alone."
+      click_button "Submit"
+    end
+    assert_text "Your new answer was sent to the coding agent."
+    within("[role=dialog]") do
+      assert_text "Changed to From dns.tf only, and leave staging alone. by Alice Smith"
+    end
+    assert_equal "From dns.tf only, and leave staging alone.", question.reload.changed_answer
+  end
+
   test "once it opened, the step leads with Halon's review, what it verified, what is open, and the checks that ran or could not run" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     conversation.ask!("Make the release job send the tag")

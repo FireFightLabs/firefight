@@ -1,6 +1,23 @@
-import { type CodeFixQuestion, questionAnswered, questionDefaulted, questionExpired, questionOpen } from "@/lib/code-fix-work"
+import {
+  type CodeFixQuestion, questionAnswered, questionDefaulted, questionExpired, questionOpen,
+} from "@/lib/code-fix-work"
 
 export function QuestionSettled({ question }: { question: CodeFixQuestion }) {
+  return (
+    <>
+      <FirstAnswer question={question} />
+      {question.changedTo && (
+        <p className="m-0 whitespace-pre-wrap text-fg-body [overflow-wrap:anywhere]">
+          <span className="font-medium text-fg-primary">Changed to </span>
+          {question.changedTo}
+          <span className="text-fg-muted"> by {question.changedBy ?? "someone"}</span>
+        </p>
+      )}
+    </>
+  )
+}
+
+function FirstAnswer({ question }: { question: CodeFixQuestion }) {
   if (questionAnswered(question)) {
     const chosen = question.chosen === null ? undefined : question.options[question.chosen]
     return (

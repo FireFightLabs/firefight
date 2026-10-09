@@ -105,6 +105,33 @@ export function questionDefaulted(question: CodeFixQuestion): boolean {
   return question.status === CODE_AGENT_QUESTION_STATUSES.DEFAULTED
 }
 
+// Settled with an answer the change carries on with, so the person can change it while the change is still written.
+export function questionChangeable(question: CodeFixQuestion): boolean {
+  return questionAnswered(question) || questionDefaulted(question)
+}
+
+// The option the change carries on with now, by its place, or null for an answer in someone's own words.
+export function currentChoice(question: CodeFixQuestion): number | null {
+  return question.changedAt ? question.changedChosen : question.chosen
+}
+
+// The same question as two reports of it, the newer one. The page reads it from the database while the socket carries
+// what the change last reported, so either can be ahead.
+export function newerQuestion(first: CodeFixQuestion | null, second: CodeFixQuestion | null): CodeFixQuestion | null {
+  if (!first || !second || first.id !== second.id) {
+    return first ?? second
+  }
+  return Date.parse(second.updatedAt ?? "") > Date.parse(first.updatedAt ?? "") ? second : first
+}
+
+// The work the socket reported, with whichever of its question and the saved one is newer.
+export function withNewerQuestion(live: CodeFixWork | null, saved: CodeFixWork | null): CodeFixWork | null {
+  if (!live || !saved) {
+    return live ?? saved
+  }
+  return { ...live, question: newerQuestion(live.question, saved.question) }
+}
+
 export function questionExpired(question: CodeFixQuestion): boolean {
   return question.status === CODE_AGENT_QUESTION_STATUSES.EXPIRED
 }

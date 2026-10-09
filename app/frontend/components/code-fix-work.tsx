@@ -20,6 +20,8 @@ interface CodeFixWorkProps {
   running: boolean
   // Why whoever is looking cannot answer the agent's question, from the server, or null when they can.
   questionBlockedReason?: string | null
+  // Why whoever is looking cannot change the answer to the agent's settled question, from the server, or null when they can.
+  questionChangeBlockedReason?: string | null
   // Why whoever is looking cannot continue or stop a change paused at its spending limit, or null when they can.
   pauseBlockedReason?: string | null
   // Drawn before the server said who may decide, so the question and the pause offer nothing yet.
@@ -33,7 +35,7 @@ interface CodeFixWorkProps {
 // the change, what it changed, the tests and checks that ran, what Halon's review found and the link. When it stopped,
 // its last steps and why.
 export function CodeFixWorkView({
-  work, running, questionBlockedReason = null, pauseBlockedReason = null, readOnly = false, reloads,
+  work, running, questionBlockedReason = null, questionChangeBlockedReason = null, pauseBlockedReason = null, readOnly = false, reloads,
 }: CodeFixWorkProps) {
   const elapsed = useElapsed(work.startedAt, work.finishedAt, running)
   const [ allLines, setAllLines ] = useState(false)
@@ -49,7 +51,9 @@ export function CodeFixWorkView({
         <ChangedFiles work={work} />
         <Tests work={work} />
         <Checks work={work} />
-        {work.question && <CodeAgentQuestion question={work.question} readOnly={readOnly} reloads={reloads} />}
+        {work.question && (
+          <CodeAgentQuestion question={work.question} changeBlockedReason={questionChangeBlockedReason} readOnly={readOnly} reloads={reloads} />
+        )}
         {work.pullRequest && (
           <a
             href={work.pullRequest}
@@ -90,7 +94,13 @@ export function CodeFixWorkView({
       {working && !work.live && <WaitingLine words={kept === 0 ? "Getting the repository ready" : "The coding agent is writing the change"} />}
       {waiting && <WaitingLine words="Waiting for an answer" />}
       {work.question && (
-        <CodeAgentQuestion question={work.question} blockedReason={running ? questionBlockedReason : null} readOnly={readOnly} reloads={reloads} />
+        <CodeAgentQuestion
+          question={work.question}
+          blockedReason={running ? questionBlockedReason : null}
+          changeBlockedReason={questionChangeBlockedReason}
+          readOnly={readOnly}
+          reloads={reloads}
+        />
       )}
       {stopped(work) && work.reason && <p className="m-0 font-medium text-error [overflow-wrap:anywhere]">{work.reason}</p>}
       {paused(work) && work.pause && <CodeFixPauseCard pause={work.pause} blockedReason={pauseBlockedReason} readOnly={readOnly} reloads={reloads} />}

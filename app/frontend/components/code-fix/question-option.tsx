@@ -1,6 +1,6 @@
 import { IconCheck, IconLoader2 } from "@tabler/icons-react"
 
-import type { CodeFixQuestion, CodeFixQuestionOption } from "@/lib/code-fix-work"
+import { type CodeFixQuestion, type CodeFixQuestionOption, currentChoice } from "@/lib/code-fix-work"
 
 interface QuestionOptionProps {
   option: CodeFixQuestionOption
@@ -8,12 +8,14 @@ interface QuestionOptionProps {
   question: CodeFixQuestion
   choosable: boolean
   sending: boolean
+  // Picked in a form that sends on submit rather than on the click, or undefined where a click sends it.
+  selected?: boolean
   onChoose: (index: number) => void
 }
 
-export function QuestionOption({ option, index, question, choosable, sending, onChoose }: QuestionOptionProps) {
+export function QuestionOption({ option, index, question, choosable, sending, selected, onChoose }: QuestionOptionProps) {
   const recommended = question.recommended === index
-  const chosen = question.chosen === index
+  const chosen = currentChoice(question) === index
   const body = (
     <>
       <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -26,15 +28,28 @@ export function QuestionOption({ option, index, question, choosable, sending, on
       {recommended && question.recommendedReason && <span className="text-fg-muted [overflow-wrap:anywhere]">{question.recommendedReason}</span>}
     </>
   )
-  const frame = `flex w-full min-w-0 flex-col items-start gap-0.5 rounded-md border px-2.5 py-2 text-left ${chosen ? "border-success-border bg-success-tint" : "border-border bg-background"}`
+  const frame = `flex w-full min-w-0 flex-col items-start gap-0.5 rounded-md border px-2.5 py-2 text-left ${optionTone(chosen, selected)}`
 
   if (!choosable) {
     return <div className={frame}>{body}</div>
   }
 
   return (
-    <button type="button" onClick={() => onChoose(index)} className={`${frame} transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:outline-none`}>
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onChoose(index)}
+      className={`${frame} transition-colors hover:border-border-strong hover:bg-surface-hover focus-visible:outline-none`}
+    >
       {body}
     </button>
   )
+}
+
+// In a form only the pick stands out, and the answer it replaces keeps just its check.
+function optionTone(chosen: boolean, selected: boolean | undefined): string {
+  if (selected) {
+    return "border-brand bg-brand-tint"
+  }
+  return chosen && selected === undefined ? "border-success-border bg-success-tint" : "border-border bg-background"
 }

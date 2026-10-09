@@ -72,6 +72,7 @@ export function FixStep({ investigationId, step }: { investigationId: string; st
             work={step.progress}
             running={step.status === REMEDIATION_STEP_STATUS_RUNNING}
             questionBlockedReason={step.questionBlockedReason}
+            questionChangeBlockedReason={step.questionChangeBlockedReason ?? null}
             pauseBlockedReason={step.pauseBlockedReason ?? null}
           />
         )}
