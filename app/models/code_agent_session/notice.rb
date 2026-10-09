@@ -17,7 +17,7 @@ class CodeAgentSession::Notice < ApplicationRecord
   belongs_to :workspace
   belongs_to :fix_by, class_name: "WorkspaceMembership", optional: true
   # The chat it was told in, where Fix it runs. A fix's notice in a run's thread has none until Fix it opens the thread's.
-  belongs_to :conversation, optional: true
+  belongs_to :conversation, optional: true, inverse_of: :pull_request_notices
 
   validates :status, inclusion: { in: STATUSES }
 

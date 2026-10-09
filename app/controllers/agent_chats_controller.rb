@@ -175,7 +175,7 @@ class AgentChatsController < InertiaController
 
   # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
   def fix_pull_request
-    notice = CodeAgentSession::Notice.find_by(id: params[:notice_id], conversation_id: conversation.id)
+    notice = conversation.pull_request_notices.find_by(id: params[:notice_id])
     return redirect_to(agent_chat_path(conversation), alert: "That pull request is no longer in this chat.") unless notice
 
     blocked = PullRequestFollowing.fix!(notice, by: current_membership)
@@ -248,11 +248,11 @@ class AgentChatsController < InertiaController
 
   def watch_updates_shown
     chat = conversation.chat
-    chat ? Chat::Watch::Update.joins(:watch).where(chat_watches: { chat_id: chat.id }).includes(:watch).order(:created_at) : []
+    chat ? chat.watch_updates.includes(:watch).reorder(:created_at) : []
   end
 
   def pull_request_notices_shown
-    CodeAgentSession::Notice.where(conversation_id: conversation.id).includes(:fix_by, session: :principal).order(:created_at)
+    conversation.pull_request_notices.includes(:fix_by, session: :principal).order(:created_at)
   end
 
   def pack_refusals_shown
