@@ -78,17 +78,17 @@ class WorkspaceMembership < ApplicationRecord
     return true if admin_access?
     return default_read?(action, resolved) if action.tool?
 
-    implicitly_permits?(*action.key.split("."))
+    implicitly_permits?(*action.key.split("."), resolved)
   end
 
   # The same rule for callers holding a resource and action rather than an
-  # Ability::Action. ApiKey's personal-token path reads it.
-  def implicitly_permits?(resource, crud_action)
+  # Ability::Action. ApiKey's personal-token path reads it. resolved is the member's grants when the caller already has them.
+  def implicitly_permits?(resource, crud_action, resolved = nil)
     return true if admin_access?
     return false if Ability::Action::ADMIN_ONLY_RESOURCES.include?(resource.to_s)
 
     key = Ability::Action.system_key(resource, crud_action)
-    return !Ability::Resolver.resolve(self, workspace_id).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
+    return !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
