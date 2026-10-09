@@ -55,7 +55,8 @@ module Integrations
           credential, config_line = told.lines.map(&:chomp)
           config = JSON.parse(config_line)
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
-          assert_equal({ "edit" => "allow", "bash" => "allow", "webfetch" => "deny", "websearch" => "deny" }, config["permission"])
+          assert_equal({ "edit" => "allow", "bash" => "allow", "webfetch" => "deny", "websearch" => "deny",
+                         "external_directory" => { "{env:TMPDIR}/*" => "allow" } }, config["permission"], "its own temporary files are its to use, nothing else outside the copy")
           assert_equal "https://ff.example.com/code_agent/tools", config.dig("mcp", "firefight", "url")
           assert_equal "Bearer #{config.dig('provider', 'anthropic', 'options', 'apiKey')}", config.dig("mcp", "firefight", "headers", "Authorization")
           assert_equal "anthropic/claude-sonnet-4-5", sent[5]
@@ -88,7 +89,8 @@ module Integrations
         end
 
         test "an agent that changed nothing opens nothing and says what it said" do
-          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\nI could not find the pool setting.", "timed_out" => false)
+          said = { type: "text", part: { text: "I could not find the pool setting." } }.to_json
+          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\n#{said}", "timed_out" => false)
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
           GithubApp.expects(:open_pull_request).never
 
@@ -97,6 +99,71 @@ module Integrations
           end
 
           assert_match "The coding agent changed nothing in acme/api.\nI could not find the pool setting.", error.message
+        end
+
+        test "a provider's error stops the change with a plain sentence, and its headers and body go only to the log" do
+          error_event = { type: "error", error: { name: "APIError", data: { message: "Overloaded", statusCode: 529,
+                                                                            responseHeaders: { "cf-ray" => "8f1-AMS", "x-request-id" => "req_1" },
+                                                                            responseBody: "{\"type\":\"error\"}" } } }.to_json
+          stub_run("stdout" => agent_output(exit: 1).sub("LOG\ndone", "LOG\n#{error_event}"), "timed_out" => false)
+          logged = []
+          Rails.logger.stubs(:warn).with { |line| logged << line }
+
+          error = assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }
+
+          assert_equal "The coding agent stopped with an error (Overloaded), so its change is not opened.", error.message
+          assert(logged.any? { |line| line.include?("code_fix.agent_failed") && line.include?("cf-ray") }, "the detail is kept for whoever reads the log")
+        end
+
+        test "a fetch or a push that fails says what failed in a sentence, with git's own words only in the log" do
+          arguments = { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }
+          logged = []
+          Rails.logger.stubs(:warn).with { |line| logged << line }
+          stub_run("stdout" => "FETCH_FAILED fatal: unable to access 'https://ff.example.com/code_agent/git/change.git/': The requested URL returned error: 502 ", "timed_out" => false)
+
+          error = assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }
+          assert_equal "The sandbox could not fetch the newest code from GitHub through Firefight, so nothing was written.", error.message
+          assert(logged.any? { |line| line.include?("code_fix.fetch_failed") && line.include?("returned error: 502") })
+
+          stub_run("stdout" => agent_output, "timed_out" => false)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }
+                     .returns("stdout" => "error: RPC failed, HTTP 500 curl 22\nHTTP/1.1 500 Internal Server Error\nx-request-id: abc\nPUSH_EXIT 1\n")
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: arguments) }
+          assert_equal "The push through Firefight did not go through, so nothing was opened or changed.", error.message
+          assert(logged.any? { |line| line.include?("code_fix.push_failed") && line.include?("x-request-id") })
+        end
+
+        test "a change whose tests could not run here still opens, with what could not run said in its pull request" do
+          said = { type: "text", part: { text: "Raises the pool to 10.\n\nCould not run here:\n- `bin/rails test test/models/pool_test.rb`, since no database was there" } }.to_json
+          checks = check_line("bin/rails test test/config/database_test.rb", 1, "PG::ConnectionBad: could not connect to server")
+          stub_run("stdout" => agent_output(checks: checks).sub("LOG\ndone", "LOG\n#{said}"), "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it" })
+
+          assert_includes body, "**Could not run here**\n- `bin/rails test test/config/database_test.rb`: no database was available.\n" \
+                                "- `bin/rails test test/models/pool_test.rb`, since no database was there."
+          assert_includes text, "Opened https://github.com/acme/api/pull/7"
+          assert_includes text, "Could not run here:\n"
+        end
+
+        test "the agent writes the change first, never builds a database by hand, and lists what could not run" do
+          brief = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && (brief = argv[4]) }.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.stubs(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+
+          assert_includes brief, "Write the change first"
+          assert_includes brief, "never a reason to stop or to leave the change unwritten"
+          assert_includes brief, "Never build an environment, a database or a service by hand"
+          assert_includes brief, "the sandbox's own way to start a service, when it offers one"
+          assert_includes brief, "the repository's own CI runs on the pull request"
+          assert_includes brief, "under a line that reads #{CodeWriteUp::NOT_RUN}:"
+          assert_includes brief, "$TMPDIR"
         end
 
         test "a model Firefight cannot reach from the sandbox is said before anything runs" do
@@ -173,7 +240,8 @@ module Integrations
         end
 
         test "an agent that failed or changed nothing never shows a credential from its log" do
-          leaked = "AGENT_EXIT 1\nBASE start-sha\nSESSION \nFROM start-sha\nNOTHING\nLOG\nDATABASE_URL=postgres://app:s3cret@db.internal/app"
+          said = { type: "text", part: { text: "It needs DATABASE_URL=postgres://app:s3cret@db.internal/app" } }.to_json
+          leaked = "AGENT_EXIT 0\nBASE start-sha\nSESSION \nFROM start-sha\nNOTHING\nLOG\n#{said}"
           stub_run("stdout" => leaked, "timed_out" => false)
 
           error = assert_raises(Integrations::Error) { @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }) }

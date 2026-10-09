@@ -74,6 +74,8 @@ module Integrations
         assert_includes prompt, "Leave .github/workflows/ and infra/prod/** unchanged, since this workspace keeps those paths out of code changes."
         assert_includes prompt, "start the description with: #{CodeChange::CI_WARNING}"
         refute_includes prompt, "nothing under .github/"
+        assert_includes prompt, "A test that cannot run in your environment is never a reason to stop or to leave the change unwritten"
+        assert_includes prompt, "under #{CodeWriteUp::NOT_RUN} in its description"
       end
 
       test "the brief carries the person's own words and what Halon read, as Firefight's own agent gets them" do

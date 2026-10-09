@@ -186,7 +186,10 @@ module Integrations
         [
           "Fix this in the repository #{repo}#{", starting from #{base}" if base}.", brief, context.presence, request&.asked_section, request&.evidence_section,
           "Make the smallest change that fixes it, in the repository's own style. Add or update a test when the repository " \
-          "has tests for this code, and run them. Change nothing the fix does not need.",
+          "has tests for this code, and run them when they can run. Change nothing the fix does not need.",
+          "Running the tests is best effort. A test that cannot run in your environment is never a reason to stop or to leave " \
+          "the change unwritten. Open the pull request anyway, list what could not run and why under #{CodeWriteUp::NOT_RUN} in its " \
+          "description, and the repository's own CI runs it there.",
           ("Leave #{kept.to_sentence} unchanged, since this workspace keeps those paths out of code changes. If the fix " \
            "needs one of them changed, stop and say so instead of changing it." if kept.any?),
           "Open the change as one pull request into #{base || 'the default branch'}, ready for review, and do not merge it. " \

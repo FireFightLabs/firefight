@@ -51,6 +51,25 @@ module Integrations
           end
         end
 
+        test "the agent has a temporary directory of its own, set as TMPDIR, and it is gone once the run ends" do
+          Dir.mktmpdir do |root|
+            gate, copy, = repository_with_gate(root)
+            agent = <<~SH
+              #!/bin/sh
+              printf 'started\\n' > "$TMPDIR/server.log" && echo "TMP $TMPDIR $(cat "$TMPDIR/server.log")"
+              printf 'b\\n' > b.txt
+            SH
+
+            change = read(run_script(root, copy, agent, gate))
+
+            tmp, said = change.log[/^TMP (.+)$/, 1].to_s.split
+            assert_equal "started", said, change.log
+            assert_not_equal Dir.tmpdir, tmp
+            assert_not Dir.exist?(tmp), "it goes with the run"
+            assert_equal [ "b.txt" ], change.counts.keys, "nothing it wrote there is part of the change"
+          end
+        end
+
         test "the reviewed change is pushed through the gate to its new branch, and a branch someone made first is never overwritten" do
           Dir.mktmpdir do |root|
             gate, copy, = repository_with_gate(root)

@@ -52,6 +52,16 @@ module Integrations
       assert_includes body, "**Could not run here**\n- `bin/rails test test/models/pool_test.rb`: no database was available."
     end
 
+    test "what the agent's summary says could not run here joins the checks that could not, each a sentence" do
+      change = @change.with(not_run: [ "`bin/rails test test/system`, since no browser was installed", "The full suite needs Redis." ])
+      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: change)
+
+      assert_includes body, "**Could not run here**\n- `bin/rails test test/models/pool_test.rb`: no database was available.\n" \
+                            "- `bin/rails test test/system`, since no browser was installed.\n- The full suite needs Redis.\n\n**Open questions**"
+      assert_includes CodeWriteUp.answer(done: "Opened it.", warning: nil, reviewed: @reviewed, change: change, base: "main", updating: false),
+                      "- The full suite needs Redis."
+    end
+
     test "an update's comment says what this update changed in the pull request, and a merge from the base adds no file" do
       comment = CodeWriteUp.comment(lead: "Merges main and keeps the run name fix.", warning: nil, reviewed: @reviewed, change: @change, base: "main")
 

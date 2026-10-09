@@ -7,16 +7,18 @@ module Integrations
   module CodeWriteUp
     FILES_LISTED = 30
     FOOTER = "Written by Halon. Review it like any other change before merging.".freeze
+    # The section for what could not run here, which the coding agent's summary uses as its heading too.
+    NOT_RUN = "Could not run here".freeze
 
     # lead is what the change does and why, context what other changes in the same fix did, warning the CI warning or nil.
     def self.body(lead:, context:, warning:, reviewed:, change:)
-      text = [ lead, context.presence, warning, *sections(reviewed, change.checks, bold: true), files("**Files**", change.counts), FOOTER ]
+      text = [ lead, context.presence, warning, *sections(reviewed, change, bold: true), files("**Files**", change.counts), FOOTER ]
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
 
     # Said on an open pull request the change was added to: what this update did, then the same sections.
     def self.comment(lead:, warning:, reviewed:, change:, base:)
-      text = [ lead, warning, update_words(change, base), *sections(reviewed, change.checks, bold: true),
+      text = [ lead, warning, update_words(change, base), *sections(reviewed, change, bold: true),
                "Added by Halon in #{change.commit[0, 12]}. Review it like any other change before merging." ]
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
@@ -24,17 +26,18 @@ module Integrations
     # What Halon reads back once the change opened or was added, to tell the person in the same terms.
     def self.answer(done:, warning:, reviewed:, change:, base:, updating:)
       changed = updating ? update_words(change, base) : files("Changes:", change.counts)
-      [ done, warning, changed, *sections(reviewed, change.checks, bold: false) ].compact.join("\n\n")
+      [ done, warning, changed, *sections(reviewed, change, bold: false) ].compact.join("\n\n")
     end
 
-    def self.sections(reviewed, checks, bold:)
-      checks = Array(checks)
+    # What could not run is the checks that could not, then what the agent's summary said it could not run.
+    def self.sections(reviewed, change, bold:)
+      checks = Array(change.checks)
       verified = checks.select(&:passed?).map { |check| "`#{check.name}` passed." } + Array(reviewed&.verified)
-      not_run = checks.select(&:could_not_run?).map { |check| "`#{check.name}`: #{check.reason}." }
+      not_run = checks.select(&:could_not_run?).map { |check| "`#{check.name}`: #{check.reason}." } + change.not_run.map { |line| Sentence.ended(line) }
       failed = checks.select { |check| !check.passed? && !check.could_not_run? }.map { |check| "`#{check.name}` #{check.status}." }
       [
         section("Verified", verified, bold),
-        section("Could not run here", not_run, bold),
+        section(NOT_RUN, not_run, bold),
         section("Checks that did not pass", failed, bold),
         section("Found in review", Array(reviewed&.findings), bold),
         section("Open questions", Array(reviewed&.unverified), bold),
