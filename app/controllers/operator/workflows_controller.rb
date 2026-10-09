@@ -11,7 +11,7 @@ module Operator
       workflows = WorkflowRuns.recent(state: params[:state], kind: params[:kind]).offset((page - 1) * PER_PAGE).limit(PER_PAGE + 1).to_a
 
       render inertia: "operator/workflows/index", props: {
-        workflows: WorkflowRowSerializer.many(workflows.first(PER_PAGE)),
+        workflows: WorkflowRowSerializer.many(WorkflowRuns.preload_subjects!(workflows.first(PER_PAGE))),
         page: page, more: workflows.size > PER_PAGE,
         kinds: WorkflowRuns.kinds,
         counts: WorkflowRuns.counts_by_state,

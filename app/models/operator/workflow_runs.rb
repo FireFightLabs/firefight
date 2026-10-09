@@ -16,6 +16,12 @@ module Operator
       kind.present? ? scope.where(workflow_class: kind) : scope
     end
 
+    # Loads the workspace of each incident a page of runs is for, at once, so a row names it without a query of its own.
+    def self.preload_subjects!(workflows)
+      ActiveRecord::Associations::Preloader.new(records: workflows.map(&:subject).grep(Incident), associations: :workspace).call
+      workflows
+    end
+
     def self.kinds = SolidWorkflow::Workflow.distinct.order(:workflow_class).pluck(:workflow_class)
 
     def self.counts_by_state = SolidWorkflow::Workflow.group(:state).count
