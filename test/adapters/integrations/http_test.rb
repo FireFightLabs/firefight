@@ -118,6 +118,15 @@ module Integrations
       assert_match "private network", assert_raises(AcmeError) { Http.download("https://logs.acme.example/x", provider_key: "acme", error_class: AcmeError, limit: 10) }.message
     end
 
+    test "a connection dropped or answered with something that is not HTTP is the client's own error, never the platform's" do
+      [ EOFError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::BufError ].each do |raised|
+        Net::HTTP.stubs(:start).raises(raised)
+
+        error = assert_raises(Integrations::Error) { Integrations::Http.request(URI("https://api.example.com/x"), Net::HTTP::Get.new("/x"), error_class: Integrations::Error) }
+        assert_equal "could not reach api.example.com (#{raised.name})", error.message
+      end
+    end
+
     test "a path segment is escaped, so a name with a slash stays one segment" do
       assert_equal "a%2Fb%20c", Http.segment("a/b c")
     end

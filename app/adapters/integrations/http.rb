@@ -39,7 +39,7 @@ module Integrations
       Net::HTTP.start(uri.hostname, uri.port, **options) do |connection|
         connection.request(request, &)
       end
-    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => e
+    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error => e
       raise error_class, "could not reach #{uri.host} (#{e.class.name})"
     end
 
