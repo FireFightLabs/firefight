@@ -578,7 +578,7 @@ module Slack
       AdapterError::AlreadyInChannel, AdapterError::ChannelExists, AdapterError::AlreadyArchived, AdapterError::NotArchived
     ].freeze
 
-    # Every other failed call is kept for the operator console, which ties it to an incident by its channel.
+    # Every other failed call is recorded, tied to an incident by its channel.
     def self.noting_failure(workspace, endpoint, channel)
       yield
     rescue AdapterError => error

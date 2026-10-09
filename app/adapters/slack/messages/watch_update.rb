@@ -1,8 +1,7 @@
 module Slack
   module Messages
-    # One line a watch Halon keeps said: a run started, a step succeeded, jobs inside a run started or passed, a job failed, what it followed never
-    # showed up, taking longer than usual, or how the watch ended. The title names what is watched, the body is the line. In the asker's direct messages it also offers to
-    # open the chat when the chat is on the dashboard.
+    # One line a watch Halon keeps said, titled by what is watched. In the asker's direct messages it also offers to open
+    # the chat when the chat is on the dashboard.
     module WatchUpdate
       TITLES = {
         Chat::Watch::Update::KIND_STARTED => ":eyes:", Chat::Watch::Update::KIND_MILESTONE => ":large_green_circle:",
