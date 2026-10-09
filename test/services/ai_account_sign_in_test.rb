@@ -49,4 +49,38 @@ class AiAccountSignInTest < ActiveSupport::TestCase
       AiAccountSignIn.new(@workspace).finish!({ "provider" => "openai", "state" => "a", "verifier" => "v" }, code: "c", state: "b", redirect_uri: "x")
     end
   end
+
+  test "a provider that cannot be reached leaves the account in use for the next refresh" do
+    account = refreshable_account
+    account.expects(:key_refused!).never
+    Net::HTTP.stubs(:start).raises(SocketError, "getaddrinfo failed")
+
+    AiAccountSignIn.new(@workspace).refresh!(account)
+  end
+
+  test "a provider answering with a server error leaves the account in use for the next refresh" do
+    account = refreshable_account
+    account.expects(:key_refused!).never
+    unavailable = Net::HTTPServiceUnavailable.new("1.1", "503", "Service Unavailable")
+    unavailable.stubs(:body).returns({ error: "busy" }.to_json)
+    Net::HTTP.stubs(:start).returns(unavailable)
+
+    AiAccountSignIn.new(@workspace).refresh!(account)
+  end
+
+  test "a provider refusing the refresh takes the account out of use" do
+    account = refreshable_account
+    account.expects(:key_refused!).once
+    refused = Net::HTTPBadRequest.new("1.1", "400", "Bad Request")
+    refused.stubs(:body).returns({ error: "invalid_grant" }.to_json)
+    Net::HTTP.stubs(:start).returns(refused)
+
+    AiAccountSignIn.new(@workspace).refresh!(account)
+  end
+
+  private
+
+  def refreshable_account
+    stub(id: 1, provider_definition: AiProviders.find("openai"), token: "chatgpt-refresh")
+  end
 end
