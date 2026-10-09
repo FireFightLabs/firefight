@@ -26,9 +26,7 @@ module Integrations
           Github.any_instance.stubs(:pull_request_status).returns(
             Integrations::PullRequests::Status.new(number: 7, state: Integrations::PullRequests::OPEN, mergeable: Integrations::PullRequests::MERGEABLE, head_sha: "h", base: "main")
           )
-          ENV.stubs(:[]).returns(nil)
-          ENV.stubs(:[]).with("APP_HOST").returns("ff.example.com")
-          ENV.stubs(:fetch).with("APP_PROTOCOL", "https").returns("https")
+          AppUrl.stubs(:root).returns("https://ff.example.com")
           FirefightAi::ChangeReviewer.any_instance.stubs(:review).returns(review)
         end
 
@@ -392,7 +390,7 @@ module Integrations
           pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send the release tag" })
 
           brief = sent[4]
-          assert_includes brief, "What the person asked, in their own words, oldest first. A later message corrects an earlier one:\n> Make the release job send the commit\n\n> No, send the tag, not the commit"
+          assert_includes brief, "What the person asked, in their own words, oldest first. A later message corrects an earlier one. #{FirefightAi::Copy::QUOTING}\n> Make the release job send the commit\n\n> No, send the tag, not the commit"
           assert_includes brief, "<tool_result tool=\"Fetch file release.yml\" trust=\"untrusted\">\non: release\ntoken [REDACTED:github_token]"
           assert_includes brief, "read that system's documented contract and how it is set up now"
           refute_includes brief, "ghp_"
