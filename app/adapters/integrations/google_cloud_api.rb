@@ -21,6 +21,7 @@ module Integrations
     NOT_FOUND = 404
     AUDIT_PAGE_SIZE = 1000
     PAGE_LIMIT = 10
+    REVISION_PAGE = 100
     # A zone Compute Engine could not reach, as aggregatedList marks its scope (InstancesScopedList warning code).
     UNREACHABLE = "UNREACHABLE".freeze
 
@@ -77,9 +78,10 @@ module Integrations
 
     def run_service(project_id, location, name) = get(run_path(project_id, location, name))
 
-    def run_revisions(project_id, location, name, limit:)
-      Array(get("#{run_path(project_id, location, name)}/revisions", "pageSize" => limit)["revisions"])
-    end
+    # Every page of a service's revisions, up to PAGE_LIMIT, in no order Google documents.
+    def run_revisions(project_id, location, name) = list("#{run_path(project_id, location, name)}/revisions", "revisions", "pageSize" => REVISION_PAGE)
+
+    def run_revision(project_id, location, name, revision) = get("#{run_path(project_id, location, name)}/revisions/#{segment(revision)}")
 
     # A change to a service, which Cloud Run answers with a long-running operation.
     def update_run_service(project_id, location, name, body, update_mask: nil)
@@ -153,6 +155,9 @@ module Integrations
     def error_group_stats(project_id, query)
       Array(get("#{ERROR_REPORTING}/projects/#{segment(project_id)}/groupStats", query)["errorGroupStats"])
     end
+
+    # Every page of the groups, up to PAGE_LIMIT, with whether more were left unread.
+    def every_error_group_stat(project_id, query) = list("#{ERROR_REPORTING}/projects/#{segment(project_id)}/groupStats", "errorGroupStats", query)
 
     def get(url, query = {})
       uri = URI.parse(url)

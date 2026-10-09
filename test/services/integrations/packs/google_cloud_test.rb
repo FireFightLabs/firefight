@@ -116,12 +116,12 @@ module Integrations
       end
 
       test "revisions show who made them, the image and their share of the traffic" do
-        GoogleCloudApi.any_instance.stubs(:run_revisions).returns([
+        GoogleCloudApi.any_instance.stubs(:run_revisions).returns(Pages::Read.new(complete: true, items: [
           { "name" => "#{RUN_ID}/revisions/web-00001-abc", "createTime" => "2026-10-01T09:00:00Z", "containers" => [ { "image" => "web:v1" } ],
             "conditions" => [ { "type" => "Ready", "state" => "CONDITION_SUCCEEDED" } ] },
           { "name" => "#{RUN_ID}/revisions/web-00002-xyz", "createTime" => "2026-10-03T09:00:00Z", "creator" => "ana@acme.dev",
             "containers" => [ { "image" => "web:v2" } ], "conditions" => [ { "type" => "Ready", "state" => "CONDITION_SUCCEEDED" } ] }
-        ])
+        ]))
 
         text = call(:list_revisions, "resource" => "web")
 
@@ -129,15 +129,27 @@ module Integrations
                      "2026-10-01T09:00:00Z, web-00001-abc, image web:v1, ready succeeded, 0% of traffic", text
       end
 
+      test "revisions are read across pages, the newest kept, and a list cut short says the newest may be missing" do
+        older = (1..3).map { |day| { "name" => "#{RUN_ID}/revisions/web-0000#{day}", "createTime" => "2026-10-0#{day}T09:00:00Z" } }
+        GoogleCloudApi.any_instance.stubs(:run_revisions).returns(Pages::Read.new(complete: false, items: older))
+
+        text = call(:list_revisions, "resource" => "web", "limit" => 2)
+
+        assert_match "Latest 2 revisions of web", text
+        assert_match "2026-10-03T09:00:00Z, web-00003", text
+        assert_no_match "web-00001", text
+        assert_match "Cloud Run has more revisions than Firefight reads, so the newest may be missing.", text
+      end
+
       test "a revision runs from when it was made to when it became ready, which is kept as run history" do
-        GoogleCloudApi.any_instance.stubs(:run_revisions).returns([
+        GoogleCloudApi.any_instance.stubs(:run_revisions).returns(Pages::Read.new(complete: true, items: [
           { "name" => "#{RUN_ID}/revisions/web-00001-abc", "createTime" => "2026-10-01T09:00:00Z", "containers" => [ { "image" => "web:v1" } ],
             "conditions" => [ { "type" => "Ready", "state" => "CONDITION_SUCCEEDED", "lastTransitionTime" => "2026-10-01T09:01:30Z" } ] },
           { "name" => "#{RUN_ID}/revisions/web-00002-xyz", "createTime" => "2026-10-03T09:00:00Z", "reconciling" => true,
             "containers" => [ { "image" => "web:v2" } ], "conditions" => [ { "type" => "Ready", "state" => "CONDITION_PENDING" } ] },
           { "name" => "#{RUN_ID}/revisions/web-00003-bad", "createTime" => "2026-10-02T09:00:00Z",
             "conditions" => [ { "type" => "Ready", "state" => "CONDITION_FAILED", "lastTransitionTime" => "2026-10-02T09:02:00Z" } ] }
-        ])
+        ]))
 
         result = GoogleCloud.new(@integration).call("list_revisions", environment_row: @row, arguments: { "resource" => "web" })
 
@@ -146,13 +158,13 @@ module Integrations
       end
 
       test "errors are asked of Error Reporting for the service over the shortest period that covers the range, and filtered by text" do
-        GoogleCloudApi.any_instance.expects(:error_group_stats).with do |project, query|
+        GoogleCloudApi.any_instance.expects(:every_error_group_stat).with do |project, query|
           project == "acme-prod" && query == { "serviceFilter.service" => "web", "timeRange.period" => "PERIOD_6_HOURS", "order" => "COUNT_DESC", "pageSize" => 20 }
         end.returns([
           { "count" => "42", "firstSeenTime" => "2026-10-03T08:00:00Z", "lastSeenTime" => "2026-10-03T10:00:00Z", "group" => { "resolutionStatus" => "OPEN" },
             "representative" => { "message" => "TimeoutError: upstream\n  at handler" } },
           { "count" => "3", "representative" => { "message" => "KeyError" } }
-        ])
+        ].then { |groups| Pages::Read.new(items: groups, complete: true) })
 
         text = call(:error_groups, "resource" => "web", "minutes" => 120, "text" => "timeout")
 
@@ -160,8 +172,24 @@ module Integrations
         assert_match "https://console.cloud.google.com/errors?project=acme-prod", text
       end
 
+      test "a text search reads past the first page and says when the groups were cut short, and an earlier window is refused" do
+        groups = [ { "count" => "9", "representative" => { "message" => "KeyError" } } ] * 3 + [ { "count" => "1", "representative" => { "message" => "TimeoutError" } } ]
+        GoogleCloudApi.any_instance.stubs(:every_error_group_stat).returns(Pages::Read.new(items: groups, complete: false))
+
+        text = call(:error_groups, "resource" => "web", "text" => "timeout")
+
+        assert_match "1 kind of error from web in the last 1 hour", text
+        assert_match "Only the 4 most frequent kinds of error were searched for the text.", text
+
+        travel_to Time.zone.parse("2026-10-06T12:00:00Z") do
+          refused = assert_raises(Integrations::Error) { call(:error_groups, "resource" => "web", "start" => "2026-10-06T08:00:00Z", "end" => "2026-10-06T09:00:00Z") }
+          assert_match "Error Reporting counts errors only over a period that ends now", refused.message
+        end
+      end
+
       test "a rollback sends all traffic to a revision the service has, and says where it went before" do
-        GoogleCloudApi.any_instance.stubs(:run_revisions).returns([ { "name" => "#{RUN_ID}/revisions/web-00001-abc" } ])
+        GoogleCloudApi.any_instance.stubs(:run_revision).with("acme-prod", "us-central1", "web", "web-00001-abc").returns({ "name" => "#{RUN_ID}/revisions/web-00001-abc" })
+        GoogleCloudApi.any_instance.stubs(:run_revision).with("acme-prod", "us-central1", "web", "web-9").raises(GoogleCloudApi::NotFound, "Google Cloud answered 404")
         GoogleCloudApi.any_instance.expects(:update_run_service).with do |project, location, name, body, **|
           [ project, location, name ] == %w[acme-prod us-central1 web] && body["etag"] == "e1" &&
             body["traffic"] == [ { "type" => GoogleCloud::REVISION_TRAFFIC, "revision" => "web-00001-abc", "percent" => 100 } ]

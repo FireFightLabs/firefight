@@ -280,14 +280,15 @@ module Integrations
       def list_revisions(environment_row:, arguments:)
         target = run_target(environment_row, arguments["resource"])
         service = api(environment_row).run_service(target.project, target.location, target.name)
-        revisions = api(environment_row).run_revisions(target.project, target.location, target.name, limit: Capabilities::Answers.limit(arguments, REVISION_LIMIT))
+        read = api(environment_row).run_revisions(target.project, target.location, target.name)
         link = page_link(environment_row, target.project, TYPE_RUN)
-        return Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link) if revisions.empty?
+        return Capabilities::RunHistory.with_runs(Telemetry.result("#{target.name} has no revisions.", link: link), [], link: link) if read.items.empty?
 
         shares = traffic_shares(service)
-        newest = revisions.sort_by { |revision| revision["createTime"].to_s }.reverse
+        newest = read.items.sort_by { |revision| revision["createTime"].to_s }.reverse.first(Capabilities::Answers.limit(arguments, REVISION_LIMIT))
         rows = newest.map { |revision| revision_line(revision, shares) }
-        result = Telemetry.result("Latest #{rows.size} revisions of #{target.name}, newest first. rollback_service takes a revision's name.\n#{rows.join("\n")}", link: link)
+        cut = read.incomplete? ? "\nCloud Run has more revisions than Firefight reads, so the newest may be missing." : ""
+        result = Telemetry.result("Latest #{rows.size} revisions of #{target.name}, newest first. rollback_service takes a revision's name.\n#{rows.join("\n")}#{cut}", link: link)
         Capabilities::RunHistory.with_runs(result, newest.map { |revision| history_run(revision) }, link: link)
       end
 
@@ -306,18 +307,33 @@ module Integrations
         target = run_target(environment_row, arguments["resource"])
         started, ended = Capabilities::Answers.range(arguments)
         minutes = ((ended - started) / 60).ceil
+        # Error Reporting's periods are relative to now, so a window that ended earlier would be answered for another one.
+        if ended < 1.minute.ago
+          fail!("Error Reporting counts errors only over a period that ends now, so ask for the last #{minutes} minutes without an end, " \
+                "or search the logs for the earlier window.")
+        end
         period = ERROR_PERIODS.find { |covers, _| covers >= minutes }&.last || ERROR_PERIODS.values.last
         limit = Capabilities::Answers.limit(arguments, ERROR_LIMIT)
         query = { "serviceFilter.service" => target.name, "timeRange.period" => period, "order" => "COUNT_DESC", "pageSize" => limit }
-        groups = api(environment_row).error_group_stats(target.project, query)
         text = arguments["text"].to_s.strip.downcase
-        groups = groups.select { |group| group.dig("representative", "message").to_s.downcase.include?(text) } if text.present?
+        groups, cut = error_groups_matching(environment_row, target.project, query, text)
         link = Telemetry::Link.new(provider: PROVIDER, url: console(environment_row, target.project, ERRORS_PAGE))
         window = period.delete_prefix("PERIOD_").downcase.tr("_", " ")
-        return Telemetry.result("Error Reporting has no errors from #{target.name} in the last #{window}.", link: link) if groups.empty?
+        note = cut ? "\n#{cut}" : ""
+        return Telemetry.result("Error Reporting has no errors from #{target.name} in the last #{window}.#{note}", link: link) if groups.empty?
 
         rows = groups.first(limit).map { |group| error_line(group) }
-        Telemetry.result("#{rows.size} #{'kind'.pluralize(rows.size)} of error from #{target.name} in the last #{window}, most frequent first.\n#{rows.join("\n")}", link: link)
+        Telemetry.result("#{rows.size} #{'kind'.pluralize(rows.size)} of error from #{target.name} in the last #{window}, most frequent first.\n#{rows.join("\n")}#{note}", link: link)
+      end
+
+      # The most frequent groups, or with text every group read and searched, since a match can be anywhere in the list.
+      # The second value says when the list was cut short before the search reached its end.
+      def error_groups_matching(environment_row, project, query, text)
+        return [ api(environment_row).error_group_stats(project, query), nil ] if text.blank?
+
+        read = api(environment_row).every_error_group_stat(project, query)
+        found = read.items.select { |group| group.dig("representative", "message").to_s.downcase.include?(text) }
+        [ found, ("Only the #{read.items.size} most frequent kinds of error were searched for the text." if read.incomplete?) ]
       end
 
       def rollback_service(environment_row:, arguments:)
@@ -326,8 +342,11 @@ module Integrations
         fail!("Say which revision, by its name as list_revisions shows it.") if wanted.blank?
 
         api = api(environment_row)
-        revisions = api.run_revisions(target.project, target.location, target.name, limit: REVISION_LIMIT * 5)
-        fail!("#{target.name} has no revision called #{wanted}. list_revisions shows them.") unless revisions.any? { |revision| short(revision["name"]) == wanted }
+        begin
+          api.run_revision(target.project, target.location, target.name, wanted)
+        rescue GoogleCloudApi::NotFound
+          fail!("#{target.name} has no revision called #{wanted}. list_revisions shows them.")
+        end
 
         service = api.run_service(target.project, target.location, target.name)
         before = traffic_text(service)
