@@ -45,44 +45,6 @@ class IncidentsController < InertiaController
     send_chat_attachment(investigation.note_file(params[:file_id]))
   end
 
-  # The Investigate button, offered only where Halon is on and the person may start a run. Disabled with why when the
-  # incident cannot take one, and pointing at the run already working on it.
-  def investigation_start(incident)
-    return nil unless Investigation.available_for?(current_workspace)
-    return nil unless current_membership.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, current_workspace)
-
-    running = incident.live_investigation
-    {
-      blockedReason: incident.investigation_start_blocked_reason,
-      runningHref: running && incident_path(incident, Investigation::QUERY_PARAM => running.id)
-    }
-  end
-
-  # The run a timeline entry or a Slack button asked for, drawn over the incident. A link to a run
-  # that is not this incident's opens nothing.
-  def open_investigation(incident)
-    id = params[Investigation::QUERY_PARAM]
-    investigation = id.presence && incident.investigations.seen.find_by(id: id)
-    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { incident_investigation_file_path(incident, investigation, file) })
-  end
-
-  # Capped, the picker searches rather than scrolls.
-  def linkable_incidents(incident)
-    current_workspace.incidents
-      .where(deleted_at: nil)
-      .where.not(id: incident.id)
-      .recent
-      .limit(LINKABLE_LIMIT)
-      .map { |other| { id: other.id, identifier: other.identifier, name: other.name } }
-  end
-
-  # Read by both the lead picker and the roles panel.
-  def member_choices
-    current_workspace.workspace_memberships.includes(:user)
-      .map { |member| { value: member.id, label: member.display_name } }
-      .sort_by { |choice| choice[:label] }
-  end
-
   def postmortem
     incident = current_workspace.incidents.find(params[:incident_id])
     postmortem = incident.postmortem
@@ -184,6 +146,44 @@ class IncidentsController < InertiaController
   end
 
   private
+
+  # The Investigate button, offered only where Halon is on and the person may start a run. Disabled with why when the
+  # incident cannot take one, and pointing at the run already working on it.
+  def investigation_start(incident)
+    return nil unless Investigation.available_for?(current_workspace)
+    return nil unless current_membership.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, current_workspace)
+
+    running = incident.live_investigation
+    {
+      blockedReason: incident.investigation_start_blocked_reason,
+      runningHref: running && incident_path(incident, Investigation::QUERY_PARAM => running.id)
+    }
+  end
+
+  # The run a timeline entry or a Slack button asked for, drawn over the incident. A link to a run
+  # that is not this incident's opens nothing.
+  def open_investigation(incident)
+    id = params[Investigation::QUERY_PARAM]
+    investigation = id.presence && incident.investigations.seen.find_by(id: id)
+    investigation && InvestigationDetailSerializer.one(investigation, file_path: ->(file) { incident_investigation_file_path(incident, investigation, file) })
+  end
+
+  # Capped, the picker searches rather than scrolls.
+  def linkable_incidents(incident)
+    current_workspace.incidents
+      .where(deleted_at: nil)
+      .where.not(id: incident.id)
+      .recent
+      .limit(LINKABLE_LIMIT)
+      .map { |other| { id: other.id, identifier: other.identifier, name: other.name } }
+  end
+
+  # Read by both the lead picker and the roles panel.
+  def member_choices
+    current_workspace.workspace_memberships.includes(:user)
+      .map { |member| { value: member.id, label: member.display_name } }
+      .sort_by { |choice| choice[:label] }
+  end
 
   def attachable_runbooks(incident)
     incident.attachable_runbooks.map { |runbook| { slug: runbook.slug, name: runbook.name } }
