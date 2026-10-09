@@ -178,7 +178,101 @@ module Integrations
         refute_equal digests[1], digests[2], "a lockfile change installs again"
       end
 
+      test "a copy in the same box is handed what an earlier prepared copy installed, without mise's tools, which the box shares" do
+        copy = copy_of("acme__api", "aaa")
+        FileUtils.mkdir_p(File.join(copy, "node_modules", "left-pad"))
+        File.write(File.join(copy, "node_modules", "left-pad", "index.js"), "module.exports = 1\n")
+        FileUtils.touch(File.join(copy, ::Sandbox::Prepare::MARKER))
+        FileUtils.mkdir_p(File.join(::Sandbox::Archive::MISE_INSTALLS, "ruby", "3.4.1"))
+
+        seeded = @client.seed(repository: "acme__api", ref: "bbb", from: "aaa")
+        same = @client.seed(repository: "acme__api", ref: "aaa", from: "aaa")
+
+        later = File.join(::Sandbox::RUNS, "acme__api-bbb")
+        assert seeded["restored"]
+        assert_equal "module.exports = 1\n", File.read(File.join(later, "node_modules", "left-pad", "index.js"))
+        assert File.exist?(File.join(later, ::Sandbox::Prepare::RESTORED)), "the copy runs each installer once more"
+        assert same["already"], "the copy that was kept needs nothing"
+        assert_empty Dir.glob(File.join(::Sandbox::RUNS, ".{archive,restore,upload}-*")), "nothing is left behind"
+      end
+
+      test "with Docker the setup's services run from their own images on the box's network, a database taking any password" do
+        created = docker_answers("pgvector/pgvector:pg16" => [ 5432 ], "minio/minio:latest" => [ 9000 ])
+        setup = { "services" => [
+          { "name" => "postgres", "image" => "pgvector/pgvector:pg16", "port" => 5433, "env" => { "POSTGRES_USER" => "app", "POSTGRES_DB" => "app_test" } },
+          { "name" => "minio", "image" => "minio/minio", "port" => 9100 },
+          { "name" => "mysql" }
+        ] }
+        copy_of("acme__api", "aaa")
+
+        prepared = @client.prepare(repository: "acme__api", ref: "aaa", setup: setup)
+
+        postgres = created.find { |container| container["Image"] == "pgvector/pgvector:pg16" }
+        assert_includes postgres["Env"], "POSTGRES_HOST_AUTH_METHOD=trust"
+        assert_includes postgres["Env"], "PGPORT=5433", "a Postgres image listens on the port its CI gave it"
+        assert_equal "container:#{Socket.gethostname}", postgres.dig("HostConfig", "NetworkMode")
+        assert_equal [ "minio", "mysql" ].sort, prepared["left_out"].sort
+        assert_equal "minio/minio listens on 9000, and the sandbox can only move a Postgres image to 9100.", prepared.dig("left_out_why", "minio")
+        refute @ran.any? { |run| run[:argv].first.to_s.end_with?("pg_ctl") }, "the box's own Postgres is not started in its place"
+        assert_equal true, @client.images?
+      end
+
+      test "an image that cannot be pulled leaves its service out and says why" do
+        docker_answers({})
+        replace(::Sandbox::Docker, :pull) { |image| raise ::Sandbox::Refused, "pulling #{image} failed: manifest unknown" }
+        copy_of("acme__api", "aaa")
+
+        prepared = @client.prepare(repository: "acme__api", ref: "aaa", setup: { "services" => [ { "name" => "postgis", "image" => "postgis/postgis:nope" } ] })
+
+        assert_equal [ "postgis" ], prepared["left_out"]
+        assert_equal "pulling postgis/postgis:nope failed: manifest unknown", prepared.dig("left_out_why", "postgis")
+      end
+
+      test "a box reached through a proxy prepares and runs commands in the background, so no request waits on them" do
+        copy_of("acme__api", "aaa")
+        relayed = Client.new(Box.new(ref: "box", address: "http://127.0.0.1:#{@server.addr[1]}/?_token=gate", key: ::Sandbox::KEY, relayed: true))
+        relayed.stubs(:pause)
+        paths = []
+        handle = ::Sandbox::Http.method(:handle)
+        replace(::Sandbox::Http, :handle) do |socket|
+          line = socket.gets("\r\n")
+          paths << line.split(" ")[1]
+          socket.ungetbyte(line)
+          handle.call(socket)
+        end
+
+        prepared = relayed.prepare(repository: "acme__api", ref: "aaa")
+        ran = relayed.exec(repository: "acme__api", ref: "aaa", argv: [ "true" ], where: Client::IN_COPY)
+
+        assert_equal false, prepared["already"]
+        assert_equal 0, ran["exit_code"]
+        assert paths.include?("/runs?_token=gate"), "the proxy's token stays on every request"
+        refute paths.any? { |path| path.start_with?("/prepare?", "/exec?") }
+      end
+
       private
+
+      # Docker's answers for images with the ports each says it listens on, and the containers created, as created.
+      def docker_answers(ports)
+        created = []
+        replace(::Sandbox::Docker, :available?) { true }
+        replace(::Sandbox::Docker, :pull) { |_image| nil }
+        replace(::Sandbox::Docker, :remove) { |_name| nil }
+        replace(::Sandbox::Images, :wait_for) { |_name, _port| nil }
+        replace(::Sandbox::Docker, :json!) do |_verb, path, body = nil, **|
+          if path.start_with?("/images/")
+            image = URI.decode_www_form_component(path.delete_prefix("/images/").delete_suffix("/json"))
+            known = ports.find { |name, _| name == image || name == "#{image}:latest" }
+            raise ::Sandbox::Refused, "Docker answered 404: no such image" unless known
+
+            { "Config" => { "ExposedPorts" => known.last.to_h { |port| [ "#{port}/tcp", {} ] } } }
+          else
+            created << JSON.parse(JSON.generate(body)) if body
+            {}
+          end
+        end
+        created
+      end
 
       def copy_of(name, sha) = ::Sandbox::Repos.run_copy(name, sha)
 

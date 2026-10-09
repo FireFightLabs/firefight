@@ -8,6 +8,7 @@ require "tmpdir"
 require "securerandom"
 require "digest"
 require "uri"
+require "net/http"
 
 module Sandbox
   KEY = ENV.fetch("SANDBOX_KEY")
@@ -153,20 +154,31 @@ module Sandbox
     # A role or database a setup asks for, which goes into SQL inside double quotes.
     IDENTIFIER = /\A[A-Za-z_][\w-]{0,62}\z/
 
-    # names is a list of service names, or of { "name", "port", "env" } as a setup gives them. Any other name is refused.
+    # names is a list of service names, or of { "name", "image", "port", "env" } as a setup gives them. A service
+    # with an image runs from that image when the box can run containers (Docker), and the built-in ones otherwise.
+    # Any other name is refused.
     def self.start(names)
       Array(names).each_with_object({}) do |service, env|
         name, port, settings = parts(service)
+        image = image_of(service)
+        next env.merge!(Images.start(name, image, port, settings || {})) if image && Docker.available?
         raise Refused, "No service called #{name}. There are postgres and redis." unless KNOWN.include?(name)
 
         env.merge!(start_one(name, port, settings))
       end
     end
 
-    # A setup's services, leaving out the ones the box cannot start rather than failing, and saying which those were.
+    # A setup's services, leaving out the ones the box cannot start rather than failing. Answers the variables, the
+    # names left out, and why each one that was tried could not start.
     def self.start_known(services)
-      known, unknown = Array(services).partition { |service| KNOWN.include?(parts(service).first) }
-      [ start(known), unknown.map { |service| parts(service).first } ]
+      startable, unknown = Array(services).partition { |service| KNOWN.include?(parts(service).first) || (image_of(service) && Docker.available?) }
+      why = {}
+      env = startable.each_with_object({}) do |service, started|
+        started.merge!(start([ service ]))
+      rescue Refused => error
+        why[parts(service).first] = error.message
+      end
+      [ env, unknown.map { |service| parts(service).first } + why.keys, why ]
     end
 
     def self.parts(service)
@@ -174,6 +186,8 @@ module Sandbox
 
       [ service["name"].to_s, service["port"] && Integer(service["port"]), service["env"] ]
     end
+
+    def self.image_of(service) = service.is_a?(Hash) ? Sandbox.given(service["image"]) : nil
 
     def self.start_one(name, port, settings)
       port ||= DEFAULT_PORTS.fetch(name)
@@ -230,6 +244,144 @@ module Sandbox
     end
   end
 
+  # The Docker Engine API over the socket a provider hands the box (a VM with Docker of its own), so a repository's
+  # setup can start the services its CI runs from their own images. Without the socket the box has only its built-in
+  # services. Only root reads the socket, never reader or runner.
+  module Docker
+    SOCKET = "/var/run/docker.sock"
+    API = "/v1.43"
+
+    def self.available? = File.socket?(SOCKET)
+
+    def self.request(verb, path, body = nil, timeout: 60)
+      request = verb.new("#{API}#{path}")
+      request["Host"] = "docker"
+      request["Connection"] = "close"
+      if body
+        request["Content-Type"] = "application/json"
+        request.body = JSON.generate(body)
+      end
+      response = UNIXSocket.open(SOCKET) do |socket|
+        socket.timeout = timeout if socket.respond_to?(:timeout=)
+        io = Net::BufferedIO.new(socket, read_timeout: timeout)
+        request.exec(io, "1.1", request.path)
+        Net::HTTPResponse.read_new(io).tap { |read| read.reading_body(io, request.response_body_permitted?) { } }
+      end
+      [ response.code.to_i, response.body.to_s ]
+    end
+
+    def self.json!(verb, path, body = nil, timeout: 60)
+      code, text = request(verb, path, body, timeout: timeout)
+      parsed = text.strip.empty? ? {} : (JSON.parse(text) rescue { "message" => text.strip.lines.last.to_s })
+      raise Refused, "Docker answered #{code}: #{parsed['message']}" unless code.between?(200, 299)
+
+      parsed
+    end
+
+    # Pulls the image, whose progress arrives as one JSON object a line, any of which can carry the error.
+    def self.pull(image)
+      name, tag = reference(image)
+      code, text = request(Net::HTTP::Post, "/images/create?#{URI.encode_www_form(fromImage: name, tag: tag)}", timeout: Images::PULL_TIMEOUT)
+      failed = text.lines.filter_map { |line| (JSON.parse(line)["error"] rescue nil) }.first
+      raise Refused, "pulling #{image} failed: #{failed || "Docker answered #{code}"}" if failed || !code.between?(200, 299)
+    end
+
+    # The name and tag Docker pulls, latest when the reference names none, since an empty tag pulls every tag.
+    def self.reference(image)
+      return [ image, nil ] if image.include?("@")
+
+      last = image.split("/").last
+      last.include?(":") ? [ image.sub(/:[^:\/]+\z/, ""), last.split(":").last ] : [ image, "latest" ]
+    end
+
+    def self.remove(name)
+      request(Net::HTTP::Delete, "/containers/#{URI.encode_www_form_component(name)}?force=true")
+    end
+  end
+
+  # Services a setup names by image, each started beside the box and sharing its network, so they listen on the box's
+  # own 127.0.0.1 as the built-in ones do. A database image takes any password, as the built-in Postgres does.
+  module Images
+    PULL_TIMEOUT = 15 * 60
+    READY_TIMEOUT = 120
+    POSTGRES = /postgres|postgis|pgvector|timescale/
+    REDIS = /redis|valkey/
+
+    def self.start(name, image, port, settings)
+      raise Refused, "#{name} is not a name a service can have here." unless name.match?(/\A[a-z0-9][a-z0-9._-]{0,62}\z/)
+
+      Sandbox.lock("service:#{name}") do
+        started = Services::STARTED[name]
+        raise Refused, "#{name} is already running on port #{started}, so it cannot start again on #{port}." if started && port && started != port
+
+        unless started
+          Docker.pull(image)
+          internal = internal_port(image)
+          port ||= internal
+          raise Refused, "#{name} needs a port, and #{image} does not say which it listens on." unless port
+          raise Refused, "#{name} cannot listen on port #{port}." unless port.between?(1024, 65_535)
+
+          env = settings.to_h.merge("POSTGRES_HOST_AUTH_METHOD" => "trust") { |_key, given, _trust| given }
+          if port != internal
+            raise Refused, "#{image} listens on #{internal}, and the sandbox can only move a Postgres image to #{port}." unless postgres?(name, image)
+
+            env["PGPORT"] = port.to_s
+          end
+          container = "halon-service-#{name}"
+          Docker.remove(container)
+          Docker.json!(Net::HTTP::Post, "/containers/create?#{URI.encode_www_form(name: container)}", {
+            Image: image, Env: env.map { |key, value| "#{key}=#{value}" },
+            HostConfig: { NetworkMode: "container:#{ENV.fetch('SANDBOX_CONTAINER', Socket.gethostname)}" }
+          })
+          Docker.json!(Net::HTTP::Post, "/containers/#{container}/start")
+          wait_for(name, port)
+          Services::STARTED[name] = port
+        end
+        answer(name, image, Services::STARTED[name], settings)
+      end
+    end
+
+    # The first port the image says it listens on, read from the image Docker has.
+    def self.internal_port(image)
+      config = Docker.json!(Net::HTTP::Get, "/images/#{URI.encode_www_form_component(image)}/json")
+      config.dig("Config", "ExposedPorts").to_h.keys.select { |key| key.end_with?("/tcp") }.map(&:to_i).min
+    end
+
+    def self.wait_for(name, port)
+      deadline = Time.now + READY_TIMEOUT
+      until listening?(port)
+        raise Refused, "#{name} did not start listening on port #{port} within #{READY_TIMEOUT} seconds." if Time.now > deadline
+
+        sleep 1
+      end
+    end
+
+    def self.listening?(port)
+      TCPSocket.new("127.0.0.1", port).close
+      true
+    rescue SystemCallError
+      false
+    end
+
+    def self.postgres?(name, image) = name == "postgres" || File.basename(image.split(/[:@]/).first).match?(POSTGRES)
+
+    def self.redis?(name, image) = name == "redis" || File.basename(image.split(/[:@]/).first).match?(REDIS)
+
+    # The variables a test reaches the service with, as the built-in ones answer them, for a database the sandbox knows.
+    def self.answer(name, image, port, settings)
+      if postgres?(name, image)
+        user = Sandbox.given(settings["POSTGRES_USER"]) || "postgres"
+        database = Sandbox.given(settings["POSTGRES_DB"]) || user
+        { "DATABASE_URL" => "postgres://#{user}@127.0.0.1:#{port}/#{database}", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => user,
+          "PGDATABASE" => database }
+      elsif redis?(name, image)
+        { "REDIS_URL" => "redis://127.0.0.1:#{port}/0" }
+      else
+        {}
+      end
+    end
+  end
+
   # Installs what a repository's lockfiles and version files ask for, once per copy, then sets it up as its CI does: the
   # services, the environment and the commands the repository's setup names. A copy restored from what an earlier one
   # installed only runs each installer again, which finds everything there, before the setup's commands.
@@ -279,8 +431,8 @@ module Sandbox
     # The setup's services started, then its own variables over theirs, since its CI wrote them for those services.
     # Answers the variables and the services left out because the box cannot start them.
     def self.environment(dir, setup)
-      started, left_out = Services.start_known((setup || {})["services"])
-      [ env(dir).merge(started, setup_env(setup)), left_out ]
+      started, left_out, why = Services.start_known((setup || {})["services"])
+      [ env(dir).merge(started, setup_env(setup)), left_out, why ]
     end
 
     def self.run(dir, setup = nil)
@@ -293,7 +445,7 @@ module Sandbox
       File.open(exclude, "a") { |file| INSTALLED.map { |path| "/#{path}" }.reject { |path| listed.include?(path) }.each { |path| file.puts(path) } }
 
       restored = File.exist?(File.join(dir, RESTORED))
-      env, left_out = environment(dir, setup)
+      env, left_out, why = environment(dir, setup)
       done = []
       (restored ? REFRESH : STEPS).each do |file, argv|
         next unless File.exist?(File.join(dir, file))
@@ -309,7 +461,7 @@ module Sandbox
         end
       end
       FileUtils.touch(marker) if (done + ran).all? { |step| step["exit_code"] == 0 }
-      { "prepared" => done, "setup" => ran, "left_out" => left_out, "restored" => restored, "already" => false }
+      { "prepared" => done, "setup" => ran, "left_out" => left_out, "left_out_why" => why, "restored" => restored, "already" => false }
     end
 
     def self.step(argv, dir, env, said)
@@ -338,17 +490,18 @@ module Sandbox
     MISE_INSTALLS = File.join(ENV.fetch("MISE_DATA_DIR", "/opt/mise"), "installs")
     LIMIT = 4 * 1024 * 1024 * 1024
 
-    def self.create(name, sha)
+    # tools packs mise's installed tool versions too, which a copy in the same box already shares.
+    def self.create(name, sha, tools: true)
       dir = Repos.run_copy(name, sha)
       raise Refused, "#{name} at #{sha} is not prepared, so there is nothing to keep." unless File.exist?(File.join(dir, Prepare::MARKER))
 
       kept = Prepare::KEPT.select { |path| File.exist?(File.join(dir, path)) }
-      raise Refused, "Preparing #{name} installed nothing to keep." if kept.empty? && !File.directory?(MISE_INSTALLS)
+      raise Refused, "Preparing #{name} installed nothing to keep." if kept.empty? && !(tools && File.directory?(MISE_INSTALLS))
 
       File.write(File.join(dir, Prepare::ORIGIN), dir)
       copy = dir.delete_prefix("/")
       paths = [ Prepare::ORIGIN, *kept ].map { |path| File.join(copy, path) }
-      paths << MISE_INSTALLS.delete_prefix("/") if File.directory?(MISE_INSTALLS)
+      paths << MISE_INSTALLS.delete_prefix("/") if tools && File.directory?(MISE_INSTALLS)
       file = File.join(RUNS, ".archive-#{SecureRandom.hex(8)}.tar.gz")
       Sandbox.run!([ "tar", "-C", "/", "-czf", file, "--transform", "s,^#{copy.gsub('.') { '\\.' }}/,copy/,S", "--", *paths ], user: "runner", timeout: MAX_TIMEOUT)
       file
@@ -561,13 +714,13 @@ module Sandbox
       FileUtils.mkdir_p(PROGRESS, mode: 0o711)
       path = File.join(PROGRESS, "#{id}.log")
       File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { }
-      user = request["where"] == "run" ? "runner" : "reader"
+      user = request["where"] == "run" || request["action"] == "prepare" ? "runner" : "reader"
       FileUtils.chown(user, user, path)
       entry = { "path" => path, "result" => nil, "finished_at" => nil }
       GUARD.synchronize { STORE[id] = entry }
       Thread.new do
         result = begin
-          Handler.exec(request, progress: path)
+          request["action"] == "prepare" ? Handler.prepare(request) : Handler.exec(request, progress: path)
         rescue Refused, KeyError => error
           { "error" => error.message }
         rescue StandardError => error
@@ -613,13 +766,14 @@ module Sandbox
   module Handler
     def self.call(method, path, body, query = {})
       case [ method, path ]
-      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true }
+      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "images" => Docker.available? }
       in [ "PUT", %r{\A/repos/([^/]+)\z} ] then Repos.push(Regexp.last_match(1), body)
       in [ "POST", "/exec" ] then exec(JSON.parse(body))
       in [ "POST", "/runs" ] then Runs.start(JSON.parse(body))
       in [ "GET", %r{\A/runs/([^/]+)\z} ] then Runs.read(Regexp.last_match(1), query["after"])
       in [ "POST", "/prepare" ] then prepare(JSON.parse(body))
       in [ "POST", "/prepare/state" ] then state(JSON.parse(body))
+      in [ "POST", "/prepare/seed" ] then seed(JSON.parse(body))
       in [ "GET", "/prepare/archive" ] then Download.new(Archive.create(query.fetch("repo"), Repos.commit(query.fetch("repo"), query["ref"])))
       in [ "PUT", "/prepare/archive" ] then restore(query, body)
       in [ "POST", "/services" ] then services(JSON.parse(body))
@@ -664,6 +818,18 @@ module Sandbox
       Archive.restore(query.fetch("repo"), Repos.commit(query.fetch("repo"), query["ref"]), file)
     ensure
       FileUtils.rm_f(file)
+    end
+
+    # Hands the copy at ref what preparing the copy at from installed, in this box, as an archive from another box would,
+    # so preparing it then runs each installer only once more. A box started from a kept copy has the copy it was kept
+    # at, and the run asks for another commit.
+    def self.seed(request)
+      name = request.fetch("repo")
+      sha = Repos.commit(name, request["ref"])
+      from = Repos.commit(name, request.fetch("from"))
+      return { "restored" => false, "already" => true, "commit" => sha } if sha == from
+
+      Archive.restore(name, sha, Archive.create(name, from, tools: false))
     end
 
     def self.state(request)

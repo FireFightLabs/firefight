@@ -27,5 +27,12 @@ module Operator
     def self.redelivery_blocked_reason(delivery)
       "Only a failed delivery can be sent again." unless delivery.failed?
     end
+
+    # Blank holds the workspace to no provider, so it follows the deployment's own.
+    def self.sandbox_placement_blocked_reason(key)
+      return if key.blank? || SandboxProviders::KEYS.include?(key)
+
+      "#{key} is not a sandbox provider. Choose one of #{SandboxProviders::KEYS.map { |each| SandboxProviders.name_of(each) }.to_sentence(last_word_connector: ' or ')}."
+    end
   end
 end

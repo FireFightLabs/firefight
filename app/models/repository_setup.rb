@@ -26,8 +26,9 @@ class RepositorySetup < ApplicationRecord
 
     def to_h = { "name" => name, "image" => image, "port" => port, "env" => env }.compact
 
-    # What the sandbox is handed, which needs no image.
-    def for_box = { "name" => name, "port" => port, "env" => env }.compact
+    # What the sandbox is handed. A box that runs containers starts the service from its image, and one that does not
+    # starts its own service of that name.
+    def for_box = { "name" => name, "image" => image, "port" => port, "env" => env }.compact
   end
 
   belongs_to :workspace
@@ -118,8 +119,11 @@ class RepositorySetup < ApplicationRecord
 
   def service_list = services.map { |service| Service.from(service) }
 
-  # The services the sandbox cannot start, which it leaves out when it prepares the repository.
-  def unstartable_services = service_list.map(&:name).reject { |name| CodeBox::SERVICES.include?(name) }
+  # The services the sandbox cannot start, which it leaves out when it prepares the repository. A sandbox that runs
+  # containers (images) starts any service with an image.
+  def unstartable_services(images: false)
+    service_list.reject { |service| CodeBox::SERVICES.include?(service.name) || (images && service.image.present?) }.map(&:name)
+  end
 
   # What the sandbox is handed when it prepares the repository and runs a command in it.
   def for_box = { "services" => service_list.map(&:for_box), "env" => env, "commands" => commands }

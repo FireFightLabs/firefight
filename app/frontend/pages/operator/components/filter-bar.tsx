@@ -33,12 +33,15 @@ function isWindow(value: string): value is OperatorWindow {
   return Object.values<string>(OPERATOR_WINDOWS).includes(value)
 }
 
-export function FilterBar({ filter, windows, workspaces }: FilterProps) {
+// A page about one workspace, or about every workspace one row each, passes no workspaces and gets the window alone.
+export function FilterBar({ filter, windows, workspaces }: Omit<FilterProps, "workspaces"> & { workspaces?: FilterProps["workspaces"] }) {
   const { url } = usePage()
-  const workspaceOptions: SearchableSelectOption[] = [
-    { value: ALL_WORKSPACES, label: `All workspaces (${workspaces.length})` },
-    ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
-  ]
+  const workspaceOptions: SearchableSelectOption[] = workspaces
+    ? [
+        { value: ALL_WORKSPACES, label: `All workspaces (${workspaces.length})` },
+        ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
+      ]
+    : []
 
   function pickWorkspace(value: string | null) {
     router.visit(withFilter(url, { workspace: value || null }), { preserveScroll: true })
@@ -54,21 +57,23 @@ export function FilterBar({ filter, windows, workspaces }: FilterProps) {
 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-2">
-        <Label htmlFor="operator-workspace" className="text-muted-foreground text-xs font-normal">
-          Workspace
-        </Label>
-        <div className="w-64">
-          <SearchableSelect
-            id="operator-workspace"
-            value={filter.workspace ?? ALL_WORKSPACES}
-            onValueChange={pickWorkspace}
-            options={workspaceOptions}
-            searchPlaceholder="Search workspaces"
-            emptyText="No workspace matches"
-          />
+      {workspaces && (
+        <div className="flex items-center gap-2">
+          <Label htmlFor="operator-workspace" className="text-muted-foreground text-xs font-normal">
+            Workspace
+          </Label>
+          <div className="w-64">
+            <SearchableSelect
+              id="operator-workspace"
+              value={filter.workspace ?? ALL_WORKSPACES}
+              onValueChange={pickWorkspace}
+              options={workspaceOptions}
+              searchPlaceholder="Search workspaces"
+              emptyText="No workspace matches"
+            />
+          </div>
         </div>
-      </div>
+      )}
       <ToggleGroup type="single" variant="outline" size="sm" value={filter.window} onValueChange={pickWindow} aria-label="Window">
         {windows.map((choice) => (
           <ToggleGroupItem key={choice} value={choice} className="px-3">

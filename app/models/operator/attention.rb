@@ -16,10 +16,11 @@ module Operator
     KIND_SKILL_BROKEN = "skill_broken".freeze
     KIND_AI_OUT_OF_CREDIT = "ai_out_of_credit".freeze
     KIND_AI_SHORT_OF_CREDIT = "ai_short_of_credit".freeze
+    KIND_SANDBOX_FAILOVER = "sandbox_failover".freeze
     KINDS = [
       KIND_WORKFLOW_FAILED, KIND_WORKFLOW_STUCK, KIND_WEBHOOK_FAILING, KIND_PLATFORM_FAILED, KIND_ALERT_STUCK,
       KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK,
-      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT
+      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT, KIND_SANDBOX_FAILOVER
     ].freeze
 
     # The page an item opens.
@@ -28,7 +29,8 @@ module Operator
     TARGET_RUN = "run".freeze
     TARGET_FAILED_JOBS = "failed_jobs".freeze
     TARGET_QUEUES = "queues".freeze
-    TARGETS = [ TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES ].freeze
+    TARGET_WORKSPACE = "workspace".freeze
+    TARGETS = [ TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES, TARGET_WORKSPACE ].freeze
 
     # Stop reasons worth tuning. The other reasons are a person's choice or the model ending without an answer.
     TUNING_LIMITS = [ Investigation::BUDGET_SPENT, Investigation::TOO_MANY_TURNS ].freeze
@@ -51,7 +53,8 @@ module Operator
 
     def items
       @items ||= [
-        *credit_items, *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items
+        *credit_items, *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items,
+        *sandbox_items
       ].sort_by { |item| [ item.tone == IncidentProcess::TONE_BAD ? 0 : 1, -item.at.to_f ] }
     end
 
@@ -93,6 +96,23 @@ module Operator
              subject: "#{delivery.event_type} to #{host_of(webhook.url)}", place: webhook.workspace.name,
              detail: [ "#{count} failed", ("HTTP #{delivery.response_code}" if delivery.response_code) ].compact.join(" · "),
              at: delivery.updated_at, target: TARGET_INCIDENT, target_id: delivery.incident_event.incident_id)
+      end
+    end
+
+    # Boxes that started on the backup because the provider before it could not start them, one item per workspace and
+    # refusing provider, with how many and the latest reason. A warning, since the run went on.
+    def sandbox_items
+      failovers = @filter.scope(CodeBox.where(created_at: @filter.range).where.not(failed_over_from: nil))
+      groups = failovers.group(:workspace_id, :failed_over_from).order(Arel.sql("MAX(created_at) DESC")).limit(PER_KIND)
+                        .pluck(Arel.sql("(ARRAY_AGG(id ORDER BY created_at DESC))[1]"), Arel.sql("COUNT(*)"))
+      latest = CodeBox.includes(:workspace).where(id: groups.map(&:first)).index_by(&:id)
+
+      groups.map do |latest_id, count|
+        box = latest.fetch(latest_id)
+        item(key: "sandbox-#{box.id}", kind: KIND_SANDBOX_FAILOVER, tone: IncidentProcess::TONE_WARN, title: "Code sandbox failed over",
+             subject: "#{SandboxProviders.name_of(box.failed_over_from)} to #{SandboxProviders.name_of(box.provider)}", place: box.workspace.name,
+             detail: "#{count} #{'box'.pluralize(count)} · #{box.failover_reason.to_s.lines.first&.strip}", at: box.created_at,
+             target: TARGET_WORKSPACE, target_id: box.workspace_id)
       end
     end
 

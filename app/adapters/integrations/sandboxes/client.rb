@@ -17,6 +17,9 @@ module Integrations
       MISSES_ALLOWED = 5
       # Packing or unpacking a prepared copy, which can hold every dependency a repository installs.
       ARCHIVE_TIMEOUT = 20 * 60
+      # What a background run does, beside a command.
+      RUN_PREPARE = "prepare".freeze
+      QUIET = ->(_progress) { }
 
       def initialize(box)
         @box = box
@@ -42,26 +45,37 @@ module Integrations
       # runs it in one request as before, and on_output never hears anything. Either way the answer is the same. stdin is
       # what the command reads, for a credential that must not show in its arguments.
       # setup is the repository's setup (services, env, commands), whose services and variables a command in the copy runs with.
+      # A box reached through a proxy follows every command in the background, since a proxy may end a request that
+      # waits on a long one.
       def exec(repository:, argv:, ref: nil, where: IN_CHECKOUT, timeout: 60, services: nil, on_output: nil, stdin: nil, setup: nil)
         payload = { repo: repository, ref: ref, argv: argv, where: where, timeout: timeout, services: services, stdin: stdin, setup: setup }.compact
-        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
+        background = (on_output || @box.relayed) && runs_in_background?
+        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless background
 
-        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)
+        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output || QUIET)
       end
 
       # Whether the box's image can run a command in the background. An older one answers health without saying so.
-      def runs_in_background?
-        @runs_in_background = send_json(Net::HTTP::Get, "/health", read_timeout: 5)["runs"] == true if @runs_in_background.nil?
-        @runs_in_background
-      rescue Error
-        false
-      end
+      def runs_in_background? = health["runs"] == true
 
       # Each installer and each of the setup's commands may take up to the box's limit for one command.
       def prepare(repository:, ref: nil, setup: nil)
         steps = 1 + Array(setup&.dig(:commands) || setup&.dig("commands")).size
-        send_json(Net::HTTP::Post, "/prepare", payload: { repo: repository, ref: ref, setup: setup }.compact, read_timeout: (steps * 20.minutes.to_i) + MARGIN)
+        limit = (steps * 20.minutes.to_i) + MARGIN
+        payload = { repo: repository, ref: ref, setup: setup }.compact
+        return send_json(Net::HTTP::Post, "/prepare", payload: payload, read_timeout: limit) unless @box.relayed && health["prepare_runs"] == true
+
+        follow(send_json(Net::HTTP::Post, "/runs", payload: payload.merge(action: RUN_PREPARE))["id"], deadline: clock + limit, on_output: QUIET)
       end
+
+      # Gives the copy at ref what preparing the copy at from installed, in the same box, as a copy restored from an
+      # archive starts, so preparing it runs each installer only once more.
+      def seed(repository:, ref:, from:)
+        send_json(Net::HTTP::Post, "/prepare/seed", payload: { repo: repository, ref: ref, from: from }, read_timeout: ARCHIVE_TIMEOUT)
+      end
+
+      # Whether the box can start a setup's services from their own images.
+      def images? = health["images"] == true
 
       # What decides what preparing a copy at ref installs, as a digest, and whether that copy is prepared already.
       def prepare_state(repository:, ref: nil)
@@ -69,17 +83,12 @@ module Integrations
       end
 
       # Whether the box's image takes a repository's setup and keeps what preparing installed. An older one does neither.
-      def setups?
-        @setups = send_json(Net::HTTP::Get, "/health", read_timeout: 5)["setups"] == true if @setups.nil?
-        @setups
-      rescue Error
-        false
-      end
+      def setups? = health["setups"] == true
 
       # What preparing the copy at ref installed, packed and written to the file at path as it arrives. Raises when it
       # is larger than limit bytes.
       def download_archive(repository:, ref:, path:, limit:)
-        uri = URI.parse("#{@box.address}/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
+        uri = address_of("/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
         request = Net::HTTP::Get.new(uri)
         request["Authorization"] = "Bearer #{@box.key}"
         Http.request(uri, request, error_class: Error, read_timeout: ARCHIVE_TIMEOUT) do |response|
@@ -98,7 +107,7 @@ module Integrations
 
       # Hands the box what an earlier copy installed, from the file at path, for the copy at ref to start with.
       def upload_archive(repository:, ref:, path:)
-        uri = URI.parse("#{@box.address}/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
+        uri = address_of("/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
         request = Net::HTTP::Put.new(uri)
         request["Authorization"] = "Bearer #{@box.key}"
         request["Content-Type"] = "application/gzip"
@@ -132,6 +141,24 @@ module Integrations
       end
 
       private
+
+      # What the box's image can do, read once. A box that cannot be asked is taken to be one that can do none of it.
+      def health
+        @health ||= send_json(Net::HTTP::Get, "/health", read_timeout: 5)
+      rescue Error
+        {}
+      end
+
+      # The box's address with path on it. An address can carry a query of its own, such as the token a proxy in front
+      # of the box asks for, which every request keeps.
+      def address_of(path)
+        base = URI.parse(@box.address)
+        target = URI.parse(path)
+        base.dup.tap do |uri|
+          uri.path = "#{base.path.to_s.chomp('/')}#{target.path}"
+          uri.query = [ base.query, target.query ].compact_blank.join("&").presence
+        end
+      end
 
       def follow(id, deadline:, on_output:)
         offset = 0
@@ -167,7 +194,7 @@ module Integrations
       def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
       def send_json(verb, path, payload: nil, body: nil, content_type: "application/json", read_timeout: 30)
-        uri = URI.parse("#{@box.address}#{path}")
+        uri = address_of(path)
         request = verb.new(uri)
         request["Authorization"] = "Bearer #{@box.key}"
         if payload || body

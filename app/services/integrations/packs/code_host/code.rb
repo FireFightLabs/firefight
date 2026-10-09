@@ -317,12 +317,14 @@ module Integrations
 
           installed = Array(prepared["prepared"]).map { |step| "#{step['command']} (for #{step['file']}) #{exited(step)}" }
           ran = Array(prepared["setup"]).map { |step| "#{step['command'].lines.first.strip} #{exited(step)}" }
-          left_out = Array(prepared["left_out"])
+          why = prepared["left_out_why"].to_h
+          left_out = Array(prepared["left_out"]) - why.keys
           [
             ("Started from what an earlier copy with the same lockfiles and setup installed." if prepared["restored"]),
             ("Installed first:\n#{installed.join("\n")}" if installed.any?),
             ("Set up as #{setup&.derived_from || 'its saved setup'} says:\n#{ran.join("\n")}" if ran.any?),
-            ("The sandbox cannot start #{left_out.to_sentence}, so the setup ran without #{left_out.one? ? 'it' : 'them'}." if left_out.any?)
+            ("The sandbox cannot start #{left_out.to_sentence}, so the setup ran without #{left_out.one? ? 'it' : 'them'}." if left_out.any?),
+            *why.map { |name, reason| Sentence.join("#{name} could not start", reason, after: "The setup ran without it") }
           ].compact.join("\n\n").presence
         end
 

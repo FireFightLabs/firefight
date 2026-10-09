@@ -372,6 +372,14 @@ module Integrations
           " #{Sentence.join('The commit is there, but a comment saying so could not be added', error)}"
         end
 
+        # The setup's services the box could not start, each a line under CodeWriteUp::NOT_RUN, with why when the box said.
+        def services_not_run(prepared)
+          why = prepared.to_h["left_out_why"].to_h
+          Array(prepared.to_h["left_out"]).map do |name|
+            Sentence.join("The #{name} service the setup names did not start in the sandbox", why[name], after: "Nothing that needs it was checked here")
+          end
+        end
+
         # The first payer in the workspace's order whose model a coding agent can reach through the proxy.
         def code_fix_choice
           choices = FirefightAi.choices_for(AiPurpose::CODE_FIX, workspace: integration.workspace)
@@ -390,7 +398,7 @@ module Integrations
           report(@work)
           @setup = repository_setup(environment_row, repo)&.for_box
           @no_ci = CiSetup.absent(environment_row, repo)
-          reading.prepare(repo, ref: ref, setup: @setup)
+          @services_not_run = services_not_run(reading.prepare(repo, ref: ref, setup: @setup))
           @work.add("Got #{repo} ready at #{named} (#{ref.to_s[0, 12]})")
           report(@work)
           # Opened once the copy is ready, so its lifetime is the agent's. A change continued after its spending limit gets
@@ -465,7 +473,7 @@ module Integrations
           end
 
           change = read_change(output)
-          change = change.with(not_run: events.could_not_run(change.log))
+          change = change.with(not_run: (@services_not_run.to_a + events.could_not_run(change.log)).uniq)
           # Out of budget is a pause the person decides on, whatever the agent did when its calls were refused.
           raise BudgetReached, change if session.reload.over_budget?
           # The agent's own words about a refusal on the deployment's keys could name a balance, so they are not passed on.

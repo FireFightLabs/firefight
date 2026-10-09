@@ -18,7 +18,7 @@ class RepositorySetupTest < ActiveSupport::TestCase
     assert_equal({ "RAILS_ENV" => "test" }, @setup.env)
     assert_equal [ "cd web\nnpm run build", "bin/rails db:prepare" ], @setup.commands
     assert @setup.edited_at
-    assert_equal({ "services" => [ { "name" => "postgres", "port" => 5433, "env" => { "POSTGRES_DB" => "app_test" } } ],
+    assert_equal({ "services" => [ { "name" => "postgres", "image" => "postgres:16", "port" => 5433, "env" => { "POSTGRES_DB" => "app_test" } } ],
                    "env" => { "RAILS_ENV" => "test" }, "commands" => [ "cd web\nnpm run build", "bin/rails db:prepare" ] }, @setup.for_box)
   end
 
@@ -54,6 +54,7 @@ class RepositorySetupTest < ActiveSupport::TestCase
     assert_equal ".github/workflows/ci.yml, job test", @setup.derived_from
     assert_equal [ "Left out 2 steps after the tests." ], @setup.notes
     assert_equal [ "mysql" ], @setup.unstartable_services
+    assert_empty @setup.unstartable_services(images: true), "a sandbox that runs containers starts every service from its image"
     refute_equal before, @setup.digest
     assert_equal @setup.digest, RepositorySetup.find(@setup.id).digest
   end

@@ -182,6 +182,21 @@ module Integrations
           assert_includes text, "Could not run here:\n"
         end
 
+        test "a service of the setup the sandbox could not start is said under Could not run here, with why" do
+          CodeReading.any_instance.stubs(:prepare).returns("left_out" => %w[mysql postgis],
+                                                           "left_out_why" => { "postgis" => "pulling postgis/postgis:16 failed: manifest unknown" })
+          stub_run("stdout" => agent_output, "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+
+          assert_includes body, "**Could not run here**\n"
+          assert_includes body, "- The mysql service the setup names did not start in the sandbox. Nothing that needs it was checked here."
+          assert_includes body, "- The postgis service the setup names did not start in the sandbox: pulling postgis/postgis:16 failed: manifest unknown. " \
+                                "Nothing that needs it was checked here."
+        end
+
         test "the agent writes the change first, never builds a database by hand, and lists what could not run" do
           brief = nil
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && (brief = argv[4]) }.returns("stdout" => agent_output, "timed_out" => false)

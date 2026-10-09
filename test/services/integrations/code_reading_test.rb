@@ -2,7 +2,8 @@ require "test_helper"
 
 module Integrations
   class CodeReadingTest < ActiveSupport::TestCase
-    class FakeProvider
+    include ActiveJob::TestHelper
+    class FakeProvider < Sandboxes::Provider
       attr_reader :started, :stopped, :running
 
       def initialize(running: [])
@@ -11,12 +12,45 @@ module Integrations
         @running = running
       end
 
-      def start(name:)
+      def start(name:, **)
         @started << name
         Sandboxes::Box.new(ref: "box-#{@started.size}", address: "http://127.0.0.1:9", key: "k#{@started.size}")
       end
 
       def stop(ref) = @stopped << ref
+
+      def size = "2 CPU, 4g"
+    end
+
+    # A provider that keeps a box's disk itself, as boat.dev does.
+    class KeepingProvider < FakeProvider
+      attr_reader :kept, :discarded, :froms
+
+      def initialize(...)
+        super
+        @kept = []
+        @discarded = []
+        @froms = []
+      end
+
+      def start(name:, from: nil, **)
+        @froms << from
+        super
+      end
+
+      def hourly_micros = 36_000
+
+      def keeps_copies? = true
+
+      def keep(ref) = "kept-#{@kept.push(ref).size}"
+
+      def kept_ready?(_name) = true
+
+      def discard(name) = @discarded << name
+
+      def tidy(kept_refs:) = @tidied = kept_refs
+
+      def tidied = @tidied
     end
 
     setup do
@@ -26,7 +60,8 @@ module Integrations
       GithubApp.stubs(:installation_token).returns("ghs_token")
       @provider = FakeProvider.new
       Sandboxes.stubs(:provider).returns(@provider)
-      Sandboxes.stubs(:provider_key).returns(Sandboxes::PROVIDER_DOCKER)
+      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::DOCKER ])
+      SandboxProviders.stubs(:in_use).returns([ SandboxProviders::DOCKER ])
       Sandboxes::Client.any_instance.stubs(:wait_until_ready!)
       @fixture = FixtureRepo.create!
       CodeReading.any_instance.stubs(:remote_url).returns(@fixture)
@@ -83,7 +118,7 @@ module Integrations
     end
 
     test "without a provider the tool says code reading is not set up, and that it will not start working mid run" do
-      Sandboxes.stubs(:provider).returns(nil)
+      SandboxProviders.stubs(:order_for).returns([])
 
       error = assert_raises(Unavailable) { reading("investigation-no-provider").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
       assert_match CodeReading::NOT_SET_UP, error.message
@@ -235,6 +270,106 @@ module Integrations
       Sandboxes::Client.any_instance.expects(:prepare).with(repository: "acme__app", ref: "abc").returns("already" => false, "prepared" => [])
 
       reading("investigation-1").prepare("acme/app", ref: "abc", setup: { "commands" => [ "bin/setup" ] })
+    end
+
+    test "a provider that cannot start a box hands over to the backup, and the box remembers who refused it and why" do
+      backup = FakeProvider.new
+      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::BOAT, SandboxProviders::NORTHFLANK ])
+      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(@provider)
+      Sandboxes.stubs(:provider).with(SandboxProviders::NORTHFLANK).returns(backup)
+      @provider.expects(:start).with { |fail_fast:, **| fail_fast }.raises(Sandboxes::Error, "boat.dev answered 503: No machine of this type is ready. (no_ready_machine)")
+
+      reading("investigation-failover").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+
+      box = CodeBox.live.find_by!(key: "investigation-failover")
+      assert_equal SandboxProviders::NORTHFLANK, box.provider
+      assert_equal SandboxProviders::BOAT, box.failed_over_from
+      assert_equal "boat.dev answered 503: No machine of this type is ready. (no_ready_machine)", box.failover_reason
+      assert_equal 1, backup.started.size
+    end
+
+    test "when every provider refuses, the run is told each one's reason once" do
+      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::BOAT, SandboxProviders::NORTHFLANK ])
+      @provider.stubs(:start).raises(Sandboxes::Error, "refused.")
+
+      error = assert_raises(Unavailable) { reading("investigation-nowhere").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+
+      assert_match "boat.dev: refused. Northflank: refused.", error.message
+      assert_not CodeBox.exists?(key: "investigation-nowhere")
+    end
+
+    test "a box records its size, its price and how long it ran, for its cost" do
+      keeping = KeepingProvider.new
+      Sandboxes.stubs(:provider).returns(keeping)
+      reading("investigation-cost").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+      box = CodeBox.live.find_by!(key: "investigation-cost")
+      assert_equal [ "2 CPU, 4g", 36_000 ], [ box.size, box.hourly_micros ]
+
+      travel 30.minutes do
+        CodeReading.close("investigation-cost")
+      end
+
+      assert_in_delta 1_800, box.reload.running_seconds, 2
+    end
+
+    test "with a provider that keeps disks, a prepared copy is kept there, and a later run's box starts from it" do
+      keeping = KeepingProvider.new
+      Sandboxes.stubs(:provider).returns(keeping)
+      stub_preparing(lock_digest: "locks-1")
+      Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => false, "commit" => "abc",
+                                                             "prepared" => [ { "exit_code" => 0 } ], "setup" => [])
+      Sandboxes::Client.any_instance.expects(:download_archive).never
+
+      reading("investigation-1").prepare("acme/app", ref: "abc")
+
+      kept = PreparedCopy.find_by!(workspace: @workspace, repository: "acme/app")
+      assert_equal [ SandboxProviders::DOCKER, "kept-1", "abc" ], [ kept.kept_in, kept.kept_ref, kept.commit ]
+      assert_equal [ "box-1" ], keeping.kept
+
+      seeded = []
+      Sandboxes::Client.any_instance.stubs(:seed).with { |**given| seeded << given }.returns("restored" => true)
+      Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => true, "prepared" => [], "setup" => [])
+      Sandboxes::Client.any_instance.expects(:upload_archive).never
+
+      assert_enqueued_with(job: CodeBoxRetireJob, args: [ SandboxProviders::DOCKER, "box-2" ]) do
+        reading("investigation-2").prepare("acme/app", ref: "def")
+      end
+
+      box = CodeBox.live.find_by!(key: "investigation-2")
+      assert_equal [ nil, nil, "kept-1" ], keeping.froms
+      assert_equal "box-3", box.box_ref, "the run moved to the box started from the kept copy"
+      assert_equal [ { repository: "acme__app", ref: "def", from: "abc" } ], seeded
+      assert_equal 3, @pushed.size, "the repository is fetched into the kept copy for commits made since"
+      assert_equal 1, keeping.kept.size, "a copy started from a kept one is not kept again"
+    end
+
+    test "a box already holding another repository keeps its work and installs from nothing" do
+      keeping = KeepingProvider.new
+      Sandboxes.stubs(:provider).returns(keeping)
+      PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/app", PreparedCopy.key_for(lock_digest: "locks-1", setup_digest: nil),
+                         kept_ref: "kept-old", commit: "abc")
+      stub_preparing(lock_digest: "locks-1")
+      Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => false, "prepared" => [ { "exit_code" => 1 } ])
+      reading("investigation-1").exec("acme/other", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+
+      reading("investigation-1").prepare("acme/app", ref: "def")
+
+      assert_equal [ nil ], keeping.froms
+    end
+
+    test "the sweep asks every provider in use, and lets go of what a provider keeps that nobody used" do
+      keeping = KeepingProvider.new
+      Sandboxes.stubs(:provider).returns(keeping)
+      old = PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/app", "key-1", kept_ref: "kept-old", commit: "abc").first
+      fresh = PreparedCopy.kept!(SandboxProviders::DOCKER, @workspace, "acme/web", "key-1", kept_ref: "kept-fresh", commit: "abc").first
+      old.update_columns(last_used_at: (PreparedCopy::KEPT_UNUSED_FOR + 1.day).ago)
+
+      CodeReading.sweep_prepared!
+      CodeReading.sweep!
+
+      assert_equal [ "kept-old" ], keeping.discarded
+      assert_not PreparedCopy.exists?(old.id)
+      assert_equal Set[fresh.kept_ref], keeping.tidied
     end
 
     private

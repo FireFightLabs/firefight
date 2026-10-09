@@ -7,6 +7,7 @@ class Workspace < ApplicationRecord
   include Workspace::Settings
   include Workspace::InvestigationLimits
   include Workspace::CodeFixes
+  include Workspace::SandboxPlacement
   include Workspace::IssueSync
   include Workspace::AgentDefaults
   include Workspace::ChatConnection

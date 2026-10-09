@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_150200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -844,6 +844,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_140000) do
     t.datetime "stopped_at"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "size"
+    t.bigint "hourly_micros"
+    t.integer "running_seconds", default: 0, null: false
+    t.datetime "box_started_at"
+    t.string "failed_over_from"
+    t.text "failover_reason"
+    t.text "address_query"
+    t.index ["created_at"], name: "index_code_boxes_failovers", where: "(failed_over_from IS NOT NULL)"
     t.index ["key"], name: "index_code_boxes_on_open_key", unique: true, where: "(stopped_at IS NULL)"
     t.index ["last_used_at"], name: "index_code_boxes_on_open_last_used", where: "(stopped_at IS NULL)"
     t.index ["workspace_id"], name: "index_code_boxes_on_workspace_id"
@@ -1865,8 +1873,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_140000) do
     t.string "repository", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "kept_in", default: "archive", null: false
+    t.string "kept_ref"
+    t.string "commit"
     t.index ["last_used_at"], name: "index_prepared_copies_on_last_used_at"
-    t.index ["workspace_id", "repository", "install_key"], name: "index_prepared_copies_on_workspace_repository_key", unique: true
+    t.index ["workspace_id", "repository", "install_key", "kept_in"], name: "index_prepared_copies_on_workspace_repository_key", unique: true
   end
 
   create_table "prompt_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2522,6 +2533,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_140000) do
     t.string "issue_webhook_token"
     t.integer "memory_expiry_days"
     t.uuid "created_by_id"
+    t.string "sandbox_provider"
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true

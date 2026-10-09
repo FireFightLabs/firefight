@@ -29,7 +29,7 @@ module Integration::RepositorySetups
   # What the toast says once a setup was read from CI.
   def repository_setup_read_words(setup)
     said = "Read #{setup.repository}'s setup from #{setup.derived_from}."
-    left_out = setup.unstartable_services
+    left_out = setup.unstartable_services(images: SandboxProviders.runs_images?(workspace))
     return said if left_out.empty?
 
     "#{said} The sandbox cannot start #{left_out.to_sentence}, so Halon prepares #{setup.repository} without #{left_out.one? ? 'it' : 'them'}."

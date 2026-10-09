@@ -3,19 +3,19 @@ module Integrations
     # Boxes as Northflank services, each a microVM, reached over Northflank's private network. In the app's own project a
     # box is reached by its service id. In a project of their own, which allows ingress from the app's project, it is
     # reached by its service id and that project's namespace.
-    class Northflank
+    class Northflank < Provider
       API_ROOT = "https://api.northflank.com/v1".freeze
       PORT = 8080
       DEFAULT_PLAN = "nf-compute-100-2".freeze
       # Megabytes. Repositories, their dependencies and a database for their tests share it.
       DEFAULT_STORAGE = 16_384
 
-      def start(name:)
+      def start(name:, **)
         host_suffix = separate_project? ? ".#{ingress_namespace}" : ""
         key = SecureRandom.hex(32)
         created = request(Net::HTTP::Post, "/projects/#{project}/services/deployment", {
           name: name, description: "Firefight code sandbox",
-          billing: { deploymentPlan: ENV["NORTHFLANK_SANDBOX_PLAN"].presence || DEFAULT_PLAN },
+          billing: { deploymentPlan: size },
           deployment: {
             instances: 1, docker: { configType: "default" }, external: { imagePath: Sandboxes.image },
             storage: { ephemeralStorage: { storageSize: Integer(ENV["NORTHFLANK_SANDBOX_STORAGE"].presence || DEFAULT_STORAGE) } }
@@ -42,6 +42,18 @@ module Integrations
 
           Running.new(ref: service["id"], started_at: Time.zone.parse(service["createdAt"].to_s))
         end
+      end
+
+      def size = ENV["NORTHFLANK_SANDBOX_PLAN"].presence || DEFAULT_PLAN
+
+      # The plan's amountPerHour from Northflank's GET /v1/plans. A price that cannot be read leaves the box unpriced
+      # rather than stopping it.
+      def hourly_micros
+        plan = request(Net::HTTP::Get, "/plans").dig("data", "plans").to_a.find { |each| each["id"] == size }
+        plan && (plan["amountPerHour"].to_f * 1_000_000).round
+      rescue Error => error
+        Rails.logger.warn({ event: "code_box.price_unread", provider: SandboxProviders::NORTHFLANK, error: error.message }.to_json)
+        nil
       end
 
       private

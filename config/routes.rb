@@ -490,6 +490,9 @@ Rails.application.routes.draw do
       member { post :redeliver }
     end
     get "find", to: "find#show", as: :find
+    resources :workspaces, only: %i[index show] do
+      member { post :sandbox }
+    end
     get "halon", to: "halon#show", as: :halon
     resources :halon_runs, path: "halon/runs", only: :show
     resources :halon_chats, path: "halon/chats", only: %i[index show]

@@ -123,6 +123,19 @@ When Firefight itself runs on Northflank, each box can be a private service ther
 
 Firefight reads its own project from Northflank, so it knows the boxes are elsewhere and reaches them at the address Northflank gives other projects. If the boxes' project does not allow ingress from the app's project, code reading says the sandbox did not come up, or names the ingress setting when Northflank reports it, so check step 3 first. `NORTHFLANK_SANDBOX_PROJECT` can also be the app's own project, and then boxes are reached inside it.
 
+### On boat.dev
+
+Each box can be a [boat.dev](https://boat.dev) sandbox instead, a Linux VM in the EU billed by the second while it runs. Firefight starts the sandbox image inside it, so the box is the same as anywhere else, and the VM's Docker lets a repository's setup start the services its CI names from their own images, such as a pgvector or PostGIS Postgres. Firefight reaches the box at the https address boat.dev gives its port, which only answers with that address's token and the box's own key.
+
+1. Create a boat.dev API key with the actions `sandbox.create`, `sandbox.read`, `sandbox.update`, `sandbox.stop`, `sandbox.delete`, `exec`, `host`, `snapshot.read` and `snapshot.write`.
+2. Set `SANDBOX_PROVIDER=boat` and `BOAT_API_KEY` to that key. `BOAT_SANDBOX_TYPE` picks the size (`small`, `default`, `large` or `xlarge`, `default` unless set) and `BOAT_ORG` the organization that pays, when the key's account belongs to one.
+
+Boxes are created with none of the account's own secrets. The first box of each sandbox version pulls the image and keeps a copy of itself under a name starting `halon-image-`, so later boxes start in seconds. A repository prepared from nothing, with its dependencies installed and its setup run, is kept as a named snapshot starting `halon-kept-`, per workspace and repository, and a later box for the same workspace starts from it. One nobody used for 7 days is removed. boat.dev keeps 10 named snapshots for free and charges for each above that. A stopped box is archived, then deleted an hour later.
+
+### A backup provider
+
+Set `SANDBOX_BACKUP_PROVIDER` to a second provider, and a box the first cannot start, for lack of capacity, an outage, a timeout or a refusal, starts there instead. The operator console lists each failover under Needs attention and on the workspace's page. A workspace can be held to one provider from its page in the operator console, under Workspaces, such as one whose data must stay in one region. Its boxes then run only there and never fail over.
+
 ## Signing in with Google or an email link
 
 Slack sign-in works out of the box. Google and email links are optional and stay hidden until you turn them on.

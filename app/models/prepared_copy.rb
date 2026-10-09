@@ -3,7 +3,10 @@
 # found by the repository and a key made of the files that decide what installing does (its lockfiles and version
 # files), the repository's setup and the sandbox's own tools, so it is reused across commits until one of those
 # changes. A workspace only ever reads its own, and one nobody used for KEPT_UNUSED_FOR is removed.
+# A provider that keeps a box's whole disk keeps the copy itself instead (kept_in names it, kept_ref is its copy and
+# commit the commit it was prepared at), and a later box starts from it.
 class PreparedCopy < ApplicationRecord
+  KEPT_IN_ARCHIVE = "archive".freeze
   KEPT_UNUSED_FOR = 7.days
   # Older keys of a repository, such as before its lockfile changed, are dropped once it has more than this many.
   KEPT_PER_REPOSITORY = 3
@@ -17,8 +20,14 @@ class PreparedCopy < ApplicationRecord
 
   def self.key_for(lock_digest:, setup_digest:) = Digest::SHA256.hexdigest([ lock_digest, setup_digest.to_s ].join(":"))
 
-  # The kept copy for this workspace, repository and key, or nil.
-  def self.usable(workspace, repository, key) = where(workspace: workspace, repository: repository, install_key: key).joins(:archive_attachment).first
+  scope :archives, -> { where(kept_in: KEPT_IN_ARCHIVE) }
+  scope :kept_by_providers, -> { where.not(kept_in: KEPT_IN_ARCHIVE) }
+
+  # The kept archive for this workspace, repository and key, or nil.
+  def self.usable(workspace, repository, key) = archives.where(workspace: workspace, repository: repository, install_key: key).joins(:archive_attachment).first
+
+  # The copy a provider keeps for this workspace, repository and key, or nil.
+  def self.kept_by(provider, workspace, repository, key) = find_by(kept_in: provider, workspace: workspace, repository: repository, install_key: key)
 
   # Kept from the file at path. A second worker keeping the same key at once keeps the first one's.
   def self.keep!(workspace, repository, key, path)
@@ -27,14 +36,26 @@ class PreparedCopy < ApplicationRecord
       kept.archive.attach(io: file, filename: "prepared.tar.gz", content_type: "application/gzip", identify: false)
       kept.save!
     end
-    where(workspace: workspace, repository: repository).where.not(id: kept.id).order(last_used_at: :desc).offset(KEPT_PER_REPOSITORY - 1).destroy_all
+    archives.where(workspace: workspace, repository: repository).where.not(id: kept.id).order(last_used_at: :desc).offset(KEPT_PER_REPOSITORY - 1).destroy_all
     kept
+  rescue ActiveRecord::RecordNotUnique
+    nil
+  end
+
+  # Recorded once a provider has started keeping the box's copy under kept_ref. Answers the row, and the rows of this
+  # repository past KEPT_PER_REPOSITORY, which the caller removes from the provider and then here. A second worker
+  # keeping the same key at once keeps the first one's, and answers nil.
+  def self.kept!(provider, workspace, repository, key, kept_ref:, commit:)
+    kept = create!(kept_in: provider, workspace: workspace, repository: repository, install_key: key, kept_ref: kept_ref, commit: commit,
+                   last_used_at: Time.current)
+    [ kept, where(kept_in: provider, workspace: workspace, repository: repository).where.not(id: kept.id).order(last_used_at: :desc).offset(KEPT_PER_REPOSITORY - 1).to_a ]
   rescue ActiveRecord::RecordNotUnique
     nil
   end
 
   def used! = self.class.where(id: id).update_all(last_used_at: Time.current)
 
-  # Removes every kept copy nobody used for KEPT_UNUSED_FOR, with its archive.
-  def self.sweep! = unused.find_each(&:destroy)
+  # Removes every kept archive nobody used for KEPT_UNUSED_FOR. A copy a provider keeps is removed from the provider
+  # first (Integrations::CodeReading.sweep_prepared!).
+  def self.sweep! = unused.archives.find_each(&:destroy)
 end
