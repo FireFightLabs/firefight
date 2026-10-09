@@ -252,6 +252,22 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Chat deleted.", flash[:notice]
   end
 
+  test "deleting a chat whose code fix paused at its spending limit keeps the pause and lets the chat go" do
+    conversation = start_chat
+    request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    pause = CodeAgentSession::Pause.create!(
+      session: session, workspace: @workspace, conversation: conversation, arguments: { "repo" => "acme/api" }, repository: "acme/api",
+      base: "main", copy_ref: "c" * 40, budget_micros: 2_000_000, resumable_until: 15.minutes.from_now
+    )
+
+    delete agent_chat_url(conversation)
+
+    assert_nil Conversation.find_by(id: conversation.id)
+    assert_nil pause.reload.conversation_id
+  end
+
   test "deleting another chat from the list keeps the open one open" do
     open_chat = start_chat
     other = Conversation.start_personal!(workspace: @workspace, member: @member)

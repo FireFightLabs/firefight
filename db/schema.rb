@@ -2580,10 +2580,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
   add_foreign_key "code_agent_questions", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "code_agent_sessions", column: "session_id", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "workspaces", on_delete: :cascade
-  add_foreign_key "code_agent_session_pauses", "code_agent_sessions", column: "session_id"
-  add_foreign_key "code_agent_session_pauses", "conversations"
-  add_foreign_key "code_agent_session_pauses", "workspace_memberships", column: "decided_by_id"
-  add_foreign_key "code_agent_session_pauses", "workspaces"
+  add_foreign_key "code_agent_session_pauses", "code_agent_sessions", column: "session_id", on_delete: :cascade
+  add_foreign_key "code_agent_session_pauses", "conversations", on_delete: :nullify
+  add_foreign_key "code_agent_session_pauses", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "code_agent_session_pauses", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"
