@@ -306,6 +306,9 @@ module Slack
       end
     end
 
+    # Slack's feedback thumbs show what was pressed themselves. A plain button does not.
+    def confirms_press_itself?(action_id) = action_id == Identifiers::INVESTIGATION_FEEDBACK
+
     def self.refresh_expiring_credentials(buffer:)
       Slack::TokenManager.new.refresh_all_expiring(buffer: buffer)
     end

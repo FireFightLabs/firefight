@@ -68,6 +68,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Whether the control behind action_id shows what was pressed by itself, so a press needs no answer of its own.
+  # @return [Boolean]
+  def confirms_press_itself?(action_id)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Takes down an ephemeral prompt. The handle is the token the platform
   # attached to the button click, carried through the modal's metadata.
   # @return [Hash] { ok: true }
