@@ -199,6 +199,18 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal "Alice Smith added a file.", run.chat.messages.where(role: Chat::Message::ROLE_USER).sole.content
   end
 
+  test "files shared by someone mentioning Halon for the first time go with the run they start" do
+    stub_get_user_info
+    Slack::Client.expects(:download_file).returns({ body: "boom at 10:02", content_type: "text/plain" })
+    newcomer = WorkspaceMembership.new(platform_user_id: "U_NEW_USER")
+
+    mention("investigate checkout 500s", by: newcomer, files: [ slack_file("F1", "app.log", size: 13) ])
+
+    member = @workspace.workspace_memberships.find_by!(platform_user_id: "U_NEW_USER")
+    file = Chat::Attachment.find_by!(uploaded_by: member)
+    assert_equal "app.log", file.filename
+  end
+
   test "files shared with a mention that starts an investigation are handed to the run before its first step" do
     Slack::Client.expects(:download_file).returns({ body: "boom at 10:02", content_type: "text/plain" })
 
