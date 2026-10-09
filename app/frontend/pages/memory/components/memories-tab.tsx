@@ -1,20 +1,18 @@
-import { Link, router } from "@inertiajs/react"
+import { router } from "@inertiajs/react"
 import { IconPlus, IconSearch } from "@tabler/icons-react"
-import { useEffect, useRef, useState } from "react"
+import { type ChangeEvent, useState } from "react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { formatDate } from "@/lib/formatters"
-import { confirmMemoryPath, destroyMemoryPath, incidentPath } from "@/lib/routes"
+import { destroyMemoryPath } from "@/lib/routes"
 import { AddMemoryDialog } from "@/pages/memory/components/add-memory-dialog"
-import { DecideMemoryDialog, type Decision, DECISIONS } from "@/pages/memory/components/decide-memory-dialog"
-import { FILTER_LABELS, inFilter, vouch } from "@/pages/memory/lib/labels"
-import { STATE_LABELS, STATE_TONES } from "@/lib/memory-labels"
-import { RowActions } from "@/components/row-actions"
+import { DecideMemoryDialog, type Decision, DECISIONS } from "@/components/memory/decide-memory-dialog"
+import { MemoryRow } from "@/pages/memory/components/memory-row"
+import { FILTER_LABELS, inFilter } from "@/pages/memory/lib/labels"
 import { MEMORY_FILTERS, type MemoryFilter, type SubjectOption } from "@/pages/memory/types"
 import type { ChatMemory } from "@/types/serializers"
 
@@ -55,7 +53,7 @@ export function MemoriesTab({ memories, subjects, canCurate, focusedId }: Memori
     }
   }
 
-  function search(event: React.ChangeEvent<HTMLInputElement>) {
+  function search(event: ChangeEvent<HTMLInputElement>) {
     setQuery(event.target.value)
   }
 
@@ -69,7 +67,7 @@ export function MemoriesTab({ memories, subjects, canCurate, focusedId }: Memori
 
   function remove() {
     if (deleting) {
-      router.delete(destroyMemoryPath(deleting.id), { preserveScroll: true, onFinish: cancelDelete })
+      router.delete(destroyMemoryPath(deleting.id), { preserveScroll: true, preserveState: true, onFinish: cancelDelete })
     }
   }
 
@@ -145,104 +143,6 @@ export function MemoriesTab({ memories, subjects, canCurate, focusedId }: Memori
         onCancel={cancelDelete}
       />
     </Card>
-  )
-}
-
-interface MemoryRowProps {
-  memory: ChatMemory
-  focused: boolean
-  canCurate: boolean
-  onDecide: (choice: { memory: ChatMemory; decision: Decision }) => void
-  onDelete: (memory: ChatMemory) => void
-}
-
-function MemoryRow({ memory, focused, canCurate, onDecide, onDelete }: MemoryRowProps) {
-  const row = useRef<HTMLTableRowElement>(null)
-  const decidable = !memory.rejectBlockedReason
-
-  useEffect(() => {
-    if (focused) {
-      row.current?.scrollIntoView({ block: "center" })
-    }
-  }, [ focused ])
-  const confirmable = !memory.confirmBlockedReason
-
-  function confirm() {
-    router.post(confirmMemoryPath(memory.id), {}, { preserveScroll: true })
-  }
-
-  function correct() {
-    onDecide({ memory, decision: DECISIONS.CORRECT })
-  }
-
-  function reject() {
-    onDecide({ memory, decision: DECISIONS.REJECT })
-  }
-
-  function remove() {
-    onDelete(memory)
-  }
-
-  return (
-    <TableRow ref={row} data-focused={focused || undefined} className="align-top data-[focused]:bg-brand-tint">
-      <TableCell className="max-w-xl min-w-64 pl-6 whitespace-normal">
-        <div className="flex flex-col gap-1.5 py-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATE_TONES[memory.state]}`}>{STATE_LABELS[memory.state]}</span>
-            {memory.about && (
-              <span className="text-xs text-muted-foreground">
-                About {memory.about}
-                {memory.aboutRemoved && ", which is no longer on the map"}
-              </span>
-            )}
-          </div>
-          <p className="text-sm leading-relaxed">{memory.text}</p>
-          {memory.reason && <p className="text-xs text-muted-foreground">{memory.reason}</p>}
-        </div>
-      </TableCell>
-      <TableCell className="min-w-48 whitespace-normal">
-        <div className="flex flex-col gap-0.5 py-1 text-sm">
-          {memory.sourceIncidentId ? (
-            <Link href={incidentPath(memory.sourceIncidentId)} className="hover:underline">
-              {memory.sourceLabel}
-            </Link>
-          ) : (
-            <span>{memory.sourceLabel}</span>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {vouch(memory)}, {formatDate(memory.confirmedAt ?? memory.createdAt)}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell className="text-sm whitespace-nowrap text-muted-foreground tabular-nums">
-        <div className="py-1">
-          {memory.useCount === 0 ? "Not yet" : `${memory.useCount} ${memory.useCount === 1 ? "time" : "times"}`}
-          {memory.lastUsedAt && <div className="text-xs">Last {formatDate(memory.lastUsedAt)}</div>}
-        </div>
-      </TableCell>
-      {canCurate && (
-        <TableCell className="pr-6 text-right">
-          <div className="flex items-center justify-end gap-1.5 py-0.5">
-            {decidable && (
-              <>
-                {confirmable && (
-                  <Button type="button" size="sm" variant="outline" onClick={confirm}>
-                    Confirm
-                  </Button>
-                )}
-                <Button type="button" size="sm" variant="outline" onClick={correct}>
-                  Correct
-                </Button>
-                <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={reject}>
-                  Not right
-                </Button>
-              </>
-            )}
-            <RowActions onDelete={remove} />
-          </div>
-        </TableCell>
-      )}
-    </TableRow>
   )
 }
 
