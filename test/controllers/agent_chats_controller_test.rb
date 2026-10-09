@@ -464,7 +464,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     run.add_note!("", by: bob, files: [ file ])
     sign_in(users(:bob), @workspace)
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(true)
-    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ).returns(false)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ, nil).returns(false)
 
     get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
     url = inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "notes").flat_map { |note| note["files"] }.sole["url"]

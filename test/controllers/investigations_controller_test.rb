@@ -419,7 +419,7 @@ class InvestigationsControllerTest < ActionDispatch::IntegrationTest
   # Holds every other ability, so the one withheld is the only thing a page could refuse.
   def withhold(resource, verb)
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(true)
-    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(resource, verb).returns(false)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(resource, verb, nil).returns(false)
   end
 
   def note_file(investigation, name, bytes)
