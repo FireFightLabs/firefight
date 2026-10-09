@@ -358,7 +358,7 @@ function ServiceFields({
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor={id("port")} className="text-xs">Port</Label>
-          <Input id={id("port")} placeholder="5432" inputMode="numeric" value={service.port} onChange={editPort} />
+          <Input id={id("port")} placeholder="Its usual" inputMode="numeric" value={service.port} onChange={editPort} />
         </div>
         <Button type="button" size="icon" variant="ghost" onClick={remove} className="size-9">
           <IconX className="size-4" />
@@ -370,7 +370,7 @@ function ServiceFields({
         <Textarea
           id={id("env")}
           rows={2}
-          placeholder="POSTGRES_DB=app_test"
+          placeholder="NAME=value"
           value={service.env}
           onChange={editVariables}
           spellCheck={false}

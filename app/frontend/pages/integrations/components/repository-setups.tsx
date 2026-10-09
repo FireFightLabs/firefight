@@ -217,7 +217,7 @@ function SetupRow({
           {variables.length === 0 ? (
             "None"
           ) : (
-            <pre className="bg-muted overflow-x-auto rounded px-2 py-1 font-mono">
+            <pre className="bg-muted rounded px-2 py-1 font-mono break-all whitespace-pre-wrap">
               {variables.map(([name, value]) => `${name}=${value}`).join("\n")}
             </pre>
           )}
@@ -227,7 +227,7 @@ function SetupRow({
           {setup.commands.length === 0
             ? "None"
             : setup.commands.map((command, index) => (
-                <pre key={`${setup.id}-command-${index}`} className="bg-muted overflow-x-auto rounded px-2 py-1 font-mono">
+                <pre key={`${setup.id}-command-${index}`} className="bg-muted rounded px-2 py-1 font-mono break-all whitespace-pre-wrap">
                   {command}
                 </pre>
               ))}
