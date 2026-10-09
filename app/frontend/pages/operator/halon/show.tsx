@@ -1,16 +1,14 @@
 import { Link, usePage } from "@inertiajs/react"
 import { IconFileText } from "@tabler/icons-react"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { OUTCOME_LABELS, labelFor } from "@/components/investigations/labels"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatDate, formatDateTime } from "@/lib/formatters"
-import { whenClosed } from "@/lib/handlers"
+import { formatDate, formatDateTime, percent } from "@/lib/formatters"
 import { OPERATOR_HALON_ENDINGS, OPERATOR_WINDOWS } from "@/lib/generated/constants"
 import { operatorHalonPath, operatorHalonRunPath } from "@/lib/routes"
 import { FilterBar } from "@/pages/operator/components/filter-bar"
@@ -19,7 +17,7 @@ import { PageHeading } from "@/pages/operator/components/page-heading"
 import { Pager } from "@/pages/operator/components/pager"
 import { ENDING_LABELS, RunEnding } from "@/pages/operator/components/run-ending"
 import { Stat } from "@/pages/operator/components/stat"
-import { count, dollars, milliseconds, percent, seconds } from "@/pages/operator/lib/format"
+import { count, dollars, milliseconds, seconds } from "@/pages/operator/lib/format"
 import type {
   FilterProps,
   HalonBucket,
@@ -31,6 +29,8 @@ import type {
   OperatorPageProps,
 } from "@/pages/operator/types"
 import type { OperatorHalonRun } from "@/types/serializers"
+import { SectionCard } from "@/pages/operator/components/section-card"
+import { PromptTextDialog } from "@/pages/operator/components/prompt-text-dialog"
 
 type Ending = OperatorHalonRun["ending"]
 
@@ -58,33 +58,7 @@ const CHART: ChartConfig = {
   live: { label: "Working", color: "var(--stage-active)" },
 }
 
-function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
-  return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <div className="flex items-baseline justify-between gap-4 border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {note && <span className="text-muted-foreground text-xs">{note}</span>}
-      </div>
-      {children}
-    </Card>
-  )
-}
-
-function PromptText({ prompt, onClose }: { prompt: HalonPrompt | null; onClose: () => void }) {
-  return (
-    <Dialog open={prompt !== null} onOpenChange={whenClosed(onClose)}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="font-mono">{prompt?.version}</DialogTitle>
-          <DialogDescription>The run prompt as it was worded from {prompt ? formatDateTime(prompt.firstSeenAt) : ""}.</DialogDescription>
-        </DialogHeader>
-        <pre className="bg-muted/40 max-h-[60vh] overflow-auto rounded-md border border-border p-4 font-mono text-xs whitespace-pre-wrap">{prompt?.text}</pre>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function bucketLabel(label: React.ReactNode) {
+function bucketLabel(label: ReactNode) {
   return typeof label === "string" ? formatDateTime(label) : label
 }
 
@@ -99,7 +73,7 @@ export default function OperatorHalon() {
   const filterQuery = { window: filter.window, workspace: filter.workspace ?? undefined }
   const verdictCount = Object.values(verdicts).reduce((sum, votes) => sum + votes, 0)
   const verdictNote = Object.entries(verdicts)
-    .map(([outcome, votes]) => `${votes} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`)
+    .map(([outcome, votes]) => `${votes} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase() ?? outcome}`)
     .join(", ")
 
   function runsHref(changes: { ending?: Ending | null; page?: number }) {
@@ -132,7 +106,7 @@ export default function OperatorHalon() {
       </div>
 
       <div className="mb-6">
-        <Section title="Runs by how they ended" note="Stopped is a limit or a person, failed is our side">
+        <SectionCard title="Runs by how they ended" note="Stopped is a limit or a person, failed is our side">
           <div className="px-5 pt-4 pb-2">
             <ChartContainer config={CHART} className="aspect-auto h-56 w-full">
               <BarChart data={buckets} margin={{ left: -20, right: 8 }}>
@@ -159,11 +133,11 @@ export default function OperatorHalon() {
               ))}
             </ul>
           )}
-        </Section>
+        </SectionCard>
       </div>
 
       <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Section title="Tools" note={`The ${limits.tools} most called through the gateway, runs and chats`}>
+        <SectionCard title="Tools" note={`The ${limits.tools} most called through the gateway, runs and chats`}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -195,8 +169,8 @@ export default function OperatorHalon() {
               )}
             </TableBody>
           </Table>
-        </Section>
-        <Section title="Model calls" note="Runs, their re-read and chat turns">
+        </SectionCard>
+        <SectionCard title="Model calls" note="Runs, their re-read and chat turns">
           <div className="grid grid-cols-2 gap-3 p-5">
             <Stat label="Calls" value={count(model.calls)} />
             <Stat label="Failed" value={count(model.errors)} note={percent(model.errors, model.calls)} tone={model.errors > 0 ? "error" : "neutral"} />
@@ -213,11 +187,11 @@ export default function OperatorHalon() {
               ))}
             </ul>
           )}
-        </Section>
+        </SectionCard>
       </div>
 
       <div className="mb-6">
-        <Section title="Run prompt versions" note={`The latest ${limits.prompts} wordings, each with the runs it started, over all time`}>
+        <SectionCard title="Run prompt versions" note={`The latest ${limits.prompts} wordings, each with the runs it started, over all time`}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -256,7 +230,7 @@ export default function OperatorHalon() {
               )}
             </TableBody>
           </Table>
-        </Section>
+        </SectionCard>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -322,7 +296,7 @@ export default function OperatorHalon() {
         </Table>
         <Pager page={page} more={more} hrefFor={pageHref} />
       </Card>
-      <PromptText prompt={readingPrompt} onClose={closePrompt} />
+      <PromptTextDialog prompt={readingPrompt} onClose={closePrompt} />
     </OperatorLayout>
   )
 }

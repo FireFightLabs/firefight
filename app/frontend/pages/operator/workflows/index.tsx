@@ -1,6 +1,8 @@
 import { Link, router, usePage } from "@inertiajs/react"
 
+import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { Card } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDateTime } from "@/lib/formatters"
 import { OPERATOR_WORKFLOW_STATES } from "@/lib/generated/constants"
@@ -26,9 +28,15 @@ interface WorkflowsProps extends OperatorPageProps {
 const STATES: State[] = Object.values(OPERATOR_WORKFLOW_STATES)
 const ALL_KINDS = ""
 
+// A kind is a workflow class name, set in mono as on the rows below.
+function monoLabel(option: SearchableSelectOption) {
+  return <span className={option.value === ALL_KINDS ? "" : "font-mono text-xs"}>{option.label}</span>
+}
+
 export default function OperatorWorkflows() {
   const { workflows, page, more, kinds, counts, filter } = usePage<WorkflowsProps>().props
   const total = Object.values(counts).reduce((sum, count) => sum + (count ?? 0), 0)
+  const kindOptions: SearchableSelectOption[] = [ { value: ALL_KINDS, label: "All kinds" }, ...kinds.map((kind) => ({ value: kind, label: kind })) ]
 
   function query(changes: { state?: State | null; kind?: string | null; page?: number }) {
     const next = { state: filter.state, kind: filter.kind, ...changes }
@@ -39,8 +47,8 @@ export default function OperatorWorkflows() {
     return query({ page: target })
   }
 
-  function pickKind(event: React.ChangeEvent<HTMLSelectElement>) {
-    router.visit(query({ kind: event.target.value || null }), { preserveScroll: true })
+  function pickKind(value: string | null) {
+    router.visit(query({ kind: value || null }), { preserveScroll: true })
   }
 
   return (
@@ -67,15 +75,23 @@ export default function OperatorWorkflows() {
             {state} <span className="font-mono">{counts[state] ?? 0}</span>
           </Link>
         ))}
-        <label className="text-muted-foreground ml-auto flex items-center gap-2 text-xs">
-          Kind
-          <select value={filter.kind ?? ALL_KINDS} onChange={pickKind} className="bg-card h-8 rounded-md border border-border px-2 font-mono text-xs text-foreground">
-            <option value={ALL_KINDS}>All kinds</option>
-            {kinds.map((kind) => (
-              <option key={kind} value={kind}>{kind}</option>
-            ))}
-          </select>
-        </label>
+        <div className="ml-auto flex items-center gap-2">
+          <Label htmlFor="operator-workflow-kind" className="text-muted-foreground text-xs font-normal">
+            Kind
+          </Label>
+          <div className="w-72">
+            <SearchableSelect
+              id="operator-workflow-kind"
+              value={filter.kind ?? ALL_KINDS}
+              onValueChange={pickKind}
+              options={kindOptions}
+              searchPlaceholder="Search kinds"
+              emptyText="No kind matches"
+              renderOption={monoLabel}
+              renderSelected={monoLabel}
+            />
+          </div>
+        </div>
       </div>
       <Card className="gap-0 overflow-hidden py-0">
         <Table>

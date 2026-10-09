@@ -6,23 +6,19 @@ import {
   IconLayoutDashboard,
   IconLogout,
   IconMessages,
-  IconSearch,
   IconSparkles,
   IconTargetArrow,
   IconStack2,
-  type Icon,
 } from "@tabler/icons-react"
-import { useState, type FormEvent, type ReactNode } from "react"
+import type { ReactNode } from "react"
 
 import { FireFightLogo } from "@/components/fire-fight-logo"
 import { FlashToaster } from "@/components/flash-toaster"
 import { Toaster } from "@/components/ui/sonner"
-import { Input } from "@/components/ui/input"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   dashboardPath,
   logoutPath,
-  operatorFindPath,
   operatorHalonChatsPath,
   operatorHalonPath,
   operatorHalonRegressionsPath,
@@ -31,19 +27,9 @@ import {
   operatorRootPath,
   operatorWorkflowsPath,
 } from "@/lib/routes"
+import { FindBox } from "@/pages/operator/components/find-box"
+import { NavLink, type NavItem } from "@/pages/operator/components/nav-link"
 import type { OperatorPageProps } from "@/pages/operator/types"
-
-interface NavItem {
-  title: string
-  href: string
-  icon: Icon
-  // Flightdeck is not an Inertia page, so its link does a full page load.
-  external?: boolean
-  // Every console path starts with the overview's path, so the overview only matches exactly.
-  exact?: boolean
-  // Paths under this item's path that belong to another item.
-  except?: string[]
-}
 
 interface NavSection {
   title: string
@@ -77,65 +63,6 @@ function isActive(item: NavItem, url: string): boolean {
     return false
   }
   return item.exact ? path === item.href : path.startsWith(item.href)
-}
-
-function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badge?: number }) {
-  const ItemIcon = item.icon
-  const className = `relative flex h-9 items-center gap-3 rounded-lg px-3 text-sm transition-colors ${
-    active ? "bg-card text-foreground" : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
-  }`
-  const content = (
-    <>
-      {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-0.5 rounded-full bg-brand" />}
-      <ItemIcon className={`size-4 ${active ? "text-fg-primary" : ""}`} stroke={1.6} />
-      {item.title}
-      {badge ? (
-        <span className="ml-auto rounded-full bg-error-tint px-1.5 font-mono text-[11px] text-error">{badge}</span>
-      ) : null}
-    </>
-  )
-
-  return item.external ? (
-    <a href={item.href} className={className}>{content}</a>
-  ) : (
-    <Link href={item.href} className={className}>{content}</Link>
-  )
-}
-
-// Find box. Submits a pasted id or incident number to the find page, which opens a single match.
-function FindBox() {
-  const [query, setQuery] = useState("")
-
-  function change(event: React.ChangeEvent<HTMLInputElement>) {
-    setQuery(event.target.value)
-  }
-
-  function find(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const pasted = query.trim()
-    if (!pasted) {
-      return
-    }
-    router.get(operatorFindPath({ q: pasted }))
-  }
-
-  return (
-    <form role="search" onSubmit={find} className="border-b border-border px-3 py-3">
-      <label className="relative block">
-        <span className="sr-only">Find by id or incident number</span>
-        <IconSearch className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-        <Input
-          id="operator-find"
-          value={query}
-          onChange={change}
-          placeholder="Find an id or INC-042"
-          autoComplete="off"
-          spellCheck={false}
-          className="h-8 pl-8 font-mono text-xs"
-        />
-      </label>
-    </form>
-  )
 }
 
 function signOut() {

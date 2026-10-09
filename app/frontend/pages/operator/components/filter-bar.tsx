@@ -1,5 +1,8 @@
 import { router, usePage } from "@inertiajs/react"
 
+import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
+import { Label } from "@/components/ui/label"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { OPERATOR_WINDOWS } from "@/lib/generated/constants"
 import type { FilterProps, OperatorWindow } from "@/pages/operator/types"
 
@@ -26,46 +29,53 @@ function withFilter(url: string, changes: Record<string, string | null>): string
   return next ? `${path}?${next}` : path
 }
 
+function isWindow(value: string): value is OperatorWindow {
+  return Object.values<string>(OPERATOR_WINDOWS).includes(value)
+}
+
 export function FilterBar({ filter, windows, workspaces }: FilterProps) {
   const { url } = usePage()
+  const workspaceOptions: SearchableSelectOption[] = [
+    { value: ALL_WORKSPACES, label: `All workspaces (${workspaces.length})` },
+    ...workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
+  ]
 
-  function pickWorkspace(event: React.ChangeEvent<HTMLSelectElement>) {
-    router.visit(withFilter(url, { workspace: event.target.value || null }), { preserveScroll: true })
+  function pickWorkspace(value: string | null) {
+    router.visit(withFilter(url, { workspace: value || null }), { preserveScroll: true })
   }
 
-  function pickWindow(choice: OperatorWindow) {
-    router.visit(withFilter(url, { window: choice }), { preserveScroll: true })
+  // A single toggle group sends an empty value when its pressed item is clicked again, which keeps the window.
+  function pickWindow(value: string) {
+    if (!isWindow(value)) {
+      return
+    }
+    router.visit(withFilter(url, { window: value }), { preserveScroll: true })
   }
 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-3">
-      <label className="text-muted-foreground flex items-center gap-2 text-xs">
-        Workspace
-        <select
-          id="operator-workspace"
-          value={filter.workspace ?? ALL_WORKSPACES}
-          onChange={pickWorkspace}
-          className="bg-card h-8 max-w-64 rounded-md border border-border px-2 text-xs text-foreground"
-        >
-          <option value={ALL_WORKSPACES}>All workspaces ({workspaces.length})</option>
-          {workspaces.map((workspace) => (
-            <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
-          ))}
-        </select>
-      </label>
-      <div role="group" aria-label="Window" className="flex items-center gap-1 rounded-lg border border-border bg-card p-0.5">
-        {windows.map((choice) => (
-          <button
-            key={choice}
-            type="button"
-            aria-pressed={filter.window === choice}
-            onClick={() => pickWindow(choice)}
-            className={`h-7 rounded-md px-2.5 text-xs transition-colors ${filter.window === choice ? "bg-surface-selected text-fg-primary" : "text-fg-secondary hover:bg-surface-hover hover:text-fg-primary"}`}
-          >
-            {WINDOW_LABELS[choice]}
-          </button>
-        ))}
+      <div className="flex items-center gap-2">
+        <Label htmlFor="operator-workspace" className="text-muted-foreground text-xs font-normal">
+          Workspace
+        </Label>
+        <div className="w-64">
+          <SearchableSelect
+            id="operator-workspace"
+            value={filter.workspace ?? ALL_WORKSPACES}
+            onValueChange={pickWorkspace}
+            options={workspaceOptions}
+            searchPlaceholder="Search workspaces"
+            emptyText="No workspace matches"
+          />
+        </div>
       </div>
+      <ToggleGroup type="single" variant="outline" size="sm" value={filter.window} onValueChange={pickWindow} aria-label="Window">
+        {windows.map((choice) => (
+          <ToggleGroupItem key={choice} value={choice} className="px-3">
+            {WINDOW_LABELS[choice]}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     </div>
   )
 }

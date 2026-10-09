@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { runAgainOperatorWorkflowStepPath, skipOperatorWorkflowStepPath } from "@/lib/routes"
-import { useAction } from "@/pages/operator/lib/use-action"
+import { useAction } from "@/pages/operator/hooks/use-action"
 
 // Run again and Skip buttons for a failed step. Skip asks for confirmation first.
 export function StepActions({ stepId, stepName }: { stepId: string; stepName: string }) {
