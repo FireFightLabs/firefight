@@ -156,6 +156,20 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal 0, @workspace.conversations.count
   end
 
+  test "an approval rule over starting a run never holds a note in its thread, which nothing could add later" do
+    run = running_investigation
+    @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals").policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: PolicyRule::ApprovalConditions::FIELD_ACTION_KEY, operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ Ability::Action::INVESTIGATIONS_CREATE ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+
+    mention("skip GitHub, look at 5xx on web", thread_ts: "1700000000.000950", parent: run.thread_id)
+
+    assert_equal "skip GitHub, look at 5xx on web", run.notes.sole.content
+    assert_empty @workspace.ability_approvals
+  end
+
   test "files shared with a mention in a running investigation's thread go with the note, and the run reads them" do
     run = running_investigation
     Slack::Client.expects(:download_file).returns({ body: "pool exhausted at 10:02", content_type: "text/plain" })

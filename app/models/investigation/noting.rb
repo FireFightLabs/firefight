@@ -31,14 +31,14 @@ module Investigation::Noting
     return blocked if blocked
     return not_allowed(member) unless member
 
+    # holdable: false, since nothing in a thread could add the note once an approval was given.
     AbilityGateway.authorize!(
-      principal: member, workspace: workspace,
-      action_key: Ability::Action.system_key(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE),
-      context: { source: source, incident_id: incident_id }
+      principal: member, workspace: workspace, action_key: Ability::Action::INVESTIGATIONS_CREATE,
+      context: { source: source, incident_id: incident_id }, holdable: false
     )
     add_note!(text.to_s.strip, by: member, files: files)
     nil
-  rescue AbilityGateway::Denied, AbilityGateway::PendingApproval
+  rescue AbilityGateway::Denied
     not_allowed(member)
   end
 

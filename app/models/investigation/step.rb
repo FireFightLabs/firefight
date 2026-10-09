@@ -44,7 +44,7 @@ class Investigation::Step < ApplicationRecord
 
   def failure_of(error)
     name = error.class.name.demodulize
-    message = error.message.to_s.squish
+    message = Chat::SecretFree.redacted(error.message.to_s.squish)
     message.empty? || message == error.class.name ? name : "#{name}: #{message}".truncate(FAILURE_LIMIT)
   end
 end
