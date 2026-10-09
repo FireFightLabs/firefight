@@ -8,6 +8,7 @@ import { InstructionsTab } from "@/pages/memory/components/instructions-tab"
 import { MemoriesTab } from "@/pages/memory/components/memories-tab"
 import { MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS, MEMORY_QUERY_PARAM } from "@/lib/generated/constants"
 import type { MemoryPageProps, MemoryTab } from "@/pages/memory/types"
+import { replaceQuery } from "@/lib/query"
 
 function tabFromUrl(): MemoryTab {
   const requested = new URLSearchParams(window.location.search).get(MEMORY_PAGE_TAB_QUERY)
@@ -33,9 +34,7 @@ export default function MemoryPage() {
       return
     }
     setTab(chosen)
-    const params = new URLSearchParams(window.location.search)
-    params.set(MEMORY_PAGE_TAB_QUERY, chosen)
-    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+    replaceQuery({ [MEMORY_PAGE_TAB_QUERY]: chosen })
   }
 
   return (
