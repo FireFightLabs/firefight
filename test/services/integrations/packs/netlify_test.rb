@@ -42,6 +42,8 @@ module Integrations
 
         assert_equal "Netlify refused this token: Netlify answered 401: Access Denied.", Netlify.credential_refusal({ Netlify::API_TOKEN => "bad" })
         assert_equal "Paste a personal access token.", Netlify.credential_refusal({})
+        assert_equal "Netlify refused this token: Netlify answered 401: Access Denied.",
+                     Integrations::Credentials.refusal(Netlify::PROVIDER_KEY, { Netlify::API_TOKEN => "bad" }, region: nil, fields: {})
       end
 
       test "a site is described by its domain, with what it serves and builds from, and never its password, hook or environment" do

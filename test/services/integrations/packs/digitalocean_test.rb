@@ -43,6 +43,8 @@ module Integrations
         assert_equal "DigitalOcean refused this token: DigitalOcean answered 401: Unable to authenticate you.",
                      Digitalocean.credential_refusal({ Digitalocean::API_TOKEN => "dop-bad" })
         assert_equal "Paste a personal access token.", Digitalocean.credential_refusal({})
+        assert_equal "DigitalOcean refused this token: DigitalOcean answered 401: Unable to authenticate you.",
+                     Integrations::Credentials.refusal(Digitalocean::PROVIDER_KEY, { Digitalocean::API_TOKEN => "dop-bad" }, region: nil, fields: {})
         assert_raises(Integrations::Error) { @pack.check_health!(@row) }
       end
 

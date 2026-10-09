@@ -84,7 +84,7 @@ module Integrations
       end
 
       # Reads the token's user, so a wrong token is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
         return "Paste a personal access token." if token.empty?
 
