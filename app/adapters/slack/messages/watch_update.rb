@@ -16,7 +16,7 @@ module Slack
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: "#{TITLES.fetch(update.tone, ':eyes:')}  *#{Mrkdwn.escape(title(update))}*" } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: Mrkdwn.escape(update.text).truncate(FixProgress::SECTION_TEXT_LIMIT) } }
+          { type: "section", text: { type: "mrkdwn", text: Mrkdwn.escape(update.text).truncate(Formatting::SECTION_TEXT_LIMIT) } }
         ]
         open = direct && link(conversation_id)
         blocks << open if open

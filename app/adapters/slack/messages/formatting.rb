@@ -1,8 +1,13 @@
 module Slack
   module Messages
     module Formatting
+      # The most text Slack takes in one section block.
+      SECTION_TEXT_LIMIT = 3000
       LIST_MARKER = /\A([ \t]*)[-*+][ \t]+/
       CODE_FENCE = /\A[ \t]*```/
+
+      # A time of day each reader sees in their own time zone, with UTC for a client that cannot show it.
+      def self.slack_time(time) = "<!date^#{time.to_i}^{time}|#{time.utc.strftime('%H:%M UTC')}>"
 
       def self.format_duration(minutes)
         return "N/A" if minutes.nil?

@@ -9,7 +9,7 @@ module Slack
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: ":question:  *#{title(question)}*" } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: "*#{Mrkdwn.escape(question.question)}*".truncate(2_900) } },
+          { type: "section", text: { type: "mrkdwn", text: "*#{Mrkdwn.escape(question.question)}*".truncate(Formatting::SECTION_TEXT_LIMIT) } },
           *option_blocks(question)
         ]
         return blocks << { type: "context", elements: [ { type: "mrkdwn", text: settled(question) } ] } unless question.open?
@@ -22,14 +22,14 @@ module Slack
 
       def self.title(question) = question.open? ? "The coding agent asks" : "The coding agent asked"
 
-      def self.quoted(text) = Mrkdwn.escape(text.to_s).lines.map { |line| "> #{line.chomp}" }.join("\n").truncate(2_900)
+      def self.quoted(text) = Mrkdwn.escape(text.to_s).lines.map { |line| "> #{line.chomp}" }.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT)
 
       # Each option in a line of its own: the label in bold, Recommended with why on the agent's pick, what it leads to below.
       def self.option_blocks(question)
         question.choices.each_with_index.map do |choice, index|
           mark = index == question.recommended ? "  ·  _Recommended. #{Mrkdwn.escape(question.recommended_reason.to_s)}_" : ""
           picked = index == question.chosen && !question.open? ? ":white_check_mark:  " : ""
-          { type: "section", text: { type: "mrkdwn", text: "#{picked}*#{Mrkdwn.escape(choice.label)}*#{mark}\n#{Mrkdwn.escape(choice.consequence)}".truncate(2_900) } }
+          { type: "section", text: { type: "mrkdwn", text: "#{picked}*#{Mrkdwn.escape(choice.label)}*#{mark}\n#{Mrkdwn.escape(choice.consequence)}".truncate(Formatting::SECTION_TEXT_LIMIT) } }
         end
       end
 
@@ -50,14 +50,14 @@ module Slack
       def self.waiting(question)
         asker = question.session.principal
         who = asker ? Mrkdwn.mention(asker) : "the person who asked for the change"
-        due = "<!date^#{question.answer_due_at.to_i}^{time}|#{question.answer_due_at.utc.strftime('%H:%M UTC')}>"
+        due = Formatting.slack_time(question.answer_due_at)
         "Only #{who} can answer.  ·  If nobody answers by #{due}, #{question.timeout_outcome}."
       end
 
       def self.settled(question)
         if question.answered?
           said = question.chosen_option ? "chose #{Mrkdwn.escape(question.chosen_option.label)}" : "answered: #{Mrkdwn.escape(question.answer.to_s)}"
-          return "*#{Mrkdwn.escape(question.answered_by_name.to_s)}* #{said}".truncate(2_900)
+          return "*#{Mrkdwn.escape(question.answered_by_name.to_s)}* #{said}".truncate(Formatting::SECTION_TEXT_LIMIT)
         end
         return "Nobody answered in time, so the change went with the recommendation, #{Mrkdwn.escape(question.recommended_option.label)}." if question.defaulted?
         return "Nobody answered in time, so the change stopped." if question.expired?

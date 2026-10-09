@@ -24,10 +24,10 @@ module Slack
         blocks = [ { type: "section", text: { type: "mrkdwn", text: "#{TITLES.fetch(held_call.status, ':unlock:')}  *#{Mrkdwn.escape(held_call.headline)}*" } } ]
         body = body_text(held_call)
         blocks << { type: "divider" } if body || held_call.asked.any?
-        blocks << { type: "section", text: { type: "mrkdwn", text: body.truncate(FixProgress::SECTION_TEXT_LIMIT) } } if body
+        blocks << { type: "section", text: { type: "mrkdwn", text: body.truncate(Formatting::SECTION_TEXT_LIMIT) } } if body
         if held_call.asked.any?
           fields = held_call.asked.map { |name, value| "#{Mrkdwn.escape(name)}: #{Mrkdwn.escape(value)}" }.join("  ·  ")
-          blocks << { type: "context", elements: [ { type: "mrkdwn", text: fields.truncate(FixProgress::SECTION_TEXT_LIMIT) } ] }
+          blocks << { type: "context", elements: [ { type: "mrkdwn", text: fields.truncate(Formatting::SECTION_TEXT_LIMIT) } ] }
         end
         footer = footer_text(held_call)
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: footer } ] } if footer
@@ -52,7 +52,7 @@ module Slack
         parts = []
         if [ Chat::HeldCall::STATUS_CHECKING, Chat::HeldCall::STATUS_READY ].include?(held_call.status) && held_call.expires_at
           time = held_call.expires_at
-          parts << "Expires <!date^#{time.to_i}^{time}|#{time.utc.strftime('%H:%M UTC')}>"
+          parts << "Expires #{Formatting.slack_time(time)}"
         end
         parts << "Run by #{Mrkdwn.escape(held_call.decided_by)}" if held_call.decided_by && ran?(held_call)
         parts << "Dismissed by #{Mrkdwn.escape(held_call.decided_by)}" if held_call.decided_by && held_call.status == Chat::HeldCall::STATUS_DISMISSED

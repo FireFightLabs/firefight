@@ -41,7 +41,7 @@ class Slack::Messages::StatusUpdateTest < ActiveSupport::TestCase
     body = blocks.select { |block| block[:type] == "section" && block.dig(:text, :text).start_with?(">") }
 
     assert_operator body.size, :>, 1
-    assert body.all? { |block| block.dig(:text, :text).length <= Slack::Messages::StatusUpdate::SECTION_TEXT_LIMIT }
+    assert body.all? { |block| block.dig(:text, :text).length <= Slack::Messages::Formatting::SECTION_TEXT_LIMIT }
     assert_equal lines.map { |line| line.sub("- ", "> • ") }, body.flat_map { |block| block.dig(:text, :text).split("\n") }
   end
 
