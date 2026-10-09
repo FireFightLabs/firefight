@@ -37,7 +37,8 @@ class PackRequestService
       return Result.new(ok: false, words: blocked)
     end
 
-    request.give!(by: by)
+    return Result.new(ok: false, words: request.give_blocked_reason || "This request was already answered.") unless request.give!(by: by)
+
     answered!(request)
     Result.new(ok: true, words: "#{request.requester.display_name} was given #{request.role.name}.")
   end
