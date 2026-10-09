@@ -64,7 +64,7 @@ class IntegrationSerializer < BaseSerializer
   # accessMissing says what the app installation was not granted that the tool needs, or null.
   type "{ id: string; name: string; description: string | null; actionKey: string; readOnly: boolean; enabled: boolean; available: boolean; toggleBlockedReason: string | null; accessMissing: string | null }[]"
   def tools
-    integration.tools.order(:name).map do |tool|
+    integration.tools.sort_by(&:name).map do |tool|
       { id: tool.id, name: tool.name, description: tool.description,
         actionKey: tool.action_key, readOnly: tool.read_only, enabled: tool.enabled,
         available: tool.available?, toggleBlockedReason: tool.toggle_blocked_reason, accessMissing: tool.access_missing_reason }

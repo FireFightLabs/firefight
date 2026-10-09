@@ -13,7 +13,7 @@ class Integration < ApplicationRecord
 
   belongs_to :workspace
   has_many :integration_environments, dependent: :destroy
-  has_many :tools, class_name: "Integration::Tool", dependent: :destroy
+  has_many :tools, class_name: "Integration::Tool", dependent: :destroy, inverse_of: :integration
   # Its read, changes and everything packs, which Firefight keeps in step with its tools (Ability::Role::Packs).
   has_many :permission_packs, class_name: "Ability::Role", dependent: :destroy
 
