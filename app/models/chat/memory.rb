@@ -30,6 +30,9 @@ class Chat::Memory < ApplicationRecord
   OUTDATED_ARCHIVED = "archived".freeze
   OUTDATED_CAUSES = [ OUTDATED_REMOVED, OUTDATED_RENAMED, OUTDATED_ARCHIVED ].freeze
 
+  # How a run's starting memory changed when a person deleted it, beside the state keys of the other changes.
+  CHANGE_DELETED = "deleted".freeze
+
   # The Memory page shows the memory this names, so a search result can link straight to it.
   QUERY_PARAM = "memory".freeze
 
@@ -138,6 +141,13 @@ class Chat::Memory < ApplicationRecord
     end
   end
 
+  # What a memory or instructions can be about, for a picker: the catalog's active entries, then the resources principal
+  # reads on the map, so the picker never names one outside their environments.
+  def self.subject_choices(workspace, principal:)
+    workspace.catalog_entries.active.includes(:catalog_type).order(:name).to_a +
+      ResourceMap::Resource.visible_to(principal, workspace).present.order(:name).to_a
+  end
+
   # A subject as the dashboard names it, its type and id, such as "CatalogEntry:<id>". Instructions use the same keys.
   def self.subject_key(subject) = subject && "#{subject.class.name}:#{subject.id}"
 
@@ -165,8 +175,12 @@ class Chat::Memory < ApplicationRecord
     signature = Chat::Memory::Words.signature(text)
     known = where(workspace: workspace, subject: subject).to_a.find { |memory| Chat::Memory::Words.signature(memory.text) == signature }
     return Learned.new(outcome: LEARNED_REJECTED, memory: known) if known&.state == STATE_REJECTED
-    # Learned again, so it is worth another wait for a person.
-    known.revive! if known&.state == STATE_EXPIRED
+    # Learned again, so it is worth another wait for a person, and an unconfirmed one waits from now.
+    if known&.state == STATE_EXPIRED
+      known.revive!
+    elsif known&.state == STATE_UNCONFIRMED
+      known.touch
+    end
     return Learned.new(outcome: LEARNED_KNOWN, memory: known) if known
 
     confirmer = added_by if vouched
@@ -223,7 +237,7 @@ class Chat::Memory < ApplicationRecord
 
   # How a run's starting memory changed since it began, or nil while it still holds. memory is nil once deleted.
   def self.change_since_start(id, memory)
-    return Change.new(key: "deleted", mark: "[deleted since this run started]", note: "Memory #{id} was deleted by a person since you started. Do not rely on it.") unless memory
+    return Change.new(key: CHANGE_DELETED, mark: "[deleted since this run started]", note: "Memory #{id} was deleted by a person since you started. Do not rely on it.") unless memory
 
     case memory.state
     when STATE_REJECTED
@@ -259,7 +273,7 @@ class Chat::Memory < ApplicationRecord
   end
 
   # An unconfirmed memory nobody confirmed within the workspace's window stops being used, counted from when it was
-  # last learned or came back into use. Returns how many expired.
+  # last learned, learned again or came back into use. Returns how many expired.
   def self.expire!(workspace)
     days = workspace.memory_expiry_days
     return 0 unless days
@@ -269,6 +283,8 @@ class Chat::Memory < ApplicationRecord
   end
 
   def confirmed? = state == STATE_CONFIRMED
+
+  def in_use? = USED_STATES.include?(state)
 
   # A lesson as it is shown beside the answer it came from.
   def lesson = { id: id, text: text, confirmed: confirmed? }

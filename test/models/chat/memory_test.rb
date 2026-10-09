@@ -184,6 +184,21 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     assert_nil old.confirm_blocked_reason, "a person can still confirm an expired memory"
   end
 
+  test "learning an unconfirmed memory again restarts its wait, so it expires counted from the last time it was learned" do
+    @workspace.update!(memory_expiry_days: 30)
+    relearned = remember("Deploys happen from main")
+    relearned.update_columns(updated_at: 31.days.ago)
+    confirmed = remember("Checkout runs in Frankfurt", state: Chat::Memory::STATE_CONFIRMED)
+    confirmed.update_columns(updated_at: 31.days.ago)
+
+    assert_equal Chat::Memory::LEARNED_KNOWN, learned("deploys happen from main").outcome
+    learned("Checkout runs in Frankfurt")
+
+    assert_equal 0, Chat::Memory.expire!(@workspace)
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, relearned.reload.state
+    assert_operator confirmed.reload.updated_at, :<, 30.days.ago, "only an unconfirmed memory waits, so a confirmed one is left as it was"
+  end
+
   test "Halon reads a postmortem's confirmation as a postmortem's, and a person's as theirs" do
     member = workspace_memberships(:alice_workspace_one)
     postmortem = Postmortem.create!(incident: incidents(:active_critical_ws1), generated_by: member, title: "Pool", status: Postmortem::STATUS_COMPLETED,
