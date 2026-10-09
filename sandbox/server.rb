@@ -459,16 +459,17 @@ module Sandbox
 
       timeout = request.fetch("timeout", DEFAULT_TIMEOUT).to_i.clamp(1, MAX_TIMEOUT)
       told = progress ? { "SANDBOX_PROGRESS" => progress } : {}
+      stdin = request["stdin"]&.to_s
       case request.fetch("where", "checkout")
       when "git"
         argv = argv.map { |part| part == "{commit}" ? sha : part }
-        Sandbox.run([ "git", "--git-dir", Repos.bare(name), *argv ], user: "reader", timeout: timeout, env: told).merge("commit" => sha)
+        Sandbox.run([ "git", "--git-dir", Repos.bare(name), *argv ], user: "reader", timeout: timeout, env: told, stdin: stdin).merge("commit" => sha)
       when "checkout"
-        Sandbox.run(argv, dir: Repos.checkout(name, sha), user: "reader", timeout: timeout, env: told).merge("commit" => sha)
+        Sandbox.run(argv, dir: Repos.checkout(name, sha), user: "reader", timeout: timeout, env: told, stdin: stdin).merge("commit" => sha)
       when "run"
         dir = Repos.run_copy(name, sha)
         env = Services.start(request["services"]).merge(Prepare.env(dir), told)
-        Sandbox.run([ "mise", "exec", "--", *argv ], dir: dir, user: "runner", timeout: timeout, env: env).merge("commit" => sha)
+        Sandbox.run([ "mise", "exec", "--", *argv ], dir: dir, user: "runner", timeout: timeout, env: env, stdin: stdin).merge("commit" => sha)
       else raise Refused, "No place called #{request['where']}"
       end
     end

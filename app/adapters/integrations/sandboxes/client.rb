@@ -37,9 +37,10 @@ module Integrations
 
       # on_output hears what the command writes to the file the box names in SANDBOX_PROGRESS, in whole lines, while it
       # runs, and is called on every read even when there is nothing new. A box from an image before background commands
-      # runs it in one request as before, and on_output never hears anything. Either way the answer is the same.
-      def exec(repository:, argv:, ref: nil, where: IN_CHECKOUT, timeout: 60, services: nil, on_output: nil)
-        payload = { repo: repository, ref: ref, argv: argv, where: where, timeout: timeout, services: services }.compact
+      # runs it in one request as before, and on_output never hears anything. Either way the answer is the same. stdin is
+      # what the command reads, for a credential that must not show in its arguments.
+      def exec(repository:, argv:, ref: nil, where: IN_CHECKOUT, timeout: 60, services: nil, on_output: nil, stdin: nil)
+        payload = { repo: repository, ref: ref, argv: argv, where: where, timeout: timeout, services: services, stdin: stdin }.compact
         return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
 
         follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)

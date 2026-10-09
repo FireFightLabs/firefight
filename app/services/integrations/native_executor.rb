@@ -12,8 +12,14 @@ module Integrations
 
       pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress, request: request)
       arguments = Scopes.resolved(environment_row, arguments.to_h)
-      result = ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
-      Redactions.apply(result, **Redactions.rules(tool.integration.provider))
+      rules = Redactions.rules(tool.integration.provider)
+      result = begin
+        ToolResult.normalize(pack.call(tool.remote_name, environment_row: environment_row, arguments: arguments))
+      rescue Integrations::Error => error
+        # A refusal's words reach the model and the chat as an answer does, so they lose credentials the same way.
+        raise error.exception(Redactions.message(error.message, **rules))
+      end
+      Redactions.apply(result, **rules)
     end
 
     def self.tool_definitions(integration)

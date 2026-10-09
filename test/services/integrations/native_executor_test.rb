@@ -35,6 +35,15 @@ module Integrations
       assert_equal "echo: DATABASE_URL=[REDACTED:credential_url]db.internal/app", result["content"].first["text"]
     end
 
+    test "a pack's refusal has credentials taken out of its words too, and keeps its kind" do
+      tool = @integration.tools.find_by!(name: "echo_text")
+      FakeNativePack.any_instance.stubs(:echo_text).raises(Integrations::PolicyRefusal, "The agent stopped.\nDATABASE_URL=postgres://app:s3cret@db.internal/app")
+
+      error = assert_raises(Integrations::PolicyRefusal) { NativeExecutor.call(tool: tool, environment_row: nil, arguments: {}) }
+
+      assert_equal "The agent stopped.\nDATABASE_URL=[REDACTED:credential_url]db.internal/app", error.message
+    end
+
     test "hash results serialize as pretty JSON text" do
       tool = @integration.tools.create!(name: "data_result", read_only: true, enabled: true)
       result = NativeExecutor.call(tool: tool, environment_row: nil, arguments: {})

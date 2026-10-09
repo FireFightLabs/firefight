@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_120100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -716,6 +716,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_120100) do
     t.text "recommended_reason"
     t.integer "chosen"
     t.index ["code_agent_session_id"], name: "index_code_agent_questions_on_code_agent_session_id"
+    t.index ["code_agent_session_id"], name: "index_code_agent_questions_one_open", unique: true, where: "((status)::text = 'open'::text)"
     t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
   end
 
@@ -764,6 +765,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_120100) do
     t.datetime "told_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "resumed_at"
     t.index ["conversation_id"], name: "index_code_agent_session_pauses_on_conversation_id"
     t.index ["decided_by_id"], name: "index_code_agent_session_pauses_on_decided_by_id"
     t.index ["session_id"], name: "index_code_agent_session_pauses_on_session_id"
@@ -803,7 +805,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_120100) do
     t.datetime "pull_request_checked_at"
     t.datetime "pull_request_check_claimed_at"
     t.datetime "pull_request_ended_at"
+    t.string "push_token_digest"
+    t.datetime "push_open_until"
+    t.integer "questions_asked", default: 0, null: false
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
+    t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
     t.index ["workspace_ai_account_id"], name: "index_code_agent_sessions_on_workspace_ai_account_id"
     t.index ["workspace_id", "repository", "pull_request_number"], name: "index_code_agent_sessions_on_pull_request", where: "(pull_request_number IS NOT NULL)"

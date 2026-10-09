@@ -199,6 +199,27 @@ module Integrations
           end
         end
 
+        test "no credential is in the script's arguments or the agent's environment, and the agent reads its config from the file it is given" do
+          Dir.mktmpdir do |root|
+            gate, copy, = repository_with_gate(root)
+            agent = <<~SH
+              #!/bin/sh
+              tr '\\0' ' ' < /proc/$PPID/cmdline > "#{root}/parent"
+              env > "#{root}/env"
+              cat "$OPENCODE_CONFIG" > "#{root}/config"
+              printf 'b\\n' > b.txt
+            SH
+
+            change = read(run_script(root, copy, agent, gate))
+
+            assert change.commit
+            assert_match "Fix the pool", File.read(File.join(root, "parent")), "the script's own arguments were read"
+            assert_no_match "secret-token", File.read(File.join(root, "parent"))
+            assert_no_match(/secret-token|halon:|Authorization/, File.read(File.join(root, "env")))
+            assert_equal "{\"apiKey\":\"secret-token\"}", File.read(File.join(root, "config"))
+          end
+        end
+
         test "the changed files are checked with what the box has" do
           Dir.mktmpdir do |root|
             gate, copy, = repository_with_gate(root) do |work|
@@ -285,13 +306,15 @@ module Integrations
           FileUtils.mkdir_p(bin)
           File.write(File.join(bin, "opencode"), agent)
           File.chmod(0o755, File.join(bin, "opencode"))
-          output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }.merge(env), "bash", "-c", Fixing::RUN, "opencode", "{}", "brief", "x/y",
-                                   earlier.to_s, gate, Base64.strict_encode64("halon:token"), "main", branch, "Fix the pool", resume, chdir: copy)
+          output, = Open3.capture2({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }.merge(env), "bash", "-c", Fixing::RUN, "opencode", "brief", "x/y",
+                                   earlier.to_s, gate, "main", branch, "Fix the pool", resume, chdir: copy,
+                                   stdin_data: "#{Base64.strict_encode64('halon:secret-token')}\n{\"apiKey\":\"secret-token\"}\n")
           output
         end
 
         def push(copy, gate, branch, lease, from: branch)
-          output, = Open3.capture2("bash", "-c", Fixing::PUSH, "push", gate, Base64.strict_encode64("halon:token"), branch, lease, from, chdir: copy)
+          output, = Open3.capture2("bash", "-c", Fixing::PUSH, "push", gate, branch, lease, from, chdir: copy,
+                                   stdin_data: "#{Base64.strict_encode64('halon:push-token')}\n")
           output
         end
 

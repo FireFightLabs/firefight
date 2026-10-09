@@ -1,6 +1,7 @@
 # What lets one coding agent in the sandbox reach a model for one code change, through Firefight's model proxy. The
 # token is the only credential the box ever holds. It reaches one model, until a budget is spent or the session ends,
-# and Firefight's own provider key never leaves Firefight.
+# and Firefight's own provider key never leaves Firefight. It fetches through the git gate but never pushes. A push
+# signs in with a token of its own, made for Firefight's push of the reviewed change and good only while that push runs.
 class CodeAgentSession < ApplicationRecord
   include CodeAgentSession::PullRequest
 
@@ -45,6 +46,14 @@ class CodeAgentSession < ApplicationRecord
     return if token.blank?
 
     live.find_by(token_digest: digest(token))
+  end
+
+  # The session whose push is open now, for the push token Firefight handed its own push. The agent's lifetime does not
+  # bound it, so a push after a long review still goes through.
+  def self.authenticate_push(token)
+    return if token.blank?
+
+    where(closed_at: nil).where("push_open_until > ?", Time.current).find_by(push_token_digest: digest(token))
   end
 
   def self.digest(token) = OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, token.to_s)
@@ -110,13 +119,34 @@ class CodeAgentSession < ApplicationRecord
         .update_all([ "tool_calls = tool_calls + 1, updated_at = ?", Time.current ]) == 1
   end
 
+  # Claimed in SQL, so questions asked at once cannot pass the cap. False when the change asked all it may.
+  def count_question!
+    self.class.where(id: id).where("questions_asked < ?", CodeAgentQuestion::MAX_PER_CHANGE)
+        .update_all([ "questions_asked = questions_asked + 1, updated_at = ?", Time.current ]) == 1
+  end
+
+  # A question the database refused gives its place back.
+  def uncount_question!
+    self.class.where(id: id).where("questions_asked > 0").update_all([ "questions_asked = questions_asked - 1, updated_at = ?", Time.current ])
+  end
+
   # What the change's tool calls are logged as in Activity.
   def triggered_by_label = "Coding agent for #{repository}"
 
-  # A second pass of the same change, sent back after its review, runs on the same token and budget.
-  def extend!(by = LIFETIME)
-    self.class.where(id: id, closed_at: nil).update_all(expires_at: by.from_now, updated_at: Time.current) == 1
+  # Opens the gate to one push for this long, and answers the token that push signs in with, or nil once the session
+  # closed. Opening again replaces the token, so only the newest push gets through.
+  def open_push!(within)
+    token = SecureRandom.urlsafe_base64(TOKEN_BYTES)
+    opened = self.class.where(id: id, closed_at: nil)
+                 .update_all(push_token_digest: self.class.digest(token), push_open_until: within.from_now, updated_at: Time.current) == 1
+    token if opened
   end
+
+  def close_push!
+    self.class.where(id: id).update_all(push_token_digest: nil, push_open_until: nil, updated_at: Time.current)
+  end
+
+  def pushing? = push_open_until.present? && push_open_until.future?
 
   def time_left = [ expires_at - Time.current, 0 ].max
 
@@ -127,6 +157,6 @@ class CodeAgentSession < ApplicationRecord
   def unanswered_question = questions.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)
 
   def close!
-    self.class.where(id: id, closed_at: nil).update_all(closed_at: Time.current, updated_at: Time.current)
+    self.class.where(id: id, closed_at: nil).update_all(closed_at: Time.current, push_token_digest: nil, push_open_until: nil, updated_at: Time.current)
   end
 end

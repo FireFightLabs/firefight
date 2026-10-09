@@ -21,20 +21,22 @@ module Integrations
         TITLE_LIMIT = 72
         # What the agent prints goes to the box's progress file as it runs (SANDBOX_PROGRESS, set by a box that reads
         # commands in the background) and to its log, so the steps show live and the answer is read at the end as before.
-        # The copy is a git repository on the change's branch ($8), and the agent may use any git command on it. Before it
-        # starts, the base ($7) and the branch are fetched through Firefight's git gate ($5, with the session's token as
-        # $6), so the newest of each is there whatever the box was handed. After it, what it left uncommitted is committed
-        # ($9 the message) and the result is kept as refs/halon/<branch> for PUSH, never pushed here, since the review
-        # comes first. What the pull request will change is measured from where the result leaves the base (FROM), as the
-        # code host shows it, so a merge of the base adds nothing to check or review. The checks, the counts and the patch
-        # are that, and TOUCHED names what this run changed since the copy's commit. A change sent back after its review
-        # starts from the earlier result ($4), and one continued after its spending limit also carries on the agent's own
-        # session ($10), which OpenCode keeps in the box (run --session, cli/cmd/run.ts at 1.18.34). SESSION names it from
-        # the events, which each carry it. The copy goes back to its commit and its own git settings after. What preparing
-        # installed is ignored, so cleaning keeps it.
+        # The agent's config and the gate's credential come in on stdin, never as arguments, since any process in the box
+        # can read another's arguments. The copy is a git repository on the change's branch ($6), and the agent may use
+        # any git command on it. Before it starts, the base ($5) and the branch are fetched through Firefight's git gate
+        # ($4, signed in with the session's token), so the newest of each is there whatever the box was handed. After it,
+        # what it left uncommitted is committed ($7 the message) and the result is kept as refs/halon/<branch> for PUSH,
+        # never pushed here, since the review comes first. What the pull request will change is measured from where the
+        # result leaves the base (FROM), as the code host shows it, so a merge of the base adds nothing to check or review.
+        # The checks, the counts and the patch are that, and TOUCHED names what this run changed since the copy's commit.
+        # A change sent back after its review starts from the earlier result ($3), and one continued after its spending
+        # limit also carries on the agent's own session ($8), which OpenCode keeps in the box (run --session,
+        # cli/cmd/run.ts at 1.18.34). SESSION names it from the events, which each carry it. The copy goes back to its
+        # commit and its own git settings after. What preparing installed is ignored, so cleaning keeps it.
         RUN = (CodeChecks::SCRIPT + <<~'SH').freeze
           set -u
-          earlier=${4:-}; gate_url=${5:-}; credential=${6:-}; base=${7:-}; branch=${8:-}; message=${9:-}; resume=${10:-}
+          IFS= read -r credential; IFS= read -r config
+          earlier=${3:-}; gate_url=${4:-}; base=${5:-}; branch=${6:-}; message=${7:-}; resume=${8:-}
           resumed=(); [ -n "$resume" ] && resumed=(--session "$resume")
           start=$(git rev-parse HEAD)
           dir=$(mktemp -d)
@@ -45,7 +47,7 @@ module Integrations
           }
           trap restore EXIT
           git reset -q --hard "$start" && git clean -fdq
-          gate() { git -c http.extraHeader="Authorization: Basic $credential" "$@"; }
+          gate() { GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader GIT_CONFIG_VALUE_0="Authorization: Basic $credential" git "$@"; }
           if [ -n "$gate_url" ]; then
             gate fetch -q --no-tags "$gate_url" "+refs/heads/$base:refs/remotes/firefight/$base" 2> "$dir/fetch.log" ||
               { echo "FETCH_FAILED $(tail -c 300 "$dir/fetch.log" | tr '\n' ' ')"; exit 0; }
@@ -54,8 +56,8 @@ module Integrations
           git checkout -q -B "$branch" "${earlier:-$start}" 2> /dev/null || { echo "EARLIER_NOT_APPLIED"; exit 0; }
           git config user.name Halon
           git config user.email halon@firefight.invalid
-          printf '%s' "$1" > "$dir/opencode.json"
-          OPENCODE_CONFIG="$dir/opencode.json" opencode run "${resumed[@]}" --model "$3" --format json "$2" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
+          printf '%s' "$config" > "$dir/opencode.json"
+          OPENCODE_CONFIG="$dir/opencode.json" opencode run "${resumed[@]}" --model "$2" --format json "$1" < /dev/null 2>&1 | tee "${SANDBOX_PROGRESS:-/dev/null}" > "$dir/agent.log"
           echo "AGENT_EXIT ${PIPESTATUS[0]}"
           echo "BASE $start"
           echo "SESSION $(grep -o '"sessionID":"[^"]*"' "$dir/agent.log" | head -1 | cut -d'"' -f4)"
@@ -88,14 +90,17 @@ module Integrations
           echo "LOG"
           tail -c 3000 "$dir/agent.log"
         SH
-        # The reviewed change pushed through the gate ($1, the session's token as $2) to the change's branch ($3). A branch
-        # that already exists moves only from the head the change was written on ($4), so one someone pushed to meanwhile
-        # is refused rather than overwritten, and a new one only when nobody made it first. What is pushed is the change
-        # kept for that branch, or for the branch $5 names, as when a paused change is saved to a branch of its own.
+        # The reviewed change pushed through the gate ($1) to the change's branch ($2), signed in with the push's own token,
+        # which comes in on stdin. A branch that already exists moves only from the head the change was written on ($3),
+        # so one someone pushed to meanwhile is refused rather than overwritten, and a new one only when nobody made it
+        # first. What is pushed is the change kept for that branch, or for the branch $4 names, as when a paused change is
+        # saved to a branch of its own. Git's settings outside the copy are ignored, since the agent could have written them.
         PUSH = <<~'SH'.freeze
           set -u
-          if [ -n "${4:-}" ]; then lease="--force-with-lease=refs/heads/$3:$4"; else lease="--force-with-lease=refs/heads/$3:"; fi
-          git -c http.extraHeader="Authorization: Basic $2" push --porcelain --no-verify "$lease" "$1" "refs/halon/${5:-$3}:refs/heads/$3" 2>&1
+          IFS= read -r credential
+          if [ -n "${3:-}" ]; then lease="--force-with-lease=refs/heads/$2:$3"; else lease="--force-with-lease=refs/heads/$2:"; fi
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader \
+            GIT_CONFIG_VALUE_0="Authorization: Basic $credential" git push --porcelain --no-verify "$lease" "$1" "refs/halon/${4:-$2}:refs/heads/$2" 2>&1
           echo "PUSH_EXIT $?"
         SH
         CONTINUE_ARG = CodeAgentSession::Pause::CONTINUE_ARG
@@ -114,7 +119,7 @@ module Integrations
         EARLIER_NOT_APPLIED = "EARLIER_NOT_APPLIED".freeze
         FETCH_FAILED = "FETCH_FAILED".freeze
         PUSHED = /^PUSH_EXIT 0$/
-        # The gate's address the box reaches, and the name git signs in with, beside the session's token.
+        # The gate's address the box reaches, and the name git signs in with, beside the session's token or the push's.
         GATE_PATH = "/code_agent/git/change.git".freeze
         GATE_USER = "halon".freeze
         # A change this large is not a fix, and would cut the box's answer short.
@@ -286,7 +291,7 @@ module Integrations
         end
 
         def take_back!(repo, branch, before, token)
-          ref = "/repos/#{repo}/git/refs/heads/#{branch.split('/').map { |part| Http.segment(part) }.join('/')}"
+          ref = branch_ref(repo, branch)
           before ? GithubApp.write(:patch, ref, { sha: before, force: true }, token: token) : GithubApp.write(:delete, ref, token: token)
         rescue GithubApp::Error => error
           Rails.logger.warn({ event: "code_fix.take_back_failed", repository: repo, error: error.message.truncate(200) }.to_json)
@@ -300,6 +305,8 @@ module Integrations
         rescue Integrations::Error, GithubApp::Error => error
           "Whether it can merge could not be read just now (#{error.message.truncate(160)}), so do not say it can."
         end
+
+        def branch_ref(repo, branch) = "/repos/#{repo}/git/refs/heads/#{branch.split('/').map { |part| Http.segment(part) }.join('/')}"
 
         # The commit a branch is at now, as GitHub says, so a change is written on what is there rather than on what the
         # box was handed earlier.
@@ -345,7 +352,7 @@ module Integrations
           fail_policy! "#{branch} is the default branch of #{repo}, and a code change reaches it only through a pull request." if branch == default_branch(repo, token)
           fail_policy! "#{branch} in #{repo} is protected, so Firefight does not push to it." if GithubApp.get("/repos/#{repo}/branches/#{Http.segment(branch)}", token: token)["protected"]
 
-          rules = Array(GithubApp.get("/repos/#{repo}/rules/branches/#{Http.segment(branch)}?per_page=100", token: token))
+          rules = branch_rules(repo, branch, token)
           fail_policy! "A ruleset in #{repo} keeps pushes off #{branch}, so Firefight does not push to it." if rules.any? { |rule| Branches::PUSH_RULES.include?(rule["type"]) }
         end
 
@@ -384,11 +391,11 @@ module Integrations
           @session = session
           events = SandboxAgentEvents.new(@work, hidden: [ agent_token ])
           told = [ agent_brief(environment_row, brief, context), format(GIT_BRIEF, branch: branch, base: base) ].join("\n\n")
-          gate = [ "#{proxy_base}#{GATE_PATH}", Base64.strict_encode64("#{GATE_USER}:#{agent_token}"), base, branch, title ]
+          gate = [ gate_url, base, branch, title ]
           pass = lambda do |words, earlier, timeout, resume = nil|
             run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume)
           rescue BudgetReached => reached
-            pause!(environment_row, reading, repo, ref, gate, session, reached.change, base: base, branch: branch, lease: lease)
+            pause!(environment_row, reading, repo, ref, session, reached.change, events, base: base, branch: branch, lease: lease)
           end
           first = FIX_TIMEOUT + (CodeAgentQuestion::MAX_PER_CHANGE * CodeAgentQuestion::ANSWER_WITHIN).to_i
           change = if @pause&.resumable_in_place?
@@ -400,7 +407,7 @@ module Integrations
           else
             pass.call(told, nil, first)
           end
-          fail! "The coding agent changed nothing in #{repo}.\n#{change.log}" if change.nothing?
+          fail! "The coding agent changed nothing in #{repo}.\n#{events.redacted(change.log)}" if change.nothing?
 
           reviewed = review(session, choice, brief, change, events, updating: lease.present?)
           if reviewed.ran && !reviewed.right
@@ -410,7 +417,8 @@ module Integrations
 
             reviewed = again.with(sent_back: true)
           end
-          push!(reading, repo, ref, gate, branch, lease)
+          kept_out!(environment_row, repo, change, updating: lease.present?)
+          push!(session, reading, repo, ref, branch, lease)
           [ change, reviewed ]
         ensure
           CodeAgentQuestion.withdraw_open!(session) if session
@@ -418,9 +426,9 @@ module Integrations
         end
 
         def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
-          argv = [ "bash", "-c", RUN, AGENT, agent_config(choice, agent_token).to_json, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}",
-                   earlier.to_s, *gate, resume.to_s ]
-          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv,
+          argv = [ "bash", "-c", RUN, AGENT, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}", earlier.to_s, *gate, resume.to_s ]
+          stdin = "#{gate_credential(agent_token)}\n#{agent_config(choice, agent_token).to_json}\n"
+          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv, stdin: stdin,
                                       on_output: lambda { |text|
                                         watch_questions(session)
                                         report(events.read(text))
@@ -438,7 +446,7 @@ module Integrations
 
           unanswered = session.unanswered_question
           fail! "The coding agent asked a question nobody answered within #{CodeAgentQuestion::ANSWER_WITHIN.in_minutes.to_i} minutes, so nothing is opened: #{unanswered.question}" if unanswered
-          fail! "The coding agent stopped with an error, so its change is not opened.\n#{change.log}" unless change.agent_exit.zero?
+          fail! "The coding agent stopped with an error, so its change is not opened.\n#{events.redacted(change.log)}" unless change.agent_exit.zero?
           fail! "The coding agent left conflict markers in #{change.unresolved.to_sentence}, so nothing is pushed." if change.unresolved.any?
           fail! "The change is larger than #{MAX_BYTES / 1_000_000} MB, which is not a fix." if change.bytes > MAX_BYTES
 
@@ -449,12 +457,18 @@ module Integrations
         PUSH_TIMEOUT = 300
 
         # The reviewed change pushed through the gate, as the box's own git sends it. A branch that moved since is refused.
-        def push!(reading, repo, ref, gate, branch, lease, from: nil)
+        # The gate lets a push through only while this one runs, signed in with a token made for it, so the agent, which
+        # holds the session's token, can never push on its own.
+        def push!(session, reading, repo, ref, branch, lease, from: nil)
           @work.add("Pushing #{branch}")
           report(@work)
-          url, credential, = gate
-          result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: PUSH_TIMEOUT,
-                                argv: [ "bash", "-c", PUSH, "push", url, credential, branch, lease.to_s, (from || branch).to_s ])
+          push_token = session.open_push!((PUSH_TIMEOUT + Sandboxes::Client::MARGIN).seconds) || fail!("This code change's session has ended, so nothing was pushed.")
+          result = begin
+            reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: PUSH_TIMEOUT, stdin: "#{gate_credential(push_token)}\n",
+                         argv: [ "bash", "-c", PUSH, "push", gate_url, branch, lease.to_s, (from || branch).to_s ])
+          ensure
+            session.close_push!
+          end
           said = result["stdout"].to_s
           return if said.match?(PUSHED)
 
@@ -469,13 +483,14 @@ module Integrations
                             "committed is on the branch.".freeze
 
         # The pause the person continued, when this call carries one on. Only one they pressed Continue on, for the change
-        # that runs as them, is carried on.
+        # that runs as them, is carried on, and only once.
         def continued_pause(arguments)
           id = arguments[CONTINUE_ARG].presence
           return unless id
 
           pause = CodeAgentSession::Pause.find_by(id: id, workspace_id: integration.workspace.id, status: CodeAgentSession::Pause::STATUS_CONTINUING)
-          fail! "This paused change cannot be continued now." unless pause && (request.nil? || pause.session.principal == request.principal)
+          fail! "This paused change cannot be continued now." unless pause && request&.principal.present? && pause.session.principal == request.principal
+          fail! "This paused change was already carried on." unless pause.claim_resume!
 
           pause
         end
@@ -483,12 +498,13 @@ module Integrations
         # The change reached its spending limit: what it wrote so far is committed and pushed through the gate to a branch
         # of its own without opening anything, the box is kept for Continue to carry on in place, and the person is asked
         # whether to continue. A change for an open pull request is saved beside it, never on its branch.
-        def pause!(environment_row, reading, repo, ref, gate, session, change, base:, branch:, lease:)
+        def pause!(environment_row, reading, repo, ref, session, change, events, base:, branch:, lease:)
           adding = @pause ? @pause.target_branch.present? : lease.present?
           saved = @pause&.saved_branch || (adding ? "#{BRANCH_PREFIX}#{SecureRandom.hex(4)}" : branch)
           unless change.nothing?
+            kept_out!(environment_row, repo, change, updating: adding)
             session.update_columns(git_branch: saved)
-            push!(reading, repo, ref, gate, saved, (@pause&.saved_commit if @pause&.saved_branch), from: branch)
+            push!(session, reading, repo, ref, saved, (@pause&.saved_commit if @pause&.saved_branch), from: branch)
           end
           CodeBox.live.find_by(key: box_key)&.used!
           pause = CodeAgentSession::Pause.create!(
@@ -524,10 +540,14 @@ module Integrations
             "Finish what the request asks that the branch does not do yet, then verify it." ].compact.join("\n\n")
         end
 
-        # Stop on a paused change: its saved branch is deleted, and the box it stopped in closed.
+        # Stop on a paused change: its saved branch is deleted. A delete that fails raises, so the person is told the branch
+        # may still be there. The box is closed by whoever stops the pause.
         def discard_pause!(environment_row, pause)
-          take_back!(pause.repository, pause.saved_branch, nil, GithubApp.installation_token(environment_row)) if pause.saved_branch
-          CodeBox.live.find_by(key: pause.box_key)&.stop! if pause.box_key
+          return unless pause.saved_branch
+
+          GithubApp.write(:delete, branch_ref(pause.repository, pause.saved_branch), token: GithubApp.installation_token(environment_row))
+        rescue GithubApp::NotFound
+          nil
         end
         public :discard_pause!
 
@@ -637,6 +657,19 @@ module Integrations
             "mcp" => { "firefight" => { "type" => "remote", "url" => "#{proxy_base}/code_agent/tools", "enabled" => true,
                                         "headers" => { "Authorization" => "Bearer #{agent_token}" } } }
           }
+        end
+
+        # What git in the box signs in to the gate with, as HTTP Basic, for a fetch with the session's token or a push with its own.
+        def gate_credential(token) = Base64.strict_encode64("#{GATE_USER}:#{token}")
+
+        def gate_url = "#{proxy_base}#{GATE_PATH}"
+
+        # A path the connection keeps out of code changes is refused before anything reaches the code host, from what the
+        # box says the change touches: all of a new branch, and of a branch that already had work only what this run
+        # changed there, as landed! reads it back from GitHub, which checks again.
+        def kept_out!(environment_row, repo, change, updating:)
+          refusal = ConnectionSettings.of(environment_row).protected_paths_refusal(repo, updating ? change.updated_paths : change.counts.keys)
+          fail_policy! refusal if refusal
         end
 
         def proxy_base

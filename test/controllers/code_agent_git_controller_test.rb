@@ -23,7 +23,7 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
         path == Integrations::GitGate::RECEIVE && method == :post && length == sent.bytesize && headers["Content-Type"] == "application/x-git-receive-pack-request"
     end.multiple_yields([ :start, 200, { "content-type" => "application/x-git-receive-pack-result" } ], [ :chunk, "000eunpack ok\n0000" ])
 
-    post "/code_agent/git/change.git/git-receive-pack", params: body, headers: git_headers("application/x-git-receive-pack-request")
+    post "/code_agent/git/change.git/git-receive-pack", params: body, headers: git_headers("application/x-git-receive-pack-request", token: @session.open_push!(5.minutes))
 
     assert_response :success
     assert_equal body, sent, "the pack behind the commands is passed on unread"
@@ -33,8 +33,10 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
 
   test "a push to main, another branch, a tag or a delete is refused before anything reaches the code host" do
     Integrations::GitHttp.expects(:forward).never
+    push_token = @session.open_push!(5.minutes)
     [ "#{OLD} #{NEW} refs/heads/main", "#{OLD} #{NEW} refs/heads/feature", "#{'0' * 40} #{NEW} refs/tags/v1", "#{OLD} #{'0' * 40} refs/heads/halon/fix-1" ].each do |command|
-      post "/code_agent/git/change.git/git-receive-pack", params: pkt("#{command}\0report-status\n") + "0000PACK", headers: git_headers("application/x-git-receive-pack-request")
+      post "/code_agent/git/change.git/git-receive-pack", params: pkt("#{command}\0report-status\n") + "0000PACK",
+                                                             headers: git_headers("application/x-git-receive-pack-request", token: push_token)
 
       assert_response :forbidden
       assert_match "A code change", response.body
@@ -71,10 +73,41 @@ class CodeAgentGitControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "the agent's own token never pushes, and a push token works only while Firefight's push is open, even past the agent's lifetime" do
+    push = pkt("#{OLD} #{NEW} refs/heads/halon/fix-1\0report-status\n") + "0000PACK"
+    Integrations::GitHttp.expects(:forward).never
+
+    get "/code_agent/git/change.git/info/refs", params: { service: Integrations::GitGate::RECEIVE }, headers: git_headers(nil)
+    assert_response :unauthorized
+    post "/code_agent/git/change.git/git-receive-pack", params: push, headers: git_headers("application/x-git-receive-pack-request")
+    assert_response :unauthorized
+
+    push_token = @session.open_push!(5.minutes)
+    post "/code_agent/git/change.git/git-upload-pack", params: "0000", headers: git_headers("application/x-git-upload-pack-request", token: push_token)
+    assert_response :unauthorized, "the push token only pushes"
+
+    @session.close_push!
+    post "/code_agent/git/change.git/git-receive-pack", params: push, headers: git_headers("application/x-git-receive-pack-request", token: push_token)
+    assert_response :unauthorized
+  end
+
+  test "a push opened after the agent's session ran out of time still reaches the code host" do
+    @session.update_columns(expires_at: 1.minute.ago)
+    push_token = @session.open_push!(5.minutes)
+    Integrations::GitHttp.expects(:forward).multiple_yields([ :start, 200, {} ], [ :chunk, "0000" ])
+
+    post "/code_agent/git/change.git/git-receive-pack", params: pkt("#{OLD} #{NEW} refs/heads/halon/fix-1\0report-status\n") + "0000PACK",
+                                                         headers: git_headers("application/x-git-receive-pack-request", token: push_token)
+
+    assert_response :success
+    @session.close!
+    assert_nil @session.open_push!(5.minutes), "a closed session never opens a push"
+  end
+
   private
 
-  def git_headers(content_type)
-    { "Authorization" => "Basic #{Base64.strict_encode64("halon:#{@token}")}", "CONTENT_TYPE" => content_type }.compact
+  def git_headers(content_type, token: @token)
+    { "Authorization" => "Basic #{Base64.strict_encode64("halon:#{token}")}", "CONTENT_TYPE" => content_type }.compact
   end
 
   def pkt(line) = format("%04x", line.bytesize + 4) + line

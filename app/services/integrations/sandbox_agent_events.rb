@@ -39,6 +39,10 @@ module Integrations
       @progress
     end
 
+    # The agent's raw log can hold what a tool printed, such as an environment or a key a test logged, so it reaches
+    # the model, a chat or the ledger only with credentials and the agent's own token taken out.
+    def redacted(text) = Chat::SecretFree.redacted(hide(text))
+
     private
 
     def take(event)

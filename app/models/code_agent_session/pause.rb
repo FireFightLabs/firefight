@@ -15,7 +15,7 @@ class CodeAgentSession::Pause < ApplicationRecord
 
   QUESTION = "This fix has reached its spending limit before finishing. Continue?".freeze
   # The argument a code host's code change tool is called with when the person pressed Continue, naming the pause. A
-  # model setting it gets nowhere, since only a pause someone continued is carried on.
+  # model setting it gets nowhere, since only a pause someone continued is carried on, and only once (claim_resume!).
   CONTINUE_ARG = "continue_paused".freeze
 
   belongs_to :session, class_name: "CodeAgentSession", inverse_of: :pauses
@@ -52,6 +52,17 @@ class CodeAgentSession::Pause < ApplicationRecord
                 .update_all(status: to, decided_by_id: member.id, decided_at: Time.current, updated_at: Time.current) == 1
     reload
     moved
+  end
+
+  # The one call that carries a continued pause on claims it, so a second call naming it runs nothing, however it came.
+  def claim_resume!
+    self.class.where(id: id, status: STATUS_CONTINUING, resumed_at: nil).update_all(resumed_at: Time.current, updated_at: Time.current) == 1
+  end
+
+  # Continue was pressed but nothing carried the change on, so the person can choose again.
+  def offer_again!
+    self.class.where(id: id, status: STATUS_CONTINUING, resumed_at: nil)
+        .update_all(status: STATUS_OFFERED, decided_by_id: nil, decided_at: nil, updated_at: Time.current) == 1
   end
 
   # The shape the step's progress carries, Chat::CodeFixProgress#to_h.
