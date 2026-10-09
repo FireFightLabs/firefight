@@ -5,6 +5,8 @@ class CodeBox < ApplicationRecord
   IDLE_AFTER = 15.minutes
   # Nothing holds a box this long without using it, whatever started it.
   ABANDONED_AFTER = 1.hour
+  # What the sandbox can start inside a box for a repository's tests.
+  SERVICES = %w[postgres redis].freeze
 
   belongs_to :workspace
 

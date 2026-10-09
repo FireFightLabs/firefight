@@ -20,6 +20,7 @@ module Integrations
       include CodeHost
       include Code
       include Pipelines
+      include CiConfig
 
       REPO_FORMAT = %r{\A[\w.\-]+(/[\w.\-]+)+\z}
       SHA_FORMAT = /\A\h{6,40}\z/

@@ -17,6 +17,7 @@ module Integrations
       include Branches
       include Security
       include ActionsSecrets
+      include Workflows
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       FILE_LIMIT = 30

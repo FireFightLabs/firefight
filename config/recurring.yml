@@ -34,6 +34,10 @@ development:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
     schedule: every 10 minutes
+  prepared_copy_sweep:
+    class: PreparedCopySweepJob # removes what a repository's copy installed once no box used it for a week
+    queue: background
+    schedule: at 4:20am every day
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -142,6 +146,10 @@ staging:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
     schedule: every 10 minutes
+  prepared_copy_sweep:
+    class: PreparedCopySweepJob # removes what a repository's copy installed once no box used it for a week
+    queue: background
+    schedule: at 4:20am every day
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -276,6 +284,10 @@ production:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
     schedule: every 10 minutes
+  prepared_copy_sweep:
+    class: PreparedCopySweepJob # removes what a repository's copy installed once no box used it for a week
+    queue: background
+    schedule: at 4:20am every day
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes

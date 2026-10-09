@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_129000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_131100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1857,6 +1857,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_129000) do
     t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 
+  create_table "prepared_copies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.bigint "byte_size", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "install_key", null: false
+    t.datetime "last_used_at", null: false
+    t.string "repository", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["last_used_at"], name: "index_prepared_copies_on_last_used_at"
+    t.index ["workspace_id", "repository", "install_key"], name: "index_prepared_copies_on_workspace_repository_key", unique: true
+  end
+
   create_table "prompt_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "first_seen_at", null: false
@@ -1915,6 +1927,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_129000) do
     t.datetime "updated_at", null: false
     t.index ["key"], name: "index_provider_doc_sources_on_key", unique: true
     t.index ["provider"], name: "index_provider_doc_sources_on_provider"
+  end
+
+  create_table "repository_setups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "commands", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "derived_at"
+    t.string "derived_from"
+    t.datetime "edited_at"
+    t.jsonb "env", default: {}, null: false
+    t.uuid "integration_id", null: false
+    t.jsonb "notes", default: [], null: false
+    t.string "repository", null: false
+    t.jsonb "services", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["integration_id", "repository"], name: "index_repository_setups_on_integration_id_and_repository", unique: true
+    t.index ["workspace_id"], name: "index_repository_setups_on_workspace_id"
   end
 
   create_table "resource_map_baselines", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2695,8 +2724,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_129000) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "prepared_copies", "workspaces"
   add_foreign_key "provider_doc_chunks", "provider_doc_pages", on_delete: :cascade
   add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
+  add_foreign_key "repository_setups", "integrations"
+  add_foreign_key "repository_setups", "workspaces"
   add_foreign_key "resource_map_baselines", "integration_environments", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "workspaces"

@@ -20,6 +20,7 @@ module Integrations
           FirefightAi.stubs(:choices_for).returns([ FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic") ])
           FirefightAi.stubs(:priced_for?).returns(true)
           CodeReading.any_instance.stubs(:prepare).returns({})
+          CiSetup.stubs(:for).returns(nil)
           CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
           stub_compare([ "config/database.yml" ])
           GithubApp.stubs(:get).with("/repos/acme/api/branches/main", token: "ghs_token").returns("commit" => { "sha" => NEWEST })

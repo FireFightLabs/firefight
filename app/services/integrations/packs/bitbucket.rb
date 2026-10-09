@@ -21,6 +21,7 @@ module Integrations
       include CodeHost
       include Code
       include Pipelines
+      include CiConfig
 
       REPO_FORMAT = %r{\A[\w.\-]+/[\w.\-]+\z}
       WORKSPACE_FORMAT = /\A[\w.\-]+\z/

@@ -29,6 +29,16 @@ module Integrations
         stop(box) if box
       end
 
+      # Starts services in the live box a run reads code in, answering the variables that reach them. A box that is not
+      # running is not started for this, since nothing in it would use them.
+      def start_services(key, names)
+        box = CodeBox.live.find_by(key: key)
+        raise Error, "The sandbox for this change is not running, so nothing was started." unless box
+
+        box.used!
+        Sandboxes::Client.new(Sandboxes::Box.new(ref: box.box_ref, address: box.address, key: box.secret)).start_services(names)
+      end
+
       def stop(box)
         return unless box.stop!
 
@@ -107,8 +117,21 @@ module Integrations
       with_repository(repository) { |name| client.exec(repository: name, **options) }
     end
 
-    def prepare(repository, ref: nil)
-      with_repository(repository) { |name| client.prepare(repository: name, ref: ref) }
+    # Installs what the copy at ref needs and runs the repository's setup (RepositorySetup#for_box) in it. A copy whose
+    # lockfiles, version files and setup match one this workspace prepared before starts with what that one installed
+    # (PreparedCopy), and one installed from nothing is kept for the next. A box from an image before setups prepares
+    # as it always did.
+    def prepare(repository, ref: nil, setup: nil)
+      with_repository(repository) do |name|
+        next client.prepare(repository: name, ref: ref) unless client.setups?
+
+        state = client.prepare_state(repository: name, ref: ref)
+        key = PreparedCopy.key_for(lock_digest: state["lock_digest"], setup_digest: setup && Digest::SHA256.hexdigest(JSON.generate(setup)))
+        restore_prepared(repository, name, ref, key) unless state["prepared"]
+        prepared = client.prepare(repository: name, ref: ref, setup: setup)
+        keep_prepared(repository, name, ref, key) if prepared_from_nothing?(prepared)
+        prepared
+      end
     end
 
     def lsp(repository, **options)
@@ -116,6 +139,34 @@ module Integrations
     end
 
     private
+
+    def prepared_from_nothing?(prepared)
+      !prepared["already"] && !prepared["restored"] && (Array(prepared["prepared"]) + Array(prepared["setup"])).all? { |step| step["exit_code"].to_i.zero? }
+    end
+
+    # What a copy this workspace prepared before installed, handed to the box. Anything that goes wrong leaves the copy
+    # to install from nothing.
+    def restore_prepared(repository, name, ref, key)
+      kept = PreparedCopy.usable(@workspace, @remote.key(repository), key)
+      return unless kept
+
+      kept.archive.open { |file| client.upload_archive(repository: name, ref: ref, path: file.path) }
+      kept.used!
+    rescue Sandboxes::Error, ActiveStorage::Error, SystemCallError => error
+      Rails.logger.warn({ event: "prepared_copy.restore_failed", prepared_copy_id: kept&.id, error: error.message }.to_json)
+    end
+
+    # What the copy installed, kept for the next copy with the same key. A copy too large to keep, or one the box could
+    # not pack, is simply not kept.
+    def keep_prepared(repository, name, ref, key)
+      Dir.mktmpdir("prepared-copy") do |dir|
+        path = File.join(dir, "prepared.tar.gz")
+        client.download_archive(repository: name, ref: ref, path: path, limit: PreparedCopy::MAX_BYTES)
+        PreparedCopy.keep!(@workspace, @remote.key(repository), key, path)
+      end
+    rescue Sandboxes::Error, ActiveStorage::Error, SystemCallError => error
+      Rails.logger.warn({ event: "prepared_copy.keep_failed", repository: @remote.key(repository), error: error.message }.to_json)
+    end
 
     # A box can be gone while its row says it is live, stopped by hand, by a restart or by the provider. When a call
     # fails and the box no longer answers, its row is closed and the call runs once more in a new box.

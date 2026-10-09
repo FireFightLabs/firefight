@@ -38,6 +38,7 @@ class Workspace < ApplicationRecord
   has_many :policies, dependent: :destroy
   has_many :agents, dependent: :destroy
   has_many :integrations, dependent: :destroy
+  has_many :prepared_copies, dependent: :destroy
   has_many :ability_actions, class_name: "Ability::Action", dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
   has_many :runbooks, dependent: :destroy
