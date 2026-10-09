@@ -41,6 +41,20 @@ module Integrations
       nil
     end
 
+    # The host's words that the repository has no CI it reads, or nil when it has one or that could not be told. A setup
+    # read from CI says it has one without asking, and one an admin wrote by hand does not.
+    def absent(environment_row, repository)
+      return nil unless reads?(environment_row.integration)
+      return nil if RepositorySetup.for(environment_row.integration, repository)&.derived_from
+
+      read(environment_row, repository)
+      nil
+    rescue Missing => missing
+      missing.message
+    rescue Integrations::Error
+      nil
+    end
+
     # Reads the setup from the repository's CI again and keeps it, replacing what was kept, edits included. Raises
     # Missing or the host's error when it could not.
     def derive!(environment_row, repository)

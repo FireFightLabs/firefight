@@ -30,6 +30,11 @@ class RepositorySetupsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to @details
     assert_equal({ "repository" => "acme/api has no .github/workflows folder." }, session[:inertia_errors].stringify_keys)
     refute @github.repository_setups.exists?
+
+    post integration_repository_setups_url(@github), params: { repository: "acme/api", services: [ { name: "postgres" } ], commands: [ "bin/setup" ] }
+
+    assert_equal "Saved how acme/api is set up before its tests.", flash[:notice]
+    assert_equal [ "bin/setup" ], @github.repository_setups.find_by!(repository: "acme/api").commands, "a repository with no CI is set up by hand"
   end
 
   test "an admin sets a repository up by hand, changes it and clears it, each with a toast" do

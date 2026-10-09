@@ -21,6 +21,7 @@ module Integrations
           FirefightAi.stubs(:priced_for?).returns(true)
           CodeReading.any_instance.stubs(:prepare).returns({})
           CiSetup.stubs(:for).returns(nil)
+          CiSetup.stubs(:absent).returns(nil)
           CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
           stub_compare([ "config/database.yml" ])
           GithubApp.stubs(:get).with("/repos/acme/api/branches/main", token: "ghs_token").returns("commit" => { "sha" => NEWEST })
@@ -87,6 +88,36 @@ module Integrations
                                                                      "base" => "main", "pull_request" => 0, "branch" => "" })
 
           assert_match "Opened https://github.com/acme/api/pull/8", text
+        end
+
+        test "a repository with no CI is prepared from what the sandbox finds, still opens its pull request, and both it and the answer say plainly there is no CI" do
+          CiSetup.unstub(:absent)
+          CiSetup.stubs(:read).raises(CiSetup::Missing, "acme/api has no .github/workflows folder.")
+          CodeReading.any_instance.expects(:prepare).with("acme/api", ref: NEWEST, setup: nil).returns({})
+          stub_run("stdout" => agent_output, "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/9")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "base" => "main" })
+
+          said = "acme/api has no .github/workflows folder. #{CodeWriteUp::NO_CI}"
+          assert_includes body, "**No CI**\n#{said}"
+          assert_includes text, "No CI:\n#{said}"
+        end
+
+        test "a repository whose setup an admin wrote by hand, and that has no CI, runs with that setup and still says there is no CI" do
+          CiSetup.unstub(:for)
+          CiSetup.unstub(:absent)
+          CiSetup.stubs(:read).raises(CiSetup::Missing, "acme/api has no .github/workflows folder.")
+          setup = @integration.repository_setups.new(workspace: @workspace, repository: "acme/api")
+          setup.change!(services: [ { "name" => "postgres" } ], env: {}, commands: [ "bin/setup" ])
+          CodeReading.any_instance.expects(:prepare).with("acme/api", ref: NEWEST, setup: setup.reload.for_box).returns({})
+          stub_run("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/9")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "base" => "main" })
+
+          assert_includes text, CodeWriteUp::NO_CI
         end
 
         test "an agent that changed nothing opens nothing and says what it said" do

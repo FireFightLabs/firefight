@@ -208,6 +208,21 @@ module Integrations
       refute RepositorySetup.exists?(repository: "acme/api")
     end
 
+    test "a repository with no CI learns no setup, and is said to have none until it has one, whatever an admin wrote by hand" do
+      row = github_row
+      GithubApp.stubs(:get).with("/repos/acme/api/contents/.github/workflows", token: "ghs_token").raises(GithubApp::NotFound, "GitHub answered 404")
+
+      assert_nil CiSetup.for(row, "acme/api")
+      refute RepositorySetup.exists?(repository: "acme/api")
+      assert_equal "acme/api has no .github/workflows folder.", CiSetup.absent(row, "acme/api")
+
+      row.integration.repository_setups.new(workspace: @workspace, repository: "acme/api").change!(services: [], env: {}, commands: [ "bin/setup" ])
+      assert_equal "acme/api has no .github/workflows folder.", CiSetup.absent(row, "acme/api")
+
+      stub_workflows("ci.yml" => WORKFLOW)
+      assert_nil CiSetup.absent(row, "acme/api")
+    end
+
     test "every code host reads its repositories' CI" do
       IntegrationProvider.all.select(&:holds_code).each do |provider|
         assert Packs.const_get(provider.key.camelize).method_defined?(:ci_setup), "#{provider.key} holds code but reads no CI"

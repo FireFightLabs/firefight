@@ -62,6 +62,20 @@ module Integrations
                       "- The full suite needs Redis."
     end
 
+    test "a repository with no CI says so plainly in the body, the comment and the answer, after what could not run, and one with CI says nothing" do
+      said = "acme/api has no .github/workflows folder"
+      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: @change, no_ci: said)
+      comment = CodeWriteUp.comment(lead: "Raises it again.", warning: nil, reviewed: @reviewed, change: @change, base: "main", no_ci: said)
+      answer = CodeWriteUp.answer(done: "Opened it.", warning: nil, reviewed: @reviewed, change: @change, base: "main", updating: false, no_ci: said)
+
+      plain = "acme/api has no .github/workflows folder. With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, " \
+              "and the owner's review decides whether it is ready."
+      assert_includes body, "**No CI**\n#{plain}\n\n**Files**"
+      assert_includes comment, "**No CI**\n#{plain}"
+      assert answer.end_with?("No CI:\n#{plain}")
+      assert_not_includes CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: @change), "No CI"
+    end
+
     test "an update's comment says what this update changed in the pull request, and a merge from the base adds no file" do
       comment = CodeWriteUp.comment(lead: "Merges main and keeps the run name fix.", warning: nil, reviewed: @reviewed, change: @change, base: "main")
 

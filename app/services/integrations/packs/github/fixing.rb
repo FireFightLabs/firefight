@@ -221,7 +221,8 @@ module Integrations
           files = landed!(repo, base: base, branch: branch, head: change.commit, before: nil, environment_row: environment_row, token: token)
 
           warning = CodeChange.ci_warning(files)
-          body = CodeWriteUp.body(lead: arguments["summary"].presence || title, context: arguments["context"], warning: warning, reviewed: reviewed, change: change)
+          body = CodeWriteUp.body(lead: arguments["summary"].presence || title, context: arguments["context"], warning: warning, reviewed: reviewed, change: change,
+                                  no_ci: @no_ci)
           opened = begin
             GithubApp.open_pull_request(repo, base: base, branch: branch, title: title, token: token, body: body)
           rescue GithubApp::Error
@@ -232,7 +233,7 @@ module Integrations
           report(@work)
           @session&.owns_pull_request!(environment_row: environment_row, number: opened["number"], url: opened["html_url"], base: base, branch: branch)
           [ CodeWriteUp.answer(done: "Opened #{opened['html_url']} on #{repo} against #{base}.", warning: warning, reviewed: reviewed, change: change,
-                               base: base, updating: false),
+                               base: base, updating: false, no_ci: @no_ci),
             standing(environment_row, repo, opened["number"]) ].join("\n\n")
         rescue Paused => paused
           # A run's fix step has no Continue of its own, so it ends saying where to decide.
@@ -266,7 +267,7 @@ module Integrations
           said = target.pull && comment_on_change(repo, target.pull, base, arguments["summary"].presence || title, change, warning, reviewed, token)
           pushed_words = "Pushed #{change.commit[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}"
           CodeAgentSession.opened_pull_request(integration.workspace, repo, target.pull["number"])&.check_soon! if target.pull
-          [ CodeWriteUp.answer(done: pushed_words, warning: warning, reviewed: reviewed, change: change, base: base, updating: true),
+          [ CodeWriteUp.answer(done: pushed_words, warning: warning, reviewed: reviewed, change: change, base: base, updating: true, no_ci: @no_ci),
             (standing(environment_row, repo, target.pull["number"]) if target.pull) ].compact.join("\n\n")
         end
 
@@ -364,7 +365,7 @@ module Integrations
         end
 
         def comment_on_change(repo, pull, base, summary, change, warning, reviewed, token)
-          body = CodeWriteUp.comment(lead: summary, warning: warning, reviewed: reviewed, change: change, base: base)
+          body = CodeWriteUp.comment(lead: summary, warning: warning, reviewed: reviewed, change: change, base: base, no_ci: @no_ci)
           GithubApp.write(:post, "/repos/#{repo}/issues/#{pull['number']}/comments", { body: body }, token: token)
           " Said so on the pull request."
         rescue GithubApp::Error => error
@@ -388,6 +389,7 @@ module Integrations
           reading = code(environment_row)
           report(@work)
           @setup = repository_setup(environment_row, repo)&.for_box
+          @no_ci = CiSetup.absent(environment_row, repo)
           reading.prepare(repo, ref: ref, setup: @setup)
           @work.add("Got #{repo} ready at #{named} (#{ref.to_s[0, 12]})")
           report(@work)
