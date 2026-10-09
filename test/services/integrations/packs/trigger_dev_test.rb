@@ -156,6 +156,14 @@ module Integrations
         assert_raises(NativePack::Error) { call(:search_task_logs, "task" => "send-email' OR 1=1") }
       end
 
+      test "a regular expression that takes too long on a task's logs is refused in words" do
+        TriggerDevApi.any_instance.stubs(:runs).returns([ { "id" => "run_a" } ])
+        TriggerDevApi.any_instance.stubs(:run_events).with("run_a").returns([ { "message" => "a" * 35, "startTime" => "1791021600000000000" } ])
+
+        error = assert_raises(NativePack::Error) { call(:search_task_logs, "task" => "send-email", "regex" => "(?=(a+)+b)") }
+        assert_match "took too long", error.message
+      end
+
       test "a task's status names its version, its queue and how its last hour went" do
         TriggerDevApi.any_instance.stubs(:queues).returns(Pages::Read.new(items: [ { "name" => "send-email", "type" => "task", "running" => 2, "queued" => 40, "paused" => true, "concurrencyLimit" => 2 } ], complete: true))
         TriggerDevApi.any_instance.stubs(:runs).returns([ { "status" => "COMPLETED" }, { "status" => "FAILED" }, { "status" => "FAILED" } ])

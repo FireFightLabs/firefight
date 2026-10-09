@@ -541,7 +541,11 @@ module Integrations
         rescue RegexpError => error
           fail!(Sentence.join("regex is not a regular expression", error))
         end
-        ->(line) { (!text || line.include?(text)) && (!exclude || line.exclude?(exclude)) && (!pattern || pattern.match?(line)) }
+        lambda do |line|
+          (!text || line.include?(text)) && (!exclude || line.exclude?(exclude)) && (!pattern || pattern.match?(line))
+        rescue Regexp::TimeoutError
+          fail!("The regular expression took too long on Trigger.dev's lines. Make it simpler, or search by text instead.")
+        end
       end
 
       def deployment_line(deployment)

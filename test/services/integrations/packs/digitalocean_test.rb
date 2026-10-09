@@ -91,6 +91,16 @@ module Integrations
         assert_match "REDACTED:github_token", redacted["content"].sole["text"]
       end
 
+      test "a regular expression that takes too long is refused as too slow, not as unreadable" do
+        DigitaloceanApi.any_instance.stubs(:log_urls).returns([ "https://logs.example/1.log" ])
+        DigitaloceanApi.any_instance.stubs(:log_file).returns("web 2026-10-01T10:00:00Z #{'a' * 35}\n")
+
+        error = assert_raises(NativePack::Error) do
+          call(:app_logs, "resource" => "shop", "regex" => "(?=(a+)+b)", "start" => "2026-10-01T09:00:00Z", "end" => "2026-10-01T11:00:00Z")
+        end
+        assert_match "took too long", error.message
+      end
+
       test "a deployment list names each id, phase and commit, for a rollback" do
         DigitaloceanApi.any_instance.stubs(:deployments).returns([ APP["active_deployment"].merge("id" => "dep-2"),
                                                                     { "id" => "dep-1", "phase" => "SUPERSEDED", "created_at" => "2026-09-30T10:00:00Z" } ])
@@ -221,6 +231,19 @@ module Integrations
 
         assert_includes snapshot.unread_kinds, ResourceMap::KIND_VIRTUAL_MACHINE
         assert_equal [ ResourceMap::Gap.new(text: "Only the first 1 Droplets were read.", kinds: [ ResourceMap::KIND_VIRTUAL_MACHINE ]) ], snapshot.gaps
+      end
+
+      test "a list cut short says so, a resource past it is read by its id, and one not found is not said to be missing" do
+        DigitaloceanApi.any_instance.stubs(:droplets).returns(Pages::Read.new(items: [ { "id" => 1, "name" => "one", "status" => "active" } ], complete: false))
+
+        assert_match "Only the first 1 Droplets were read.", call(:list_resources)
+
+        DigitaloceanApi.any_instance.stubs(:droplet).with("777").returns("id" => 777, "name" => "far", "status" => "active")
+        assert_match "far, Droplet 777, active", call(:describe_resource, "resource" => "777")
+
+        DigitaloceanApi.any_instance.stubs(:droplet).with("nowhere").raises(DigitaloceanApi::Error, "DigitalOcean answered 404: not found")
+        error = assert_raises(Integrations::Error) { call(:describe_resource, "resource" => "nowhere") }
+        assert_equal "No app, Droplet or database called nowhere among the first 1 Droplets read from this DigitalOcean account. Name it by its id.", error.message
       end
 
       test "a resource is found by id first, and two of one name are refused with each one's id" do
