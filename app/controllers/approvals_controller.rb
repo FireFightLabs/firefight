@@ -5,22 +5,24 @@ class ApprovalsController < InertiaController
   before_action :set_approval
 
   def approve
-    resolve { @approval.approve!(by: current_membership) }
+    resolve("You approved #{asker}'s request. They can run it now.") { @approval.approve!(by: current_membership) }
   end
 
   def deny
-    resolve { @approval.deny!(by: current_membership) }
+    resolve("You denied #{asker}'s request.") { @approval.deny!(by: current_membership) }
   end
 
   private
 
-  def resolve
+  def resolve(done)
     yield
     ApprovalNotificationService.mark_resolved!(@approval)
-    redirect_to gateway_approvals_path
+    redirect_to gateway_approvals_path, notice: done
   rescue Ability::Approval::NotAllowed => e
     redirect_to gateway_approvals_path, alert: e.message
   end
+
+  def asker = @approval.principal&.actor_display_name || "the person"
 
   def set_approval
     @approval = current_workspace.ability_approvals.find(params[:id])

@@ -48,7 +48,7 @@ class CatalogueController < InertiaController
       icon: params[:icon], color: params[:color],
       attribute_definitions: parse_attribute_definitions
     )
-    redirect_to catalogue_type_path(type.slug)
+    redirect_to catalogue_type_path(type.slug), notice: "#{type.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: type_errors(e.record) }
   end
@@ -59,7 +59,7 @@ class CatalogueController < InertiaController
       { name: params[:name], description: params[:description], icon: params[:icon], color: params[:color] },
       attribute_definitions: parse_attribute_definitions
     )
-    redirect_to catalogue_type_path(type.slug)
+    redirect_to catalogue_type_path(type.slug), notice: "#{type.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: type_errors(e.record) }
   rescue ActiveRecord::RecordNotDestroyed => e
@@ -69,15 +69,15 @@ class CatalogueController < InertiaController
   def destroy_type
     type = current_workspace.catalog_types.active.find(params[:id])
     type.soft_delete!
-    redirect_to catalogue_path
+    redirect_to catalogue_path, notice: "#{type.name} was deleted."
   rescue ActiveRecord::RecordNotDestroyed => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: { base: [ e.message ] } }
   end
 
   def create_entry
     type = current_workspace.catalog_types.active.find_by!(slug: params[:type_slug])
-    entry_service.create(type: type, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
-    redirect_to catalogue_type_path(type.slug)
+    entry = entry_service.create(type: type, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
+    redirect_to catalogue_type_path(type.slug), notice: "#{entry.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: catalogue_type_path(params[:type_slug]), inertia: { errors: e.record.errors.to_hash }
   end
@@ -85,7 +85,7 @@ class CatalogueController < InertiaController
   def update_entry
     entry = current_workspace.catalog_entries.active.find(params[:id])
     entry_service.update(entry, name: params[:name], raw_attributes: params[:attributes]&.to_unsafe_h || {})
-    redirect_to catalogue_type_path(entry.catalog_type.slug)
+    redirect_to catalogue_type_path(entry.catalog_type.slug), notice: "#{entry.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
   end
@@ -93,7 +93,7 @@ class CatalogueController < InertiaController
   def destroy_entry
     entry = current_workspace.catalog_entries.active.find(params[:id])
     entry_service.delete(entry)
-    redirect_to catalogue_type_path(entry.catalog_type.slug)
+    redirect_to catalogue_type_path(entry.catalog_type.slug), notice: "#{entry.name} was deleted."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: catalogue_path, inertia: { errors: e.record.errors.to_hash }
   rescue ActiveRecord::RecordNotDestroyed => e

@@ -14,6 +14,7 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
     source = @workspace.alert_sources.find_by!(name: "Grafana prod")
     assert source.endpoint_path.present?
     assert source.secret_token.present?
+    assert_equal "Grafana prod was created.", flash[:notice]
   end
 
   test "update writes name, enabled, and a validated severity map" do
@@ -32,6 +33,7 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Renamed", source.name
     assert_not source.enabled
     assert_equal({ "critical" => severity.id }, source.config["severity_map"])
+    assert_equal "Renamed was updated.", flash[:notice]
   end
 
   test "destroy removes the source" do
@@ -40,6 +42,7 @@ class AlertSourcesControllerTest < ActionDispatch::IntegrationTest
     delete alert_source_url(source)
 
     assert_nil AlertSource.find_by(id: source.id)
+    assert_equal "Gone was deleted.", flash[:notice]
   end
 
   test "token endpoint returns the secret on demand" do

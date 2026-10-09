@@ -118,7 +118,7 @@ class IncidentsController < InertiaController
 
     postmortem.update_status!(params.require(:status), by: member)
 
-    redirect_to incident_postmortem_path(incident)
+    redirect_to incident_postmortem_path(incident), notice: "The postmortem was marked as #{postmortem.status.humanize(capitalize: false)}."
   end
 
   def postmortem_revisions
@@ -157,7 +157,7 @@ class IncidentsController < InertiaController
 
     Postmortem.start_blank!(incident, by: member)
 
-    redirect_to incident_postmortem_path(incident)
+    redirect_to incident_postmortem_path(incident), notice: "A blank postmortem was started."
   end
 
   def ai_rewrite_postmortem

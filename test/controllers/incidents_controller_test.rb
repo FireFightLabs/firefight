@@ -84,6 +84,10 @@ class IncidentsControllerTest < ActionDispatch::IntegrationTest
     assert_nil postmortem.generation_state
     assert_equal "", postmortem.html_content.to_s
     assert_equal "#{incident.identifier} Postmortem: #{incident.name}", postmortem.title
+    assert_equal "A blank postmortem was started.", flash[:notice]
+
+    patch incident_postmortem_status_path(incident_id: incident.id), params: { status: Postmortem::STATUS_COMPLETED }
+    assert_equal "The postmortem was marked as completed.", flash[:notice]
   end
 
   private

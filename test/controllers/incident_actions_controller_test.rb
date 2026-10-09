@@ -49,6 +49,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @assignee, action.assignee
     assert_equal IncidentAction::ACTION_TYPE_ACTION, action.action_type
     assert_redirected_to incident_path(@incident)
+    assert_equal "The action item was added.", flash[:notice]
   end
 
   test "create leaves the action unassigned when assignee_id is blank" do
@@ -148,6 +149,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @member, action.reload.assignee
     assert_equal IncidentAction::STATUS_IN_PROGRESS, action.status
     assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_PICKED_UP)
+    assert_equal "You picked up the item.", flash[:notice]
   end
 
   test "handing an item to someone else is a reassignment, not a pick up" do
@@ -158,6 +160,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal other, action.reload.assignee
     assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_REASSIGNED)
+    assert_equal "#{other.display_name} holds the item now.", flash[:notice]
   end
 
   test "completing an item records it done" do
@@ -167,6 +170,7 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
 
     assert action.reload.done?
     assert @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_COMPLETED)
+    assert_equal "The item was marked done.", flash[:notice]
   end
 
   test "an item that is already done is left alone" do

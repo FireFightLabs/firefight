@@ -4,8 +4,9 @@ class AlertRoutingController < InertiaController
   def update
     policy = routing_scope.find_or_create_alert_routing_policy!
 
-    if policy.update(policy_attrs(policy))
-      redirect_to settings_alert_routing_path(source_id: params[:alert_source_id].presence)
+    attrs = policy_attrs(policy)
+    if policy.update(attrs)
+      redirect_to settings_alert_routing_path(source_id: params[:alert_source_id].presence), notice: saved_notice(policy, attrs)
     else
       redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: policy.errors.to_hash }
     end
@@ -37,6 +38,12 @@ class AlertRoutingController < InertiaController
   end
 
   private
+
+  def saved_notice(policy, attrs)
+    return "Grouping settings were saved." if attrs.key?(:domain_config)
+
+    "Alert routing is #{policy.enabled? ? 'on' : 'off'}."
+  end
 
   def tester
     @tester ||= AlertRoutingTestService.new(current_workspace, routing_scope)

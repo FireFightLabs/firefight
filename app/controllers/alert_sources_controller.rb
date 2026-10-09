@@ -9,7 +9,7 @@ class AlertSourcesController < InertiaController
     )
 
     if source.save
-      redirect_to settings_alert_sources_path
+      redirect_to settings_alert_sources_path, notice: "#{source.name} was created."
     else
       redirect_back fallback_location: settings_alert_sources_path, inertia: { errors: source.errors.to_hash }
     end
@@ -20,7 +20,7 @@ class AlertSourcesController < InertiaController
     attrs[:config] = updated_config
 
     if @alert_source.update(attrs)
-      redirect_to settings_alert_sources_path
+      redirect_to settings_alert_sources_path, notice: "#{@alert_source.name} was updated."
     else
       redirect_back fallback_location: settings_alert_sources_path, inertia: { errors: @alert_source.errors.to_hash }
     end
@@ -28,7 +28,7 @@ class AlertSourcesController < InertiaController
 
   def destroy
     @alert_source.destroy!
-    redirect_to settings_alert_sources_path
+    redirect_to settings_alert_sources_path, notice: "#{@alert_source.name} was deleted."
   end
 
   # Fetched on demand, never embedded in page props.

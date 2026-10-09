@@ -41,6 +41,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_redirected_to integrations_path
+    assert_equal "Sentry is connected.", flash[:notice]
     integration = @workspace.integrations.find_by!(provider: "sentry")
     assert_equal "Bearer key", integration.integration_environments.first.credentials_hash["authorization"]
     tool = integration.tools.find_by!(name: "issues.search")
@@ -215,6 +216,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     patch toggle_tool_integration_url(integration), params: { tool_id: tool.id }
     assert tool.reload.enabled?
+    assert_equal "pr.list on GitHub is on.", flash[:notice]
     assert Ability::Action.exists?(key: "github.pr.list")
 
     sign_in(users(:bob), @workspace)
@@ -256,12 +258,14 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     patch set_all_tools_integration_url(integration), params: { enabled: true }
 
     assert integration.tools.all?(&:enabled?)
+    assert_equal "Every tool on Linear is on.", flash[:notice]
     assert Ability::Action.exists?(key: "linear.list_issues")
     assert Ability::Action.exists?(key: "linear.create_issue"),
            "bulk enable must mint actions, not just flip a column"
 
     patch set_all_tools_integration_url(integration), params: { enabled: false }
     assert integration.tools.reload.none?(&:enabled?)
+    assert_equal "Every tool on Linear is off.", flash[:notice]
   end
 
   test "reads only turns the reads on and the writes back off" do
@@ -275,6 +279,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     patch set_all_tools_integration_url(integration), params: { enabled: true, reads_only: true }
 
     assert read.reload.enabled?
+    assert_equal "Only the tools on Linear that read are on.", flash[:notice]
     assert_not write.reload.enabled?,
                "reads only states the target, so an already-enabled write is turned off"
   end
@@ -360,10 +365,32 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     patch retarget_environment_integration_url(row.integration),
           params: { environment_row_id: row.id, environment_id: development.id }
     assert_equal development.id, row.reload.catalog_entry_id
+    assert_equal "#{row.integration.name} now answers for #{development.name}.", flash[:notice]
 
     patch retarget_environment_integration_url(row.integration),
           params: { environment_row_id: row.id, environment_id: "" }
     assert_nil row.reload.catalog_entry_id
+    assert_equal "#{row.integration.name} now answers for every environment.", flash[:notice]
+  end
+
+  test "turning a connection off and on, and refreshing its tools, each say so" do
+    integration = @workspace.integrations.create!(
+      kind: Integration::KIND_MCP, provider: "linear", name: "Linear",
+      settings: { "server_url" => "https://mcp.linear.app/mcp" }
+    )
+
+    patch toggle_integration_url(integration)
+    assert_equal "Linear is off.", flash[:notice]
+    patch toggle_integration_url(integration)
+    assert_equal "Linear is on.", flash[:notice]
+
+    Integrations::ConnectionRefresh.stubs(:run!).returns(true)
+    post sync_integration_url(integration)
+    assert_equal "Linear's tools were refreshed.", flash[:notice]
+
+    Integrations::ConnectionRefresh.stubs(:run!).returns(false)
+    post sync_integration_url(integration)
+    assert_match "could not be reached", flash[:alert]
   end
 
   test "retargeting refuses an entry that is not one of this workspace's environments" do

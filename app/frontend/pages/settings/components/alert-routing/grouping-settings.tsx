@@ -1,5 +1,4 @@
 import { useForm } from "@inertiajs/react"
-import { toast } from "sonner"
 
 import type { AlertRoutingPolicy } from "@/types/serializers"
 import { alertRoutingPath } from "@/lib/routes"
@@ -41,10 +40,7 @@ export function GroupingSettings({
       },
     }))
     form.patch(alertRoutingPath(), {
-      onSuccess: () => {
-        form.setDefaults()
-        toast.success("Grouping settings saved")
-      },
+      onSuccess: () => form.setDefaults(),
     })
   }
 
