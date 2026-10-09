@@ -17,6 +17,7 @@ import { EntryDetailSheet } from "@/pages/catalogue/components/type/entry-detail
 import { EntryFormDialog } from "@/pages/catalogue/components/type/entry-form-dialog"
 import { CATALOG_ENTRY_QUERY_PARAM } from "@/lib/generated/constants"
 import { whenClosed } from "@/lib/handlers"
+import { replaceQuery } from "@/lib/query"
 
 function entryIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get(CATALOG_ENTRY_QUERY_PARAM)
@@ -24,14 +25,7 @@ function entryIdFromUrl(): string | null {
 
 // The open entry lives in the address, so a search result or a shared link opens the same entry.
 function rememberEntry(entryId: string | null) {
-  const params = new URLSearchParams(window.location.search)
-  if (entryId) {
-    params.set(CATALOG_ENTRY_QUERY_PARAM, entryId)
-  } else {
-    params.delete(CATALOG_ENTRY_QUERY_PARAM)
-  }
-  const query = params.toString()
-  window.history.replaceState(window.history.state, "", query ? `${window.location.pathname}?${query}` : window.location.pathname)
+  replaceQuery({ [CATALOG_ENTRY_QUERY_PARAM]: entryId })
 }
 
 export function EntryTable({

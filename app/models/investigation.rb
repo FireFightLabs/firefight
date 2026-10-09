@@ -98,8 +98,9 @@ class Investigation < ApplicationRecord
   # The agent makes room from how full the model's window is, so a model with no known window does
   # not run. The operator is told which model, the person only that setup is not finished.
   def self.unknown_window_reason(workspace)
-    model = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace).model
-    return nil if FirefightAi.context_window(model)
+    choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+    model = choice.model
+    return nil if FirefightAi.context_window(model, provider: choice.provider)
 
     Rails.logger.warn({ event: "ai.model_without_context_window", model: model, workspace_id: workspace.id }.to_json)
     MODEL_NOT_SET_UP
@@ -143,6 +144,9 @@ class Investigation < ApplicationRecord
   def question
     brief&.dig(Investigation::Brief::KEY_SYMPTOM)
   end
+
+  # Named by its incident, or by its question when it has no incident.
+  def label = incident ? "#{incident.identifier} #{incident.name}" : question.to_s
 
   # Ties a run asked without an incident to the one declared from its answer. Only once, and only from no incident.
   def attach_to!(incident)

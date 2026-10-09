@@ -135,21 +135,13 @@ module IntegrationEnvironment::LiveUpdates
   # Firefight registers, extends and removes the provider's webhook with the connection's own credentials, and no person
   # asked it to, so each call is in the activity log under the map sweep, as its reads are. change says which (register,
   # refresh or remove). Returns the block's result, and a call that fails is recorded with the provider's words.
-  def record_map_events_webhook!(change)
-    invocation = AbilityGateway.record!(
-      decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: SystemAgent.map_sweep,
-      action: Ability::Action.lookup(MAP_EVENTS_WEBHOOK_ACTION_KEY, integration.workspace), action_key: MAP_EVENTS_WEBHOOK_ACTION_KEY,
-      workspace: integration.workspace, scope: {},
+  def record_map_events_webhook!(change, &)
+    AbilityGateway.record_unattended!(
+      principal: SystemAgent.map_sweep, action_key: MAP_EVENTS_WEBHOOK_ACTION_KEY, workspace: integration.workspace,
       params: { "webhook" => change, "connection" => integration.slug, "environment" => environment&.slug }.compact,
-      context: { source: AbilityGateway::SOURCE_MAP_SWEEP, triggered_by_label: MAP_EVENTS_WEBHOOK_LABEL }
+      context: { source: AbilityGateway::SOURCE_MAP_SWEEP, triggered_by_label: MAP_EVENTS_WEBHOOK_LABEL },
+      rescued: ->(error) { Ability::Invocation.summary_of(error.message) }, &
     )
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    result = yield
-    invocation.finalize!(outcome: Ability::Invocation::OUTCOME_SUCCESS, duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
-    result
-  rescue StandardError => error
-    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: Ability::Invocation.summary_of(error.message))
-    raise
   end
 
   # Whether Firefight registers the provider's webhook now on its own. Not while one is registered, a person turned live

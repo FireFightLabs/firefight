@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     # The map read off the workspace's connections, so an agent starts from what is known rather than listing each
-    # provider again. Facts only, never live values: a status here is what the last sweep saw.
+    # provider again. Facts only, never live values, so a status here is what the last sweep saw.
     class GetResourceMap < Base
       extend MapPayloads
 
@@ -16,9 +16,8 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_MAP
       description "The first place to find which provider and account hold a named domain, zone, service or database. " \
                   "It only reads, so look here before asking a person or using a provider's own tools. " \
-                  "What runs where, read off the workspace's connections: services, build services, databases and " \
-                  "branches, jobs, repositories and domains, and at the edge zones, Workers, Pages sites, buckets, KV " \
-                  "namespaces, queues, database proxies, tunnels, load balancers and their pools, and Access applications, " \
+                  "What runs where, read off the workspace's connections, every kind the map holds " \
+                  "(#{ResourceMap::KINDS.map { |kind| kind.tr('_', ' ').pluralize }.to_sentence}), " \
                   "by provider and account, with how they depend on each other and which repository each is managed in " \
                   "as code, such as Terraform or Helm, so a fix to one goes to that code. A zone's details carry its SSL mode, " \
                   "certificates and rule counts, and a change to them is recorded. " \
@@ -45,10 +44,8 @@ module Mcp
         visible = ResourceMap::Resource.visible_to(principal, workspace)
         return respond(overview(workspace, visible, ResourceMap::Resource.environments_visible_to(principal, workspace))) if args[:resource].blank?
 
-        found = visible.referenced(workspace, args[:resource]).includes(integration_environment: %i[integration environment]).to_a
-        if found.empty?
-          return respond(error: "Nothing called #{args[:resource]} is on the map. Leave the resource out to see the whole map.")
-        end
+        found = ResourceMap::Resource.candidates(visible, workspace, args[:resource], removed: true)
+        return refuse(error: ResourceMap::Resource.not_found_words(args[:resource])) if found.empty?
 
         more = "#{found.size - SHEETS_SHOWN} more share this name, name one by its id on the map" if found.size > SHEETS_SHOWN
         respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible, principal: principal) }, more: more }.compact)
@@ -98,7 +95,7 @@ module Mcp
           key_checks: (key_checks(resource, principal) unless resource.removed_at),
           usual_log_lines: (usual_log_lines(resource, principal) unless resource.removed_at),
           links: (resource.neighborhood(within: visible).map { |link, hop| link_line(link, hop) } if links),
-          out_of_reach: (hidden&.positive? ? "#{hidden} more #{'link'.pluralize(hidden)} within two hops #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" : nil)
+          out_of_reach: (out_of_reach_words(hidden, within_two_hops: true) if hidden)
         }.compact
       end
 

@@ -7,13 +7,9 @@ module Integrations
     # here. Each delivery is signed as Standard Webhooks specifies (Verify webhook signature), and its payload names the
     # organization and the project it is about (Envelope and payload), which the map reads again.
     class Supabase < MapEventSource
-      ID_HEADER = "webhook-id".freeze
-      TIMESTAMP_HEADER = "webhook-timestamp".freeze
-      SIGNATURE_HEADER = "webhook-signature".freeze
-      # Each signature is a version and a base64 HMAC-SHA256 of "<id>.<timestamp>.<body>". A secret written whsec_<base64>
-      # is that key base64 encoded, and any other is the key as it is (Verify webhook signature, Base64 secret and Plain
-      # string secret).
-      SIGNATURE_VERSION = "v1".freeze
+      ID_HEADER = STANDARD_ID_HEADER
+      # Signed as Standard Webhooks specifies (MapEventSource.standard_webhook?). A secret written whsec_<base64> is that key
+      # base64 encoded, and any other is the key as it is (Verify webhook signature, Base64 secret and Plain string secret).
       SECRET_PREFIX = "whsec_".freeze
       # A delivery signed further from now than this is refused, the window the standardwebhooks library allows.
       TOLERANCE = 5.minutes
@@ -30,16 +26,7 @@ module Integrations
 
       class << self
         def verify(raw_body:, headers:, secret:)
-          id = headers[ID_HEADER].to_s
-          stamp = headers[TIMESTAMP_HEADER].to_s
-          return false if secret.blank? || id.empty? || !stamp.match?(/\A\d+\z/)
-          return false if (Time.current.to_i - stamp.to_i).abs > TOLERANCE
-
-          expected = Base64.strict_encode64(OpenSSL::HMAC.digest("SHA256", key_of(secret.to_s), "#{id}.#{stamp}.#{raw_body}"))
-          headers[SIGNATURE_HEADER].to_s.split.any? do |entry|
-            version, signature = entry.split(",", 2)
-            version == SIGNATURE_VERSION && signature.present? && ActiveSupport::SecurityUtils.secure_compare(signature, expected)
-          end
+          secret.present? && standard_webhook?(raw_body: raw_body, headers: headers, key: key_of(secret.to_s), tolerance: TOLERANCE)
         end
 
         # One event for the project it names. Its id is the same for every retry (Idempotency and ordering), so a second

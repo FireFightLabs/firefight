@@ -65,7 +65,11 @@ class ChatMemorySerializer < BaseSerializer
   def use_count = memory.use_count
 
   type :boolean
-  def in_use = Chat::Memory::USED_STATES.include?(memory.state)
+  def in_use = memory.in_use?
+
+  # Waiting on a person, which the page counts on its tab.
+  type :boolean
+  def awaiting_decision = memory.awaiting_decision?
 
   type :string, optional: true
   def confirm_blocked_reason = memory.confirm_blocked_reason

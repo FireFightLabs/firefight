@@ -1,9 +1,10 @@
-# The one way git in the sandbox reaches the code host: a smart HTTP endpoint the box reaches with its code change
-# session's token, like the model proxy, which passes requests on with the connection's own credential, so the code
-# host's token never enters the box. Fetching is reading the session's repository. A push is let through only when every
-# ref it updates is the session's own branch, created, moved or forced, never deleted, and never a tag, the base or any
-# other branch. Only the push's ref update commands (the pkt-line lines before its flush) are read. The pack after them
-# is streamed on as it came and never unpacked here.
+# Git in the sandbox reaches the code host only through this smart HTTP endpoint. A fetch signs in with the code change
+# session's token, like the model proxy, and a push with the token Firefight made for its own push. The request is
+# passed on with the connection's own credential, so the code host's token never enters the box. Fetching is reading
+# the session's repository. A push is let through only while Firefight's push is open, and only when every ref it
+# updates is the session's own branch, created, moved or forced, never deleted, and never a tag, the base or any other
+# branch. Only the push's ref update commands (the pkt-line lines before its flush) are read. The pack after them is
+# streamed on as it came and never unpacked here.
 class Integrations::GitGate
   class Refused < StandardError; end
 
@@ -40,6 +41,7 @@ class Integrations::GitGate
 
   # Reads the commands, refuses any it does not allow, then passes the commands and the pack behind them on unread.
   def receive(body, length:, headers:, &)
+    raise Refused, "This code change is not pushing now." unless @session.pushing?
     raise Refused, "A push must not be compressed, so its commands can be read." if headers["Content-Encoding"].present?
 
     commands, taken = self.class.commands(body)

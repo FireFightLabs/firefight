@@ -29,7 +29,7 @@ module Slack::WorkspaceAdapter::FileOperations
     PlatformAdapter::SharedFile.new(name: name, byte_size: body.bytesize, body: body, too_large: false, failure: nil)
   rescue AdapterError => error
     Rails.logger.warn({ event: "slack.shared_file_not_downloaded", workspace_id: @workspace.id, error: error.class.name }.to_json)
-    shared(name || file["name"].presence || "file", size.to_i, failure: missing_permission?(error) ? NO_PERMISSION : NOT_DOWNLOADED)
+    shared(name || file["name"].presence || "file", size.to_i, failure: error.is_a?(AdapterError::MissingPermission) ? NO_PERMISSION : NOT_DOWNLOADED)
   end
 
   def described(file)
@@ -37,10 +37,6 @@ module Slack::WorkspaceAdapter::FileOperations
     return file if file["id"].blank?
 
     translate_errors { Slack::Client.file_info(workspace: @workspace, file_id: file["id"]) }.to_h.deep_stringify_keys
-  end
-
-  def missing_permission?(error)
-    error.is_a?(AdapterError::MissingPermission) || error.message.include?("files:read")
   end
 
   def shared(name, size, too_large: false, failure: nil)

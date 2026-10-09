@@ -23,7 +23,7 @@ class IncidentActionSerializer < BaseSerializer
   # Whether Firefight is opening its issue now, so the page looks again until it is there.
   type :boolean
   def issue_opening
-    action.issue_sync_state == IncidentAction::ISSUE_CREATING
+    action.issue_opening?
   end
 
   # Whether its issue was asked for and is missing, so the control offers to try again.
@@ -32,12 +32,13 @@ class IncidentActionSerializer < BaseSerializer
     action.issue_missing?
   end
 
-  # Whether the item offers Create issue, and why it cannot be used now, or null when it can.
+  # Whether the item offers Create issue at all.
   type :boolean
   def issue_request_offered
     action.issue_request_offered?
   end
 
+  # Why Create issue cannot be used now, or null when it can.
   type :string, optional: true
   def issue_request_blocked_reason
     action.issue_request_offered? ? action.issue_request_blocked_reason : nil

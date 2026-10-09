@@ -36,6 +36,19 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     assert_equal "8 more steps on the run page.", blocks.last.dig(:elements, 0, :text)
   end
 
+  test "approved steps take three blocks each, and the message still fits in Slack's fifty" do
+    30.times do |index|
+      @plan.steps.create!(position: index + 4, kind: Investigation::RemediationStep::KIND_MANUAL, description: "Check #{index}",
+                          status: Investigation::RemediationStep::STATUS_APPROVED)
+    end
+
+    blocks = Slack::Messages::FixProgress.build(@plan.reload)
+
+    assert_operator blocks.size, :<=, 50
+    shown = blocks.count { |block| block[:type] == "section" } - 1
+    assert_equal "#{33 - shown} more steps on the run page.", blocks.find { |block| block[:type] == "context" && block.dig(:elements, 0, :text).include?("run page") }.dig(:elements, 0, :text)
+  end
+
   test "a fix that ended offers Undo fix, which asks first, and one still applying or already undone does not" do
     @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
     assert_nil undo_button(@plan)
@@ -49,7 +62,9 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
 
     undo = @plan.propose_undo!("summary" => "Put it back", "steps" => [ { "kind" => "manual", "description" => "Re-add the rule" } ])
     assert_nil undo_button(@plan.reload)
-    assert_equal "*How to undo it*", Slack::Messages::InvestigationRun.undo(plan: undo).first.dig(:text, :text).lines.first.strip
+    written = Slack::Messages::InvestigationRun.undo(plan: undo)
+    assert_equal [ ":leftwards_arrow_with_hook:  *How to undo it*", "divider" ], [ written.first.dig(:text, :text), written.second[:type] ]
+    assert_not written.third.dig(:text, :text).include?("How to undo it"), "the title is not repeated in the body"
     assert_equal "Apply undo", Slack::Messages::InvestigationRun.undo(plan: undo).last.dig(:elements, 0, :text, :text) if undo.apply_blocked_reason.nil?
     undo.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
     assert Slack::Messages::FixProgress.build(undo.reload).first.dig(:text, :text).start_with?("*Undoing the fix*")

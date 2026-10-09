@@ -24,6 +24,11 @@ class Interactions::CorrectMemoryHandlerTest < ActiveSupport::TestCase
     )
   end
 
+  test "opening the form declares a read and its submission the write, so an approval rule holds the correction and never the click" do
+    assert_equal [ Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_READ ], Interactions::OpenMemoryCorrectionHandler.authorization
+    assert_equal [ Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_UPDATE ], Interactions::CorrectMemoryHandler.authorization
+  end
+
   test "the form's correction replaces the memory as confirmed by whoever wrote it, and the message is redrawn" do
     @adapter.expects(:update_learned_memories).with { |post:, **| post.memories.sole.correction == "The cause was the connection pool" }
 

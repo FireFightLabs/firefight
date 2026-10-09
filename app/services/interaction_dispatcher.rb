@@ -19,7 +19,8 @@ class InteractionDispatcher
     Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
     Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler,
     Identifiers::MEMORY_CORRECT_MODAL => Interactions::CorrectMemoryHandler,
-    Identifiers::CODE_QUESTION_MODAL => Interactions::AnswerCodeQuestionHandler
+    Identifiers::CODE_QUESTION_MODAL => Interactions::AnswerCodeQuestionHandler,
+    Identifiers::CODE_QUESTION_CHANGE_MODAL => Interactions::ChangeCodeQuestionAnswerHandler
   }.freeze
 
   BLOCK_ACTION_HANDLERS = {
@@ -93,6 +94,7 @@ class InteractionDispatcher
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,
     Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler,
+    Identifiers::CODE_QUESTION_CHANGE => Interactions::OpenCodeQuestionChangeHandler,
     Identifiers::CODE_PAUSE_CONTINUE => Interactions::CodePauseDecisionHandler,
     Identifiers::CODE_PAUSE_STOP => Interactions::CodePauseDecisionHandler,
     **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler }

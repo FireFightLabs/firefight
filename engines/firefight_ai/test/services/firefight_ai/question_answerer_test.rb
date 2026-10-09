@@ -19,12 +19,27 @@ class FirefightAi::QuestionAnswererTest < ActiveSupport::TestCase
     assert_nil @answerer.answer(question: "Which region?", known: "")
   end
 
+  test "Halon is told to answer only the exact case the person's words cover, to quote them exactly, and never to guess a pronoun" do
+    instructions = nil
+    stub_model(content: { answered: false, answer: "" }, instructions: ->(text) { instructions = text })
+    @answerer.answer(question: "Pick an existing workspace only?", known: "The person: Never silently create another workspace")
+
+    assert_includes instructions, "cover the exact case the question asks about"
+    assert_includes instructions, "A gap or an edge case the person's words do not address always goes to the person"
+    assert_includes instructions, FirefightAi::Copy::QUOTING
+    assert_includes instructions, FirefightAi::Copy::PEOPLE
+  end
+
   private
 
-  def stub_model(content:)
+  def stub_model(content:, instructions: nil)
     chat = mock("chat")
     chat.stubs(:with_max_output_tokens).returns(chat)
-    chat.stubs(:with_instructions).returns(chat)
+    if instructions
+      chat.stubs(:with_instructions).with { |text| instructions.call(text) }.returns(chat)
+    else
+      chat.stubs(:with_instructions).returns(chat)
+    end
     chat.stubs(:with_schema).returns(chat)
     reply = llm_reply(content: content, input: 100, output: 20, cost: 0.0001)
     reply.stubs(:parsed).returns(content.deep_stringify_keys)

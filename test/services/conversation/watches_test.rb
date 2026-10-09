@@ -125,16 +125,29 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_match "the time limit. Last I saw: Release run #46: - #46 release: running", watch.outcome
   end
 
-  test "stopping says so once, and only whoever asked may" do
+  test "stopping says so once, and in a personal chat only whoever asked may" do
     start_release_watch
     watch = @conversation.chat.watches.sole
 
-    assert_equal "Only #{@alice.display_name} can stop this watch.", Conversation::Watches.stop!(watch, by: workspace_memberships(:bob_workspace_one))
+    assert_equal "Only #{@alice.display_name} or whoever this chat belongs to can stop this watch.",
+                 Conversation::Watches.stop!(watch, by: workspace_memberships(:bob_workspace_one))
     assert_nil Conversation::Watches.stop!(watch, by: @alice)
     assert_equal Chat::Watch::NOTHING_TO_STOP, Conversation::Watches.stop!(watch, by: @alice)
 
     assert_equal [ Chat::Watch::STATUS_STOPPED, @alice ], [ watch.reload.status, watch.stopped_by ]
     assert_equal [ "#{@alice.display_name} stopped the watch on release run #46." ], watch.updates.map(&:text)
+  end
+
+  test "anyone in the channel or thread a watch reports to may stop it" do
+    thread = Conversation.create!(workspace: @workspace, kind: Conversation::KIND_CHANNEL, channel_id: "C0WATCH", thread_id: "1700000000.000100",
+                                  started_by: @alice, max_turns: 5, max_spend_cents: 100)
+    @turn = Conversation::Turn.new(thread, asker: @alice)
+    start_release_watch
+    watch = thread.chat.watches.sole
+    bob = workspace_memberships(:bob_workspace_one)
+
+    assert_nil Conversation::Watches.stop!(watch, by: bob)
+    assert_equal [ Chat::Watch::STATUS_STOPPED, bob ], [ watch.reload.status, watch.stopped_by ]
   end
 
   test "a watch reads only what the asker may, and stops following a read taken away from them" do
@@ -162,18 +175,42 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert Ability::Invocation.where(workspace: @workspace, principal: key, decision: Ability::Invocation::DECISION_ALLOW, action_key: "github.ci_runs").exists?
   end
 
+  test "a failed deploy reads the app's log first unless its step is a build, a test or CI run" do
+    asked = []
+    reader = stub
+    reader.stubs(:read).with { |_capability, given| asked << given["stream"] }.returns(stub(failed?: true))
+    call = stub(resource: stub(kind: ResourceMap::KIND_SERVICE, id: "web"))
+
+    Conversation::Watches.log_evidence(stub(label: "Deploy pricing service"), stub(started_at: nil), reader, call)
+    assert_equal [ Integrations::Capabilities::STREAM_APP, Integrations::Capabilities::STREAM_BUILD ], asked
+
+    asked.clear
+    Conversation::Watches.log_evidence(stub(label: "Run the tests"), stub(started_at: nil), reader, call)
+    assert_equal [ Integrations::Capabilities::STREAM_BUILD ], asked
+  end
+
   test "more time is given up to a day from when it started, and only while it goes" do
     start_release_watch
     watch = @conversation.chat.watches.sole
     extend_watch = Conversation::Tools::ExtendWatch.new(@turn)
 
-    assert_match "now watched for up to 1 hr 30 min", extend_watch.call(watch: watch.id, minutes: 90)
+    assert_match "now watched for up to 1 hr 30 min", extend_watch.call(**{ "watch" => watch.id, "minutes" => 90 })
     assert_equal [ watch.created_at + 90.minutes, Chat::Watch::BASIS_ASKED ], [ watch.reload.expires_at, watch.limit_basis ]
-    extend_watch.call(watch: watch.id, minutes: 5000)
+    assert_equal "Say how many minutes, more than the 90 it has now.", extend_watch.call(**{ "watch" => watch.id, "minutes" => 30 })
+    assert_equal watch.created_at + 90.minutes, watch.reload.expires_at
+    extend_watch.call(**{ "watch" => watch.id, "minutes" => 5000 })
     assert_equal watch.created_at + 24.hours, watch.reload.expires_at
 
     Conversation::Watches.stop!(watch, by: @alice)
-    assert_equal Chat::Watch::NOTHING_TO_STOP, extend_watch.call(watch: watch.id, minutes: 120)
+    assert_equal Chat::Watch::NOTHING_TO_STOP, extend_watch.call(**{ "watch" => watch.id, "minutes" => 2000 })
+  end
+
+  test "stop_watch stops the watch it is named by, the way the model calls it" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+
+    assert_match "Stopped watching", Conversation::Tools::StopWatch.new(@turn).call(**{ "watch" => watch.id })
+    assert_equal Chat::Watch::STATUS_STOPPED, watch.reload.status
   end
 
   test "a check another worker holds is left alone, a claim a dead worker left lapses, and a milestone is claimed once" do
@@ -294,7 +331,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
                  "The GitHub path is still broken. Next I would change the name the release sends, shall I?", said.text
     assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status
     assert_equal "trigger-northflank", watch.steps.sole.failed_part
-    assert_match "trigger-northflank failed.", Conversation::Watches::Shown.step_state(watch.steps.sole)
+    assert_match "trigger-northflank failed.", Chat::Watch::Shown.step_state(watch.steps.sole)
     invoked = Ability::Invocation.where(workspace: @workspace, action_key: "github.job_log")
     assert_equal [ AbilityGateway::SOURCE_WATCH ], invoked.map(&:source).uniq
     assert_match "(for: get GitHub releases deploying through the Northflank webhook again)", Conversation::Watches.untold_note(@conversation.chat)
@@ -368,14 +405,14 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     check!(watch)
     followed = watch.steps.sole
-    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "Waiting for it to start." ], [ followed.reload.status, Conversation::Watches::Shown.step_state(followed) ]
+    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "Waiting for it to start." ], [ followed.reload.status, Chat::Watch::Shown.step_state(followed) ]
     assert_empty watch.updates.reload
 
     answers("api_request" => northflank_run("running", jobs: 1))
     check!(watch)
     assert_equal Chat::Watch::Step::STATUS_RUNNING, followed.reload.status
     assert followed.started_at
-    assert_equal "Running. Passed so far: tag.", Conversation::Watches::Shown.step_state(followed)
+    assert_equal "Running. Passed so far: tag.", Chat::Watch::Shown.step_state(followed)
     assert_equal [ "Northflank release workflow: tag passed, trigger-northflank running." ], watch.updates.reload.map(&:text)
 
     answers("api_request" => northflank_run("running", jobs: 2))

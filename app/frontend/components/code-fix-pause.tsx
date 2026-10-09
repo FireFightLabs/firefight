@@ -3,13 +3,17 @@ import { IconLoader2, IconPlayerPause } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { type CodeFixPause, pauseContinuing, pauseOffered } from "@/lib/code-fix-work"
+import { type CodeFixPause, decisionVisit, pauseContinuing, pauseOffered } from "@/lib/code-fix-work"
 import { codeAgentPauseContinuePath, codeAgentPauseStopPath } from "@/lib/routes"
 
 interface CodeFixPauseProps {
   pause: CodeFixPause
   // Why whoever is looking cannot decide, from the server, or null when they can.
   blockedReason: string | null
+  // Drawn before the server said who may decide, so it offers nothing yet.
+  readOnly?: boolean
+  // The page props a decision changes, for a page that must not be visited whole.
+  reloads?: string[]
 }
 
 type Choice = "continue" | "stop"
@@ -17,13 +21,17 @@ type Choice = "continue" | "stop"
 // A code change that reached its spending limit before it finished, under the step that ran it. The person it runs as
 // continues it, which gives it another budget of the same size and carries on where it stopped, or stops it, which
 // deletes the work saved so far. Once decided, who decided and how.
-export function CodeFixPauseCard({ pause, blockedReason }: CodeFixPauseProps) {
+export function CodeFixPauseCard({ pause, blockedReason, readOnly = false, reloads }: CodeFixPauseProps) {
   const [ sending, setSending ] = useState<Choice | null>(null)
 
   function decide(choice: Choice) {
     setSending(choice)
     const path = choice === "continue" ? codeAgentPauseContinuePath(pause.id) : codeAgentPauseStopPath(pause.id)
-    router.post(path, {}, { preserveScroll: true, onFinish: () => setSending(null) })
+    router.post(path, {}, { ...decisionVisit(reloads), onFinish: doneSending })
+  }
+
+  function doneSending() {
+    setSending(null)
   }
 
   function continueChange() {
@@ -42,7 +50,7 @@ export function CodeFixPauseCard({ pause, blockedReason }: CodeFixPauseProps) {
       </span>
       {pause.savedBranch && <span className="text-fg-muted [overflow-wrap:anywhere]">Its work so far is saved on {pause.savedBranch}.</span>}
       {pauseOffered(pause) && blockedReason && <p className="m-0 text-fg-muted">{blockedReason}</p>}
-      {pauseOffered(pause) && !blockedReason && (
+      {pauseOffered(pause) && !blockedReason && !readOnly && (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" onClick={continueChange} disabled={sending !== null}>
             {sending === "continue" && <IconLoader2 className="motion-safe:animate-spin" />}

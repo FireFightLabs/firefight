@@ -20,17 +20,21 @@ module Integrations
     class Aws < MapEventSource
       KEY_HEADER = "x-firefight-key".freeze
       # Where whoever runs Firefight published aws_live_updates.json. A quick-create link takes a template only from an S3
-      # bucket, in one of the address forms the quick-create guide lists.
+      # bucket, in one of the address forms the quick-create guide lists. AWS in China is a partition of its own, with S3
+      # at amazonaws.com.cn, so the template is published for it apart.
       TEMPLATE_URL = "INTEGRATION_AWS_LIVE_UPDATES_TEMPLATE_URL".freeze
+      CHINA_TEMPLATE_URL = "INTEGRATION_AWS_LIVE_UPDATES_CHINA_TEMPLATE_URL".freeze
       TEMPLATE_FILE = Rails.root.join("app/services/integrations/map_event_sources/aws_live_updates.json")
       S3_TEMPLATE = %r{\Ahttps://(s3[.-][a-z0-9-]+\.amazonaws\.com/[^/]+/.+|[a-z0-9.-]+\.s3\.([a-z0-9-]+\.)?amazonaws\.com/.+)\z}
+      CHINA_S3_TEMPLATE = %r{\Ahttps://(s3\.cn-[a-z0-9-]+\.amazonaws\.com\.cn/[^/]+/.+|[a-z0-9.-]+\.s3\.cn-[a-z0-9-]+\.amazonaws\.com\.cn/.+)\z}
       STACK_PREFIX = "firefight-live-updates".freeze
-      # The commercial regions where an API destination reaches a public address, from EventBridge's user guide (API
-      # destinations as targets, Region availability). Elsewhere the stack cannot be made.
+      # The regions where an API destination reaches a public address, from EventBridge's user guide (API destinations as
+      # targets, Region availability). GovCloud has none (GovCloud user guide, Amazon EventBridge). Elsewhere the stack
+      # cannot be made.
       API_DESTINATION_REGIONS = %w[
         us-east-1 us-east-2 us-west-1 us-west-2 af-south-1 ap-east-1 ap-northeast-1 ap-northeast-2 ap-northeast-3 ap-south-1 ap-south-2
         ap-southeast-1 ap-southeast-2 ap-southeast-3 ca-central-1 eu-central-1 eu-central-2 eu-north-1 eu-south-1 eu-south-2 eu-west-1 eu-west-2
-        eu-west-3 me-central-1 me-south-1 sa-east-1
+        eu-west-3 me-central-1 me-south-1 sa-east-1 cn-north-1 cn-northwest-1
       ].freeze
       NO_API_DESTINATIONS = "AWS does not offer EventBridge API destinations in this region, so its changes arrive from CloudTrail every five minutes.".freeze
 
@@ -77,6 +81,8 @@ module Integrations
 
       DENIED = "Live updates need cloudtrail:LookupEvents on these keys to read CloudTrail's event history".freeze
       UNPUBLISHED = "Firefight's CloudFormation template is not published on this Firefight, so changes arrive from CloudTrail every five minutes.".freeze
+      CHINA_UNPUBLISHED = "Firefight's CloudFormation template is not published for AWS in China on this Firefight, so changes arrive from " \
+                          "CloudTrail every five minutes.".freeze
 
       class << self
         # The key is compared as digests, so the comparison takes as long whatever was sent.
@@ -102,15 +108,19 @@ module Integrations
 
         # Reads every connected region's history from where the last read ended. A region read for the first time starts
         # now. One AWS asked to slow down keeps its place and is read again next time, and a region too busy to read in
-        # MAX_PAGES is swept in full.
+        # MAX_PAGES is swept in full. A region that cannot be read, such as an opt-in region the account has not enabled,
+        # keeps its place and is said in error while the others are read. Only when every region read fails does the read fail.
         def poll(row, since:)
           now = Time.current
           places = cursors_of(since).slice(*regions(row))
           api = api(row)
           found = []
+          failures = {}
+          read = 0
           regions(row).each do |region|
             from = places[region]&.then { |stamp| Time.iso8601(stamp) }
             if from
+              read += 1
               records, complete = lookup(api, region, from - LAG, now)
               found.concat(records.flat_map { |record| record_events(record) })
               found << busy(region, now) unless complete
@@ -118,18 +128,19 @@ module Integrations
             places[region] = now.utc.iso8601(6)
           rescue RateLimited
             next
-          rescue AwsApi::Denied => error
-            raise Integrations::Error, Sentence.all(DENIED, error)
+          rescue AwsApi::Error => error
+            failures[region] = error
           end
-          MapEventSource::Polled.new(events: found, cursor: places.to_json)
+          raise_when_all_failed(failures, read)
+          error = failures.map { |region, failed| Sentence.join("CloudTrail in #{region} could not be read", failed) }.join(" ").presence
+          MapEventSource::Polled.new(events: found, cursor: places.to_json, error: error)
         end
 
         # Each region the connection reads, where a person may create the stack.
         def offers(row)
           labels = IntegrationProvider.find(Packs::Aws::PROVIDER_KEY)&.connect_fields&.find { |field| field.key == Packs::Aws::REGIONS }&.options.to_a
           regions(row).map do |region|
-            MapEventSource::Offer.new(place: region, label: labels.find { |option| option.value == region }&.label || region,
-                                      unavailable: (NO_API_DESTINATIONS unless API_DESTINATION_REGIONS.include?(region)))
+            MapEventSource::Offer.new(place: region, label: labels.find { |option| option.value == region }&.label || region, unavailable: unavailable_in(region))
           end
         end
 
@@ -144,8 +155,8 @@ module Integrations
         # The quick-create link for the region, with the connection's address and key filled in. A NoEcho parameter
         # cannot be filled in from a link, so the key is a plain parameter of the stack.
         def offer_link(row, place:, url:, secret:)
-          query = { templateURL: template_url, stackName: stack_name(row), param_Address: url, param_Key: secret }
-          "https://#{place}.console.aws.amazon.com/cloudformation/home?region=#{place}#/stacks/create/review?" +
+          query = { templateURL: china?(place) ? china_template_url : template_url, stackName: stack_name(row), param_Address: url, param_Key: secret }
+          "#{Packs::Aws.console_host(place)}/cloudformation/home?region=#{place}#/stacks/create/review?" +
             query.map { |key, value| "#{key}=#{ERB::Util.url_encode(value)}" }.join("&")
         end
 
@@ -235,7 +246,7 @@ module Integrations
         end
 
         def instance_arn(region, account, id)
-          "arn:#{Packs::Aws::PARTITION}:ec2:#{region}:#{account}:instance/#{id}" if region.present? && account.present? && id.present?
+          "arn:#{Packs::Aws.partition(region)}:ec2:#{region}:#{account}:instance/#{id}" if region.present? && account.present? && id.present?
         end
 
         # The service's ARN as ECS answered it, or as the request named it, in the form with its cluster (cluster
@@ -248,7 +259,7 @@ module Integrations
           return unless given
 
           cluster = asked["cluster"].to_s.split("/").last.presence || "default"
-          "arn:#{Packs::Aws::PARTITION}:ecs:#{region}:#{account}:service/#{cluster}/#{given}"
+          "arn:#{Packs::Aws.partition(region)}:ecs:#{region}:#{account}:service/#{cluster}/#{given}"
         end
 
         # A function by the ARN Lambda answered or the name or ARN the request gave, without a version or alias.
@@ -257,14 +268,14 @@ module Integrations
           return if given.blank?
           return given.split(":").first(7).join(":") if given.start_with?("arn:")
 
-          "arn:#{Packs::Aws::PARTITION}:lambda:#{region}:#{account}:function:#{given}" unless given.include?(":")
+          "arn:#{Packs::Aws.partition(region)}:lambda:#{region}:#{account}:function:#{given}" unless given.include?(":")
         end
 
         # RDS keeps an identifier in lowercase. Renaming a database names both, the old one to be found gone.
         def database_arns(name, asked, answered, region, account)
           return [ (asked["resourceName"] if asked["resourceName"].to_s.include?(":db:")) ] if name.end_with?("TagsToResource", "TagsFromResource")
 
-          named = ->(identifier) { "arn:#{Packs::Aws::PARTITION}:rds:#{region}:#{account}:db:#{identifier.downcase}" if identifier.present? }
+          named = ->(identifier) { "arn:#{Packs::Aws.partition(region)}:rds:#{region}:#{account}:db:#{identifier.downcase}" if identifier.present? }
           [ answered["dBInstanceArn"].presence || named.call(asked["dBInstanceIdentifier"]), named.call(asked["newDBInstanceIdentifier"]) ]
         end
 
@@ -288,6 +299,15 @@ module Integrations
           ResourceMap::Event.new(id: "cloudtrail-busy #{region} #{now.utc.iso8601(6)}", at: now, action: ResourceMap::Event::UPDATED, scope: ResourceMap::Scope.everything)
         end
 
+        def raise_when_all_failed(failures, count)
+          return if failures.size < count || failures.empty?
+
+          first = failures.values.first
+          raise Integrations::Error, Sentence.all(DENIED, first) if failures.values.all?(AwsApi::Denied)
+
+          raise first
+        end
+
         def cursors_of(since)
           parsed = since.present? ? JSON.parse(since) : {}
           parsed.is_a?(Hash) ? parsed : {}
@@ -302,6 +322,16 @@ module Integrations
         end
 
         def template_url = ENV[TEMPLATE_URL].presence&.then { |url| url if url.match?(S3_TEMPLATE) }
+
+        def china_template_url = ENV[CHINA_TEMPLATE_URL].presence&.then { |url| url if url.match?(CHINA_S3_TEMPLATE) }
+
+        def china?(region) = Packs::Aws.partition(region) == Packs::Aws::CHINA
+
+        def unavailable_in(region)
+          return NO_API_DESTINATIONS unless API_DESTINATION_REGIONS.include?(region)
+
+          CHINA_UNPUBLISHED if china?(region) && !china_template_url
+        end
 
         def regions(row) = Array(ConnectionSettings.of(row).field(Packs::Aws::REGIONS))
 

@@ -4,6 +4,7 @@ import { IconStack2, IconUser } from "@tabler/icons-react"
 
 import type { AbilityRole, Principal } from "@/types/serializers"
 import { abilityGrantsPath } from "@/lib/routes"
+import { GRANT_KINDS, IMPLICIT_AUTHORITIES, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -24,9 +25,9 @@ export function WhoCanDoWhat({
   const [packId, setPackId] = useState<string | null>(null)
   const [giving, setGiving] = useState(false)
 
-  const members = people.filter((person) => person.kind === "user" && person.implicitAuthority === "member")
+  const members = people.filter((person) => person.kind === PRINCIPAL_KINDS.USER && person.implicitAuthority === IMPLICIT_AUTHORITIES.MEMBER)
   const person = members.find((candidate) => candidate.id === personId) ?? null
-  const held = new Set((person?.grants ?? []).filter((grant) => grant.kind === "set").map((grant) => grant.targetId))
+  const held = new Set((person?.grants ?? []).filter((grant) => grant.kind === GRANT_KINDS.SET).map((grant) => grant.targetId))
   const offered = packs.filter((pack) => !held.has(pack.id))
 
   const personOptions: SearchableSelectOption[] = members.map((member) => ({

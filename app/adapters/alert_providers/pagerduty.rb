@@ -6,17 +6,14 @@ module AlertProviders
   # signature is made with a secret PagerDuty generates, so the source's token travels in a custom header the
   # subscription sends instead.
   class Pagerduty < Base
-    TOKEN_HEADER = "X-Firefight-Token".freeze
     INCIDENT = "incident".freeze
     FIRING_EVENTS = %w[incident.triggered incident.reopened].freeze
     RESOLVED_EVENT = "incident.resolved".freeze
+    SETUP_INSTRUCTIONS = "In PagerDuty, add a generic webhook (v3) subscription with this URL and the events " \
+                         "#{FIRING_EVENTS.join(', ')} and #{RESOLVED_EVENT}. Add a custom header named #{TOKEN_HEADER} holding " \
+                         "the token. Firefight accepts and ignores other events.".freeze
 
-    def self.verify(headers:, raw_body:, source:)
-      provided = headers[TOKEN_HEADER].to_s
-      return false if provided.blank?
-
-      ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
-    end
+    def self.verify(headers:, raw_body:, source:) = token_matches?(headers[TOKEN_HEADER].to_s, source)
 
     def self.normalize(payload, source:)
       event = payload.is_a?(Hash) && payload["event"].is_a?(Hash) ? payload["event"] : nil

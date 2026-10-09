@@ -129,6 +129,7 @@ module FirefightAi
           rest of the timeline. Where a milestone belongs to nobody in
           particular, state the fact: "Error rate returned to baseline".
         - No trailing period, no markdown, no user mentions.
+        - #{Copy::PEOPLE}
         - Set confidence honestly. A transcript with nothing worth noting
           should return an empty list, and that is a good answer.
       PROMPT

@@ -23,7 +23,7 @@ class AbilityGrantsController < InertiaController
     grant = Ability::Grant.withhold!(workspace: current_workspace, principal: principal, **target)
 
     redirect_to gateway_permissions_path,
-                notice: "#{principal.actor_display_name} can no longer #{words_for(grant)}. Restore it to give it back."
+                notice: "#{principal.actor_display_name} can no longer #{grant.withheld_words}. Restore it to give it back."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to gateway_permissions_path, alert: e.record.errors.full_messages.to_sentence
   end
@@ -44,7 +44,7 @@ class AbilityGrantsController < InertiaController
     grant = current_workspace.ability_grants.find(params[:id])
     label = grant.label
     grant.destroy!
-    return redirect_to(gateway_permissions_path, notice: "#{grant.principal.actor_display_name} can #{words_for(grant)} again.") if grant.no_access?
+    return redirect_to(gateway_permissions_path, notice: "#{grant.principal.actor_display_name} can #{grant.withheld_words} again.") if grant.no_access?
 
     redirect_to gateway_permissions_path, notice: "#{label} was revoked."
   end
@@ -55,12 +55,6 @@ class AbilityGrantsController < InertiaController
     return "" if grant.expires_at.blank?
 
     " until #{grant.expires_at.to_fs(:long)}"
-  end
-
-  def words_for(grant)
-    return grant.role.default_words if grant.role
-
-    Ability::Action.described(grant.action.key)&.fetch(:title)&.downcase_first || grant.action.key
   end
 
   def find_action!

@@ -58,7 +58,7 @@ module Operator
 
     # A saved chat has its own id, and model call errors show that id.
     def through_chats
-      starting(Chat.includes(:owner)).filter_map do |chat|
+      starting(Chat.includes(owner: :workspace)).filter_map do |chat|
         owner = chat.owner
         via = "Saved chat #{chat.id}"
         case owner
@@ -86,15 +86,17 @@ module Operator
       runs = starting(Inference.where(inferable_type: Investigation.name).includes(inferable: %i[workspace subject])).map do |inference|
         run_match(inference.inferable, via: "Model call #{inference.id}", span: "#{Trace::KIND_MODEL}-#{inference.id}")
       end
-      chats = starting(RubyLLM::ActiveRecord::Usage.where(chat_type: Chat.name)).filter_map do |usage|
-        conversation = Chat.find_by(id: usage.chat_id)&.owner
+      usages = starting(RubyLLM::ActiveRecord::Usage.where(chat_type: Chat.name)).to_a
+      owners = Chat.includes(owner: :workspace).where(id: usages.map(&:chat_id)).index_by(&:id)
+      chats = usages.filter_map do |usage|
+        conversation = owners[usage.chat_id]&.owner
         chat_match(conversation, via: "Model call #{usage.id}", span: "#{Trace::KIND_MODEL}-#{usage.id}") if conversation.is_a?(Conversation)
       end
       runs + chats
     end
 
     def through_messages
-      starting(Chat::Message.includes(chat: :owner)).filter_map do |message|
+      starting(Chat::Message.includes(chat: { owner: :workspace })).filter_map do |message|
         owner = message.chat.owner
         via = "Chat message #{message.id}"
         owner.is_a?(Investigation) ? run_match(owner, via: via) : chat_match(owner, via: via)
@@ -116,8 +118,7 @@ module Operator
     end
 
     def run_match(run, via: nil, span: nil)
-      label = run.incident ? "#{run.incident.identifier} #{run.incident.name}" : run.question.to_s
-      Match.new(kind: KIND_RUN, id: run.id, label: label, place: run.workspace.name, via: via, span: span)
+      Match.new(kind: KIND_RUN, id: run.id, label: run.label, place: run.workspace.name, via: via, span: span)
     end
 
     def chat_match(conversation, via: nil, span: nil)

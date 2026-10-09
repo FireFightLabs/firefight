@@ -22,6 +22,16 @@ class AgentChatAttachmentsControllerTest < ActionDispatch::IntegrationTest
     assert_not file.sent?
   end
 
+  test "a workspace without Halon is told why in the answer the upload reads" do
+    Investigation.stubs(:available_for?).returns(false)
+    Investigation.stubs(:unavailable_reason).returns("Halon is off in this workspace.")
+
+    post agent_chat_attachments_url, params: { file: fixture_file_upload("halon_graph.png", "image/png") }
+
+    assert_response :forbidden
+    assert_equal "Halon is off in this workspace.", response.parsed_body["error"]
+  end
+
   test "a file Halon does not read is refused with the sentence saying what is accepted" do
     post agent_chat_attachments_url, params: { file: Rack::Test::UploadedFile.new(StringIO.new("PK\u0003\u0004\u0000\u0000".b), "application/zip", true, original_filename: "dump.zip") }
 

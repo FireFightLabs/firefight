@@ -15,18 +15,24 @@ module Mcp
       # The resource named, or a response saying it is not on the map or listing those that share the name. A resource
       # outside what the caller reads answers exactly as a name nothing has.
       def locate(workspace, visible, reference)
-        found = visible.referenced(workspace, reference).includes(integration_environment: %i[integration environment]).to_a
-        return respond(error: "Nothing called #{reference} is on the map. find_resources searches it by name.") if found.empty?
-
-        candidates = found.reject(&:removed_at).presence || found
+        candidates = ResourceMap::Resource.candidates(visible, workspace, reference, removed: true)
+        return refuse(error: ResourceMap::Resource.not_found_words(reference)) if candidates.empty?
         return candidates.first if candidates.one?
 
         more = candidates.size - CANDIDATES_SHOWN
-        respond({
+        refuse({
           error: "More than one resource is called #{reference}. Name one by its id.",
           candidates: rows(candidates.first(CANDIDATES_SHOWN), visible),
           more: ("#{more} more share the name" if more.positive?)
         }.compact)
+      end
+
+      # How many links lead to resources in environments the caller cannot read, or nil when none do.
+      def out_of_reach_words(count, within_two_hops: false)
+        return nil unless count.positive?
+
+        "#{count} more #{'link'.pluralize(count)}#{' within two hops' if within_two_hops} #{count == 1 ? 'leads' : 'lead'} " \
+          "to resources in environments you cannot read"
       end
 
       # One row per resource, with how many resources directly depend on it, counted in one query and only among those

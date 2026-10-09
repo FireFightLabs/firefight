@@ -98,13 +98,13 @@ module FirefightAi
         - A reply without a tool call does nothing. Only conclude ends the run.
         - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
       PROMPT
     end
 
     private
 
-    def output_cap = FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: ai_model.model)
+    def output_cap = FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: ai_model)
 
     def system_prompt = self.class.system_prompt
 

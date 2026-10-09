@@ -29,17 +29,7 @@ module Workspace::ChatConnection
     lock!
     raise AlreadyConnected, "Workspace #{id} is already connected" if chat_connected?
 
-    team_info = auth_hash.extra.team_info
-    update!(
-      platform: Platforms::SLACK,
-      platform_id: team_info["id"],
-      platform_data: team_info,
-      access_token: auth_hash.credentials.token,
-      refresh_token: auth_hash.credentials.refresh_token,
-      token_expires_at: auth_hash.credentials.expires_at ? Time.at(auth_hash.credentials.expires_at) : nil,
-      installed_at: Time.current,
-      disconnected_at: nil,
-      disconnected_reason: nil
-    )
+    update!(platform: Platforms::SLACK, platform_id: auth_hash.extra.team_info["id"], installed_at: Time.current,
+            **self.class.slack_install_attributes(auth_hash))
   end
 end

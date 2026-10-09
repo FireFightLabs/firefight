@@ -2,7 +2,8 @@
 # chooses a connection to a tracker under Settings, Workspace, named by its slug, which never changes, and where new
 # issues go (Integrations::Issues target fields, such as a Linear team or a Jira project). Changes made in the tracker
 # reach Firefight through the tracker's webhook, sent to an address only this workspace has and checked with the signing
-# secret the admin pastes from the tracker. Only items linked to the chosen connection's issues are kept in step.
+# secret the admin pastes from the tracker, which the tracker connection's own row keeps (IntegrationEnvironment::
+# IssueWebhook). Only items linked to the chosen connection's issues are kept in step.
 module Workspace::IssueSync
   extend ActiveSupport::Concern
 
@@ -22,17 +23,14 @@ module Workspace::IssueSync
   ISSUE_CREATIONS = ISSUE_CREATION_CHOICES.map(&:value).freeze
 
   included do
-    encrypts :issue_webhook_secret
-
     normalizes :issue_tracker, with: ->(value) { value.to_s.strip.presence }
-    normalizes :issue_webhook_secret, with: ->(value) { value.to_s.strip.presence }
     normalizes :issue_tracker_target, with: ->(value) { value.to_h.transform_values { |field| field.to_s.strip }.compact_blank }
 
     validates :issue_creation, inclusion: { in: ISSUE_CREATIONS }
     validate :issue_tracker_is_a_tracker
     validate :issue_tracker_chosen_to_create
     # A secret is for the tracker it was copied from, so choosing another one asks for its own.
-    before_save :forget_issue_webhook_secret, if: -> { will_save_change_to_issue_tracker? && !will_save_change_to_issue_webhook_secret? }
+    after_save :forget_previous_issue_webhook, if: :saved_change_to_issue_tracker?
     before_save :give_issue_webhook_address, if: -> { issue_tracker.present? && issue_webhook_token.blank? }
     # Where issues go is the chosen tracker's, so choosing another asks again.
     before_save :forget_issue_tracker_target, if: -> { will_save_change_to_issue_tracker? && !will_save_change_to_issue_tracker_target? }
@@ -50,6 +48,9 @@ module Workspace::IssueSync
     integration = issue_tracker_connection
     integration if integration&.operational?
   end
+
+  # The row a tracker connection is called through, which keeps its webhook, or nil while there is none.
+  def issue_webhook_row(integration = issue_tracker_connection) = integration&.resolve_environment(nil)
 
   def issue_creation_never? = issue_creation == ISSUE_CREATION_NEVER
 
@@ -79,13 +80,16 @@ module Workspace::IssueSync
   def issue_webhook_blocked_reason
     integration = issue_sync_connection
     return if integration.nil?
-    return Integrations::Sentence.join("Firefight could not register #{integration.name}'s webhook, so changes made there do not reach it", issue_webhook_error) if issue_webhook_error.present?
-    return if issue_webhook_registered?
 
-    "Changes made in #{integration.name} do not reach Firefight until its webhook's signing secret is saved here." if issue_webhook_secret.blank?
+    row = issue_webhook_row(integration)
+    return "#{integration.name} has no environment to call, so changes made there do not reach Firefight." if row.nil?
+    return Integrations::Sentence.join("Firefight could not register #{integration.name}'s webhook, so changes made there do not reach it", row.issue_webhook_error) if row.issue_webhook_error.present?
+    return if row.issue_webhook_registered?
+
+    "Changes made in #{integration.name} do not reach Firefight until its webhook's signing secret is saved here." unless row.issue_webhook_secret_set?
   end
 
-  def issue_webhook_registered? = issue_webhook_id.present?
+  def issue_webhook_registered? = issue_webhook_row&.issue_webhook_registered? || false
 
   # Each tool keeping items in step must be on, and Firefight's issue sync must hold it, since every call is made as
   # that agent. nil when they all are.
@@ -134,12 +138,21 @@ module Workspace::IssueSync
     )
   end
 
-  # Where Firefight keeps a webhook it registered, or nothing once it is gone.
-  def issue_webhook_registered!(webhook)
-    update!(issue_webhook_id: webhook&.id, issue_webhook_secret: webhook&.secret, issue_webhook_expires_at: webhook&.expires_at, issue_webhook_error: nil)
-  end
+  def issue_webhook_registered!(webhook) = issue_webhook_row&.issue_webhook_registered!(webhook)
 
-  def issue_webhook_failed!(words) = update_columns(issue_webhook_error: words.to_s.truncate(500), updated_at: Time.current)
+  def issue_webhook_failed!(words) = issue_webhook_row&.issue_webhook_failed!(words)
+
+  # The secret an admin pasted from a tracker set up by hand, kept on the chosen tracker's row.
+  def save_issue_webhook_secret!(secret)
+    row = issue_webhook_row
+    if row.nil?
+      connection = issue_tracker_connection
+      errors.add(:issue_webhook_secret, connection ? "cannot be saved until #{connection.name} has an environment to call" : "needs an issue tracker to sign for")
+      raise ActiveRecord::RecordInvalid, self
+    end
+
+    row.update!(issue_webhook_secret: secret)
+  end
 
   # A tracker the settings page offers, with where its new issues go (Integrations::Issues::TargetField) and how to
   # send its webhook to Firefight, as the tracker documents it.
@@ -150,27 +163,22 @@ module Workspace::IssueSync
     trackers = integrations.where(deleted_at: nil, provider: issue_tracker_providers).order(:name)
     none = TrackerChoice.new(value: nil, label: "None", fields: [], steps: [])
     [ none ] + trackers.map do |integration|
-      TrackerChoice.new(value: integration.slug, label: issue_tracker_label(integration),
+      TrackerChoice.new(value: integration.slug, label: integration.display_name,
                         fields: Integrations::Issues.target_fields(integration.provider), steps: Integrations::Issues.setup_steps(integration.provider))
     end
   end
 
-  def issue_webhook_secret_set? = issue_webhook_secret.present?
+  def issue_webhook_secret_set? = issue_webhook_row&.issue_webhook_secret_set? || false
 
   private
 
   def issue_tracker_providers = IntegrationProvider.all.map(&:key).select { |key| Integrations::Issues.syncs?(key) }
 
-  def issue_tracker_label(integration)
-    provider = IntegrationProvider.find(integration.provider).name
-    integration.name == provider ? provider : "#{integration.name} (#{provider})"
-  end
+  def forget_previous_issue_webhook
+    previous = issue_tracker_before_last_save
+    return if previous.blank?
 
-  def forget_issue_webhook_secret
-    self.issue_webhook_secret = nil
-    self.issue_webhook_id = nil
-    self.issue_webhook_expires_at = nil
-    self.issue_webhook_error = nil
+    issue_webhook_row(integrations.find_by(slug: previous, provider: issue_tracker_providers))&.forget_issue_webhook!
   end
 
   def forget_issue_tracker_target

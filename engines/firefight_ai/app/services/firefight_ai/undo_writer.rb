@@ -69,7 +69,8 @@ module FirefightAi
         - When nothing can be put back from what you are given, make it a step for a person and say what is missing.
         - Never invent a value you were not given. Never put a credential in a step.
         - #{Evidence::RULE}
-        - Plain sentences, no markdown, no em dashes, no semicolons.
+        - Plain sentences, no markdown.
+        - #{Copy::RULE}
       PROMPT
     end
 

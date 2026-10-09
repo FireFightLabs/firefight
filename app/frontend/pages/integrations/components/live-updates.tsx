@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ChangeEvent, type FormEvent } from "react"
 import { router } from "@inertiajs/react"
 import { IconCheck, IconCopy } from "@tabler/icons-react"
 
@@ -13,7 +13,7 @@ import {
   mapEventsSecretIntegrationPath,
   mapEventsSecretsIntegrationPath,
 } from "@/lib/routes"
-import { liveUpdatesLine } from "@/pages/map/lib/live-updates"
+import { liveUpdatesLine } from "@/lib/live-updates"
 import type { Integration } from "@/types/serializers"
 
 type LiveUpdatesState = NonNullable<Integration["environments"][number]["liveUpdates"]>
@@ -54,7 +54,7 @@ export function LiveUpdates({
   const setup = state.setup
   const secretId = `map-events-secret-${rowId}`
 
-  function changeSecret(event: React.ChangeEvent<HTMLInputElement>) {
+  function changeSecret(event: ChangeEvent<HTMLInputElement>) {
     setSecret(event.target.value)
   }
 
@@ -62,7 +62,7 @@ export function LiveUpdates({
     setSecret("")
   }
 
-  function saveSecret(event: React.FormEvent<HTMLFormElement>) {
+  function saveSecret(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     router.patch(
       mapEventsSecretIntegrationPath(integrationId),
@@ -196,7 +196,7 @@ export function LiveUpdates({
               {setup.manySecrets ? "Add secret" : "Save secret"}
             </Button>
             {setup.manySecrets &&
-              (setup.forgetSecretsBlocked ? (
+              (setup.forgetSecretsBlockedReason ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="w-fit">
@@ -205,7 +205,7 @@ export function LiveUpdates({
                       </Button>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{setup.forgetSecretsBlocked}</TooltipContent>
+                  <TooltipContent>{setup.forgetSecretsBlockedReason}</TooltipContent>
                 </Tooltip>
               ) : (
                 <Button type="button" size="sm" variant="outline" onClick={askForget}>

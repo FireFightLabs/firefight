@@ -56,6 +56,24 @@ module Integrations
         assert_raises(FlyApi::Error) { Fly.poll(@row, since: before) }
       end
 
+      test "one poll reads only its budget of apps and the next goes on from where it stopped, saying nothing for an app read the first time" do
+        Fly.stubs(:budget).returns(1)
+
+        first = JSON.parse(Fly.poll(@row, since: nil).cursor)
+        assert_equal Fly::UNREAD, first.dig("apps", "api")
+        assert_not_equal Fly::UNREAD, first.dig("apps", "web")
+        assert_equal "api", first["next"]
+
+        second = Fly.poll(@row, since: first.to_json)
+        assert_empty second.events
+        assert_not_equal Fly::UNREAD, JSON.parse(second.cursor).dig("apps", "api")
+        assert_equal "web", JSON.parse(second.cursor)["next"]
+
+        stub_machines("web", "stopped", "2026-10-06T10:05:00Z")
+        assert_equal [ [ ResourceMap::Event::UPDATED, "web" ] ], Fly.poll(@row, since: second.cursor).events.map { |event| [ event.action, event.scope.external_id ] }
+      end
+
+      private
       private
 
       def stub_machines(app, state, updated_at)

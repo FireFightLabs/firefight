@@ -23,6 +23,7 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
     rule = policy.policy_rules.find_by!(priority: 1)
     assert_equal "checkout", rule.conditions.first["value"].first
     assert_equal AlertIngestService::ACTION_AUTO_CREATE, rule.outcome["action"]
+    assert_equal "Routing rule was created.", flash[:notice]
   end
 
   test "create persists the notify channel display name alongside the id" do
@@ -74,6 +75,7 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal 2, first.reload.priority
     assert_equal 1, second.reload.priority
+    assert_equal "Routing rule was moved up.", flash[:notice]
   end
 
   test "update toggles enabled without touching conditions" do
@@ -87,6 +89,7 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
     rule.reload
     assert_not rule.enabled
     assert_equal 1, rule.conditions.size
+    assert_equal "Routing rule was updated.", flash[:notice]
   end
 
   test "destroy removes the rule" do
@@ -96,6 +99,7 @@ class PolicyRulesControllerTest < ActionDispatch::IntegrationTest
     delete policy_rule_url(rule)
 
     assert_nil PolicyRule.find_by(id: rule.id)
+    assert_equal "Routing rule was deleted.", flash[:notice]
   end
 
   test "cannot touch another workspace's rule" do

@@ -93,10 +93,7 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
     "Ask the person first: #{missing.map { |input| input['question'] }.join(' ')} Then call it again with #{INPUTS_ARG}." if missing.any?
   end
 
-  def reads_runbooks?
-    action = Ability::Action.lookup(Ability::Action.system_key(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ), @turn.workspace)
-    @turn.asker.present? && @turn.asker.permitted_to?(action, @turn.workspace)
-  end
+  def reads_runbooks? = @turn.asker.present? && @turn.asker.may?(Ability::Action::RESOURCE_RUNBOOKS, Ability::Action::ACTION_READ, @turn.workspace)
 
   def refused(tool_call, text)
     Chat::Tools.mark_failed(@turn, tool_call&.id)
@@ -155,7 +152,8 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
     def unavailable(step, entry)
       return "there is no tool called #{step.tool} here, so the runbook needs updating or the tool switching on." unless entry
 
-      need = entry.description.to_s[/\ANeeds the .+? pack[^.]*\./]
+      tool = @turn.workspace.connection_tools_by_name[step.tool.to_s]
+      need = Chat::Tools.pack_needed(tool) if tool && entry.state != Chat::Tools::STATE_READS_ONLY
       "#{@turn.asker_name} may not use #{step.tool}.#{" #{need}" if need}"
     end
 

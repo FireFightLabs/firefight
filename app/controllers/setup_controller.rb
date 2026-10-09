@@ -19,6 +19,7 @@ class SetupController < InertiaController
   def show
     return redirect_to(dashboard_path) if @onboarding.finish_if_done!
 
+    cards = @onboarding.stack_cards
     render inertia: "setup/index", props: {
       workspaceName: current_workspace.name,
       email: current_user.email,
@@ -27,12 +28,12 @@ class SetupController < InertiaController
       # Each choice offered here, with why it cannot be chosen yet, or nil.
       aiChoices: @onboarding.ai_choices.index_with { |choice| @onboarding.ai_choice_blocked_reason(choice) },
       **ai_account_props,
-      categories: OnboardingCategorySerializer.many(@onboarding.stack_cards),
+      categories: OnboardingCategorySerializer.many(cards),
       stackAnswers: @onboarding.stack_answers,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       principals: PrincipalSerializer.many(Ability::Principal.all(current_workspace)),
-      packs: AbilityRoleSerializer.many(current_workspace.ability_roles.built_in.order(:name).includes(:grants, :role_actions, :integration)),
-      firstQuestion: @onboarding.first_question,
+      packs: AbilityRoleSerializer.many(current_workspace.ability_roles.built_in.order(:name).with_holder_counts.includes(:grants, :role_actions, :integration)),
+      firstQuestion: @onboarding.first_question(cards),
       walkthrough: WorkspaceOnboarding::STEPS
     }
   end
@@ -67,7 +68,7 @@ class SetupController < InertiaController
   end
 
   def skip_slack
-    @onboarding.skip_slack!
+    @onboarding.skip_chat!
     advance("Slack can wait. Connect it from the banner at the top of any page.")
   end
 

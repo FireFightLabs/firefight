@@ -55,7 +55,7 @@ module FirefightAi
       - Judge only from the reading. Never guess at what is not in it.
       - A run that exists, is in progress, or has a job or step that started or finished has begun, so it is running unless it is over.
       - When unsure, keep where it was so far.
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     WHY_PROMPT = <<~PROMPT.freeze
@@ -63,21 +63,24 @@ module FirefightAi
 
       - Use only the evidence. Quote an error message briefly when it says it best.
       - When the evidence does not show why, answer exactly: #{UNKNOWN}
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     # Seen in a real chat, a manual deploy was reported as a success when what the person wanted was the webhook path
     # fixed, and later nobody could say why it had been run.
     STANDING_PROMPT = <<~PROMPT.freeze
-      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words and what just happened. Say in one short sentence where this leaves the goal, then offer the most useful next step as a question, such as "The manual run worked, but the GitHub path is still broken. Next I would read the webhook's error, shall I?"
+      A person asked Halon to follow something in a production system for a goal of theirs. You get the goal in their words and what just happened. Say in one short sentence where this leaves the goal, then offer the most useful next step as a question, such as "The manual run worked, but the release from the code host is still broken. Next I would read the webhook's error, shall I?"
 
       - Use only what happened. Never say the goal is reached unless what happened shows it.
       - Never offer a fix that what happened does not show the cause of. When the cause is unknown, offer the check that would show it.
       - Offer to do it. Never say it was done.
       - At most two sentences, plain words, no preamble.
       - When nothing useful can be said, answer exactly: #{UNKNOWN}
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
+
+    # Each prompt is its own template in the ledger, so a version change means its wording changed.
+    TEMPLATES = { READING_PROMPT => "watch_reading", WHY_PROMPT => "watch_why", STANDING_PROMPT => "watch_standing" }.freeze
 
     private
 
@@ -95,7 +98,7 @@ module FirefightAi
     def inference_context(prompt)
       {
         workspace: @workspace, feature: FEATURE, provider: model_choice.provider_name, model: model_choice.model,
-        inferable: @inferable, member: @member, prompt_template: FEATURE, prompt_version: Prompt.version(prompt), prompt_text: prompt
+        inferable: @inferable, member: @member, prompt_template: TEMPLATES.fetch(prompt), prompt_version: Prompt.version(prompt), prompt_text: prompt
       }
     end
   end

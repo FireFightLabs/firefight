@@ -20,11 +20,12 @@ module Interactions
       nil
     end
 
-    # Slack's thumbs show what was pressed themselves. A plain button does not, so its press is answered.
+    # A press is answered unless the control already shows what was pressed, which only the platform knows.
     def self.confirm(workspace, interaction, outcome)
-      return if interaction.action_id == Identifiers::INVESTIGATION_FEEDBACK || interaction.prompt_handle.blank?
+      adapter = workspace.adapter
+      return if interaction.prompt_handle.blank? || adapter.confirms_press_itself?(interaction.action_id)
 
-      workspace.adapter.answer_privately(prompt_handle: interaction.prompt_handle, text: Investigation::Finding.verdict_recorded(outcome))
+      adapter.answer_privately(prompt_handle: interaction.prompt_handle, text: Investigation::Finding.verdict_recorded(outcome))
     rescue AdapterError => e
       Rails.logger.warn({ event: "interactions.investigation_feedback.unconfirmed", error: e.class.name }.to_json)
     end

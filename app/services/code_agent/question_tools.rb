@@ -1,6 +1,7 @@
 # How a coding agent asks the person it writes a change for. The question is shown under the change's step in the chat
-# or the fix, and in its Slack thread, Halon answers when what it read settles it, and otherwise the person does. A call
+# or the fix, and in its thread, Halon answers when what it read settles it, and otherwise the person does. A call
 # waits a little for the answer and says to wait again, since one request held for minutes would outlive the agent's.
+# An answer the person changes later reaches the agent with whichever of Firefight's tools it calls next.
 module CodeAgent::QuestionTools
   ASK = "ask_question".freeze
   WAIT = "wait_for_answer".freeze
@@ -12,7 +13,7 @@ module CodeAgent::QuestionTools
           "placeholders such as team T or team A, say what happens today, then ask, and give the options in plain words. " \
           "For example: \"You are in the Acme workspace, which is connected to Acme's Slack. You sign in with Slack from a " \
           "different company's Slack, Side Project, which no workspace uses yet. Today Firefight offers to create a new " \
-          "workspace for Side Project. What should happen?\"".freeze
+          "workspace for Side Project. What should happen?\" #{FirefightAi::Copy::PEOPLE} #{FirefightAi::Copy::QUOTING}".freeze
   STILL_WAITING = "No answer yet. Call #{WAIT} to keep waiting, and do nothing else until it answers.".freeze
 
   # Offered only where the change was asked for, a chat or a fix, since that is where the question can be seen.
@@ -42,7 +43,8 @@ module CodeAgent::QuestionTools
                                      consequence: { type: "string", description: "What choosing it leads to, in one line" } } }
             },
             recommended: { type: "string", description: "The label of the option you recommend, the one most consistent with how the code already behaves and what the person said" },
-            reason: { type: "string", description: "Why you recommend it, in one sentence, naming the existing behaviour or the person's words it follows" }
+            reason: { type: "string", description: "Why you recommend it, in one sentence, naming the existing behaviour it follows, or quoting " \
+                                                 "the person's words it follows exactly and in quotes" }
           }
         }
       ) do |question:, options: [], recommended: nil, reason: nil, **|
@@ -63,17 +65,39 @@ module CodeAgent::QuestionTools
     ]
   end
 
-  # The answer once there is one, or the question's end once it is overdue, or a word to wait again.
+  # The answer once there is one, or the question's end once it is overdue, or a word to wait again. A changed answer
+  # comes as its correction, which names the new answer.
   def self.answer(asked)
     deadline = clock + WAIT_IN_CALL
     loop do
       asked.reload
       asked.expire_if_overdue!
-      return text(asked.agent_words) unless asked.open?
+      unless asked.open?
+        corrected = CodeAgentQuestion.claim_corrections!(asked.session)
+        return text([ (asked.agent_words unless corrected.include?(asked)), *corrected.map(&:correction_words) ].compact.join("\n\n"))
+      end
       return text(STILL_WAITING) if clock >= deadline
 
       pause(POLL_EVERY)
     end
+  end
+
+  # Whatever one of Firefight's tools answers carries the answers the person changed since the agent last heard, so a
+  # change reaches it with its next call even when it never waits again. answer is the server's JSON reply, or nil.
+  def self.with_corrections(session, answer)
+    return answer unless answer && session.place
+
+    reply = JSON.parse(answer)
+    content = reply.dig("result", "content") if reply.is_a?(Hash)
+    return answer unless content.is_a?(Array)
+
+    corrected = CodeAgentQuestion.claim_corrections!(session)
+    return answer if corrected.empty?
+
+    content.concat(corrected.map { |question| { "type" => "text", "text" => question.correction_words } })
+    reply.to_json
+  rescue JSON::ParserError
+    answer
   end
 
   def self.pause(seconds) = sleep(seconds)

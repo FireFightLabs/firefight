@@ -10,6 +10,8 @@ FirefightAi.configure do |config|
   # Unset means on. Only an explicit false, 0 or off turns milestones off for every workspace.
   config.milestones_enabled = ENV["AI_MILESTONES_ENABLED"].blank? ||
     ActiveModel::Type::Boolean.new.cast(ENV["AI_MILESTONES_ENABLED"])
+
+  config.on_refused = ->(payer, provider, error) { AiRefusal.record!(payer, provider, error) }
 end
 
 # A workspace's AI account with its own API base calls through this adapter where private networks are refused.

@@ -50,7 +50,7 @@ module Runbook::Procedure
     end
   end
 
-  # Whether Halon can run it: a step names a tool, or there is something to watch.
+  # Whether Halon can run it, because a step names a tool or there is something to watch.
   def procedure? = runbook_steps.any?(&:tool?) || watch.present?
 
   def input_keys = inputs.map { |input| input["key"] }
@@ -90,8 +90,21 @@ module Runbook::Procedure
     return if watch.nil?
 
     steps = watch.is_a?(Hash) ? watch["steps"] : nil
-    unless steps.is_a?(Array) && steps.any? && steps.all? { |step| step.is_a?(Hash) && step["capability"].present? && step["resource"].present? }
-      errors.add(:watch, "needs steps, each naming the capability to check and the resource")
+    unless steps.is_a?(Array) && steps.any? && steps.all? { |step| step.is_a?(Hash) }
+      return errors.add(:watch, "needs steps, each naming the capability to check and the resource")
     end
+
+    # Steps are named by their number, as the settings page numbers them, so whoever reads it finds the one to fix.
+    unnamed = step_numbers(steps) { |step| step["capability"].blank? || step["resource"].blank? }
+    return errors.add(:watch, "needs #{unnamed} to name the capability to check and the resource") if unnamed
+
+    undecided = step_numbers(steps) { |step| Chat::Watch::Step.undecided?(step) }
+    errors.add(:watch, "needs what counts as done for #{undecided} (done when, failed when or a goal)") if undecided
+  end
+
+  # "step 2" or "steps 1 and 3" for the steps the block picks, nil for none.
+  def step_numbers(steps)
+    numbers = steps.each_index.select { |index| yield(steps[index]) }.map { |index| index + 1 }
+    "#{'step'.pluralize(numbers.size)} #{numbers.to_sentence}" if numbers.any?
   end
 end

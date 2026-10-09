@@ -60,4 +60,19 @@ class IntegrationsAppConnectTest < ActionDispatch::IntegrationTest
     assert_nil IntegrationProviderSerializer.one(IntegrationProvider.find("linear"))[:app]
     assert_equal Integration::KIND_MCP, IntegrationProvider.find("linear").connect_kind(Integration::KIND_NATIVE)
   end
+
+  test "the dialog says what the app does and names the connection it makes from the registry" do
+    app = IntegrationProviderSerializer.one(IntegrationProvider.find("linear"))[:app]
+
+    assert_equal "Linear issue sync", app[:connectionName]
+    assert_match "keeps incident actions and follow-ups in step with issues", app[:description]
+  end
+
+  test "a provider connected from a URL ships the form's words from its pack, and others ship none" do
+    words = IntegrationProviderSerializer.one(IntegrationProvider.find("postgresql"))[:connectionUrl]
+
+    assert_match "postgresql://", words[:placeholder]
+    assert_match "longer than #{Integrations::Packs::Postgres::Connection::STATEMENT_TIMEOUT_MS / 1000} seconds", words[:hint]
+    assert_nil IntegrationProviderSerializer.one(IntegrationProvider.find("linear"))[:connectionUrl]
+  end
 end

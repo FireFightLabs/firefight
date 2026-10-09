@@ -34,7 +34,7 @@ class IncidentRunbooksController < InertiaController
       Rails.logger.error("incident_runbooks#claim_step: Slack post failed — #{e.message}")
     end
 
-    redirect_to incident_path(incident)
+    redirect_to incident_path(incident), notice: "You claimed #{step.title}."
   rescue Incident::NotActive => e
     redirect_to incident_path(incident), alert: e.message
   end

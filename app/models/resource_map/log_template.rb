@@ -158,6 +158,6 @@ class ResourceMap::LogTemplate < ApplicationRecord
              "Link it to the catalog entry it runs to have them read."
     end
 
-    "Not read yet. They are read once a day, after what normal looks like."
+    "Not read yet. Usual log lines are read once a day, after Firefight reads what normal looks like for each resource."
   end
 end

@@ -183,7 +183,7 @@ class WorkspaceOnboarding::ChecklistTest < ActiveSupport::TestCase
     assert_equal WorkspaceOnboarding::STEP_SLACK, @onboarding.current_step.key
     assert_not @onboarding.finish_if_done!
 
-    @onboarding.skip_slack!
+    @onboarding.skip_chat!
     steps = @onboarding.steps
     assert_equal WorkspaceOnboarding::STATE_SKIPPED, steps.find { |step| step.key == WorkspaceOnboarding::STEP_SLACK }.state
     assert_equal WorkspaceOnboarding::STATE_SKIPPED, steps.find { |step| step.key == WorkspaceOnboarding::STEP_TEST_INCIDENT }.state

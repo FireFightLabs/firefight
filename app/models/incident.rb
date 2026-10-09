@@ -14,7 +14,7 @@ class Incident < ApplicationRecord
   SOURCE_MCP = "mcp"
 
   DEFAULT_PER_PAGE = 20
-  # The longest reopen reason, which Slack's input caps and the dashboard's matches.
+  # The longest reopen reason, which the chat platform's input caps and the dashboard's matches.
   REOPEN_REASON_LIMIT = 3000
   MAX_PER_PAGE = 50
 

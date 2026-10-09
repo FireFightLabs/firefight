@@ -8,12 +8,6 @@ module Webhooks::SsrfProtector
     8.8.8.8
   ]
 
-  DISALLOWED_IP_RANGES = [
-    IPAddr.new("0.0.0.0/8"),
-    IPAddr.new("100.64.0.0/10"),
-    IPAddr.new("198.18.0.0/15")
-  ].freeze
-
   def resolve_public_ip(hostname)
     ip_addresses = resolve_dns(hostname)
     public_ips = ip_addresses.reject { |ip| blocked_address?(ip) }
@@ -23,12 +17,7 @@ module Webhooks::SsrfProtector
   def blocked_address?(ip)
     ip = IPAddr.new(ip.to_s) unless ip.is_a?(IPAddr)
 
-    ip.private? ||
-      ip.loopback? ||
-      ip.link_local? ||
-      ip.ipv4_mapped? ||
-      ip.ipv4_compat? ||
-      in_disallowed_range?(ip)
+    NetworkAddress.private_ip?(ip) || ip.ipv4_mapped? || ip.ipv4_compat?
   end
 
   private
@@ -43,9 +32,5 @@ module Webhooks::SsrfProtector
     end
 
     ip_addresses
-  end
-
-  def in_disallowed_range?(ip)
-    DISALLOWED_IP_RANGES.any? { |range| range.include?(ip) }
   end
 end

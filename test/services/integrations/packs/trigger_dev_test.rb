@@ -156,6 +156,14 @@ module Integrations
         assert_raises(NativePack::Error) { call(:search_task_logs, "task" => "send-email' OR 1=1") }
       end
 
+      test "a regular expression that takes too long on a task's logs is refused in words" do
+        TriggerDevApi.any_instance.stubs(:runs).returns([ { "id" => "run_a" } ])
+        TriggerDevApi.any_instance.stubs(:run_events).with("run_a").returns([ { "message" => "a" * 35, "startTime" => "1791021600000000000" } ])
+
+        error = assert_raises(NativePack::Error) { call(:search_task_logs, "task" => "send-email", "regex" => "(?=(a+)+b)") }
+        assert_match "took too long", error.message
+      end
+
       test "a task's status names its version, its queue and how its last hour went" do
         TriggerDevApi.any_instance.stubs(:queues).returns(Pages::Read.new(items: [ { "name" => "send-email", "type" => "task", "running" => 2, "queued" => 40, "paused" => true, "concurrencyLimit" => 2 } ], complete: true))
         TriggerDevApi.any_instance.stubs(:runs).returns([ { "status" => "COMPLETED" }, { "status" => "FAILED" }, { "status" => "FAILED" } ])
@@ -220,6 +228,23 @@ module Integrations
         assert_equal TriggerDev::PER_MINUTE, requests.unit
         memory = found.find { |reading| reading.metric == "memory" }
         assert_equal [ tasks.last.key, [ 100.0 ] ], [ memory.key, memory.points.map(&:last) ]
+      end
+
+      test "a grouped baseline query that fills its row limit is read again one task at a time, so the newest steps are not zeros" do
+        task = ResourceMap::Resource.create!(workspace: @workspace, provider: TriggerDev::PROVIDER_KEY, account: "proj_acme", kind: ResourceMap::KIND_JOB,
+                                             external_id: "send-email", name: "send-email", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+        window = Time.utc(2026, 10, 1, 0, 0)..Time.utc(2026, 10, 1, 0, 30)
+        full = Array.new(TriggerDev::QUERY_ROWS) { { "task" => "busy", "bucket" => "2026-10-01 00:00:00", "runs" => 1, "failed" => 0 } }
+        TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM runs") && trql.exclude?("task_identifier =") }.returns(full)
+        TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM runs") && trql.include?("task_identifier = 'send-email'") }.returns([
+          { "task" => "send-email", "bucket" => "2026-10-01 00:00:00", "runs" => 10, "failed" => 2 },
+          { "task" => "send-email", "bucket" => "2026-10-01 00:10:00", "runs" => 20, "failed" => 0 }
+        ])
+        TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM metrics") }.returns([])
+
+        requests = @pack.baselines_of(@row, [ task ], window).find { |reading| reading.metric == "requests" }
+
+        assert_equal [ 1.0, 2.0, 0.0, 0.0 ], requests.points.map(&:last)
       end
 
       test "promoting a version says it moves every task, and a key that may not deploy is told what to do" do

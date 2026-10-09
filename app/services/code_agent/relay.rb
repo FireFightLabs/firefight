@@ -59,9 +59,9 @@ class CodeAgent::Relay
     if proxy.status.to_i.between?(200, 299)
       payer.answered!(@session.provider)
     elsif proxy.refusal&.out_of_credit?
-      payer.own_account? ? payer.account.ran_out!(FirefightAi::OutOfCredit.new) : AiAccount.ran_out!(@session.provider)
+      payer.own_account? ? AiRefusal.account_ran_out!(payer.account, FirefightAi::OutOfCredit.new) : AiRefusal.house_ran_out!(@session.provider)
     elsif proxy.status.to_i.in?(CodeAgentSession::KEY_REFUSED_STATUSES) && payer.own_account?
-      payer.account.key_refused!(FirefightAi::TerminalError.new(reason: AiAccountError::KEY_REASONS.first))
+      AiRefusal.key_refused!(payer.account, FirefightAi::TerminalError.new(reason: AiAccountError::KEY_REASONS.first))
     end
   end
 end

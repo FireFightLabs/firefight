@@ -12,6 +12,7 @@ module Mcp
                   "Only what the caller may read is searched: resources in the environments it reads, the catalog with " \
                   "catalog read, memories with memory read. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
+      choice :provider, from: MapFilters::PROVIDERS
       input_schema(
         properties: {
           query: { type: "string", description: "What to find, such as payments-db, checkout, team=ledger or the service that sends receipts" },

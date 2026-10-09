@@ -121,7 +121,7 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
       chat: chat, answered: -> { false }, reply_is_answer: true, choice: choice, purpose: AiPurpose::INVESTIGATION,
       budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50),
       inference: { workspace: @workspace, feature: "takeover_loop", inferable: @incident },
-      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: choice.model)
+      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: choice)
     ).run
 
     assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status

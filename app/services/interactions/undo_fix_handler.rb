@@ -1,5 +1,5 @@
 module Interactions
-  # Undo fix on a fix's progress, after Slack's own confirm. Halon writes the undo, which is posted in the thread to apply
+  # Undo fix on a fix's progress, after the platform's own confirm. Halon writes the undo, which is posted in the thread to apply
   # like the fix. Who may start a run may ask for it, and only the clicker is told what happens.
   class UndoFixHandler
     extend HandlerAuthorization

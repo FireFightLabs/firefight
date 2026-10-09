@@ -18,3 +18,11 @@ export const STEP_TITLES: Record<SetupStepKey, string> = {
 export function canOpen(step: OnboardingStep) {
   return step.state !== SETUP_STEP_STATES.WAITING
 }
+
+// How each state of a step reads beside it.
+export const STATE_WORDS: Record<OnboardingStep["state"], string> = {
+  [SETUP_STEP_STATES.DONE]: "Done",
+  [SETUP_STEP_STATES.SKIPPED]: "Not now",
+  [SETUP_STEP_STATES.CURRENT]: "Up next",
+  [SETUP_STEP_STATES.WAITING]: "Waiting",
+}

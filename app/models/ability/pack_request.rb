@@ -58,13 +58,16 @@ module Ability
     end
 
     # Granted through the same grant as the Permissions screen, in every environment and with no expiry. Marked given in
-    # one statement, so the Slack button and the dashboard pressed at once grant it once.
+    # one statement, so the Slack button and the dashboard pressed at once grant it once. True only for the press that
+    # gave it.
     def give!(by:)
-      transaction do
-        self.class.where(id: id, given_at: nil).update_all(given_at: Time.current, given_by_id: by.id, updated_at: Time.current)
-        Ability::Grant.grant!(workspace: workspace, principal: requester, target: { role: role }, granted_by: by)
+      won = transaction do
+        given = self.class.where(id: id, given_at: nil, dismissed_at: nil).update_all(given_at: Time.current, given_by_id: by.id, updated_at: Time.current)
+        Ability::Grant.grant!(workspace: workspace, principal: requester, target: { role: role }, granted_by: by) if given == 1
+        given
       end
       reload
+      won == 1
     end
 
     # True only for the press that dismissed it, so the member is told once.
@@ -86,7 +89,7 @@ module Ability
     end
 
     # The people who can give a pack, by name, for a refusal to point at.
-    def self.admins_of(workspace) = workspace.workspace_memberships.where(role: %i[admin owner]).includes(:user).order(:created_at)
+    def self.admins_of(workspace) = workspace.workspace_memberships.admins_and_owners.includes(:user).order(:created_at)
 
     def self.admin_names(workspace) = admins_of(workspace).map(&:display_name).to_sentence(two_words_connector: " or ", last_word_connector: " or ")
 

@@ -32,7 +32,7 @@ class Operator::HalonRegressionTest < ActionDispatch::IntegrationTest
                                                   provider: "anthropic", status: Investigation::RegressionRun::STATUS_FINISHED, created_at: 1.day.ago)
     before.results.create!(finding: @finding, expected: "confirmed", status: Investigation::RegressionResult::STATUS_PASSED)
 
-    post operator_halon_regressions_path, params: { model: "claude-sonnet-5" }
+    post operator_halon_regressions_path, params: { model: "claude-sonnet-5", provider: "anthropic" }
 
     run = Investigation::RegressionRun.find_by!(trigger: Investigation::RegressionRun::TRIGGER_OPERATOR, started_by: @operator)
     assert_redirected_to operator_halon_regression_path(run)
@@ -45,6 +45,17 @@ class Operator::HalonRegressionTest < ActionDispatch::IntegrationTest
     entry = inertia_props["cases"].sole
     assert_equal [ "failed", "passed", true ], [ entry["status"], entry["previousStatus"], entry["newlyFailing"] ]
     assert_equal 1, inertia_props["run"]["failed"]
+  end
+
+  test "a model listed under two providers replays on the provider the operator picked" do
+    as_operator
+    FirefightAi.stubs(:priced_chat_models).returns([ registry_model("gemini-3-pro", "Gemini 3 Pro", "gemini"),
+                                                     registry_model("gemini-3-pro", "Gemini 3 Pro", "vertexai") ])
+
+    post operator_halon_regressions_path, params: { model: "gemini-3-pro", provider: "vertexai" }
+
+    run = Investigation::RegressionRun.find_by!(trigger: Investigation::RegressionRun::TRIGGER_OPERATOR, started_by: @operator)
+    assert_equal [ "gemini-3-pro", "vertexai" ], [ run.model, run.provider ]
   end
 
   test "the list says what a run would test, and a model Firefight cannot price is refused" do

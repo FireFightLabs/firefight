@@ -89,7 +89,7 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
   test "a file Halon does not read, one too large and one Slack would not hand over are kept with why, so Halon says so" do
     Slack::Client.stubs(:download_file).with { |arguments| arguments[:url].end_with?("dump.zip") }.returns({ body: "PK\u0003\u0004\u0000\u0000".b, content_type: "application/zip" })
     Slack::Client.stubs(:download_file).with { |arguments| arguments[:url].end_with?("locked.log") }
-      .raises(AdapterError, "Slack file download returned HTML, bot may be missing files:read scope")
+      .raises(AdapterError::MissingPermission, "Slack file download returned HTML, bot may be missing files:read scope")
 
     mention("look", files: [
       slack_file("F1", "dump.zip", size: 6),
@@ -156,6 +156,20 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_equal 0, @workspace.conversations.count
   end
 
+  test "an approval rule over starting a run never holds a note in its thread, which nothing could add later" do
+    run = running_investigation
+    @workspace.policies.create!(domain: Policy::DOMAIN_APPROVALS, name: "Approvals").policy_rules.create!(
+      priority: 1,
+      conditions: [ { field: PolicyRule::ApprovalConditions::FIELD_ACTION_KEY, operator: PolicyRule::OPERATOR_IS_ONE_OF, value: [ Ability::Action::INVESTIGATIONS_CREATE ] } ],
+      outcome: { "require" => { "role" => WorkspaceMembership.roles[:admin], "count" => 1 } }
+    )
+
+    mention("skip GitHub, look at 5xx on web", thread_ts: "1700000000.000950", parent: run.thread_id)
+
+    assert_equal "skip GitHub, look at 5xx on web", run.notes.sole.content
+    assert_empty @workspace.ability_approvals
+  end
+
   test "files shared with a mention in a running investigation's thread go with the note, and the run reads them" do
     run = running_investigation
     Slack::Client.expects(:download_file).returns({ body: "pool exhausted at 10:02", content_type: "text/plain" })
@@ -183,6 +197,18 @@ class Events::AppMentionAgentTest < ActiveSupport::TestCase
     assert_match Chat::Attachment::ACCEPTED, file.refusal
     run.take_notes!
     assert_equal "Alice Smith added a file.", run.chat.messages.where(role: Chat::Message::ROLE_USER).sole.content
+  end
+
+  test "files shared by someone mentioning Halon for the first time go with the run they start" do
+    stub_get_user_info
+    Slack::Client.expects(:download_file).returns({ body: "boom at 10:02", content_type: "text/plain" })
+    newcomer = WorkspaceMembership.new(platform_user_id: "U_NEW_USER")
+
+    mention("investigate checkout 500s", by: newcomer, files: [ slack_file("F1", "app.log", size: 13) ])
+
+    member = @workspace.workspace_memberships.find_by!(platform_user_id: "U_NEW_USER")
+    file = Chat::Attachment.find_by!(uploaded_by: member)
+    assert_equal "app.log", file.filename
   end
 
   test "files shared with a mention that starts an investigation are handed to the run before its first step" do

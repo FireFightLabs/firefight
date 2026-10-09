@@ -230,6 +230,9 @@ Rails.application.routes.draw do
         get :live_updates_setup
         patch :protected_paths
       end
+      resources :repository_setups, only: [ :create, :update, :destroy ], path: "setups" do
+        post :derive, on: :member
+      end
       collection do
         get :oauth_start
         get "oauth/callback", action: :oauth_callback, as: :oauth_callback
@@ -358,6 +361,7 @@ Rails.application.routes.draw do
     post "/investigations/:id/fix/undo", to: "investigations#undo_fix", as: :investigation_fix_undo
     post "/investigations/:id/fix/cancel", to: "investigations#cancel_fix", as: :investigation_fix_cancel
     post "/code-agent-questions/:id/answer", to: "code_agent_questions#answer", as: :code_agent_question_answer
+    post "/code-agent-questions/:id/change", to: "code_agent_questions#change", as: :code_agent_question_change
     post "/code-agent-pauses/:id/continue", to: "code_agent_pauses#continue", as: :code_agent_pause_continue
     post "/code-agent-pauses/:id/stop", to: "code_agent_pauses#stop", as: :code_agent_pause_stop
     get "/halon/performance", to: "halon_performance#show", as: :halon_performance

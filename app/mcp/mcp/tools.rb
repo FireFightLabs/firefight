@@ -54,7 +54,7 @@ module Mcp
     UPDATE_WORKSPACE_SETTINGS = "update_workspace_settings".freeze
     UPDATE_PROTECTED_PATHS = "update_protected_paths".freeze
     LIST_INTEGRATIONS = "list_integrations".freeze
-    GET_RESOURCE_MAP = "get_resource_map".freeze
+    GET_RESOURCE_MAP = ResourceMap::READ_TOOL
     FIND_RESOURCES = "find_resources".freeze
     SEARCH_MAP = "search_map".freeze
     GET_RESOURCE = "get_resource".freeze

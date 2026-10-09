@@ -36,6 +36,22 @@ class Workspace::IssueSyncTest < ActiveSupport::TestCase
     assert_not @workspace.issue_webhook_secret_set?
     assert_equal({}, @workspace.issue_tracker_target)
     assert_match "until its webhook's signing secret is saved", @workspace.issue_webhook_blocked_reason
+
+    @workspace.update!(issue_tracker: @linear.slug)
+    assert_not @workspace.issue_webhook_secret_set?
+  end
+
+  test "the signing secret is kept on the tracker connection's environment row, never on the workspace" do
+    sync_with!(@workspace, @linear, secret: "whsec")
+
+    assert_equal "whsec", @linear.integration_environments.sole.issue_webhook_secret
+    assert_not_includes Workspace.column_names, "issue_webhook_secret"
+  end
+
+  test "a signing secret needs a tracker to sign for" do
+    error = assert_raises(ActiveRecord::RecordInvalid) { @workspace.update_settings!(issue_webhook_secret: "whsec") }
+
+    assert error.record.errors[:issue_webhook_secret].any?
   end
 
   test "the blocked reasons name a missing target, a switched off tool and a removed or disabled connection" do
@@ -62,7 +78,7 @@ class Workspace::IssueSyncTest < ActiveSupport::TestCase
 
     @workspace.update_settings!(issue_webhook_secret: "", issue_creation: Workspace::IssueSync::ISSUE_CREATION_ALL)
 
-    assert_equal "whsec", @workspace.reload.issue_webhook_secret
+    assert_equal "whsec", @linear.integration_environments.sole.issue_webhook_secret
     assert_not @workspace.settings.key?(:issue_webhook_secret)
     assert @workspace.settings[:issue_webhook_secret_set]
   end

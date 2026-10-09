@@ -51,6 +51,21 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     assert_equal [ "C1", "1.2" ], [ @plan.progress_channel_id, @plan.progress_message_id ]
   end
 
+  test "of two workers posting a fix's message at once, the one that lost takes its message back and redraws the one kept" do
+    @plan.update_columns(approved_by_id: @alice.id)
+    plan = @plan
+    @adapter.expects(:post_fix_progress).with do |**|
+      plan.class.where(id: plan.id).update_all(progress_channel_id: "C1", progress_message_id: "1.1-winner")
+    end.returns(message_id: "1.2", channel_id: "C1")
+    @adapter.expects(:delete_message).with(channel_id: "C1", message_id: "1.2").once
+    @adapter.expects(:update_fix_progress).with { |message_id:, **| message_id == "1.1-winner" }.once
+    @adapter.expects(:update_investigation_answer).never
+
+    Investigation::FixRunner.new(@plan).publish!
+
+    assert_equal "1.1-winner", @plan.reload.progress_message_id
+  end
+
   test "a worker stopped mid step ends that step saying to check it, at once, and never makes the call again" do
     Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => "delete" } }.raises(Interrupt).once
     Integrations::McpExecutor.expects(:call).with { |arguments:, **| arguments == { "code" => "log" } }.returns("content" => []).once
@@ -75,7 +90,7 @@ class Investigation::FixRunnerTest < ActiveSupport::TestCase
     @plan.destroy!
     finding = @investigation.reload.finding
     Investigation::RemediationPlan.propose!(finding, { "summary" => "Roll api back", "steps" => [
-      { "kind" => "action", "description" => "Put api back on version 8", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "ver-8" } }
+      { "kind" => "action", "description" => "Put api back on version 8", "tool" => "rollback", "arguments" => { "resource" => "api", "to" => "8a0c5e2f-3b1d-4c6e-9f7a-2d4b6c8e0a1f" } }
     ] })
     plan = finding.reload.remediation_plan
     Integrations::McpExecutor.expects(:call).with { |tool:, arguments:, **| tool == @execute && arguments["code"].include?("/accounts/acc1/workers/scripts/api/deployments") }

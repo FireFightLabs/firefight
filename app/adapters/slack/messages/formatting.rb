@@ -1,8 +1,13 @@
 module Slack
   module Messages
     module Formatting
+      # The most text Slack takes in one section block.
+      SECTION_TEXT_LIMIT = 3000
       LIST_MARKER = /\A([ \t]*)[-*+][ \t]+/
       CODE_FENCE = /\A[ \t]*```/
+
+      # A time of day each reader sees in their own time zone, with UTC for a client that cannot show it.
+      def self.slack_time(time) = "<!date^#{time.to_i}^{time}|#{time.utc.strftime('%H:%M UTC')}>"
 
       def self.format_duration(minutes)
         return "N/A" if minutes.nil?
@@ -99,14 +104,23 @@ module Slack
         out
       end
 
-      # mrkdwn quotes one line per > and draws no list from a markdown marker.
       # What a person typed, as a message's body, quoted line by line and split before Slack's section limit.
       def self.quoted_blocks(text)
         return [] if text.blank?
 
-        StatusUpdate.body_sections(text).map { |section| { type: "section", text: { type: "mrkdwn", text: section } } }
+        body_sections(text).map { |section| { type: "section", text: { type: "mrkdwn", text: section } } }
       end
 
+      # Quoting adds two characters a line, so a long body runs on into another section rather than failing the post.
+      def self.body_sections(message)
+        sections = quoted_markdown(message).each_line.each_with_object([ +"" ]) do |line, built|
+          built << +"" if built.last.present? && built.last.length + line.length > SECTION_TEXT_LIMIT
+          built.last << line
+        end
+        sections.map { |section| section.chomp.truncate(SECTION_TEXT_LIMIT) }
+      end
+
+      # mrkdwn quotes one line per > and draws no list from a markdown marker.
       def self.quoted_markdown(text)
         in_code = false
         markdown_to_mrkdwn(text.to_s.gsub(/\r\n?/, "\n")).split("\n", -1).map do |line|

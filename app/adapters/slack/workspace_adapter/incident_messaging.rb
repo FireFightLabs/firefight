@@ -551,23 +551,13 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_undo_plan(channel_id:, thread_id:, plan:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: "How to undo it: #{plan.summary}", blocks: Slack::Messages::InvestigationRun.undo(plan: plan)
-      )
-      { message_id: result[:ts], channel_id: channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: "How to undo it: #{plan.summary}", blocks: Slack::Messages::InvestigationRun.undo(plan: plan))
   end
 
   def post_fix_progress(channel_id:, thread_id:, plan:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan)
-      )
-      { message_id: result[:ts], channel_id: channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::FixProgress.fallback(plan), blocks: Slack::Messages::FixProgress.build(plan))
   end
 
   def update_fix_progress(channel_id:, message_id:, plan:)
@@ -582,8 +572,12 @@ module Slack::WorkspaceAdapter::IncidentMessaging
         workspace: @workspace, channel: channel_id, thread_ts: thread_id,
         text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post)
       )
-      { message_id: result[:ts], channel_id: channel_id }
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
     end
+  end
+
+  def post_learned_memories_to_user(user_id:, post:)
+    post_message(channel_id: user_id, text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post))
   end
 
   def update_learned_memories(channel_id:, message_id:, post:)
@@ -593,13 +587,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_held_call(channel_id:, thread_id:, held_call:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::HeldCall.fallback(held_call), blocks: Slack::Messages::HeldCall.build(held_call)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::HeldCall.fallback(held_call), blocks: Slack::Messages::HeldCall.build(held_call))
   end
 
   def post_held_call_to_user(user_id:, held_call:)
@@ -614,13 +603,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_watch_update(channel_id:, thread_id:, update:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::WatchUpdate.fallback(update), blocks: Slack::Messages::WatchUpdate.build(update)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::WatchUpdate.fallback(update), blocks: Slack::Messages::WatchUpdate.build(update))
   end
 
   def post_watch_update_to_user(user_id:, update:, conversation_id: nil)
@@ -629,13 +613,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_pull_request_notice(channel_id:, thread_id:, notice:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice))
   end
 
   def post_pull_request_notice_to_user(user_id:, notice:, conversation_id: nil)
@@ -653,13 +632,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   def direct_conversation?(channel_id:) = channel_id.to_s.start_with?("D")
 
   def post_pack_refusal(channel_id:, thread_id:, refusal:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::PackRefusal.fallback(refusal), blocks: Slack::Messages::PackRefusal.build(refusal)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::PackRefusal.fallback(refusal), blocks: Slack::Messages::PackRefusal.build(refusal))
   end
 
   def update_pack_refusal(channel_id:, message_id:, refusal:)
@@ -669,13 +643,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_secret_entry(channel_id:, thread_id:, entry:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::SecretEntry.fallback(entry), blocks: Slack::Messages::SecretEntry.build(entry)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::SecretEntry.fallback(entry), blocks: Slack::Messages::SecretEntry.build(entry))
   end
 
   def update_secret_entry(channel_id:, message_id:, entry:)
@@ -685,23 +654,17 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_code_question(channel_id:, thread_id:, question:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::CodeQuestion.fallback(question), blocks: Slack::Messages::CodeQuestion.build(question)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::CodeQuestion.fallback(question), blocks: Slack::Messages::CodeQuestion.build(question))
   end
 
   def post_code_pause(channel_id:, thread_id:, pause:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::CodePause.fallback(pause), blocks: Slack::Messages::CodePause.build(pause)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::CodePause.fallback(pause), blocks: Slack::Messages::CodePause.build(pause))
+  end
+
+  def post_code_pause_to_user(user_id:, pause:)
+    post_message(channel_id: user_id, text: Slack::Messages::CodePause.fallback(pause), blocks: Slack::Messages::CodePause.build(pause))
   end
 
   def update_code_pause(channel_id:, message_id:, pause:)
@@ -722,13 +685,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
   end
 
   def post_pack_answer(channel_id:, thread_id:, pack_request:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::PackAnswer.fallback(pack_request), blocks: Slack::Messages::PackAnswer.build(pack_request)
-      )
-      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::PackAnswer.fallback(pack_request), blocks: Slack::Messages::PackAnswer.build(pack_request))
   end
 
   def post_pack_request_to_user(user_id:, pack_request:)
@@ -747,13 +705,8 @@ module Slack::WorkspaceAdapter::IncidentMessaging
 
   # Blocks after a stream render below the streamed text, so a reply the person already read gets none.
   def post_integration_card(channel_id:, thread_id:, card:)
-    translate_errors do
-      result = Slack::Client.post_message(
-        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
-        text: Slack::Messages::IntegrationCard.fallback(card), blocks: Slack::Messages::IntegrationCard.build(card)
-      )
-      { message_id: result[:ts], channel_id: channel_id }
-    end
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::IntegrationCard.fallback(card), blocks: Slack::Messages::IntegrationCard.build(card))
   end
 
   def post_charts(channel_id:, thread_id:, charts:)

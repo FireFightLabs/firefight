@@ -1,4 +1,4 @@
-# The model providers a workspace can add as its own AI account. RubyLLM is the source of what a provider needs: its
+# The model providers a workspace can add as its own AI account. RubyLLM is the source of what a provider needs. Its
 # configuration options say which settings exist and its requirements which must be filled. config/ai_providers.yml
 # adds the display name, the recommended models and which providers are offered at all. The only file that reads
 # RubyLLM::Provider, so a RubyLLM upgrade that adds a setting reaches the form with no change here.
@@ -15,6 +15,9 @@ module AiProviders
   # Without these a provider reaches for credentials the server itself holds: Bedrock a credential provider object,
   # Vertex AI the machine's application default credentials. A workspace's account must bring its own.
   EXPLICIT_CREDENTIALS = { "bedrock" => %w[api_key secret_key], "vertexai" => %w[service_account_key] }.freeze
+
+  # Bedrock's Converse API takes smaller images and documents inline than the others.
+  INLINE_FILE_LIMITS = { "bedrock" => { Chat::Attachment::KIND_IMAGE => 3.5.megabytes, Chat::Attachment::KIND_PDF => 4.megabytes } }.freeze
 
   # A setting whose value is an address the server will call.
   ADDRESS_SETTING = "api_base".freeze
@@ -82,6 +85,9 @@ module AiProviders
   # Every setting any offered provider asks for, the only ones a form may send.
   def self.setting_keys = all.flat_map { |provider| provider.fields.map(&:key) }.uniq
 
+  # The most a provider takes inline of each kind of file, where it takes less than Chat::Attachment::MAX_BYTES.
+  def self.inline_file_limits(provider) = INLINE_FILE_LIMITS.fetch(provider.to_s, {})
+
   def self.offered_to?(workspace, slug) = for_workspace(workspace).any? { |provider| provider.slug == slug.to_s }
 
   # Every setting RubyLLM declares for any provider, so a context can start with all of them empty.
@@ -91,9 +97,9 @@ module AiProviders
 
   def self.local_slugs = RubyLLM::Provider.local_providers.keys.map(&:to_s)
 
-  # The model the deployment's own keys write code fixes with when nothing names one: the first provider in the
+  # The model the deployment's own keys write code fixes with when nothing names one. It is the first provider in the
   # registry's order that recommends one for code, holds a key here and can price it. Nil leaves code fixes on the
-  # investigation's model, as before.
+  # investigation's model.
   def self.deployment_code_fix_choice(config = RubyLLM.config)
     all.each do |provider|
       model = provider.code_fix_model_ready

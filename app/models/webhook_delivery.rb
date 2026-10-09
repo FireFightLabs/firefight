@@ -19,7 +19,7 @@ class WebhookDelivery < ApplicationRecord
 
   # Ends a delivery whose job will not run again, once, saying so on the webhook's delivery list.
   def self.give_up_interrupted!(scope = where(updated_at: ...UNSENT_AFTER.ago))
-    scope.where(state: %w[pending in_progress]).update_all(state: "failed", error_message: INTERRUPTED, updated_at: Time.current)
+    scope.where(state: [ states[:pending], states[:in_progress] ]).update_all(state: states[:failed], error_message: INTERRUPTED, updated_at: Time.current)
   end
 
   def self.cleanup(batch_size: 500, pause: 0.1)

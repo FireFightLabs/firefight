@@ -86,6 +86,24 @@ class IncidentFormFieldsControllerTest < ActionDispatch::IntegrationTest
     assert_not IncidentFormField.exists?(field.id)
   end
 
+  test "moving a field names it in the notice" do
+    form = @workspace.ensure_incident_form!(IncidentForm::SLUG_DECLARE)
+    definition = incident_field_definitions(:customer_tier_ws1)
+    field = form.incident_form_fields.create!(
+      field_source_kind: IncidentFormField::FIELD_SOURCE_KIND_CUSTOM,
+      incident_field_definition: definition,
+      position: 99,
+      visibility_mode: IncidentFormField::VISIBILITY_MODE_VISIBLE,
+      required_mode: IncidentFormField::REQUIRED_MODE_OPTIONAL
+    )
+
+    patch move_up_incident_form_field_path(field)
+    assert_equal "#{definition.name} was moved up.", flash[:notice]
+
+    patch move_down_incident_form_field_path(field)
+    assert_equal "#{definition.name} was moved down.", flash[:notice]
+  end
+
   test "a hidden field stays in the editor so it can be turned back on" do
     patch incident_form_field_path("default:#{IncidentSystemField::KEY_NAME}"), params: {
       incident_form_id: "default:#{IncidentForm::SLUG_DECLARE}",

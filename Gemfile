@@ -88,6 +88,9 @@ gem "grpc", require: false
 # Persistent HTTP connection pool (for Slack API keep-alive)
 gem "net-http-persistent"
 
+# The public suffix list, for a hostname's registered domain on the resource map
+gem "public_suffix", "~> 7.0"
+
 # AI intelligence layer (postmortem generation, incident Q&A, integrations)
 gem "firefight_ai", path: "engines/firefight_ai"
 

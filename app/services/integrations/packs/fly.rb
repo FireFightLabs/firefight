@@ -202,8 +202,11 @@ module Integrations
             resource[:status].presence || "status unknown", ("#{resource[:machines]} machines" if resource[:machines]) ].compact.join(", ")
         end
         organization = organization_of(environment_row)
-        text = rows.empty? ? "Organization #{organization} has no apps or Managed Postgres clusters." : "Organization #{organization}, #{rows.size} apps and clusters.\n#{rows.join("\n")}"
-        Telemetry.result(text, link: nil)
+        unread = [ ("Only the first #{@apps_read} apps were read." if @apps_cut),
+                   (Sentence.join("Managed Postgres clusters could not be read", @clusters_error) if @clusters_error) ].compact.join(" ")
+        text = rows.empty? ? "Organization #{organization} has no apps or Managed Postgres clusters." : "Organization #{organization}, #{rows.size} apps and clusters."
+        text = [ text, unread.presence, "describe_resource gives each one's page in Fly.io." ].compact.join(" ")
+        Telemetry.result([ text, *rows ].join("\n"), link: nil)
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -480,16 +483,18 @@ module Integrations
         @resources ||= begin
           api = api(environment_row)
           organization = organization_of(environment_row)
-          apps = api.app_list(organization).items.map do |app|
-            { id: app["name"], name: app["name"], type: APP, status: app["status"], machines: app["machine_count"] }
-          end
+          listed = api.app_list(organization)
+          @apps_cut = listed.incomplete?
+          @apps_read = listed.items.size
+          apps = listed.items.map { |app| app_row(app) }
           clusters = begin
             api.postgres_clusters(organization).map do |cluster|
               { id: cluster["id"].to_s, name: cluster["name"].presence || cluster["id"].to_s, type: POSTGRES, status: cluster["status"] }
             end
           rescue Integrations::RateLimited
             raise
-          rescue FlyApi::Error
+          rescue FlyApi::Error => error
+            @clusters_error = error
             []
           end
           apps + clusters
@@ -499,7 +504,32 @@ module Integrations
       def find_resource(environment_row, asked)
         fail! "Say which app or cluster, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row) || fail!("Nothing called #{asked} in this organization. list_resources shows what there is.")
+        found = Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row)
+        return found if found
+        return app_past_list(environment_row, asked.to_s.strip) || not_found(asked) if @apps_cut
+        not_found(asked) if @clusters_error
+
+        fail!("Nothing called #{asked} in this organization. list_resources shows what there is.")
+      end
+
+      def app_row(app) = { id: app["name"], name: app["name"], type: APP, status: app["status"], machines: app["machine_count"] }
+
+      # An app past the list's cap, read by its name. Fly answers 404 for a name it does not hold.
+      def app_past_list(environment_row, name)
+        return nil unless name.match?(APP_NAME)
+
+        app_row(api(environment_row).app(name))
+      rescue Integrations::RateLimited
+        raise
+      rescue FlyApi::Error
+        nil
+      end
+
+      def not_found(asked)
+        among = @apps_cut ? "among the first #{@apps_read} apps read" : "among this organization's apps"
+        fail! Sentence.join("Nothing called #{asked} #{among}, and Managed Postgres clusters could not be read", @clusters_error) if @clusters_error
+
+        fail!("Nothing called #{asked} #{among} or its Managed Postgres clusters, and Fly.io has no app of that name.")
       end
 
       def find_app(environment_row, asked)

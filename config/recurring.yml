@@ -18,6 +18,10 @@ development:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  ai_account_low_balance:
+    class: AiAccountLowBalanceJob # alerts the team when one of the deployment's own AI keys has little left to spend
+    queue: background
+    schedule: every hour
   workspace_ai_account_recheck:
     class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
     queue: background
@@ -30,6 +34,10 @@ development:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
     schedule: every 10 minutes
+  prepared_copy_sweep:
+    class: PreparedCopySweepJob # removes what a repository's copy installed once no box used it for a week
+    queue: background
+    schedule: at 4:20am every day
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -122,6 +130,10 @@ staging:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  ai_account_low_balance:
+    class: AiAccountLowBalanceJob # alerts the team when one of the deployment's own AI keys has little left to spend
+    queue: background
+    schedule: every hour
   workspace_ai_account_recheck:
     class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
     queue: background
@@ -134,6 +146,10 @@ staging:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
     schedule: every 10 minutes
+  prepared_copy_sweep:
+    class: PreparedCopySweepJob # removes what a repository's copy installed once no box used it for a week
+    queue: background
+    schedule: at 4:20am every day
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -184,6 +200,10 @@ staging:
     class: MemoryExpiryJob # stops using memories nobody confirmed within the workspace's window, where one is set
     queue: background
     schedule: every hour
+  memory_reminder:
+    class: MemoryReminderJob # reminds whoever should know about memories nobody confirmed, at most once a week each
+    queue: background
+    schedule: every monday at 3pm
   transcript_retention:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background
@@ -248,6 +268,10 @@ production:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  ai_account_low_balance:
+    class: AiAccountLowBalanceJob # alerts the team when one of the deployment's own AI keys has little left to spend
+    queue: background
+    schedule: every hour
   workspace_ai_account_recheck:
     class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
     queue: background
@@ -260,6 +284,10 @@ production:
     class: CodeBoxSweepJob # stops code sandboxes nothing uses any more, so none runs and costs after its run is gone
     queue: background
     schedule: every 10 minutes
+  prepared_copy_sweep:
+    class: PreparedCopySweepJob # removes what a repository's copy installed once no box used it for a week
+    queue: background
+    schedule: at 4:20am every day
   integration_health_sweep:
     class: Integrations::HealthCheckSweepJob # probes enabled connections so dead credentials surface before an incident needs them
     schedule: every 30 minutes
@@ -310,6 +338,10 @@ production:
     class: MemoryExpiryJob # stops using memories nobody confirmed within the workspace's window, where one is set
     queue: background
     schedule: every hour
+  memory_reminder:
+    class: MemoryReminderJob # reminds whoever should know about memories nobody confirmed, at most once a week each
+    queue: background
+    schedule: every monday at 3pm
   transcript_retention:
     class: TranscriptRetentionJob # drops raw incident conversations once the workspace's retention window has passed
     queue: background

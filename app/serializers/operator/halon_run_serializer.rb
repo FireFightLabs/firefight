@@ -10,10 +10,7 @@ module Operator
 
     # Named by its incident, or by its question when it has no incident.
     type :string
-    def label
-      incident = run.incident
-      incident ? "#{incident.identifier} #{incident.name}" : run.question.to_s
-    end
+    def label = run.label
 
     type :string, optional: true
     def incident_id = run.incident_id

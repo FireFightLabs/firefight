@@ -12,6 +12,9 @@ class IncidentAction < ApplicationRecord
   STATUS_DONE = "done"
   STATUSES = [ STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_DONE ].freeze
 
+  # A guarded change that found the item already moved by someone else.
+  CHANGED_FIRST = "Someone changed that item first.".freeze
+
   belongs_to :incident
   # Polymorphic because an agent takes part as itself.
   belongs_to :created_by, polymorphic: true
@@ -39,7 +42,14 @@ class IncidentAction < ApplicationRecord
   scope :tracking, ->(url) { active.where(external_url: url) }
 
   def claimable?
-    open? && !assigned?
+    pick_up_blocked_reason.nil?
+  end
+
+  def pick_up_blocked_reason
+    return "That item is done. Reopen it first." if done?
+    return "#{assignee&.actor_display_name || "Someone"} already holds that item." if assigned?
+
+    "That item is already under way." unless open?
   end
 
   def completable?
@@ -69,6 +79,19 @@ class IncidentAction < ApplicationRecord
     return "That item is done. Reopen it first." if done?
 
     "Nobody holds that item." unless assigned?
+  end
+
+  # Open means nobody holds it, so a done item reopens and a held one is let go. An open one is already there.
+  def open_blocked_reason
+    reopen_blocked_reason if done?
+  end
+
+  # Every refusal a combined change could meet, checked before any of it is written so a refused request changes
+  # nothing. A nil description means the title is not being changed.
+  def change_blocked_reason(description: nil, status: nil)
+    (rename_blocked_reason(description) unless description.nil?) ||
+      (open_blocked_reason if status == STATUS_OPEN) ||
+      (completion_blocked_reason if status == STATUS_DONE)
   end
 
   # Moves the item's status on only from where it was, so two people or a person and its issue never both land. False

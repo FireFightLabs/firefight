@@ -37,6 +37,22 @@ module Integrations
         assert_match "shop (prj_1), nextjs, production ready", call(:list_resources)
       end
 
+      test "a project list cut short says so and links the team's page, and a project past it is read by its id or name" do
+        VercelApi.any_instance.stubs(:projects).returns(Integrations::Pages::Read.new(items: [ { "id" => "prj_1", "name" => "shop" } ], complete: false))
+
+        result = @pack.call("list_resources", environment_row: @row, arguments: {})
+
+        assert_match "Only the first 1 projects were read.", result["content"].sole["text"]
+        assert_match "https://vercel.com/acme", result["content"].sole["text"]
+
+        VercelApi.any_instance.stubs(:project).with("blog").returns("id" => "prj_9", "name" => "blog")
+        assert_equal "prj_9", @pack.send(:find_project, @row, "blog")["id"]
+
+        VercelApi.any_instance.stubs(:project).with("nowhere").raises(VercelApi::Error, "Vercel answered 404: not found")
+        error = assert_raises(Integrations::Error) { @pack.send(:find_project, @row, "nowhere") }
+        assert_equal "No project called nowhere among the first 1 projects read from this team, and Vercel has none by that id or name.", error.message
+      end
+
       test "deployments say which serves production, what failed and their page, and link to the project" do
         VercelApi.any_instance.stubs(:deployments).with("prj_1", limit: 20, target: nil).returns([
           { "uid" => "dpl_3", "target" => "production", "readyState" => "ERROR", "createdAt" => 1_790_000_000_000, "errorCode" => "BUILD_FAILED",

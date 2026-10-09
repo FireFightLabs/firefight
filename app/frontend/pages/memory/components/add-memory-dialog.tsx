@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react"
+import type { FormEvent } from "react"
 
 import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { CHAT_MEMORY_TEXT_LIMIT } from "@/lib/generated/constants"
 import { memoryMemoriesPath } from "@/lib/routes"
-import { TextField } from "@/pages/memory/components/text-field"
+import { TextField } from "@/components/memory/text-field"
 import { type SubjectOption, subjectParam, WHOLE_WORKSPACE } from "@/pages/memory/types"
 
 interface AddMemoryDialogProps {
@@ -29,9 +30,9 @@ export function AddMemoryDialog({ open, onOpenChange, subjects }: AddMemoryDialo
 
   transform((values) => ({ ...values, subject: subjectParam(values.subject) }))
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault()
-    post(memoryMemoriesPath(), { preserveScroll: true, onSuccess: finish })
+    post(memoryMemoriesPath(), { preserveScroll: true, preserveState: true, onSuccess: finish })
   }
 
   function finish() {

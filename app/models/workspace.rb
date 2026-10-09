@@ -38,6 +38,7 @@ class Workspace < ApplicationRecord
   has_many :policies, dependent: :destroy
   has_many :agents, dependent: :destroy
   has_many :integrations, dependent: :destroy
+  has_many :prepared_copies, dependent: :destroy
   has_many :ability_actions, class_name: "Ability::Action", dependent: :destroy
   has_many :incident_runbooks, dependent: :destroy
   has_many :runbooks, dependent: :destroy
@@ -160,6 +161,13 @@ class Workspace < ApplicationRecord
     @reading_tool_names ||= Integration::Tool.in_workspace(self).select(&:read_only).map(&:model_facing_name).to_set
   end
 
+  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it. Memoized for the same
+  # reason, since each step of a chat names its tool's connection.
+  def connection_tools_by_name
+    @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
+                                                   .includes(:integration).index_by(&:model_facing_name)
+  end
+
   # Returns the row an admin customized, otherwise creates one from the
   # defaults so overlay rows have a real incident_form_id to attach to.
   def ensure_incident_form!(slug)
@@ -191,19 +199,25 @@ class Workspace < ApplicationRecord
     )
 
     workspace.assign_attributes(
-      name: team_info["name"],
-      platform_data: team_info,
-      access_token: auth_hash.credentials.token,
-      refresh_token: auth_hash.credentials.refresh_token,
-      token_expires_at: auth_hash.credentials.expires_at ? Time.at(auth_hash.credentials.expires_at) : nil,
-      installed_at: workspace.new_record? ? Time.current : workspace.installed_at,
-      disconnected_at: nil,
-      disconnected_reason: nil
+      name: team_info["name"], installed_at: workspace.new_record? ? Time.current : workspace.installed_at, **slack_install_attributes(auth_hash)
     )
     workspace.created_by ||= created_by if workspace.new_record?
 
     workspace.save!
     workspace
+  end
+
+  # What a Slack install stores on the workspace, whether it made the workspace or connected one already there.
+  def self.slack_install_attributes(auth_hash)
+    credentials = auth_hash.credentials
+    {
+      platform_data: auth_hash.extra.team_info,
+      access_token: credentials.token,
+      refresh_token: credentials.refresh_token,
+      token_expires_at: credentials.expires_at ? Time.at(credentials.expires_at) : nil,
+      disconnected_at: nil,
+      disconnected_reason: nil
+    }
   end
 
   # user comes from the prior OIDC sign-in. The bot install's users.info fetch

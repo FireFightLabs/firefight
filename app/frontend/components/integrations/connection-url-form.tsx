@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { router } from "@inertiajs/react";
 
 import type { EnvironmentOption, IntegrationProvider } from "@/types/serializers";
@@ -76,7 +76,7 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss,
     setSubmitting(false);
   }
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     router.post(
@@ -114,12 +114,10 @@ export function ConnectionUrlForm({ provider, environments, returnTo, onDismiss,
           autoComplete="off"
           value={connectionUrl}
           onChange={(event) => setConnectionUrl(event.target.value)}
-          placeholder="postgresql://readonly:password@db.example.com:5432/app"
+          placeholder={provider.connectionUrl?.placeholder}
         />
         <p className="text-muted-foreground text-xs">
-          Use a database user that can only read. Firefight also runs every query read-only and stops any that
-          runs longer than 10 seconds. Connections over the internet are always encrypted. Stored encrypted, never
-          shown again.
+          {provider.connectionUrl?.hint} Stored encrypted, never shown again.
         </p>
       </div>
       {showCertificates ? (

@@ -134,21 +134,11 @@ class Integration::Tool < ApplicationRecord
     saved_change_to_enabled? || saved_change_to_read_only? || saved_change_to_params_schema?
   end
 
-  def recorded!(principal, source, arguments, reads)
-    invocation = AbilityGateway.record!(
-      decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: principal,
-      action: Ability::Action.lookup(action_key, integration.workspace), action_key: action_key, workspace: integration.workspace,
-      scope: {}, params: arguments.to_h.except("code").merge({ "reads" => reads }.compact), context: { source: source }
+  def recorded!(principal, source, arguments, reads, &)
+    AbilityGateway.record_unattended!(
+      principal: principal, action_key: action_key, workspace: integration.workspace,
+      params: arguments.to_h.except("code").merge({ "reads" => reads }.compact), context: { source: source },
+      failed: ->(result) { Ability::Invocation.summary_of(Array(result["content"]).filter_map { |part| part["text"] }.join("\n")) if result.is_a?(Hash) && result["isError"] }, &
     )
-    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    result = yield
-    failed = result.is_a?(Hash) && result["isError"]
-    said = failed ? Ability::Invocation.summary_of(Array(result["content"]).filter_map { |part| part["text"] }.join("\n")) : nil
-    invocation.finalize!(outcome: failed ? Ability::Invocation::OUTCOME_ERROR : Ability::Invocation::OUTCOME_SUCCESS, error_summary: said,
-                         duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
-    result
-  rescue StandardError => error
-    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: error.class.name)
-    raise
   end
 end

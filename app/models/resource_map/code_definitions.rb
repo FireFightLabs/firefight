@@ -84,7 +84,7 @@ class ResourceMap::CodeDefinitions
   end
 
   # A hostname counts when the lines around it declare one. Anything else counts when its provider is named nearby,
-  # which a Terraform type such as northflank_service does inside a longer word.
+  # which a Terraform resource type does inside a longer word, such as <provider>_service.
   def sure?(resource, lines, line_numbers)
     words = resource.kind == ResourceMap::KIND_DOMAIN ? DECLARES_HOST : resource.provider.downcase
     line_numbers.any? do |number|

@@ -47,16 +47,10 @@ module Workspace::CodeFixes
   def code_fix_agent_choices
     agents = integrations.where(deleted_at: nil, provider: IntegrationProvider.coding_agents.map(&:key)).order(:name)
     [ Choice.new(value: nil, label: FIREFIGHT_WRITES) ] +
-      agents.map { |integration| Choice.new(value: integration.slug, label: choice_label(integration)) }
+      agents.map { |integration| Choice.new(value: integration.slug, label: integration.display_name) }
   end
 
   private
-
-  # A connection named after its provider says it once, and one named otherwise says which agent it is.
-  def choice_label(integration)
-    provider = IntegrationProvider.find(integration.provider).name
-    integration.name == provider ? provider : "#{integration.name} (#{provider})"
-  end
 
   def code_fix_agent_is_a_coding_agent
     return if code_fix_agent.blank? || !will_save_change_to_code_fix_agent?

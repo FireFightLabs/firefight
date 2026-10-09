@@ -1,11 +1,13 @@
-import { IconPlus, IconX } from "@tabler/icons-react"
+import { IconPlus } from "@tabler/icons-react"
 import type { ChangeEvent } from "react"
 
-import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
+import type { SearchableSelectOption } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { WATCH_SPEC_KEYS } from "@/lib/generated/constants"
+import { WatchStepEditor } from "@/pages/settings/components/runbooks/watch-step-editor"
 import {
   isHistoryRead,
   stepText,
@@ -40,7 +42,7 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, errors,
   }
 
   function setTitle(event: ChangeEvent<HTMLInputElement>) {
-    patch({ spec: withStepField(watch.spec, "title", event.target.value) })
+    patch({ spec: withStepField(watch.spec, WATCH_SPEC_KEYS.TITLE, event.target.value) })
   }
 
   function setMinutes(event: ChangeEvent<HTMLInputElement>) {
@@ -75,7 +77,7 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, errors,
           <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
             <div className="space-y-1">
               <Label htmlFor="runbook-watch-title" className="text-xs">What is watched</Label>
-              <Input id="runbook-watch-title" value={stepText(watch.spec, "title")} onChange={setTitle} placeholder="release and its deploy" />
+              <Input id="runbook-watch-title" value={stepText(watch.spec, WATCH_SPEC_KEYS.TITLE)} onChange={setTitle} placeholder="release and its deploy" />
             </div>
             <div className="space-y-1">
               <Label htmlFor="runbook-watch-minutes" className="text-xs">Time limit, minutes</Label>
@@ -112,77 +114,5 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, errors,
 
 function newStep(reads: RunbookWatchRead[] | null): { key: string; spec: JsonObject } {
   const first = reads?.[0]?.name
-  return { key: crypto.randomUUID(), spec: first ? { capability: first } : {} }
-}
-
-interface WatchStepEditorProps {
-  number: number
-  spec: JsonObject
-  history: boolean
-  readOptions: SearchableSelectOption[]
-  resourceOptions: SearchableSelectOption[]
-  error: string | undefined
-  onChange: (field: string, entered: string | boolean) => void
-  onRemove: () => void
-}
-
-function WatchStepEditor({ number, spec, history, readOptions, resourceOptions, error, onChange, onRemove }: WatchStepEditorProps) {
-  const resource = stepText(spec, "resource")
-  const resources = resource && !resourceOptions.some((option) => option.value === resource)
-    ? [ { value: resource, label: resource }, ...resourceOptions ]
-    : resourceOptions
-
-  function typed(field: string) {
-    return (event: ChangeEvent<HTMLInputElement>) => onChange(field, event.target.value)
-  }
-
-  function chosen(field: string) {
-    return (value: string | null) => onChange(field, value ?? "")
-  }
-
-  function reportStart(checked: boolean) {
-    onChange("report_start", checked)
-  }
-
-  return (
-    <div className="space-y-2 rounded-md border border-border/60 p-2.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">Watch {number}</span>
-        <button type="button" aria-label={`Remove watch ${number}`} className="text-fg-muted hover:text-destructive" onClick={onRemove}>
-          <IconX className="size-4" />
-        </button>
-      </div>
-      <Input aria-label={`Watch ${number} label`} value={stepText(spec, "label")} onChange={typed("label")} placeholder="Release run" />
-      <div className="grid gap-2 sm:grid-cols-2">
-        <SearchableSelect value={stepText(spec, "capability") || null} onValueChange={chosen("capability")} options={readOptions} placeholder="How to check it" />
-        <SearchableSelect
-          value={resource || null}
-          onValueChange={chosen("resource")}
-          options={resources}
-          placeholder="On which resource"
-          searchPlaceholder="Search the map"
-          emptyText="Nothing on the map by that name"
-        />
-      </div>
-      {history ? (
-        <div className="space-y-2">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input aria-label={`Watch ${number} run name`} value={stepText(spec, "name")} onChange={typed("name")} placeholder="Only runs named, such as release (optional)" />
-            <Input aria-label={`Watch ${number} run`} value={stepText(spec, "run")} onChange={typed("run")} placeholder="A run by its number (optional)" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch id={`watch-${number}-report-start`} checked={spec.report_start === true} onCheckedChange={reportStart} />
-            <Label htmlFor={`watch-${number}-report-start`} className="text-xs font-normal">Also say when it starts</Label>
-          </div>
-        </div>
-      ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Input aria-label={`Watch ${number} done when`} value={stepText(spec, "done_when")} onChange={typed("done_when")} placeholder="Done when it reads, such as running" />
-          <Input aria-label={`Watch ${number} failed when`} value={stepText(spec, "failed_when")} onChange={typed("failed_when")} placeholder="Failed when it reads, such as crashed" />
-          <Input aria-label={`Watch ${number} goal`} className="sm:col-span-2" value={stepText(spec, "goal")} onChange={typed("goal")} placeholder="Or the goal in a sentence, such as web runs the new version" />
-        </div>
-      )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  )
+  return { key: crypto.randomUUID(), spec: first ? { [WATCH_SPEC_KEYS.CAPABILITY]: first } : {} }
 }

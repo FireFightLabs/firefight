@@ -1,14 +1,13 @@
 import { router } from "@inertiajs/react"
-import { IconChevronDown, IconPlus } from "@tabler/icons-react"
+import { IconPlus } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatDate, formatDateTime } from "@/lib/formatters"
 import { memoryInstructionPath } from "@/lib/routes"
 import { InstructionDialog } from "@/pages/memory/components/instruction-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { InstructionRow } from "@/pages/memory/components/instruction-row"
 import { type SubjectOption, WHOLE_WORKSPACE } from "@/pages/memory/types"
 import type { ChatInstruction } from "@/types/serializers"
 
@@ -89,70 +88,5 @@ export function InstructionsTab({ instructions, subjects, canCurate }: Instructi
         onCancel={cancelRemove}
       />
     </Card>
-  )
-}
-
-interface InstructionRowProps {
-  instruction: ChatInstruction
-  canCurate: boolean
-  onEdit: (editing: { instruction: ChatInstruction }) => void
-  onRemove: (instruction: ChatInstruction) => void
-}
-
-function InstructionRow({ instruction, canCurate, onEdit, onRemove }: InstructionRowProps) {
-  const [ showHistory, setShowHistory ] = useState(false)
-
-  function edit() {
-    onEdit({ instruction })
-  }
-
-  function remove() {
-    onRemove(instruction)
-  }
-
-  function toggleHistory() {
-    setShowHistory((shown) => !shown)
-  }
-
-  return (
-    <li className="flex flex-col gap-2 px-6 py-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-semibold">{instruction.label}</span>
-          <span className="text-xs text-muted-foreground">
-            {instruction.addedBy ? `${instruction.addedBy}, ` : ""}
-            {formatDate(instruction.updatedAt)}
-          </span>
-        </div>
-        {canCurate && <RowActions onEdit={edit} onDelete={remove} />}
-      </div>
-      <p className="max-w-3xl text-sm leading-relaxed whitespace-pre-wrap">{instruction.text}</p>
-      {instruction.history.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={toggleHistory}
-            aria-expanded={showHistory}
-            className="flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <IconChevronDown className={`size-3.5 transition-transform ${showHistory ? "rotate-180" : ""}`} />
-            {showHistory ? "Hide" : "Show"} {instruction.history.length} earlier {instruction.history.length === 1 ? "wording" : "wordings"}
-          </button>
-          {showHistory && (
-            <ol className="flex flex-col gap-2 border-l border-border pl-4">
-              {instruction.history.map(([ id, writtenAt, writtenBy, text ]) => (
-                <li key={id} className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">
-                    {writtenBy ? `${writtenBy}, ` : ""}
-                    {formatDateTime(writtenAt)}
-                  </span>
-                  <p className="text-sm whitespace-pre-wrap text-muted-foreground">{text}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      )}
-    </li>
   )
 }

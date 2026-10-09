@@ -6,7 +6,7 @@ module MailDelivery
 
     {
       address: address,
-      port: env.fetch("SMTP_PORT", 587).to_i,
+      port: (env["SMTP_PORT"].presence || 587).to_i,
       user_name: env["SMTP_USERNAME"].presence,
       password: env["SMTP_PASSWORD"].presence,
       authentication: env["SMTP_USERNAME"].present? ? :plain : nil,

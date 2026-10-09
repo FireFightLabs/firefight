@@ -35,7 +35,7 @@ module Integrations
     ].freeze
     NOT_FOUND = %w[
       ResourceNotFoundException ServiceNotFoundException ClusterNotFoundException DBInstanceNotFound DBInstanceNotFoundFault
-      InvalidInstanceID.NotFound InvalidInstanceID.Malformed
+      InvalidInstanceID.NotFound
     ].freeze
     # The codes AWS's services answer when a caller is asked to slow down, such as Throttling from EC2 and RDS,
     # ThrottlingException from ECS and CloudWatch, TooManyRequestsException from Lambda, and LimitExceededException from

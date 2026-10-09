@@ -3,9 +3,9 @@ module Integrations
     # Render for the workspaces an environment reads, one, several or every one its API key can read (the workspace
     # connect field, a scope). It reads their services, Postgres databases and Key Value instances, and their logs,
     # metrics, deploys and events, with the API key a person creates in Render. A call reaches one workspace, the one it
-    # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every workspace. Every tool reads,
-    # except the restart, rollback and scale Halon uses to apply fixes. Paths, parameters and
-    # answers are the ones in Render's OpenAPI spec (api-docs.render.com/openapi/render-public-api-1.json).
+    # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every workspace.
+    # Every tool reads, except the restart, rollback and scale Halon uses to apply fixes. Paths, parameters and answers
+    # are the ones in Render's OpenAPI spec (api-docs.render.com/openapi/render-public-api-1.json).
     class Render < NativePack
       # The environment row's credentials, which only this pack reads.
       API_KEY = "api_key".freeze
@@ -260,7 +260,8 @@ module Integrations
 
         rows = resources(environment_row).map { |resource| "#{resource[:name]} (#{resource[:id]}), #{TYPE_WORDS.fetch(resource[:type])}, #{resource[:status]}" }
         workspace = ConnectionSettings.of(environment_row).scope_name(workspace_of(environment_row))
-        text = rows.empty? ? "Workspace #{workspace} has no services or datastores." : "Workspace #{workspace}, #{rows.size} services and datastores.\n#{rows.join("\n")}"
+        cut = " Only the first #{rows.size} were read, so name a resource by its id to reach the rest." if resources_cut?(environment_row)
+        text = rows.empty? ? "Workspace #{workspace} has no services or datastores." : "Workspace #{workspace}, #{rows.size} services and datastores.#{cut}\n#{rows.join("\n")}"
         Telemetry.result(text, link: nil)
       end
 
@@ -664,9 +665,7 @@ module Integrations
       # ownerId, a datastore's owner, spec Service and PostgresDetail). nil, for a sweep to read, when neither says.
       def workspace_holding(environment_row, scope)
         reached = ConnectionSettings.of(environment_row).scopes
-        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
-                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
-                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        on_map = Scopes.holding(environment_row, scope.external_id)
         owner = on_map.presence || owner_of(environment_row, scope)
         scoped(owner) if owner && reached.include?(owner)
       end
@@ -687,24 +686,49 @@ module Integrations
         @resources ||= begin
           api = api(environment_row)
           workspace = workspace_of(environment_row)
-          services = api.services(workspace).items.map do |service|
-            { id: service["id"], name: service["name"], type: service["type"], url: service["dashboardUrl"],
-              status: service["suspended"] == SUSPENDED ? "suspended by #{Array(service['suspenders']).join(', ').presence || 'Render'}" : "running" }
-          end
-          databases = api.postgres_databases(workspace).items.map do |database|
-            { id: database["id"], name: database["name"], type: POSTGRES, url: database["dashboardUrl"], status: database["status"].to_s }
-          end
-          stores = api.key_values(workspace).items.map do |store|
-            { id: store["id"], name: store["name"], type: KEY_VALUE, url: store["dashboardUrl"], status: store["status"].to_s }
-          end
-          services + databases + stores
+          reads = [ api.services(workspace), api.postgres_databases(workspace), api.key_values(workspace) ]
+          @resources_cut = reads.any?(&:incomplete?)
+          reads[0].items.map { |service| service_entry(service) } + reads[1].items.map { |database| datastore_entry(database, POSTGRES) } +
+            reads[2].items.map { |store| datastore_entry(store, KEY_VALUE) }
         end
       end
+
+      def resources_cut?(environment_row)
+        resources(environment_row)
+        @resources_cut
+      end
+
+      def service_entry(service)
+        { id: service["id"], name: service["name"], type: service["type"], url: service["dashboardUrl"],
+          status: service["suspended"] == SUSPENDED ? "suspended by #{Array(service['suspenders']).join(', ').presence || 'Render'}" : "running" }
+      end
+
+      def datastore_entry(store, type) = { id: store["id"], name: store["name"], type: type, url: store["dashboardUrl"], status: store["status"].to_s }
 
       def find_resource(environment_row, asked)
         fail! "Say which service or datastore, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row) || fail!("Nothing called #{asked} in this workspace. list_resources shows what there is.")
+        found = Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row)
+        return found if found
+        fail!("Nothing called #{asked} in this workspace. list_resources shows what there is.") unless resources_cut?(environment_row)
+
+        resource_by_id(environment_row, asked.to_s.strip) ||
+          fail!("Only the first #{resources(environment_row).size} services and datastores were read, and none in this workspace is called " \
+                "#{asked}. Name it by its id, which Render shows on its page.")
+      end
+
+      # A service or datastore past the listing's cut, read by its id, and only when this workspace owns it.
+      def resource_by_id(environment_row, id)
+        api = api(environment_row)
+        [ [ :service, ->(found) { service_entry(found) } ], [ :postgres, ->(found) { datastore_entry(found, POSTGRES) } ],
+          [ :key_value, ->(found) { datastore_entry(found, KEY_VALUE) } ] ].each do |read, entry|
+          found = api.public_send(read, id)
+          owner = found["ownerId"].presence || found.dig("owner", "id")
+          return owner == workspace_of(environment_row) ? entry.call(found) : nil
+        rescue RenderApi::NotFound
+          next
+        end
+        nil
       end
 
       # The page Render gives each resource (dashboardUrl), the only address its API returns.

@@ -19,7 +19,7 @@ module Integrations
           "definition" => "textDocument/definition", "references" => "textDocument/references",
           "hover" => "textDocument/hover", "symbols" => "workspace/symbol"
         }.freeze
-        SERVICES = %w[postgres redis].freeze
+        SERVICES = CodeBox::SERVICES
         NOT_FOUND_ADVICE = "Frameworks also make methods nobody writes down, such as Rails route helpers ending in _path or " \
                            "_url, attribute readers and methods from define_method or method_missing. Search for how it " \
                            "could be generated before calling it missing.".freeze
@@ -122,7 +122,8 @@ module Integrations
 
           pack.tool :run_tests,
                     description: "Run a repository's own tests, or any command, in a writable copy at a commit. Its dependencies and tool " \
-                                 "versions are installed first, once per copy. Postgres and Redis can be started for it",
+                                 "versions are installed first, once per copy, and the services, variables and setup commands its CI uses " \
+                                 "are set up as the workspace keeps them. Postgres and Redis can be started for it",
                     params_schema: object_schema({
                       "repo" => repo, "ref" => REF,
                       "command" => { "type" => "string", "description" => "The command, e.g. bin/rails test test/controllers/billing_controller_test.rb" },
@@ -236,13 +237,18 @@ module Integrations
           fail! "services can only be #{SERVICES.join(' and ')}" unless (services - SERVICES).empty?
 
           reading = code(environment_row)
-          prepared = reading.prepare(repo, ref: ref)
+          setup = repository_setup(environment_row, repo)
+          prepared = reading.prepare(repo, ref: ref, setup: setup&.for_box)
           result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, argv: [ "sh", "-c", required_text(arguments, "command") ],
-                                      services: services.presence, timeout: seconds(arguments, TESTS_TIMEOUT, MAX_TESTS_TIMEOUT))
-          [ at(repo, result), preparation(prepared), output(result) ].compact.join("\n\n")
+                                      services: services.presence, setup: setup&.for_box, timeout: seconds(arguments, TESTS_TIMEOUT, MAX_TESTS_TIMEOUT))
+          [ at(repo, result), preparation(prepared, setup), output(result) ].compact.join("\n\n")
         end
 
         private
+
+        # How the repository is set up before its tests in this connection, read from its CI the first time
+        # (Integrations::CiSetup), or nil when there is none to read.
+        def repository_setup(environment_row, repo) = CiSetup.for(environment_row, repo)
 
         def code(environment_row) = CodeReading.new(key: box_key, workspace: integration.workspace, remote: code_remote(environment_row))
 
@@ -306,14 +312,21 @@ module Integrations
           end
         end
 
-        def preparation(prepared)
-          return nil if prepared["already"] || prepared["prepared"].empty?
+        def preparation(prepared, setup = nil)
+          return nil if prepared["already"]
 
-          steps = prepared["prepared"].map do |step|
-            "#{step['command']} (for #{step['file']}) exited #{step['exit_code']}#{"\n#{step['output']}" unless step['exit_code'].zero?}"
-          end
-          "Installed first:\n#{steps.join("\n")}"
+          installed = Array(prepared["prepared"]).map { |step| "#{step['command']} (for #{step['file']}) #{exited(step)}" }
+          ran = Array(prepared["setup"]).map { |step| "#{step['command'].lines.first.strip} #{exited(step)}" }
+          left_out = Array(prepared["left_out"])
+          [
+            ("Started from what an earlier copy with the same lockfiles and setup installed." if prepared["restored"]),
+            ("Installed first:\n#{installed.join("\n")}" if installed.any?),
+            ("Set up as #{setup&.derived_from || 'its saved setup'} says:\n#{ran.join("\n")}" if ran.any?),
+            ("The sandbox cannot start #{left_out.to_sentence}, so the setup ran without #{left_out.one? ? 'it' : 'them'}." if left_out.any?)
+          ].compact.join("\n\n").presence
         end
+
+        def exited(step) = "exited #{step['exit_code']}#{"\n#{step['output']}" unless step['exit_code'].to_i.zero?}"
 
         def output(result)
           notes = []

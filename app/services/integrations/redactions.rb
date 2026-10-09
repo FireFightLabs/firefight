@@ -16,6 +16,10 @@ module Integrations
       result.merge("content" => content, **structured)
     end
 
+    # Words that are not a provider's answer, such as an error's message, with credentials and the provider's own
+    # credential shapes taken out.
+    def self.message(text, patterns: {}, **) = shaped(Chat::SecretFree.redacted(text.to_s), patterns)
+
     # What a provider's definition says to redact from its answers.
     def self.rules(provider_key)
       provider = Provider.for(provider_key)

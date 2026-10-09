@@ -1,3 +1,4 @@
+import { withNewerQuestion } from "@/lib/code-fix-work"
 import { formatTime } from "@/lib/formatters"
 import { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, CHAT_MESSAGE_ROLES } from "@/lib/generated/constants"
 import { type AgentStep, type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
@@ -19,6 +20,7 @@ export function roomStep(compaction: ChatCompaction): AgentStep {
     outcome: null,
     progress: null,
     questionBlockedReason: null,
+    questionChangeBlockedReason: null,
     pauseBlockedReason: null,
   }
 }
@@ -105,9 +107,22 @@ function lastQuestionIndex(messages: AgentChatMessage[]): number {
   return messages.map((message) => message.role).lastIndexOf(CHAT_MESSAGE_ROLES.USER)
 }
 
-// A step the socket reported is newer than its saved copy, so it wins.
+// A step the socket reported is newer than its saved copy, so it wins, except for who may answer or decide, which only
+// the saved copy knows, and a question whose answer changed since the change last reported.
 function mergeSteps(saved: AgentStep[], live: AgentStep[]): AgentStep[] {
-  const merged = saved.map((step) => live.find((candidate) => candidate.key === step.key) ?? step)
+  const merged = saved.map((step) => {
+    const reported = live.find((candidate) => candidate.key === step.key)
+    if (!reported) {
+      return step
+    }
+    return {
+      ...reported,
+      progress: withNewerQuestion(reported.progress, step.progress),
+      questionBlockedReason: step.questionBlockedReason,
+      questionChangeBlockedReason: step.questionChangeBlockedReason,
+      pauseBlockedReason: step.pauseBlockedReason,
+    }
+  })
   const unseen = live.filter((step) => !saved.some((candidate) => candidate.key === step.key))
   return [ ...merged, ...unseen ]
 }

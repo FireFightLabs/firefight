@@ -35,6 +35,12 @@ class Chat::Watch < ApplicationRecord
   # Why the person wanted it, in their words, which every report measures what happened against.
   PURPOSE_LIMIT = 500
 
+  # The keys of a start_watch request, which a runbook's watch is saved as and the runbook editor writes.
+  SPEC_KEYS = {
+    title: "title", minutes: "minutes", steps: "steps", label: "label", capability: "capability", resource: "resource",
+    name: "name", run: "run", report_start: "report_start", done_when: "done_when", failed_when: "failed_when", goal: "goal"
+  }.freeze
+
   belongs_to :chat
   belongs_to :workspace
   # A person, a service key or an agent, whoever asked. Every read runs as them.
@@ -55,7 +61,7 @@ class Chat::Watch < ApplicationRecord
 
   def active? = status == STATUS_ACTIVE
 
-  def asker_name = asker.try(:display_name) || asker.try(:name) || "The person who asked"
+  def asker_name = asker.try(:display_name) || asker.try(:name) || "the person who asked"
 
   def limit_minutes = ((expires_at - created_at) / 60).round
 
@@ -90,12 +96,17 @@ class Chat::Watch < ApplicationRecord
 
   NOTHING_TO_STOP = "This watch has already ended.".freeze
 
-  # Whoever asked may stop it, and so may anyone who may read the chat it reports to, since it is theirs.
+  # Whoever asked may stop it. In a channel or thread anyone there may too, since the asker may be away while it runs
+  # on. A personal chat is its owner's alone.
   def stop_blocked_reason(member)
     return NOTHING_TO_STOP unless active?
-    return "Only #{asker_name} can stop this watch." unless asker == member || conversation.try(:started_by) == member
+    return if asker == member || in_shared_place?(member) || conversation.try(:started_by) == member
 
-    nil
+    "Only #{asker_name} or whoever this chat belongs to can stop this watch."
+  end
+
+  def in_shared_place?(member)
+    member.is_a?(WorkspaceMembership) && member.workspace_id == workspace_id && conversation.try(:kind) == Conversation::KIND_CHANNEL
   end
 
   # The steps that are not over yet.

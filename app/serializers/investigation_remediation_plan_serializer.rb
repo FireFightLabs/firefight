@@ -16,7 +16,7 @@ class InvestigationRemediationPlanSerializer < BaseSerializer
 
   # Whether anything in it runs through a connection, and nobody applied it yet, which is when Apply fix shows.
   type :boolean
-  def appliable = plan.appliable? && plan.status == Investigation::RemediationPlan::STATUS_PROPOSED
+  def appliable = plan.apply_offered?
 
   # Why nobody can apply it now. Whether the viewer may run each tool is checked when they click.
   type :string, optional: true

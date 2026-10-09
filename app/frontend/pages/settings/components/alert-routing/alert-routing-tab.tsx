@@ -38,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RowActions } from "@/components/row-actions"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { GroupingSettings } from "@/pages/settings/components/alert-routing/grouping-settings"
 import { RuleDialog } from "@/pages/settings/components/alert-routing/rule-dialog"

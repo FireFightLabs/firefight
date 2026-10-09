@@ -42,6 +42,10 @@ module Integrations
           "async () => { await cloudflare.request({method:'GET', path:'/zones'}); return cloudflare.request({method:'DELETE', path:'/zones/abc'}); }",
           "async () => cloudflare.request({method:'GET', path:'/zones', method:'DELETE'})",
           "async () => cloudflare.request({method: verb, path:'/zones'})",
+          "async () => cloudflare.request({ method: \"GET\", [\"meth\" + \"od\"]: \"DELETE\", path: \"/zones/x\" })",
+          "async () => cloudflare.request({ method: 'GET', \"\\u006dethod\": 'DELETE', path: '/zones/x' })",
+          "async () => cloudflare.request({ method: 'GET', ...{ path: '/zones/x' } })",
+          "async () => cloudflare.request({ method: 'GET', ...{ method: 'DELETE' }, path: '/zones/x' })",
           "async () => cloudflare.request({\"method\":\"POST\",\"path\":\"/graphql\",\"body\":{\"query\":\"mutation { purge }\"}})",
           "async () => fetch('https://example.com')"
         ].each { |code| assert_not Cloudflare.reads?("execute", "code" => code), code }

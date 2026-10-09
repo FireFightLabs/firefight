@@ -15,8 +15,9 @@ class Conversation::Tools::StopWatch < RubyLLM::Tool
   end
 
   def call(tool_call: nil, **arguments)
-    watch = @turn.chat&.watches&.find_by(id: arguments[:watch].to_s)
-    return "No watch #{arguments[:watch]} in this chat. list_watches names them." unless watch
+    given = arguments.stringify_keys
+    watch = @turn.chat&.watches&.find_by(id: given["watch"].to_s)
+    return "No watch #{given["watch"]} in this chat. list_watches names them." unless watch
 
     blocked = Conversation::Watches.stop!(watch, by: @turn.asker)
     blocked || "Stopped watching #{watch.title}. Tell the person in a few words."

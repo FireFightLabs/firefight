@@ -37,6 +37,21 @@ class Chat::Watch::Step < ApplicationRecord
 
   validates :status, inclusion: { in: STATUSES }
 
+  # A read a watch can make, by its key or the name Halon calls it. Nil for one that writes or that nothing knows.
+  def self.read_key(name)
+    spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name.to_s || each.key == name.to_s }
+    spec.key if spec && !spec.writes
+  end
+
+  # Whether a step given to start_watch, with string keys, lacks what counts as its end. A run in a resource's history
+  # ends on its own, anything else needs done_when, failed_when or a goal. Checked when a runbook saves and when a watch starts.
+  def self.undecided?(step)
+    keys = Chat::Watch::SPEC_KEYS
+    return false if step["tool"].blank? && read_key(step[keys[:capability]]) == Integrations::Capabilities::HISTORY
+
+    step.values_at(keys[:done_when], keys[:failed_when], keys[:goal]).all?(&:blank?)
+  end
+
   def history? = capability == Integrations::Capabilities::HISTORY
 
   def read_tool? = capability == READ_TOOL
@@ -86,6 +101,14 @@ class Chat::Watch::Step < ApplicationRecord
 
   # No run showed up, so Halon is asked to find another way to follow it. True once.
   def handed_back! = claim(handed_back_at: nil) { { handed_back_at: Time.current } }
+
+  # Halon is told to re-plan once, in the turn that first has room for it.
+  def hand_back_noted! = claim(hand_back_noted_at: nil) { { hand_back_noted_at: Time.current } }
+
+  # Handed back in this chat and not yet told to Halon, such as when the turn meant for it found a confirmation waiting.
+  def self.hand_back_untold(chat)
+    joins(:watch).where(chat_watches: { chat_id: chat.id }).where.not(handed_back_at: nil).where(hand_back_noted_at: nil).order(:handed_back_at)
+  end
 
   # Waiting on a run that has not shown up since it could have: since the watch began, or since the step before it ended.
   def overdue?(now = Time.current)

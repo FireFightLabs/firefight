@@ -159,6 +159,7 @@ module FirefightAi
         - Current focus
 
         Use markdown bullets. Be concise (aim for under #{SUMMARY_OUTPUT_CAP} tokens).
+        #{Copy::PEOPLE}
       PROMPT
     end
 

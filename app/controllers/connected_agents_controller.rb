@@ -5,6 +5,6 @@ class ConnectedAgentsController < InertiaController
     Doorkeeper::AccessToken.revoke_all_for(application.id, current_membership)
     Doorkeeper::AccessGrant.revoke_all_for(application.id, current_membership)
 
-    redirect_to developer_api_keys_path
+    redirect_to developer_api_keys_path, notice: "#{application.name} was disconnected."
   end
 end

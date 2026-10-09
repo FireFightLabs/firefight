@@ -74,6 +74,8 @@ module Integrations
         assert_includes prompt, "Leave .github/workflows/ and infra/prod/** unchanged, since this workspace keeps those paths out of code changes."
         assert_includes prompt, "start the description with: #{CodeChange::CI_WARNING}"
         refute_includes prompt, "nothing under .github/"
+        assert_includes prompt, "A test that cannot run in your environment is never a reason to stop or to leave the change unwritten"
+        assert_includes prompt, "under #{CodeWriteUp::NOT_RUN} in its description"
       end
 
       test "the brief carries the person's own words and what Halon read, as Firefight's own agent gets them" do
@@ -81,6 +83,7 @@ module Integrations
                                          words: [ "Raise the timeout", "No, to 30 seconds" ],
                                          evidence: [ CodeAgent::Request::Evidence.new(label: "Search logs", text: "gateway timeout after 10s") ])
         pack = Devin.new(@integration, progress: ->(text) { @reports << text }, request: request)
+        pack.stubs(:pause)
         prompt = nil
         DevinApi.any_instance.expects(:create_session).with { |body| prompt = body["prompt"] }
                  .returns("session_id" => "devin-1", "url" => "https://app.devin.ai/sessions/devin-1")
@@ -89,7 +92,8 @@ module Integrations
 
         pack.fix_code(environment_row: @row.reload, arguments: ARGUMENTS)
 
-        assert_includes prompt, "A later message corrects an earlier one:\n> Raise the timeout\n\n> No, to 30 seconds"
+        assert_includes prompt, "A later message corrects an earlier one. #{FirefightAi::Copy::QUOTING}\n> Raise the timeout\n\n> No, to 30 seconds"
+        assert_includes prompt, FirefightAi::Copy::PEOPLE
         assert_includes prompt, "<tool_result tool=\"Search logs\" trust=\"untrusted\">\ngateway timeout after 10s"
       end
 

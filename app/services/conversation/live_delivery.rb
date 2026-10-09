@@ -21,6 +21,8 @@ class Conversation::LiveDelivery
   EVENT_PULL_REQUEST = "pull_request"
   # A code change paused on a step, or someone decided on it, so the chat looks again.
   EVENT_CODE_FIX = "code_fix"
+  # Something contradicted a memory, so the chat asks the person which is right.
+  EVENT_MEMORY = "memory"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -60,6 +62,10 @@ class Conversation::LiveDelivery
 
   def self.code_fix_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_CODE_FIX)
+  end
+
+  def self.memory_asked(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_MEMORY)
   end
 
   def self.secret_entry_moved(conversation)

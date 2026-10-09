@@ -4,16 +4,13 @@ module AlertProviders
   # one alert. Every other action, such as an acknowledgement, a note or a new tag, is accepted and ignored. Opsgenie
   # signs nothing, so the source's token travels in a custom header the integration sends.
   class Opsgenie < Base
-    TOKEN_HEADER = "X-Firefight-Token".freeze
     CREATE = "Create".freeze
     CLOSE = "Close".freeze
+    SETUP_INSTRUCTIONS = "In Opsgenie, add a Webhook integration with this URL, send the alert description with it, and post to " \
+                         "the URL when an alert is created and when it is closed. Add a custom header named #{TOKEN_HEADER} " \
+                         "holding the token. Firefight accepts and ignores other actions.".freeze
 
-    def self.verify(headers:, raw_body:, source:)
-      provided = headers[TOKEN_HEADER].to_s
-      return false if provided.blank?
-
-      ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
-    end
+    def self.verify(headers:, raw_body:, source:) = token_matches?(headers[TOKEN_HEADER].to_s, source)
 
     def self.normalize(payload, source:)
       return [] unless alert_action?(payload)

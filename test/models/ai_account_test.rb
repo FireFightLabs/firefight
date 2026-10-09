@@ -3,9 +3,17 @@ require "test_helper"
 class AiAccountTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
+  setup do
+    Rails.configuration.x.install_notification_webhook_url = "https://hooks.example.test/services/T0/B0/x"
+  end
+
+  teardown do
+    Rails.configuration.x.install_notification_webhook_url = nil
+  end
+
   test "running out alerts once, however many calls are refused, and an answered call brings it back" do
-    assert_enqueued_with(job: AiAccountAlertJob, args: [ "openrouter" ]) { assert AiAccount.ran_out!("openrouter") }
-    assert_no_enqueued_jobs(only: AiAccountAlertJob) { assert_not AiAccount.ran_out!("openrouter") }
+    assert_enqueued_with(job: AiAccountAlertJob, args: [ "openrouter", AiAccountAlert::OUT_OF_CREDIT ]) { assert AiRefusal.house_ran_out!("openrouter") }
+    assert_no_enqueued_jobs(only: AiAccountAlertJob) { assert_not AiRefusal.house_ran_out!("openrouter") }
 
     since = AiAccount.find_by!(provider: "openrouter").out_of_credit_since
     assert since
@@ -13,7 +21,34 @@ class AiAccountTest < ActiveSupport::TestCase
     assert AiAccount.answered!("openrouter")
     assert_nil AiAccount.find_by!(provider: "openrouter").out_of_credit_since
     assert_not AiAccount.answered!("openrouter"), "an account with credit changes nothing"
-    assert_enqueued_with(job: AiAccountAlertJob) { AiAccount.ran_out!("openrouter") }
+  end
+
+  test "a key refused again after the alert interval is reported again, and two alerts inside it send one" do
+    AiRefusal.house_ran_out!("openrouter")
+    assert_no_enqueued_jobs(only: AiAccountAlertJob) { AiAccountAlert.low_balance!("openrouter", FirefightAi::Balance::Key.new(remaining: 1.0, usage: 2.0)) }
+
+    travel AiAccount::ALERT_INTERVAL + 1.minute do
+      assert_enqueued_with(job: AiAccountAlertJob, args: [ "openrouter", AiAccountAlert::OUT_OF_CREDIT ]) { AiRefusal.house_ran_out!("openrouter") }
+    end
+  end
+
+  test "of alerts racing each other only one may send" do
+    assert AiAccount.alert_due!("openrouter")
+    assert_not AiAccount.alert_due!("openrouter")
+    assert AiAccount.alert_due!("anthropic"), "each key has its own interval"
+  end
+
+  test "a refusal with no webhook set records it, sends nothing, and says so in the log" do
+    Rails.configuration.x.install_notification_webhook_url = nil
+    Rails.logger.stubs(:info)
+    Rails.logger.expects(:info).with { |line| line.include?("ai.account_alert_unsent") }
+
+    assert_no_enqueued_jobs(only: AiAccountAlertJob) { assert AiRefusal.house_ran_out!("openrouter") }
+    assert AiAccount.find_by!(provider: "openrouter").out_of_credit_since
+  end
+
+  test "the model only records that it ran out, and enqueues nothing" do
+    assert_no_enqueued_jobs { assert AiAccount.ran_out!("openrouter") }
   end
 
   test "an answered call in the ledger brings its provider's account back" do

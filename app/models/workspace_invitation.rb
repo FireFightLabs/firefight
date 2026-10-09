@@ -56,6 +56,12 @@ class WorkspaceInvitation < ApplicationRecord
     self.class.send_blocked_reason(workspace)
   end
 
+  def revoke_blocked_reason
+    return ACCEPTED_REASON if accepted_at
+
+    REVOKED_REASON if revoked_at
+  end
+
   # The token that goes in the email. Older links for this invitation stop working.
   def issue_link!
     LoginToken.void_for!(self)

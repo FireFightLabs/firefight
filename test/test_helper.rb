@@ -14,6 +14,10 @@ Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 # Workflow classes register themselves on load.
 Dir[Rails.root.join("app/workflows/**/*.rb")].each { |f| require f }
 
+# Built once here, before the parallel workers fork. Otherwise each worker that renders a page builds on its own, and
+# one empties the output while another reads the manifest or its browser loads from it.
+ViteRuby.commands.build || raise("The Vite build failed, see log/test.log")
+
 module ActiveSupport
   class TestCase
     parallelize(workers: :number_of_processors)

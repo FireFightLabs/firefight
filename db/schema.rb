@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_131100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -195,6 +195,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "balance_checked_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "alerted_at"
     t.index ["provider"], name: "index_ai_accounts_on_provider", unique: true
   end
 
@@ -480,8 +481,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.string "outdated_from"
     t.string "outdated_cause"
     t.uuid "decided_by_postmortem_id"
+    t.uuid "contradicted_by_id"
     t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
     t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
+    t.index ["contradicted_by_id"], name: "index_chat_memories_on_contradicted_by_id"
     t.index ["decided_by_postmortem_id"], name: "index_chat_memories_on_decided_by_postmortem_id"
     t.index ["rejected_by_id"], name: "index_chat_memories_on_rejected_by_id"
     t.index ["replaced_by_id"], name: "index_chat_memories_on_replaced_by_id"
@@ -492,16 +495,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
 
   create_table "chat_memory_posts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
-    t.uuid "incident_id", null: false
+    t.uuid "incident_id"
     t.string "kind", null: false
-    t.string "channel_id", null: false
+    t.string "channel_id"
     t.string "thread_id"
     t.string "message_id"
     t.uuid "memory_ids", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "conversation_id"
+    t.uuid "recipient_id"
+    t.text "evidence"
+    t.index ["conversation_id"], name: "index_chat_memory_posts_on_conversation_id"
     t.index ["incident_id"], name: "index_chat_memory_posts_on_incident_id"
+    t.index ["recipient_id"], name: "index_chat_memory_posts_on_recipient_id"
     t.index ["workspace_id"], name: "index_chat_memory_posts_on_workspace_id"
+    t.check_constraint "channel_id IS NOT NULL OR conversation_id IS NOT NULL", name: "chat_memory_posts_has_a_place"
   end
 
   create_table "chat_memory_uses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -641,6 +650,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "parts_told", default: {}, null: false
+    t.datetime "hand_back_noted_at"
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
     t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"
@@ -715,7 +725,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.integer "recommended"
     t.text "recommended_reason"
     t.integer "chosen"
+    t.text "changed_answer"
+    t.integer "changed_chosen"
+    t.string "changed_by_type"
+    t.uuid "changed_by_id"
+    t.datetime "changed_at"
+    t.datetime "correction_sent_for"
     t.index ["code_agent_session_id"], name: "index_code_agent_questions_on_code_agent_session_id"
+    t.index ["code_agent_session_id"], name: "index_code_agent_questions_one_open", unique: true, where: "((status)::text = 'open'::text)"
     t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
   end
 
@@ -764,6 +781,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "told_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "resumed_at"
     t.index ["conversation_id"], name: "index_code_agent_session_pauses_on_conversation_id"
     t.index ["decided_by_id"], name: "index_code_agent_session_pauses_on_decided_by_id"
     t.index ["session_id"], name: "index_code_agent_session_pauses_on_session_id"
@@ -803,7 +821,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "pull_request_checked_at"
     t.datetime "pull_request_check_claimed_at"
     t.datetime "pull_request_ended_at"
+    t.string "push_token_digest"
+    t.datetime "push_open_until"
+    t.integer "questions_asked", default: 0, null: false
     t.index ["integration_environment_id"], name: "index_code_agent_sessions_following", where: "((pull_request_state)::text = 'open'::text)"
+    t.index ["push_token_digest"], name: "index_code_agent_sessions_on_push_token_digest", unique: true, where: "(push_token_digest IS NOT NULL)"
     t.index ["token_digest"], name: "index_code_agent_sessions_on_token_digest", unique: true
     t.index ["workspace_ai_account_id"], name: "index_code_agent_sessions_on_workspace_ai_account_id"
     t.index ["workspace_id", "repository", "pull_request_number"], name: "index_code_agent_sessions_on_pull_request", where: "(pull_request_number IS NOT NULL)"
@@ -1399,6 +1421,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "installation_state_at"
     t.jsonb "installation_details", default: {}, null: false
     t.jsonb "map_events_scopes"
+    t.text "issue_webhook_secret"
+    t.string "issue_webhook_id"
+    t.datetime "issue_webhook_expires_at"
+    t.text "issue_webhook_error"
     t.index ["integration_id", "catalog_entry_id"], name: "index_integration_environments_on_env", unique: true, where: "(catalog_entry_id IS NOT NULL)"
     t.index ["integration_id"], name: "index_integration_environments_global", unique: true, where: "(catalog_entry_id IS NULL)"
     t.index ["map_events_token"], name: "index_integration_environments_on_map_events_token", unique: true
@@ -1464,11 +1490,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "outcome_at"
     t.uuid "outcome_by_id"
     t.string "outcome_by_type"
-    t.jsonb "proposed_solution", default: {}, null: false
     t.datetime "published_at"
     t.string "published_state", default: "unpublished", null: false
     t.datetime "relearned_at"
-    t.string "remediation_type"
     t.boolean "suggests_incident", default: false, null: false
     t.text "summary"
     t.datetime "updated_at", null: false
@@ -1833,6 +1857,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.index ["incident_id"], name: "index_postmortems_on_incident_id", unique: true
   end
 
+  create_table "prepared_copies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.bigint "byte_size", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "install_key", null: false
+    t.datetime "last_used_at", null: false
+    t.string "repository", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["last_used_at"], name: "index_prepared_copies_on_last_used_at"
+    t.index ["workspace_id", "repository", "install_key"], name: "index_prepared_copies_on_workspace_repository_key", unique: true
+  end
+
   create_table "prompt_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "first_seen_at", null: false
@@ -1891,6 +1927,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "updated_at", null: false
     t.index ["key"], name: "index_provider_doc_sources_on_key", unique: true
     t.index ["provider"], name: "index_provider_doc_sources_on_provider"
+  end
+
+  create_table "repository_setups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "commands", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "derived_at"
+    t.string "derived_from"
+    t.datetime "edited_at"
+    t.jsonb "env", default: {}, null: false
+    t.uuid "integration_id", null: false
+    t.jsonb "notes", default: [], null: false
+    t.string "repository", null: false
+    t.jsonb "services", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.uuid "workspace_id", null: false
+    t.index ["integration_id", "repository"], name: "index_repository_setups_on_integration_id_and_repository", unique: true
+    t.index ["workspace_id"], name: "index_repository_setups_on_workspace_id"
   end
 
   create_table "resource_map_baselines", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2419,6 +2472,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
   create_table "workspace_onboardings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "ai_choice"
     t.datetime "ai_chosen_at"
+    t.datetime "chat_skipped_at"
     t.datetime "checklist_completed_at"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -2426,7 +2480,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.datetime "halon_answered_at"
     t.uuid "installer_id"
     t.datetime "permissions_reviewed_at"
-    t.datetime "slack_skipped_at"
     t.jsonb "stack_answers", default: {}, null: false
     t.datetime "stack_done_at"
     t.datetime "updated_at", null: false
@@ -2466,10 +2519,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
     t.string "issue_creation", default: "never", null: false
     t.jsonb "issue_tracker_target", default: {}, null: false
     t.string "issue_webhook_token"
-    t.text "issue_webhook_secret"
-    t.string "issue_webhook_id"
-    t.datetime "issue_webhook_expires_at"
-    t.text "issue_webhook_error"
     t.integer "memory_expiry_days"
     t.uuid "created_by_id"
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
@@ -2531,13 +2580,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
   add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspaces"
+  add_foreign_key "chat_memories", "chat_memories", column: "contradicted_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "postmortems", column: "decided_by_postmortem_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"
+  add_foreign_key "chat_memory_posts", "conversations", on_delete: :cascade
   add_foreign_key "chat_memory_posts", "incidents", on_delete: :cascade
+  add_foreign_key "chat_memory_posts", "workspace_memberships", column: "recipient_id", on_delete: :cascade
   add_foreign_key "chat_memory_posts", "workspaces"
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
@@ -2563,10 +2615,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
   add_foreign_key "code_agent_questions", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "code_agent_sessions", column: "session_id", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "workspaces", on_delete: :cascade
-  add_foreign_key "code_agent_session_pauses", "code_agent_sessions", column: "session_id"
-  add_foreign_key "code_agent_session_pauses", "conversations"
-  add_foreign_key "code_agent_session_pauses", "workspace_memberships", column: "decided_by_id"
-  add_foreign_key "code_agent_session_pauses", "workspaces"
+  add_foreign_key "code_agent_session_pauses", "code_agent_sessions", column: "session_id", on_delete: :cascade
+  add_foreign_key "code_agent_session_pauses", "conversations", on_delete: :nullify
+  add_foreign_key "code_agent_session_pauses", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "code_agent_session_pauses", "workspaces", on_delete: :cascade
+  add_foreign_key "code_agent_sessions", "integration_environments", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"
@@ -2671,8 +2724,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
   add_foreign_key "postmortem_updates", "incidents"
   add_foreign_key "postmortem_updates", "postmortems"
   add_foreign_key "postmortems", "incidents"
+  add_foreign_key "prepared_copies", "workspaces"
   add_foreign_key "provider_doc_chunks", "provider_doc_pages", on_delete: :cascade
   add_foreign_key "provider_doc_pages", "provider_doc_sources", on_delete: :cascade
+  add_foreign_key "repository_setups", "integrations"
+  add_foreign_key "repository_setups", "workspaces"
   add_foreign_key "resource_map_baselines", "integration_environments", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "resource_map_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "resource_map_baselines", "workspaces"

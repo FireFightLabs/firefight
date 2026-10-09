@@ -5,7 +5,7 @@ import { AuthenticatedLayout } from "@/components/layout/authenticated-layout"
 import { InvestigationStory, investigationTitle } from "@/components/investigations/investigation-story"
 import { fixMoving, useLiveInvestigation } from "@/components/investigations/use-live-investigation"
 import { INVESTIGATION_PROP } from "@/lib/generated/constants"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import type { InvestigationPageProps } from "@/pages/investigations/types"
 
 // A run with nothing of its own to be drawn over. A run on an incident opens over the incident instead.

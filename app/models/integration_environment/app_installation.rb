@@ -10,10 +10,6 @@ module IntegrationEnvironment::AppInstallation
   DETAIL_ACCESS = "access".freeze
   DETAIL_ACCESS_AT = "access_at".freeze
 
-  # The ledger's action for removing the app from the account, the same a person needs to disconnect.
-  UNINSTALL_ACTION_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_DELETE)
-  UNINSTALL_LABEL = "Disconnect".freeze
-
   included do
     validates :installation_state, inclusion: { in: Integrations::Installations::STATES }, allow_nil: true
   end
@@ -65,19 +61,6 @@ module IntegrationEnvironment::AppInstallation
 
   # Why Firefight may not remove the app from the account when this connection is disconnected, or nil.
   def uninstall_blocked_reason = Integrations::Installations.uninstall_blocked_reason(self)
-
-  # Removes the app from the account at the provider as the person disconnecting, in the activity log under their name.
-  # Answers why it could not, or nil once it is gone.
-  def uninstall_app!(by:)
-    AbilityGateway.authorize!(
-      principal: by, action_key: UNINSTALL_ACTION_KEY, workspace: integration.workspace,
-      params: { "app" => "uninstall", "connection" => integration.slug, "account" => installation_account }.compact,
-      context: { source: AbilityGateway::SOURCE_WEB, triggered_by_label: UNINSTALL_LABEL }
-    ) { Integrations::Installations.uninstall!(self) }
-    nil
-  rescue Integrations::Error, AbilityGateway::Denied, AbilityGateway::PendingApproval => error
-    error.message
-  end
 
   private
 

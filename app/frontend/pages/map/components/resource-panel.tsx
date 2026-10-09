@@ -1,40 +1,25 @@
-import { Link, router, usePage } from "@inertiajs/react"
-import { useState } from "react"
-import { IconExternalLink, IconX } from "@tabler/icons-react"
+import { Link, usePage } from "@inertiajs/react"
+import { IconExternalLink } from "@tabler/icons-react"
 
-import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
-import { formatDate } from "@/lib/formatters"
-import { PAST_INCIDENT_DAYS, RESOURCE_MAP_ORIGIN } from "@/lib/generated/constants"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { SearchableSelect } from "@/components/searchable-select"
-import {
-  confirmResourceMapLinkPath,
-  dismissResourceMapLinkPath,
-  incidentPath,
-  memoryPath,
-  resourceMapLinkPath,
-  resourceMapResourceEntriesPath,
-  resourceMapResourceEntryPath,
-} from "@/lib/routes"
-import { CHAT_MEMORY_STATES } from "@/lib/generated/constants"
-import { STATE_LABELS, STATE_TONES } from "@/pages/memory/lib/labels"
-import { Clues } from "@/pages/map/components/clues"
+import { PAST_INCIDENT_DAYS } from "@/lib/generated/constants"
+import { incidentPath } from "@/lib/routes"
+import { KIND_LABELS } from "@/lib/resource-map-kinds"
+import { shortAgo } from "@/lib/time"
+import { BaselinesTable } from "@/pages/map/components/baselines-table"
+import { CatalogLinks } from "@/pages/map/components/catalog-links"
 import { KeyChecks } from "@/pages/map/components/key-checks"
+import { LinkRow } from "@/pages/map/components/link-row"
+import { PanelSection } from "@/pages/map/components/panel-section"
+import { PastIncidentRow } from "@/pages/map/components/past-incident-row"
+import { PointingSettings } from "@/pages/map/components/pointing-settings"
+import { Remembered } from "@/pages/map/components/remembered"
+import { ResourceFacts } from "@/pages/map/components/resource-facts"
 import { UsualLogLines } from "@/pages/map/components/usual-log-lines"
-import { changeLabel, howFound, KIND_LABELS, RELATION_SENTENCES } from "@/pages/map/lib/labels"
-import { shortAgo } from "@/pages/map/lib/time"
+import { changeLabel } from "@/pages/map/lib/labels"
+import { settingsPointingAt } from "@/pages/map/lib/pointing"
 import type { SharedProps } from "@/types"
-import type {
-  ResourceMapChange,
-  ResourceMapEntry,
-  ResourceMapBaseline,
-  ResourceMapLink,
-  ResourceMapPastIncident,
-  ResourceMapResource,
-} from "@/types/serializers"
-
-const VISIT = { preserveScroll: true, preserveState: true }
+import type { ResourceMapChange, ResourceMapEntry, ResourceMapLink, ResourceMapResource } from "@/types/serializers"
 
 interface ResourcePanelProps {
   resource: ResourceMapResource
@@ -45,165 +30,6 @@ interface ResourcePanelProps {
   canCurate: boolean
   onAddLink: () => void
   onPick: (resourceId: string) => void
-}
-
-export function ResourcePanel({ resource, resources, links, changes, catalogEntries, canCurate, onAddLink, onPick }: ResourcePanelProps) {
-  const { agentAvailable } = usePage<SharedProps>().props
-  const byId = new Map(resources.map((each) => [ each.id, each ]))
-  const own = links.filter((link) => link.fromId === resource.id || link.toId === resource.id)
-  const stops = resource.dependentIds.flatMap((id) => byId.get(id) ?? [])
-  const maybe = resource.suggestedDependentIds.flatMap((id) => byId.get(id) ?? [])
-  const recent = changes.filter((change) => change.resourceId === resource.id)
-  const history = recent.length > 0 ? recent : resource.lastChange ? [ resource.lastChange ] : []
-  const pointing = settingsPointingAt(resource, own, byId)
-
-  return (
-    <aside className="flex flex-col gap-6 overflow-y-auto border-t border-border bg-card/40 p-5 lg:border-t-0 lg:border-l" aria-label={`About ${resource.name}`}>
-      <Section title="What it is">
-        <p className="text-sm leading-relaxed">{description(resource)}</p>
-        <Details resource={resource} />
-        {resource.url && (
-          <a href={resource.url} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 text-sm text-link hover:underline">
-            Open in {resource.providerName}
-            <IconExternalLink className="size-3.5" />
-          </a>
-        )}
-      </Section>
-
-      <Section title="Runs, from the catalog">
-        <CatalogLinks resource={resource} catalogEntries={catalogEntries} canCurate={canCurate} />
-      </Section>
-
-      <Section title="Now">
-        {resource.openIncidents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so incidents cannot reach it yet." : "No open incidents."}
-          </p>
-        ) : (
-          resource.openIncidents.map((incident) => (
-            <Link key={incident.id} href={incidentPath(incident.id)} className="flex flex-col gap-0.5 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm hover:bg-destructive/15">
-              <span className="font-semibold">{incident.identifier} open</span>
-              <span className="text-destructive">{incident.name}</span>
-            </Link>
-          ))
-        )}
-      </Section>
-
-      <Section title="Key checks">
-        <KeyChecks resourceId={resource.id} />
-      </Section>
-
-      <Section title="Past incidents">
-        {resource.pastIncidents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so its incidents cannot be found yet." : `No incidents ended on it in the last ${PAST_INCIDENT_DAYS} days.`}
-          </p>
-        ) : (
-          resource.pastIncidents.map((incident) => <PastIncident key={incident.id} incident={incident} />)
-        )}
-      </Section>
-      {resource.baselines.length > 0 && (
-        <Section title="Normal, over the last week">
-          <Baselines baselines={resource.baselines} />
-        </Section>
-      )}
-
-      <Section title="Usual log lines">
-        <UsualLogLines resourceId={resource.id} />
-      </Section>
-
-      {pointing.length > 0 && (
-        <Section title="Settings that point here">
-          <PointingSettings settings={pointing} onPick={onPick} />
-        </Section>
-      )}
-
-      <Section title="Links and how they were found">
-        {own.length === 0 && <p className="text-sm text-muted-foreground">No links yet. Nothing on the map is known to depend on it, or it on anything.</p>}
-        {own.map((link) => (
-          <LinkRow key={link.id} link={link} byId={byId} focusId={resource.id} canCurate={canCurate} onPick={onPick} />
-        ))}
-        {canCurate && (
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2">
-            <span className="grow text-sm text-muted-foreground">Something missing?</span>
-            <Button type="button" variant="outline" size="sm" onClick={onAddLink}>
-              Add link
-            </Button>
-          </div>
-        )}
-      </Section>
-
-      <Section title="If it fails">
-        <p className="text-sm leading-relaxed">{failureSentence(stops)}</p>
-        {maybe.length > 0 && (
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            If the suggested links are right, {names(maybe)} {maybe.length === 1 ? "stops" : "stop"} too.
-          </p>
-        )}
-      </Section>
-
-      {agentAvailable && (
-        <Section title="Halon remembers">
-          <Remembered resource={resource} />
-        </Section>
-      )}
-
-      <Section title="Recent changes">
-        {history.length === 0 && <p className="text-sm text-muted-foreground">No changes seen since it was first swept.</p>}
-        {history.map((change) => (
-          <div key={change.id} className="flex justify-between gap-3 text-sm">
-            <span>{changeLabel(change)}</span>
-            <span className="shrink-0 text-muted-foreground tabular-nums">{shortAgo(change.happenedAt)}</span>
-          </div>
-        ))}
-      </Section>
-    </aside>
-  )
-}
-
-// One line per setting of a service that names this resource, from the links into it that are facts and carry setting
-// names. A suggestion's setting only hints at the store, so it stays with the suggestion's clues.
-interface PointingSetting {
-  key: string
-  variable: string
-  from: ResourceMapResource
-}
-
-function settingsPointingAt(resource: ResourceMapResource, links: ResourceMapLink[], byId: Map<string, ResourceMapResource>): PointingSetting[] {
-  return links
-    .filter((link) => link.toId === resource.id && !link.unconfirmed)
-    .flatMap((link) => {
-      const from = byId.get(link.fromId)
-      if (!from) {
-        return []
-      }
-      return link.variables.map((variable) => ({ key: `${link.id}:${variable}`, variable, from }))
-    })
-}
-
-function PointingSettings({ settings, onPick }: { settings: PointingSetting[]; onPick: (resourceId: string) => void }) {
-  return (
-    <ul className="flex flex-col gap-1 text-sm">
-      {settings.map((setting) => (
-        <PointingSettingRow key={setting.key} setting={setting} onPick={onPick} />
-      ))}
-    </ul>
-  )
-}
-
-function PointingSettingRow({ setting, onPick }: { setting: PointingSetting; onPick: (resourceId: string) => void }) {
-  function pickService() {
-    onPick(setting.from.id)
-  }
-
-  return (
-    <li>
-      <code className="font-mono text-xs">{setting.variable}</code> from{" "}
-      <button type="button" onClick={pickService} className="font-semibold hover:underline">
-        {setting.from.name}
-      </button>
-    </li>
-  )
 }
 
 function failureSentence(stops: ResourceMapResource[]): string {
@@ -218,15 +44,6 @@ function names(resources: ResourceMapResource[]): string {
   return resources.map((each) => each.name).join(", ")
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2.5">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
 function description(resource: ResourceMapResource): string {
   const where = [ resource.providerName, resource.account ].join(" ")
   const environment = resource.environment ? `, ${resource.environment}` : ""
@@ -234,301 +51,116 @@ function description(resource: ResourceMapResource): string {
   return `${KIND_LABELS[resource.kind]} in ${where}${environment}.${status}`
 }
 
-function Details({ resource }: { resource: ResourceMapResource }) {
-  if (resource.facts.length === 0) {
-    return null
-  }
+export function ResourcePanel({ resource, resources, links, changes, catalogEntries, canCurate, onAddLink, onPick }: ResourcePanelProps) {
+  const { agentAvailable } = usePage<SharedProps>().props
+  const byId = new Map(resources.map((each) => [ each.id, each ]))
+  const own = links.filter((link) => link.fromId === resource.id || link.toId === resource.id)
+  const stops = resource.dependentIds.flatMap((id) => byId.get(id) ?? [])
+  const maybe = resource.suggestedDependentIds.flatMap((id) => byId.get(id) ?? [])
+  const recent = changes.filter((change) => change.resourceId === resource.id)
+  const history = recent.length > 0 ? recent : resource.lastChange ? [ resource.lastChange ] : []
+  const pointing = settingsPointingAt(resource, own, byId)
 
   return (
-    <dl className="grid grid-cols-2 gap-2">
-      {resource.facts.map(([ label, value ]) => (
-        <div key={label} className="flex flex-col gap-0.5 rounded-lg border border-border bg-background/50 px-3 py-2">
-          <dt className="text-[11px] text-muted-foreground">{label}</dt>
-          <dd className="truncate font-mono text-xs">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
-}
+    <aside className="flex flex-col gap-6 overflow-y-auto border-t border-border bg-card/40 p-5 lg:border-t-0 lg:border-l" aria-label={`About ${resource.name}`}>
+      <PanelSection title="What it is">
+        <p className="text-sm leading-relaxed">{description(resource)}</p>
+        <ResourceFacts resource={resource} />
+        {resource.url && (
+          <a href={resource.url} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1.5 text-sm text-link hover:underline">
+            Open in {resource.providerName}
+            <IconExternalLink className="size-3.5" />
+          </a>
+        )}
+      </PanelSection>
 
-interface CatalogLinksProps {
-  resource: ResourceMapResource
-  catalogEntries: ResourceMapEntry[]
-  canCurate: boolean
-}
+      <PanelSection title="Runs, from the catalog">
+        <CatalogLinks resource={resource} catalogEntries={catalogEntries} canCurate={canCurate} />
+      </PanelSection>
 
-function CatalogLinks({ resource, catalogEntries, canCurate }: CatalogLinksProps) {
-  const linked = new Set(resource.catalogEntries.map((entry) => entry.id))
-  const options = catalogEntries.filter((entry) => !linked.has(entry.id)).map((entry) => ({ value: entry.id, label: `${entry.name} · ${entry.typeName}` }))
+      <PanelSection title="Now">
+        {resource.openIncidents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so incidents cannot reach it yet." : "No open incidents."}
+          </p>
+        ) : (
+          resource.openIncidents.map((incident) => (
+            <Link key={incident.id} href={incidentPath(incident.id)} className="flex flex-col gap-0.5 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm hover:bg-destructive/15">
+              <span className="font-semibold">{incident.identifier} open</span>
+              <span className="text-destructive">{incident.name}</span>
+            </Link>
+          ))
+        )}
+      </PanelSection>
 
-  function linkEntry(entryId: string | null) {
-    if (entryId) {
-      router.post(resourceMapResourceEntriesPath(resource.id), { catalog_entry_id: entryId }, VISIT)
-    }
-  }
+      <PanelSection title="Key checks">
+        <KeyChecks resourceId={resource.id} />
+      </PanelSection>
 
-  return (
-    <div className="flex flex-col gap-2">
-      {resource.catalogEntries.length === 0 && (
-        <p className="text-sm text-muted-foreground">Not linked yet. Link the catalog entry it runs, so its owner and its incidents show here.</p>
+      <PanelSection title="Past incidents">
+        {resource.pastIncidents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {resource.catalogEntries.length === 0 ? "No catalog entry is linked, so its incidents cannot be found yet." : `No incidents ended on it in the last ${PAST_INCIDENT_DAYS} days.`}
+          </p>
+        ) : (
+          resource.pastIncidents.map((incident) => <PastIncidentRow key={incident.id} incident={incident} />)
+        )}
+      </PanelSection>
+      {resource.baselines.length > 0 && (
+        <PanelSection title="Normal, over the last week">
+          <BaselinesTable baselines={resource.baselines} />
+        </PanelSection>
       )}
-      <div className="flex flex-wrap gap-2">
-        {resource.catalogEntries.map((entry) => (
-          <EntryChip key={entry.id} resourceId={resource.id} entry={entry} canCurate={canCurate} />
+
+      <PanelSection title="Usual log lines">
+        <UsualLogLines resourceId={resource.id} />
+      </PanelSection>
+
+      {pointing.length > 0 && (
+        <PanelSection title="Settings that point here">
+          <PointingSettings settings={pointing} onPick={onPick} />
+        </PanelSection>
+      )}
+
+      <PanelSection title="Links and how they were found">
+        {own.length === 0 && <p className="text-sm text-muted-foreground">No links yet. Nothing on the map is known to depend on it, or it on anything.</p>}
+        {own.map((link) => (
+          <LinkRow key={link.id} link={link} byId={byId} focusId={resource.id} canCurate={canCurate} onPick={onPick} />
         ))}
-      </div>
-      {resource.catalogEntries.map((entry) => (
-        <EntryContext key={entry.id} entry={entry} />
-      ))}
-      {canCurate && options.length > 0 && (
-        <SearchableSelect
-          value={null}
-          onValueChange={linkEntry}
-          options={options}
-          placeholder="Link a catalog entry"
-          searchPlaceholder="Search the catalog"
-          emptyText="No catalog entry matches"
-        />
+        {canCurate && (
+          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2">
+            <span className="grow text-sm text-muted-foreground">Something missing?</span>
+            <Button type="button" variant="outline" size="sm" onClick={onAddLink}>
+              Add link
+            </Button>
+          </div>
+        )}
+      </PanelSection>
+
+      <PanelSection title="If it fails">
+        <p className="text-sm leading-relaxed">{failureSentence(stops)}</p>
+        {maybe.length > 0 && (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            If the suggested links are right, {names(maybe)} {maybe.length === 1 ? "stops" : "stop"} too.
+          </p>
+        )}
+      </PanelSection>
+
+      {agentAvailable && (
+        <PanelSection title="Halon remembers">
+          <Remembered resource={resource} />
+        </PanelSection>
       )}
-    </div>
+
+      <PanelSection title="Recent changes">
+        {history.length === 0 && <p className="text-sm text-muted-foreground">No changes seen since it was first swept.</p>}
+        {history.map((change) => (
+          <div key={change.id} className="flex justify-between gap-3 text-sm">
+            <span>{changeLabel(change)}</span>
+            <span className="shrink-0 text-muted-foreground tabular-nums">{shortAgo(change.happenedAt)}</span>
+          </div>
+        ))}
+      </PanelSection>
+    </aside>
   )
-}
-
-function EntryChip({ resourceId, entry, canCurate }: { resourceId: string; entry: ResourceMapEntry; canCurate: boolean }) {
-  const [ asking, setAsking ] = useState(false)
-
-  function ask() {
-    setAsking(true)
-  }
-
-  function cancel() {
-    setAsking(false)
-  }
-
-  function unlink() {
-    router.delete(resourceMapResourceEntryPath(resourceId, entry.id), { ...VISIT, onFinish: cancel })
-  }
-
-  return (
-    <span className="flex items-center gap-1.5 rounded-md border border-border bg-background/60 py-1 pr-1 pl-2.5 text-sm">
-      <span>{entry.name}</span>
-      <span className="text-xs text-muted-foreground">{entry.typeName}</span>
-      {canCurate && (
-        <button type="button" onClick={ask} aria-label={`Unlink ${entry.name}`} className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground">
-          <IconX className="size-3.5" />
-        </button>
-      )}
-      <ConfirmDeleteDialog
-        open={asking}
-        title={`Unlink ${entry.name}?`}
-        description={`Its incidents stop showing on this resource, and Halon no longer reads this resource as where ${entry.name} runs.`}
-        confirmLabel="Unlink"
-        onConfirm={unlink}
-        onCancel={cancel}
-      />
-    </span>
-  )
-}
-
-interface LinkRowProps {
-  link: ResourceMapLink
-  byId: Map<string, ResourceMapResource>
-  focusId: string
-  canCurate: boolean
-  onPick: (resourceId: string) => void
-}
-
-function LinkRow({ link, byId, focusId, canCurate, onPick }: LinkRowProps) {
-  const from = byId.get(link.fromId)
-  const to = byId.get(link.toId)
-  const other = link.fromId === focusId ? to : from
-  // A suggestion shows what it rests on, and so does a match from a setting, since its clue names the setting.
-  const showsClues = (link.unconfirmed || link.origin === RESOURCE_MAP_ORIGIN.MATCHED) && link.clues.length > 0
-
-  function confirm() {
-    router.post(confirmResourceMapLinkPath(link.id), {}, VISIT)
-  }
-
-  function dismiss() {
-    router.post(dismissResourceMapLinkPath(link.id), {}, VISIT)
-  }
-
-  const [ removing, setRemoving ] = useState(false)
-
-  function askRemove() {
-    setRemoving(true)
-  }
-
-  function cancelRemove() {
-    setRemoving(false)
-  }
-
-  function remove() {
-    router.delete(resourceMapLinkPath(link.id), { ...VISIT, onFinish: cancelRemove })
-  }
-
-  function pickOther() {
-    if (other) {
-      onPick(other.id)
-    }
-  }
-
-  return (
-    <div className={`flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-sm ${link.unconfirmed ? "border-dashed border-brand-border bg-brand-tint" : "border-border bg-surface-card"}`}>
-      <span>
-        <b className="font-semibold">{from?.name}</b> {RELATION_SENTENCES[link.relation]}{" "}
-        <button type="button" onClick={pickOther} className="font-semibold hover:underline">
-          {to?.name}
-        </button>
-      </span>
-      <span className="text-xs text-muted-foreground">{howFound(link)}{link.note ? `: ${link.note}` : ""}</span>
-      {showsClues && <Clues clues={link.clues} />}
-      {canCurate && link.unconfirmed && (
-        <div className="flex gap-2 pt-1">
-          <Button type="button" size="sm" onClick={confirm}>
-            Confirm link
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={dismiss}>
-            Dismiss
-          </Button>
-        </div>
-      )}
-      {canCurate && !link.unconfirmed && <RemoveLink reason={link.removalBlockedReason} onRemove={askRemove} />}
-      <ConfirmDeleteDialog
-        open={removing}
-        title="Remove this link?"
-        description={`The map and Halon stop treating ${from?.name ?? "it"} as depending on ${to?.name ?? "the other resource"}. You can add it again at any time.`}
-        confirmLabel="Remove link"
-        onConfirm={remove}
-        onCancel={cancelRemove}
-      />
-    </div>
-  )
-}
-
-// A provider's link cannot be removed by hand, so the control stays and says why.
-function RemoveLink({ reason, onRemove }: { reason?: string; onRemove: () => void }) {
-  const button = (
-    <Button type="button" size="sm" variant="ghost" className="h-7 w-fit px-2 text-xs text-muted-foreground" disabled={Boolean(reason)} onClick={onRemove}>
-      Remove link
-    </Button>
-  )
-  if (!reason) {
-    return button
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="w-fit">{button}</span>
-      </TooltipTrigger>
-      <TooltipContent>{reason}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-// What Halon knows about this resource and how it was told to work on it, both written on the Memory page.
-function Remembered({ resource }: { resource: ResourceMapResource }) {
-  if (resource.memories.length === 0 && resource.instructions.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Nothing yet. Halon learns about it from incidents, or you can{" "}
-        <Link href={memoryPath()} className="text-link hover:underline">
-          add memories and instructions
-        </Link>
-        .
-      </p>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      {resource.instructions.map(([ id, label, text ]) => (
-        <div key={id} className="flex flex-col gap-1 rounded-lg border border-border bg-background/50 px-3 py-2">
-          <span className="text-[11px] text-muted-foreground">Instructions for {label}</span>
-          <p className="line-clamp-4 text-sm whitespace-pre-wrap">{text}</p>
-        </div>
-      ))}
-      {resource.memories.map(([ id, state, text ]) => (
-        <MemoryNote key={id} state={state} text={text} />
-      ))}
-      <Link href={memoryPath()} className="w-fit text-sm text-link hover:underline">
-        Review on the Memory page
-      </Link>
-    </div>
-  )
-}
-
-function MemoryNote({ state, text }: { state: string; text: string }) {
-  const known = CHAT_MEMORY_STATES.find((each) => each === state)
-
-  return (
-    <div className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-background/50 px-3 py-2">
-      {known && <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATE_TONES[known]}`}>{STATE_LABELS[known]}</span>}
-      <p className="text-sm">{text}</p>
-    </div>
-  )
-}
-
-// What the catalog says a service is for and who owns it, so neither has to be looked up elsewhere.
-function EntryContext({ entry }: { entry: ResourceMapEntry }) {
-  if (!entry.purpose && entry.owners.length === 0) {
-    return null
-  }
-
-  return (
-    <p className="text-sm leading-relaxed text-muted-foreground">
-      <span className="font-medium text-foreground">{entry.name}</span>
-      {entry.purpose && <span>: {entry.purpose}</span>}
-      {entry.owners.length > 0 && <span> Owned by {entry.owners.join(", ")}.</span>}
-    </p>
-  )
-}
-
-function PastIncident({ incident }: { incident: ResourceMapPastIncident }) {
-  return (
-    <Link href={incidentPath(incident.id)} className="flex flex-col gap-0.5 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm hover:bg-muted/40">
-      <span className="flex justify-between gap-3">
-        <span className="font-semibold">{incident.identifier}</span>
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{formatDate(incident.endedAt)}</span>
-      </span>
-      <span>{incident.name}</span>
-      <span className="text-xs text-muted-foreground">
-        {incident.outcome ? `${incident.outcomeSource}: ${incident.outcome}` : "Nothing was written about how it ended."}
-      </span>
-    </Link>
-  )
-}
-
-function Baselines({ baselines }: { baselines: ResourceMapBaseline[] }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-[11px] text-muted-foreground">
-            <th className="pb-1 font-normal" />
-            <th className="pb-1 font-normal">Usually</th>
-            <th className="pb-1 font-normal">95% under</th>
-            <th className="pb-1 font-normal">Peak</th>
-          </tr>
-        </thead>
-        <tbody className="tabular-nums">
-          {baselines.map((baseline) => (
-            <tr key={baseline.id} className="border-t border-border/60">
-              <td className="py-1.5 pr-2">{baseline.label}</td>
-              <td className="py-1.5 pr-2">{baseline.typical}</td>
-              <td className="py-1.5 pr-2 text-muted-foreground">{baseline.high}</td>
-              <td className="py-1.5 text-muted-foreground">{baseline.peak}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="text-xs text-muted-foreground">Read from the provider over the 7 days to {formatDate(latest(baselines))}.</p>
-    </div>
-  )
-}
-
-function latest(baselines: ResourceMapBaseline[]): string {
-  const ends = baselines.map((baseline) => baseline.windowTo).sort()
-  return ends[ends.length - 1] ?? ""
 }

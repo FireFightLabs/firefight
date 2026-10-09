@@ -1,7 +1,7 @@
 import { IconAlertTriangle, IconCircleCheck, IconLoader2 } from "@tabler/icons-react"
-import type { ReactNode } from "react"
-
 import { Button } from "@/components/ui/button"
+import { AnswerHeading } from "@/components/investigations/answer-heading"
+import { AnswerPart } from "@/components/investigations/answer-part"
 import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
 import { FixPlan } from "@/components/investigations/fix-plan"
 import { RateAnswer } from "@/components/investigations/rate-answer"
@@ -9,19 +9,6 @@ import { StepLinks } from "@/components/investigations/step-links"
 import { OUTCOME_LABELS, labelFor } from "@/components/investigations/labels"
 import { isLive } from "@/components/investigations/use-live-investigation"
 import type { InvestigationDetail } from "@/types/serializers"
-
-function Part({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid gap-1.5 sm:grid-cols-[8.5rem_1fr] sm:gap-4">
-      <h3 className="pt-0.5 text-[11px] font-medium tracking-[0.15em] text-fg-muted uppercase">{label}</h3>
-      <div className="min-w-0 text-sm leading-relaxed text-fg-body">{children}</div>
-    </div>
-  )
-}
-
-function Heading({ children }: { children: ReactNode }) {
-  return <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] uppercase">{children}</div>
-}
 
 // Every state of the answer is the same card. A 2px bar and the heading carry the state's colour, the text stays readable.
 const FRAMES = {
@@ -47,12 +34,12 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
     const current = investigation.steps[investigation.steps.length - 1]
     return (
       <section className={`${FRAME} ${FRAMES.working}`}>
-        <Heading>
+        <AnswerHeading>
           <span className="flex items-center gap-2 text-stage-active">
             <IconLoader2 className="size-3.5 motion-safe:animate-spin" />
             Investigating
           </span>
-        </Heading>
+        </AnswerHeading>
         <p className="mt-3 text-sm text-fg-body">
           {current ? `Now on step ${current.position}, ${current.label}.` : "Reading what Firefight already knows."}
         </p>
@@ -63,12 +50,12 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
   if (!finding) {
     return (
       <section className={`${FRAME} ${FRAMES.stopped}`}>
-        <Heading>
+        <AnswerHeading>
           <span className="flex items-center gap-2 text-warning">
             <IconAlertTriangle className="size-3.5" />
             No answer
           </span>
-        </Heading>
+        </AnswerHeading>
         <p className="mt-3 text-sm text-fg-body">{investigation.stoppedBecause ?? "Stopped without an answer."}</p>
       </section>
     )
@@ -78,12 +65,12 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
 
   return (
     <section className={`${FRAME} ${FRAMES.answered}`}>
-      <Heading>
+      <AnswerHeading>
         <span className="flex items-center gap-2 text-success">
           <IconCircleCheck className="size-3.5" />
           Answer
         </span>
-      </Heading>
+      </AnswerHeading>
       <p className="mt-3 text-base leading-relaxed text-fg-primary text-pretty">{finding.summary}</p>
       {finding.suggestsIncident && !investigation.incidentId && onDeclare && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 edge-bar rounded-lg bg-error-tint px-4 py-3 [--edge-bar-inset:8px] [--edge-bar:var(--error)]">
@@ -100,9 +87,9 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
       )}
 
       <div className="mt-5 flex flex-col gap-4 border-t border-border pt-5">
-        {finding.cause && <Part label="Cause">{finding.cause}</Part>}
+        {finding.cause && <AnswerPart label="Cause">{finding.cause}</AnswerPart>}
         {finding.evidence.length > 0 && (
-          <Part label="Why it thinks so">
+          <AnswerPart label="Why it thinks so">
             <ul className="flex flex-col gap-2.5">
               {finding.evidence.map((item) => (
                 <li key={item.id} className="flex flex-col gap-1">
@@ -111,35 +98,35 @@ export function Answer({ investigation, onDeclare }: AnswerProps) {
                 </li>
               ))}
             </ul>
-          </Part>
+          </AnswerPart>
         )}
         {finding.fix && (
-          <Part label="How to fix it">
+          <AnswerPart label="How to fix it">
             <FixPlan investigationId={investigation.id} fix={finding.fix} />
-          </Part>
+          </AnswerPart>
         )}
         {finding.fix?.undo && (
-          <Part label="How to undo it">
+          <AnswerPart label="How to undo it">
             <FixPlan investigationId={investigation.id} fix={finding.fix.undo} />
-          </Part>
+          </AnswerPart>
         )}
         {finding.gaps && (
-          <Part label="Could not check">
+          <AnswerPart label="Could not check">
             <span className="text-fg-secondary">{finding.gaps}</span>
-          </Part>
+          </AnswerPart>
         )}
         {(finding.outcome || verdicts.length > 0) && (
-          <Part label="The team says">
+          <AnswerPart label="The team says">
             <span className="text-fg-secondary">
               {finding.outcome
                 ? labelFor(OUTCOME_LABELS, finding.outcome)
                 : verdicts.map(([outcome, count]) => `${count} ${labelFor(OUTCOME_LABELS, outcome)?.toLowerCase()}`).join(", ")}
             </span>
-          </Part>
+          </AnswerPart>
         )}
-        <Part label="Was it right?">
+        <AnswerPart label="Was it right?">
           <RateAnswer investigationId={investigation.id} mine={finding.myVerdict} />
-        </Part>
+        </AnswerPart>
       </div>
     </section>
   )

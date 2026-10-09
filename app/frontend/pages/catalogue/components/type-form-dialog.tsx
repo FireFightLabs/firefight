@@ -33,7 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { omitErrors, pickErrors } from "@/lib/form-errors"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { FormErrors } from "@/components/form-errors"
 
 const DEFAULT_TYPE_COLOR = "#EFD369"
 

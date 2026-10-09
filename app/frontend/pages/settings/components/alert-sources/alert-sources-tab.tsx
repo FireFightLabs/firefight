@@ -27,15 +27,18 @@ import { AddSourceDialog } from "@/pages/settings/components/alert-sources/add-s
 import { EditSourceDialog } from "@/pages/settings/components/alert-sources/edit-source-dialog"
 import { LastEventCell } from "@/pages/settings/components/alert-sources/last-event-cell"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RowActions } from "@/components/row-actions"
+import type { SetupInstructions } from "@/pages/settings/lib/alerts"
 
 export function AlertSourcesTab({
   alertSources,
   severities,
+  setupInstructions,
   canManage,
 }: {
   alertSources: AlertSourceSettings[]
   severities: IncidentSeveritySettings[]
+  setupInstructions: SetupInstructions
   canManage: boolean
 }) {
   const [editingSource, setEditingSource] = useState<AlertSourceSettings | null>(null)
@@ -196,6 +199,7 @@ export function AlertSourcesTab({
         <EditSourceDialog
           source={editingSource}
           severities={severities}
+          setupInstructions={setupInstructions[editingSource.provider] ?? null}
           onClose={() => setEditingSource(null)}
         />
       )}

@@ -2,7 +2,7 @@ import { Link, router, usePage } from "@inertiajs/react"
 import { IconRefresh } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { OPERATOR_HALON_ENDINGS } from "@/lib/generated/constants"
+import { OPERATOR_HALON_ENDINGS } from "@/pages/operator/generated/constants"
 import { operatorHalonPath, operatorIncidentPath } from "@/lib/routes"
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"
@@ -12,6 +12,7 @@ import { dollars, seconds } from "@/pages/operator/lib/format"
 import { TONE_CLASSES } from "@/pages/operator/lib/tone"
 import type { OperatorPageProps } from "@/pages/operator/types"
 import type { OperatorHalonRun, OperatorTraceGroup } from "@/types/serializers"
+import { Chip } from "@/pages/operator/components/chip"
 
 interface RunProps extends OperatorPageProps {
   run: OperatorHalonRun
@@ -22,10 +23,6 @@ interface RunProps extends OperatorPageProps {
 
 function refresh() {
   router.reload()
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span className={`rounded-full border px-2.5 py-1 font-mono ${TONE_CLASSES.neutral}`}>{children}</span>
 }
 
 export default function OperatorHalonRun() {

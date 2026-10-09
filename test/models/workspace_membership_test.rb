@@ -6,6 +6,12 @@ class WorkspaceMembershipTest < ActiveSupport::TestCase
     @alice = workspace_memberships(:alice_workspace_one)
   end
 
+  test "the Permissions screen's note on what someone holds without a grant comes from their authority" do
+    assert_match "Admins hold every catalogued ability", @alice.implicit_authority_note
+    assert_match "Members read Firefight's own data", workspace_memberships(:bob_workspace_one).implicit_authority_note
+    assert_nil api_keys(:full_access_key).implicit_authority_note
+  end
+
   test "every member asks Halon without a grant until an admin grants it, and from then the grant decides" do
     bob = workspace_memberships(:bob_workspace_one)
     asks = -> { bob.may?(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE, @workspace) }

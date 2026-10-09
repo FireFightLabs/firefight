@@ -49,6 +49,19 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
     assert_equal [ 0, 0 ], inertia_props.dig("workflow", "steps", 0).values_at("column", "row")
   end
 
+  test "the workflow list names each incident's workspace without a lookup per row" do
+    as_operator
+    before = workspace_lookups { get operator_workflows_path(state: "succeeded"), headers: inertia_headers }
+    [ incidents(:resolved_minor_ws1), incidents(:active_p0_ws2), incidents(:active_major_ws1) ].each do |incident|
+      SolidWorkflow::Workflow.create!(name: "incident.creation.v1", workflow_class: "IncidentCreationWorkflow", subject: incident, state: "succeeded")
+    end
+
+    after = workspace_lookups { get operator_workflows_path(state: "succeeded"), headers: inertia_headers }
+
+    assert_operator inertia_props["workflows"].size, :>=, 3
+    assert_equal before, after
+  end
+
   test "a failed step runs again, and the workflow is running again, which the toast says" do
     as_operator
     SolidWorkflow::Workflow.any_instance.stubs(:enqueue_next_steps)
@@ -108,5 +121,11 @@ class Operator::ProcessesTest < ActionDispatch::IntegrationTest
   def as_operator
     sign_in(@operator, workspaces(:slack_workspace_one))
     Operator::BaseController.any_instance.stubs(:operator_verified?).returns(true)
+  end
+
+  def workspace_lookups(&)
+    seen = []
+    ActiveSupport::Notifications.subscribed(->(*, payload) { seen << payload[:sql] }, "sql.active_record", &)
+    seen.grep(/FROM "workspaces" WHERE "workspaces"."id" = \$1/).size
   end
 end

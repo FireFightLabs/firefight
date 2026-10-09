@@ -9,7 +9,7 @@ module Slack
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: Mrkdwn.escape(CodeAgentSession::Pause::QUESTION) } }
         ]
-        if pause.saved_branch
+        if pause.saved_branch && !pause.stopped?
           blocks << { type: "context", elements: [ { type: "mrkdwn", text: "Its work so far is saved on `#{Mrkdwn.escape(pause.saved_branch)}`." } ] }
         end
         return blocks << { type: "context", elements: [ { type: "mrkdwn", text: decided(pause) } ] } unless pause.offered?
@@ -29,7 +29,7 @@ module Slack
 
       def self.decided(pause)
         who = Mrkdwn.escape(pause.decided_by&.display_name || "Someone")
-        pause.continuing? ? "*#{who}* chose Continue." : "*#{who}* chose Stop, so the saved work was deleted."
+        pause.continuing? ? "*#{who}* chose Continue." : "*#{who}* chose Stop#{', so the saved work was deleted' if pause.saved_branch}."
       end
     end
   end

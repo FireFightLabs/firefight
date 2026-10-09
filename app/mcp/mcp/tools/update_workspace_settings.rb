@@ -16,6 +16,7 @@ module Mcp
 
       tool_name UPDATE_WORKSPACE_SETTINGS
       authorize_as Ability::Action::RESOURCE_WORKSPACE, Ability::Action::ACTION_UPDATE
+      write_only(*Workspace::Settings::WRITE_ONLY)
       description "Change the workspace's own settings: whether incident transcripts may be read at all, " \
                   "how many days they are kept, how long after an incident ends its channel is " \
                   "archived, whether Halon may search and read the public web, whether Firefight may test Halon on answers the team rated, " \
@@ -33,7 +34,7 @@ module Mcp
           web_search_enabled: { type: "boolean", description: "Whether Halon and its coding agent may search and read the public web, through Firefight" },
           halon_regression_enabled: { type: "boolean", description: "Whether Firefight may replay Halon's investigations whose answer the team confirmed or marked wrong, to test new versions of Halon. Off by default" },
           memory_expiry_days: { type: [ "integer", "null" ], enum: [ *Chat::Memory::EXPIRY_CHOICES, nil ], description: "Days a memory Halon learned may go unconfirmed before Halon stops using it and it moves to Expired on the Memory page. null keeps using it until a person decides, the default" },
-          code_fix_agent: { type: [ "string", "null" ], description: "The connection slug of a connected coding agent (the coding_agents category of list_integrations), the prefix of its tools such as devin in devin_fix_code, which then writes a fix's code changes and opens the pull request. null for Firefight's own agent, the default" },
+          code_fix_agent: { type: [ "string", "null" ], description: "The connection slug of a connected coding agent (the coding_agents category of list_integrations), which then writes a fix's code changes and opens the pull request. null for Firefight's own agent, the default" },
           issue_tracker: { type: [ "string", "null" ], description: "The connection slug of a connected issue tracker whose issues incident items are kept in step with: title, status and assignee, both ways. null for none" },
           issue_creation: { type: "string", enum: Workspace::IssueSync::ISSUE_CREATIONS, description: "When a new item gets an issue in that tracker. #{ISSUE_CREATION_CHOICES}" },
           issue_tracker_target: { type: "object", additionalProperties: { type: "string" }, description: "Where new issues go, by the chosen tracker's own fields. Replaces what was saved. #{ISSUE_TARGETS}" },

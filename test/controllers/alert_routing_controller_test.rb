@@ -13,6 +13,7 @@ class AlertRoutingControllerTest < ActionDispatch::IntegrationTest
     policy = @workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
     assert policy.present?
     assert_not policy.enabled
+    assert_equal "Alert routing is off.", flash[:notice]
   end
 
   test "update writes grouping knobs into domain_config" do
@@ -21,6 +22,7 @@ class AlertRoutingControllerTest < ActionDispatch::IntegrationTest
     policy = @workspace.policies.for_domain(Policy::DOMAIN_ALERT_ROUTING).first
     assert_equal 45, policy.domain_config["grouping_window_minutes"]
     assert_equal [ "service", "environment" ], policy.domain_config["content_match_fields"]
+    assert_equal "Grouping settings were saved.", flash[:notice]
   end
 
   test "test evaluates fields against the policy with a trace" do

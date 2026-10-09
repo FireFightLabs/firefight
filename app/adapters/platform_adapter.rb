@@ -68,6 +68,12 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Whether the control behind action_id shows what was pressed by itself, so a press needs no answer of its own.
+  # @return [Boolean]
+  def confirms_press_itself?(action_id)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Takes down an ephemeral prompt. The handle is the token the platform
   # attached to the button click, carried through the modal's metadata.
   # @return [Hash] { ok: true }
@@ -491,6 +497,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # The same, to one person directly, as a reminder of memories they or the team taught. channel_id is where it landed,
+  # which a redraw needs.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_learned_memories_to_user(user_id:, post:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Redraws that message once someone decides on a memory it shows.
   # @return [Hash] { success: true }
   def update_learned_memories(channel_id:, message_id:, post:)
@@ -529,10 +542,16 @@ class PlatformAdapter
   end
 
   # A code change paused at its spending limit, asking whether to continue, with Continue and Stop, in the thread of the
-  # chat or run it came from, or to whoever asked when the chat has no thread (thread_id nil). pause is a
-  # CodeAgentSession::Pause.
+  # chat or run it came from. pause is a CodeAgentSession::Pause.
   # @return [Hash] { message_id:, channel_id: }
   def post_code_pause(channel_id:, thread_id:, pause:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same, in a direct message to whoever asked, when the run it came from has no thread. channel_id is the direct
+  # message conversation, where Continue carries the change on under this message.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_code_pause_to_user(user_id:, pause:)
     raise NotImplemented.new(__method__, self.class)
   end
 
@@ -543,6 +562,7 @@ class PlatformAdapter
   end
 
   # Opens the form that answers a coding agent's question.
+  # @return [Hash] { success: true }
   def open_code_question_modal(trigger_id:, question:)
     raise NotImplemented.new(__method__, self.class)
   end
@@ -556,6 +576,24 @@ class PlatformAdapter
   # Keeps the answer form open with why it was refused.
   # @return [Hash] the platform's answer to the form
   def code_question_error(message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the form that changes the answer to a coding agent's settled question.
+  # @return [Hash] { success: true }
+  def open_code_question_change_modal(trigger_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What the change form was submitted with: the option picked, by its index, or nil, and the person's own words.
+  # @return [#option, #answer]
+  def code_question_change(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps the change form open with why it was refused.
+  # @return [Hash] the platform's answer to the form
+  def code_question_change_error(message)
     raise NotImplemented.new(__method__, self.class)
   end
 

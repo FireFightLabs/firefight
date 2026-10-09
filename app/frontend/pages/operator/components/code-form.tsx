@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ interface CodeFormProps {
 export function CodeForm({ action, label, submitLabel, hint, digitsOnly = false }: CodeFormProps) {
   const form = useForm({ code: "" });
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault();
     form.post(action, { preserveScroll: true, onError: clearCode });
   }

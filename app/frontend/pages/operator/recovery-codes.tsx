@@ -1,3 +1,4 @@
+import { Link } from "@inertiajs/react";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
 import { Button } from "@/components/ui/button";
@@ -20,9 +21,8 @@ export default function OperatorRecoveryCodes({ codes }: { codes: string[] }) {
             </li>
           ))}
         </ol>
-        {/* A full page load, since the console's first screen, Flightdeck, is not an Inertia page. */}
         <Button asChild size="lg">
-          <a href={operatorRootPath()}>I saved them, open the console</a>
+          <Link href={operatorRootPath()}>I saved them, open the console</Link>
         </Button>
       </div>
     </AuthLayout>

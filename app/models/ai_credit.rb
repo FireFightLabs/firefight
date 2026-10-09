@@ -1,12 +1,15 @@
 # What a person is told when a model call could not be paid for. It never names the provider. Who pays decides what
-# was wrong and who can fix it: the workspace's own AI accounts and its Firefight credits are an admin's to fix under
-# Settings, Workspace, the operator's keys are whoever runs Firefight's, and Firefight's own account is Firefight's,
-# whose team is said to have been told only when an alert actually reaches it.
+# was wrong and who can fix it. The workspace's own AI accounts and its Firefight credits are an admin's to fix under
+# Settings, Workspace, the operator's keys are whoever runs Firefight's, and Firefight's own account is Firefight's.
+# When the house's keys ran out and an alert can reach the team, people are told only that Halon could not reach its
+# AI, never anything about balances or credit.
 module AiCredit
   # FirefightAi::OutOfCredit's reason, as a job or a run records it.
   REASON = FirefightAi::OutOfCredit.name.demodulize
   ANSWER = "answer".freeze
   WHERE_TO_FIX = "An admin can fix this under Settings, Workspace, AI accounts".freeze
+  TEAM_TOLD = "Halon couldn't reach its AI just now. The team has been told.".freeze
+  HOUSE = %i[operator firefight].freeze
 
   def self.out?(error) = error.is_a?(FirefightAi::OutOfCredit)
 
@@ -14,6 +17,8 @@ module AiCredit
 
   # "Halon cannot answer right now because ...", with what it could not do in place of answer.
   def self.cannot(workspace, doing = ANSWER)
+    return TEAM_TOLD if AiAccount.alerting? && HOUSE.include?(situation(workspace))
+
     "Halon cannot #{doing} right now because #{why(workspace)}. #{who(workspace)}."
   end
 
@@ -31,7 +36,7 @@ module AiCredit
   def self.who(workspace)
     case situation(workspace)
     when :operator then "Whoever runs Firefight needs to add credit"
-    when :firefight then AiAccount.alerting? ? "Firefight's team has been told" : "Firefight's team can see this"
+    when :firefight then "Firefight's team can see this"
     # Where credits are topped up is the hosted build's to say, since only it sells them.
     when :credits_used then Entitlements.ai_credit(workspace).try(:top_up).presence || WHERE_TO_FIX
     else WHERE_TO_FIX

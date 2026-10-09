@@ -37,6 +37,11 @@ module Integrations
       assert_equal [ 3, false ], [ rows.size, more ]
     end
 
+    test "a malformed instance id is a bad request, not proof the instance is gone" do
+      assert_equal AwsApi::Error, @api.send(:kind_of_error, stub(code: "InvalidInstanceID.Malformed"))
+      assert_equal AwsApi::NotFound, @api.send(:kind_of_error, stub(code: "InvalidInstanceID.NotFound"))
+    end
+
     test "AWS's refusals are raised with its own words, by kind" do
       { "AccessDeniedException" => AwsApi::Denied, "UnrecognizedClientException" => AwsApi::Denied, "ThrottlingException" => AwsApi::RateLimited,
         "ServiceNotFoundException" => AwsApi::NotFound, "InvalidParameterException" => AwsApi::Error }.each do |code, kind|

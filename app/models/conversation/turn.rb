@@ -103,8 +103,8 @@ class Conversation::Turn
       Chat::StaleRefusals::AS_READ ].compact.join(" ")
   end
 
-  # A change refused for want of a pack leaves a card in the chat with Ask an admin, and a message in its Slack thread
-  # when it has one. Once per chat and pack. Nobody is asked until the person presses it.
+  # A change refused for want of a pack leaves a card in the chat with Ask an admin, and a message in its platform
+  # thread when it has one. Once per chat and pack. Nobody is asked until the person presses it.
   def pack_refused!(action_key, tool_call_id)
     request = asker && Ability::PackRequest.for_refusal(asker, Ability::Action.lookup(action_key, workspace))
     return unless request && chat

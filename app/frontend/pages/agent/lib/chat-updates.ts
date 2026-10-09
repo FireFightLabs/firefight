@@ -1,7 +1,10 @@
 import { router } from "@inertiajs/react"
 
 import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
-import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatStopPath, agentChatsPath, investigationStopPath } from "@/lib/routes"
+import {
+  agentChatAskPath, agentChatConfirmPath, agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath,
+  agentChatStopPath, agentChatsPath, agentChatWatchStopPath, investigationStopPath,
+} from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat, AgentChatAttachment } from "@/types/serializers"
 
@@ -14,7 +17,7 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
   AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.HELD_CALLS,
   AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
-  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES,
+  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
@@ -27,6 +30,8 @@ const SECRET_ENTRIES = [ AGENT_CHAT_PROPS.SECRET_ENTRIES ]
 const WATCHES = [ AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES ]
 // A pull request Halon opened needs attention long after the answer, or Fix it was pressed, so the chat is told to look.
 const PULL_REQUEST_NOTICES = [ AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES ]
+// Something contradicted a memory while Halon worked, so the chat asks which is right.
+const MEMORY_QUESTIONS = [ AGENT_CHAT_PROPS.MEMORY_QUESTIONS ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
@@ -108,6 +113,36 @@ export function closeRun(chatId: string) {
 }
 
 // A run answers after the turn that started it, so its card is told to look again whenever it moves.
+// A card's action reloads only the card's own props, so the redirect after it never asks for the list again.
+interface CardCallbacks {
+  onSuccess?: () => void
+  onFinish: () => void
+}
+
+// Run, Dismiss and Ask again on a held call each post to their own path.
+export function sendHeldCallAction(path: string, callbacks: CardCallbacks) {
+  router.post(path, {}, { ...IN_PLACE, only: HELD_CALLS, ...callbacks })
+}
+
+export function askAdminForPack(conversationId: string, refusalId: string, callbacks: CardCallbacks) {
+  router.post(agentChatPackRefusalAskPath(conversationId, refusalId), {}, { ...IN_PLACE, only: PACK_REFUSALS, ...callbacks })
+}
+
+export function fixPullRequest(conversationId: string, noticeId: string, callbacks: CardCallbacks) {
+  router.post(agentChatPullRequestFixPath(conversationId, noticeId), {}, { ...IN_PLACE, only: PULL_REQUEST_NOTICES, ...callbacks })
+}
+
+export function fillSecretEntry(conversationId: string, entryId: string, value: string, callbacks: CardCallbacks) {
+  router.post(agentChatSecretEntryFillPath(conversationId, entryId), { secret_value: value }, { ...IN_PLACE, only: SECRET_ENTRIES, ...callbacks })
+}
+
+export function stopWatch(conversationId: string, watchId: string, callbacks: CardCallbacks) {
+  router.post(agentChatWatchStopPath(conversationId, watchId), {}, { ...IN_PLACE, only: WATCHES, ...callbacks })
+}
+
+// A coding agent's question and pause sit in a step's saved message, so answering one reloads the messages.
+export const CODE_AGENT_RELOADS = [ AGENT_CHAT_PROPS.MESSAGES ]
+
 export function refreshRuns() {
   router.reload({ only: RUNS })
 }
@@ -135,6 +170,10 @@ export function refreshWatches() {
 
 export function refreshPullRequestNotices() {
   router.reload({ only: PULL_REQUEST_NOTICES })
+}
+
+export function refreshMemoryQuestions() {
+  router.reload({ only: MEMORY_QUESTIONS })
 }
 
 export function refreshOpenChat() {

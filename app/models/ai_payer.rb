@@ -41,15 +41,6 @@ AiPayer = Data.define(:paid_by, :account) do
   def answered!(provider)
     own_account? ? account.answered! : AiAccount.answered!(provider)
   end
-
-  # The account is out from this call on. A workspace's own account is skipped until it works again, and its admins
-  # are told once. The deployment's account is the operator's to fix, as before.
-  def refused!(error)
-    return unless own_account?
-    return account.ran_out!(error) if self.class.out_of_credit?(error)
-
-    account.key_refused!(error) if self.class.key_refused?(error)
-  end
 end
 
 AiPayer.const_set(:NOBODY, AiPayer.new(paid_by: nil, account: nil))

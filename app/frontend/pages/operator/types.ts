@@ -1,4 +1,4 @@
-import type { OPERATOR_WINDOWS } from "@/lib/generated/constants"
+import type { OPERATOR_WINDOWS } from "@/pages/operator/generated/constants"
 import type { OperatorHalonRun } from "@/types/serializers"
 
 export interface OperatorPageProps extends Record<string, unknown> {

@@ -64,7 +64,8 @@ module Auth
       when "csrf_detected"
         "Authentication session expired. Please try again."
       when "access_denied"
-        "You denied access to your Slack account."
+        label = UserIdentity.label_for_strategy(params[:strategy])
+        label ? "You denied access to your #{label} account." : "Authentication failed. Please try again."
       when "invalid_credentials"
         "Invalid credentials. Please contact support."
       else

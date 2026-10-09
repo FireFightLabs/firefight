@@ -15,7 +15,7 @@ module Slack
       end
 
       def self.build_resolved(approval)
-        verdict = if approval.status == Ability::Approval::STATUS_EXPIRED then "*Withdrawn*. It is no longer needed, so nothing will run."
+        verdict = if approval.expired? then "*Withdrawn*. It is no longer needed, so nothing will run."
         else "#{approval.approved? ? ':white_check_mark: *Approved*' : ':no_entry: *Denied*'} by *#{approval.approver&.actor_display_name}*"
         end
         [
@@ -24,6 +24,9 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: verdict } }
         ]
       end
+
+      # The same word the blocks say. An approval that expired here was withdrawn, since nothing needs it any more.
+      def self.resolved_fallback(approval) = "Approval #{approval.expired? ? 'withdrawn' : approval.status}: #{approval.action_key}"
 
       def self.summary_text(approval)
         through = " through *#{Slack::Mrkdwn.escape(approval.connection_name)}*" if approval.connection_name

@@ -84,7 +84,7 @@ module Integrations
       end
 
       # Reads the token's user, so a wrong token is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
         return "Paste a personal access token." if token.empty?
 
@@ -108,7 +108,7 @@ module Integrations
             ("live deploy #{site.dig('published_deploy', 'state')}" if site["published_deploy"]) ].compact.join(", ")
         end
         cut = read.incomplete? ? " Only the first #{rows.size} were read." : ""
-        Telemetry.result("#{rows.size} Netlify sites.#{cut}\n#{rows.join("\n")}", link: nil)
+        Telemetry.result("#{rows.size} Netlify sites.#{cut} describe_site gives each one's page in Netlify.\n#{rows.join("\n")}", link: nil)
       end
 
       def describe_site(environment_row:, arguments:)

@@ -97,6 +97,8 @@ module Integrations
       @api.delete_notification("firefight-live-updates")
 
       Http.stubs(:request).returns(response(403, { error: { message: "Missing permission: Notifications Create" } }))
+      assert_raises(NorthflankApi::Forbidden) { @api.notifications }
+      Http.stubs(:request).returns(response(409, { error: { message: "Already exists" } }))
       assert_raises(NorthflankApi::Refused) { @api.notifications }
       Http.stubs(:request).returns(response(404, { error: { message: "Job not found" } }))
       assert_raises(NorthflankApi::NotFound) { @api.job("firefight", "nightly") }

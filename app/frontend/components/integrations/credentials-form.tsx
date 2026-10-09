@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { router } from "@inertiajs/react";
 
 import type { EnvironmentOption, IntegrationProvider } from "@/types/serializers";
@@ -82,7 +82,7 @@ export function CredentialsForm({ provider, environments, returnTo, onDismiss, o
     setSubmitting(false);
   }
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     router.post(

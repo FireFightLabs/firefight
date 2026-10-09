@@ -26,20 +26,19 @@ module Slack
       build(:integrations_url, Integration::DETAILS_QUERY_PARAM => integration_id)
     end
 
+    def self.memory
+      build(:memory_url, {})
+    end
+
     def self.permissions
       build(:gateway_permissions_url, {})
     end
 
     def self.build(helper, params)
-      host = ENV["APP_HOST"].presence
-      return nil unless host
+      options = AppUrl.options
+      return nil unless options
 
-      Rails.application.routes.url_helpers.public_send(
-        helper,
-        **params,
-        host: host,
-        protocol: ENV.fetch("APP_PROTOCOL", "https")
-      )
+      Rails.application.routes.url_helpers.public_send(helper, **params, **options)
     rescue StandardError => e
       Rails.logger.warn({ event: "slack.dashboard_url.build_failed", helper: helper, error: e.message }.to_json)
       nil

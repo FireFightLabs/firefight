@@ -22,6 +22,7 @@ class Chat < ApplicationRecord
   has_many :secret_entries, -> { in_order }, class_name: "Chat::SecretEntry", dependent: :delete_all, inverse_of: :chat
   # What Halon was asked to follow and report on later, from this chat.
   has_many :watches, -> { order(:created_at) }, class_name: "Chat::Watch", dependent: :destroy, inverse_of: :chat
+  has_many :watch_updates, through: :watches, source: :updates
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 
@@ -51,8 +52,10 @@ class Chat < ApplicationRecord
   end
 
   def queue_message!(content, sender:, files: [])
-    files.each_with_index { |file, index| file.update!(chat: self, position: index) }
-    queued_messages.create!(content: content, sender: sender, attached_files: files)
+    transaction do
+      files.each_with_index { |file, index| file.update!(chat: self, position: index) }
+      queued_messages.create!(content: content, sender: sender, attached_files: files)
+    end
   end
 
   # Adds what was sent while the agent worked, in the order it was sent, and returns what it added. from limits it to one
@@ -213,7 +216,7 @@ class Chat < ApplicationRecord
   def self.open!(owner:, workspace:, model_choice:)
     chat = new(owner: owner, workspace: workspace)
     chat.provider = model_choice.provider if model_choice.provider.present?
-    chat.assume_model_exists = model_choice.provider.present? && !FirefightAi.registered?(model_choice.model)
+    chat.assume_model_exists = model_choice.provider.present? && !FirefightAi.registered?(model_choice.model, model_choice.provider)
     chat.model = model_choice.model
     chat.save!
     chat

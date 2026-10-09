@@ -26,7 +26,7 @@ class Chat::CodeFixProgress
   ChangedFile = Data.define(:path, :added, :removed)
 
   # question is the agent's latest question as CodeAgentQuestion#to_h, checks what ran on the change in the sandbox, and
-  # review what Halon's review of it found (Github::Fixing::Reviewed#to_h).
+  # review what Halon's review of it found, as the code review hands it back.
   # pause is the change's pause at its spending limit as CodeAgentSession::Pause#to_h.
   attr_reader :started_at, :lines, :total, :changed, :tests, :files, :finished_at, :outcome, :pull_request, :reason, :question, :checks, :review,
               :pause
@@ -34,7 +34,8 @@ class Chat::CodeFixProgress
   # A review kept before it said what it verified and left out reads as having said nothing of either.
   REVIEW_LISTS = { "verified" => [], "unreviewed" => [] }.freeze
   # A question kept before questions had options reads as one with none.
-  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil }.freeze
+  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil, "timeoutOutcome" => nil,
+                       "changedTo" => nil, "changedBy" => nil, "changedAt" => nil, "changedChosen" => nil, "updatedAt" => nil }.freeze
 
   # reason says what a check that could not run was missing.
   Check = Data.define(:name, :status, :reason)
@@ -130,6 +131,36 @@ class Chat::CodeFixProgress
   # Waiting on a person, so the headline says so rather than the agent's last step.
   def waiting_for_answer? = question.present? && question["status"] == CodeAgentQuestion::STATUS_OPEN && !finished?
 
+  # Why principal cannot answer the agent's open question, or nil. Looked up within the workspace, since the work is
+  # read back from what a step kept.
+  def question_blocked_reason(workspace_id, principal)
+    return unless waiting_for_answer?
+
+    question_record(workspace_id)&.answer_blocked_reason(principal)
+  end
+
+  # Why principal cannot change the answer to the agent's settled question, or nil when they can.
+  def question_change_blocked_reason(workspace_id, principal)
+    return unless question
+
+    question_record(workspace_id)&.change_answer_blocked_reason(principal)
+  end
+
+  # The question as it stands now rather than as the step last reported it, since its answer can change after the
+  # change's last report. Returns self.
+  def with_current_question(workspace_id)
+    current = question && question_record(workspace_id)
+    @question = current.to_h if current
+    self
+  end
+
+  # Why principal cannot continue or stop the change paused here, or nil.
+  def pause_blocked_reason(workspace_id, principal)
+    return unless pause
+
+    CodeAgentSession::Pause.find_by(id: pause["id"], workspace_id: workspace_id)&.decide_blocked_reason(principal)
+  end
+
   # Only a check's name, how it went and what one that could not run was missing are kept, never what it printed, which
   # can quote the repository.
   def checked!(found)
@@ -222,4 +253,9 @@ class Chat::CodeFixProgress
   end
 
   def clean(text, limit) = Chat::SecretFree.redacted(text.to_s.squish).truncate(limit)
+
+  def question_record(workspace_id)
+    @question_records ||= {}
+    @question_records.fetch(workspace_id) { @question_records[workspace_id] = CodeAgentQuestion.find_by(id: question["id"], workspace_id: workspace_id) }
+  end
 end

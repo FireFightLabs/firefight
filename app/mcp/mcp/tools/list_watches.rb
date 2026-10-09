@@ -17,9 +17,9 @@ module Mcp
       LIMIT = 50
 
       def self.perform_with_principal(workspace:, principal:, args:)
-        watches = Chat::Watch.where(workspace_id: workspace.id, asker: principal).includes(:steps, :updates).order(created_at: :desc)
+        watches = Chat::Watch.where(workspace_id: workspace.id, asker: principal).includes(:asker, :steps, :updates).order(created_at: :desc)
         watches = watches.active if ActiveModel::Type::Boolean.new.cast(args[:active])
-        respond(watches: watches.limit(LIMIT).map { |watch| Conversation::Watches::Shown.summary(watch) })
+        respond(watches: watches.limit(LIMIT).map { |watch| Chat::Watch::Shown.summary(watch) })
       end
     end
   end

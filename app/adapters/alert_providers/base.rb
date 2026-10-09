@@ -5,9 +5,17 @@ module AlertProviders
     NORMALIZED_FIELDS = %w[external_id fingerprint status title description service severity_raw team environment].freeze
 
     RESOLVED_STATUS_VALUES = %w[resolved resolve ok recovered closed].freeze
+    # The custom header a provider that signs nothing sends the source's token in.
+    TOKEN_HEADER = "X-Firefight-Token".freeze
 
     def self.verify(headers:, raw_body:, source:)
       raise NotImplementedError
+    end
+
+    def self.token_matches?(provided, source)
+      return false if provided.blank?
+
+      ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
     end
 
     def self.normalize(payload, source:)

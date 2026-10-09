@@ -61,6 +61,12 @@ class AlertIngestService
           alert.mark_unmatched!
         end
       end
+    rescue Incident::CreationBlocked => error
+      # The workspace has no chat connected yet. The alert waits for the sweep like any routing that could not finish,
+      # so connecting in time still declares the incident.
+      Rails.logger.warn({ event: "alert_routing.incidents_blocked", alert_id: alert.id, error: error.message }.to_json)
+      alert.record_routing_failure!
+      return
     rescue StandardError => e
       Rails.logger.error({ event: "alert_routing.failed", alert_id: alert.id, error: e.message }.to_json)
       alert.record_routing_failure!

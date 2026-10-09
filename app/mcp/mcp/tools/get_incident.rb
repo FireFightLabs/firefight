@@ -53,18 +53,7 @@ module Mcp
 
       # Ids are included so an agent can name an item to the write tools.
       def self.action_items(incident)
-        incident.incident_actions.active.order(:created_at).map do |action|
-          {
-            id: action.id,
-            kind: action.action_type,
-            description: action.description,
-            status: action.status,
-            assignee: action.assignee&.actor_display_name,
-            external_key: action.external_key,
-            external_url: action.external_url,
-            issue_status: action.issue_status_text
-          }.compact
-        end
+        incident.incident_actions.active.order(:created_at).map { |action| ActionItemWrite.summary(action).except(:incident) }
       end
 
       def self.runbooks(incident)

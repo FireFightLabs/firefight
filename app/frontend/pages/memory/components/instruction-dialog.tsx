@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react"
+import type { FormEvent } from "react"
 
 import { SearchableSelect } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { CHAT_INSTRUCTION_TEXT_LIMIT } from "@/lib/generated/constants"
 import { memoryInstructionPath, memoryInstructionsPath } from "@/lib/routes"
-import { TextField } from "@/pages/memory/components/text-field"
+import { TextField } from "@/components/memory/text-field"
 import { type SubjectOption, subjectParam, WHOLE_WORKSPACE } from "@/pages/memory/types"
 import type { ChatInstruction } from "@/types/serializers"
 
@@ -36,7 +37,7 @@ export function InstructionDialog({ open, onOpenChange, instruction, scopes }: I
 
   transform((values) => ({ ...values, subject: subjectParam(values.subject) }))
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault()
     const options = { preserveScroll: true, onSuccess: finish }
     if (instruction) {
@@ -98,7 +99,7 @@ export function InstructionDialog({ open, onOpenChange, instruction, scopes }: I
               className="min-h-44"
               value={data.text}
               limit={CHAT_INSTRUCTION_TEXT_LIMIT}
-              placeholder={"Such as:\nCheck the Northflank logs for the worker before the web service.\nNever suggest restarting the primary database. Page the data team instead."}
+              placeholder={"Such as:\nCheck the worker's logs before the web service's.\nNever suggest restarting the primary database. Page the data team instead."}
               onChange={writeText}
             />
             {instruction && <p className="text-xs text-muted-foreground">The current wording is kept as history when you save.</p>}

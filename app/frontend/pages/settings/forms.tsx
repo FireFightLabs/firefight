@@ -11,6 +11,7 @@ import type {
 } from "@/pages/settings/lib/types"
 import type { IncidentSeveritySettings, IncidentStatusSettings, IncidentTypeSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
+import { replaceQuery } from "@/lib/query"
 
 interface FormsPageProps extends SharedProps {
   [key: string]: unknown
@@ -32,15 +33,7 @@ export default function Forms() {
 
   const updateFormParam = useCallback((id: string | null) => {
     setSelectedFormId(id)
-    const params = new URLSearchParams(window.location.search)
-    if (id) {
-      params.set("form", id)
-    } else {
-      params.delete("form")
-    }
-    const qs = params.toString()
-    const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`
-    window.history.replaceState(null, "", url)
+    replaceQuery({ form: id })
   }, [])
 
   return (

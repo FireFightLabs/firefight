@@ -213,6 +213,15 @@ export const CHAT_MEMORY_STATES = [
 ] as const
 export type ChatMemoryState = (typeof CHAT_MEMORY_STATES)[number]
 
+export const CHAT_MEMORY_STATE = {
+  "UNCONFIRMED": "unconfirmed",
+  "CONFIRMED": "confirmed",
+  "DISPUTED": "disputed",
+  "OUTDATED": "outdated",
+  "REJECTED": "rejected",
+  "EXPIRED": "expired"
+} as const
+
 export const CHAT_MEMORY_TEXT_LIMIT = 500 as const
 
 export const MEMORY_EXPIRY_DAY_CHOICES = [
@@ -271,6 +280,17 @@ export const RESOURCE_MAP_RELATIONS = [
 ] as const
 export type ResourceMapRelation = (typeof RESOURCE_MAP_RELATIONS)[number]
 
+export const RESOURCE_MAP_RELATION = {
+  "RUNS_BUILDS_OF": "runs_builds_of",
+  "BUILT_FROM": "built_from",
+  "SERVED_BY": "served_by",
+  "BRANCH_OF": "branch_of",
+  "USES": "uses",
+  "PART_OF": "part_of",
+  "PROTECTED_BY": "protected_by",
+  "MANAGED_BY": "managed_by"
+} as const
+
 export const RESOURCE_MAP_ORIGINS = [
   "declared",
   "matched",
@@ -322,6 +342,10 @@ export const RESOURCE_MAP_CERTAINTY = {
   "LIKELY": "likely",
   "POSSIBLE": "possible"
 } as const
+
+export const RESOURCE_MAP_INCIDENT_WINDOW_DAYS = 30 as const
+
+export const RESOURCE_MAP_CHANGE_WINDOW_HOURS = 24 as const
 
 export const INCIDENT_RELATIONSHIPS = {
   "RELATED": "related",
@@ -672,7 +696,8 @@ export const AGENT_STREAM_EVENTS = {
   "WATCH": "watch",
   "SECRET_ENTRY": "secret_entry",
   "PULL_REQUEST": "pull_request",
-  "CODE_FIX": "code_fix"
+  "CODE_FIX": "code_fix",
+  "MEMORY": "memory"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -767,7 +792,8 @@ export const AGENT_CHAT_PROPS = {
   "SETUP_GUIDE": "setupGuide",
   "WATCHES": "watches",
   "WATCH_UPDATES": "watchUpdates",
-  "PULL_REQUEST_NOTICES": "pullRequestNotices"
+  "PULL_REQUEST_NOTICES": "pullRequestNotices",
+  "MEMORY_QUESTIONS": "memoryQuestions"
 } as const
 
 export const SETUP_STEPS = {
@@ -801,106 +827,6 @@ export const SETUP_ANSWERS = {
 export const INVESTIGATION_QUERY_PARAM = "investigation" as const
 
 export const INCIDENT_NAME_FIELD_KEY = "name" as const
-
-export const OPERATOR_WORKFLOW_STATES = {
-  "PENDING": "pending",
-  "RUNNING": "running",
-  "PAUSED": "paused",
-  "SUCCEEDED": "succeeded",
-  "FAILED": "failed",
-  "CANCELLED": "cancelled"
-} as const
-
-export const OPERATOR_STEP_STATUSES = {
-  "PENDING": "pending",
-  "RUNNING": "running",
-  "SUCCEEDED": "succeeded",
-  "FAILED": "failed",
-  "SKIPPED": "skipped",
-  "CANCELLED": "cancelled"
-} as const
-
-export const OPERATOR_PROCESS_KINDS = {
-  "ALERT": "alert",
-  "INCIDENT": "incident",
-  "WORKFLOW": "workflow",
-  "STEP": "step",
-  "WEBHOOK": "webhook",
-  "PLATFORM": "platform",
-  "HALON": "halon"
-} as const
-
-export const OPERATOR_PROCESS_TONES = {
-  "OK": "ok",
-  "INFO": "info",
-  "WARN": "warn",
-  "BAD": "bad",
-  "IDLE": "idle"
-} as const
-
-export const OPERATOR_HALON_ENDINGS = {
-  "ANSWERED": "answered",
-  "STOPPED": "stopped",
-  "FAILED": "failed",
-  "LIVE": "live"
-} as const
-
-export const OPERATOR_REGRESSION_CASE_STATUSES = {
-  "PENDING": "pending",
-  "PASSED": "passed",
-  "FAILED": "failed",
-  "ERRORED": "errored",
-  "SKIPPED": "skipped"
-} as const
-
-export const OPERATOR_REGRESSION_EXPECTED = {
-  "CONFIRMED": "confirmed",
-  "WRONG": "wrong"
-} as const
-
-export const OPERATOR_REGRESSION_TRIGGERS = {
-  "PROMPT_CHANGE": "prompt_change",
-  "OPERATOR": "operator"
-} as const
-
-export const OPERATOR_REGRESSION_RUN_STATUSES = {
-  "RUNNING": "running",
-  "FINISHED": "finished"
-} as const
-
-export const OPERATOR_TRACE_KINDS = {
-  "JOB": "job",
-  "FACTS": "facts",
-  "MODEL": "model",
-  "TOOL": "tool",
-  "THEORY": "theory",
-  "CHECK": "check",
-  "ANSWER": "answer",
-  "STOP": "stop",
-  "POST": "post",
-  "PLATFORM": "platform",
-  "VERDICT": "verdict",
-  "ASK": "ask",
-  "REPLY": "reply",
-  "RUN": "run"
-} as const
-
-export const OPERATOR_FIND_KINDS = {
-  "INCIDENT": "incident",
-  "RUN": "run",
-  "CHAT": "chat",
-  "WORKFLOW": "workflow"
-} as const
-
-export const OPERATOR_WINDOWS = {
-  "DAY": "24h",
-  "WEEK": "7d",
-  "MONTH": "30d"
-} as const
-
-export const OPERATOR_SPAN_PARAM = "span" as const
-
-export const OPERATOR_SPAN_BODY_PROP = "spanBody" as const
 
 export const INVESTIGATION_EVENT_TYPES = [
   "investigation.started",
@@ -1016,6 +942,42 @@ export const PRINCIPAL_KINDS = {
   "SYSTEM_AGENT": "system_agent"
 } as const
 
+export const GRANT_KINDS = {
+  "ACTION": "action",
+  "SET": "set"
+} as const
+
+export const AI_ACCOUNT_STATES = {
+  "VERIFIED": "verified",
+  "UNCHECKED": "unchecked",
+  "OUT_OF_CREDIT": "out_of_credit",
+  "FAILING": "failing",
+  "DISABLED": "disabled"
+} as const
+
+export const APPROVAL_RUN_WINDOW_MINUTES = 60 as const
+
+export const WATCH_SPEC_KEYS = {
+  "TITLE": "title",
+  "MINUTES": "minutes",
+  "STEPS": "steps",
+  "LABEL": "label",
+  "CAPABILITY": "capability",
+  "RESOURCE": "resource",
+  "NAME": "name",
+  "RUN": "run",
+  "REPORT_START": "report_start",
+  "DONE_WHEN": "done_when",
+  "FAILED_WHEN": "failed_when",
+  "GOAL": "goal"
+} as const
+
+export const IMPLICIT_AUTHORITIES = {
+  "ADMIN": "admin",
+  "MEMBER": "member",
+  "NONE": "none"
+} as const
+
 export const APPROVAL_NOTIFY_OPTIONS = [
   "channel",
   "dm",
@@ -1028,3 +990,9 @@ export const APPROVER_ROLES = [
   "admin"
 ] as const
 export type ApproverRole = (typeof APPROVER_ROLES)[number]
+
+export const SANDBOX_SERVICES = [
+  "postgres",
+  "redis"
+] as const
+export type SandboxService = (typeof SANDBOX_SERVICES)[number]

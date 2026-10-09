@@ -8,7 +8,7 @@ class PolicyRulesController < InertiaController
     rule.priority = (policy.policy_rules.maximum(:priority) || 0) + 1
 
     if rule.save
-      redirect_to routing_path_for(policy)
+      redirect_to routing_path_for(policy), notice: "Routing rule was created."
     else
       redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: rule.errors.to_hash }
     end
@@ -16,7 +16,7 @@ class PolicyRulesController < InertiaController
 
   def update
     if @rule.update(rule_params)
-      redirect_to routing_path_for(@rule.policy)
+      redirect_to routing_path_for(@rule.policy), notice: "Routing rule was updated."
     else
       redirect_back fallback_location: settings_alert_routing_path, inertia: { errors: @rule.errors.to_hash }
     end
@@ -24,15 +24,15 @@ class PolicyRulesController < InertiaController
 
   def destroy
     @rule.destroy!
-    redirect_to routing_path_for(@rule.policy)
+    redirect_to routing_path_for(@rule.policy), notice: "Routing rule was deleted."
   end
 
   def move_up
-    swap_with(@rule.policy.ordered_rules.where("priority < ?", @rule.priority).last)
+    swap_with(@rule.policy.ordered_rules.where("priority < ?", @rule.priority).last, "Routing rule was moved up.")
   end
 
   def move_down
-    swap_with(@rule.policy.ordered_rules.where("priority > ?", @rule.priority).first)
+    swap_with(@rule.policy.ordered_rules.where("priority > ?", @rule.priority).first, "Routing rule was moved down.")
   end
 
   private
@@ -51,9 +51,9 @@ class PolicyRulesController < InertiaController
     scope.find_or_create_alert_routing_policy!
   end
 
-  def swap_with(other)
+  def swap_with(other, done)
     @rule.swap_priority_with!(other)
-    redirect_to routing_path_for(@rule.policy)
+    redirect_to routing_path_for(@rule.policy), notice: done
   end
 
   def routing_path_for(policy)

@@ -14,6 +14,7 @@ module Mcp
                   "environments the caller may read is found or counted. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       choice :environment, from: ->(workspace) { workspace.environment_entries }
+      choice :provider, from: MapFilters::PROVIDERS
       input_schema(
         properties: MapFilters::PROPERTIES.merge(
           sort: { type: "string", enum: ResourceMap::Query::SORTS, description: "name (the default) or dependents, most first" },

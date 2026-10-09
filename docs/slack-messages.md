@@ -239,6 +239,14 @@ to say when. `PackRequest` is the direct message each admin gets with Give pack 
 redrawn to say who gave or dismissed it. `PackAnswer` tells the member how it was answered, by direct message and as a
 short note in each Slack thread the change was refused in. See docs/integrations.md, Asking an admin for a pack.
 
+## Asking about memories
+
+`LearnedMemories` is every message that asks people to decide on memories: what an incident or its postmortem taught,
+what a chat or run learned or disputed, and the weekly reminder of what nobody confirmed (`:bell:`), in an incident's
+channel or by direct message. A reminder opens with one line saying how many wait and why confirming matters, then each
+memory with Confirm, Not right and Correct, and a footer linking the Memory page. See docs/ai.md, Reminders reach the
+person who should know.
+
 ## Adding a message
 
 1. New module in `app/adapters/slack/messages/`, one per concept, class methods

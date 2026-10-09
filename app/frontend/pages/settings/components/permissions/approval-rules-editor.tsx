@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { approvalRulePath, moveDownApprovalRulePath, moveUpApprovalRulePath } from "@/lib/routes"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { RowActions } from "@/pages/settings/components/row-actions"
+import { RowActions } from "@/components/row-actions"
 import { ApprovalRuleDialog } from "@/pages/settings/components/permissions/approval-rule-dialog"
 import {
   describeApprovers,

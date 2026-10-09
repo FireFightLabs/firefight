@@ -40,3 +40,33 @@ export function formatDuration(start: string, end: string | null | undefined): s
   const remainingHours = hours % 24
   return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`
 }
+
+// "a", "a or b", "a, b or c".
+export function orList(words: string[]): string {
+  if (words.length <= 1) {
+    return words.join("")
+  }
+  return `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`
+}
+
+// "a", "a and b", "a, b and c".
+export function andList(words: string[]): string {
+  if (words.length <= 1) {
+    return words.join("")
+  }
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`
+}
+
+// "a minute", "30 minutes", "an hour", "2 hours", for a length of time the server set in minutes.
+export function minutesInWords(minutes: number): string {
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60
+    return hours === 1 ? "an hour" : `${hours} hours`
+  }
+  return minutes === 1 ? "a minute" : `${minutes} minutes`
+}
+
+// A share of a whole as a whole percentage, or a dash when there is nothing to divide by.
+export function percent(part: number, whole: number): string {
+  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "-"
+}

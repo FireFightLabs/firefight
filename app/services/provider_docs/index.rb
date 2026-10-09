@@ -1,5 +1,5 @@
 module ProviderDocs
-  # A documentation site that lists its markdown pages in an index, such as Northflank's llms.txt. Every link under the
+  # A documentation site that lists its markdown pages in an index, such as an llms.txt. Every link under the
   # source's address that ends in its suffix is a page, so a page the site adds is read the next day and one it drops is
   # removed.
   class Index

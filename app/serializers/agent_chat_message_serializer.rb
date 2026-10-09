@@ -12,7 +12,8 @@ class AgentChatMessageSerializer < BaseSerializer
                   "outcome: string | null; pullRequest: string | null; reason: string | null; " \
                   "question: { id: string; text: string; askedAt: string | null; answerDueAt: string | null; status: string; " \
                   "answer: string | null; answeredBy: string | null; byHalon: boolean; answeredAt: string | null; " \
-                  "options: { label: string; consequence: string }[]; recommended: number | null; recommendedReason: string | null; chosen: number | null } | null; " \
+                  "options: { label: string; consequence: string }[]; recommended: number | null; recommendedReason: string | null; chosen: number | null; timeoutOutcome: string | null; " \
+                  "changedTo: string | null; changedBy: string | null; changedAt: string | null; changedChosen: number | null; updatedAt: string | null } | null; " \
                   "checks: { name: string; status: string; reason: string | null }[]; " \
                   "review: { ran: boolean; right: boolean; findings: string[]; verified: string[]; unverified: string[]; unreviewed: string[]; " \
                   "summary: string | null; sentBack: boolean } | null; " \
@@ -35,13 +36,13 @@ class AgentChatMessageSerializer < BaseSerializer
   # Same shape as the live step event, so a step reads the same either way.
   type "{ key: string; title: string; headline: string; asked: [string, string][]; status: string; kind: string; seconds: number; " \
        "card: { kind: string; category: string | null } | null; outcome: #{OUTCOME_TYPE} | null; progress: #{PROGRESS_TYPE} | null; " \
-       "questionBlockedReason: string | null; pauseBlockedReason: string | null }[]"
+       "questionBlockedReason: string | null; questionChangeBlockedReason: string | null; pauseBlockedReason: string | null }[]"
   def tools
     chat = message.chat
     workspace = chat.workspace
     calls = message.ruby_llm_tool_calls.sort_by(&:created_at)
     charted = chat.charts.unscope(:order).where(tool_call_id: calls.map(&:tool_call_id)).distinct.pluck(:tool_call_id).to_set
-    works = chat.step_progresses.where(tool_call_id: calls.map(&:tool_call_id)).to_h { |kept| [ kept.tool_call_id, kept.work ] }
+    works = chat.step_progresses.where(tool_call_id: calls.map(&:tool_call_id)).to_h { |kept| [ kept.tool_call_id, kept.work&.with_current_question(chat.workspace_id) ] }
     calls.filter_map do |call|
       step = Chat::Tools.step(call.name, call.arguments, workspace: workspace)
       next unless step
@@ -52,23 +53,11 @@ class AgentChatMessageSerializer < BaseSerializer
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
-        progress: works[call.tool_call_id]&.to_h, questionBlockedReason: question_blocked_reason(chat, call, works[call.tool_call_id]),
-        pauseBlockedReason: pause_blocked_reason(chat, works[call.tool_call_id]) }
+        progress: works[call.tool_call_id]&.to_h,
+        questionBlockedReason: works[call.tool_call_id]&.question_blocked_reason(chat.workspace_id, options[:member]),
+        questionChangeBlockedReason: works[call.tool_call_id]&.question_change_blocked_reason(chat.workspace_id, options[:member]),
+        pauseBlockedReason: works[call.tool_call_id]&.pause_blocked_reason(chat.workspace_id, options[:member]) }
     end
-  end
-
-  # Why whoever is looking cannot answer the coding agent's open question on this step, or nil.
-  def question_blocked_reason(chat, call, work)
-    return unless work&.waiting_for_answer?
-
-    CodeAgentQuestion.find_by(id: work.question["id"], workspace_id: chat.workspace_id)&.answer_blocked_reason(Current.principal)
-  end
-
-  # Why whoever is looking cannot continue or stop the change paused on this step, or nil.
-  def pause_blocked_reason(chat, work)
-    return unless work&.pause
-
-    CodeAgentSession::Pause.find_by(id: work.pause["id"], workspace_id: chat.workspace_id)&.decide_blocked_reason(Current.principal)
   end
 
   def card_for(step, call, charted)

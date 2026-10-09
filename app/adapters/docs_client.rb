@@ -33,7 +33,7 @@ class DocsClient
   def page(url, revision: nil)
     uri = URI.parse(url)
     robots_for(uri).check!(uri)
-    get(uri, revision: revision, delay: robots_for(uri).delay)
+    get(uri, revision: revision, delay: robots_for(uri).delay, robots: true)
   end
 
   # A file from a service such as GitHub or npm, whose own rate limits apply rather than a robots.txt.
@@ -46,7 +46,8 @@ class DocsClient
 
   private
 
-  def get(uri, revision: nil, headers: {}, delay: INTERVAL, binary: false, redirects: REDIRECTS)
+  # robots is true for a documentation page, so a redirect to another page is read only where its site allows too.
+  def get(uri, revision: nil, headers: {}, delay: INTERVAL, binary: false, redirects: REDIRECTS, robots: false)
     raise Error, "#{uri} is not an https address" unless uri.is_a?(URI::HTTPS)
 
     wait_for(uri.host, delay)
@@ -55,7 +56,7 @@ class DocsClient
     headers.each { |name, value| request[name] = value }
     conditional(request, revision)
     response = transport(uri, request)
-    answer(uri, response, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects)
+    answer(uri, response, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects, robots: robots)
   rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => error
     raise Error, "could not reach #{uri.host} (#{error.class.name})"
   end
@@ -66,10 +67,15 @@ class DocsClient
     end
   end
 
-  def answer(uri, response, revision:, headers:, delay:, binary:, redirects:)
+  def answer(uri, response, revision:, headers:, delay:, binary:, redirects:, robots:)
     code = response.code.to_i
     if response.is_a?(Net::HTTPRedirection) && redirects.positive?
-      return get(URI.join(uri.to_s, response["location"].to_s), revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects - 1)
+      target = URI.join(uri.to_s, response["location"].to_s)
+      if robots
+        robots_for(target).check!(target)
+        delay = robots_for(target).delay
+      end
+      return get(target, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects - 1, robots: robots)
     end
     return Answer.new(body: nil, revision: revision, url: uri.to_s) if code == NOT_MODIFIED
     raise NotFound, "#{uri} answered #{code}" if code == 404 || code == 410

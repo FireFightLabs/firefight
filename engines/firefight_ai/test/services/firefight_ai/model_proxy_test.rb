@@ -73,6 +73,17 @@ module FirefightAi
       assert_equal ModelProxy::Usage.none, proxy.usage
     end
 
+    test "remote MCP servers and a code execution container named in an Anthropic body never travel" do
+      sent = nil
+      answer(FakeResponse.new("200", "application/json", [ "{}" ])) { |request| sent = request }
+
+      body = { max_tokens: 100, mcp_servers: [ { type: "url", url: "https://mcp.example.com/sse", name: "outside" } ], container: "container_1" }.to_json
+      ModelProxy.new("anthropic").forward(path: "messages", body: body, model: "claude-sonnet-4-5",
+                                          headers: { "anthropic-beta" => "mcp-client-2025-04-04" }) { |*| nil }
+
+      assert_equal({ "max_tokens" => 100, "model" => "claude-sonnet-4-5" }, JSON.parse(sent.body))
+    end
+
     test "an OpenRouter call goes to OpenRouter with its key as a bearer, pinned to the session's model alone, and its usage is read" do
       sent = nil
       answer(FakeResponse.new("200", "text/event-stream", [ ": OPENROUTER PROCESSING\n\n", "data: {\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":4}}\n\ndata: [DONE]\n\n" ])) { |request| sent = request }

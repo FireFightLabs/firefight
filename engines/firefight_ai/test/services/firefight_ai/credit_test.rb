@@ -1,6 +1,8 @@
 require "test_helper"
 
 class FirefightAi::CreditTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   Response = Struct.new(:status, :body, :headers)
 
   # OpenRouter's documented error shape, with the words it said in dev when the balance was $0.07.
@@ -80,7 +82,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
   end
 
   test "each purpose reserves what it writes, never the model's own maximum" do
-    caps = AiPurpose::ALL.excluding(AiPurpose::CODE_FIX).index_with { |purpose| FirefightAi.output_cap(purpose, model: "gpt-4o") }
+    caps = AiPurpose::ALL.excluding(AiPurpose::CODE_FIX).index_with { |purpose| FirefightAi.output_cap(purpose, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)) }
 
     assert_equal 16_000, caps[AiPurpose::INVESTIGATION].max
     assert_equal 16_000, caps[AiPurpose::POSTMORTEM].max
@@ -92,8 +94,8 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
   test "a purpose's env var sets its maximum, and the registry's limit for the model still holds" do
     ENV["POSTMORTEM_AI_MAX_OUTPUT_TOKENS"] = "24000"
 
-    assert_equal 24_000, FirefightAi.output_cap(AiPurpose::POSTMORTEM, model: "gpt-4o").max
-    small = FirefightAi.output_cap(AiPurpose::POSTMORTEM, model: "gpt-3.5-turbo")
+    assert_equal 24_000, FirefightAi.output_cap(AiPurpose::POSTMORTEM, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)).max
+    small = FirefightAi.output_cap(AiPurpose::POSTMORTEM, choice: FirefightAi::ModelChoice.new(model: "gpt-3.5-turbo", provider: nil))
     assert_equal 4_096, small.max
     assert_equal 4_096, small.floor
   end
@@ -120,6 +122,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
   end
 
   test "a balance that covers less than a useful answer is out of credit, with no second call" do
+    TeamWebhook.stubs(:configured?).returns(true)
     calls = 0
 
     assert_raises(FirefightAi::OutOfCredit) do
@@ -132,6 +135,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     assert_equal 1, calls
     assert_equal 1, Inference.where(workspace: @workspace, feature: "credit_test", error_kind: Inference::ERROR_OUT_OF_CREDIT).count
     assert_equal [ "openai" ], AiAccount.out_of_credit.pluck(:provider)
+    assert_enqueued_with(job: AiAccountAlertJob, args: [ "openai", AiAccountAlert::OUT_OF_CREDIT ])
   end
 
   test "a second refusal after the shorter try is out of credit, never a third call" do
@@ -214,11 +218,35 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     assert_nil FirefightAi::Balance.remaining("openrouter")
   end
 
+  test "what an OpenRouter key may still spend is read from its key endpoint, and no limit of its own reads as unlimited" do
+    FirefightAi.configuration.stubs(:provider_settings).returns(openrouter_api_key: "sk-or-key")
+    sent = []
+    limited = Net::HTTPOK.new("1.1", "200", "OK")
+    limited.stubs(:body).returns({ data: { label: "prod", limit: 100, limit_remaining: 7.25, usage: 92.75 } }.to_json)
+    unlimited = Net::HTTPOK.new("1.1", "200", "OK")
+    unlimited.stubs(:body).returns({ data: { label: "prod", limit: nil, limit_remaining: nil, usage: 40.0 } }.to_json)
+    http = mock("http")
+    http.stubs(:request).with { |request| sent << request }.returns(limited).then.returns(unlimited)
+    Net::HTTP.stubs(:start).with("openrouter.ai", 443, has_entries(use_ssl: true)).yields(http).returns(limited).then.yields(http).returns(unlimited)
+
+    key = FirefightAi::Balance.key("openrouter")
+    assert_in_delta 7.25, key.remaining
+    assert_in_delta 92.75, key.usage
+    assert_not key.unlimited?
+    assert_equal "/api/v1/key", sent.first.path
+    assert_equal "Bearer sk-or-key", sent.first["Authorization"]
+
+    assert FirefightAi::Balance.key("openrouter").unlimited?
+    assert_nil FirefightAi::Balance.key("anthropic")
+    assert_equal [ "openrouter" ], FirefightAi::Balance.providers
+  end
+
   test "a key OpenRouter refuses for its balance reads as nothing" do
     FirefightAi.configuration.stubs(:provider_settings).returns(openrouter_api_key: "sk-or-key")
     Net::HTTP.stubs(:start).returns(Net::HTTPForbidden.new("1.1", "403", "Forbidden"))
 
     assert_nil FirefightAi::Balance.remaining("openrouter")
+    assert_nil FirefightAi::Balance.key("openrouter")
   end
 
   private
@@ -240,7 +268,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
       chat: chat, answered: -> { false }, reply_is_answer: true,
       budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50),
       inference: { workspace: @workspace, feature: "credit_loop", provider: "openai", model: "gpt-4o", inferable: @incident },
-      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: "gpt-4o")
+      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil))
     ).run
   end
 end

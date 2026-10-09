@@ -20,6 +20,7 @@ module Integrations
       KIND_APP = :app
       KIND_DROPLET = :droplet
       KIND_DATABASE = :database
+      REGEX_TIMEOUT = 1
       KIND_NAMES = { KIND_APP => "App Platform app", KIND_DROPLET => "Droplet", KIND_DATABASE => "managed database" }.freeze
       MAP_KINDS = { KIND_APP => ResourceMap::KIND_SERVICE, KIND_DROPLET => ResourceMap::KIND_VIRTUAL_MACHINE,
                     KIND_DATABASE => ResourceMap::KIND_DATABASE }.freeze
@@ -218,7 +219,7 @@ module Integrations
       end
 
       # Reads the account with the token, so a wrong or expired token is said on the form before anything is saved.
-      def self.credential_refusal(values, region: nil)
+      def self.credential_refusal(values, region: nil, fields: {})
         token = values[API_TOKEN].to_s.strip
         return "Paste a personal access token." if token.empty?
 
@@ -233,13 +234,14 @@ module Integrations
       end
 
       def list_resources(environment_row:, arguments:)
-        api = api(environment_row)
-        rows = api.apps.items.map { |app| "#{app_name(app)} (#{app['id']}), App Platform app, #{app_phase(app)}" }
-        rows += api.droplets.items.map { |droplet| "#{droplet['name']} (#{droplet['id']}), Droplet, #{droplet['status']}" }
-        rows += api.databases.items.map { |database| "#{database['name']} (#{database['id']}), #{database['engine']} database, #{database['status']}" }
+        reads = lists(api(environment_row))
+        rows = reads[KIND_APP].items.map { |app| "#{app_name(app)} (#{app['id']}), App Platform app, #{app_phase(app)}" }
+        rows += reads[KIND_DROPLET].items.map { |droplet| "#{droplet['name']} (#{droplet['id']}), Droplet, #{droplet['status']}" }
+        rows += reads[KIND_DATABASE].items.map { |database| "#{database['name']} (#{database['id']}), #{database['engine']} database, #{database['status']}" }
         return Telemetry.result("This token sees no apps, Droplets or databases.", link: panel_link(environment_row)) if rows.empty?
 
-        Telemetry.result("#{rows.size} apps, Droplets and databases.\n#{rows.join("\n")}", link: panel_link(environment_row))
+        cut = reads.select { |_kind, read| read.incomplete? }.map { |kind, read| " Only the first #{read.items.size} #{KIND_NAMES.fetch(kind)}s were read." }.join
+        Telemetry.result("#{rows.size} apps, Droplets and databases.#{cut}\n#{rows.join("\n")}", link: panel_link(environment_row))
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -258,10 +260,11 @@ module Integrations
         fail!("type must be one of #{LOG_TYPES.join(', ')}.") unless LOG_TYPES.include?(type)
         started, ended = Capabilities::Answers.range(arguments)
         limit = Capabilities::Answers.limit(arguments, LOG_LIMIT)
+        pattern = regex(arguments["regex"])
         api = api(environment_row)
         raw = api.log_urls(resource[:id], type: type, component: arguments["component"].presence).flat_map { |url| api.log_file(url).lines }
         lines = raw.filter_map { |line| log_line(line, ended) }
-                   .select { |line| line.at.between?(started, ended) && matches?(line.text, arguments) }
+                   .select { |line| line.at.between?(started, ended) && matches?(line.text, arguments, pattern) }
                    .sort_by(&:at).reverse.first(limit)
         asked = "#{type} logs of #{resource[:name]}#{" (#{arguments['component']})" if arguments['component'].present?} from #{started.utc.iso8601} to #{ended.utc.iso8601}"
         Telemetry.result(Telemetry.logs_text(lines, asked: asked, limit: limit), link: link_of(environment_row, resource))
@@ -575,15 +578,39 @@ module Integrations
         fail! "Say which app, Droplet or database, by name or id. list_resources shows them." if wanted.empty?
 
         api = api(environment_row)
-        readers = { KIND_APP => -> { api.apps.items.map { |app| { kind: KIND_APP, id: app["id"].to_s, name: app_name(app) } } },
-                    KIND_DROPLET => -> { api.droplets.items.map { |droplet| { kind: KIND_DROPLET, id: droplet["id"].to_s, name: droplet["name"].to_s } } },
-                    KIND_DATABASE => -> { api.databases.items.map { |database| { kind: KIND_DATABASE, id: database["id"].to_s, name: database["name"].to_s } } } }
-        listed = readers.slice(*(only ? [ only ] : readers.keys)).values.flat_map(&:call)
+        reads = lists(api, only ? [ only ] : KIND_NAMES.keys)
+        listed = reads.flat_map { |kind, read| read.items.map { |item| named(kind, item) } }
         found = Named.find(listed, asked, id: :id, name: :name, provider: PROVIDER, describe: ->(row) { "#{KIND_NAMES.fetch(row[:kind])} #{row[:id]}" }, connection: environment_row)
         return found if found
 
+        cut = reads.select { |_kind, read| read.incomplete? }
+        cut.each_key do |kind|
+          row = by_id(api, kind, asked.to_s.strip)
+          return row if row
+        end
         what = only ? "#{KIND_NAMES.fetch(only)} called #{asked}" : "app, Droplet or database called #{asked}"
-        fail!("No #{what} on this DigitalOcean account. list_resources shows what there is.")
+        fail!("No #{what} on this DigitalOcean account. list_resources shows what there is.") if cut.empty?
+
+        read = cut.map { |kind, list| "#{list.items.size} #{KIND_NAMES.fetch(kind)}s" }.to_sentence
+        fail!("No #{what} among the first #{read} read from this DigitalOcean account. Name it by its id.")
+      end
+
+      # The lists of each kind, apps and Droplets read up to their page cap (Pages::Read).
+      def lists(api, kinds = KIND_NAMES.keys)
+        readers = { KIND_APP => -> { api.apps }, KIND_DROPLET => -> { api.droplets }, KIND_DATABASE => -> { api.databases } }
+        kinds.index_with { |kind| readers.fetch(kind).call }
+      end
+
+      def named(kind, item) = { kind: kind, id: item["id"].to_s, name: kind == KIND_APP ? app_name(item) : item["name"].to_s }
+
+      # A resource past a list's cap, read by its id. DigitalOcean answers 404 for an id it does not hold.
+      def by_id(api, kind, id)
+        item = { KIND_APP => -> { api.app(id) }, KIND_DROPLET => -> { api.droplet(id) }, KIND_DATABASE => -> { api.database(id) } }.fetch(kind).call
+        item["id"].present? ? named(kind, item) : nil
+      rescue Integrations::RateLimited
+        raise
+      rescue DigitaloceanApi::Error
+        nil
       end
 
       def app_name(app) = app.dig("spec", "name").presence || app["id"].to_s
@@ -693,14 +720,21 @@ module Integrations
         at ? Telemetry::LogLine.new(at: at, source: parsed[:source], text: parsed[:text]) : Telemetry::LogLine.new(at: fallback, source: "", text: text)
       end
 
-      def matches?(text, arguments)
-        return false if arguments["text"].present? && !text.include?(arguments["text"])
-        return false if arguments["exclude"].present? && text.include?(arguments["exclude"])
-        return true if arguments["regex"].blank?
+      def regex(source)
+        return nil if source.blank?
 
-        Regexp.new(arguments["regex"], timeout: 1).match?(text)
+        Regexp.new(source, timeout: REGEX_TIMEOUT)
       rescue RegexpError
         fail!("regex is not a regular expression Firefight can read.")
+      end
+
+      def matches?(text, arguments, pattern)
+        return false if arguments["text"].present? && !text.include?(arguments["text"])
+        return false if arguments["exclude"].present? && text.include?(arguments["exclude"])
+
+        pattern.nil? || pattern.match?(text)
+      rescue Regexp::TimeoutError
+        fail!("The regular expression took too long on DigitalOcean's lines. Make it simpler, or search by text instead.")
       end
 
       # Only MySQL databases have metrics in the API.

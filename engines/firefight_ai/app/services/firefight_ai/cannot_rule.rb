@@ -16,8 +16,8 @@ module FirefightAi
 
     ANSWER_RULE = "When you cannot do or check something, open with one plain line that says exactly what is missing, " \
                   "such as the tool, the permission or the connection, and how to add it, for example \"I can't set " \
-                  "repository secrets because Firefight's GitHub App lacks the Secrets permission. An admin adds it in " \
-                  "GitHub under the app's permissions.\" Then give the steps the person can take instead. Say it once, " \
+                  "repository secrets because Firefight's app on your code host lacks the Secrets permission. An admin " \
+                  "adds it in the code host under the app's permissions.\" Then give the steps the person can take instead. Say it once, " \
                   "never apologise for it, and never repeat it in later replies unless something changed.".freeze
 
     # Seen in real chats, told "you do have access", Halon made the same wrong call and gave the same refusal, and asked

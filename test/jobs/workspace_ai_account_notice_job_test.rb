@@ -28,6 +28,6 @@ class WorkspaceAiAccountNoticeJobTest < ActiveJob::TestCase
     account.key_refused!(FirefightAi::TerminalError.new("401", reason: "UnauthorizedError"))
 
     assert_match "had its key refused. Halon has no other account to use, so it cannot answer until this is fixed.",
-                 WorkspaceAiAccountNoticeJob.text(account, WorkspaceAiAccount::NOTICE_KEY_REFUSED)
+                 WorkspaceAiAccountService.new(@workspace).notice_text(account, WorkspaceAiAccount::NOTICE_KEY_REFUSED)
   end
 end

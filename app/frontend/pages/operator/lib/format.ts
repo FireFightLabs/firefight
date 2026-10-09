@@ -23,10 +23,6 @@ export function milliseconds(total: number | null | undefined): string {
   return total >= 1000 ? `${(total / 1000).toFixed(1)} s` : `${total} ms`
 }
 
-export function percent(part: number, whole: number): string {
-  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "-"
-}
-
 export function count(value: number): string {
   return new Intl.NumberFormat("en-US", { notation: value >= 10_000 ? "compact" : "standard" }).format(value)
 }

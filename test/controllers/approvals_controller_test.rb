@@ -43,6 +43,7 @@ class ApprovalsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to gateway_approvals_path
     assert @approval.reload.approved?
+    assert_equal "You approved Full Access Key's request. They can run it now.", flash[:notice]
   end
 
   test "a member without an approvals grant is refused by the gateway" do

@@ -48,7 +48,8 @@ class Chat::Tools::WebTest < ActiveSupport::TestCase
     Ability::Invocation.stubs(:where).returns(stub(where: stub(count: Workspace::Settings::WEB_LOOKUPS_PER_DAY)))
     WebLookup.expects(:search).never
     search = Chat::Tools::Web.all(@investigation).first
-    assert_match "used its #{Workspace::Settings::WEB_LOOKUPS_PER_DAY} web lookups", search.call(query: "x")
+    Chat::Tools.expects(:mark_failed).with(@investigation, "call_1")
+    assert_match "used its #{Workspace::Settings::WEB_LOOKUPS_PER_DAY} web lookups", search.call(query: "x", tool_call: stub(id: "call_1"))
   end
 
   test "an approval rule never holds a web lookup, and nobody is offered it as a grant" do

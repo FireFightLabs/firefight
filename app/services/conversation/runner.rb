@@ -21,7 +21,7 @@ class Conversation::Runner
   def run
     @marked = Time.current
     chat = @conversation.chat_record
-    # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, where its line is told.
+    # A turn paused on the person's confirmation is theirs, so a hand back waits for their next turn, which tells it.
     return nil if @handed_back && !room_for_a_note?(chat)
 
     chat.discard_interrupted_reply!
@@ -30,7 +30,7 @@ class Conversation::Runner
     run_held_call(chat) if @held_call
     run_pull_request_fix(chat) if @pull_request_fix
     run_code_pause(chat) if @code_pause
-    chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back
+    chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back&.hand_back_noted!
     # The turn before this one already answered what this job was queued for.
     if answered_already?(chat)
       @conversation.reply_delivered!
@@ -148,6 +148,9 @@ class Conversation::Runner
     chat.nudge!(noticed) if noticed
     stale = Chat::StaleRefusals.note(chat)
     chat.nudge!(stale) if stale
+    Chat::Watch::Step.hand_back_untold(chat).each do |step|
+      chat.nudge!(Conversation::Watches.hand_back_note(step)) if step.hand_back_noted!
+    end
   end
 
   # The person said yes with Fix it, so the code change runs before Halon answers, and Halon reads what it said.

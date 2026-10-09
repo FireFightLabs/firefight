@@ -134,6 +134,38 @@ class CodeAgentToolsControllerTest < ActionDispatch::IntegrationTest
     assert_equal CodeAgentSession::TOO_MANY_TOOL_CALLS, text
   end
 
+  test "the coding agent starts a database in its own sandbox, ledgered under the workspace, and one the sandbox cannot start is said plainly" do
+    boxed, boxed_token = open_session(@member)
+    boxed.update_columns(box_key: "conversation-7")
+    CodeBox.create!(workspace: @workspace, key: "conversation-7", provider: "docker", box_ref: "box-1", address: "http://127.0.0.1:9", secret: "k", last_used_at: Time.current)
+    Integrations::Sandboxes::Client.any_instance.expects(:start_services).with([ "postgres" ])
+                                   .returns("env" => { "DATABASE_URL" => "postgres://runner@127.0.0.1:5432/postgres" }, "started" => [ "postgres" ])
+
+    call("tools/list", token: boxed_token)
+    assert_includes tool_names, CodeAgent::SandboxTools::START
+    call("tools/call", token: boxed_token, name: CodeAgent::SandboxTools::START, arguments: { name: "Postgres" })
+
+    assert_equal "postgres is running in this sandbox. Set these on the command that uses it:\nDATABASE_URL=postgres://runner@127.0.0.1:5432/postgres", text
+    started = Ability::Invocation.find_by!(workspace: @workspace, action_key: Ability::Action::SANDBOX_SERVICE)
+    assert_equal [ AbilityGateway::SOURCE_CODE_AGENT, Ability::Invocation::DECISION_ALLOW, "Coding agent for acme/api" ],
+                 [ started.source, started.decision, started.triggered_by_label ]
+
+    call("tools/call", token: boxed_token, name: CodeAgent::SandboxTools::START, arguments: { name: "mysql" })
+
+    assert_equal "The sandbox cannot start mysql. It can start postgres and redis.", text
+    assert response.parsed_body.dig("result", "isError")
+    assert_equal 1, Ability::Invocation.where(workspace: @workspace, action_key: Ability::Action::SANDBOX_SERVICE).count
+  end
+
+  test "a change whose sandbox stopped is told nothing started" do
+    boxed, boxed_token = open_session(@member)
+    boxed.update_columns(box_key: "conversation-8")
+
+    call("tools/call", token: boxed_token, name: CodeAgent::SandboxTools::START, arguments: { name: "redis" })
+
+    assert_equal "redis could not start: The sandbox for this change is not running, so nothing was started.", text
+  end
+
   private
 
   def open_session(principal, place: nil)

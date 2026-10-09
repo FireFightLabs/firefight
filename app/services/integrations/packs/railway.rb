@@ -2,9 +2,9 @@ module Integrations
   module Packs
     # Railway for one environment in each project a connection reads, one, several or every one its token can read (the
     # project connect field, a scope). It reads their services, databases and cron jobs, and their logs, metrics and
-    # deployments, with an account or workspace token. Every tool reads, except the restart, rollback
-    # and scale Halon uses to apply fixes. Queries and mutations are the ones the Railway CLI sends
-    # (railwayapp/cli, src/gql) or Railway's API docs give (railwayapp/docs, content/docs/integrations/api).
+    # deployments, with an account or workspace token. Every tool reads, except the restart, rollback and scale Halon
+    # uses to apply fixes. Queries and mutations are the ones the Railway CLI sends (railwayapp/cli, src/gql) or
+    # Railway's API docs give (railwayapp/docs, content/docs/integrations/api).
     class Railway < NativePack
       # The environment row's credentials, which only this pack reads.
       API_TOKEN = "api_token".freeze
@@ -13,8 +13,9 @@ module Integrations
 
       PROVIDER = "Railway".freeze
       PROVIDER_KEY = "railway".freeze
-      # Railway builds from GitHub repositories and names one as owner/name (schema, ServiceSource.repo).
-      GITHUB_SITE = "https://github.com".freeze
+      # Railway builds from GitHub repositories and names one as owner/name (schema, ServiceSource.repo), so the code
+      # host's own registry entry gives its address.
+      REPOSITORY_HOST = "github".freeze
 
       # How the CLI tells a service instance apart (railwayapp/cli, src/resources.rs): a cron schedule makes a cron job,
       # and an image naming a database engine makes a database.
@@ -253,7 +254,8 @@ module Integrations
           "#{resource[:name]} (#{resource[:id]}), #{resource[:type]}, #{latest ? latest['status'].to_s.downcase : 'never deployed'}"
         end
         where = "the #{environment(environment_row)['name']} environment#{" of project #{scope_label(environment_row)}" if ConnectionSettings.of(environment_row).several_scopes?}"
-        text = rows.empty? ? "#{where.upcase_first} has no services." : "#{rows.size} services in #{where}.\n#{rows.join("\n")}"
+        cut = " Only the first #{rows.size} were read, so name a resource by its id to reach the rest." if instances(environment_row).incomplete?
+        text = rows.empty? ? "#{where.upcase_first} has no services." : "#{rows.size} services in #{where}.#{cut}\n#{rows.join("\n")}"
         Telemetry.result(text, link: project_link(environment_row))
       end
 
@@ -603,9 +605,7 @@ module Integrations
         return scoped(named) if named.present? && reached.include?(named)
         return if named.present?
 
-        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
-                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
-                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        on_map = Scopes.holding(environment_row, scope.external_id)
         scoped(on_map) if on_map.present? && reached.include?(on_map)
       end
 
@@ -638,7 +638,21 @@ module Integrations
       def find_resource(environment_row, asked)
         fail! "Say which service, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
-        Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row) || fail!("Nothing called #{asked} in this environment. list_resources shows what there is.")
+        found = Named.find(resources(environment_row), asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row)
+        return found if found
+        fail!("Nothing called #{asked} in this environment. list_resources shows what there is.") if instances(environment_row).complete
+
+        resource_by_id(environment_row, asked.to_s.strip) ||
+          fail!("Only the first #{resources(environment_row).size} services were read, and none is called #{asked}. " \
+                "Name it by its id, which Railway shows in the service's settings.")
+      end
+
+      # A service past the listing's cut, read by its id.
+      def resource_by_id(environment_row, id)
+        instance = api(environment_row).service_instance(environment(environment_row)["id"], id)
+        resource_of(instance) if instance.present?
+      rescue RailwayApi::NotFound
+        nil
       end
 
       # The service page, as the CLI prints it (railwayapp/cli, src/commands/up.rs). Railway documents no address for a
@@ -768,8 +782,8 @@ module Integrations
       end
 
       def repository(item, repo, found, links)
-        path = repo.to_s.delete_prefix("#{GITHUB_SITE}/").delete_suffix(".git")
-        repository = ResourceMap.repository_of("#{GITHUB_SITE}/#{path}") if path.match?(%r{\A[\w.-]+/[\w.-]+\z})
+        path = repo.to_s.delete_suffix(".git")
+        repository = ResourceMap.repository(REPOSITORY_HOST, path) if path.match?(%r{\A[\w.-]+/[\w.-]+\z})
         return unless repository
 
         found << repository

@@ -11,7 +11,7 @@ import { OnboardingDialog } from "@/pages/dashboard/components/onboarding-dialog
 import type { DashboardStat, DashboardFilters, DashboardOnboarding } from "@/pages/dashboard/types"
 import type { IncidentListItem, SeverityOption } from "@/types/serializers"
 import { Button } from "@/components/ui/button"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import { useCan } from "@/lib/permissions"
 import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
 import { dismissOnboardingDialogPath } from "@/lib/routes"

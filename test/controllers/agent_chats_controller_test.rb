@@ -252,6 +252,22 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Chat deleted.", flash[:notice]
   end
 
+  test "deleting a chat whose code fix paused at its spending limit keeps the pause and lets the chat go" do
+    conversation = start_chat
+    request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    pause = CodeAgentSession::Pause.create!(
+      session: session, workspace: @workspace, conversation: conversation, arguments: { "repo" => "acme/api" }, repository: "acme/api",
+      base: "main", copy_ref: "c" * 40, budget_micros: 2_000_000, resumable_until: 15.minutes.from_now
+    )
+
+    delete agent_chat_url(conversation)
+
+    assert_nil Conversation.find_by(id: conversation.id)
+    assert_nil pause.reload.conversation_id
+  end
+
   test "deleting another chat from the list keeps the open one open" do
     open_chat = start_chat
     other = Conversation.start_personal!(workspace: @workspace, member: @member)
@@ -432,11 +448,14 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
       trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
       conversation: chat, tool_call_id: "call_1", brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
     )
+    run.steps.create!(position: 1, tool_name: "commit_lookup", label: "Commit lookup abc123", status: Investigation::Step::STATUS_SUCCEEDED, started_at: Time.current)
+    run.steps.create!(position: nil, tool_name: "search_logs", status: Investigation::Step::STATUS_RUNNING, started_at: Time.current)
 
     get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
 
     card = inertia_props[AgentChatsController::PROP_INVESTIGATIONS].sole
     assert_equal [ "call_1", "checkout is slow" ], [ card["toolCallId"], card["question"] ]
+    assert_equal [ "Commit lookup abc123" ], card["steps"].map { |step| step["label"] }
     assert_equal run.id, inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "id")
   end
 
@@ -448,7 +467,7 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     run.add_note!("", by: bob, files: [ file ])
     sign_in(users(:bob), @workspace)
     WorkspaceMembership.any_instance.stubs(:implicitly_permits?).returns(true)
-    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ).returns(false)
+    WorkspaceMembership.any_instance.stubs(:implicitly_permits?).with(Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_READ, nil).returns(false)
 
     get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
     url = inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "notes").flat_map { |note| note["files"] }.sole["url"]

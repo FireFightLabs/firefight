@@ -125,7 +125,7 @@ export function SearchableMultiSelect({
               <CommandGroup>
                 {offersTyped && (
                   <CommandItem value={typed} onSelect={addTyped}>
-                    Add &ldquo;{typed}&rdquo;
+                    Add &quot;{typed}&quot;
                   </CommandItem>
                 )}
                 {options.map((option) => (

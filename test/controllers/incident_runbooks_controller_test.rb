@@ -75,6 +75,7 @@ class IncidentRunbooksControllerTest < ActionDispatch::IntegrationTest
     action = @incident.incident_actions.find_by!(runbook_step: step)
     assert_equal @member, action.assignee
     assert_equal step.title, action.description
+    assert_equal "You claimed #{step.title}.", flash[:notice]
   end
 
   test "claiming a step someone already holds hands it over rather than duplicating" do

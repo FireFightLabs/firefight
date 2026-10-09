@@ -23,13 +23,13 @@ class SignupNotificationService
     ActiveRecord.after_all_transactions_commit do
       SignupNotificationJob.perform_later(event, workspace.id, membership.id, sign_up_method)
     rescue StandardError => e
-      Rails.logger.warn({ event: "signup_notification.enqueue_failed", workspace_id: workspace.id, error: e.message })
+      Rails.logger.warn({ event: "signup_notification.enqueue_failed", workspace_id: workspace.id, error: e.class.name, message: e.message.truncate(200) }.to_json)
     end
   end
 
   def notify(event, workspace, member, sign_up_method: nil)
     TeamWebhook.post!(payload(event, workspace, member, sign_up_method))
-    Rails.logger.info({ event: "signup_notification.sent", notification: event, workspace_id: workspace.id })
+    Rails.logger.info({ event: "signup_notification.sent", notification: event, workspace_id: workspace.id }.to_json)
   end
 
   private

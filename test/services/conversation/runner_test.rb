@@ -74,6 +74,24 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_empty responder.calls
   end
 
+  test "a hand back that waited for a confirmation is told on the person's next turn, once" do
+    personal_chat
+    @conversation.chat_record
+    watch = Chat::Watch.create!(chat: @conversation.chat, workspace: @workspace, asker: @conversation.started_by, title: "the release",
+                                purpose: "ship main", expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
+    step = watch.steps.create!(position: 0, label: "Northflank release", capability: Integrations::Capabilities::HISTORY,
+                               arguments: { "resource" => "firefight" }, handed_back_at: Time.current)
+
+    @conversation.ask!("how is it going?")
+    fake(reply: "Looking for another way.").tap { Conversation::Runner.new(@conversation, asker: @conversation.started_by).run }
+    @conversation.ask!("thanks")
+    fake(reply: "You're welcome.").tap { Conversation::Runner.new(@conversation, asker: @conversation.started_by).run }
+
+    notes = @conversation.chat.messages.where(nudge: true).map(&:content).grep(/could not follow Northflank release/)
+    assert_equal 1, notes.size
+    assert step.reload.hand_back_noted_at
+  end
+
   # Seen in a real chat, told "you do have access", Halon made the same wrong call and gave the same refusal.
   test "after a turn that said something could not be used, the next message reaches the agent with a note to check again first" do
     personal_chat

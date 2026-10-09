@@ -178,7 +178,75 @@ module Integrations
       assert_equal [ "box-1", "orphan" ], @provider.stopped
     end
 
+    test "a box remembered as unavailable is forgotten once its time passes, so a long-lived worker keeps none for old runs" do
+      CodeReading.unavailable!("run-old", "The sandbox did not start.")
+      assert_equal "The sandbox did not start.", CodeReading.unavailable("run-old")
+
+      travel CodeReading::UNAVAILABLE_FOR + 1.second do
+        CodeReading.unavailable!("run-new", "The sandbox did not start.")
+
+        remembered = CodeReading.send(:unavailable_by_key)
+        assert_not remembered.key?("run-old")
+        assert_nil CodeReading.unavailable("run-new-other")
+      end
+      CodeReading.send(:unavailable_by_key).delete("run-new")
+    end
+
+    test "a copy installed from nothing is kept for the workspace, and a later box with the same lockfiles and setup starts from it" do
+      setup = { "services" => [], "env" => { "RAILS_ENV" => "test" }, "commands" => [ "bin/setup" ] }
+      stub_preparing(lock_digest: "locks-1")
+      Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => false,
+                                                             "prepared" => [ { "exit_code" => 0 } ], "setup" => [ { "exit_code" => 0 } ])
+      Sandboxes::Client.any_instance.expects(:upload_archive).never
+      Sandboxes::Client.any_instance.expects(:download_archive).with { |path:, **| File.write(path, "installed") }.returns(true)
+
+      reading("investigation-1").prepare("acme/app", ref: "abc", setup: setup)
+
+      kept = PreparedCopy.find_by!(workspace: @workspace, repository: "acme/app")
+      assert_equal PreparedCopy.key_for(lock_digest: "locks-1", setup_digest: Digest::SHA256.hexdigest(JSON.generate(setup))), kept.install_key
+
+      uploaded = []
+      Sandboxes::Client.any_instance.stubs(:upload_archive).with { |repository:, ref:, path:| uploaded << [ repository, ref, File.read(path) ] }.returns("restored" => true)
+      Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "restored" => true, "prepared" => [], "setup" => [])
+      Sandboxes::Client.any_instance.expects(:download_archive).never
+
+      travel 1.day do
+        reading("investigation-2").prepare("acme/app", ref: "def", setup: setup)
+        assert_equal Time.current.to_i, kept.reload.last_used_at.to_i
+      end
+
+      assert_equal [ [ "acme__app", "def", "installed" ] ], uploaded
+    end
+
+    test "what one workspace installed never reaches another's box, and another setup installs again" do
+      PreparedCopy.keep!(workspaces(:slack_workspace_two), "acme/app", PreparedCopy.key_for(lock_digest: "locks-1", setup_digest: nil), archive_file)
+      PreparedCopy.keep!(@workspace, "acme/app", PreparedCopy.key_for(lock_digest: "locks-1", setup_digest: "another"), archive_file)
+      stub_preparing(lock_digest: "locks-1")
+      Sandboxes::Client.any_instance.stubs(:prepare).returns("already" => false, "prepared" => [ { "exit_code" => 1 } ])
+      Sandboxes::Client.any_instance.expects(:upload_archive).never
+      Sandboxes::Client.any_instance.expects(:download_archive).never
+
+      reading("investigation-1").prepare("acme/app", ref: "abc")
+    end
+
+    test "a box from an image before setups prepares as it always did" do
+      Sandboxes::Client.any_instance.stubs(:setups?).returns(false)
+      Sandboxes::Client.any_instance.expects(:prepare_state).never
+      Sandboxes::Client.any_instance.expects(:prepare).with(repository: "acme__app", ref: "abc").returns("already" => false, "prepared" => [])
+
+      reading("investigation-1").prepare("acme/app", ref: "abc", setup: { "commands" => [ "bin/setup" ] })
+    end
+
     private
+
+    def stub_preparing(lock_digest:)
+      Sandboxes::Client.any_instance.stubs(:setups?).returns(true)
+      Sandboxes::Client.any_instance.stubs(:prepare_state).returns("lock_digest" => lock_digest, "prepared" => false)
+    end
+
+    def archive_file
+      Tempfile.create("prepared").tap { |file| file.write("installed") && file.flush }.path
+    end
 
     def reading(key)
       remote = CodeReading::Remote.new(root: "https://github.com", user: "x-access-token", token: -> { GithubApp.installation_token(@row) })

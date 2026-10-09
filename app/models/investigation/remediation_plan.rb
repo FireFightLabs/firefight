@@ -71,6 +71,9 @@ class Investigation::RemediationPlan < ApplicationRecord
   # done step by step.
   def appliable? = steps.any?(&:runs_itself?)
 
+  # Apply fix shows when something in it runs through a connection and nobody applied it yet.
+  def apply_offered? = appliable? && status == STATUS_PROPOSED
+
   def applying? = status == STATUS_APPLYING
 
   # Why this fix cannot be applied now, or nil. Without a person, only what holds for everyone, which the run page shows.
@@ -113,9 +116,10 @@ class Investigation::RemediationPlan < ApplicationRecord
   end
 
   # Whether anything is moving on its own now, which is when the run page keeps itself current. A step held for approval
-  # or waiting on a person is not, so the page does not poll for hours.
+  # or waiting on a person is not, so the page does not poll for hours. An approved step Halon is still checking is.
   def moving?
     return true if writing_undo?
+    return true if steps.any?(&:checking?)
     # A step still running after the fix was cancelled is still worth watching finish.
     return true if steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING }
 

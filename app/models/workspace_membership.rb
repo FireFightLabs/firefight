@@ -78,17 +78,17 @@ class WorkspaceMembership < ApplicationRecord
     return true if admin_access?
     return default_read?(action, resolved) if action.tool?
 
-    implicitly_permits?(*action.key.split("."))
+    implicitly_permits?(*action.key.split("."), resolved)
   end
 
   # The same rule for callers holding a resource and action rather than an
-  # Ability::Action. ApiKey's personal-token path reads it.
-  def implicitly_permits?(resource, crud_action)
+  # Ability::Action. ApiKey's personal-token path reads it. resolved is the member's grants when the caller already has them.
+  def implicitly_permits?(resource, crud_action, resolved = nil)
     return true if admin_access?
     return false if Ability::Action::ADMIN_ONLY_RESOURCES.include?(resource.to_s)
 
     key = Ability::Action.system_key(resource, crud_action)
-    return !Ability::Resolver.resolve(self, workspace_id).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
+    return !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(key) if NARROWABLE_KEYS.include?(key)
     return true if crud_action.to_s == Ability::Action::ACTION_READ
 
     PARTICIPATION.fetch(resource, []).include?(crud_action.to_s)
@@ -110,8 +110,24 @@ class WorkspaceMembership < ApplicationRecord
   end
 
   def implicit_authority
-    admin_access? ? :admin : :member
+    admin_access? ? Principal::IMPLICIT_ADMIN : Principal::IMPLICIT_MEMBER
   end
+
+  # Explains implicitly_allowed? on the Permissions screen. Change the two together.
+  IMPLICIT_AUTHORITY_NOTES = {
+    Principal::IMPLICIT_ADMIN =>
+      "Admins hold every catalogued ability without a grant, every connected tool included. Approval policies still gate " \
+      "the risky ones.",
+    Principal::IMPLICIT_MEMBER =>
+      "Members read Firefight's own data, including the resource map in every environment, read every connected tool, " \
+      "take part in incidents, and ask Halon or start investigations without a grant, whether from Slack, the dashboard, " \
+      "the API, or MCP. A grant of map.read limits the map to the environments it names, a grant of investigations.create " \
+      "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. No access " \
+      "below takes any of these away at once, and Restore gives it back. Configuring the workspace and any tool that " \
+      "changes something needs one of the grants below, such as a connection's changes pack."
+  }.freeze
+
+  def implicit_authority_note = IMPLICIT_AUTHORITY_NOTES.fetch(implicit_authority)
 
   # Where each default stands for this member, which the Permissions screen shows and lets an admin take away. A
   # connection's reads are one row, its read pack, rather than a row for each tool.
@@ -119,7 +135,8 @@ class WorkspaceMembership < ApplicationRecord
     return [] if admin_access?
 
     resolved = Ability::Resolver.resolve(self, workspace_id)
-    withheld = ability_grants.where(workspace_id: workspace_id).includes(:action, :role).select(&:no_access?)
+    grants = ability_grants.loaded? ? ability_grants : ability_grants.includes(:action, :role)
+    withheld = grants.select { |grant| grant.workspace_id == workspace_id && grant.no_access? }
     by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
     by_role = withheld.select(&:role).index_by(&:role_id)
     system = NARROWABLE_KEYS.map do |key|
@@ -144,15 +161,22 @@ class WorkspaceMembership < ApplicationRecord
   end
   private :pack_state
 
-  def read_packs
+  # Every connection's read pack that holds a tool. A listing of every member sets it once for all of them.
+  def self.read_packs_of(workspace)
     workspace.ability_roles.where(pack: Ability::Role::PACK_READ).joins(:integration).merge(Integration.where(deleted_at: nil))
              .includes(:actions, :integration).order(:name).select { |pack| pack.actions.any? }
   end
+
+  attr_writer :read_packs
+
+  def read_packs = @read_packs ||= self.class.read_packs_of(workspace)
   private :read_packs
 
   scope :by_role, ->(role) { where(role: role) }
   scope :owners, -> { where(role: :owner) }
   scope :admins, -> { where(role: :admin) }
+  # Whoever runs the workspace: who gives packs, approves by role and is told about its AI accounts.
+  scope :admins_and_owners, -> { where(role: %i[admin owner]) }
   scope :members, -> { where(role: :member) }
 
   # Never provisions, creating a member is billable and belongs to a deliberate flow.

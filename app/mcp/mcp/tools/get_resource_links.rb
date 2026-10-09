@@ -4,10 +4,6 @@ module Mcp
     class GetResourceLinks < Base
       extend MapPayloads
 
-      DIRECTION_IN = "in".freeze
-      DIRECTION_OUT = "out".freeze
-      DIRECTION_BOTH = "both".freeze
-      DIRECTIONS = [ DIRECTION_IN, DIRECTION_OUT, DIRECTION_BOTH ].freeze
       ORIGINS_FACTS = "facts".freeze
       ORIGINS_SUGGESTIONS = "suggestions".freeze
       ORIGINS_ALL = "all".freeze
@@ -28,7 +24,7 @@ module Mcp
       input_schema(
         properties: {
           resource: MapPayloads::RESOURCE_PROPERTY,
-          direction: { type: "string", enum: DIRECTIONS, description: "out for what it depends on, in for what depends on it, both by default" },
+          direction: { type: "string", enum: ResourceMap::Link::DIRECTIONS, description: "out for what it depends on, in for what depends on it, both by default" },
           relations: relations_property("Only these relations. Every one by default"),
           origins: { type: "string", enum: ORIGIN_CHOICES, description: "facts (confirmed links only), suggestions (unconfirmed ones only) or all, the default" },
           limit: { type: "integer", description: "Links per page. Default #{PAGE_SIZE}, most #{MAX_PAGE_SIZE}" },
@@ -42,8 +38,8 @@ module Mcp
         resource = locate(workspace, visible, args[:resource])
         return resource if resource.is_a?(::MCP::Tool::Response)
 
-        direction = args[:direction].presence || DIRECTION_BOTH
-        links = chosen(links_of(resource, direction, visible.select(:id)), args[:relations], args[:origins])
+        direction = args[:direction].presence || ResourceMap::Link::DIRECTION_BOTH
+        links = chosen(ResourceMap::Link.touching(resource, direction: direction, within: visible.select(:id)), args[:relations], args[:origins])
         size = (args[:limit].presence || PAGE_SIZE).to_i.clamp(1, MAX_PAGE_SIZE)
         after = after_cursor(args[:cursor])
         page = (after ? links.where("resource_map_links.id > ?", after) : links).order(:id).limit(size + 1)
@@ -53,23 +49,10 @@ module Mcp
           resource: resource.name, total: links.count,
           links: shown.map { |link| link_payload(link, from_side: link.from_resource_id == resource.id) },
           next_cursor: (cursor_for(shown.last.id) if page.size > size),
-          out_of_reach: out_of_reach(links_of(resource, direction, nil), visible)
+          out_of_reach: out_of_reach(ResourceMap::Link.touching(resource, direction: direction), visible)
         }.compact)
       rescue ResourceMap::Query::InvalidCursor => error
         bad_cursor(error)
-      end
-
-      # The standing links each way that the caller sees both ends of, or every one when inside is nil.
-      def self.links_of(resource, direction, inside)
-        out = ResourceMap::Link.standing.where(from_resource_id: resource.id)
-        into = ResourceMap::Link.standing.where(to_resource_id: resource.id)
-        out = out.where(to_resource_id: inside) if inside
-        into = into.where(from_resource_id: inside) if inside
-        case direction
-        when DIRECTION_OUT then out
-        when DIRECTION_IN then into
-        else out.or(into)
-        end
       end
 
       def self.chosen(links, relations, origins)
@@ -82,8 +65,7 @@ module Mcp
       end
 
       def self.out_of_reach(every, visible)
-        hidden = every.count - every.where(from_resource_id: visible.select(:id), to_resource_id: visible.select(:id)).count
-        "#{hidden} more #{'link'.pluralize(hidden)} #{hidden == 1 ? 'leads' : 'lead'} to resources in environments you cannot read" if hidden.positive?
+        out_of_reach_words(every.count - every.where(from_resource_id: visible.select(:id), to_resource_id: visible.select(:id)).count)
       end
     end
   end

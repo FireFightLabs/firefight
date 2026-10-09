@@ -42,7 +42,7 @@ export function UndoFix({ investigationId, fix }: { investigationId: string; fix
   if (fix.writingUndo) {
     return (
       <p className="flex items-center gap-1.5 text-xs text-fg-secondary">
-        <IconLoader2 className="size-3.5 animate-spin" />
+        <IconLoader2 className="size-3.5 motion-safe:animate-spin" />
         Halon is writing the undo.
       </p>
     )

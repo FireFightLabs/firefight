@@ -27,6 +27,8 @@ module Integrations
         POINTS = 60
         BUCKETS = [ 1, 5, 15, 60, 360, 1440 ].freeze
         HEALTH_MINUTES = 60
+        # A request's address with the token it was called with taken out, which endpoints often take as ?token=.
+        ADDRESS = "replaceRegexpAll(url, '([?&])token=[^&]*', '\\\\1token=[REDACTED]')".freeze
 
         module_function
 
@@ -76,9 +78,9 @@ module Integrations
         end
 
         def requests(arguments, limit)
-          text = "concat(url, ' ', ifNull(error_message, ''))"
+          text = "concat(#{ADDRESS}, ' ', ifNull(error_message, ''))"
           "SELECT start_datetime AS at, pipe_name, status_code, round(duration * 1000, 1) AS ms, read_rows, result_rows, error, " \
-            "left(ifNull(error_message, ''), #{SHOWN}) AS message, left(url, #{SHOWN}) AS address, token_name FROM #{PIPE_STATS} " \
+            "left(ifNull(error_message, ''), #{SHOWN}) AS message, left(#{ADDRESS}, #{SHOWN}) AS address, token_name FROM #{PIPE_STATS} " \
             "WHERE #{window('start_datetime', arguments)}#{named('pipe_id', 'pipe_name', arguments['endpoint'])}" \
             "#{' AND error = 1' if arguments['failed_only']}#{filters(text, arguments)} ORDER BY start_datetime DESC LIMIT #{limit}"
         end

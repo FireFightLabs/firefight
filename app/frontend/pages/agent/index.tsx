@@ -14,7 +14,7 @@ import { useChatListCollapsed } from "@/pages/agent/hooks/use-chat-list-collapse
 import { OPEN_CHAT_VISIT, closeRun, startNewChat } from "@/pages/agent/lib/chat-updates"
 import { InvestigationSheet } from "@/components/investigations/investigation-sheet"
 import { AGENT_CHAT_PROPS } from "@/lib/generated/constants"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import type { AgentPageProps } from "@/pages/agent/types"
 import { agentChatsPath } from "@/lib/routes"
 
@@ -23,7 +23,7 @@ const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control
 export default function AgentPage() {
   const {
     conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
-    compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, setupGuide,
+    compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, setupGuide,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
@@ -104,6 +104,7 @@ export default function AgentPage() {
                   watches={watches}
                   watchUpdates={watchUpdates}
                   pullRequestNotices={pullRequestNotices}
+                  memoryQuestions={memoryQuestions}
                   waiting={waitingMessages}
                   stream={stream}
                 />

@@ -1,4 +1,6 @@
 class Api::V1::RunbooksController < Api::V1::ApiController
+  include FreeFormParams
+
   UUID_FORMAT = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
 
   before_action :set_runbook, only: %i[show update destroy]
@@ -61,8 +63,6 @@ class Api::V1::RunbooksController < Api::V1::ApiController
     end
     permitted
   end
-
-  def object_param(value) = value.is_a?(ActionController::Parameters) ? value.to_unsafe_h : nil
 
   def set_runbook
     scope = current_workspace.runbooks.active.includes(:runbook_steps)

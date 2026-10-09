@@ -29,8 +29,7 @@ module Mcp
 
         suggestions = args[:include_suggestions] == true
         inside = visible.select(:id)
-        every = ResourceMap::Link.standing.where(from_resource_id: resource.id, to_resource_id: inside)
-                                 .or(ResourceMap::Link.standing.where(to_resource_id: resource.id, from_resource_id: inside))
+        every = ResourceMap::Link.touching(resource, direction: ResourceMap::Link::DIRECTION_BOTH, within: inside)
         links = suggestions ? every : every.facts
         found = links.includes(:from_resource, :to_resource).order(:relation, :id).limit(LIMIT + 1).to_a
         shown = found.first(LIMIT)

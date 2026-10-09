@@ -1,7 +1,7 @@
 module FirefightAi
   # Answers a coding agent's question from what Halon already knows about the change, the person's own words and what
-  # was read, before the person is asked. One call with no tools. It answers only what that material settles, and a
-  # question it cannot settle goes to the person rather than to a guess.
+  # was read, before the person is asked. One call with no tools. It answers only a case the material covers exactly,
+  # and anything else goes to the person rather than to a guess.
   class QuestionAnswerer
     FEATURE = "code_question".freeze
     PART_LIMIT = 16_000
@@ -33,12 +33,13 @@ module FirefightAi
     PROMPT = <<~PROMPT.freeze
       A coding agent writing a code change for a person asked a question. You get what is known about the change, the person's own words and what was read of the systems involved, and the question.
 
-      - Answer only when the person's words or the evidence settle it, and say where the answer comes from.
-      - When the question offers options, pick the one the person's words or the way the code already behaves elsewhere settle, by its label, whether or not it is the one recommended.
+      - Answer only when the person's words or the evidence cover the exact case the question asks about, and say where the answer comes from.
+      - Words about a neighbouring case do not settle this one. A rule that would have to be stretched, narrowed or read between the lines to reach it does not settle it either. A gap or an edge case the person's words do not address always goes to the person, so do not answer.
+      - When the question offers options, pick the one the person's words or the way the code already behaves elsewhere settle, by its label, whether or not it is the one recommended. A recommendation is the agent's reading, never evidence of what the person meant.
       - When it is a choice only the person can make, or the material does not show it, do not answer, so the person is asked.
       - Never answer from what is usual or likely. A wrong answer here becomes a wrong change.
       - #{Evidence::RULE}
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     private

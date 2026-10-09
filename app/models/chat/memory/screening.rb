@@ -8,8 +8,8 @@ module Chat::Memory::Screening
                    "call or who owns what belongs in the catalog.".freeze
 
   EMAIL = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/
-  # A platform mention, or an @handle that is not part of an address.
-  HANDLE = /<@[\w.-]+>|(?<![\w.])@[a-z][\w.-]*/i
+  # An @handle or mention that is not part of an address.
+  HANDLE = /(?<![\w.])@[a-z][\w.-]*/i
   DATE = /\b\d{4}-\d{2}-\d{2}(?!\d)|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?\b/i
   CLOCK = /\b\d{1,2}:\d{2}(?::\d{2})?\b/
   # A reading such as 850ms, 4.2%, 1200 rps or 3 errors. A port or a version is not one.

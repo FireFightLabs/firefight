@@ -7,34 +7,46 @@ module Integrations
   module CodeWriteUp
     FILES_LISTED = 30
     FOOTER = "Written by Halon. Review it like any other change before merging.".freeze
+    # The section for what could not run here, which the coding agent's summary uses as its heading too.
+    NOT_RUN = "Could not run here".freeze
+    # Said when the repository has no CI, after the host's own words for where it looked.
+    NO_CI = "With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, and the owner's review decides whether it is ready.".freeze
 
-    # lead is what the change does and why, context what other changes in the same fix did, warning the CI warning or nil.
-    def self.body(lead:, context:, warning:, reviewed:, change:)
-      text = [ lead, context.presence, warning, *sections(reviewed, change.checks, bold: true), files("**Files**", change.counts), FOOTER ]
+    # lead is what the change does and why, context what other changes in the same fix did, warning the CI warning or nil,
+    # and no_ci the code host's words that the repository has no CI, or nil when it has.
+    def self.body(lead:, context:, warning:, reviewed:, change:, no_ci: nil)
+      text = [ lead, context.presence, warning, *sections(reviewed, change, bold: true), without_ci(no_ci, bold: true), files("**Files**", change.counts), FOOTER ]
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
 
     # Said on an open pull request the change was added to: what this update did, then the same sections.
-    def self.comment(lead:, warning:, reviewed:, change:, base:)
-      text = [ lead, warning, update_words(change, base), *sections(reviewed, change.checks, bold: true),
+    def self.comment(lead:, warning:, reviewed:, change:, base:, no_ci: nil)
+      text = [ lead, warning, update_words(change, base), *sections(reviewed, change, bold: true), without_ci(no_ci, bold: true),
                "Added by Halon in #{change.commit[0, 12]}. Review it like any other change before merging." ]
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
 
     # What Halon reads back once the change opened or was added, to tell the person in the same terms.
-    def self.answer(done:, warning:, reviewed:, change:, base:, updating:)
+    def self.answer(done:, warning:, reviewed:, change:, base:, updating:, no_ci: nil)
       changed = updating ? update_words(change, base) : files("Changes:", change.counts)
-      [ done, warning, changed, *sections(reviewed, change.checks, bold: false) ].compact.join("\n\n")
+      [ done, warning, changed, *sections(reviewed, change, bold: false), without_ci(no_ci, bold: false) ].compact.join("\n\n")
     end
 
-    def self.sections(reviewed, checks, bold:)
-      checks = Array(checks)
+    def self.without_ci(said, bold:)
+      return if said.blank?
+
+      "#{bold ? '**No CI**' : 'No CI:'}\n#{Sentence.ended(said)} #{NO_CI}"
+    end
+
+    # What could not run is the checks that could not, then what the agent's summary said it could not run.
+    def self.sections(reviewed, change, bold:)
+      checks = Array(change.checks)
       verified = checks.select(&:passed?).map { |check| "`#{check.name}` passed." } + Array(reviewed&.verified)
-      not_run = checks.select(&:could_not_run?).map { |check| "`#{check.name}`: #{check.reason}." }
+      not_run = checks.select(&:could_not_run?).map { |check| "`#{check.name}`: #{check.reason}." } + change.not_run.map { |line| Sentence.ended(line) }
       failed = checks.select { |check| !check.passed? && !check.could_not_run? }.map { |check| "`#{check.name}` #{check.status}." }
       [
         section("Verified", verified, bold),
-        section("Could not run here", not_run, bold),
+        section(NOT_RUN, not_run, bold),
         section("Checks that did not pass", failed, bold),
         section("Found in review", Array(reviewed&.findings), bold),
         section("Open questions", Array(reviewed&.unverified), bold),
@@ -66,6 +78,6 @@ module Integrations
       [ "Changed in this update: #{updated.map { |path| "`#{path}`" }.to_sentence}.", merged ].compact.join(" ")
     end
 
-    private_class_method :sections, :section, :files, :update_words
+    private_class_method :sections, :section, :files, :update_words, :without_ci
   end
 end

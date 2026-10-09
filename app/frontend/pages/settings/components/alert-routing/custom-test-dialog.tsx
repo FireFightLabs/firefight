@@ -20,7 +20,7 @@ import {
   type TestResult,
 } from "@/pages/settings/lib/alerts"
 import { newRow, rowListOps, withRowIds, type RowListItem } from "@/pages/settings/lib/row-list"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { FormErrors } from "@/components/form-errors"
 import { AddRowButton, RemoveRowButton } from "@/pages/settings/components/row-list-buttons"
 
 interface TesterField extends RowListItem {

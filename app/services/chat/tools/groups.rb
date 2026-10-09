@@ -168,7 +168,7 @@ module Chat::Tools::Groups
     return [] if found.empty?
 
     [ View.new(key: RESOURCES, title: "Anything on the resource map",
-               covers: "#{found.map(&:name).join(', ')}, for a service, database, Worker or site by its name on the map, whichever connection runs it",
+               covers: "#{found.map(&:name).join(', ')}, for a service, database, function or site by its name on the map, whichever connection runs it",
                entries: found) ]
   end
 
@@ -205,7 +205,7 @@ module Chat::Tools::Groups
       key = of_connection(integration)
       next unless key.start_with?(CONNECTION_PREFIX)
 
-      names = integration.tools.enabled.available.order(:name).pluck(:name)
+      names = integration.tools.select { |tool| tool.enabled? && tool.available? }.map(&:name).sort
       covers = names.first(NAMES_SHOWN).join(", ")
       covers += " and #{names.size - NAMES_SHOWN} more" if names.size > NAMES_SHOWN
       View.new(

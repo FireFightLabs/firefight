@@ -13,7 +13,6 @@ import { GrantDialog } from "@/pages/settings/components/permissions/grant-dialo
 import { GrantRow } from "@/pages/settings/components/permissions/grant-row"
 import { SetDialog } from "@/pages/settings/components/permissions/set-dialog"
 import { SetEditor } from "@/pages/settings/components/permissions/set-editor"
-import { IMPLICIT_AUTHORITY } from "@/pages/settings/components/permissions/risk"
 import type {
   AbilityActionOption,
   AbilityRole,
@@ -24,6 +23,7 @@ import type {
 } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 import { useCan } from "@/lib/permissions"
+import { IMPLICIT_AUTHORITIES } from "@/lib/generated/constants"
 
 interface PermissionsPageProps extends SharedProps {
   [key: string]: unknown
@@ -65,7 +65,7 @@ export default function Permissions() {
   const handMade = sets.filter((set) => !set.builtIn)
   const packs = sets.filter((set) => set.builtIn)
   const enabledRuleCount = approvalRules.filter((rule) => rule.enabled).length
-  const authorityNote = selected ? IMPLICIT_AUTHORITY[selected.implicitAuthority] : null
+  const authorityNote = selected?.implicitAuthorityNote ?? null
 
 
   return (
@@ -195,7 +195,7 @@ export default function Permissions() {
                         <Icon className="text-muted-foreground size-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate">{principal.name}</span>
                         <span className="text-muted-foreground shrink-0 text-xs">
-                          {principal.implicitAuthority === "admin" ? "admin" : principal.grants.length}
+                          {principal.implicitAuthority === IMPLICIT_AUTHORITIES.ADMIN ? "admin" : principal.grants.length}
                         </span>
                       </button>
                     ))}
@@ -254,6 +254,7 @@ export default function Permissions() {
                       <GrantRow
                         key={grant.id}
                         grant={grant}
+                        principalName={selected.name}
                         environments={environments}
                         canManage={canManage}
                       />

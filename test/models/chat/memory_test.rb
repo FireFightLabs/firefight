@@ -184,6 +184,70 @@ class Chat::MemoryTest < ActiveSupport::TestCase
     assert_nil old.confirm_blocked_reason, "a person can still confirm an expired memory"
   end
 
+  test "learning an unconfirmed memory again restarts its wait, so it expires counted from the last time it was learned" do
+    @workspace.update!(memory_expiry_days: 30)
+    relearned = remember("Deploys happen from main")
+    relearned.update_columns(updated_at: 31.days.ago)
+    confirmed = remember("Checkout runs in Frankfurt", state: Chat::Memory::STATE_CONFIRMED)
+    confirmed.update_columns(updated_at: 31.days.ago)
+
+    assert_equal Chat::Memory::LEARNED_KNOWN, learned("deploys happen from main").outcome
+    learned("Checkout runs in Frankfurt")
+
+    assert_equal 0, Chat::Memory.expire!(@workspace)
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, relearned.reload.state
+    assert_operator confirmed.reload.updated_at, :<, 30.days.ago, "only an unconfirmed memory waits, so a confirmed one is left as it was"
+  end
+
+  test "a judged fact in other words is known, and one that says otherwise is saved and disputes what it contradicts" do
+    main = remember("web deploys from main", subject: @checkout, state: Chat::Memory::STATE_CONFIRMED)
+    ships = remember("main is the branch web ships from", subject: @checkout)
+    two = remember("web runs two instances", subject: @checkout)
+
+    same = Chat::Memory.learn!(@workspace, text: "web is shipped from main", subject: @checkout, source: nil, judge: judging(ships => same_fact))
+    assert_equal [ Chat::Memory::LEARNED_KNOWN, ships ], [ same.outcome, same.memory ]
+
+    learned = Chat::Memory.learn!(@workspace, text: "web deploys from the release branch", subject: @checkout, source: nil,
+                                              judge: judging(main => contradicts, ships => contradicts), contradiction: "The deploy log of web shows it.")
+
+    assert_equal Chat::Memory::LEARNED_SAVED, learned.outcome
+    assert_equal [ main, ships ].sort_by(&:id), learned.contradicted.sort_by(&:id)
+    [ main, ships ].each do |memory|
+      assert_equal [ Chat::Memory::STATE_DISPUTED, "The deploy log of web shows it.", learned.memory.id ],
+                   memory.reload.values_at(:state, :state_reason, :contradicted_by_id)
+    end
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, two.reload.state
+  end
+
+  test "a fact judged the same as one a person rejected is refused, and a judge that fails saves it as if nothing were known" do
+    rejected = remember("Checkout uses MySQL", subject: @checkout, state: Chat::Memory::STATE_REJECTED)
+
+    assert_equal Chat::Memory::LEARNED_REJECTED,
+                 Chat::Memory.learn!(@workspace, text: "MySQL backs checkout", subject: @checkout, source: nil, judge: judging(rejected => same_fact)).outcome
+
+    failing = Object.new
+    def failing.verdicts(**) = raise(FirefightAi::OutOfCredit, "no credit")
+    learned = Chat::Memory.learn!(@workspace, text: "Checkout uses Postgres", subject: @checkout, source: nil, judge: failing)
+    assert_equal [ Chat::Memory::LEARNED_SAVED, [] ], [ learned.outcome, learned.contradicted ]
+  end
+
+  test "a person settles a contradiction once: still right rejects what contradicted it, not right takes it, and a correction replaces both" do
+    member = workspace_memberships(:alice_workspace_one)
+    kept, challenger = contradiction("web deploys from main", "web deploys from release")
+    assert kept.confirm!(by: member)
+    assert_equal [ Chat::Memory::STATE_REJECTED, member ], challenger.reload.values_at(:state, :rejected_by)
+
+    dropped, taken = contradiction("db-1 is production", "db-2 is production")
+    assert dropped.reject!(by: member, reason: "")
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, member ], taken.reload.values_at(:state, :confirmed_by)
+    assert_equal taken, dropped.reload.replaced_by
+    assert_equal "Marked not right by you. Halon now remembers \"db-2 is production\" instead.", dropped.decided_for(member)
+
+    wrong, also_wrong = contradiction("Backups run at 01:00", "Backups run at 03:00")
+    correction = wrong.reject!(by: member, reason: "", correction: "Backups run at 02:00")
+    assert_equal [ Chat::Memory::STATE_REJECTED, Chat::Memory::STATE_CONFIRMED ], [ also_wrong.reload.state, correction.state ]
+  end
+
   test "Halon reads a postmortem's confirmation as a postmortem's, and a person's as theirs" do
     member = workspace_memberships(:alice_workspace_one)
     postmortem = Postmortem.create!(incident: incidents(:active_critical_ws1), generated_by: member, title: "Pool", status: Postmortem::STATUS_COMPLETED,
@@ -205,6 +269,25 @@ class Chat::MemoryTest < ActiveSupport::TestCase
   end
 
   def learned(text, subject: nil) = Chat::Memory.learn!(@workspace, text: text, subject: subject, source: nil)
+
+  def same_fact = FirefightAi::Schemas::MemoryVerdicts::SAME
+
+  def contradicts = FirefightAi::Schemas::MemoryVerdicts::CONTRADICTS
+
+  # A judge answering as given, keyed by memory.
+  def judging(verdicts)
+    judge = Object.new
+    judge.define_singleton_method(:verdicts) do |fact:, known:|
+      known.filter_map { |each| (found = verdicts.find { |memory, _| memory.id == each.id }) && FirefightAi::MemoryJudge::Verdict.new(id: each.id, verdict: found.last) }
+    end
+    judge
+  end
+
+  def contradiction(old_text, new_text)
+    old = remember(old_text)
+    learned = Chat::Memory.learn!(@workspace, text: new_text, subject: nil, source: nil, judge: judging(old => contradicts))
+    [ old.reload, learned.memory ]
+  end
 
   def map_resource(name, external_id: name)
     integration = @workspace.integrations.find_by(slug: "northflank") ||

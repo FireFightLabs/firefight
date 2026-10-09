@@ -1,6 +1,6 @@
 # What Halon told about a pull request it opened: the problems the code host showed (a conflict with its base, failing
 # checks, a reviewer asking for changes) on one head, with Fix it. One per set of problems on the same commits, which a
-# unique index holds, so a live update and the sweep arriving together say it once. Fix it is the only yes: nothing on
+# unique index holds, so a live update and the sweep arriving together say it once. Fix it is the only yes. Nothing on
 # the branch changes until the person the change runs as presses it, and then it runs as them through the gateway.
 class CodeAgentSession::Notice < ApplicationRecord
   STATUS_OFFERED = "offered"
@@ -17,7 +17,7 @@ class CodeAgentSession::Notice < ApplicationRecord
   belongs_to :workspace
   belongs_to :fix_by, class_name: "WorkspaceMembership", optional: true
   # The chat it was told in, where Fix it runs. A fix's notice in a run's thread has none until Fix it opens the thread's.
-  belongs_to :conversation, optional: true
+  belongs_to :conversation, optional: true, inverse_of: :pull_request_notices
 
   validates :status, inclusion: { in: STATUSES }
 

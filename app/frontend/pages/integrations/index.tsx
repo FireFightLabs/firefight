@@ -12,6 +12,7 @@ import type { SharedProps } from "@/types"
 import { whenClosed } from "@/lib/handlers"
 import { useCan } from "@/lib/permissions"
 import { INTEGRATION_CONNECT_QUERY_PARAM, INTEGRATION_DETAILS_QUERY_PARAM } from "@/lib/generated/constants"
+import { replaceQuery } from "@/lib/query"
 
 // The details sheet lives in the address, so a link from a chat or a teammate opens the same connection.
 function detailsFromUrl(): string | null {
@@ -40,14 +41,7 @@ export default function Integrations() {
 
   const setDetailsId = useCallback((id: string | null) => {
     setDetailsIdState(id)
-    const params = new URLSearchParams(window.location.search)
-    if (id) {
-      params.set(INTEGRATION_DETAILS_QUERY_PARAM, id)
-    } else {
-      params.delete(INTEGRATION_DETAILS_QUERY_PARAM)
-    }
-    const query = params.toString()
-    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`)
+    replaceQuery({ [INTEGRATION_DETAILS_QUERY_PARAM]: id })
   }, [])
 
   const details = integrations.find((integration) => integration.id === detailsId) ?? null

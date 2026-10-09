@@ -29,7 +29,9 @@ module Integrations
         assert regions.multiple
         assert_equal [ "us-east-1", "US East (N. Virginia)" ], regions.options.first.to_h.values_at(:value, :label)
         assert_nil regions.refusal(%w[eu-west-1 ap-southeast-7])
-        assert_match "Regions can only be", regions.refusal(%w[cn-north-1])
+        assert_nil regions.refusal(%w[us-gov-west-1 us-gov-east-1])
+        assert_nil regions.refusal(%w[cn-north-1 cn-northwest-1])
+        assert_match "Regions can only be", regions.refusal(%w[mars-north-1])
         assert_equal "Regions is required.", regions.refusal([])
         assert_equal %w[rollback_deployment restart_service scale_service], Aws.tool_definitions.reject(&:read_only).map(&:name)
         assert Aws.credential_fields.find { |field| field.key == Aws::SECRET_ACCESS_KEY }.secret
@@ -45,6 +47,36 @@ module Integrations
                      Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
         AwsApi.any_instance.expects(:identity).with("eu-west-1").returns(account: ACCOUNT)
         assert_nil Aws.credential_refusal({ Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }, fields: regions)
+      end
+
+      test "GovCloud and China are partitions of their own, so one connection's regions are all in one" do
+        keys = { Aws::ACCESS_KEY_ID => "a", Aws::SECRET_ACCESS_KEY => "x" }
+        assert_equal Aws::MIXED_PARTITIONS, Aws.credential_refusal(keys, fields: { Aws::REGIONS => %w[us-east-1 us-gov-west-1] })
+        assert_equal Aws::MIXED_PARTITIONS, Aws.credential_refusal(keys, fields: { Aws::REGIONS => %w[cn-north-1 us-gov-west-1] })
+        AwsApi.any_instance.expects(:identity).with("us-gov-west-1").returns(account: ACCOUNT)
+        assert_nil Aws.credential_refusal(keys, fields: { Aws::REGIONS => %w[us-gov-west-1 us-gov-east-1] })
+        AwsApi.any_instance.expects(:identity).with("cn-north-1").returns(account: ACCOUNT)
+        assert_nil Aws.credential_refusal(keys, fields: { Aws::REGIONS => %w[cn-north-1 cn-northwest-1] })
+
+        assert_equal [ Aws::COMMERCIAL, Aws::GOVCLOUD, Aws::GOVCLOUD, Aws::CHINA, Aws::CHINA ],
+                     %w[eu-west-1 us-gov-east-1 us-gov-west-1 cn-north-1 cn-northwest-1].map { |region| Aws.partition(region) }
+        assert_equal [ "https://eu-west-1.console.aws.amazon.com", "https://console.amazonaws-us-gov.com", "https://cn-northwest-1.console.amazonaws.cn" ],
+                     %w[eu-west-1 us-gov-west-1 cn-northwest-1].map { |region| Aws.console_host(region) }
+      end
+
+      test "a GovCloud or China connection names its instances in its partition and links to its own console" do
+        { "us-gov-west-1" => [ "aws-us-gov", "https://console.amazonaws-us-gov.com/console/home?region=us-gov-west-1" ],
+          "cn-north-1" => [ "aws-cn", "https://cn-north-1.console.amazonaws.cn/console/home?region=cn-north-1" ] }.each do |region, (partition, home)|
+          @row.store_fields!(Aws::REGIONS => [ region ])
+          AwsApi.any_instance.stubs(:all).returns([ [], false ])
+          AwsApi.any_instance.stubs(:all).with { |_service, at, called, *| called == :describe_instances && at == region }
+                      .returns([ [ { owner_id: ACCOUNT, instances: [ instance ] } ], false ])
+
+          text = call(:list_resources)
+
+          assert_match "bastion (arn:#{partition}:ec2:#{region}:#{ACCOUNT}:instance/i-0abc), #{region}, running", text
+          assert_match home, text
+        end
       end
 
       test "the health check asks AWS who the keys belong to" do
@@ -261,7 +293,11 @@ module Integrations
 
         assert_match "Latest 2 versions of checkout, newest first. A rollback takes a version.\nversion 12, last modified 2026-10-01, \"Retry payments\"", text
         assert_match "alias live\nversion 11", text
+        assert_no_match "more versions than Firefight reads", text
         assert_match "only ECS services and Lambda functions have deployments", refusal(:list_deployments, "resource" => DATABASE_ARN)
+
+        AwsApi.any_instance.stubs(:all).with { |_service, _region, operation, *| operation == :list_versions_by_function }.returns([ [ { version: "11" } ], true ])
+        assert_match "Lambda has more versions of checkout than Firefight reads, so the newest may be missing.", call(:list_deployments, "resource" => FUNCTION_ARN)
       end
 
       test "an ECS service rolls back only to a revision of its own family, and says how to undo it" do
@@ -334,6 +370,7 @@ module Integrations
         assert_match "More than one AWS resource is called web: ECS service #{SERVICE_ARN}, Lambda function #{FUNCTION_ARN.sub("checkout", "web")}. Name it by its id.", refusal(:describe_resource, "resource" => "web")
         assert_match "Nothing called nope in eu-west-1, us-east-1", refusal(:describe_resource, "resource" => "nope")
         assert_match "is in ap-south-1, which this connection does not read", refusal(:describe_resource, "resource" => FUNCTION_ARN.sub("eu-west-1", "ap-south-1"))
+        assert_match "is in account 999999999999, and this connection reads #{ACCOUNT}", refusal(:describe_resource, "resource" => FUNCTION_ARN.sub(ACCOUNT, "999999999999"))
       end
 
       test "an ECS service whose rollout completed reads degraded while it runs fewer tasks than it wants, and completed once it runs them all" do

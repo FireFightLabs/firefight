@@ -16,6 +16,8 @@ module Operator
       Investigation::RegressionResult::STATUS_SKIPPED
     ].freeze
     ModelChoice = Data.define(:id, :name, :provider)
+    # The page loads the model list only when the picker opens, by this prop name.
+    MODELS_PROP = "models"
 
     # Counts for every run on the page in one query.
     def self.rows(runs)
@@ -40,6 +42,7 @@ module Operator
                  .sort_by { |model| [ model.provider, model.name ] }
     end
 
-    def self.model(id) = models.find { |model| model.id == id }
+    # One id can be listed under several providers, so a choice names both.
+    def self.model(id, provider) = models.find { |model| model.id == id && model.provider == provider }
   end
 end

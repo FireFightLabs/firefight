@@ -8,7 +8,6 @@ module Interactions
       reference, memory_id = interaction.action_value.to_s.split(":", 2)
       workspace = interaction.workspace
       member = WorkspaceMemberProvisioner.find_or_provision!(workspace: workspace, platform_user_id: interaction.user_id, adapter: workspace.adapter)
-      return unless member
 
       MemoryPostService.new(workspace).decide!(reference: reference, memory_id: memory_id, member: member,
                                                confirmed: interaction.action_id == Identifiers::MEMORY_CONFIRM,

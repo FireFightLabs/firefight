@@ -14,21 +14,22 @@ class CodeAgentPauseService
     posted = if destination.thread_id.present?
       adapter.post_code_pause(channel_id: destination.channel_id, thread_id: destination.thread_id, pause: pause)
     elsif (user_id = pause.session.principal.try(:platform_user_id)).present?
-      adapter.post_code_pause(channel_id: user_id, thread_id: nil, pause: pause)
+      adapter.post_code_pause_to_user(user_id: user_id, pause: pause)
     end
     pause.update_columns(message_channel_id: posted[:channel_id], message_id: posted[:message_id], told_at: Time.current) if posted.is_a?(Hash) && posted[:message_id]
   rescue AdapterError => error
     Rails.logger.warn({ event: "code_pause.untold", pause_id: pause.id, error: error.class.name }.to_json)
   end
 
-  # Continue, pressed by the person the change runs as. Answers why not, or nil.
+  # Continue, pressed by the person the change runs as. Answers why not, or nil. Where it carries on is found before the
+  # pause is claimed, so a Continue that has nowhere to run leaves the choice open.
   def self.continue!(pause, by:)
     blocked = pause.decide_blocked_reason(by)
     return blocked if blocked
-    return pause.reload.decide_blocked_reason(by) || "This was already decided." unless pause.decide!(by, to: CodeAgentSession::Pause::STATUS_CONTINUING)
 
     conversation = pause.conversation || thread_conversation(pause, by)
     return COULD_NOT_CONTINUE unless conversation
+    return pause.reload.decide_blocked_reason(by) || "This was already decided." unless pause.decide!(by, to: CodeAgentSession::Pause::STATUS_CONTINUING)
 
     pause.update_columns(conversation_id: conversation.id)
     conversation.expect_reply!
@@ -43,6 +44,7 @@ class CodeAgentPauseService
     return blocked if blocked
     return pause.reload.decide_blocked_reason(by) || "This was already decided." unless pause.decide!(by, to: CodeAgentSession::Pause::STATUS_STOPPED)
 
+    CodeBox.live.find_by(key: pause.box_key)&.stop! if pause.box_key
     row = pause.session.integration_environment
     pack = row && Integrations::NativePack.fetch!(row.integration)
     pack.discard_pause!(row, pause) if pack.respond_to?(:discard_pause!)
@@ -81,17 +83,22 @@ class CodeAgentPauseService
     Chat::StepProgress.keep!(chat, session.tool_call_id, work)
   end
 
-  # A run's change that was not started from a chat carries on in its thread's own chat.
+  # A run's change that was not started from a chat carries on in its thread's own chat. A run with no thread was asked
+  # about in the person's direct messages, so it carries on under that message.
   def self.thread_conversation(pause, by)
+    return if by.platform_user_id.blank? || !pause.session.place.is_a?(Investigation::RemediationStep)
+
     destination = PullRequestFollowing.destination_of(pause.session)
-    return if destination.thread_id.blank? || by.platform_user_id.blank? || !pause.session.place.is_a?(Investigation::RemediationStep)
+    channel_id, thread_id = destination.thread_id.present? ? [ destination.channel_id, destination.thread_id ] : [ pause.message_channel_id, pause.message_id ]
+    return if channel_id.blank? || thread_id.blank?
 
     investigation = pause.session.place.plan.finding.investigation
-    Conversation::Opener.call(workspace: pause.workspace, incident: investigation.incident, channel_id: destination.channel_id,
-                              thread_id: destination.thread_id, platform_user_id: by.platform_user_id)
+    Conversation::Opener.call(workspace: pause.workspace, incident: investigation.incident, channel_id: channel_id, thread_id: thread_id,
+                              platform_user_id: by.platform_user_id)
   end
 
   # The change carried on as the person who pressed Continue, through the tool a chat offers them. Answers what it said.
+  # When it failed before carrying the change on, Continue and Stop are offered again.
   def self.run_continue!(turn, pause)
     row = pause.session.integration_environment
     tool = row&.integration&.tools&.find { |each| each.writes_code? && each.enabled? && each.available? }
@@ -101,7 +108,12 @@ class CodeAgentPauseService
     Chat::Tools::Connection.new(turn, tool).run(arguments, environment_entry: row.environment, tool_call_id: nil, shown_as: tool.model_facing_name)
   rescue StandardError => error
     Rails.logger.warn({ event: "code_pause.continue_failed", pause_id: pause.id, error: error.class.name }.to_json)
+    offer_again!(pause)
     COULD_NOT_CONTINUE
+  end
+
+  def self.offer_again!(pause)
+    moved!(pause.reload) if pause.offer_again!
   end
 
   # What Halon reads once the change carried on, before it tells the person how it went.

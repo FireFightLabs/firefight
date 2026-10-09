@@ -237,6 +237,26 @@ class SolidWorkflow::EngineHardeningTest < ActiveSupport::TestCase
     assert step.reload.pending?
   end
 
+  test "sweeper leaves alone an orphaned step a resumed job took up after the sweep read it" do
+    workflow = ExampleCalculationWorkflow.start!(@user, context: { numbers: [ 1, 2, 3 ] })
+    workflow.update!(state: :running)
+    step = workflow.steps.first
+    step.update!(status: :running, attempts: 1, max_attempts: 5)
+    step.update_column(:updated_at, (SolidWorkflow.orphaned_step_threshold + 1.minute).ago)
+    stale = SolidWorkflow::Step.find(step.id)
+    step.update_column(:updated_at, Time.current)
+    selected = Class.new do
+      def initialize(rows) = @rows = rows
+      def find_each(&) = @rows.each(&)
+    end.new([ stale ])
+    SolidWorkflow::Step.stubs(:orphaned).returns(selected)
+
+    SolidWorkflow::SweeperJob.new.send(:sweep_orphaned_steps)
+
+    assert step.reload.running?
+    assert_nil workflow.events.find_by(event_type: SolidWorkflow::Events::Step::RESET)
+  end
+
   test "terminal_error_classes is engine config extended by the app initializer" do
     assert_includes SolidWorkflow.terminal_error_classes, "ActiveRecord::RecordNotFound"
     assert_includes SolidWorkflow.terminal_error_classes, "AdapterError::AuthRevoked"

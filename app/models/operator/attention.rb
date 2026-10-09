@@ -79,29 +79,36 @@ module Operator
       failed + stuck
     end
 
+    # Grouped in SQL, so the page reads the latest failure of each webhook rather than every failure in the window.
     def webhook_items
       deliveries = WebhookDelivery.failed.where(updated_at: @filter.range).joins(:webhook)
-      deliveries = @filter.scope(deliveries, "webhooks.workspace_id")
-      deliveries.includes(:incident_event, webhook: :workspace).order(updated_at: :desc).group_by(&:webhook).first(PER_KIND).map do |webhook, failures|
-        latest = failures.first
+      groups = @filter.scope(deliveries, "webhooks.workspace_id").group(:webhook_id)
+                      .order(Arel.sql("MAX(webhook_deliveries.updated_at) DESC")).limit(PER_KIND)
+                      .pluck(Arel.sql("(ARRAY_AGG(webhook_deliveries.id ORDER BY webhook_deliveries.updated_at DESC))[1]"), Arel.sql("COUNT(*)"))
+      latest = WebhookDelivery.includes(:incident_event, webhook: :workspace).where(id: groups.map(&:first)).index_by(&:id)
+      groups.map do |latest_id, count|
+        delivery = latest.fetch(latest_id)
+        webhook = delivery.webhook
         item(key: "webhook-#{webhook.id}", kind: KIND_WEBHOOK_FAILING, title: "Webhook delivery failing",
-             subject: "#{latest.event_type} to #{host_of(webhook.url)}", place: webhook.workspace.name,
-             detail: [ "#{failures.size} failed", ("HTTP #{latest.response_code}" if latest.response_code) ].compact.join(" · "),
-             at: latest.updated_at, target: TARGET_INCIDENT, target_id: latest.incident_event.incident_id)
+             subject: "#{delivery.event_type} to #{host_of(webhook.url)}", place: webhook.workspace.name,
+             detail: [ "#{count} failed", ("HTTP #{delivery.response_code}" if delivery.response_code) ].compact.join(" · "),
+             at: delivery.updated_at, target: TARGET_INCIDENT, target_id: delivery.incident_event.incident_id)
       end
     end
 
     def platform_items
-      failures = @filter.scope(PlatformCallFailure.where(created_at: @filter.range)).includes(:workspace).order(created_at: :desc)
-      groups = failures.group_by { |failure| [ failure.workspace_id, failure.operation, failure.error_class, failure.channel_id ] }.first(PER_KIND)
-      incidents = incidents_by_channel(groups.map(&:last).map(&:first))
+      failures = @filter.scope(PlatformCallFailure.where(created_at: @filter.range))
+      groups = failures.group(:workspace_id, :operation, :error_class, :channel_id).order(Arel.sql("MAX(created_at) DESC")).limit(PER_KIND)
+                       .pluck(Arel.sql("(ARRAY_AGG(id ORDER BY created_at DESC))[1]"), Arel.sql("COUNT(*)"))
+      latest = PlatformCallFailure.includes(:workspace).where(id: groups.map(&:first)).index_by(&:id)
+      incidents = incidents_by_channel(latest.values)
 
-      groups.map do |(_workspace_id, operation, error_class, channel_id), group|
-        latest = group.first
-        incident = incidents[[ latest.workspace_id, channel_id ]]
-        item(key: "platform-#{latest.id}", kind: KIND_PLATFORM_FAILED, title: "#{latest.platform.titleize} call failed",
-             subject: [ operation, incident&.identifier ].compact.join(" · "), place: latest.workspace.name,
-             detail: "#{group.size} #{'time'.pluralize(group.size)} · #{error_class}", at: latest.created_at,
+      groups.map do |latest_id, count|
+        failure = latest.fetch(latest_id)
+        incident = incidents[[ failure.workspace_id, failure.channel_id ]]
+        item(key: "platform-#{failure.id}", kind: KIND_PLATFORM_FAILED, title: "#{failure.platform.titleize} call failed",
+             subject: [ failure.operation, incident&.identifier ].compact.join(" · "), place: failure.workspace.name,
+             detail: "#{count} #{'time'.pluralize(count)} · #{failure.error_class}", at: failure.created_at,
              target: (TARGET_INCIDENT if incident), target_id: incident&.id)
       end
     end
@@ -196,9 +203,7 @@ module Operator
            at: refusals.maximum(:created_at), target: nil)
     end
 
-    def run_label(run)
-      run.incident ? "#{run.incident.identifier} #{run.incident.name}" : run.question.to_s
-    end
+    def run_label(run) = run.label
 
     def subject_place(subject)
       subject.respond_to?(:workspace) ? subject.workspace.name : all_workspaces

@@ -3,6 +3,7 @@
 class IntegrationEnvironment < ApplicationRecord
   include IntegrationEnvironment::LiveUpdates
   include IntegrationEnvironment::AppInstallation
+  include IntegrationEnvironment::IssueWebhook
 
   HEALTH_UNKNOWN = "unknown"
   HEALTH_HEALTHY = "healthy"
@@ -35,6 +36,9 @@ class IntegrationEnvironment < ApplicationRecord
     enabled.where(installation_state: nil).joins(:integration).left_joins(:environment).where(integrations: { disabled_at: nil, deleted_at: nil })
            .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
   }
+
+  # What the gateway checks a call through this row against, its environment when it has one.
+  def ability_scope = catalog_entry_id ? { Ability::Scope::DIMENSION_ENVIRONMENT => catalog_entry_id } : {}
 
   def credentials_hash
     JSON.parse(credentials.presence || "{}")

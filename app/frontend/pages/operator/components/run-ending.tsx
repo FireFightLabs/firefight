@@ -1,4 +1,4 @@
-import { OPERATOR_HALON_ENDINGS } from "@/lib/generated/constants"
+import { OPERATOR_HALON_ENDINGS } from "@/pages/operator/generated/constants"
 import { TONE_CLASSES, type Tone } from "@/pages/operator/lib/tone"
 import type { OperatorHalonRun } from "@/types/serializers"
 

@@ -2,6 +2,7 @@ module AlertProviders
   # Fields are dot-path lookups a source overrides through config["field_map"].
   # config["items_path"] naming an array turns each element into its own alert.
   class Generic < Base
+    SETUP_INSTRUCTIONS = "Send alerts as POST requests with the token in an Authorization: Bearer header (or #{Base::TOKEN_HEADER}).".freeze
     DEFAULT_FIELD_MAP = {
       "external_id" => "id",
       "fingerprint" => "fingerprint",
@@ -15,11 +16,8 @@ module AlertProviders
     }.freeze
 
     def self.verify(headers:, raw_body:, source:)
-      provided = headers["Authorization"].to_s.delete_prefix("Bearer ").presence ||
-                 headers["X-Firefight-Token"].to_s.presence
-      return false if provided.blank?
-
-      ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
+      provided = headers["Authorization"].to_s.delete_prefix("Bearer ").presence || headers[TOKEN_HEADER].to_s.presence
+      token_matches?(provided, source)
     end
 
     def self.normalize(payload, source:)

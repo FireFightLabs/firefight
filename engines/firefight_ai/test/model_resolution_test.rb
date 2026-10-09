@@ -29,6 +29,15 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     assert_not FirefightAi.registered?("gpt-5.6-sol")
   end
 
+  test "a model is looked up as the provider that serves it, never as whichever provider the registry lists first" do
+    assert FirefightAi.registered?("gpt-4o", "openai")
+    assert_not FirefightAi.registered?("gpt-4o", "anthropic")
+    assert FirefightAi.context_window("gpt-4o", provider: "openai")
+    assert_nil FirefightAi.context_window("gpt-4o", provider: "anthropic")
+    assert_equal 4096, FirefightAi.max_output_tokens("gpt-3.5-turbo", provider: "openai")
+    assert_nil FirefightAi.max_output_tokens("gpt-3.5-turbo", provider: "anthropic")
+  end
+
   test "the purpose's fallback holds when nothing is configured" do
     choice = FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
 

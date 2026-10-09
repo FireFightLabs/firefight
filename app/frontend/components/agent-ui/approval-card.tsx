@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import DetailList, { type Detail } from "@/components/agent-ui/detail-list";
+import { type Detail, DetailList } from "@/components/detail-list";
 import { Button } from "@/components/agent-ui/button";
 import GlideMenu from "@/components/agent-ui/glide-menu";
 

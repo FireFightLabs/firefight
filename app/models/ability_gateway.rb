@@ -250,6 +250,24 @@ class AbilityGateway
       WorkspaceMembership::PARTICIPATION.key?(Ability::Action.resource_of(action.key))
   end
 
+  # A call Firefight makes on its own, which nobody asked for and so nothing authorizes, is still in the activity log.
+  # It is recorded before the block runs and finalized with how long it took. failed reads the block's result and
+  # answers the error summary of an answer that failed, or nil, and rescued words an error the block raised.
+  def self.record_unattended!(principal:, action_key:, workspace:, params:, context:, failed: ->(_result) { nil }, rescued: ->(error) { error.class.name })
+    invocation = record!(decision: Ability::Invocation::DECISION_ALLOW, completed_at: nil, principal: principal,
+                         action: Ability::Action.lookup(action_key, workspace), action_key: action_key, workspace: workspace,
+                         scope: {}, params: params, context: context)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    said = failed.call(result)
+    invocation.finalize!(outcome: said ? Ability::Invocation::OUTCOME_ERROR : Ability::Invocation::OUTCOME_SUCCESS, error_summary: said,
+                         duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round)
+    result
+  rescue StandardError => error
+    invocation&.finalize!(outcome: Ability::Invocation::OUTCOME_ERROR, error_summary: rescued.call(error))
+    raise
+  end
+
   def self.record!(decision:, completed_at:, principal:, action:, action_key:, workspace:, scope:, params:, context:, approval: nil)
     Ability::Invocation.create!(
       workspace: workspace,

@@ -13,9 +13,9 @@ class Conversation::Tools::ListWatches < RubyLLM::Tool
   def parameters_schema = { "type" => "object", "properties" => {}, "required" => [] }
 
   def call(tool_call: nil, **)
-    watches = @turn.chat&.watches&.includes(:steps, :updates).to_a
+    watches = @turn.chat&.watches&.includes(:asker, :steps, :updates).to_a
     return "No watches in this chat." if watches.empty?
 
-    JSON.generate(watches.map { |watch| Conversation::Watches::Shown.summary(watch) })
+    JSON.generate(watches.map { |watch| Chat::Watch::Shown.summary(watch) })
   end
 end

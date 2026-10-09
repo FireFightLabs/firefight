@@ -27,8 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Blocked } from "@/pages/settings/components/blocked-tooltip"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { Blocked } from "@/components/blocked-tooltip"
+import { FormErrors } from "@/components/form-errors"
 import {
   hasDuplicateLabels,
   OptionsEditor,

@@ -4,7 +4,7 @@ import { formatTime } from "@/lib/formatters"
 import { WATCH_TONES } from "@/lib/generated/constants"
 import type { AgentChatWatchUpdate } from "@/types/serializers"
 
-const TONE_ICONS: Record<string, { icon: Icon; className: string }> = {
+const TONE_ICONS: Record<AgentChatWatchUpdate["tone"], { icon: Icon; className: string }> = {
   [WATCH_TONES.STARTED]: { icon: IconEye, className: "text-ink-2" },
   [WATCH_TONES.MILESTONE]: { icon: IconCheck, className: "text-success" },
   [WATCH_TONES.PART_FAILED]: { icon: IconX, className: "text-danger" },
@@ -19,7 +19,7 @@ const TONE_ICONS: Record<string, { icon: Icon; className: string }> = {
 
 // One line a watch said after Halon's answer, placed where it happened among the chat's messages.
 export function WatchUpdate({ update }: { update: AgentChatWatchUpdate }) {
-  const mark = TONE_ICONS[update.tone] ?? TONE_ICONS[WATCH_TONES.MILESTONE]
+  const mark = TONE_ICONS[update.tone]
   const Mark = mark.icon
   return (
     <div className="flex max-w-160 items-start gap-2" aria-label="Watch update">

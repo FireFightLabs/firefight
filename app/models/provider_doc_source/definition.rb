@@ -22,7 +22,7 @@ class ProviderDocSource
     }.freeze
     SHARED = %w[provider to].freeze
     DEFAULT_PAGE_URL = "%<site>s/%<page>s/index.md".freeze
-    GITHUB = %r{\Ahttps://github\.com/(?<repository>[\w.-]+/[\w.-]+)\z}
+    REPOSITORY_ADDRESS = %r{\Ahttps://github\.com/(?<repository>[\w.-]+/[\w.-]+)\z}
 
     def self.all
       @all ||= YAML.safe_load_file(path).map do |key, settings|
@@ -40,11 +40,11 @@ class ProviderDocSource
 
     def address = settings.fetch(kind)
 
-    # Where its pages are named, such as docs/ for Northflank's product documentation.
+    # Where its pages are named, such as docs/ for a provider's product documentation.
     def prefix = settings["to"].present? ? "#{settings['to']}/" : ""
 
-    # The owner/name of a repository source, which GitHub's tree and raw files are read by.
-    def repository = address.match(GITHUB)&.[](:repository)
+    # The owner/name of a repository source, which its tree and raw files are read by.
+    def repository = address.match(REPOSITORY_ADDRESS)&.[](:repository)
 
     def page_url(page) = format(settings.fetch("page_url", DEFAULT_PAGE_URL), site: address, page: page)
 

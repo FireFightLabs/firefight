@@ -20,7 +20,7 @@ class IntegrationsController < InertiaController
     render inertia: "integrations/index", props: {
       integrations: IntegrationSerializer.many(
         current_workspace.integrations.where(deleted_at: nil).order(:name)
-                         .includes(:tools, integration_environments: :environment)
+                         .includes(:tools, :repository_setups, integration_environments: :environment)
       ),
       providers: IntegrationProviderSerializer.many(IntegrationProvider.all),
       categories: IntegrationProvider.categories,
@@ -64,8 +64,9 @@ class IntegrationsController < InertiaController
   end
 
   def sync
-    Integrations::ConnectionRefresh.run!(@integration)
-    redirect_to integrations_path
+    return redirect_to integrations_path, notice: "#{@integration.name}'s tools were refreshed." if Integrations::ConnectionRefresh.run!(@integration)
+
+    redirect_to integrations_path, alert: "#{@integration.name} could not be reached, so its tools were not refreshed. The connection says why."
   end
 
   def toggle_tool
@@ -74,21 +75,20 @@ class IntegrationsController < InertiaController
 
     tool.update!(enabled: !tool.enabled?)
     Integrations::ConnectionRefresh.tools_changed(@integration)
-    redirect_to integrations_path
+    redirect_to integrations_path, notice: "#{tool.name} on #{@integration.name} is #{tool.enabled? ? 'on' : 'off'}."
   end
 
   def set_all_tools
-    @integration.set_all_tools!(
-      ActiveModel::Type::Boolean.new.cast(params[:enabled]),
-      reads_only: ActiveModel::Type::Boolean.new.cast(params[:reads_only])
-    )
+    enabled = ActiveModel::Type::Boolean.new.cast(params[:enabled])
+    reads_only = ActiveModel::Type::Boolean.new.cast(params[:reads_only])
+    @integration.set_all_tools!(enabled, reads_only: reads_only)
     Integrations::ConnectionRefresh.tools_changed(@integration)
-    redirect_to integrations_path
+    redirect_to integrations_path, notice: all_tools_notice(enabled, reads_only)
   end
 
   def toggle
     @integration.update!(disabled_at: @integration.disabled_at ? nil : Time.current)
-    redirect_to integrations_path
+    redirect_to integrations_path, notice: "#{@integration.name} is #{@integration.disabled_at ? 'off' : 'on'}."
   end
 
   # Moves which environment the connection answers for. The credentials stay put.
@@ -99,8 +99,9 @@ class IntegrationsController < InertiaController
       return redirect_to integrations_path, alert: "That environment is not available in this workspace."
     end
 
-    @integration.integration_environments.find(params[:environment_row_id]).update!(catalog_entry_id: verified)
-    redirect_to integrations_path
+    row = @integration.integration_environments.find(params[:environment_row_id])
+    row.update!(catalog_entry_id: verified)
+    redirect_to integrations_path, notice: "#{@integration.name} now answers for #{row.environment&.name || 'every environment'}."
   rescue ActiveRecord::RecordInvalid
     redirect_to integrations_path, alert: "This connection already has credentials for that environment."
   end
@@ -117,8 +118,8 @@ class IntegrationsController < InertiaController
     redirect_to integrations_path, notice: "#{@integration.name} now uses #{field.shown(row.fields[field.key], choices: field.options_from(row.learned))} for #{field.label.downcase_first}."
   end
 
-  # What the credentials typed on the connect form can read, such as a Northflank token's projects, listed before
-  # anything is saved so the form offers them. The credentials go no further than the provider.
+  # What the credentials typed on the connect form can read, such as a token's projects, listed before anything is saved
+  # so the form offers them. The credentials go no further than the provider.
   def list_scopes
     provider = IntegrationProvider.find(params[:provider].to_s)
     return render(json: { options: [], error: "#{params[:provider]} chooses nothing to read." }, status: :unprocessable_entity) unless provider&.scope_field
@@ -386,11 +387,16 @@ class IntegrationsController < InertiaController
     connected(environment_row.integration.name, safe_return_to(pending["return_to"]))
   end
 
-  # Connecting from a chat goes back to that chat and says so there. From this page nothing changes.
+  # Connecting from a chat or the setup checklist goes back there.
   def connected(name, return_to)
-    return redirect_to(integrations_path) unless return_to
+    redirect_to return_to || integrations_path, notice: "#{name} is connected."
+  end
 
-    redirect_to return_to, notice: "#{name} is connected."
+  def all_tools_notice(enabled, reads_only)
+    return "Every tool on #{@integration.name} is off." unless enabled
+    return "Only the tools on #{@integration.name} that read are on." if reads_only
+
+    "Every tool on #{@integration.name} is on."
   end
 
   def return_to_param = safe_return_to(params[:return_to])

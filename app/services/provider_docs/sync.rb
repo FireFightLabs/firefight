@@ -10,6 +10,8 @@ module ProviderDocs
       ProviderDocSource::Definition::KIND_PACKAGE => Package
     }.freeze
     FAILED_SHOWN = 5
+    # What reading a source can fail with. The job rescues the same list, since a source that failed is already recorded.
+    READ_ERRORS = [ DocsClient::Error, SystemCallError, JSON::ParserError, KeyError ].freeze
 
     def self.run!(definition, client: DocsClient.new, progress: Progress.new) = new(definition, client: client, progress: progress).run!
 
@@ -33,7 +35,7 @@ module ProviderDocs
       end
       @progress.source_finished(source, chunks: chunks)
       source
-    rescue DocsClient::Error, SystemCallError, JSON::ParserError, KeyError => error
+    rescue *READ_ERRORS => error
       source&.failed!(error.message)
       @progress.source_failed(error)
       raise

@@ -5,7 +5,7 @@ interface QrCodeProps {
 
 const QUIET_ZONE = 4;
 
-// Draws the QR code from the server's grid, on white with the margin scanners need, in either theme.
+// Draws the QR code from the server's grid, light on the page with the margin scanners need.
 export function QrCode({ modules, label }: QrCodeProps) {
   const size = modules.length + QUIET_ZONE * 2;
   const squares = modules.flatMap((row, rowIndex) =>
@@ -20,8 +20,8 @@ export function QrCode({ modules, label }: QrCodeProps) {
       className="size-52 rounded-lg"
       shapeRendering="crispEdges"
     >
-      <rect width={size} height={size} fill="#f9f8f5" />
-      <path d={squares.join("")} fill="#121312" />
+      <rect width={size} height={size} fill="var(--text-headline)" />
+      <path d={squares.join("")} fill="var(--bg)" />
     </svg>
   );
 }

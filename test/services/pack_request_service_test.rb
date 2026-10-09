@@ -85,6 +85,35 @@ class PackRequestServiceTest < ActiveSupport::TestCase
     assert_match "already has", PackRequestService.give!(request.reload, by: @alice).words
   end
 
+  test "two admins giving at once give it once, and the one who lost is told it was already answered" do
+    request = Ability::PackRequest.for!(@bob, @changes)
+    @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")
+    PackRequestService.ask!(request, by: @bob)
+    late = Ability::PackRequest.find(request.id)
+    late.stubs(:give_blocked_reason).returns(nil)
+    @adapter.expects(:post_pack_answer_to_user).once.returns(channel_id: "D2", message_id: "2.1")
+
+    assert PackRequestService.give!(request.reload, by: @alice).ok
+    result = PackRequestService.give!(late, by: @alice)
+
+    assert_not result.ok
+    assert_equal "This request was already answered.", result.words
+    assert_equal @alice, request.reload.given_by
+  end
+
+  test "a give racing a dismiss loses" do
+    request = Ability::PackRequest.for!(@bob, @changes)
+    @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")
+    PackRequestService.ask!(request, by: @bob)
+    late = Ability::PackRequest.find(request.id)
+    late.stubs(:give_blocked_reason).returns(nil)
+
+    assert PackRequestService.dismiss!(request.reload, by: @alice).ok
+
+    assert_not PackRequestService.give!(late, by: @alice).ok
+    assert_not @workspace.ability_grants.exists?(principal: @bob, role: @changes)
+  end
+
   test "a pack granted on the Permissions screen answers the request and redraws its messages" do
     request = Ability::PackRequest.for!(@bob, @changes)
     @adapter.stubs(:post_pack_request_to_user).returns(channel_id: "D1", message_id: "1.1")

@@ -13,7 +13,7 @@ function same(left: string[], right: string[]) {
   return left.length === right.length && left.every((value) => right.includes(value))
 }
 
-// What one environment of a connection reads at its provider, such as which Northflank projects, chosen again from what
+// What one environment of a connection reads at its provider, such as which of a provider's projects, chosen again from what
 // its stored credentials can read now. Saving reads the connection again at once and says so in a toast.
 export function ScopeChoice({
   integrationId,

@@ -22,10 +22,9 @@ module ResourceMap
   KIND_LOAD_BALANCER = "load_balancer".freeze
   KIND_ORIGIN_POOL = "origin_pool".freeze
   KIND_ACCESS_APP = "access_app".freeze
-  # What a cloud runs besides services: a virtual machine (an EC2 instance, a Droplet, a Compute Engine or Azure VM), a
-  # function run on demand (a Lambda, a Cloud Function), a cluster its workloads are part of (GKE, AKS, ECS), and the
-  # compute that serves a database branch, which starts, scales and suspends apart from the data it reads. A website a
-  # host builds and serves is a site.
+  # What a cloud runs besides services. A virtual machine, a function run on demand, a cluster its workloads are part
+  # of, and the compute that serves a database branch, which starts, scales and suspends apart from the data it reads. A
+  # website a host builds and serves is a site.
   KIND_VIRTUAL_MACHINE = "virtual_machine".freeze
   KIND_FUNCTION = "function".freeze
   KIND_CLUSTER = "cluster".freeze
@@ -70,10 +69,12 @@ module ResourceMap
   DOMAINS = "dns".freeze
   PROVIDER_NAMES = { DOMAINS => "Domains" }.freeze
 
-  # A hostname on the map, whichever connection names it, so the one Cloudflare points at a service and the one that
-  # service serves are the same resource.
+  # A hostname on the map, whichever connection names it, so the one an edge network points at a service and the one
+  # that service serves are the same resource.
+  # Its account is its registered domain, such as acme.co.uk for api.acme.co.uk.
   def self.domain(host)
-    Found.new(provider: DOMAINS, account: host.split(".").last(2).join("."), kind: KIND_DOMAIN, external_id: host, name: host,
+    account = PublicSuffix.domain(host, ignore_private: true) || host.split(".").last(2).join(".")
+    Found.new(provider: DOMAINS, account: account, kind: KIND_DOMAIN, external_id: host, name: host,
               url: "https://#{host}")
   end
 
@@ -98,6 +99,17 @@ module ResourceMap
   def self.repository(provider_key, path)
     site = IntegrationProvider.find(provider_key.to_s)&.site
     site && path.present? ? repository_of("#{site.chomp('/')}/#{path}") : nil
+  end
+
+  # A provider as a tool parameter offers it, by its key and its name.
+  Provider = Data.define(:slug, :name)
+
+  # The tool an agent reads the whole map with. It is Firefight's own, so no provider can drop it.
+  READ_TOOL = "get_resource_map".freeze
+
+  # Each provider something on the workspace's map came from.
+  def self.providers(workspace)
+    Resource.where(workspace: workspace).present.distinct.order(:provider).pluck(:provider).map { |key| Provider.new(slug: key, name: provider_name(key)) }
   end
 
   def self.provider_name(key) = IntegrationProvider.find(key)&.name || PROVIDER_NAMES.fetch(key, key.to_s.humanize)
@@ -298,7 +310,7 @@ module ResourceMap
   TAGS = "tags".freeze
   # A database branch that serves production, which is the one a service connects to.
   PRODUCTION = "production".freeze
-  # The scope a resource lives in, by its id and its name, such as a Northflank project, kept only when the connection
+  # The scope a resource lives in, by its id and its name, such as a project on a platform, kept only when the connection
   # that reports it reaches several (Integrations::Scopes). It names the resource where its name alone could be another
   # scope's, and says which scope a call about it reaches.
   SCOPE = "scope".freeze
@@ -344,11 +356,12 @@ module ResourceMap
     # A resource several connections report, such as a hostname, keeps what each said rather than whichever swept last.
     sightings = resource.sightings.merge(environment_row.id.to_s => found.details)
     reported = found.with(details: sightings.values.reduce({}, :merge))
-    changes = resource.previously_new_record? ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, reported)
+    created = resource.previously_new_record?
+    changes = created ? [ [ Change::KIND_APPEARED, nil, nil ] ] : changes_of(resource, reported)
     came_back = resource.removed_at.present?
     resource.update!(integration_environment: environment_row, name: found.name, status: found.status, url: found.url,
                      details: reported.details, sightings: sightings, last_seen_at: at, removed_at: nil)
-    changed << resource.id if resource.previously_new_record? || resource.saved_changes.keys.intersect?(SEARCHED_COLUMNS)
+    changed << resource.id if created || resource.saved_changes.keys.intersect?(SEARCHED_COLUMNS)
     changes.each do |kind, from, to, detail|
       resource.changes_seen.create!(workspace_id: workspace_id, kind: kind, from_value: from, to_value: to, detail: detail, happened_at: happened_at)
     end

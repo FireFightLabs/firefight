@@ -16,10 +16,10 @@ class CatalogAttributeDefinition < ApplicationRecord
   # Values are workspace membership ids.
   MEMBER_TYPES = [ TYPE_WORKSPACE_MEMBER, TYPE_WORKSPACE_MEMBERS ].freeze
 
-  # Routing and investigations ask for the role, never a slug, so a workspace can name its
-  # attributes anything.
   # The attribute every default catalog type carries for what an entry is for.
   SLUG_DESCRIPTION = "description"
+  # Routing and investigations ask for the role, never a slug, so a workspace can name its
+  # attributes anything.
   ROLE_MEMBERS = "members"
   ROLE_MANAGER = "manager"
   ROLE_NOTIFICATION_CHANNEL = "notification_channel"

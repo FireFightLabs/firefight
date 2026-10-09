@@ -40,7 +40,7 @@ class AbilityApprovalSerializer < BaseSerializer
     approval.approver&.actor_display_name
   end
 
-  # The connection a tool's action runs through, as a person tells it apart, such as "Faylee (Northflank)".
+  # The connection a tool's action runs through, as a person tells it apart, such as "Production (Acme Cloud)".
   type :string, optional: true
   def connection
     approval.connection_name

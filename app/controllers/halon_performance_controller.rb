@@ -2,6 +2,7 @@
 class HalonPerformanceController < InertiaController
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, read: %i[show]
 
+  include RequiresAgent
   before_action :require_agent!
 
   def show
@@ -11,13 +12,5 @@ class HalonPerformanceController < InertiaController
       performance: HalonPerformanceSerializer.one(performance),
       windows: Investigation::Performance::WINDOWS
     }
-  end
-
-  private
-
-  def require_agent!
-    return if Investigation.available_for?(current_workspace)
-
-    redirect_to dashboard_path, alert: Investigation.unavailable_reason(current_workspace)
   end
 end

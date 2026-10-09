@@ -122,7 +122,7 @@ module Integrations
       end
 
       test "a change the token's role may not make says what to give it in Northflank" do
-        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Error, "Northflank answered 403: Missing permission: Update")
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Forbidden, "Northflank answered 403: Missing permission: Update")
 
         error = assert_raises(Integrations::Error) { call(:api_request, "method" => "POST", "path" => "services/web/restart") }
 
@@ -348,6 +348,53 @@ module Integrations
 
         assert_match "web: 1 running, 1 failed, 2 listed, newest first.\nweb-new, running", text
         assert_match "web-old, failed", text
+      end
+
+      test "a list cut short says so, and a resource past it is read by its id rather than called missing" do
+        NorthflankApi.any_instance.stubs(:services).returns(listed([
+          { "id" => "web", "name" => "web", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/web" }
+        ], complete: false))
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "api").returns(
+          "id" => "api", "name" => "api", "serviceType" => "combined", "appId" => "/firefight-labs/firefight/api"
+        )
+        NorthflankApi.any_instance.stubs(:service).with("firefight", "gone").raises(NorthflankApi::NotFound, "Northflank answered 404")
+        NorthflankApi.any_instance.stubs(:addon).with("firefight", "gone").raises(NorthflankApi::NotFound, "Northflank answered 404")
+        NorthflankApi.any_instance.stubs(:containers).returns([])
+
+        assert_match "Only the first 2 were read, so name a resource by its id to reach the rest.", call(:list_resources)
+        assert_match "api has no containers.", call(:list_containers, "resource" => "api")
+        error = assert_raises(NativePack::Error) { call(:list_containers, "resource" => "gone") }
+        assert_match "Only the first 2 services and databases were read", error.message
+      end
+
+      test "a job list cut short says so, and a job past it is read by its id" do
+        NorthflankApi.any_instance.stubs(:jobs).returns(listed([ { "id" => "nightly", "name" => "Nightly export", "jobType" => "cron" } ], complete: false))
+        NorthflankApi.any_instance.stubs(:job).with("firefight", "weekly").returns("id" => "weekly", "name" => "Weekly export")
+        NorthflankApi.any_instance.stubs(:job).with("firefight", "gone").raises(NorthflankApi::NotFound, "Northflank answered 404")
+        NorthflankApi.any_instance.stubs(:job_runs).with("firefight", "weekly", limit: 20).returns([])
+
+        assert_match "Only the first 1 were read, so name a job by its id to reach the rest.", call(:list_jobs)
+        assert_match "Weekly export has no runs.", call(:job_runs, "job" => "weekly")
+        error = assert_raises(NativePack::Error) { call(:job_runs, "job" => "gone") }
+        assert_match "Only the first 1 jobs were read", error.message
+      end
+
+      test "a read the token's role may not make asks for read permission, not for the right to update services" do
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Forbidden, "Northflank answered 403: Missing permission: Read")
+
+        error = assert_raises(Integrations::Error) { call(:api_request, "method" => "GET", "path" => "secrets") }
+
+        assert_match "The API token's role cannot read this. In Northflank, give the role read permission for what secrets names", error.message
+        assert_no_match "update services", error.message
+      end
+
+      test "a change outside services the token's role may not make points at the permission Northflank names" do
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Forbidden, "Northflank answered 403: Missing permission: Jobs Update")
+
+        error = assert_raises(Integrations::Error) { call(:api_request, "method" => "POST", "path" => "jobs/nightly/runs") }
+
+        assert_match "Give it the permission Northflank names above", error.message
+        assert_no_match "update services", error.message
       end
 
       test "a job's runs are found by its name, and an unknown job says what to do" do

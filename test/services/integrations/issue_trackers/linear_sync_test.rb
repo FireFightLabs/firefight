@@ -74,6 +74,13 @@ module Integrations
         assert_nil reader.read("ENG-12")
       end
 
+      test "an update refused for something else it names, such as the assignee, fails with Linear's words and the issue stays kept" do
+        reader, = tracker("save_issue" => error_answer("Entity not found: User"), "get_issue" => json_answer(ISSUE))
+
+        error = assert_raises(Integrations::Issues::Failed) { reader.update(key: "ENG-12", target: { "team" => "ENG" }, title: "x") }
+        assert_equal "Linear refused to change ENG-12: Entity not found: User.", error.message
+      end
+
       test "a delivery counts only with Linear's signature over the raw body, sent within the minute" do
         body, headers = linear_delivery({ "type" => "Issue" })
 

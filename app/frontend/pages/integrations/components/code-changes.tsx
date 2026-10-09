@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-const PLACEHOLDER = ".github/workflows/\ninfra/prod/**\n*.lock"
+const PLACEHOLDER = "ci/\ninfra/prod/**\n*.lock"
 
 function linesOf(text: string) {
   return text
@@ -70,8 +70,8 @@ export function CodeChanges({
             Paths Halon may not change
           </Label>
           <p className="text-muted-foreground text-xs">
-            One per line. A folder such as .github/, or a pattern such as infra/prod/** or *.lock. Halon may change any
-            other file, and every change arrives as a pull request for someone to review.
+            One per line. A folder such as ci/, or a pattern such as infra/prod/** or *.lock. Halon may change any
+            other file, and every change arrives for someone to review.
           </p>
         </div>
         <Textarea

@@ -1,8 +1,6 @@
 module Slack
   module Messages
     module AiResponse
-      SECTION_TEXT_LIMIT = 3000
-
       def self.build(incident:, answer:)
         blocks = [
           {
@@ -18,7 +16,7 @@ module Slack
 
           blocks << {
             type: "section",
-            text: { type: "mrkdwn", text: stripped[0, SECTION_TEXT_LIMIT] }
+            text: { type: "mrkdwn", text: stripped[0, Formatting::SECTION_TEXT_LIMIT] }
           }
         end
 

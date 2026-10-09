@@ -212,14 +212,19 @@ module Integrations
       end
 
       # The subscriptions the principal can read that are not disabled or deleted (Integrations::AzureApi#subscriptions),
-      # each with its id and display name.
-      def self.scope_options(values, region: nil, fields: {})
+      # each with its id and display name. whole refuses a list cut short, for a connection reading every subscription listed.
+      def self.scope_options(values, region: nil, fields: {}, whole: false)
         secret = values.to_h.stringify_keys[SECRET].to_s.strip
         tenant, client = fields.to_h.stringify_keys.values_at(TENANT, CLIENT).map { |value| value.to_s.strip }
         raise NativePack::Error, "Paste the client secret, the tenant and the client id first." if [ secret, tenant, client ].any?(&:empty?)
 
         api = AzureApi.new(tenant: tenant, client_id: client, client_secret: secret, subscription: nil, cloud: cloud_of(region))
-        api.subscriptions.items.reject { |subscription| UNREADABLE.include?(subscription["state"].to_s) }.map do |subscription|
+        read = api.subscriptions
+        if whole && read.incomplete?
+          raise NativePack::Error, "Azure lists more subscriptions than Firefight reads (the first #{read.items.size}). Choose the subscriptions instead of all."
+        end
+
+        read.items.reject { |subscription| UNREADABLE.include?(subscription["state"].to_s) }.map do |subscription|
           IntegrationProvider::ConnectOption.new(value: subscription["subscriptionId"].to_s,
                                                  label: subscription["displayName"].presence || subscription["subscriptionId"].to_s)
         end
@@ -229,6 +234,8 @@ module Integrations
 
       # A subscription in these states holds nothing to read (Subscription, SubscriptionState).
       UNREADABLE = %w[Disabled Deleted].freeze
+
+      def self.scope_listing_capped? = true
 
       def self.cloud_of(region) = CLOUDS.fetch(region&.key.to_s, AzureApi::GLOBAL)
 
@@ -719,7 +726,7 @@ module Integrations
           note: "Log Analytics keeps #{what} for #{target.name} only when a diagnostic setting on it sends them to a workspace, so no lines can also mean none is set." }
       end
 
-      # A Container App's logs are kept by its environment: in the environment's Log Analytics workspace, or in Azure
+      # A Container App's logs are kept by its environment, in the environment's Log Analytics workspace or in Azure
       # Monitor tables a diagnostic setting on the environment writes, whichever the environment is set to.
       def container_log_source(environment_row, target, stream)
         fail!("Only an App Service or Function app keeps request logs here. Ask for stream #{STREAM_APP} or #{STREAM_SYSTEM}.") if stream == STREAM_REQUESTS

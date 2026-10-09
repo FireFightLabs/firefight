@@ -1,6 +1,6 @@
 # Suggests which services use which databases from clues every sweep can check. A setting that names a store's exact
 # address is a fact, which ResourceMap::HostMatcher links first. What is left is suggested, from a service and a database
-# named for the same project, a setting whose name points at a store's provider (NEON_DATABASE_URL) or engine (REDIS_URL),
+# named for the same project, a setting whose name points at a store's provider (ACME_DATABASE_URL) or engine (REDIS_URL),
 # and what HostMatcher could only narrow down. Two clues that agree make a likely suggestion, one a possible one.
 # Nothing suggested is a fact until a person confirms it.
 class ResourceMap::Matcher
@@ -196,7 +196,7 @@ class ResourceMap::Matcher
     store_environment.present? && environment_of(user).first != store_environment
   end
 
-  # A service is named for its project through the account it lives in, such as the Northflank project firefight.
+  # A service is named for its project through the account it lives in, such as the platform project firefight.
   def project_words(user) = words(user.name) | words(user.account.split("/").last)
 
   def environment_of(user)

@@ -1,12 +1,13 @@
-# Where git in the sandbox fetches and pushes, as smart HTTP. The box signs in with its code change session's token as
-# the password, and Integrations::GitGate decides what passes and streams it to the code host.
+# Where git in the sandbox fetches and pushes, as smart HTTP. A fetch signs in with the code change session's token as
+# the password, and a push only with the token Firefight made for its own push of the reviewed change, so the agent
+# holding the session's token can never push. Integrations::GitGate decides what passes and streams it to the code host.
 class CodeAgentGitController < ActionController::API
   include ActionController::Live
 
   rate_limit to: 120, within: 1.minute, by: -> { CodeAgentSession.digest(password.to_s) }, with: -> { head :too_many_requests }
 
   def info_refs
-    through_gate { |gate| gate.advertise(params[:service].to_s, headers: request.headers) { |*event| relay(*event) } }
+    through_gate(pushing: params[:service].to_s == Integrations::GitGate::RECEIVE) { |gate| gate.advertise(params[:service].to_s, headers: request.headers) { |*event| relay(*event) } }
   end
 
   def upload_pack
@@ -16,15 +17,15 @@ class CodeAgentGitController < ActionController::API
   end
 
   def receive_pack
-    through_gate(Integrations::GitGate::MAX_PUSH_BYTES) do |gate, body|
+    through_gate(Integrations::GitGate::MAX_PUSH_BYTES, pushing: true) do |gate, body|
       gate.receive(body, length: request.content_length, headers: request.headers) { |*event| relay(*event) }
     end
   end
 
   private
 
-  def through_gate(limit = nil)
-    session = CodeAgentSession.authenticate(password)
+  def through_gate(limit = nil, pushing: false)
+    session = pushing ? CodeAgentSession.authenticate_push(password) : CodeAgentSession.authenticate(password)
     return unauthorized unless session
     return head(:content_too_large) if limit && request.content_length.to_i > limit
 

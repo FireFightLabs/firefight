@@ -43,7 +43,7 @@ export function ProviderTile({
               type="button"
               onClick={() => onAbout(provider)}
               aria-label={`About ${provider.name}`}
-              className="text-fg-muted hover:text-fg-primary focus-visible:ring-ring -m-1 rounded p-1 transition-colors outline-none focus-visible:ring-2"
+              className="text-fg-muted hover:text-fg-primary -m-1 rounded p-1 transition-colors"
             >
               <IconInfoCircle className="size-4" />
             </button>

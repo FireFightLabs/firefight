@@ -41,7 +41,7 @@ class IntegrationDisconnectTest < ActionDispatch::IntegrationTest
     assert_empty flash[:inertia].to_h["links"].to_a
     assert @integration.reload.deleted?
     assert_nil @row.reload.installation_id
-    assert Ability::Invocation.exists?(workspace: @workspace, action_key: IntegrationEnvironment::UNINSTALL_ACTION_KEY, source: AbilityGateway::SOURCE_WEB)
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: Integrations::Installations::UNINSTALL_ACTION_KEY, source: AbilityGateway::SOURCE_WEB)
   end
 
   test "disconnecting with it unticked leaves the app and links to its settings on GitHub" do

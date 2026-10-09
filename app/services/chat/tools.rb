@@ -68,7 +68,10 @@ module Chat::Tools
 
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
   # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
-  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call)
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call) do
+    # The question as a label, which the dashboard shows above the agent's own sentence about the call.
+    def tool_label = question.delete_suffix("?")
+  end
 
   # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
   # whoever approves it. It is taken off before the call is made, so the tool never sees it.
@@ -186,10 +189,10 @@ module Chat::Tools
   end
 
   # What the tool does, by its own name rather than the connection's, such as "Api request".
-  # A connection tool reads as "Api request · Faylee (Northflank)", never as its connection's slug made into words, which
+  # A connection tool reads as "Api request · Production (Hosting)", never as its connection's slug made into words, which
   # reads like the provider's name. Anything else is its own name made into words.
   # A call that names one project or workspace of a connection that reaches several reads with it, as "Api request ·
-  # Faylee (Northflank), project acme".
+  # Production (Hosting), project acme".
   def self.title_for(tool_name, workspace, arguments = {})
     tool = workspace && Target.connection_tool(workspace, tool_name)
     return tool_name.to_s.tr("_", " ").humanize unless tool
@@ -223,9 +226,6 @@ module Chat::Tools
     FirefightAi::Evidence.frame(tool_name, preview, step: outcome.step)
   end
 
-  # Read fresh, since a run's chat may have been opened after the run was loaded.
-  # A memory write as whoever the agent acts for. A refusal or a wait is text the model reads, and the call is marked.
-  # The ledger gets ids and flags only, never the fact, since a fact holding a secret is refused only after.
   # A chat or run working on an incident tells its channel what it learned or disputed, so people can decide on it there.
   # Elsewhere the Memory page's count is the sign.
   def self.tell_incident(agent_run, memory, kind)
@@ -234,6 +234,19 @@ module Chat::Tools
     MemoryNoteJob.perform_later(memory.id, kind, agent_run.chat_owner)
   end
 
+  # A memory something contradicted is asked about at once where it was found, while the person still has the context:
+  # in its incident's channel like any dispute, and as a card in a dashboard chat. evidence is what showed it wrong, said
+  # to the chat's owner.
+  def self.raise_dispute(agent_run, memory, evidence:)
+    tell_incident(agent_run, memory, Chat::MemoryPost::KIND_DISPUTED)
+    chat = agent_run.chat_owner
+    return unless agent_run.changes_memory? && chat.is_a?(Conversation) && chat.personal?
+
+    MemoryPostService.new(agent_run.workspace).ask_in_chat!(chat, memory, evidence: evidence)
+  end
+
+  # A memory write as whoever the agent acts for. A refusal or a wait is text the model reads, and the call is marked.
+  # The ledger gets ids and flags only, never the fact, since a fact holding a secret is refused only after.
   def self.memory_change(agent_run, crud_action, tool_name:, params:, tool_call_id:, &)
     agent_run.memory_change(crud_action, params: params, tool_name: tool_name, &)
   rescue AbilityGateway::Denied => denied
@@ -245,6 +258,7 @@ module Chat::Tools
 
   # kind says whether the provider answered that what was asked about is not there (Chat::StepOutcome).
   # A runbook's run hears of it too, since its steps run with no call of their own to mark (Conversation::Tools::RunRunbook).
+  # Read fresh, since a run's chat may have been opened after the run was loaded.
   def self.mark_failed(agent_run, tool_call_id, kind: Chat::StepOutcome::FAILURE_ERROR)
     agent_run.call_failed!(kind) if agent_run.respond_to?(:call_failed!)
     return if tool_call_id.blank?

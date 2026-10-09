@@ -84,7 +84,7 @@ module Slack
       update_message(
         channel_id: channel_id,
         message_id: message_id,
-        text: "Approval #{approval.status}: #{approval.action_key}",
+        text: Slack::Messages::Approval.resolved_fallback(approval),
         blocks: Slack::Messages::Approval.build_resolved(approval)
       )
     end
@@ -276,7 +276,7 @@ module Slack
           thread_ts: parent_message_id
         )
 
-        { message_id: result[:ts], channel_id: result[:channel] }
+        { message_id: result[:ts], channel_id: result[:channel] || channel_id }
       end
     end
 
@@ -305,6 +305,9 @@ module Slack
         Slack::Client.respond_ephemerally(response_url: prompt_handle, text: text)
       end
     end
+
+    # Slack's feedback thumbs show what was pressed themselves. A plain button does not.
+    def confirms_press_itself?(action_id) = action_id == Identifiers::INVESTIGATION_FEEDBACK
 
     def self.refresh_expiring_credentials(buffer:)
       Slack::TokenManager.new.refresh_all_expiring(buffer: buffer)

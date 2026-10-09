@@ -53,6 +53,25 @@ module Integrations
         assert_match "cache (red-1), Key Value instance, available", text
       end
 
+      test "a list cut short says so, and a resource past it is read by its id in this workspace only" do
+        RenderApi.any_instance.stubs(:postgres_databases).with("tea-1").returns(Integrations::Pages::Read.new(items: [], complete: false))
+        RenderApi.any_instance.stubs(:service).raises(RenderApi::NotFound, "Render answered 404")
+        RenderApi.any_instance.stubs(:key_value).raises(RenderApi::NotFound, "Render answered 404")
+        RenderApi.any_instance.stubs(:postgres).raises(RenderApi::NotFound, "Render answered 404")
+        RenderApi.any_instance.stubs(:postgres).with("dpg-2").returns(
+          "id" => "dpg-2", "name" => "orders", "status" => "available", "version" => "16", "owner" => { "id" => "tea-1" },
+          "dashboardUrl" => "https://dashboard.render.com/d/dpg-2"
+        )
+        RenderApi.any_instance.stubs(:postgres).with("dpg-other").returns("id" => "dpg-other", "name" => "theirs", "owner" => { "id" => "tea-2" })
+
+        assert_match "Only the first 3 were read, so name a resource by its id to reach the rest.", call(:list_resources)
+        assert_match "orders, Postgres 16, status available", call(:describe_resource, "resource" => "dpg-2")
+        [ "dpg-other", "dpg-gone" ].each do |asked|
+          error = assert_raises(NativePack::Error) { call(:describe_resource, "resource" => asked) }
+          assert_match "Only the first 3 services and datastores were read", error.message
+        end
+      end
+
       test "logs are asked newest first in the workspace, a regular expression goes between slashes, and the link is the service's page" do
         RenderApi.any_instance.expects(:logs).with do |query|
           query["ownerId"] == "tea-1" && query["resource"] == "srv-web" && query["direction"] == "backward" && query["type"] == "request" &&

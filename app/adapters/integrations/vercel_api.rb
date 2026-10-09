@@ -25,7 +25,6 @@ module Integrations
     # The runtime log stream ends with a row like this when Vercel stops it (vercel/vercel, packages/cli/src/util/logs.ts).
     STREAM_END = "delimiter".freeze
 
-
     def initialize(token, team = nil)
       @token = token
       @team = team.to_s.strip.presence

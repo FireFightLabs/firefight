@@ -38,7 +38,7 @@ module Events
     # The same command /ff investigate runs, so the permission, the refusals and the brief are decided in one place.
     # Files shared with the mention go with the command, for the run to read as a chat does.
     def self.investigate(workspace, channel_id, event, user_text)
-      files = shared_files(workspace, event, workspace.workspace_memberships.find_by(platform_user_id: event["user"]))
+      files = shared_files(workspace, event, Conversation::Opener.member(workspace, event["user"]))
       command = Command.new(
         platform: workspace.platform, workspace_id: workspace.id, user_id: event["user"], text: user_text,
         channel_id: channel_id, metadata: { command: Identifiers::COMMAND_FF, Command::SHARED_FILE_IDS => files.map(&:id) }

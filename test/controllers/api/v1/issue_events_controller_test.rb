@@ -56,7 +56,7 @@ class Api::V1::IssueEventsControllerTest < ActionDispatch::IntegrationTest
 
   test "a Jira workspace checks Jira's signature" do
     jira = connect_tracker!(@workspace, provider: "jira")
-    @workspace.update!(issue_tracker: jira.slug, issue_tracker_target: { "site" => "acme.atlassian.net", "project" => "OPS" }, issue_webhook_secret: "jira-secret")
+    @workspace.update_settings!(issue_tracker: jira.slug, issue_tracker_target: { "site" => "acme.atlassian.net", "project" => "OPS" }, issue_webhook_secret: "jira-secret")
     payload = { "webhookEvent" => "jira:issue_updated", "timestamp" => (Time.current.to_f * 1000).to_i,
                 "issue" => { "key" => "OPS-1", "fields" => { "summary" => "New" } }, "changelog" => { "items" => [ { "field" => "summary" } ] } }
 
@@ -72,8 +72,8 @@ class Api::V1::IssueEventsControllerTest < ActionDispatch::IntegrationTest
 
   test "a Jira webhook Firefight registered is proved by Atlassian's token, with no secret pasted" do
     jira = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "jira", name: "Jira issue sync", slug: "jira_issue_sync", settings: {})
-    jira.integration_environments.create!
-    @workspace.update_columns(issue_tracker: jira.slug, issue_webhook_id: "1000", issue_webhook_secret: nil)
+    jira.integration_environments.create!(issue_webhook_id: "1000")
+    @workspace.update_columns(issue_tracker: jira.slug)
     IntegrationProvider.stubs(:app_client).returns(client_id: "app", client_secret: "app-secret")
     body = { "webhookEvent" => "jira:issue_updated", "timestamp" => (Time.current.to_f * 1000).to_i, "matchedWebhookIds" => [ 1000 ],
              "issue" => { "key" => "OPS-1", "fields" => { "summary" => "New" } }, "changelog" => { "items" => [ { "field" => "summary" } ] } }.to_json

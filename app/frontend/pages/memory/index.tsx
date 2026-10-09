@@ -8,6 +8,7 @@ import { InstructionsTab } from "@/pages/memory/components/instructions-tab"
 import { MemoriesTab } from "@/pages/memory/components/memories-tab"
 import { MEMORY_PAGE_TAB_QUERY, MEMORY_PAGE_TABS, MEMORY_QUERY_PARAM } from "@/lib/generated/constants"
 import type { MemoryPageProps, MemoryTab } from "@/pages/memory/types"
+import { replaceQuery } from "@/lib/query"
 
 function tabFromUrl(): MemoryTab {
   const requested = new URLSearchParams(window.location.search).get(MEMORY_PAGE_TAB_QUERY)
@@ -24,8 +25,7 @@ export default function MemoryPage() {
   const canInstruct = useCan("catalog")
   const [ tab, setTab ] = useState(tabFromUrl)
   const [ focusedId ] = useState(memoryFromUrl)
-  // An expired memory was set aside already, so it no longer waits on anyone.
-  const toReview = memories.filter((memory) => !memory.confirmBlockedReason && memory.state !== "expired").length
+  const toReview = memories.filter((memory) => memory.awaitingDecision).length
 
   function switchTab(value: string) {
     const chosen = Object.values(MEMORY_PAGE_TABS).find((each) => each === value)
@@ -33,9 +33,7 @@ export default function MemoryPage() {
       return
     }
     setTab(chosen)
-    const params = new URLSearchParams(window.location.search)
-    params.set(MEMORY_PAGE_TAB_QUERY, chosen)
-    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`)
+    replaceQuery({ [MEMORY_PAGE_TAB_QUERY]: chosen })
   }
 
   return (

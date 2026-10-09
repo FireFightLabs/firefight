@@ -31,7 +31,8 @@ class IssueWebhookRegistrationTest < ActiveSupport::TestCase
 
     choose(@app)
 
-    assert_equal [ "wh-1", "s3cret", nil ], [ @workspace.issue_webhook_id, @workspace.issue_webhook_secret, @workspace.issue_webhook_blocked_reason ]
+    row = @app.integration_environments.sole
+    assert_equal [ "wh-1", "s3cret", nil ], [ row.issue_webhook_id, row.issue_webhook_secret, @workspace.issue_webhook_blocked_reason ]
     assert Ability::Invocation.exists?(principal_id: @alice.id, action_key: "workspace.update", source: AbilityGateway::SOURCE_ISSUE_SYNC)
     assert_nil @workspace.issue_creation_blocked_reason
   end
@@ -52,13 +53,13 @@ class IssueWebhookRegistrationTest < ActiveSupport::TestCase
 
     Integrations::Packs::Linear.any_instance.expects(:remove_issue_webhook).with(anything, "wh-1")
     choose(nil)
-    assert_nil @workspace.issue_webhook_id
+    assert_nil @app.integration_environments.sole.issue_webhook_id
     assert_not @workspace.ability_grants.exists?(principal: SystemAgent.issue_sync)
 
     choose(@app)
     Integrations::Packs::Linear.any_instance.expects(:remove_issue_webhook).with(anything, "wh-1")
     @service.connection_removed(@app, by: @alice)
-    assert_nil @workspace.reload.issue_webhook_id
+    assert_nil @app.integration_environments.sole.issue_webhook_id
   end
 
   test "a connection through the MCP server registers nothing and asks for the secret instead" do
@@ -72,15 +73,15 @@ class IssueWebhookRegistrationTest < ActiveSupport::TestCase
 
   test "a webhook close to lapsing is refreshed, and one the tracker will not refresh is the reason" do
     jira = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "jira", name: "Jira issue sync", slug: "jira_issue_sync", settings: {})
-    jira.integration_environments.create!
-    @workspace.update_columns(issue_tracker: jira.slug, issue_webhook_id: "1000", issue_webhook_expires_at: 2.days.from_now)
+    row = jira.integration_environments.create!(issue_webhook_id: "1000", issue_webhook_expires_at: 2.days.from_now)
+    @workspace.update_columns(issue_tracker: jira.slug)
     Integrations::Packs::Jira.any_instance.stubs(:refresh_issue_webhook).with(anything, "1000").returns(Time.utc(2026, 12, 1))
 
     IssueWebhookRefreshJob.perform_now
-    assert_equal Time.utc(2026, 12, 1), @workspace.reload.issue_webhook_expires_at
+    assert_equal Time.utc(2026, 12, 1), row.reload.issue_webhook_expires_at
 
     Integrations::Packs::Jira.any_instance.stubs(:refresh_issue_webhook).raises(Integrations::Issues::Failed, "Jira answered 403")
-    @workspace.update_columns(issue_webhook_expires_at: 1.day.from_now)
+    row.update_columns(issue_webhook_expires_at: 1.day.from_now)
     IssueWebhookRefreshJob.perform_now
     assert_match "Jira answered 403", @workspace.reload.issue_webhook_blocked_reason
   end

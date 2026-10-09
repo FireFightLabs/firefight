@@ -15,7 +15,7 @@ import type { Incident } from "@/pages/incidents/types"
 import {
   LifecycleFormDialog,
   type LifecycleForm,
-} from "@/pages/incidents/components/index/lifecycle-form-dialog"
+} from "@/components/incidents/lifecycle-form-dialog"
 import {
   LinkIncidentDialog,
   type LinkableIncident,
@@ -25,6 +25,7 @@ import { EscalateDialog } from "@/pages/incidents/components/index/escalate-dial
 import { InviteDialog } from "@/pages/incidents/components/index/invite-dialog"
 import { ShoutoutDialog } from "@/pages/incidents/components/index/shoutout-dialog"
 import { ReopenDialog } from "@/pages/incidents/components/index/reopen-dialog"
+import { UPDATE_VISIT } from "@/pages/incidents/lib/after-mutation"
 import { INCIDENT_RELATIONSHIPS } from "@/lib/generated/constants"
 
 // Only one is ever open, so one piece of state rather than three that could
@@ -157,7 +158,7 @@ export function IncidentMenu({
       </DropdownMenu>
 
       {dialog?.kind === "lifecycle" && (
-        <LifecycleFormDialog incidentId={incident.id} form={dialog.form} open onOpenChange={close} />
+        <LifecycleFormDialog incidentId={incident.id} form={dialog.form} open onOpenChange={close} updateVisit={UPDATE_VISIT} />
       )}
 
       {dialog?.kind === "link" && (

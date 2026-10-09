@@ -97,7 +97,7 @@ module Integrations
       test "requests are read newest first for one endpoint, filtered in SQL with every value quoted, linked to the workspace" do
         TinybirdApi.any_instance.expects(:query).with do |sql|
           sql.include?("FROM tinybird.pipe_stats_rt") && sql.include?("(pipe_id = 'top_pages' OR pipe_name = 'top_pages')") &&
-            sql.include?("start_datetime >= now() - INTERVAL 30 MINUTE") && sql.include?("positionCaseInsensitive(concat(url, ' ', ifNull(error_message, '')), 'it\\'s') > 0") &&
+            sql.include?("start_datetime >= now() - INTERVAL 30 MINUTE") && sql.include?("ifNull(error_message, '')), 'it\\'s') > 0") &&
             sql.include?("AND error = 1") && sql.end_with?("ORDER BY start_datetime DESC LIMIT 200")
         end.returns("data" => [ { "at" => "2026-10-04 11:58:00", "pipe_name" => "top_pages", "status_code" => 400, "ms" => 12.5, "read_rows" => 10,
                                   "result_rows" => 0, "error" => 1, "message" => "[Error] Missing columns: 'x'", "address" => "/v0/pipes/top_pages.json?date_from=x",
@@ -108,6 +108,16 @@ module Integrations
         assert_match "1 log lines for requests to top_pages", text
         assert_match "2026-10-04T11:58:00Z top_pages HTTP 400, 12.5 ms, 10 rows read, 0 returned, token web, failed: [Error] Missing columns", text
         assert_match "link with what you found: #{SITE}", text
+      end
+
+      test "a request address has its token taken out by the query, and a filter never reads the token" do
+        redacted = "replaceRegexpAll(url, '([?&])token=[^&]*', '\\\\1token=[REDACTED]')"
+        TinybirdApi.any_instance.expects(:query).with do |sql|
+          sql.include?("left(#{redacted}, 300) AS address") && sql.include?("positionCaseInsensitive(concat(#{redacted}, ' ', ifNull(error_message, '')), 'p.eyJ') > 0") &&
+            sql.exclude?("left(url,")
+        end.returns("data" => [])
+
+        call(:endpoint_requests, "text" => "p.eyJ", "minutes" => 30)
       end
 
       test "data source operations name what ran, its result and the error" do

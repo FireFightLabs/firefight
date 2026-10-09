@@ -194,6 +194,14 @@ class Investigation::RemediationStep < ApplicationRecord
   # Approved, and nobody ran it within its window.
   def lapsed? = approved? && approval.present? && (approval.expired? || approval.run_lapsed?)
 
+  # The line an approved step shows once nobody ran it in time, worded from the approval's run window.
+  def lapsed_reason
+    return unless approved?
+
+    who = approval&.approver&.actor_display_name || "An approver"
+    "#{who} approved it, but nobody ran it within #{Ability::Approval::RUN_WINDOW.inspect}, so the approval expired."
+  end
+
   # What Halon read can quote what a provider said, so anything that looks like a credential is replaced first.
   def checked!(report)
     checked = self.class.where(id: id, status: STATUS_APPROVED, state_checked_at: nil)
@@ -290,11 +298,7 @@ class Investigation::RemediationStep < ApplicationRecord
           invocation_id: invocation_id || self.invocation_id, finished_at: Time.current)
   end
 
-  def self.redacted(text)
-    return if text.nil?
-
-    IncidentTranscriptMessage::Scrubbing::SECRET_PATTERNS.reduce(text) { |kept, (name, pattern)| kept.gsub(pattern, "[REDACTED:#{name}]") }
-  end
+  def self.redacted(text) = text && Chat::SecretFree.redacted(text)
 
   def stale_after = pull_request? ? CODE_STALE_AFTER : STALE_AFTER
 
@@ -324,7 +328,7 @@ class Investigation::RemediationStep < ApplicationRecord
       step = citation.source
       next unless step.is_a?(Investigation::Step)
 
-      CodeAgent::Request::Evidence.new(label: step.label.presence || step.tool_name.to_s, text: step.compacted_result.presence || step.raw_result)
+      CodeAgent::Request::Evidence.new(label: step.shown_label, text: step.compacted_result.presence || step.raw_result)
     end.uniq
   end
 

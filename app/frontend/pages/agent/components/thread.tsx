@@ -3,19 +3,19 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import LoadingState from "@/components/agent-ui/loading-state"
 import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
-import { HeldCallCard } from "@/pages/agent/components/held-call-card"
-import { PackRefusalCard } from "@/pages/agent/components/pack-refusal-card"
-import { PullRequestNoticeCard } from "@/pages/agent/components/pull-request-notice-card"
-import { SecretEntryCard } from "@/pages/agent/components/secret-entry-card"
-import { WatchCard } from "@/pages/agent/components/watch-card"
-import { WatchUpdate } from "@/pages/agent/components/watch-update"
+import { HeldCalls } from "@/pages/agent/components/held-calls"
+import { MemoryQuestions } from "@/pages/agent/components/memory-questions"
+import { PackRefusals } from "@/pages/agent/components/pack-refusals"
+import { PullRequestNotices } from "@/pages/agent/components/pull-request-notices"
+import { SecretEntries } from "@/pages/agent/components/secret-entries"
+import { Watches } from "@/pages/agent/components/watches"
+import { WaitingMessage } from "@/pages/agent/components/waiting-message"
 import { ImageDialog } from "@/components/image-dialog"
 import { Message } from "@/pages/agent/components/message"
-import { MessageAttachments } from "@/pages/agent/components/message-attachments"
 import { BEFORE_ALL_TURNS, groupedTurns, liveTurn, placeAfterTurns, settledMessages } from "@/pages/agent/lib/group-turns"
 import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types"
 import type {
-  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMessage, AgentChatPackRefusal, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage,
+  AgentChatAttachment, AgentChatConfirmation, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatPackRefusal, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage,
   AgentChatWatch, AgentChatWatchUpdate, ChatCompaction,
 } from "@/types/serializers"
 
@@ -30,12 +30,13 @@ interface ThreadProps {
   watches: AgentChatWatch[]
   watchUpdates: AgentChatWatchUpdate[]
   pullRequestNotices: AgentChatPullRequestNotice[]
+  memoryQuestions: AgentChatMemoryQuestion[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
 export function Thread({
-  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, waiting, stream,
+  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
@@ -51,6 +52,8 @@ export function Thread({
   const said = useMemo(() => placeAfterTurns(turns, messages, watchUpdates), [ turns, messages, watchUpdates ])
   // A pull request Halon opened sits where Halon said it needs attention.
   const noticed = useMemo(() => placeAfterTurns(turns, messages, pullRequestNotices), [ turns, messages, pullRequestNotices ])
+  // A memory something contradicted sits after the turn that found it, while the person still has the context.
+  const asked = useMemo(() => placeAfterTurns(turns, messages, memoryQuestions), [ turns, messages, memoryQuestions ])
   // Held by id rather than by the message, which the server's copy replaces once it answers.
   const [ openImageId, setOpenImageId ] = useState<string | null>(null)
   const openImage = sentAttachments(turns, waiting).find((attachment) => attachment.id === openImageId) ?? null
@@ -61,7 +64,7 @@ export function Thread({
 
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end" })
-  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length ])
+  }, [ messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length, memoryQuestions.length ])
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-32px),transparent)] [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]">
@@ -71,6 +74,7 @@ export function Thread({
         {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <Watches conversationId={conversationId} watches={watched.get(BEFORE_ALL_TURNS)} updates={said.get(BEFORE_ALL_TURNS)} />}
         {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(BEFORE_ALL_TURNS)} />}
+        <MemoryQuestions questions={asked.get(BEFORE_ALL_TURNS)} />
         {turns.map((turn) => (
           <Fragment key={turn.id}>
             <Message turn={turn} onOpenImage={setOpenImageId} />
@@ -79,6 +83,7 @@ export function Thread({
             {conversationId && <SecretEntries conversationId={conversationId} entries={handed.get(turn.id)} />}
             {conversationId && <Watches conversationId={conversationId} watches={watched.get(turn.id)} updates={said.get(turn.id)} />}
             {conversationId && <PullRequestNotices conversationId={conversationId} notices={noticed.get(turn.id)} />}
+            <MemoryQuestions questions={asked.get(turn.id)} />
           </Fragment>
         ))}
         {live && <Message turn={live} live onOpenImage={setOpenImageId} />}
@@ -96,60 +101,7 @@ export function Thread({
   )
 }
 
-function HeldCalls({ conversationId, heldCalls }: { conversationId: string; heldCalls: AgentChatHeldCall[] | undefined }) {
-  return heldCalls?.map((heldCall) => <HeldCallCard key={heldCall.id} conversationId={conversationId} heldCall={heldCall} />)
-}
-
-function PackRefusals({ conversationId, refusals }: { conversationId: string; refusals: AgentChatPackRefusal[] | undefined }) {
-  return refusals?.map((refusal) => <PackRefusalCard key={refusal.id} conversationId={conversationId} refusal={refusal} />)
-}
-
-function PullRequestNotices({ conversationId, notices }: { conversationId: string; notices: AgentChatPullRequestNotice[] | undefined }) {
-  return notices?.map((notice) => <PullRequestNoticeCard key={notice.id} conversationId={conversationId} notice={notice} />)
-}
-
-function SecretEntries({ conversationId, entries }: { conversationId: string; entries: AgentChatSecretEntry[] | undefined }) {
-  return entries?.map((entry) => <SecretEntryCard key={entry.id} conversationId={conversationId} entry={entry} />)
-}
-
-interface WatchesProps {
-  conversationId: string
-  watches: AgentChatWatch[] | undefined
-  updates: AgentChatWatchUpdate[] | undefined
-}
-
-// The card first, then what was said since, so a line said after the answer reads below the card that started it.
-function Watches({ conversationId, watches, updates }: WatchesProps) {
-  return (
-    <>
-      {watches?.map((watch) => <WatchCard key={watch.id} conversationId={conversationId} watch={watch} />)}
-      {updates?.map((update) => <WatchUpdate key={update.id} update={update} />)}
-    </>
-  )
-}
-
 function sentAttachments(turns: ChatTurn[], waiting: AgentChatWaitingMessage[]): AgentChatAttachment[] {
   const asked = turns.flatMap((turn) => (turn.kind === TURN_KINDS.PERSON ? turn.attachments : []))
   return [ ...asked, ...waiting.flatMap((message) => message.attachments) ]
-}
-
-interface WaitingMessageProps {
-  body: string
-  attachments: AgentChatAttachment[]
-  onOpenImage: (attachmentId: string) => void
-}
-
-// Sent while the agent works. It joins the answer at the agent's next step, and until then it says so.
-function WaitingMessage({ body, attachments, onOpenImage }: WaitingMessageProps) {
-  return (
-    <div className="flex flex-col items-end gap-1">
-      {attachments.length > 0 && <MessageAttachments attachments={attachments} onOpenImage={onOpenImage} />}
-      {body.length > 0 && (
-        <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md border border-border bg-surface-selected px-4 py-2.5 text-[14px] leading-relaxed text-ink opacity-70 [overflow-wrap:anywhere] sm:max-w-[75%]">
-          {body}
-        </p>
-      )}
-      <span className="text-[12px] text-ink-3">Halon reads this at its next step</span>
-    </div>
-  )
 }

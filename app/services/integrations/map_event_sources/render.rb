@@ -6,13 +6,10 @@ module Integrations
     # happened and the id of the service or datastore it is about (render.com/docs/webhooks, Request body), so the map
     # reads that one again. Webhooks need a Pro workspace or higher, and a Pro workspace has room for one.
     class Render < MapEventSource
-      ID_HEADER = "webhook-id".freeze
-      TIMESTAMP_HEADER = "webhook-timestamp".freeze
-      SIGNATURE_HEADER = "webhook-signature".freeze
-      # Each signature in the header is a version and a base64 HMAC-SHA256 of "<id>.<timestamp>.<body>", the key being the
-      # secret after its prefix, base64 decoded, as Render's own receiver checks it with the standardwebhooks library
-      # (render-examples/webhook-receiver, app.ts).
-      SIGNATURE_VERSION = "v1".freeze
+      ID_HEADER = STANDARD_ID_HEADER
+      # Signed as Standard Webhooks specifies (MapEventSource.standard_webhook?), the key being the secret after its prefix,
+      # base64 decoded, as Render's own receiver checks it with the standardwebhooks library (render-examples/webhook-receiver,
+      # app.ts).
       SECRET_PREFIX = "whsec_".freeze
       # A delivery sent further from now than this is refused, the window Render's docs suggest for webhook-timestamp.
       TOLERANCE = 5.minutes
@@ -45,17 +42,8 @@ module Integrations
 
       class << self
         def verify(raw_body:, headers:, secret:)
-          id = headers[ID_HEADER].to_s
-          stamp = headers[TIMESTAMP_HEADER].to_s
-          return false if secret.blank? || id.empty? || !stamp.match?(/\A\d+\z/)
-          return false if (Time.current.to_i - stamp.to_i).abs > TOLERANCE
-
-          key = Base64.decode64(secret.to_s.delete_prefix(SECRET_PREFIX))
-          expected = Base64.strict_encode64(OpenSSL::HMAC.digest("SHA256", key, "#{id}.#{stamp}.#{raw_body}"))
-          headers[SIGNATURE_HEADER].to_s.split.any? do |entry|
-            version, signature = entry.split(",", 2)
-            version == SIGNATURE_VERSION && signature.present? && ActiveSupport::SecurityUtils.secure_compare(signature, expected)
-          end
+          secret.present? && standard_webhook?(raw_body: raw_body, headers: headers, key: Base64.decode64(secret.to_s.delete_prefix(SECRET_PREFIX)),
+                                               tolerance: TOLERANCE)
         end
 
         # One event for a type the map reads again for, about the service or datastore it names. Its id is the same for

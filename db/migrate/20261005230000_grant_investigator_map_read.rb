@@ -29,6 +29,7 @@ class GrantInvestigatorMapRead < ActiveRecord::Migration[8.1]
     execute <<~SQL.squish
       DELETE FROM ability_grants
       WHERE action_id IN (SELECT id FROM ability_actions WHERE key = 'map.read' AND workspace_id IS NULL)
+        AND principal_type = 'SystemAgent' AND principal_id IN (SELECT id FROM system_agents WHERE slug = 'investigator')
     SQL
   end
 end

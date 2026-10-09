@@ -1,7 +1,8 @@
 # Applies a run's fix as the person who applied it. Each step that runs a tool goes through the gateway as them, in the
 # order the fix gives, once the steps it waits on are done. A step an approval rule holds waits for its approver, and once
-# approved for someone to run it, after Halon reads how things stand now. Approving a step never runs it. A step that fails, or is declined, stops the steps that wait on it, and the rest stand. The
-# run's thread carries one message that follows along, and the run page reads the same rows.
+# approved for someone to run it, after Halon reads how things stand now. Approving a step never runs it.
+# A step that fails, or is declined, stops the steps that wait on it, and the rest stand. The run's thread carries one
+# message that follows along, and the run page reads the same rows.
 class Investigation::FixRunner
   # How often a coding agent's steps are kept on the fix step at most while it works. The run page reads them from there.
   PROGRESS_SAVED_EVERY = 2
@@ -312,8 +313,11 @@ class Investigation::FixRunner
       adapter.update_fix_progress(channel_id: @plan.progress_channel_id, message_id: @plan.progress_message_id, plan: @plan)
     else
       posted = adapter.post_fix_progress(channel_id: investigation.channel_id, thread_id: investigation.thread_id, plan: @plan)
-      @plan.claim_progress_message!(channel_id: posted[:channel_id], message_id: posted[:message_id])
-      redraw_answer(adapter, investigation)
+      return redraw_answer(adapter, investigation) if @plan.claim_progress_message!(channel_id: posted[:channel_id], message_id: posted[:message_id])
+
+      # Another worker posted first, so this message goes and the one the thread keeps is brought up to date.
+      adapter.delete_message(channel_id: posted[:channel_id], message_id: posted[:message_id])
+      adapter.update_fix_progress(channel_id: @plan.progress_channel_id, message_id: @plan.progress_message_id, plan: @plan)
     end
   rescue AdapterError => error
     Rails.logger.warn({ event: "fix.progress_not_posted", plan_id: @plan.id, error: error.class.name }.to_json)

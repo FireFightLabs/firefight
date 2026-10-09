@@ -226,6 +226,16 @@ class Chat::AttachmentTest < ActiveSupport::TestCase
     assert_includes Chat::Attachment.abandoned, file
   end
 
+
+  test "a file queued with a message that could not be saved stays unsent, so it can be sent again" do
+    file = take("notes.txt", "the deploy at 14:02")
+    Chat::QueuedMessage.any_instance.stubs(:valid?).returns(false)
+
+    assert_raises(ActiveRecord::RecordInvalid) { @conversation.chat_record.queue_message!("look", sender: @member, files: [ file ]) }
+
+    assert_includes Chat::Attachment.unsent, file.reload
+  end
+
   private
 
   def with_constant(owner, name, value)

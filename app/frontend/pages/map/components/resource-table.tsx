@@ -1,12 +1,12 @@
-import { Link } from "@inertiajs/react"
 import { useState } from "react"
 
-import { Switch } from "@/components/ui/switch"
+import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { incidentPath } from "@/lib/routes"
-import { changeLabel, KIND_LABELS } from "@/pages/map/lib/labels"
-import { shortAgo } from "@/pages/map/lib/time"
+import { RESOURCE_MAP_INCIDENT_WINDOW_DAYS } from "@/lib/generated/constants"
+import { ResourceRow } from "@/pages/map/components/resource-row"
+import { linkCounts } from "@/pages/map/lib/link-counts"
 import type { ResourceMapLink, ResourceMapResource } from "@/types/serializers"
 
 interface ResourceTableProps {
@@ -29,102 +29,37 @@ export function ResourceTable({ resources, links, onPick }: ResourceTableProps) 
         <Switch id="only-alone" checked={onlyAlone} onCheckedChange={setOnlyAlone} />
         <Label htmlFor="only-alone" className="font-normal text-muted-foreground">Only resources with no links</Label>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Resource</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead className="text-right">Depended on by</TableHead>
-              <TableHead className="text-right">Links</TableHead>
-              <TableHead>Runs</TableHead>
-              <TableHead className="text-right">Incidents, 30 days</TableHead>
-              <TableHead>Last change</TableHead>
-              <TableHead>Now</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && (
+      <Card className="overflow-hidden py-0">
+        <CardContent className="overflow-x-auto p-0 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                  Every resource here has at least one link.
-                </TableCell>
+                <TableHead>Resource</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead className="text-right">Depended on by</TableHead>
+                <TableHead className="text-right">Links</TableHead>
+                <TableHead>Runs</TableHead>
+                <TableHead className="text-right">Incidents, {RESOURCE_MAP_INCIDENT_WINDOW_DAYS} days</TableHead>
+                <TableHead>Last change</TableHead>
+                <TableHead>Now</TableHead>
               </TableRow>
-            )}
-            {rows.map((resource) => (
-              <ResourceRow key={resource.id} resource={resource} count={counts.get(resource.id)} onPick={onPick} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                    {onlyAlone ? "Every resource here has at least one link." : "No resource matches these filters."}
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((resource) => (
+                <ResourceRow key={resource.id} resource={resource} count={counts.get(resource.id)} onPick={onPick} />
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
-  )
-}
-
-interface Count {
-  facts: number
-  suggested: number
-}
-
-function linkCounts(links: ResourceMapLink[]): Map<string, Count> {
-  const counts = new Map<string, Count>()
-  for (const link of links) {
-    for (const id of [ link.fromId, link.toId ]) {
-      const count = counts.get(id) ?? { facts: 0, suggested: 0 }
-      if (link.unconfirmed) {
-        count.suggested += 1
-      } else {
-        count.facts += 1
-      }
-      counts.set(id, count)
-    }
-  }
-  return counts
-}
-
-function ResourceRow({ resource, count, onPick }: { resource: ResourceMapResource; count?: Count; onPick: (resourceId: string) => void }) {
-  const burning = resource.openIncidents.length > 0
-
-  function pick() {
-    onPick(resource.id)
-  }
-
-  return (
-    <TableRow className={burning ? "bg-destructive/5" : undefined}>
-      <TableCell>
-        <button type="button" onClick={pick} className="font-semibold hover:underline">
-          {resource.name}
-        </button>
-      </TableCell>
-      <TableCell className="text-muted-foreground">{KIND_LABELS[resource.kind]}</TableCell>
-      <TableCell className="text-muted-foreground">{resource.providerName} · {resource.account}</TableCell>
-      <TableCell className="text-right tabular-nums">
-        {resource.dependentIds.length}
-        {resource.suggestedDependentIds.length > 0 && <span className="text-brand"> +{resource.suggestedDependentIds.length} suggested</span>}
-      </TableCell>
-      <TableCell className="text-right tabular-nums">
-        {count ? count.facts : <span className="text-muted-foreground">None found</span>}
-        {count && count.suggested > 0 && <span className="text-brand"> +{count.suggested} suggested</span>}
-      </TableCell>
-      <TableCell className="text-muted-foreground">{resource.catalogEntries.map((entry) => entry.name).join(", ") || "-"}</TableCell>
-      <TableCell className="text-right tabular-nums">{resource.recentIncidentCount}</TableCell>
-      <TableCell className="text-muted-foreground">
-        {resource.lastChange ? `${changeLabel(resource.lastChange)}, ${shortAgo(resource.lastChange.happenedAt)} ago` : "-"}
-      </TableCell>
-      <TableCell>
-        {burning ? (
-          <span className="flex flex-wrap gap-1.5">
-            {resource.openIncidents.map((incident) => (
-              <Link key={incident.id} href={incidentPath(incident.id)} className="rounded-md bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground">
-                {incident.identifier} open
-              </Link>
-            ))}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
-      </TableCell>
-    </TableRow>
   )
 }

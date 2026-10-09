@@ -71,11 +71,16 @@ import {
   settingsWorkspacePath,
 } from "@/lib/routes"
 
+// The counts a link can carry, named apart from its title so renaming a link keeps its badge.
+const BADGES = { APPROVALS: "approvals", PACK_REQUESTS: "packRequests" } as const
+type BadgeKey = (typeof BADGES)[keyof typeof BADGES]
+
 interface SidebarNavItem {
   title: string
   url: string
   icon: Icon
   adminOnly?: boolean
+  badgeKey?: BadgeKey
   badge?: number
 }
 
@@ -97,9 +102,9 @@ const navSections: SidebarNavSection[] = [
     label: "Gateway",
     items: [
       { title: "Agents", url: gatewayAgentsPath(), icon: IconRobot, adminOnly: true },
-      { title: "Approvals", url: gatewayApprovalsPath(), icon: IconShieldCheck },
+      { title: "Approvals", url: gatewayApprovalsPath(), icon: IconShieldCheck, badgeKey: BADGES.APPROVALS },
       { title: "Activity", url: gatewayActivityPath(), icon: IconHistory, adminOnly: true },
-      { title: "Permissions", url: gatewayPermissionsPath(), icon: IconLock, adminOnly: true },
+      { title: "Permissions", url: gatewayPermissionsPath(), icon: IconLock, adminOnly: true, badgeKey: BADGES.PACK_REQUESTS },
     ],
   },
   {
@@ -133,9 +138,9 @@ const navSections: SidebarNavSection[] = [
   },
 ]
 
-// The Gateway links that carry a count of what waits on someone.
-function badgedItem(item: SidebarNavItem, counts: Record<string, number | undefined>): SidebarNavItem {
-  return item.title in counts ? { ...item, badge: counts[item.title] } : item
+// The links that carry a count of what waits on someone.
+function badgedItem(item: SidebarNavItem, counts: Record<BadgeKey, number | undefined>): SidebarNavItem {
+  return item.badgeKey ? { ...item, badge: counts[item.badgeKey] } : item
 }
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
@@ -171,16 +176,11 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       )
     : sectionsWithAgent
 
-  const sectionsWithBadges = sectionsWithBilling.map((section) =>
-    section.label === "Gateway"
-      ? {
-          ...section,
-          items: section.items.map((item) =>
-            badgedItem(item, { Approvals: pendingApprovalsCount, Permissions: waitingPackRequestsCount }),
-          ),
-        }
-      : section,
-  )
+  const counts = { [BADGES.APPROVALS]: pendingApprovalsCount, [BADGES.PACK_REQUESTS]: waitingPackRequestsCount }
+  const sectionsWithBadges = sectionsWithBilling.map((section) => ({
+    ...section,
+    items: section.items.map((item) => badgedItem(item, counts)),
+  }))
 
   const sections = currentUserIsAdmin
     ? sectionsWithBadges

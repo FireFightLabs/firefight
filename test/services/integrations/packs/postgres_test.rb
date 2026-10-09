@@ -57,6 +57,17 @@ module Integrations
         assert_match "cannot insert multiple commands", error.message
       end
 
+      test "a function that acts on the server rather than reading it is refused by name, in a query and in a plan" do
+        [ "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE false", "SELECT pg_catalog.pg_cancel_backend(1) WHERE false",
+          "SELECT \"pg_terminate_backend\" (1) WHERE false", "SELECT set_config('statement_timeout', '0', true)", "SELECT pg_advisory_lock(1) WHERE false",
+          "SELECT pg_reload_conf() WHERE false" ].each do |sql|
+          error = assert_raises(PolicyRefusal) { call(:run_query, "sql" => sql) }
+          assert_match(/\AFirefight only reads this database, and (pg_\w+|set_config) acts on it\.\z/, error.message)
+        end
+        assert_raises(PolicyRefusal) { call(:explain_query, "sql" => "SELECT pg_terminate_backend(1) WHERE false", "analyze" => true) }
+        assert_match "1 rows.", call(:run_query, "sql" => "SELECT count(*) FROM pg_stat_activity WHERE query NOT LIKE 'x'")
+      end
+
       test "a plan can be read, and run for real timings" do
         assert_match "Result", call(:explain_query, "sql" => "SELECT 1")
         assert_match "actual time", call(:explain_query, "sql" => "SELECT 1", "analyze" => true)

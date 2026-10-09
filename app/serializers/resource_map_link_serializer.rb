@@ -17,7 +17,7 @@ class ResourceMapLinkSerializer < BaseSerializer
   type "ResourceMapOrigin"
   def origin = link.origin
 
-  # The connection that declared or matched it, such as Northflank.
+  # The connection that declared or matched it, such as the hosting connection.
   type :string, optional: true
   def found_by = link.integration_environment&.integration&.name
 

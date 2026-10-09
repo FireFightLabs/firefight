@@ -43,6 +43,18 @@ class DocsClientTest < ActiveSupport::TestCase
     assert_equal "\"v1\"", requests.last["If-None-Match"]
   end
 
+  test "a page that redirects to another site is read only where that site's robots.txt allows" do
+    DocsClient.any_instance.stubs(:sleep)
+    moved = response(301, "").tap { |made| made["location"] = "https://other.example/docs/a.md" }
+    DocsClient.any_instance.stubs(:transport).with { |uri, _request| uri.host == "example.com" && uri.path == "/robots.txt" }.returns(response(404, ""))
+    DocsClient.any_instance.stubs(:transport).with { |uri, _request| uri.host == "example.com" && uri.path == "/docs/a.md" }.returns(moved)
+    DocsClient.any_instance.stubs(:transport).with { |uri, _request| uri.host == "other.example" && uri.path == "/robots.txt" }
+              .returns(response(200, "User-agent: *\nDisallow: /docs\n"))
+    DocsClient.any_instance.expects(:transport).with { |uri, _request| uri.host == "other.example" && uri.path == "/docs/a.md" }.never
+
+    assert_raises(DocsClient::Refused) { DocsClient.new.page("https://example.com/docs/a.md") }
+  end
+
   private
 
   def response(code, body)

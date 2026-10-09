@@ -88,6 +88,13 @@ module Integrations
       resources.group_by { |resource| resource.details.to_h[ResourceMap::SCOPE].presence }.except(nil)
     end
 
+    # The scope the map has the connection's resource with this external id in, or nil when the map has not marked it.
+    def self.holding(environment_row, external_id)
+      ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: environment_row.integration.provider, external_id: external_id)
+                           .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
+                           .pick(Arel.sql("resource_map_resources.details ->> '#{ResourceMap::SCOPE}'"))
+    end
+
     # The scopes the resources named by references live in on the connection's map, each with the names found there.
     def self.on_map(environment_row, references)
       wanted = Array(references).filter_map { |reference| reference.to_s.strip.downcase.presence }.uniq

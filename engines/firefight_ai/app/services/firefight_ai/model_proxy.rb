@@ -29,9 +29,11 @@ module FirefightAi
 
     def self.providers(config = RubyLLM.config)
       {
+        # Anthropic calls remote MCP servers named at the top of the body and keeps code execution state in a container,
+        # and neither sits under tools, where the tool check looks, so both are dropped.
         ANTHROPIC => Provider.new(base: config.anthropic_api_base.presence || "https://api.anthropic.com/v1", key: config.anthropic_api_key,
                                   paths: %w[messages], headers: %w[anthropic-version anthropic-beta], tool_types: [ nil, "custom" ],
-                                  output_keys: %w[max_tokens], dropped_keys: []),
+                                  output_keys: %w[max_tokens], dropped_keys: %w[mcp_servers container]),
         OPENAI => Provider.new(base: config.openai_api_base.presence || "https://api.openai.com/v1", key: config.openai_api_key,
                                paths: [ CHAT_COMPLETIONS, "responses" ], headers: [], tool_types: [ "function" ],
                                output_keys: %w[max_tokens max_completion_tokens max_output_tokens], dropped_keys: []),

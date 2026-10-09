@@ -23,7 +23,7 @@ class ApiKeysController < InertiaController
     end
 
     flash.inertia[:api_key_token] = raw_token
-    redirect_to developer_api_keys_path
+    redirect_to developer_api_keys_path, notice: "#{api_key.name} was created."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: developer_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
@@ -43,7 +43,7 @@ class ApiKeysController < InertiaController
       @api_key.replace_permissions!(params[:permissions].to_unsafe_h) if params.key?(:permissions)
     end
 
-    redirect_to developer_api_keys_path
+    redirect_to developer_api_keys_path, notice: "#{@api_key.name} was updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: developer_api_keys_path,
       inertia: { errors: e.record.errors.to_hash }
@@ -53,7 +53,7 @@ class ApiKeysController < InertiaController
 
   def destroy
     @api_key.soft_delete!
-    redirect_to developer_api_keys_path
+    redirect_to developer_api_keys_path, notice: "#{@api_key.name} was deleted. It no longer works."
   end
 
   # What the key can do as the gateway resolves it, the answer to why a call was denied.

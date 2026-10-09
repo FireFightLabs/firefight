@@ -951,6 +951,7 @@ DEPENDENCIES
   pdf-reader (~> 2.14)
   pg (~> 1.7)
   prometheus-client-mmap (~> 1.3)
+  public_suffix (~> 7.0)
   puma (>= 5.0)
   rack-attack
   rails (~> 8.1.4)

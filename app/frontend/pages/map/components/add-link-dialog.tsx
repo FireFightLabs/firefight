@@ -1,3 +1,4 @@
+import type { ChangeEvent, FormEvent } from "react"
 import { useForm } from "@inertiajs/react"
 
 import { Button } from "@/components/ui/button"
@@ -14,9 +15,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
-import { RESOURCE_MAP_RELATIONS, type ResourceMapRelation } from "@/lib/generated/constants"
+import { RESOURCE_MAP_RELATION, RESOURCE_MAP_RELATIONS, type ResourceMapRelation } from "@/lib/generated/constants"
 import { resourceMapLinksPath } from "@/lib/routes"
 import { RELATION_SENTENCES } from "@/pages/map/lib/labels"
+import { MAP_VISIT } from "@/pages/map/lib/visit"
 import type { ResourceMapResource } from "@/types/serializers"
 
 interface AddLinkDialogProps {
@@ -26,7 +28,7 @@ interface AddLinkDialogProps {
   fromId: string | null
 }
 
-const DEFAULT_RELATION: ResourceMapRelation = "uses"
+const DEFAULT_RELATION: ResourceMapRelation = RESOURCE_MAP_RELATION.USES
 
 // A link a person knows and no provider reports, such as a service that uses a database it reaches by a secret.
 export function AddLinkDialog({ open, onOpenChange, resources, fromId }: AddLinkDialogProps) {
@@ -40,9 +42,9 @@ export function AddLinkDialog({ open, onOpenChange, resources, fromId }: AddLink
   const from = resources.find((resource) => resource.id === data.from_id)
   const to = resources.find((resource) => resource.id === data.to_id)
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault()
-    post(resourceMapLinksPath(), { preserveScroll: true, onSuccess: finish })
+    post(resourceMapLinksPath(), { ...MAP_VISIT, onSuccess: finish })
   }
 
   function finish() {
@@ -65,7 +67,7 @@ export function AddLinkDialog({ open, onOpenChange, resources, fromId }: AddLink
     }
   }
 
-  function writeNote(event: React.ChangeEvent<HTMLTextAreaElement>) {
+  function writeNote(event: ChangeEvent<HTMLTextAreaElement>) {
     setData("note", event.target.value)
   }
 

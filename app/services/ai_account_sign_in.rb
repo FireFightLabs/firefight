@@ -6,6 +6,8 @@ require "net/http"
 # account's credentials, kept like a key and refreshed before they expire.
 class AiAccountSignIn
   class Failed < StandardError; end
+  # The provider was not reached or failed on its side, which says nothing about the account.
+  class Unreachable < Failed; end
 
   TIMEOUT = 15
 
@@ -48,8 +50,10 @@ class AiAccountSignIn
     tokens = token_request(sign_in, grant_type: "refresh_token", refresh_token: refresh_token)
     account.store_tokens!({ "access_token" => tokens["access_token"], "refresh_token" => tokens["refresh_token"].presence || refresh_token },
                           expires_at: expires_at(tokens))
+  rescue Unreachable => error
+    Rails.logger.warn({ event: "ai_account.token_refresh_unreachable", workspace_ai_account_id: account.id, error: error.message }.to_json)
   rescue Failed => e
-    account.key_refused!(FirefightAi::TerminalError.new(e.message, reason: AiAccountError::KEY_REASONS.first))
+    AiRefusal.key_refused!(account, FirefightAi::TerminalError.new(e.message, reason: AiAccountError::KEY_REASONS.first))
   end
 
   private
@@ -59,12 +63,14 @@ class AiAccountSignIn
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
       http.post(uri.request_uri, URI.encode_www_form(params.merge(client_id: sign_in.client_id)), "Content-Type" => "application/x-www-form-urlencoded")
     end
+    raise Unreachable, "The provider could not be reached to sign in." if response.is_a?(Net::HTTPServerError)
+
     body = JSON.parse(response.body.to_s)
     raise Failed, "The provider did not accept the sign in." unless response.is_a?(Net::HTTPSuccess) && body["access_token"].present?
 
     body
   rescue JSON::ParserError, SocketError, Timeout::Error, SystemCallError, OpenSSL::SSL::SSLError
-    raise Failed, "The provider could not be reached to sign in."
+    raise Unreachable, "The provider could not be reached to sign in."
   end
 
   def expires_at(tokens) = tokens["expires_in"].present? ? tokens["expires_in"].to_i.seconds.from_now : nil

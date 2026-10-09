@@ -4,14 +4,15 @@ import { useState } from "react"
 import { Button } from "@/components/agent-ui/button"
 import { IncidentsBlocked, useIncidentsBlockedReason } from "@/components/incidents/incidents-blocked"
 import ThinkingState, { type ThinkingRow, type ThinkingRowStatus } from "@/components/agent-ui/thinking-state"
-import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { isLive } from "@/components/investigations/use-live-investigation"
+import { stepsWord } from "@/lib/code-fix-work"
 import { STEP_OUTCOME_KINDS } from "@/lib/generated/constants"
 import { isOutcomeKind, type StepOutcomeKind } from "@/lib/step-outcome"
 import { incidentPath } from "@/lib/routes"
 import { AnswerText } from "@/pages/agent/components/answer-text"
-import { LifecycleFormDialog } from "@/pages/incidents/components/index/lifecycle-form-dialog"
+import { ChartGrid } from "@/pages/agent/components/chart-grid"
+import { LifecycleFormDialog } from "@/components/incidents/lifecycle-form-dialog"
 import { openRun, stopRun } from "@/pages/agent/lib/chat-updates"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { InvestigationCard } from "@/types/serializers"
@@ -58,15 +59,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
         working={working}
       />
       {run.answer && <AnswerText text={run.answer} />}
-      {run.charts.length > 0 && (
-        <div className={`grid w-full gap-2 ${run.charts.length > 1 ? "max-w-160 sm:grid-cols-2" : "max-w-110"}`}>
-          {run.charts.map((chart) => (
-            <div key={chart.id} className="rounded-card bg-surface px-3.5 py-3 shadow-card">
-              <MetricChart chart={chart} />
-            </div>
-          ))}
-        </div>
-      )}
+      {run.charts.length > 0 && <ChartGrid charts={run.charts} />}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={open}>
           {working ? "Open the run" : "See how it got there"}
@@ -95,8 +88,7 @@ export function InvestigationRunCard({ toolCallKey }: InvestigationRunCardProps)
 }
 
 function doneLabel(run: InvestigationCard) {
-  const checked = run.steps.length === 1 ? "1 step" : `${run.steps.length} steps`
-  return `Investigated in ${formatSeconds(run.durationSeconds)}, ${checked}`
+  return `Investigated in ${formatSeconds(run.durationSeconds)}, ${stepsWord(run.steps.length)}`
 }
 
 type RunStep = InvestigationCard["steps"][number]

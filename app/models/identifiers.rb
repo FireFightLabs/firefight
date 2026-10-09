@@ -25,6 +25,7 @@ module Identifiers
   TIMELINE_MODAL = "timeline_modal"
   MEMORY_CORRECT_MODAL = "memory_correct_modal"
   CODE_QUESTION_MODAL = "code_question_modal"
+  CODE_QUESTION_CHANGE_MODAL = "code_question_change_modal"
 
   # Shortcut callback_ids
   CREATE_INCIDENT_SHORTCUT = "create_incident_shortcut"
@@ -162,9 +163,9 @@ module Identifiers
   HELD_CALL_RUN = "held_call_run"
   HELD_CALL_DISMISS = "held_call_dismiss"
   HELD_CALL_ASK_AGAIN = "held_call_ask_again"
-  # On a pull request Halon opened that needs attention: runs the code change on its branch as whoever asked for it.
+  # On a pull request Halon opened that needs attention. It runs the code change on its branch as whoever asked for it.
   PULL_REQUEST_FIX = "pull_request_fix"
-  # A change refused for want of a pack: the person refused asks the admins, and an admin gives it.
+  # A change refused for want of a pack. The person refused asks the admins, and an admin gives it.
   PACK_REQUEST_ASK = "pack_request_ask"
   PACK_REQUEST_GIVE = "pack_request_give"
   # The same for an approved step of a fix.
@@ -181,6 +182,8 @@ module Identifiers
   CODE_QUESTION_ANSWER = "code_question_answer"
   # Picks one of a coding agent's options. Each button adds its place, since Slack wants a block's action ids unique.
   CODE_QUESTION_CHOOSE = "code_question_choose"
+  # Opens a form to change the answer to a coding agent's settled question while its change is still written.
+  CODE_QUESTION_CHANGE = "code_question_change"
   # Continue or Stop on a code change paused at its spending limit.
   CODE_PAUSE_CONTINUE = "code_pause_continue"
   CODE_PAUSE_STOP = "code_pause_stop"

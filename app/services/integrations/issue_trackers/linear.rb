@@ -91,7 +91,7 @@ module Integrations
         return Issues::Outcome.new(notes: notes) if arguments.size == 1
 
         result = call(SAVE_ISSUE, arguments, "change #{key}")
-        return Issues::Outcome.new(notes: notes, gone: true) if missing?(result)
+        return Issues::Outcome.new(notes: notes, gone: true) if gone?(result, key, target)
 
         answered!(SAVE_ISSUE, result, "change #{key}")
         Issues::Outcome.new(issue: issue_of(Capabilities::Answers.data(result)), notes: notes)

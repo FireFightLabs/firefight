@@ -62,8 +62,8 @@ module Mcp
       found.is_a?(String) ? ToolDispatcher.error_response(found) : found
     end
 
-    # run_key_query, for anything on the map: one of the resource's key checks through the capability it names, each
-    # call authorized as that capability's would be, the answer led by how it compares with normal.
+    # run_key_query runs one of a resource's key checks through the capability it names, each call authorized as that
+    # capability's would be, and leads the answer with how it compares with normal.
     def self.key_query_tool
       ::MCP::Tool.define(
         name: ResourceMap::KeyQueries::TOOL_NAME,
@@ -96,8 +96,7 @@ module Mcp
     end
 
     def self.build(spec, tools, workspace)
-      schema = Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools))
-      schema["properties"] = schema["properties"].merge(APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" })
+      schema = with_approval_id(Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools)))
       key = spec.key
       ::MCP::Tool.define(
         name: spec.tool_name,
@@ -129,7 +128,7 @@ module Mcp
 
       # The gateway uses an approval id only on the call it approved, so the retry carries it to both.
       backup = invoke_call(call.fallback, server_context, approval_id: approval_id)
-      failure = Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n") if response.error?
+      failure = ToolDispatcher.text_of(response) if response.error?
       [ ::MCP::Tool::Response.new([ { type: "text", text: Integrations::Capabilities.fell_back(call, failure: failure) }, *Array(backup.content) ],
                                   structured_content: backup.structured_content, error: backup.error? && response.error?),
         (call.fallback unless backup.is_a?(Waiting) || backup.error?) ]
@@ -148,7 +147,7 @@ module Mcp
         [ found.environment_row, invoke_call(found, server_context, approval_id: nil, alone: false) ]
       end
       text = results.map do |row, response|
-        Integrations::Capabilities.headed(row, Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n"))
+        Integrations::Capabilities.headed(row, ToolDispatcher.text_of(response))
       end
       structured = results.filter_map { |row, response| [ Integrations::Capabilities.connection_label(row), response.structured_content ] if response.structured_content }
       ::MCP::Tool::Response.new([ { type: "text", text: text.join("\n\n") } ], structured_content: structured.to_h.presence,
@@ -184,7 +183,7 @@ module Mcp
     rescue Integrations::Capabilities::Unroutable => e
       ToolDispatcher.error_response(e.message)
     rescue AbilityGateway::Denied
-      ToolDispatcher.error_response("No grant covers '#{tool.action_key}' here. Token scopes are documented at #{Docs::MCP_SERVER}")
+      ToolDispatcher.error_response("No grant covers '#{tool.action_key}' here.#{ConnectionToolFactory.pack_hint(tool)} Token scopes are documented at #{Docs::MCP_SERVER}")
     rescue AbilityGateway::PendingApproval => e
       retry_as = alone ? "Retry the identical call" : "Retry with connection: \"#{call.connection}\" instead of #{Integrations::Capabilities::ALL}"
       text = "Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} must approve " \

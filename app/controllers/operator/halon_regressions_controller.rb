@@ -14,7 +14,7 @@ module Operator
         workspacesOptedIn: HalonRegression.workspaces_opted_in,
         promptVersion: Investigation::Regression.prompt_version,
         runBlockedReason: Actions.regression_blocked_reason,
-        models: InertiaRails.optional { HalonRegressionModelSerializer.many(HalonRegression.models) },
+        HalonRegression::MODELS_PROP => InertiaRails.optional { HalonRegressionModelSerializer.many(HalonRegression.models) },
         page: page, more: runs.size > PER_PAGE
       }
     end
@@ -32,7 +32,7 @@ module Operator
       blocked = Actions.regression_blocked_reason
       return redirect_to(operator_halon_regressions_path, alert: blocked) if blocked
 
-      chosen = params[:model].presence && HalonRegression.model(params[:model])
+      chosen = params[:model].presence && HalonRegression.model(params[:model], params[:provider])
       return redirect_to(operator_halon_regressions_path, alert: "That model is not one Firefight can price, so choose another.") if params[:model].present? && !chosen
 
       run = Investigation::Regression.start!(trigger: Investigation::RegressionRun::TRIGGER_OPERATOR, model: chosen&.id, provider: chosen&.provider, by: current_user)

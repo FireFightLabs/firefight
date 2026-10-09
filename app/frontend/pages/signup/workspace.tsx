@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginPath, signInWithSlackPath, signupWorkspacePath } from "@/lib/routes";
+import { retryWait, TOO_MANY_STATUS } from "@/lib/http";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
 import type { SharedProps } from "@/types";
@@ -19,9 +20,6 @@ interface SignupWorkspacePageProps extends SharedProps {
   // Someone new by email has no name yet.
   askName: boolean;
 }
-
-const TOO_MANY_STATUS = 429;
-const TOO_MANY_MESSAGE = "Too many workspaces were created from this network. Try again in an hour.";
 
 const LINK_CLASS =
   "font-semibold text-fg-primary underline decoration-border-control underline-offset-[3px] transition-colors duration-120 hover:decoration-fg-primary";
@@ -47,7 +45,7 @@ export default function SignupWorkspace() {
     if (response.status !== TOO_MANY_STATUS) {
       return;
     }
-    form.setError("name", [TOO_MANY_MESSAGE]);
+    form.setError("name", [`Too many workspaces were created from this network. Try again ${retryWait(response)}.`]);
     return false;
   }
 

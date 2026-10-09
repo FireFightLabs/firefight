@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useSlackData } from "@/pages/catalogue/hooks/use-slack-data"
 import { omitErrors, pickErrors } from "@/lib/form-errors"
-import { FormErrors } from "@/pages/settings/components/form-errors"
+import { FormErrors } from "@/components/form-errors"
 
 const NAME_FIELDS = ["name", "slug"]
 

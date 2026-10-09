@@ -31,7 +31,7 @@ class ResourceMapController < InertiaController
     check = ResourceMap::KeyQueries.find(target.kind, params[:check])
     return render(json: { outcome: { refusal: ResourceMap::KeyQueries.unknown(target, params[:check]) } }, status: :unprocessable_entity) unless check
 
-    outcome = ResourceMap::KeyQueries.run!(target, check, principal: current_membership, approval_id: params[:approval_id].presence)
+    outcome = ResourceMap::KeyQueryRun.call(target, check, principal: current_membership, approval_id: params[:approval_id].presence)
     render json: { outcome: ResourceMapCheckOutcomeSerializer.one(outcome) }
   end
 

@@ -63,16 +63,25 @@ module Integrations
         in [ STATUS, ResourceMap::KIND_ZONE ] then status(resource, account, "/zones/#{resource.external_id}")
         in [ STATUS, ResourceMap::KIND_SITE ] then status(resource, account, "/accounts/#{account}/pages/projects/#{resource.external_id}")
         in [ ROLLBACK, ResourceMap::KIND_WORKER ]
-          version = target(given)
+          version = id_of(given, "version")
           change(account, { "method" => "POST", "path" => "/accounts/#{account}/workers/scripts/#{resource.external_id}/deployments",
                             "body" => { "strategy" => "percentage", "versions" => [ { "version_id" => version, "percentage" => 100 } ],
                                         "annotations" => { "workers/message" => "Rolled back to #{version} by Firefight" } } },
                  "#{resource.name} now serves version #{version} to all traffic.")
         in [ ROLLBACK, ResourceMap::KIND_SITE ]
-          deployment = target(given)
+          deployment = id_of(given, "deployment")
           change(account, { "method" => "POST", "path" => "/accounts/#{account}/pages/projects/#{resource.external_id}/deployments/#{deployment}/rollback" },
                  "#{resource.name} is rolled back to deployment #{deployment}.")
         end
+      end
+
+      # A Worker version and a Pages deployment are both known by a UUID (Cloudflare's API docs). Anything else is refused
+      # before it is put in a request, since it goes into the path and could name another endpoint.
+      def self.id_of(given, what)
+        id = target(given)
+        raise Unroutable, "Give the #{what} id recent_deploys shows." unless id.match?(/\A\h[\h-]*\z/)
+
+        id
       end
 
       # The account a resource is in. The map keeps the account's name, and the reader writes every page address as

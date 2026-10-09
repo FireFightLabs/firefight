@@ -45,6 +45,8 @@ module Integrations
 
           read = api(row, subscription).activity_log(Time.iso8601(since) - LAG, now)
           events = read.items.filter_map { |entry| event_of(subscription, entry, known) }
+          # A log longer than one read takes is swept in full, since the changes past the cut are not read.
+          events << busy(subscription, now) if read.incomplete?
           MapEventSource::Polled.new(events: events, cursor: now.utc.iso8601(6))
         end
 
@@ -65,6 +67,11 @@ module Integrations
           ResourceMap::Event.new(id: entry["eventDataId"], at: at, action: action,
                                  scope: ResourceMap::Scope.new(account: subscription, kind: Packs::Azure::KINDS.fetch(target.type),
                                                                external_id: known.fetch(target.id.downcase, target.id)))
+        end
+
+        def busy(subscription, now)
+          ResourceMap::Event.new(id: "activity-log-busy #{subscription} #{now.utc.iso8601(6)}", at: now, action: ResourceMap::Event::UPDATED,
+                                 scope: ResourceMap::Scope.everything)
         end
 
         # The app or database an id is, or holds it, by the shortest start of the id the pack reads as one.

@@ -8,7 +8,6 @@ module Interactions
       workspace = interaction.workspace
       adapter = workspace.adapter
       member = WorkspaceMemberProvisioner.find_or_provision!(workspace: workspace, platform_user_id: interaction.user_id, adapter: adapter)
-      return adapter.memory_correction_error("Firefight could not tell who you are in this workspace.") unless member
 
       written = adapter.memory_correction(values: interaction.values)
       refusal = MemoryPostService.new(workspace).correct!(post_id: interaction.metadata.memory_post_id, memory_id: interaction.metadata.memory_id,

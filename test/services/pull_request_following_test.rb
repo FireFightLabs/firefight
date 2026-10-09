@@ -82,6 +82,18 @@ class PullRequestFollowingTest < ActiveSupport::TestCase
     assert_match "never that a conflict is resolved unless the host says it can merge", told
   end
 
+  test "Fix it with no chat to run the change in says so and leaves the offer to press again" do
+    reads(status(mergeable: Integrations::PullRequests::CONFLICTED))
+    PullRequestFollowing.check!(@session)
+    notice = @session.notices.sole
+    notice.update_columns(conversation_id: nil)
+    PullRequestFollowing.stubs(:thread_conversation).returns(nil)
+
+    assert_equal PullRequestFollowing::COULD_NOT_FIX, PullRequestFollowing.fix!(notice, by: @bob)
+    assert notice.reload.offered?
+    assert_nil notice.fix_blocked_reason(@bob)
+  end
+
   test "an approval rule holds Fix it's change for its approver, so it does not run on the press alone" do
     @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
     Integrations::NativeExecutor.expects(:call).never

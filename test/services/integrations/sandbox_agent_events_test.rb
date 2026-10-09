@@ -101,7 +101,49 @@ module Integrations
       end
     end
 
+    test "a provider's error stops it with one plain line, never the headers and body it came with" do
+      work = Chat::CodeFixProgress.start
+      events = SandboxAgentEvents.new(work)
+      events.read("#{api_error.to_json}\n")
+
+      assert_equal "Stopped: Too many requests, try again later", work.lines.last.text
+      assert_equal "Too many requests, try again later", events.stop_reason("")
+      refute_match "cf-ray", work.lines.last.text
+    end
+
+    test "the last words and why it stopped are read from the log when nothing was heard as it ran" do
+      log = [ "tail of a line cut short\"}", { type: "text", part: { text: "I set the pool to 10.\n\nCould not run here:\n- the tests, since no database was there" } }.to_json,
+              api_error.to_json ].join("\n")
+      events = SandboxAgentEvents.new(Chat::CodeFixProgress.start)
+
+      assert_equal "I set the pool to 10.\n\nCould not run here:\n- the tests, since no database was there", events.last_words(log)
+      assert_equal "Too many requests, try again later", events.stop_reason(log)
+      assert_nil events.last_words("not an event"), "a log with no words says nothing rather than itself"
+    end
+
+    test "what the agent's summary lists under Could not run here is each line, however it marks the heading" do
+      events = SandboxAgentEvents.new(Chat::CodeFixProgress.start)
+      said = lambda do |text|
+        events.could_not_run({ type: "text", part: { text: text } }.to_json)
+      end
+
+      assert_equal [ "`bin/rails test test/models/pool_test.rb`, since no database was there", "eslint, since node_modules was not installed" ],
+                   said.call("Sets the pool.\n\n**Could not run here:**\n- `bin/rails test test/models/pool_test.rb`, since no database was there\n" \
+                             "* eslint, since node_modules was not installed\n\nOpen questions: none")
+      assert_equal [ "the integration tests, which need Redis" ], said.call("## Could not run here\n\n1. the integration tests, which need Redis")
+      assert_equal [ "the suite, which needs DATABASE_URL=[REDACTED:credential_url]db/app" ],
+                   said.call("Could not run here: the suite, which needs DATABASE_URL=postgres://app:s3cret@db/app")
+      assert_empty said.call("Could not run here: none")
+      assert_empty said.call("Everything ran and passed.")
+    end
+
     private
+
+    # What OpenCode prints for a provider's refusal: the message, and the answer's headers and body.
+    def api_error
+      { type: "error", error: { name: "APIError", data: { message: "Too many requests; try again later.\nretry-after: 30", statusCode: 429,
+                                                          responseHeaders: { "cf-ray" => "8f1", "retry-after" => "30" }, responseBody: "{\"error\":\"rate\"}" } } }
+    end
 
     def read(name)
       work = Chat::CodeFixProgress.start

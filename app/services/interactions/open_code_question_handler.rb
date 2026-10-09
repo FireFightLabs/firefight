@@ -3,7 +3,7 @@ module Interactions
   # told who can. trigger_id expires in three seconds, so this stays sync.
   class OpenCodeQuestionHandler
     extend HandlerAuthorization
-    authorize_as Ability::Action::RESOURCE_INVESTIGATIONS, Ability::Action::ACTION_CREATE
+    authorize_as Ability::Action::RESOURCE_INVESTIGATIONS
 
     def self.execute(interaction)
       workspace = interaction.workspace

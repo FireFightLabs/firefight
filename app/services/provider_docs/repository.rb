@@ -19,32 +19,12 @@ module ProviderDocs
       raise DocsClient::Error, "GitHub listed only part of #{repository}" if tree["truncated"]
 
       blobs = tree.fetch("tree").select { |entry| entry["type"] == "blob" }.to_h { |entry| [ entry["path"], entry["sha"] ] }
-      wanted = pages_in(blobs)
-      failed = {}
-      too_large = []
-      @progress.listed(wanted.size)
-      pages = wanted.filter_map do |path, from|
+      Pages.read(pages_in(blobs), client: @client, revisions: @revisions, license: license(blobs), progress: @progress,
+                                  version: "#{REF} tree #{tree['sha'].to_s.first(12)}") do |path, from|
         sha = blobs.fetch(from)
-        if @revisions[path] == sha
-          @progress.page(:unchanged)
-          next Fetched.new(path: path, url: page_url(from), content: nil, revision: sha)
-        end
-
-        content = @client.file(raw(from)).body
-        @progress.page(:changed)
+        content = @client.file(raw(from)).body unless @revisions[path] == sha
         Fetched.new(path: path, url: page_url(from), content: content, revision: sha)
-      rescue DocsClient::RateLimited
-        raise
-      rescue DocsClient::TooLarge
-        too_large << path
-        @progress.page(:left_out)
-        nil
-      rescue DocsClient::Error => error
-        failed[path] = error.message
-        @progress.page(:failed)
-        nil
       end
-      Reading.new(pages: pages, listed: wanted.keys - too_large, failed: failed, version: "#{REF} tree #{tree['sha'].to_s.first(12)}", license: license(blobs))
     end
 
     private

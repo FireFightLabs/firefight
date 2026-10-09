@@ -15,7 +15,7 @@ class CodeChangesTest < ApplicationSystemTestCase
     within("[role='dialog']") do
       assert_text "Code changes"
       assert_text "Paths Halon may not change"
-      assert_text "every change arrives as a pull request for someone to review"
+      assert_text "every change arrives for someone to review"
       assert_no_button "Save"
       page.save_screenshot(Rails.root.join("tmp/screenshots/code-changes-empty.png"))
 

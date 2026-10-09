@@ -4,6 +4,7 @@ import { IconTrash } from "@tabler/icons-react"
 
 import type { EnvironmentOption, Principal } from "@/types/serializers"
 import { abilityGrantPath } from "@/lib/routes"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,20 +14,24 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { formatDate } from "@/lib/formatters"
+import { GRANT_KINDS } from "@/lib/generated/constants"
 
 type Grant = Principal["grants"][number]
 
 export function GrantRow({
   grant,
+  principalName,
   environments,
   canManage,
 }: {
   grant: Grant
+  principalName: string
   environments: EnvironmentOption[]
   canManage: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [expiryOpen, setExpiryOpen] = useState(false)
+  const [revoking, setRevoking] = useState(false)
   const scoped = environments.filter((environment) => grant.environmentIds.includes(environment.id))
   const label = scoped.length === 0 ? "All environments" : scoped.map((environment) => environment.name).join(", ")
   const expiryLabel = grant.expiresAt
@@ -51,10 +56,25 @@ export function GrantRow({
     )
   }
 
+  const where = scoped.length === 0 ? "every environment" : label
+  const revokeDescription = `${principalName} stops holding ${grant.label} through this grant, in ${where}. You can grant it again later.`
+
+  function confirmRevoke() {
+    setRevoking(true)
+  }
+
+  function stopRevoking() {
+    setRevoking(false)
+  }
+
+  function revoke() {
+    router.delete(abilityGrantPath(grant.id), { preserveScroll: true, onFinish: stopRevoking })
+  }
+
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
       <div className="flex min-w-0 items-center gap-2">
-        {grant.kind === "set" ? (
+        {grant.kind === GRANT_KINDS.SET ? (
           <>
             <span className="min-w-0 truncate text-sm font-medium">{grant.label}</span>
             <Badge variant="outline" className="shrink-0">
@@ -136,11 +156,19 @@ export function GrantRow({
             size="icon"
             className="text-muted-foreground hover:text-destructive size-8"
             aria-label={`Revoke ${grant.label}`}
-            onClick={() => router.delete(abilityGrantPath(grant.id), { preserveScroll: true })}
+            onClick={confirmRevoke}
           >
             <IconTrash className="size-4" />
           </Button>
         )}
+        <ConfirmDeleteDialog
+          open={revoking}
+          title={`Revoke ${grant.label} from ${principalName}?`}
+          description={revokeDescription}
+          confirmLabel="Revoke"
+          onConfirm={revoke}
+          onCancel={stopRevoking}
+        />
       </div>
     </div>
   )

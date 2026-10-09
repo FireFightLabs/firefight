@@ -72,7 +72,7 @@ class IssueSyncService
   # wrong reaching the tracker, or nil, and the settings are saved either way.
   def update_settings!(changes, by:)
     before = @workspace.issue_tracker_connection
-    hook = @workspace.issue_webhook_id
+    hook = @workspace.issue_webhook_row(before)&.issue_webhook_id
     @workspace.update_settings!(changes)
     after = @workspace.issue_tracker_connection
     moved = before&.id != after&.id
@@ -92,19 +92,20 @@ class IssueSyncService
     return unless @workspace.issue_tracker_connection&.id == integration.id
 
     @workspace.revoke_issue_sync!(integration)
-    remove_webhook(integration, @workspace.issue_webhook_id, by)
+    remove_webhook(integration, @workspace.issue_webhook_row(integration)&.issue_webhook_id, by)
     @workspace.issue_webhook_registered!(nil)
   end
 
   # A webhook the tracker lets expire is extended before it does, as the tracker documents.
   def refresh_webhook
     integration = @workspace.issue_sync_connection
-    return unless integration && @workspace.issue_webhook_registered? && Issues.registers_webhooks?(integration)
+    row = @workspace.issue_webhook_row(integration)
+    return unless row&.issue_webhook_registered? && Issues.registers_webhooks?(integration)
 
-    expires_at = Issues.refresh_webhook(integration, @workspace.issue_webhook_id)
-    @workspace.update!(issue_webhook_expires_at: expires_at) if expires_at
+    expires_at = Issues.refresh_webhook(integration, row.issue_webhook_id)
+    row.update!(issue_webhook_expires_at: expires_at) if expires_at
   rescue Integrations::Error => error
-    @workspace.issue_webhook_failed!(error.message)
+    row.issue_webhook_failed!(error.message)
   end
 
   # A delivery from the tracker's webhook that its signature proved, applied in a job.
@@ -353,8 +354,8 @@ class IssueSyncService
   end
 
   def incident_url(incident)
-    host = ENV["APP_HOST"].presence
-    host && Rails.application.routes.url_helpers.incident_url(incident, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+    options = AppUrl.options
+    options && Rails.application.routes.url_helpers.incident_url(incident, **options)
   end
 
   # The agent lost a grant it needs, which the setting says how to fix.
@@ -365,8 +366,8 @@ class IssueSyncService
   def target_changed?(changes) = changes.to_h.stringify_keys.key?("issue_tracker_target")
 
   def webhook_url
-    host = ENV["APP_HOST"].presence
-    host && Rails.application.routes.url_helpers.api_v1_issue_events_url(@workspace.issue_webhook_token, host: host, protocol: ENV.fetch("APP_PROTOCOL", "https"))
+    options = AppUrl.options
+    options && Rails.application.routes.url_helpers.api_v1_issue_events_url(@workspace.issue_webhook_token, **options)
   end
 
   # A connection made with Firefight's own app registers the tracker's webhook itself, replacing one it had. Any other
@@ -376,7 +377,7 @@ class IssueSyncService
     return @workspace.issue_webhook_failed!("Firefight's own address is not set, so the tracker has nowhere to send changes.") unless webhook_url
 
     @workspace.authorize_issue_webhook!(integration, by: by, change: "register") do
-      remove_webhook(integration, @workspace.issue_webhook_id, nil) if @workspace.issue_webhook_registered?
+      remove_webhook(integration, @workspace.issue_webhook_row(integration)&.issue_webhook_id, nil)
       @workspace.issue_webhook_registered!(Issues.register_webhook(integration, url: webhook_url, target: @workspace.issue_tracker_target))
     end
   rescue Integrations::Error => error

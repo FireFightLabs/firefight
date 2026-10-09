@@ -49,7 +49,7 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
   test "Bedrock needs its own access key and secret, so it never falls back to credentials the server holds" do
     account = @workspace.workspace_ai_accounts.new(provider: "bedrock", label: "Bedrock", kind: AiProviders::KIND_API_KEY, position: 1)
     account.assign_settings("region" => "us-east-1")
-    account.assign_models("main" => "claude-sonnet-4-5", "fast" => "claude-haiku-4-5")
+    account.assign_models("main" => "anthropic.claude-sonnet-4-5-20250929-v1:0", "fast" => "anthropic.claude-sonnet-4-5-20250929-v1:0")
 
     assert_not account.valid?
     assert_includes account.errors[:base], "Access key ID is required"
@@ -90,6 +90,10 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
     account.assign_models("main" => "a-model-nobody-has")
     assert_not account.valid?
     assert account.errors[:"models.main"].any?
+
+    account.assign_models("main" => "gpt-4o")
+    assert_not account.valid?, "a model another provider lists is not one this provider serves"
+    assert account.errors[:"models.main"].any?
   end
 
   test "a private or loopback address is refused where Firefight's network is not the customer's" do
@@ -122,12 +126,21 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
     second = WorkspaceAiAccount.find(account.id)
 
     assert_enqueued_jobs 1, only: WorkspaceAiAccountNoticeJob do
-      threads = [ first, second ].map { |copy| Thread.new { copy.ran_out!(FirefightAi::OutOfCredit.new("Your credit balance is too low")) } }
+      threads = [ first, second ].map { |copy| Thread.new { AiRefusal.account_ran_out!(copy, FirefightAi::OutOfCredit.new("Your credit balance is too low")) } }
       assert_equal [ true, false ], threads.map(&:value).sort_by { |moved| moved ? 0 : 1 }
     end
     assert_equal :out_of_credit, account.reload.state
     assert_equal "The account has no credit left.", account.last_error
     assert_not WorkspaceAiAccount.usable.exists?(account.id)
+  end
+
+  test "the account only records that it stopped, and the admins are told by whoever handled the refusal" do
+    account = add_ai_account!(@workspace)
+
+    assert_no_enqueued_jobs { assert account.ran_out!(FirefightAi::OutOfCredit.new) }
+    assert_enqueued_with(job: WorkspaceAiAccountNoticeJob, args: [ account.id, WorkspaceAiAccount::NOTICE_KEY_REFUSED ]) do
+      assert AiRefusal.key_refused!(account, FirefightAi::TerminalError.new("bad key", reason: "UnauthorizedError"))
+    end
   end
 
   test "an answered call puts the account back in use" do

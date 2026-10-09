@@ -62,6 +62,7 @@ module TypescriptConstants
       }, nil),
       Export.new("PAST_INCIDENT_DAYS", Incident::Outcome::PAST_WINDOW_DAYS, nil),
       Export.new("CHAT_MEMORY_STATES", Chat::Memory::STATES, "ChatMemoryState"),
+      Export.new("CHAT_MEMORY_STATE", Chat::Memory::STATES.index_by { |state| state.upcase }, nil),
       Export.new("CHAT_MEMORY_TEXT_LIMIT", Chat::Memory::TEXT_LIMIT, nil),
       Export.new("MEMORY_EXPIRY_DAY_CHOICES", Chat::Memory::EXPIRY_CHOICES, nil),
       Export.new("CHAT_INSTRUCTION_TEXT_LIMIT", Chat::Instruction::TEXT_LIMIT, nil),
@@ -77,6 +78,7 @@ module TypescriptConstants
         "MEMORY" => SearchDocument::Search::TYPE_MEMORY
       }, nil),
       Export.new("RESOURCE_MAP_RELATIONS", ResourceMap::RELATIONS, "ResourceMapRelation"),
+      Export.new("RESOURCE_MAP_RELATION", ResourceMap::RELATIONS.to_h { |relation| [ relation.upcase, relation ] }, nil),
       Export.new("RESOURCE_MAP_ORIGINS", ResourceMap::ORIGINS, "ResourceMapOrigin"),
       Export.new("RESOURCE_MAP_ORIGIN", ResourceMap::ORIGINS.to_h { |origin| [ origin.upcase, origin ] }, nil),
       Export.new("RESOURCE_MAP_CHANGE_KINDS", ResourceMap::Change::KINDS, "ResourceMapChangeKind"),
@@ -84,6 +86,8 @@ module TypescriptConstants
       Export.new("RESOURCE_MAP_LOG_LEVELS", ResourceMap::LogMiner::LEVELS, "ResourceMapLogLevel"),
       Export.new("RESOURCE_MAP_CERTAINTIES", ResourceMap::CERTAINTIES, "ResourceMapCertainty"),
       Export.new("RESOURCE_MAP_CERTAINTY", { "LIKELY" => ResourceMap::CERTAINTY_LIKELY, "POSSIBLE" => ResourceMap::CERTAINTY_POSSIBLE }, nil),
+      Export.new("RESOURCE_MAP_INCIDENT_WINDOW_DAYS", ResourceMap::View::INCIDENT_WINDOW.in_days.to_i, nil),
+      Export.new("RESOURCE_MAP_CHANGE_WINDOW_HOURS", ResourceMap::View::CHANGE_WINDOW.in_hours.to_i, nil),
       Export.new("INCIDENT_RELATIONSHIPS", {
         "RELATED" => IncidentRelationship::RELATED, "DUPLICATE" => IncidentRelationship::DUPLICATE
       }, nil),
@@ -119,7 +123,8 @@ module TypescriptConstants
         "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
         "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL,
         "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
-        "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX
+        "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,
+        "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
@@ -179,7 +184,6 @@ module TypescriptConstants
       Export.new("SETUP_ANSWERS", { "CONNECTED" => WorkspaceOnboarding::ANSWER_CONNECTED, "UNUSED" => WorkspaceOnboarding::ANSWER_UNUSED }, nil),
       Export.new("INVESTIGATION_QUERY_PARAM", Investigation::QUERY_PARAM, nil),
       Export.new("INCIDENT_NAME_FIELD_KEY", IncidentSystemField::KEY_NAME, nil),
-      *Operator::TypescriptConstants.exports.map { |name, value| Export.new(name, value, nil) },
       Export.new("INVESTIGATION_EVENT_TYPES", IncidentEvent::INVESTIGATION_EVENTS, nil),
       Export.new("INVESTIGATION_PROP", InvestigationsController::PROP_INVESTIGATION, nil),
       Export.new("OPEN_INVESTIGATION_PROP", IncidentsController::PROP_OPEN_INVESTIGATION, nil),
@@ -212,8 +216,16 @@ module TypescriptConstants
         "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT,
         "API_KEY" => Ability::Principal::KIND_API_KEY, "SYSTEM_AGENT" => Ability::Principal::KIND_SYSTEM_AGENT
       }, nil),
+      Export.new("GRANT_KINDS", { "ACTION" => PrincipalSerializer::KIND_ACTION, "SET" => PrincipalSerializer::KIND_SET }, nil),
+      Export.new("AI_ACCOUNT_STATES", WorkspaceAiAccount::STATES.to_h { |state| [ state.to_s.upcase, state.to_s ] }, nil),
+      Export.new("APPROVAL_RUN_WINDOW_MINUTES", Ability::Approval::RUN_WINDOW.in_minutes.to_i, nil),
+      Export.new("WATCH_SPEC_KEYS", Chat::Watch::SPEC_KEYS.transform_keys { |key| key.to_s.upcase }, nil),
+      Export.new("IMPLICIT_AUTHORITIES", {
+        "ADMIN" => Principal::IMPLICIT_ADMIN.to_s, "MEMBER" => Principal::IMPLICIT_MEMBER.to_s, "NONE" => Principal::IMPLICIT_NONE.to_s
+      }, nil),
       Export.new("APPROVAL_NOTIFY_OPTIONS", PolicyRule::ApprovalOutcome::NOTIFY_OPTIONS, "ApprovalNotifyOption"),
-      Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole")
+      Export.new("APPROVER_ROLES", [ WorkspaceMembership.roles[:owner], WorkspaceMembership.roles[:admin] ], "ApproverRole"),
+      Export.new("SANDBOX_SERVICES", CodeBox::SERVICES, "SandboxService")
     ]
   end
 

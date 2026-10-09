@@ -20,6 +20,34 @@ class RunbookTest < ActiveSupport::TestCase
     @deleted_runbook.update!(deleted_at: 1.day.ago)
   end
 
+  test "a watch step that reads a status is refused on save without what counts as done" do
+    runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "web", "steps" => [ { "label" => "Web", "capability" => "resource_status", "resource" => "web" } ] })
+
+    assert_not runbook.valid?
+    assert_match "what counts as done", runbook.errors[:watch].join
+  end
+
+  test "a refused watch names each step that is short of something by its number" do
+    named = { "label" => "Release", "capability" => "run_history", "resource" => "firefight" }
+    unnamed = { "label" => "Web", "capability" => "resource_status" }
+    runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "web", "steps" => [ named, unnamed ] })
+    assert_not runbook.valid?
+    assert_equal [ "needs step 2 to name the capability to check and the resource" ], runbook.errors[:watch]
+
+    undecided = { "label" => "Web", "capability" => "resource_status", "resource" => "web" }
+    runbook.watch = { "title" => "web", "steps" => [ undecided, named, undecided ] }
+    assert_not runbook.valid?
+    assert_equal [ "needs what counts as done for steps 1 and 3 (done when, failed when or a goal)" ], runbook.errors[:watch]
+  end
+
+  test "a watch step that follows a run needs nothing more, and one that reads a status saves with a goal" do
+    history = { "label" => "Release", "capability" => "run_history", "resource" => "firefight" }
+    status = { "label" => "Web", "capability" => "resource_status", "resource" => "web", "goal" => "web runs the new version" }
+    runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "release", "steps" => [ history, status ] })
+
+    assert runbook.valid?, runbook.errors.full_messages.to_sentence
+  end
+
   test "generates slug from name on create" do
     runbook = @workspace.runbooks.create!(name: "Payments Are Down!")
 

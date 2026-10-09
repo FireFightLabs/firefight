@@ -14,6 +14,8 @@ export interface SearchableSelectOption {
 }
 
 interface SearchableSelectProps {
+  // Ties a Label's htmlFor to the trigger.
+  id?: string
   value: string | null
   onValueChange: (value: string | null) => void
   options: SearchableSelectOption[]
@@ -26,6 +28,7 @@ interface SearchableSelectProps {
 }
 
 export function SearchableSelect({
+  id,
   value,
   onValueChange,
   options,
@@ -62,7 +65,7 @@ export function SearchableSelect({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
+        <Button id={id} variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal data-[state=open]:ring-1 data-[state=open]:ring-ring/20">
           {selected ? (
             renderSelected?.(selected) ?? defaultRender(selected)
           ) : (

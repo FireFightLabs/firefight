@@ -100,6 +100,7 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
 
     type = CatalogType.find_by!(slug: "pipeline")
     assert_equal "box", type.icon
+    assert_equal "Pipeline was created.", flash[:notice]
   end
 
   test "update_type returns field level errors when the type is invalid" do
@@ -181,6 +182,28 @@ class CatalogueControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :redirect
     assert_equal [ "can't be blank" ], session["inertia_errors"][:name]
+  end
+
+  test "creating, changing and deleting a type or an entry each say so" do
+    post "/app/catalogue/types", params: { name: "Pipeline", color: "#F59E0B", icon: "box" }
+    assert_equal "Pipeline was created.", flash[:notice]
+    type = @workspace.catalog_types.find_by!(slug: "pipeline")
+
+    patch "/app/catalogue/types/#{type.id}", params: { name: "Pipelines", color: "#F59E0B", icon: "box" }
+    assert_equal "Pipelines was updated.", flash[:notice]
+
+    post "/app/catalogue/#{type.slug}/entries", params: { name: "Deploy" }
+    assert_equal "Deploy was created.", flash[:notice]
+    entry = type.catalog_entries.find_by!(name: "Deploy")
+
+    patch "/app/catalogue/entries/#{entry.id}", params: { name: "Deploy prod" }
+    assert_equal "Deploy prod was updated.", flash[:notice]
+
+    delete "/app/catalogue/entries/#{entry.id}"
+    assert_equal "Deploy prod was deleted.", flash[:notice]
+
+    delete "/app/catalogue/types/#{type.id}"
+    assert_equal "Pipelines was deleted.", flash[:notice]
   end
 
   test "update_entry returns the invalid attribute on base" do

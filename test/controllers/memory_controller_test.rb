@@ -144,6 +144,30 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
     assert_equal Chat::Memory::STATE_UNCONFIRMED, memory.reload.state
   end
 
+  test "a card in a chat settles a contradiction and goes back to the chat with what changed, and the page counts what waits" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    old = remember("web deploys from main")
+    newer = Chat::Memory.create!(workspace: @workspace, text: "web deploys from release", state: Chat::Memory::STATE_UNCONFIRMED)
+    old.contradicted!(newer, reason: "The deploy log of web shows \"web deploys from release\".")
+    Chat::MemoryPost.create!(workspace: @workspace, conversation: conversation, kind: Chat::MemoryPost::KIND_DISPUTED, memory_ids: [ old.id ],
+                             evidence: "The deploy log of web shows \"web deploys from release\".")
+
+    get agent_chat_path(conversation), headers: inertia_headers
+    card = inertia_props[AgentChatsController::PROP_MEMORY_QUESTIONS].sole
+    assert_equal [ "web deploys from main", nil ], card.values_at("remembered", "decided")
+
+    post reject_memory_path(old), headers: { "Referer" => agent_chat_url(conversation) }
+
+    assert_redirected_to agent_chat_url(conversation)
+    assert_equal "Marked not right. Halon now remembers \"web deploys from release\" instead, confirmed by you.", flash[:notice]
+    assert_equal [ Chat::Memory::STATE_CONFIRMED, @member ], newer.reload.values_at(:state, :confirmed_by)
+
+    remember("Backups run nightly")
+    get memory_path, headers: inertia_headers
+    assert_equal({ "Backups run nightly" => true, "web deploys from main" => false, "web deploys from release" => false },
+                 inertia_props["memories"].to_h { |memory| [ memory["text"], memory["awaitingDecision"] ] })
+  end
+
   private
 
   def remember(text, subject: nil) = Chat::Memory.create!(workspace: @workspace, text: text, subject: subject, state: Chat::Memory::STATE_UNCONFIRMED)

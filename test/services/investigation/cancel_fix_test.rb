@@ -88,5 +88,6 @@ class Investigation::CancelFixTest < ActiveSupport::TestCase
     approval.update_columns(status: Ability::Approval::STATUS_PENDING)
     approval.expire!
     assert_includes Slack::Messages::Approval.build_resolved(approval).last.dig(:text, :text), "*Withdrawn*"
+    assert_equal "Approval withdrawn: #{approval.action_key}", Slack::Messages::Approval.resolved_fallback(approval)
   end
 end

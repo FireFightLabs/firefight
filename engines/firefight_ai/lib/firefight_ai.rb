@@ -94,17 +94,19 @@ module FirefightAi
   end
 
   # The purpose's env var sets the maximum, as its model is set. A purpose never takes its parent's, since what it
-  # writes is its own even on its parent's model. Never above what the registry says the model can write.
-  def output_cap(purpose, model:)
+  # writes is its own even on its parent's model. Never above what the registry says the model can write, as the
+  # choice's provider serves it.
+  def output_cap(purpose, choice:)
     built_in_max, floor = output_caps.fetch(purpose)
     max = ENV["#{env_prefix(purpose)}_MAX_OUTPUT_TOKENS"].presence&.to_i || built_in_max
-    max = [ max, max_output_tokens(model) ].compact.min
+    max = [ max, max_output_tokens(choice.model, provider: choice.provider) ].compact.min
     OutputCap.new(max: max, floor: [ floor, max ].min)
   end
 
-  # What the registry says the model can write in one answer. Nil when it is not known.
-  def max_output_tokens(model_id)
-    limit = RubyLLM.models.find(model_id.to_s).max_output_tokens.to_i
+  # What the registry says the model can write in one answer. Nil when it is not known. One id can be several
+  # providers' with different limits, so the provider is named when it is known.
+  def max_output_tokens(model_id, provider: nil)
+    limit = RubyLLM.models.find(model_id.to_s, provider: provider.presence).max_output_tokens.to_i
     limit.positive? ? limit : nil
   rescue RubyLLM::ModelNotFoundError
     nil
@@ -118,7 +120,7 @@ module FirefightAi
   def generate(choice, purpose:, inference:)
     translating_errors do
       ensure_paid!(choice)
-      cap = output_cap(purpose, model: choice.model)
+      cap = output_cap(purpose, choice: choice)
       limit = cap.max
       retried = false
       begin
@@ -129,7 +131,7 @@ module FirefightAi
           choice = take_over(choice, e, purpose: purpose, workspace: inference[:workspace])
           raise unless choice
 
-          cap = output_cap(purpose, model: choice.model)
+          cap = output_cap(purpose, choice: choice)
           limit = cap.max
           retried = false
           retry
@@ -150,9 +152,8 @@ module FirefightAi
   # The payer is out from this call on, which the app records once, however many calls are refused.
   def refused_for_good(choice, error)
     return unless error.is_a?(RubyLLM::Error)
-    return choice.payer.refused!(error) if choice.own_account?
 
-    AiAccount.ran_out!(choice.provider_name) if Credit.from(error).out_of_credit?
+    configuration.on_refused&.call(choice.payer, choice.provider_name, error)
   end
 
   # A call refused for good is recorded against whoever paid. When the workspace's own account ran dry or refused its
@@ -218,7 +219,7 @@ module FirefightAi
     chat.with_context(choice.context)
     return chat if chat.model_id.to_s == choice.model && (choice.provider.blank? || chat.provider.to_s == choice.provider.to_s)
 
-    chat.with_model(choice.model, provider: choice.provider, assume_model_exists: choice.provider.present? && !registered?(choice.model))
+    chat.with_model(choice.model, provider: choice.provider, assume_model_exists: choice.provider.present? && !registered?(choice.model, choice.provider))
   end
 
   # The models table is the registry once it holds a row, and only a refresh puts anything in it.
@@ -264,10 +265,10 @@ module FirefightAi
     0
   end
 
-  # How much the model can read at once, from the registry. Nil when it is not known, and nothing
-  # is assumed in its place, since a wrong number fails a run halfway through.
-  def context_window(model_id)
-    window = RubyLLM.models.find(model_id.to_s).context_window.to_i
+  # How much the model can read at once, from the registry, as the provider serves it when one is named. Nil when it is
+  # not known, and nothing is assumed in its place, since a wrong number fails a run halfway through.
+  def context_window(model_id, provider: nil)
+    window = RubyLLM.models.find(model_id.to_s, provider: provider.presence).context_window.to_i
     window.positive? ? window : nil
   rescue RubyLLM::ModelNotFoundError
     nil
@@ -288,7 +289,7 @@ module FirefightAi
     llm = choice.context || RubyLLM
     return llm.chat(model: choice.model) if choice.provider.blank?
 
-    llm.chat(model: choice.model, provider: choice.provider, assume_model_exists: !registered?(choice.model))
+    llm.chat(model: choice.model, provider: choice.provider, assume_model_exists: !registered?(choice.model, choice.provider))
   end
 
   # One vector per call, tracked like every other model call. The dimensions are fixed by the
@@ -298,7 +299,7 @@ module FirefightAi
   def embed(text, workspace:, inferable: nil)
     choice = deployment_model_for(AiPurpose::EMBEDDING)
     embedding, = translating_errors do
-      Inference.track(workspace: workspace, feature: "embedding", inferable: inferable, **choice.ledger) do
+      Inference.track(workspace: workspace, feature: Inference::FEATURE_EMBEDDING, inferable: inferable, **choice.ledger) do
         RubyLLM.embed(text, model: choice.model, provider: choice.provider&.to_sym)
       end
     rescue RubyLLM::Error => e
@@ -342,8 +343,10 @@ module FirefightAi
     end
   end
 
-  def registered?(model)
-    RubyLLM.models.find(model)
+  # Whether the registry lists the model, under the provider when one is named, since RubyLLM resolves a named
+  # provider's model only from that provider's listing.
+  def registered?(model, provider = nil)
+    RubyLLM.models.find(model.to_s, provider: provider.presence)
     true
   rescue RubyLLM::ModelNotFoundError
     false

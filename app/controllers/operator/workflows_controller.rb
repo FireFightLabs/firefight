@@ -11,7 +11,7 @@ module Operator
       workflows = WorkflowRuns.recent(state: params[:state], kind: params[:kind]).offset((page - 1) * PER_PAGE).limit(PER_PAGE + 1).to_a
 
       render inertia: "operator/workflows/index", props: {
-        workflows: WorkflowRowSerializer.many(workflows.first(PER_PAGE)),
+        workflows: WorkflowRowSerializer.many(WorkflowRuns.preload_subjects!(workflows.first(PER_PAGE))),
         page: page, more: workflows.size > PER_PAGE,
         kinds: WorkflowRuns.kinds,
         counts: WorkflowRuns.counts_by_state,
@@ -46,8 +46,8 @@ module Operator
       blocked = Actions.cancel_blocked_reason(@workflow)
       return respond(false, nil, blocked) if blocked
 
-      moved = @workflow.cancel!(reason: "Cancelled from the operator console", by: operator_label)
-      respond(moved, "#{@workflow.workflow_class} is cancelled.", "#{@workflow.workflow_class} could not be cancelled. It may have just finished.")
+      moved = @workflow.cancel!(reason: "Canceled from the operator console", by: operator_label)
+      respond(moved, "#{@workflow.workflow_class} is canceled.", "#{@workflow.workflow_class} could not be canceled. It may have just finished.")
     end
 
     private

@@ -52,6 +52,30 @@ module Integrations
       assert_includes body, "**Could not run here**\n- `bin/rails test test/models/pool_test.rb`: no database was available."
     end
 
+    test "what the agent's summary says could not run here joins the checks that could not, each a sentence" do
+      change = @change.with(not_run: [ "`bin/rails test test/system`, since no browser was installed", "The full suite needs Redis." ])
+      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: change)
+
+      assert_includes body, "**Could not run here**\n- `bin/rails test test/models/pool_test.rb`: no database was available.\n" \
+                            "- `bin/rails test test/system`, since no browser was installed.\n- The full suite needs Redis.\n\n**Open questions**"
+      assert_includes CodeWriteUp.answer(done: "Opened it.", warning: nil, reviewed: @reviewed, change: change, base: "main", updating: false),
+                      "- The full suite needs Redis."
+    end
+
+    test "a repository with no CI says so plainly in the body, the comment and the answer, after what could not run, and one with CI says nothing" do
+      said = "acme/api has no .github/workflows folder"
+      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: @change, no_ci: said)
+      comment = CodeWriteUp.comment(lead: "Raises it again.", warning: nil, reviewed: @reviewed, change: @change, base: "main", no_ci: said)
+      answer = CodeWriteUp.answer(done: "Opened it.", warning: nil, reviewed: @reviewed, change: @change, base: "main", updating: false, no_ci: said)
+
+      plain = "acme/api has no .github/workflows folder. With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, " \
+              "and the owner's review decides whether it is ready."
+      assert_includes body, "**No CI**\n#{plain}\n\n**Files**"
+      assert_includes comment, "**No CI**\n#{plain}"
+      assert answer.end_with?("No CI:\n#{plain}")
+      assert_not_includes CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: @change), "No CI"
+    end
+
     test "an update's comment says what this update changed in the pull request, and a merge from the base adds no file" do
       comment = CodeWriteUp.comment(lead: "Merges main and keeps the run name fix.", warning: nil, reviewed: @reviewed, change: @change, base: "main")
 

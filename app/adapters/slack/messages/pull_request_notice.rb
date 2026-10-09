@@ -20,7 +20,7 @@ module Slack
         blocks = [
           { type: "section", text: { type: "mrkdwn", text: "#{TITLES.fetch(notice.status, ':warning:')}  *#{Mrkdwn.escape(notice.headline)}*" } },
           { type: "divider" },
-          { type: "section", text: { type: "mrkdwn", text: body(notice).truncate(FixProgress::SECTION_TEXT_LIMIT) } }
+          { type: "section", text: { type: "mrkdwn", text: body(notice).truncate(Formatting::SECTION_TEXT_LIMIT) } }
         ]
         footer = footer(notice)
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: footer } ] } if footer

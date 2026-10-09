@@ -130,22 +130,30 @@ class WorkspaceAiAccount < ApplicationRecord
   # What the usable scope leaves out.
   def skipped? = !enabled || out_of_credit_since.present? || failing_since.present?
 
-  def state
-    return :disabled unless enabled
-    return :out_of_credit if out_of_credit_since
-    return :failing if failing_since
-    return :verified if verified_at
+  STATE_DISABLED = :disabled
+  STATE_OUT_OF_CREDIT = :out_of_credit
+  STATE_FAILING = :failing
+  STATE_VERIFIED = :verified
+  STATE_UNCHECKED = :unchecked
+  STATES = [ STATE_VERIFIED, STATE_UNCHECKED, STATE_OUT_OF_CREDIT, STATE_FAILING, STATE_DISABLED ].freeze
 
-    :unchecked
+  def state
+    return STATE_DISABLED unless enabled
+    return STATE_OUT_OF_CREDIT if out_of_credit_since
+    return STATE_FAILING if failing_since
+    return STATE_VERIFIED if verified_at
+
+    STATE_UNCHECKED
   end
 
-  # One statement moves it, so of two calls refused at once only one tells the admins.
+  # One statement moves it, and only the call that moved it answers true, so of two calls refused at once only one
+  # tells the admins (AiRefusal).
   def ran_out!(error)
-    stuck!(:out_of_credit_since, error, NOTICE_OUT_OF_CREDIT)
+    stuck!(:out_of_credit_since, error)
   end
 
   def key_refused!(error)
-    stuck!(:failing_since, error, NOTICE_KEY_REFUSED)
+    stuck!(:failing_since, error)
   end
 
   # Every answered call says it works.
@@ -224,11 +232,9 @@ class WorkspaceAiAccount < ApplicationRecord
     values.merge("api_key" => secrets["access_token"], "api_base" => sign_in&.api_base)
   end
 
-  def stuck!(column, error, notice)
-    moved = self.class.where(id: id, column => nil)
-                .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
-    WorkspaceAiAccountNoticeJob.perform_later(id, notice) if moved
-    moved
+  def stuck!(column, error)
+    self.class.where(id: id, column => nil)
+        .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
   end
 
   def provider_offered
@@ -260,7 +266,7 @@ class WorkspaceAiAccount < ApplicationRecord
     ROLES.each do |role|
       model = model_for(role)
       next errors.add(:"models.#{role}", "needs a model") if model.blank?
-      next if role == FAST || FirefightAi.context_window(model)
+      next if role == FAST || FirefightAi.context_window(model, provider: provider)
 
       errors.add(:"models.#{role}", "is a model Firefight does not know the size of, so Halon cannot run on it. Choose another, or ask whoever runs Firefight to add it to the model registry")
     end

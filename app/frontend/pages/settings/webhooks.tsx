@@ -6,6 +6,7 @@ import { useCan } from "@/lib/permissions"
 import { WebhooksTab } from "@/pages/settings/components/webhooks/webhooks-tab"
 import type { Webhook } from "@/types/serializers"
 import type { SharedProps } from "@/types"
+import { replaceQuery } from "@/lib/query"
 
 interface WebhooksPageProps extends SharedProps {
   [key: string]: unknown
@@ -23,15 +24,7 @@ export default function Webhooks() {
 
   const updateWebhookParam = useCallback((id: string | null) => {
     setActiveWebhookId(id)
-    const params = new URLSearchParams(window.location.search)
-    if (id) {
-      params.set("webhook", id)
-    } else {
-      params.delete("webhook")
-    }
-    const qs = params.toString()
-    const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`
-    window.history.replaceState(null, "", url)
+    replaceQuery({ webhook: id })
   }, [])
 
   return (

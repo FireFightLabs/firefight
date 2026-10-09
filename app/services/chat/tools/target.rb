@@ -3,20 +3,12 @@
 # refused before anyone is asked.
 module Chat::Tools::Target
   # The connection tool the agent calls by name, in this workspace, or nil.
-  def self.connection_tool(workspace, tool_name)
-    name = tool_name.to_s
-    workspace.integrations.where(deleted_at: nil).to_a.select { |integration| name.start_with?("#{integration.slug}_") }
-             .sort_by { |integration| -integration.slug.length }.each do |integration|
-      tool = integration.tools.find { |each| each.model_facing_name == name }
-      return tool if tool
-    end
-    nil
-  end
+  def self.connection_tool(workspace, tool_name) = workspace.connection_tools_by_name[tool_name.to_s]
 
   def self.capability_spec(tool_name) = Integrations::Capabilities::SPECS.values.find { |spec| spec.tool_name == tool_name.to_s }
 
-  # What a call reaches, such as "Faylee (Northflank), project faylee", or for a capability the resource it was routed
-  # to, such as "service web on Faylee (Northflank), project faylee". nil for Firefight's own tools and for a call that
+  # What a call reaches, such as "Production (Hosting), project shop", or for a capability the resource it was routed
+  # to, such as "service web on Production (Hosting), project shop". nil for Firefight's own tools and for a call that
   # cannot be routed, which the call itself then refuses.
   def self.describe(agent_run, tool_name, arguments)
     given = arguments.to_h.stringify_keys
@@ -31,7 +23,7 @@ module Chat::Tools::Target
   end
 
   # The connection a call through its tool reaches, with the one scope it reaches when the connection reaches several,
-  # such as "Faylee (Northflank), project faylee".
+  # such as "Production (Hosting), project shop".
   def self.connection_label(tool, given)
     integration = tool.integration
     environment_row = environment_row_of(tool, given)
@@ -46,7 +38,7 @@ module Chat::Tools::Target
   end
 
   # Why a call is refused whose words name another scope of its own connection than the one it reaches, such as another
-  # Northflank project, before it runs or is put to anyone. nil when the connection reaches one, or the words name the
+  # project of the same connection, before it runs or is put to anyone. nil when the connection reaches one, or the words name the
   # call's own scope or none. hint says how to reach the scope the words name instead, given its id.
   def self.scope_misdirection(environment_row, scope, intent, called:)
     return if intent.blank? || scope.blank? || environment_row.nil?

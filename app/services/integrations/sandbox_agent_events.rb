@@ -17,6 +17,13 @@ module Integrations
     # A value set on the command line under a name that says it is secret.
     SECRET_ASSIGNMENT = /\b([A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|ACCESS_KEY|PRIVATE_KEY)[A-Za-z0-9_]*)=\S+/i
     THOUGHT_LIMIT = 140
+    REASON_LIMIT = 200
+    # How the agent's summary heads what could not run, as the pull request's section is named, and the lines under it.
+    NOT_RUN_HEADING = /\A[#*_\s]*#{CodeWriteUp::NOT_RUN}[*_]*(?:\s*:[*_]*\s*(.*)|\s*)\z/i
+    LISTED = /\A(?:[-*\u2022]|\d+[.)])\s+/
+    NOTHING = /\A(?:none|nothing)\.?\z/i
+    NOT_RUN_LIMIT = 10
+    NOT_RUN_LINE_LIMIT = 300
 
     # hidden is what must never show, such as the agent's own token, should the agent ever print it.
     def initialize(progress, hidden: [])
@@ -37,6 +44,31 @@ module Integrations
         next
       end
       @progress
+    end
+
+    # The agent's raw log can hold what a tool printed, such as an environment or a key a test logged, so it reaches
+    # the model, a chat or the ledger only with credentials and the agent's own token taken out.
+    def redacted(text) = Chat::SecretFree.redacted(hide(text))
+
+    # The agent's last words, which end with its summary: what was heard as it ran, or else the last of them in its log,
+    # for a box that never says what the agent does.
+    def last_words(log)
+      @last_said || hide(last_event(log, "text")&.dig("part", "text").to_s.strip).presence
+    end
+
+    # Why the agent stopped, as one plain line. An error can carry the provider's whole answer, headers and body, which
+    # is never shown.
+    def stop_reason(log) = @stop_reason || reason_of(last_event(log, "error")&.dig("error"))
+
+    # What the agent's summary lists under the heading NOT_RUN_HEADING reads, one line each, redacted.
+    def could_not_run(log)
+      lines = last_words(log).to_s.lines.map(&:strip)
+      start = lines.index { |line| line.match?(NOT_RUN_HEADING) }
+      return [] unless start
+
+      listed = lines.drop(start + 1).drop_while(&:blank?).take_while { |line| line.match?(LISTED) }.map { |line| line.sub(LISTED, "") }
+      [ lines[start][NOT_RUN_HEADING, 1], *listed ].map { |line| line.to_s.squish }.reject { |line| line.blank? || line.match?(NOTHING) }
+        .first(NOT_RUN_LIMIT).map { |line| Chat::SecretFree.redacted(line.truncate(NOT_RUN_LINE_LIMIT)) }
     end
 
     private
@@ -133,9 +165,27 @@ module Integrations
     end
 
     def stopped(error)
+      @stop_reason = reason_of(error)
+      @progress.add("Stopped: #{@stop_reason || 'an error'}", result: Chat::CodeFixProgress::RESULT_FAILED)
+    end
+
+    def reason_of(error)
       error = error.to_h
-      message = error.dig("data", "message").presence || error["name"].presence || "an error"
-      @progress.add(hide("Stopped: #{unwrapped(message)}"), result: Chat::CodeFixProgress::RESULT_FAILED)
+      message = error.dig("data", "message").presence || error["name"].presence
+      said = Sentence.clean(unwrapped(message.to_s))
+      Chat::SecretFree.redacted(hide(said.truncate(REASON_LIMIT))) if said
+    end
+
+    def last_event(log, type)
+      log.to_s.lines.reverse_each do |line|
+        event = begin
+          JSON.parse(line)
+        rescue JSON::ParserError
+          next
+        end
+        return event if event.is_a?(Hash) && event["type"] == type
+      end
+      nil
     end
 
     # A provider's refusal arrives as its own JSON body.

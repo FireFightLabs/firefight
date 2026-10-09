@@ -117,7 +117,7 @@ class SettingsController < InertiaController
       principals: principal_rows,
       actions: AbilityActionOptionSerializer.many(Ability::Grant.grantable_actions(current_workspace)),
       sets: AbilityRoleSerializer.many(
-        current_workspace.ability_roles.order(:name).includes(:grants, :role_actions, :integration)
+        current_workspace.ability_roles.order(:name).with_holder_counts.includes(:grants, :role_actions, :integration)
       ),
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       approvalRules: ApprovalRuleSerializer.many(current_workspace.approval_rules),
@@ -171,6 +171,7 @@ class SettingsController < InertiaController
       alertSources: AlertSourceSettingsSerializer.many(
         current_workspace.alert_sources.order(:created_at)
       ),
+      setupInstructions: AlertProviders.setup_instructions,
       severities: IncidentSeveritySettingsSerializer.many(
         current_workspace.incident_severities.active.ordered.with_usage_counts
       )

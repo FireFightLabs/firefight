@@ -1,7 +1,7 @@
 import "@xyflow/react/dist/style.css"
 
 import { Background, ConnectionLineType, Controls, type Edge, MarkerType, ReactFlow } from "@xyflow/react"
-import { useMemo } from "react"
+import { type MouseEvent, useMemo } from "react"
 
 import { ACCOUNT_NODE, type AccountFlowNode, AccountNode } from "@/pages/map/components/account-node"
 import { HANDLES, RESOURCE_NODE, type ResourceFlowNode, ResourceNode } from "@/pages/map/components/resource-node"
@@ -24,7 +24,7 @@ interface MapCanvasProps {
 export function MapCanvas({ resources, links, focusedId = null, onPick }: MapCanvasProps) {
   const { nodes, edges } = useMemo(() => drawing(resources, links, focusedId), [ resources, links, focusedId ])
 
-  function pickNode(_event: React.MouseEvent, node: ResourceFlowNode | AccountFlowNode) {
+  function pickNode(_event: MouseEvent, node: ResourceFlowNode | AccountFlowNode) {
     if (node.type === RESOURCE_NODE) {
       onPick(node.id)
     }

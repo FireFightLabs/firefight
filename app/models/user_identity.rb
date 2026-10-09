@@ -5,6 +5,8 @@ class UserIdentity < ApplicationRecord
   EMAIL = "email"
   PROVIDERS = [ GOOGLE, SLACK, EMAIL ].freeze
   LABELS = { GOOGLE => "Google", SLACK => "Slack", EMAIL => "Email link" }.freeze
+  # The OmniAuth strategy each sign-in runs through, by the provider it signs in with.
+  STRATEGIES = { "google_oauth2" => GOOGLE, "slack_openid" => SLACK, "slack" => SLACK }.freeze
 
   LAST_METHOD_REASON = "This is your only way to sign in, so it cannot be removed."
 
@@ -14,6 +16,8 @@ class UserIdentity < ApplicationRecord
 
   validates :provider, inclusion: { in: PROVIDERS }
   validates :uid, presence: true, uniqueness: { scope: :provider }
+
+  def self.label_for_strategy(strategy) = LABELS[STRATEGIES[strategy.to_s]]
 
   def label = LABELS.fetch(provider)
   def description = email ? "#{label} (#{email})" : label

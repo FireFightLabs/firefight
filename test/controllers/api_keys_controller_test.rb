@@ -15,6 +15,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
       }
     end
     assert_response :redirect
+    assert_equal "Datadog was created.", flash[:notice]
   end
 
   test "create rejects unknown resource" do
@@ -37,6 +38,7 @@ class ApiKeysControllerTest < ActionDispatch::IntegrationTest
     patch api_key_url(api_key), params: { name: "Renamed" }
     assert_response :redirect
     assert_equal({ "incidents" => [ "read" ] }, api_key.reload.granted_permissions)
+    assert_equal "Renamed was updated.", flash[:notice]
   end
 
   test "update narrows permissions when a smaller set is sent" do

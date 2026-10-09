@@ -22,12 +22,13 @@ class Conversation::Tools::ExtendWatch < RubyLLM::Tool
   end
 
   def call(tool_call: nil, **arguments)
-    watch = @turn.chat&.watches&.find_by(id: arguments[:watch].to_s)
-    return "No watch #{arguments[:watch]} in this chat. list_watches names them." unless watch
-    return "Say how many minutes, more than it has now." unless arguments[:minutes].to_i.positive?
-    return Chat::Watch::NOTHING_TO_STOP unless watch.extend_to!(arguments[:minutes])
+    given = arguments.stringify_keys
+    watch = @turn.chat&.watches&.find_by(id: given["watch"].to_s)
+    return "No watch #{given["watch"]} in this chat. list_watches names them." unless watch
+    return "Say how many minutes, more than the #{watch.limit_minutes} it has now." unless given["minutes"].to_i > watch.limit_minutes
+    return Chat::Watch::NOTHING_TO_STOP unless watch.extend_to!(given["minutes"])
 
     Conversation::LiveDelivery.watch_moved(watch.conversation)
-    "#{watch.title} is now watched for up to #{Conversation::Watches::Shown.limit_label(watch)} from when it started. Tell the person in a few words."
+    "#{watch.title} is now watched for up to #{Chat::Watch::Shown.limit_label(watch)} from when it started. Tell the person in a few words."
   end
 end

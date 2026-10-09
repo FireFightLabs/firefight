@@ -17,7 +17,9 @@ module Integrations
     end
     # Northflank turned the request down as it stands, such as a token whose role may not add notification integrations.
     class Refused < Error; end
-    REFINED = { 400 => Refused, 403 => Refused, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze
+    # The token's role may not do this, which a caller can name the permission for.
+    class Forbidden < Refused; end
+    REFINED = { 400 => Refused, 403 => Forbidden, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze
     VERBS = { "GET" => Net::HTTP::Get, "POST" => Net::HTTP::Post, "PATCH" => Net::HTTP::Patch, "PUT" => Net::HTTP::Put,
               "DELETE" => Net::HTTP::Delete }.freeze
 

@@ -15,6 +15,8 @@ module Integrations
       # How often a command running in the background is read, and how many reads in a row may fail before it is given up.
       POLL_EVERY = 2
       MISSES_ALLOWED = 5
+      # Packing or unpacking a prepared copy, which can hold every dependency a repository installs.
+      ARCHIVE_TIMEOUT = 20 * 60
 
       def initialize(box)
         @box = box
@@ -37,9 +39,11 @@ module Integrations
 
       # on_output hears what the command writes to the file the box names in SANDBOX_PROGRESS, in whole lines, while it
       # runs, and is called on every read even when there is nothing new. A box from an image before background commands
-      # runs it in one request as before, and on_output never hears anything. Either way the answer is the same.
-      def exec(repository:, argv:, ref: nil, where: IN_CHECKOUT, timeout: 60, services: nil, on_output: nil)
-        payload = { repo: repository, ref: ref, argv: argv, where: where, timeout: timeout, services: services }.compact
+      # runs it in one request as before, and on_output never hears anything. Either way the answer is the same. stdin is
+      # what the command reads, for a credential that must not show in its arguments.
+      # setup is the repository's setup (services, env, commands), whose services and variables a command in the copy runs with.
+      def exec(repository:, argv:, ref: nil, where: IN_CHECKOUT, timeout: 60, services: nil, on_output: nil, stdin: nil, setup: nil)
+        payload = { repo: repository, ref: ref, argv: argv, where: where, timeout: timeout, services: services, stdin: stdin, setup: setup }.compact
         return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
 
         follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)
@@ -53,8 +57,67 @@ module Integrations
         false
       end
 
-      def prepare(repository:, ref: nil)
-        send_json(Net::HTTP::Post, "/prepare", payload: { repo: repository, ref: ref }.compact, read_timeout: 20.minutes.to_i + MARGIN)
+      # Each installer and each of the setup's commands may take up to the box's limit for one command.
+      def prepare(repository:, ref: nil, setup: nil)
+        steps = 1 + Array(setup&.dig(:commands) || setup&.dig("commands")).size
+        send_json(Net::HTTP::Post, "/prepare", payload: { repo: repository, ref: ref, setup: setup }.compact, read_timeout: (steps * 20.minutes.to_i) + MARGIN)
+      end
+
+      # What decides what preparing a copy at ref installs, as a digest, and whether that copy is prepared already.
+      def prepare_state(repository:, ref: nil)
+        send_json(Net::HTTP::Post, "/prepare/state", payload: { repo: repository, ref: ref }.compact)
+      end
+
+      # Whether the box's image takes a repository's setup and keeps what preparing installed. An older one does neither.
+      def setups?
+        @setups = send_json(Net::HTTP::Get, "/health", read_timeout: 5)["setups"] == true if @setups.nil?
+        @setups
+      rescue Error
+        false
+      end
+
+      # What preparing the copy at ref installed, packed and written to the file at path as it arrives. Raises when it
+      # is larger than limit bytes.
+      def download_archive(repository:, ref:, path:, limit:)
+        uri = URI.parse("#{@box.address}/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
+        request = Net::HTTP::Get.new(uri)
+        request["Authorization"] = "Bearer #{@box.key}"
+        Http.request(uri, request, error_class: Error, read_timeout: ARCHIVE_TIMEOUT) do |response|
+          raise Error, "The code sandbox could not pack the prepared copy: #{response.body}" unless response.code.to_i == 200
+          raise Error, "The prepared copy is larger than #{limit / 1.megabyte} MB, so it is not kept." if response["content-length"].to_i > limit
+
+          File.open(path, "wb") do |file|
+            response.read_body do |chunk|
+              file.write(chunk)
+              raise Error, "The prepared copy is larger than #{limit / 1.megabyte} MB, so it is not kept." if file.size > limit
+            end
+          end
+        end
+        path
+      end
+
+      # Hands the box what an earlier copy installed, from the file at path, for the copy at ref to start with.
+      def upload_archive(repository:, ref:, path:)
+        uri = URI.parse("#{@box.address}/prepare/archive?#{{ repo: repository, ref: ref }.to_query}")
+        request = Net::HTTP::Put.new(uri)
+        request["Authorization"] = "Bearer #{@box.key}"
+        request["Content-Type"] = "application/gzip"
+        File.open(path, "rb") do |file|
+          request["Content-Length"] = file.size.to_s
+          request.body_stream = file
+          response = Http.request(uri, request, error_class: Error, read_timeout: ARCHIVE_TIMEOUT)
+          parsed = JSON.parse(response.body.to_s)
+          raise Error, parsed["error"].to_s if response.code.to_i != 200
+
+          parsed
+        end
+      rescue JSON::ParserError
+        raise Error, "The code sandbox answered with something that is not JSON."
+      end
+
+      # Starts services in the box by name, answering the variables that reach them.
+      def start_services(names)
+        send_json(Net::HTTP::Post, "/services", payload: { services: names }, read_timeout: 120)
       end
 
       def alive?

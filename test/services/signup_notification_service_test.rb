@@ -84,7 +84,7 @@ class SignupNotificationServiceTest < ActiveSupport::TestCase
 
   test "an enqueue that fails is logged and never reaches the person signing up" do
     SignupNotificationJob.stubs(:perform_later).raises(ActiveRecord::ConnectionNotEstablished)
-    Rails.logger.expects(:warn).with { |payload| payload[:event] == "signup_notification.enqueue_failed" }
+    Rails.logger.expects(:warn).with { |line| JSON.parse(line)["event"] == "signup_notification.enqueue_failed" }
 
     assert_nothing_raised do
       SignupNotificationService.announce(SignupNotificationService::WORKSPACE_CREATED, @workspace, @installer)

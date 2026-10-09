@@ -90,7 +90,8 @@ module FirefightAi
         - For each lesson learned before, say whether the sources agree with it, contradict it, or say nothing about it. When they contradict it, give what is right instead.
         - Never restate a lesson learned before, in any words.
         - Never write anything the workspace already remembers, in any words. One marked rejected is known to be wrong, so never write it either.
-        - Plain sentences, no markdown, no em dashes, no semicolons.
+        - Plain sentences, no markdown.
+        - #{Copy::RULE}
       PROMPT
     end
 

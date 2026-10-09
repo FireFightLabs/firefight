@@ -1,8 +1,9 @@
 module Integrations
   module Packs
     # A Postgres database read straight from a connection URL, one per environment. Every call opens its own connection
-    # in a read-only transaction with time limits (Postgres::Connection), so nothing here can change the database,
-    # whatever the user in the URL may do.
+    # in a read-only transaction with time limits (Postgres::Connection), so no statement can write a table, whatever the
+    # user in the URL may do. A read-only transaction still lets a function act on the server, such as ending another
+    # session or writing over a second connection, so those are refused by name (ACTS).
     class Postgres < NativePack
       # The environment row's credential, which only this pack reads.
       CONNECTION_URL = "connection_url".freeze
@@ -13,6 +14,13 @@ module Integrations
       ACTIVITY_LIMIT = 15
       QUERY_SHOWN = 400
       QUALIFIED_NAME = /\A(?:(?<schema>[A-Za-z_][\w$]*)\.)?(?<table>[A-Za-z_][\w$]*)\z/
+      # Functions a read-only transaction allows that act on the server, which signal or end sessions, reload or rotate its
+      # files, move the WAL or promote it, take advisory locks, reset its statistics, change a setting such as the
+      # statement timeout, or reach another connection or a file. A quoted name counts, and so does an escaped one.
+      ACTS = /\b(pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile|pg_switch_wal|pg_create_restore_point|pg_promote|
+              pg_wal_replay_\w+|pg_log_backend_memory_contexts|pg_advisory\w*lock\w*|pg_stat_reset\w*|dblink\w*|lo_import|lo_export|lo_unlink|
+              set_config)"?\s*\(/ix
+      ESCAPED_NAME = /\bU&"/i
 
       tool :list_tables,
            description: "List the tables in the database, by schema, with roughly how many rows each holds and its size on disk",
@@ -85,6 +93,12 @@ module Integrations
       def self.connection_refusal(url, certificates) = Connection.refusal(url, certificates)
 
       def self.certificate_fields = Connection::CERTIFICATES
+
+      def self.connection_url_words
+        { placeholder: "postgresql://readonly:password@db.example.com:5432/app",
+          hint: "Use a database user that can only read. Firefight also runs every query read-only and stops any that runs " \
+                "longer than #{Connection::STATEMENT_TIMEOUT_MS / 1000} seconds. Connections over the internet are always encrypted." }
+      end
 
       # Each connect sets the whole credential, so certificates left out are removed rather than kept from before.
       def self.store_connection!(environment_row, url:, certificates:)
@@ -281,6 +295,10 @@ module Integrations
         sql = sql.to_s.strip.delete_suffix(";").strip
         fail! "Give the query to run." if sql.empty?
         fail! "The query is longer than #{SQL_LIMIT} characters." if sql.length > SQL_LIMIT
+        fail_policy! "Firefight only reads this database, and an escaped name could hide what a statement does." if sql.match?(ESCAPED_NAME)
+
+        acting = sql[ACTS, 1]
+        fail_policy! "Firefight only reads this database, and #{acting.downcase} acts on it." if acting
         sql
       end
 

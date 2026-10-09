@@ -113,8 +113,28 @@ module Integrations
         assert_predicate polled.events.sole.scope, :everything?
 
         AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything).raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform cloudtrail:LookupEvents")
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "us-east-1", :lookup_events, anything).raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform cloudtrail:LookupEvents")
         error = assert_raises(Integrations::Error) { Aws.poll(@row, since: since) }
         assert_equal "#{Aws::DENIED}. AWS answered AccessDeniedException: not authorized to perform cloudtrail:LookupEvents.", error.message
+      end
+
+      test "a region that refuses keeps its place and says so, while the other regions are still read" do
+        travel_to Time.zone.parse("2026-10-06 10:00:00 UTC")
+        since = { "eu-west-1" => 10.minutes.ago.utc.iso8601(6), "us-east-1" => 10.minutes.ago.utc.iso8601(6) }.to_json
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything)
+              .raises(AwsApi::Denied, "AWS answered UnrecognizedClientException: The security token included in the request is invalid")
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "us-east-1", :lookup_events, anything)
+              .returns(events: [ { event_id: "ev-1", event_source: Aws::ECS, cloud_trail_event: update_service_record.to_json } ])
+
+        polled = Aws.poll(@row, since: since)
+
+        assert_equal [ "ev-1" ], polled.events.map(&:id)
+        assert_equal JSON.parse(since)["eu-west-1"], JSON.parse(polled.cursor)["eu-west-1"]
+        assert_equal Time.current.utc.iso8601(6), JSON.parse(polled.cursor)["us-east-1"]
+        assert_equal "CloudTrail in eu-west-1 could not be read: AWS answered UnrecognizedClientException: The security token included in the request is invalid.", polled.error
+
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything).raises(AwsApi::Error, "AWS could not be reached: timed out")
+        assert_equal "CloudTrail in eu-west-1 could not be read: AWS could not be reached: timed out.", Aws.poll(@row, since: since).error
       end
 
       test "each connected region offers a quick-create link with the connection's address and key, once the template is published" do
@@ -141,6 +161,35 @@ module Integrations
 
         assert_equal [ nil, Aws::NO_API_DESTINATIONS ], Aws.offers(@row).map(&:unavailable)
         with_template(TEMPLATE) { assert_equal Aws::NO_API_DESTINATIONS, @row.live_updates_setup_blocked_reason("ca-west-1") }
+      end
+
+      test "a call in GovCloud or China is named in its own partition" do
+        record = record(Aws::LAMBDA, "UpdateFunctionCode20150331v2", { "functionName" => "checkout" }, {})
+
+        assert_equal "arn:aws-us-gov:lambda:us-gov-west-1:#{ACCOUNT}:function:checkout",
+                     Aws.record_events(record.merge("awsRegion" => "us-gov-west-1")).sole.scope.external_id
+        assert_equal "arn:aws-cn:lambda:cn-north-1:#{ACCOUNT}:function:checkout", Aws.record_events(record.merge("awsRegion" => "cn-north-1")).sole.scope.external_id
+      end
+
+      test "GovCloud has no API destinations, and China takes the stack from a template published in China, on China's console" do
+        @row.store_fields!(Packs::Aws::REGIONS => %w[us-gov-west-1])
+        assert_equal [ Aws::NO_API_DESTINATIONS ], Aws.offers(@row).map(&:unavailable)
+
+        @row.store_fields!(Packs::Aws::REGIONS => %w[cn-north-1 cn-northwest-1])
+        china = "https://firefight-templates.s3.cn-north-1.amazonaws.com.cn/aws-live-updates.json"
+        with_template(TEMPLATE) do
+          assert_equal [ Aws::CHINA_UNPUBLISHED ] * 2, Aws.offers(@row).map(&:unavailable)
+          with_china_template(TEMPLATE) { assert_equal [ Aws::CHINA_UNPUBLISHED ] * 2, Aws.offers(@row).map(&:unavailable), "China's S3 is at amazonaws.com.cn" }
+
+          link = with_china_template(china) do
+            assert_equal [ [ "cn-north-1", "China (Beijing)", nil ], [ "cn-northwest-1", "China (Ningxia)", nil ] ],
+                         Aws.offers(@row).map { |offer| [ offer.place, offer.label, offer.unavailable ] }
+            Aws.offer_link(@row, place: "cn-northwest-1", url: URL, secret: KEY)
+          end
+          base, fragment = link.split("#", 2)
+          assert_equal "https://cn-northwest-1.console.amazonaws.cn/cloudformation/home?region=cn-northwest-1", base
+          assert_equal china, Rack::Utils.parse_query(fragment.delete_prefix("/stacks/create/review?"))["templateURL"]
+        end
       end
 
       test "the template asks EventBridge for what the source reads, with the key in the header Firefight checks" do
@@ -178,6 +227,14 @@ module Integrations
 
       def state(type, extra)
         { "id" => "eb-1", "detail-type" => type, "account" => ACCOUNT, "time" => "2026-10-06T10:00:00Z", "region" => "eu-west-1", "resources" => [] }.merge(extra)
+      end
+
+      def with_china_template(url)
+        previous = ENV[Aws::CHINA_TEMPLATE_URL]
+        ENV[Aws::CHINA_TEMPLATE_URL] = url
+        yield
+      ensure
+        ENV[Aws::CHINA_TEMPLATE_URL] = previous
       end
 
       def with_template(url)

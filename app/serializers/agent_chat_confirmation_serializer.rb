@@ -18,6 +18,11 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.question
   end
 
+  type :string
+  def tool_label
+    confirmation.tool_label
+  end
+
   # What the call will do, in the agent's words for whoever approves it. Absent on calls saved before it was asked for.
   type :string, optional: true
   def intent
@@ -29,7 +34,7 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.asked
   end
 
-  # What the call reaches, such as "Faylee (Northflank), project faylee", from the tool and never the agent's words.
+  # What the call reaches, such as "Production (Acme Cloud), project shop", from the tool and never the agent's words.
   # Absent for Firefight's own tools and on calls asked before it was kept.
   type :string, optional: true
   def target

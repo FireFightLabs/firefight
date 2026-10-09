@@ -6,7 +6,7 @@ class WorkspaceAiAccountTokenRefreshJob < ApplicationJob
   REFRESH_WITHIN = 15.minutes
 
   def perform
-    WorkspaceAiAccount.enabled.where(kind: AiProviders::KIND_OAUTH).where(credentials_expire_at: ..REFRESH_WITHIN.from_now).find_each do |account|
+    WorkspaceAiAccount.enabled.where(kind: AiProviders::KIND_OAUTH).where(credentials_expire_at: ..REFRESH_WITHIN.from_now).includes(:workspace).find_each do |account|
       AiAccountSignIn.new(account.workspace).refresh!(account)
     end
   end

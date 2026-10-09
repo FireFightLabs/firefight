@@ -19,6 +19,10 @@ module FirefightAi
 
     attr_accessor :default_model, :default_provider, :provider_settings, :request_timeout
 
+    # Called with the payer, the provider and the error when a call is refused for good. The app sets the payer aside
+    # and tells whoever can fix it, so the engine never writes that state or enqueues anything itself.
+    attr_accessor :on_refused
+
     # Deploy-level kill switch for milestone noting. Entitlement and credits still gate per workspace.
     attr_writer :milestones_enabled
 

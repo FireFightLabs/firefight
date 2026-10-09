@@ -32,6 +32,8 @@ module Sandbox
 
   def self.base_env(home) = ENV.to_h.slice(*INHERITED).merge("HOME" => home, "LANG" => "C.UTF-8", "GIT_TERMINAL_PROMPT" => "0")
 
+  def self.given(value) = value.to_s.strip.empty? ? nil : value.to_s.strip
+
   def self.lock(key, &)
     mutex = LOCKS_GUARD.synchronize { LOCKS[key] }
     mutex.synchronize(&)
@@ -142,22 +144,54 @@ module Sandbox
     end
   end
 
+  # Postgres and Redis inside the box, one of each, on the port a repository's CI gave them or their usual one. A
+  # repository's setup names them with the settings its CI started them with, and the app's tools by name.
   module Services
     STARTED = {}
+    KNOWN = %w[postgres redis].freeze
+    DEFAULT_PORTS = { "postgres" => 5432, "redis" => 6379 }.freeze
+    # A role or database a setup asks for, which goes into SQL inside double quotes.
+    IDENTIFIER = /\A[A-Za-z_][\w-]{0,62}\z/
 
+    # names is a list of service names, or of { "name", "port", "env" } as a setup gives them. Any other name is refused.
     def self.start(names)
-      Array(names).each_with_object({}) do |name, env|
-        case name
-        when "postgres" then env.merge!(postgres)
-        when "redis" then env.merge!(redis)
-        else raise Refused, "No service called #{name}. There are postgres and redis."
-        end
+      Array(names).each_with_object({}) do |service, env|
+        name, port, settings = parts(service)
+        raise Refused, "No service called #{name}. There are postgres and redis." unless KNOWN.include?(name)
+
+        env.merge!(start_one(name, port, settings))
       end
     end
 
-    def self.postgres
+    # A setup's services, leaving out the ones the box cannot start rather than failing, and saying which those were.
+    def self.start_known(services)
+      known, unknown = Array(services).partition { |service| KNOWN.include?(parts(service).first) }
+      [ start(known), unknown.map { |service| parts(service).first } ]
+    end
+
+    def self.parts(service)
+      return [ service.to_s, nil, nil ] unless service.is_a?(Hash)
+
+      [ service["name"].to_s, service["port"] && Integer(service["port"]), service["env"] ]
+    end
+
+    def self.start_one(name, port, settings)
+      port ||= DEFAULT_PORTS.fetch(name)
+      raise Refused, "#{name} cannot listen on port #{port}." unless port.between?(1024, 65_535)
+
+      name == "postgres" ? postgres(port, settings) : redis(port)
+    end
+
+    def self.running_on!(name, port)
+      started = STARTED[name]
+      raise Refused, "#{name} is already running on port #{started}, so it cannot start again on #{port}." if started && started != port
+
+      started
+    end
+
+    def self.postgres(port, settings)
       Sandbox.lock("service:postgres") do
-        unless STARTED["postgres"]
+        unless running_on!("postgres", port)
           data = "/var/lib/postgresql/sandbox"
           bin = Dir["/usr/lib/postgresql/*/bin"].max
           unless File.directory?(data)
@@ -165,25 +199,40 @@ module Sandbox
             FileUtils.chown("postgres", "postgres", data)
             Sandbox.run!([ "#{bin}/initdb", "-D", data, "-A", "trust", "-U", "runner" ], user: "postgres")
           end
-          Sandbox.run!([ "#{bin}/pg_ctl", "-D", data, "-l", "/tmp/postgres.log", "-o", "-k /tmp -c listen_addresses=127.0.0.1", "-w", "start" ], user: "postgres")
-          STARTED["postgres"] = true
+          Sandbox.run!([ "#{bin}/pg_ctl", "-D", data, "-l", "/tmp/postgres.log", "-o", "-k /tmp -p #{port} -c listen_addresses=127.0.0.1", "-w", "start" ], user: "postgres")
+          STARTED["postgres"] = port
         end
+        return { "DATABASE_URL" => "postgres://runner@127.0.0.1:#{port}/postgres", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => "runner" } unless settings
+
+        # As the official image does, the role and database a CI job named, postgres when it named none. Any password
+        # signs in, since the box's Postgres trusts every local connection.
+        user = Sandbox.given(settings["POSTGRES_USER"]) || "postgres"
+        database = Sandbox.given(settings["POSTGRES_DB"]) || user
+        [ user, database ].each { |identifier| raise Refused, "#{identifier} is not a name Postgres takes here." unless identifier.match?(IDENTIFIER) }
+        sql = "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '#{user}') THEN CREATE ROLE \"#{user}\" LOGIN SUPERUSER; END IF; END $$;"
+        psql = [ "psql", "-h", "127.0.0.1", "-p", port.to_s, "-U", "runner", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt", "-c" ]
+        Sandbox.run!([ *psql, sql ], user: "runner")
+        exists = Sandbox.run!([ *psql, "SELECT 1 FROM pg_database WHERE datname = '#{database}'" ], user: "runner").strip == "1"
+        Sandbox.run!([ *psql, "CREATE DATABASE \"#{database}\" OWNER \"#{user}\"" ], user: "runner") unless exists
+        { "DATABASE_URL" => "postgres://#{user}@127.0.0.1:#{port}/#{database}", "PGHOST" => "127.0.0.1", "PGPORT" => port.to_s, "PGUSER" => user,
+          "PGDATABASE" => database }
       end
-      { "DATABASE_URL" => "postgres://runner@127.0.0.1:5432/postgres", "PGHOST" => "127.0.0.1", "PGUSER" => "runner" }
     end
 
-    def self.redis
+    def self.redis(port)
       Sandbox.lock("service:redis") do
-        unless STARTED["redis"]
-          Sandbox.run!([ "redis-server", "--daemonize", "yes", "--bind", "127.0.0.1", "--save", "", "--appendonly", "no" ], user: "runner")
-          STARTED["redis"] = true
+        unless running_on!("redis", port)
+          Sandbox.run!([ "redis-server", "--daemonize", "yes", "--bind", "127.0.0.1", "--port", port.to_s, "--save", "", "--appendonly", "no" ], user: "runner")
+          STARTED["redis"] = port
         end
       end
-      { "REDIS_URL" => "redis://127.0.0.1:6379/0" }
+      { "REDIS_URL" => "redis://127.0.0.1:#{port}/0" }
     end
   end
 
-  # Installs what a repository's lockfiles and version files ask for, once per copy.
+  # Installs what a repository's lockfiles and version files ask for, once per copy, then sets it up as its CI does: the
+  # services, the environment and the commands the repository's setup names. A copy restored from what an earlier one
+  # installed only runs each installer again, which finds everything there, before the setup's commands.
   module Prepare
     STEPS = [
       [ ".tool-versions", [ "mise", "install", "--yes" ] ],
@@ -197,34 +246,161 @@ module Sandbox
       [ "requirements.txt", [ "sh", "-c", "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" ] ],
       [ "go.mod", [ "go", "mod", "download" ] ]
     ].freeze
+    # npm ci starts from nothing, so a restored copy asks npm install instead, which leaves what matches the lockfile.
+    REFRESH = STEPS.map { |file, argv| file == "package-lock.json" ? [ file, [ "npm", "install", "--no-save", "--no-fund", "--no-audit" ] ] : [ file, argv ] }.freeze
+    # What decides what installing puts in a copy, beside the steps' own files.
+    LOCKS = (STEPS.map(&:first) + %w[go.sum]).freeze
+
+    MARKER = ".sandbox-prepared".freeze
+    RESTORED = ".sandbox-restored".freeze
+    # Where an archived copy was, so a restored one can point what names it at its own place.
+    ORIGIN = ".sandbox-origin".freeze
+    # What preparing installs into the copy, kept out of git's view so a clean keeps it and a change never carries it.
+    INSTALLED = [ MARKER, RESTORED, ORIGIN, "vendor/bundle", "node_modules", ".venv" ].freeze
+    # What an archive of a prepared copy keeps, beside the tool versions mise installed.
+    KEPT = %w[vendor/bundle node_modules .venv].freeze
+    # A setup cannot move what every command needs to find its tools and its home.
+    RESERVED = (INHERITED + %w[HOME LANG GIT_TERMINAL_PROMPT SANDBOX_PROGRESS]).freeze
+    ENV_NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/
 
     # The versions a repository asks for, through mise's shims, for everything that runs in its copy.
     def self.env(dir) = { "MISE_YES" => "1", "MISE_TRUSTED_CONFIG_PATHS" => dir, "MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS" => "ruby,node,python,go" }
 
-    # What preparing installs into the copy, kept out of git's view so a clean keeps it and a change never carries it.
-    INSTALLED = %w[.sandbox-prepared vendor/bundle node_modules .venv].freeze
+    # A setup's own variables, without any the box itself sets.
+    def self.setup_env(setup)
+      (setup || {}).fetch("env", {}).to_h.each_with_object({}) do |(name, value), kept|
+        name = name.to_s
+        next unless name.match?(ENV_NAME) && !RESERVED.include?(name) && !name.start_with?("MISE_")
 
-    def self.run(dir)
-      marker = File.join(dir, ".sandbox-prepared")
-      return { "prepared" => [], "already" => true } if File.exist?(marker)
+        kept[name] = value.to_s
+      end
+    end
+
+    # The setup's services started, then its own variables over theirs, since its CI wrote them for those services.
+    # Answers the variables and the services left out because the box cannot start them.
+    def self.environment(dir, setup)
+      started, left_out = Services.start_known((setup || {})["services"])
+      [ env(dir).merge(started, setup_env(setup)), left_out ]
+    end
+
+    def self.run(dir, setup = nil)
+      marker = File.join(dir, MARKER)
+      return { "prepared" => [], "setup" => [], "already" => true } if File.exist?(marker)
 
       exclude = File.join(dir, ".git", "info", "exclude")
       FileUtils.mkdir_p(File.dirname(exclude))
       listed = File.exist?(exclude) ? File.read(exclude).lines.map(&:strip) : []
       File.open(exclude, "a") { |file| INSTALLED.map { |path| "/#{path}" }.reject { |path| listed.include?(path) }.each { |path| file.puts(path) } }
 
+      restored = File.exist?(File.join(dir, RESTORED))
+      env, left_out = environment(dir, setup)
       done = []
-      env = self.env(dir)
-      STEPS.each do |file, argv|
+      (restored ? REFRESH : STEPS).each do |file, argv|
         next unless File.exist?(File.join(dir, file))
         next if argv.first == "mise" && done.any? { |step| step["command"].start_with?("mise") }
 
-        result = Sandbox.run(argv, dir: dir, user: "runner", timeout: MAX_TIMEOUT, env: env)
-        done << { "file" => file, "command" => argv.join(" "), "exit_code" => result["exit_code"],
-                  "output" => (result["stdout"] + result["stderr"]).lines.last(40).join }
+        done << step(argv, dir, env, "file" => file, "command" => argv.join(" "))
       end
-      FileUtils.touch(marker) if done.all? { |step| step["exit_code"] == 0 }
-      { "prepared" => done, "already" => false }
+      ran = []
+      if done.all? { |step| step["exit_code"] == 0 }
+        Array((setup || {})["commands"]).each do |command|
+          ran << step([ "mise", "exec", "--", "sh", "-c", command.to_s ], dir, env, "command" => command.to_s)
+          break unless ran.last["exit_code"] == 0
+        end
+      end
+      FileUtils.touch(marker) if (done + ran).all? { |step| step["exit_code"] == 0 }
+      { "prepared" => done, "setup" => ran, "left_out" => left_out, "restored" => restored, "already" => false }
+    end
+
+    def self.step(argv, dir, env, said)
+      result = Sandbox.run(argv, dir: dir, user: "runner", timeout: MAX_TIMEOUT, env: env)
+      said.merge("exit_code" => result["exit_code"], "output" => (result["stdout"] + result["stderr"]).lines.last(40).join)
+    end
+
+    # What a copy at sha would install, as the files that decide it and the box's own tools, and whether one is prepared.
+    def self.state(name, sha)
+      locks = Sandbox.run!([ "git", "--git-dir", Repos.bare(name), "ls-tree", sha, "--", *LOCKS ])
+      { "lock_digest" => Digest::SHA256.hexdigest([ toolchain, locks ].join("\n")),
+        "prepared" => File.exist?(File.join(RUNS, "#{name}-#{sha}", MARKER)), "commit" => sha }
+    end
+
+    # The system packages and languages the image carries, which what a copy installs was built against.
+    def self.toolchain
+      @toolchain ||= Digest::SHA256.hexdigest([ Sandbox.run([ "dpkg-query", "-W" ])["stdout"], RUBY_DESCRIPTION,
+                                                (File.read("/usr/local/go/VERSION") rescue "") ].join("\n"))
+    end
+  end
+
+  # What a prepared copy installed, packed for the app to keep and handed to a later copy, in another box too, so it
+  # starts with it rather than installing it all again. Packed and unpacked as runner, and only what preparing installs
+  # is taken from an archive, so one cannot put anything anywhere else.
+  module Archive
+    MISE_INSTALLS = File.join(ENV.fetch("MISE_DATA_DIR", "/opt/mise"), "installs")
+    LIMIT = 4 * 1024 * 1024 * 1024
+
+    def self.create(name, sha)
+      dir = Repos.run_copy(name, sha)
+      raise Refused, "#{name} at #{sha} is not prepared, so there is nothing to keep." unless File.exist?(File.join(dir, Prepare::MARKER))
+
+      kept = Prepare::KEPT.select { |path| File.exist?(File.join(dir, path)) }
+      raise Refused, "Preparing #{name} installed nothing to keep." if kept.empty? && !File.directory?(MISE_INSTALLS)
+
+      File.write(File.join(dir, Prepare::ORIGIN), dir)
+      copy = dir.delete_prefix("/")
+      paths = [ Prepare::ORIGIN, *kept ].map { |path| File.join(copy, path) }
+      paths << MISE_INSTALLS.delete_prefix("/") if File.directory?(MISE_INSTALLS)
+      file = File.join(RUNS, ".archive-#{SecureRandom.hex(8)}.tar.gz")
+      Sandbox.run!([ "tar", "-C", "/", "-czf", file, "--transform", "s,^#{copy.gsub('.') { '\\.' }}/,copy/,S", "--", *paths ], user: "runner", timeout: MAX_TIMEOUT)
+      file
+    ensure
+      FileUtils.rm_f(File.join(dir, Prepare::ORIGIN)) if dir
+    end
+
+    # Unpacks an archive into a staging folder and moves only what preparing installs into the copy and mise's tools,
+    # then marks the copy restored so preparing runs each installer once more rather than from nothing.
+    def self.restore(name, sha, file)
+      dir = Repos.run_copy(name, sha)
+      return { "restored" => false, "already" => true } if File.exist?(File.join(dir, Prepare::MARKER))
+
+      staging = File.join(RUNS, ".restore-#{SecureRandom.hex(8)}")
+      Sandbox.run!([ "mkdir", staging ], user: "runner")
+      Sandbox.run!([ "tar", "-C", staging, "-xzf", file, "--no-same-owner", "--no-same-permissions" ], user: "runner", timeout: MAX_TIMEOUT)
+      origin = File.read(File.join(staging, "copy", Prepare::ORIGIN)).strip rescue ""
+      Prepare::KEPT.each do |path|
+        from = File.join(staging, "copy", path)
+        next unless plain?(from) && !File.exist?(File.join(dir, path))
+
+        Sandbox.run!([ "mkdir", "-p", File.dirname(File.join(dir, path)) ], user: "runner")
+        Sandbox.run!([ "mv", from, File.join(dir, path) ], user: "runner")
+      end
+      repoint_venv(dir, origin)
+      tools = File.join(staging, MISE_INSTALLS.delete_prefix("/"))
+      if plain?(tools) && File.directory?(tools)
+        Sandbox.run!([ "cp", "-a", "-n", "#{tools}/.", MISE_INSTALLS ], user: "runner", timeout: MAX_TIMEOUT)
+        Sandbox.run([ "mise", "reshim" ], user: "runner")
+      end
+      FileUtils.touch(File.join(dir, Prepare::RESTORED))
+      { "restored" => true, "already" => false, "commit" => sha }
+    ensure
+      FileUtils.rm_rf(staging) if staging
+      FileUtils.rm_f(file) if file
+    end
+
+    # Whether a path in the archive is there with no link on the way to it, so moving it moves only what was unpacked.
+    def self.plain?(path) = File.exist?(path) && File.realpath(path) == File.expand_path(path)
+
+    # A virtualenv's scripts name the copy they were installed in, so they are pointed at this one.
+    def self.repoint_venv(dir, origin)
+      return if origin.empty? || origin == dir
+
+      Dir[File.join(dir, ".venv", "bin", "*")].each do |script|
+        next if File.symlink?(script) || !File.file?(script)
+
+        text = File.binread(script)
+        next unless text.start_with?("#!#{origin}/")
+
+        File.binwrite(script, text.sub("#!#{origin}/", "#!#{dir}/"))
+      end
     end
   end
 
@@ -437,12 +613,16 @@ module Sandbox
   module Handler
     def self.call(method, path, body, query = {})
       case [ method, path ]
-      in [ "GET", "/health" ] then { "ok" => true, "runs" => true }
+      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true }
       in [ "PUT", %r{\A/repos/([^/]+)\z} ] then Repos.push(Regexp.last_match(1), body)
       in [ "POST", "/exec" ] then exec(JSON.parse(body))
       in [ "POST", "/runs" ] then Runs.start(JSON.parse(body))
       in [ "GET", %r{\A/runs/([^/]+)\z} ] then Runs.read(Regexp.last_match(1), query["after"])
       in [ "POST", "/prepare" ] then prepare(JSON.parse(body))
+      in [ "POST", "/prepare/state" ] then state(JSON.parse(body))
+      in [ "GET", "/prepare/archive" ] then Download.new(Archive.create(query.fetch("repo"), Repos.commit(query.fetch("repo"), query["ref"])))
+      in [ "PUT", "/prepare/archive" ] then restore(query, body)
+      in [ "POST", "/services" ] then services(JSON.parse(body))
       in [ "POST", "/lsp" ] then lsp(JSON.parse(body))
       else raise Refused, "No route #{method} #{path}"
       end
@@ -459,16 +639,17 @@ module Sandbox
 
       timeout = request.fetch("timeout", DEFAULT_TIMEOUT).to_i.clamp(1, MAX_TIMEOUT)
       told = progress ? { "SANDBOX_PROGRESS" => progress } : {}
+      stdin = request["stdin"]&.to_s
       case request.fetch("where", "checkout")
       when "git"
         argv = argv.map { |part| part == "{commit}" ? sha : part }
-        Sandbox.run([ "git", "--git-dir", Repos.bare(name), *argv ], user: "reader", timeout: timeout, env: told).merge("commit" => sha)
+        Sandbox.run([ "git", "--git-dir", Repos.bare(name), *argv ], user: "reader", timeout: timeout, env: told, stdin: stdin).merge("commit" => sha)
       when "checkout"
-        Sandbox.run(argv, dir: Repos.checkout(name, sha), user: "reader", timeout: timeout, env: told).merge("commit" => sha)
+        Sandbox.run(argv, dir: Repos.checkout(name, sha), user: "reader", timeout: timeout, env: told, stdin: stdin).merge("commit" => sha)
       when "run"
         dir = Repos.run_copy(name, sha)
-        env = Services.start(request["services"]).merge(Prepare.env(dir), told)
-        Sandbox.run([ "mise", "exec", "--", *argv ], dir: dir, user: "runner", timeout: timeout, env: env).merge("commit" => sha)
+        env = Services.start(asked_services(request)).merge(Prepare.environment(dir, request["setup"]).first, told)
+        Sandbox.run([ "mise", "exec", "--", *argv ], dir: dir, user: "runner", timeout: timeout, env: env, stdin: stdin).merge("commit" => sha)
       else raise Refused, "No place called #{request['where']}"
       end
     end
@@ -476,7 +657,33 @@ module Sandbox
     def self.prepare(request)
       name = request.fetch("repo")
       sha = Repos.commit(name, request["ref"])
-      Prepare.run(Repos.run_copy(name, sha)).merge("commit" => sha)
+      Prepare.run(Repos.run_copy(name, sha), request["setup"]).merge("commit" => sha)
+    end
+
+    def self.restore(query, file)
+      Archive.restore(query.fetch("repo"), Repos.commit(query.fetch("repo"), query["ref"]), file)
+    ensure
+      FileUtils.rm_f(file)
+    end
+
+    def self.state(request)
+      name = request.fetch("repo")
+      Prepare.state(name, Repos.commit(name, request["ref"]))
+    end
+
+    # Services started for a coding agent by name, answering the variables that reach them.
+    def self.services(request)
+      names = Array(request.fetch("services")).map(&:to_s)
+      unknown = names - Services::KNOWN
+      raise Refused, "The sandbox cannot start #{unknown.join(' or ')}. It can start #{Services::KNOWN.join(' and ')}." if unknown.any?
+
+      { "env" => Services.start(names), "started" => names }
+    end
+
+    # A service a command names runs as the repository's setup has it, on its port and with its role, when it names it too.
+    def self.asked_services(request)
+      setup = Array((request["setup"] || {})["services"])
+      Array(request["services"]).map { |name| setup.find { |service| service.is_a?(Hash) && service["name"] == name } || name }
     end
 
     def self.lsp(request)
@@ -493,8 +700,13 @@ module Sandbox
     end
   end
 
+  # A file the app downloads, written out as it is read and then removed.
+  Download = Struct.new(:path)
+
   module Http
     MAX_BODY = 1024 * 1024 * 1024
+    # An archive of a prepared copy is written to disk as it arrives, never held in memory.
+    UPLOADS = { "/prepare/archive" => Archive::LIMIT }.freeze
 
     def self.serve
       server = TCPServer.new("0.0.0.0", PORT)
@@ -513,17 +725,45 @@ module Sandbox
       return respond(socket, 401, { "error" => "Wrong key" }) unless authorized?(headers["authorization"])
 
       length = headers["content-length"].to_i
-      return respond(socket, 413, { "error" => "Too large" }) if length > MAX_BODY
-
-      body = length.positive? ? socket.read(length) : ""
       path, query = target.to_s.split("?", 2)
-      respond(socket, 200, Handler.call(method, path, body, URI.decode_www_form(query.to_s).to_h))
+      upload = method == "PUT" ? UPLOADS[path] : nil
+      return respond(socket, 413, { "error" => "Too large" }) if length > (upload || MAX_BODY)
+
+      body = if upload then receive(socket, length)
+      else length.positive? ? socket.read(length) : ""
+      end
+      answer = Handler.call(method, path, body, URI.decode_www_form(query.to_s).to_h)
+      answer.is_a?(Download) ? send_file(socket, answer.path) : respond(socket, 200, answer)
     rescue Refused, KeyError, JSON::ParserError => error
       respond(socket, 422, { "error" => error.message })
     rescue StandardError => error
       respond(socket, 500, { "error" => "#{error.class}: #{error.message}" })
     ensure
       socket.close unless socket.closed?
+    end
+
+    # The body copied to a file runner can read, a piece at a time.
+    def self.receive(socket, length)
+      file = File.join(RUNS, ".upload-#{SecureRandom.hex(8)}")
+      File.open(file, File::WRONLY | File::CREAT | File::EXCL, 0o600, binmode: true) do |out|
+        left = length
+        while left.positive?
+          chunk = socket.read([ left, 1024 * 1024 ].min)
+          raise Refused, "The upload ended early." if chunk.nil? || chunk.empty?
+
+          out.write(chunk)
+          left -= chunk.bytesize
+        end
+      end
+      FileUtils.chown("runner", "runner", file)
+      file
+    end
+
+    def self.send_file(socket, path)
+      socket.write("HTTP/1.1 200 OK\r\nContent-Type: application/gzip\r\nContent-Length: #{File.size(path)}\r\nConnection: close\r\n\r\n")
+      File.open(path, "rb") { |file| IO.copy_stream(file, socket) }
+    ensure
+      FileUtils.rm_f(path)
     end
 
     def self.authorized?(header)

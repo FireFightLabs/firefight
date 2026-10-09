@@ -1,12 +1,9 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useState } from "react";
-import { router, usePage } from "@inertiajs/react";
-import { IconCreditCard, IconPlugConnected, IconPlugConnectedX } from "@tabler/icons-react";
 
 import { FlashToaster } from "@/components/flash-toaster";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { onboardingConnectSlackPath, onboardingReinstallPath } from "@/lib/routes";
-import { useCan } from "@/lib/permissions";
+import { CloudBanner } from "@/components/layout/cloud-banner";
+import { ConnectSlackBanner } from "@/components/layout/connect-slack-banner";
+import { DisconnectedBanner } from "@/components/layout/disconnected-banner";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { SearchPalette } from "@/components/navigation/search-palette";
 import { SiteHeader } from "@/components/navigation/site-header";
@@ -23,111 +20,6 @@ interface AuthenticatedLayoutProps {
   sidebarCollapsed?: boolean;
   // A page that answers Cmd or Ctrl K with a search of its own keeps it, and the search stays a click away in the header.
   ownsSearchShortcut?: boolean;
-}
-
-// Slack said the install is gone. Recorded data stays readable, so the page
-// keeps working and asks an admin to reconnect instead of locking anyone out.
-function DisconnectedBanner() {
-  const { currentWorkspace, currentUserIsAdmin } = usePage().props;
-
-  if (!currentWorkspace?.disconnected) {
-    return null;
-  }
-
-  return (
-    <Alert
-      variant="destructive"
-      className="mx-6 mt-6 w-auto flex items-center justify-between gap-4 border-border border-l-2 border-l-error bg-error-tint text-fg-primary *:data-[slot=alert-description]:text-fg-body"
-    >
-      <div className="flex items-start gap-3">
-        <IconPlugConnectedX className="mt-0.5 size-5 shrink-0 text-error" />
-        <div>
-          <AlertTitle>Slack is disconnected</AlertTitle>
-          <AlertDescription>
-            Firefight can no longer reach {currentWorkspace.name} in Slack.
-            Incidents, settings and history are still here, but nothing will
-            post to Slack until the app is reinstalled.
-          </AlertDescription>
-        </div>
-      </div>
-      {currentUserIsAdmin ? (
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <a href={onboardingReinstallPath()}>Reconnect Slack</a>
-        </Button>
-      ) : (
-        <span className="text-xs shrink-0 text-fg-secondary">
-          Ask a workspace admin to reconnect it.
-        </span>
-      )}
-    </Alert>
-  );
-}
-
-// Set by the cloud engine while a billing problem needs attention, absent on an install someone runs themselves.
-function CloudBanner() {
-  const { cloudBanner } = usePage().props;
-
-  if (!cloudBanner) {
-    return null;
-  }
-
-  return (
-    <Alert
-      variant="destructive"
-      className="mx-6 mt-6 w-auto flex flex-col items-start justify-between gap-3 border-border border-l-2 border-l-error bg-error-tint text-fg-primary sm:flex-row sm:items-center *:data-[slot=alert-description]:text-fg-body"
-    >
-      <div className="flex items-start gap-3">
-        <IconCreditCard className="mt-0.5 size-5 shrink-0 text-error" />
-        <div>
-          <AlertTitle>{cloudBanner.title}</AlertTitle>
-          <AlertDescription>{cloudBanner.detail}</AlertDescription>
-        </div>
-      </div>
-      {cloudBanner.action ? (
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <a href={cloudBanner.action.href}>{cloudBanner.action.label}</a>
-        </Button>
-      ) : null}
-    </Alert>
-  );
-}
-
-function connectSlack() {
-  router.post(onboardingConnectSlackPath());
-}
-
-// The workspace started without Slack. Everything but incidents works, so the page says what waits on it.
-function ConnectSlackBanner() {
-  const { currentWorkspace } = usePage().props;
-  const canConnect = useCan("workspace");
-
-  if (!currentWorkspace || currentWorkspace.chatConnected) {
-    return null;
-  }
-
-  return (
-    <Alert className="mx-6 mt-6 w-auto flex flex-col items-start justify-between gap-3 border-border border-l-2 border-l-brand bg-surface text-fg-primary sm:flex-row sm:items-center *:data-[slot=alert-description]:text-fg-body">
-      <div className="flex items-start gap-3">
-        <IconPlugConnected className="mt-0.5 size-5 shrink-0 text-brand" />
-        <div>
-          <AlertTitle>Connect Slack to run incidents</AlertTitle>
-          <AlertDescription>
-            Each incident gets its own Slack channel, so declaring one waits
-            until Slack is connected. Everything else works now.
-          </AlertDescription>
-        </div>
-      </div>
-      {canConnect ? (
-        <Button variant="outline" size="sm" className="shrink-0" onClick={connectSlack}>
-          Connect Slack
-        </Button>
-      ) : (
-        <span className="text-xs shrink-0 text-fg-secondary">
-          Ask a workspace admin to connect it.
-        </span>
-      )}
-    </Alert>
-  );
 }
 
 // Module scope because every page mounts its own layout, null after a full load.

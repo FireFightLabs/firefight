@@ -3,6 +3,7 @@
 class Integration < ApplicationRecord
   include Sluggable
   include CodeChanges
+  include RepositorySetups
 
   KIND_MCP = "mcp"
   KIND_HTTP = "http"
@@ -13,9 +14,11 @@ class Integration < ApplicationRecord
 
   belongs_to :workspace
   has_many :integration_environments, dependent: :destroy
-  has_many :tools, class_name: "Integration::Tool", dependent: :destroy
+  has_many :tools, class_name: "Integration::Tool", dependent: :destroy, inverse_of: :integration
   # Its read, changes and everything packs, which Firefight keeps in step with its tools (Ability::Role::Packs).
   has_many :permission_packs, class_name: "Ability::Role", dependent: :destroy
+  # How each of its repositories is set up before its tests, for a code host (RepositorySetup).
+  has_many :repository_setups, dependent: :delete_all
 
   validates :kind, inclusion: { in: KINDS }
   validates :provider, :name, presence: true

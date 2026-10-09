@@ -24,6 +24,16 @@ class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
     assert_equal "Northflank, project firefight", @firefight.target_label
   end
 
+  test "the tool behind each step of a chat is looked up once per workspace, switched on or not" do
+    workspace = Workspace.find(@workspace.id)
+    assert_equal "northflank_api_request", Chat::Tools::Target.connection_tool(workspace, "northflank_api_request").model_facing_name
+    faylee_tool = @faylee.tools.first.model_facing_name
+    assert_queries_count(0) do
+      assert_equal faylee_tool, Chat::Tools::Target.connection_tool(workspace, faylee_tool).model_facing_name
+      assert_nil Chat::Tools::Target.connection_tool(workspace, "remember")
+    end
+  end
+
   test "a connection with every tool off is named when its group is opened, though the other connection's tools are on" do
     open = Chat::Tools::Open.new(@turn, offer: ->(_tools) { })
 

@@ -4,7 +4,8 @@ require "test_helper"
 # either table in full would read every workspace's rows, so each query's plan is checked rather than its time, which
 # varies by machine. Rows are written by the database itself, since building them in Ruby takes far longer than the test.
 # The map takes most of the time to build, so one test builds it once and runs every check on it, the matchers last
-# since they rename resources.
+# since they rename resources. Building it takes most of a minute, so it runs only when asked for (SCALE_TESTS=1), which
+# the scale test workflow does nightly and on a pull request that changes the map.
 class ResourceMap::ScaleTest < ActiveSupport::TestCase
   RESOURCES = 100_000
   OTHERS = 150_000
@@ -12,6 +13,8 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
   FULL_SCANS = /Seq Scan on resource_map_(resources|links)\b/
 
   test "on a map of 100,000 resources the queries read through indexes, the map tools answer, and the matchers compare only likely pairs" do
+    skip "Set SCALE_TESTS=1 to build the 100,000 resource map" unless ENV["SCALE_TESTS"] == "1"
+
     @workspace = workspaces(:slack_workspace_one)
     fill(@workspace, RESOURCES, linked: true)
     fill(workspaces(:slack_workspace_two), OTHERS)

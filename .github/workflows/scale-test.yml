@@ -1,0 +1,55 @@
+name: Scale test
+
+# The resource map's scale test builds a map of 100,000 resources, which takes most of a minute, so the main suite
+# skips it. It runs here every night and on a pull request that changes the map's code, its tables or the test.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "app/models/resource_map.rb"
+      - "app/models/resource_map/**"
+      - "app/services/resource_map/**"
+      - "app/services/map_search_service.rb"
+      - "app/services/integrations/map_sweep.rb"
+      - "db/schema.rb"
+      - "test/models/resource_map/scale_test.rb"
+      - ".github/workflows/scale-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scale-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=1s --health-timeout=5s --health-retries=30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # The test helper builds the frontend before the tests start, so Node comes too.
+      - name: Set up the runner
+        uses: ./.github/actions/host-setup
+        with:
+          node: "true"
+          packages: "true"
+
+      - name: Run the scale test
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          SCALE_TESTS: "1"
+        run: |
+          bin/rails db:test:prepare
+          bin/rails test test/models/resource_map/scale_test.rb

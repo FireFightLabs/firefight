@@ -31,7 +31,6 @@ module Slack
       IncidentEvent::INVESTIGATION_STOPPED => { emoji: ":mag:", title: "Investigation stopped" }
     }.freeze
 
-    SECTION_TEXT_LIMIT = Slack::Messages::StatusUpdate::SECTION_TEXT_LIMIT
     CHANGE_VALUE_LIMIT = 80
     # Three or fewer changes read on one line, as the update message itself lays them out.
     INLINE_CHANGES = 3
@@ -49,9 +48,9 @@ module Slack
     # Someone with no Slack account, a person or a machine, is named rather than shown as Firefight's own doing.
     def self.actor_mention_for(event)
       user_id = (event.metadata || {})["user_id"] || event.actor&.platform_user_id
-      return "<@#{user_id}>" if user_id.present?
+      return Mrkdwn.person(user_id, event.actor&.actor_display_name) if user_id.present? || event.actor
 
-      event.actor ? Mrkdwn.mention(event.actor) : "System"
+      "System"
     end
     private_class_method :actor_mention_for
 
@@ -61,7 +60,7 @@ module Slack
 
       section_text = "#{emoji_for(event)} *#{label_for(event)}*"
       section_text += "\n#{details}" if details.present?
-      section_text = section_text.truncate(SECTION_TEXT_LIMIT, separator: "\n", omission: "\n…")
+      section_text = section_text.truncate(Slack::Messages::Formatting::SECTION_TEXT_LIMIT, separator: "\n", omission: "\n…")
 
       unix_ts = event.created_at.to_i
       fallback = event.created_at.in_time_zone.strftime("%Y-%m-%d %H:%M")

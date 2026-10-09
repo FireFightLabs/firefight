@@ -50,7 +50,7 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
       "properties" => {
         "title" => { "type" => "string", "description" => "What is watched, as the person would say it, such as release run #46 and the deploy" },
         "purpose" => { "type" => "string",
-                       "description" => "Why the person wants this, the goal in their own words, such as get GitHub releases deploying through " \
+                       "description" => "Why the person wants this, the goal in their own words, such as get releases deploying through " \
                                         "the webhook again. Every report says where things stand against it" },
         "steps" => { "type" => "array", "items" => STEP, "description" => "What to follow, in order, at most #{Chat::Watch::MAX_STEPS}" },
         "minutes" => { "type" => "integer", "description" => "Only when the person asked: how long to watch, at most #{Chat::Watch::LONGEST.in_minutes.to_i} (optional)" },
