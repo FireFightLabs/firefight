@@ -49,9 +49,9 @@ module Slack
     # Someone with no Slack account, a person or a machine, is named rather than shown as Firefight's own doing.
     def self.actor_mention_for(event)
       user_id = (event.metadata || {})["user_id"] || event.actor&.platform_user_id
-      return "<@#{user_id}>" if user_id.present?
+      return Mrkdwn.person(user_id, event.actor&.actor_display_name) if user_id.present? || event.actor
 
-      event.actor ? Mrkdwn.mention(event.actor) : "System"
+      "System"
     end
     private_class_method :actor_mention_for
 
