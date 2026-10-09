@@ -586,6 +586,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
+  def post_learned_memories_to_user(user_id:, post:)
+    post_message(channel_id: user_id, text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post))
+  end
+
   def update_learned_memories(channel_id:, message_id:, post:)
     update_message(channel_id: channel_id, message_id: message_id,
                    text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post))

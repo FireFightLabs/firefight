@@ -60,8 +60,8 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
     bob = workspace_memberships(:bob_workspace_one)
     taught = Chat::Memory.create!(workspace: @workspace, text: "Checkout reads from the replica", state: Chat::Memory::STATE_UNCONFIRMED, added_by: bob,
                                   created_at: 10.days.ago)
-    @adapter.expects(:post_learned_memories).with { |channel_id:, thread_id:, post:|
-      channel_id == bob.platform_user_id && thread_id.nil? && post.kind == Chat::MemoryPost::KIND_REMINDER &&
+    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:|
+      user_id == bob.platform_user_id && post.kind == Chat::MemoryPost::KIND_REMINDER &&
         post.reminder == MemoryPostService::ShownReminder.new(taught: 1, learned: 0, direct: true) && post.memories.map(&:id) == [ taught.id ]
     }.returns(message_id: "7.1", channel_id: "D42")
 
@@ -79,7 +79,7 @@ class MemoryPostServiceTest < ActiveSupport::TestCase
                                          source: @incident, created_at: 10.days.ago)
     @memory.destroy!
     @adapter.expects(:post_learned_memories).with { |channel_id:, **| channel_id == @incident.channel_id }.raises(AdapterError::IsArchived)
-    @adapter.expects(:post_learned_memories).with { |channel_id:, post:, **| channel_id == @member.platform_user_id && post.memories.map(&:id) == [ from_incident.id ] }
+    @adapter.expects(:post_learned_memories_to_user).with { |user_id:, post:| user_id == @member.platform_user_id && post.memories.map(&:id) == [ from_incident.id ] }
             .returns(message_id: "8.1", channel_id: "D7")
 
     assert_equal 1, MemoryPostService.new(@workspace).remind!

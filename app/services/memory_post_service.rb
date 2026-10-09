@@ -120,7 +120,11 @@ class MemoryPostService
     post = Chat::MemoryPost.create!(workspace: @workspace, kind: Chat::MemoryPost::KIND_REMINDER, recipient: reminder.recipient,
                                     incident: (reminder.incident unless reminder.recipient), channel_id: channel_id,
                                     memory_ids: reminder.memories.map(&:id))
-    posted = adapter.post_learned_memories(channel_id: channel_id, thread_id: nil, post: shown(post))
+    posted = if reminder.recipient
+      adapter.post_learned_memories_to_user(user_id: channel_id, post: shown(post))
+    else
+      adapter.post_learned_memories(channel_id: channel_id, thread_id: nil, post: shown(post))
+    end
     post.posted!(posted[:message_id], channel_id: posted[:channel_id] || channel_id)
     true
   rescue AdapterError => error

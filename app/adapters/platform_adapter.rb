@@ -485,10 +485,16 @@ class PlatformAdapter
   end
 
   # Asks an incident's channel to decide on memories, each with the actions its state allows, in a thread when given.
-  # channel_id may be a person's platform id, for a reminder by direct message, and the channel it landed in comes back.
   # post is a MemoryPostService::Shown.
   # @return [Hash] { message_id:, channel_id: }
   def post_learned_memories(channel_id:, thread_id:, post:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same, to one person directly, as a reminder of memories they or the team taught. channel_id is where it landed,
+  # which a redraw needs.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_learned_memories_to_user(user_id:, post:)
     raise NotImplemented.new(__method__, self.class)
   end
 
