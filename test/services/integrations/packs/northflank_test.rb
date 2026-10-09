@@ -122,7 +122,7 @@ module Integrations
       end
 
       test "a change the token's role may not make says what to give it in Northflank" do
-        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Error, "Northflank answered 403: Missing permission: Update")
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Forbidden, "Northflank answered 403: Missing permission: Update")
 
         error = assert_raises(Integrations::Error) { call(:api_request, "method" => "POST", "path" => "services/web/restart") }
 

@@ -354,11 +354,12 @@ module Integrations
           api(environment_row).request(verb, project_of(environment_row), path, body, query)
         rescue NorthflankApi::NotEnabled
           raise
+        rescue NorthflankApi::Forbidden => error
+          fail!(Sentence.all(error, refused_role(verb, path)))
         rescue NorthflankApi::Error => error
           fail!(Sentence.all(error, NO_SUCH_CALL)) if error.message.start_with?(*MISSING_CALL)
-          raise unless error.message.start_with?("Northflank answered 403")
 
-          fail!(Sentence.all(error, refused_role(verb, path)))
+          raise
         end
         asked = query.any? ? "#{path}?#{URI.encode_www_form(query)}" : path
         Telemetry.result("Northflank answered #{verb} #{asked}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)

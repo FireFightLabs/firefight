@@ -85,9 +85,7 @@ module Integrations
 
         def changing_workflow
           yield
-        rescue NorthflankApi::Error => error
-          raise unless error.message.start_with?("Northflank answered 403")
-
+        rescue NorthflankApi::Forbidden => error
           fail!(Sentence.all(error, "The API token's role cannot change workflows. In Northflank, give the role Project, Workflows, " \
                                    "General, Update, then run it again."))
         end
