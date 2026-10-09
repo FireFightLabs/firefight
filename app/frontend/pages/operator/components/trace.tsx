@@ -2,7 +2,7 @@ import { router, usePage } from "@inertiajs/react"
 import { useEffect, useState } from "react"
 
 import { Card } from "@/components/ui/card"
-import { OPERATOR_SPAN_BODY_PROP, OPERATOR_SPAN_PARAM } from "@/lib/generated/constants"
+import { OPERATOR_SPAN_BODY_PROP, OPERATOR_SPAN_PARAM } from "@/pages/operator/generated/constants"
 import { SelectedSpan } from "@/pages/operator/components/selected-span"
 import { TraceGroup } from "@/pages/operator/components/trace-group"
 import { TraceLegend } from "@/pages/operator/components/trace-legend"

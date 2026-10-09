@@ -6,7 +6,7 @@ import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { formatDateTime, formatTime } from "@/lib/formatters"
-import { OPERATOR_STEP_STATUSES } from "@/lib/generated/constants"
+import { OPERATOR_STEP_STATUSES } from "@/pages/operator/generated/constants"
 import {
   cancelOperatorWorkflowPath,
   operatorIncidentPath,

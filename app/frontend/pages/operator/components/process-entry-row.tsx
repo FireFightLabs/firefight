@@ -14,7 +14,7 @@ import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { formatDateTime, formatTime } from "@/lib/formatters"
-import { OPERATOR_PROCESS_KINDS, OPERATOR_PROCESS_TONES } from "@/lib/generated/constants"
+import { OPERATOR_PROCESS_KINDS, OPERATOR_PROCESS_TONES } from "@/pages/operator/generated/constants"
 import { operatorHalonRunPath } from "@/lib/routes"
 import { RedeliverButton } from "@/pages/operator/components/redeliver-button"
 import { StepActions } from "@/pages/operator/components/step-actions"

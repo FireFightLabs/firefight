@@ -5,7 +5,7 @@ import { SearchableSelect, type SearchableSelectOption } from "@/components/sear
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { OPERATOR_REGRESSION_MODELS_PROP } from "@/lib/generated/constants"
+import { OPERATOR_REGRESSION_MODELS_PROP } from "@/pages/operator/generated/constants"
 import { whenClosed } from "@/lib/handlers"
 import { operatorHalonRegressionsPath } from "@/lib/routes"
 import { useAction } from "@/pages/operator/hooks/use-action"

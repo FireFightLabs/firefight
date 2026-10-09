@@ -1,7 +1,9 @@
 module Operator
-  # Operator values the pages need, by constant name. lib/typescript_constants.rb adds them to the generated frontend
-  # constants.
+  # Operator values the pages need, by constant name, written to the console's own generated file so the app's
+  # constants never name the console. bin/rails typescript:constants writes both.
   module TypescriptConstants
+    OUTPUT = Rails.root.join("app/frontend/pages/operator/generated/constants.ts")
+
     def self.exports
       {
         "OPERATOR_WORKFLOW_STATES" => WorkflowRuns::STATES.index_by(&:upcase),
@@ -20,6 +22,21 @@ module Operator
         "OPERATOR_SPAN_BODY_PROP" => Trace::BODY_PROP,
         "OPERATOR_REGRESSION_MODELS_PROP" => HalonRegression::MODELS_PROP
       }
+    end
+
+    def self.render
+      exports.each_with_object(::TypescriptConstants::HEADER.dup) do |(name, value), out|
+        out << "\nexport const #{name} = #{JSON.pretty_generate(value)} as const\n"
+      end
+    end
+
+    def self.write!
+      OUTPUT.dirname.mkpath
+      OUTPUT.write(render)
+    end
+
+    def self.current?
+      OUTPUT.exist? && OUTPUT.read == render
     end
   end
 end

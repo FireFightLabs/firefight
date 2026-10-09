@@ -16,7 +16,7 @@ import {
   type Icon,
 } from "@tabler/icons-react"
 
-import { OPERATOR_TRACE_KINDS } from "@/lib/generated/constants"
+import { OPERATOR_TRACE_KINDS } from "@/pages/operator/generated/constants"
 import type { OperatorTraceSpan } from "@/types/serializers"
 
 type Kind = OperatorTraceSpan["kind"]

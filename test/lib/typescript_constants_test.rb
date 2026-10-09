@@ -5,4 +5,9 @@ class TypescriptConstantsTest < ActiveSupport::TestCase
     assert TypescriptConstants.current?,
            "app/frontend/lib/generated/constants.ts has drifted from the Ruby constants, run bin/rails typescript:constants"
   end
+
+  test "the operator console's generated constants are current" do
+    assert Operator::TypescriptConstants.current?,
+           "app/frontend/pages/operator/generated/constants.ts has drifted from the Ruby constants, run bin/rails typescript:constants"
+  end
 end

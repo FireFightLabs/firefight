@@ -9,7 +9,7 @@ import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartToo
 import { OUTCOME_LABELS, labelFor } from "@/components/investigations/labels"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate, formatDateTime, percent } from "@/lib/formatters"
-import { OPERATOR_HALON_ENDINGS, OPERATOR_WINDOWS } from "@/lib/generated/constants"
+import { OPERATOR_HALON_ENDINGS, OPERATOR_WINDOWS } from "@/pages/operator/generated/constants"
 import { operatorHalonPath, operatorHalonRunPath } from "@/lib/routes"
 import { FilterBar } from "@/pages/operator/components/filter-bar"
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"

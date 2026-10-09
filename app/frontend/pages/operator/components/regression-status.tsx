@@ -1,4 +1,4 @@
-import { OPERATOR_REGRESSION_CASE_STATUSES, OPERATOR_REGRESSION_TRIGGERS } from "@/lib/generated/constants"
+import { OPERATOR_REGRESSION_CASE_STATUSES, OPERATOR_REGRESSION_TRIGGERS } from "@/pages/operator/generated/constants"
 import { TONE_CLASSES, type Tone } from "@/pages/operator/lib/tone"
 import type { OperatorHalonRegressionCase, OperatorHalonRegressionRun } from "@/types/serializers"
 

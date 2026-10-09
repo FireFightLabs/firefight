@@ -2,7 +2,7 @@ import { Link, router, usePage } from "@inertiajs/react"
 import { IconRefresh } from "@tabler/icons-react"
 
 import { Button } from "@/components/ui/button"
-import { OPERATOR_HALON_ENDINGS } from "@/lib/generated/constants"
+import { OPERATOR_HALON_ENDINGS } from "@/pages/operator/generated/constants"
 import { operatorHalonPath, operatorIncidentPath } from "@/lib/routes"
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"

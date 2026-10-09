@@ -1,7 +1,9 @@
 namespace :typescript do
-  desc "Regenerate app/frontend/lib/generated/constants.ts from Ruby constants"
+  desc "Regenerate the frontend's generated constants from Ruby constants, the app's and the operator console's"
   task constants: :environment do
-    TypescriptConstants.write!
-    puts "Wrote #{TypescriptConstants::OUTPUT.relative_path_from(Rails.root)}"
+    [ TypescriptConstants, Operator::TypescriptConstants ].each do |generator|
+      generator.write!
+      puts "Wrote #{generator::OUTPUT.relative_path_from(Rails.root)}"
+    end
   end
 end

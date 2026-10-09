@@ -2,7 +2,7 @@ import { Link } from "@inertiajs/react"
 import { IconAlertTriangle, IconArrowRight } from "@tabler/icons-react"
 
 import { formatDateTime } from "@/lib/formatters"
-import { OPERATOR_PROCESS_TONES } from "@/lib/generated/constants"
+import { OPERATOR_PROCESS_TONES } from "@/pages/operator/generated/constants"
 import { since } from "@/pages/operator/lib/format"
 import { processToneClasses } from "@/pages/operator/lib/tone"
 import type { OperatorAttentionItem } from "@/types/serializers"

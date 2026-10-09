@@ -1,6 +1,6 @@
 import { IconCheck, IconClock, IconX, type Icon } from "@tabler/icons-react"
 
-import { OPERATOR_STEP_STATUSES } from "@/lib/generated/constants"
+import { OPERATOR_STEP_STATUSES } from "@/pages/operator/generated/constants"
 import { STEP_STATUS_TONES, TONE_CLASSES } from "@/pages/operator/lib/tone"
 import type { OperatorWorkflow } from "@/types/serializers"
 

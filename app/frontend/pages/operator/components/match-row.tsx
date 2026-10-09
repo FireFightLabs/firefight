@@ -1,7 +1,7 @@
 import { Link } from "@inertiajs/react"
 import { IconFlame, IconHierarchy2, IconMessages, IconSparkles, type Icon } from "@tabler/icons-react"
 
-import { OPERATOR_FIND_KINDS } from "@/lib/generated/constants"
+import { OPERATOR_FIND_KINDS } from "@/pages/operator/generated/constants"
 import type { OperatorFindMatch } from "@/types/serializers"
 
 const KINDS: Record<OperatorFindMatch["kind"], { label: string; icon: Icon }> = {

@@ -1,4 +1,4 @@
-import { OPERATOR_PROCESS_TONES } from "@/lib/generated/constants"
+import { OPERATOR_PROCESS_TONES } from "@/pages/operator/generated/constants"
 import { processToneClasses } from "@/pages/operator/lib/tone"
 import type { OperatorTraceSpan } from "@/types/serializers"
 

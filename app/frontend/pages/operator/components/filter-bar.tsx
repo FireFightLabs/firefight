@@ -3,7 +3,7 @@ import { router, usePage } from "@inertiajs/react"
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { OPERATOR_WINDOWS } from "@/lib/generated/constants"
+import { OPERATOR_WINDOWS } from "@/pages/operator/generated/constants"
 import type { FilterProps, OperatorWindow } from "@/pages/operator/types"
 
 const WINDOW_LABELS: Record<OperatorWindow, string> = {

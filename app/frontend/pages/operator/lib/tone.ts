@@ -1,5 +1,5 @@
 import { TONE_CLASSES, type Tone } from "@/components/investigations/tone"
-import { OPERATOR_PROCESS_TONES, OPERATOR_STEP_STATUSES, OPERATOR_WORKFLOW_STATES } from "@/lib/generated/constants"
+import { OPERATOR_PROCESS_TONES, OPERATOR_STEP_STATUSES, OPERATOR_WORKFLOW_STATES } from "@/pages/operator/generated/constants"
 import type { OperatorProcessEntry, OperatorWorkflowRow } from "@/types/serializers"
 
 type ProcessTone = OperatorProcessEntry["tone"]
