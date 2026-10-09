@@ -27,6 +27,19 @@ class RunbookTest < ActiveSupport::TestCase
     assert_match "what counts as done", runbook.errors[:watch].join
   end
 
+  test "a refused watch names each step that is short of something by its number" do
+    named = { "label" => "Release", "capability" => "run_history", "resource" => "firefight" }
+    unnamed = { "label" => "Web", "capability" => "resource_status" }
+    runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "web", "steps" => [ named, unnamed ] })
+    assert_not runbook.valid?
+    assert_equal [ "needs step 2 to name the capability to check and the resource" ], runbook.errors[:watch]
+
+    undecided = { "label" => "Web", "capability" => "resource_status", "resource" => "web" }
+    runbook.watch = { "title" => "web", "steps" => [ undecided, named, undecided ] }
+    assert_not runbook.valid?
+    assert_equal [ "needs what counts as done for steps 1 and 3 (done when, failed when or a goal)" ], runbook.errors[:watch]
+  end
+
   test "a watch step that follows a run needs nothing more, and one that reads a status saves with a goal" do
     history = { "label" => "Release", "capability" => "run_history", "resource" => "firefight" }
     status = { "label" => "Web", "capability" => "resource_status", "resource" => "web", "goal" => "web runs the new version" }
