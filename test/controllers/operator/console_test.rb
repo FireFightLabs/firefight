@@ -36,12 +36,14 @@ class Operator::ConsoleTest < ActionDispatch::IntegrationTest
 
     get routes.operator_setup_path, headers: inertia_headers
     assert inertia_props["qr"].is_a?(Array)
+    assert_not inertia_props.key?("attention"), "nothing about the console reaches an operator who has not entered a code"
 
     post routes.operator_setup_path, params: { code: code_for(@user) }, headers: inertia_headers
     assert_equal Operator::Credential::RECOVERY_CODE_COUNT, inertia_props["codes"].size
 
     get routes.operator_root_path, headers: inertia_headers
     assert_equal "operator/overview", JSON.parse(response.body)["component"]
+    assert inertia_props.key?("attention")
   end
 
   test "an operator is asked for a code before the jobs dashboard, and a wrong one says so" do

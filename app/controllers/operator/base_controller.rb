@@ -9,8 +9,9 @@ module Operator
     inertia_share do
       { operator: current_user && { name: current_user.name.presence || current_user.email, email: current_user.email } }
     end
-    # Number of Needs attention items in the last 24 hours, shown in the sidebar. Computed only when a page renders.
-    inertia_share attention: -> { Attention.new(Filter.new, jobs: JobHealth.read(since: Filter.new.since)).items.size }
+    # Number of Needs attention items in the last 24 hours, shown in the sidebar. Computed only when a page renders, and
+    # never for an operator who has not entered a code yet.
+    inertia_share attention: -> { Attention.new(Filter.new, jobs: JobHealth.read(since: Filter.new.since)).items.size }, if: :operator_verified?
 
     private
 
