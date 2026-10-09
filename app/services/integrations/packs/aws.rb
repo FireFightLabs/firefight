@@ -834,6 +834,8 @@ module Integrations
 
         region = parts[:region]
         fail!("#{arn} is in #{region}, which this connection does not read. Add the region on the connection to reach it.") if regions(environment_row).exclude?(region)
+        account = account_of(environment_row)
+        fail!("#{arn} is in account #{parts[:account]}, and this connection reads #{account}.") if parts[:account].present? && parts[:account] != account
 
         resource = parts[:resource]
         case parts[:service]
@@ -1192,7 +1194,7 @@ module Integrations
       def function_versions(environment_row, entry, limit)
         aws = api(environment_row)
         # Lambda lists versions oldest first, so every page is read to reach the newest.
-        versions, = aws.all(:lambda, entry.region, :list_versions_by_function, { function_name: entry.name }, :versions, max_pages: VERSION_PAGES)
+        versions, more = aws.all(:lambda, entry.region, :list_versions_by_function, { function_name: entry.name }, :versions, max_pages: VERSION_PAGES)
         aliases = Array(aws.call(:lambda, entry.region, :list_aliases, function_name: entry.name)[:aliases])
         pointed = aliases.group_by { |each| each[:function_version] }
         published = versions.reject { |version| version[:version] == "$LATEST" }.sort_by { |version| -version[:version].to_i }.first(limit)
@@ -1205,7 +1207,8 @@ module Integrations
             "code sha256 #{version[:code_sha_256].to_s.first(12)}", ("alias #{names.join(', ')}" if names.any?) ].compact.join(", ")
         end
         how = aliases.size > 1 ? "A rollback takes alias:version, such as #{aliases.first[:name]}:#{published.last[:version]}" : "A rollback takes a version"
-        Telemetry.result("Latest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}", link: link)
+        cut = "\nLambda has more versions of #{entry.name} than Firefight reads, so the newest may be missing." if more
+        Telemetry.result("Latest #{rows.size} versions of #{entry.name}, newest first. #{how}.\n#{rows.join("\n")}\n#{alias_line(aliases)}#{cut}", link: link)
       end
 
       # Only a revision of the family the service runs, so a rollback can never swap in a different application.
