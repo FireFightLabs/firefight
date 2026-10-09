@@ -160,7 +160,6 @@ class Postmortem < ApplicationRecord
   validates :content, presence: true
   validates :status, inclusion: { in: STATUSES }
 
-
   def html_content
     content["html"].presence || legacy_sections_to_html
   end

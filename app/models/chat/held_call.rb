@@ -100,8 +100,6 @@ class Chat::HeldCall < ApplicationRecord
     move!(from: STATUS_RUNNING, to: ok ? STATUS_RAN : STATUS_FAILED, result: result.to_s.truncate(RESULT_LIMIT).presence, invocation_id: invocation_id)
   end
 
-  # Why this person cannot run it now, or nil. Whoever asked may, and so may someone in the chat who may make the same
-  # call themselves. It still runs as whoever asked, since that is who it was approved for.
   # How the run went, read from its ledger row, which the gateway wrote with this approval. A call refused before it ran
   # has no allowed row, and failed. A failure keeps the first line of why. What a call that went through answered is
   # Halon's to tell, in the chat.
@@ -134,6 +132,8 @@ class Chat::HeldCall < ApplicationRecord
     NOT_ALLOWED
   end
 
+  # Why this person cannot run it now, or nil. Whoever asked may, and so may someone in the chat who may make the same
+  # call themselves. It still runs as whoever asked, since that is who it was approved for.
   def run_blocked_reason(member)
     return "Halon is still checking how things stand now." if checking?
     return expired_reason if expired?

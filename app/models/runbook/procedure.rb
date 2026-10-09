@@ -50,7 +50,7 @@ module Runbook::Procedure
     end
   end
 
-  # Whether Halon can run it: a step names a tool, or there is something to watch.
+  # Whether Halon can run it, because a step names a tool or there is something to watch.
   def procedure? = runbook_steps.any?(&:tool?) || watch.present?
 
   def input_keys = inputs.map { |input| input["key"] }

@@ -1,4 +1,4 @@
-# A code change that reached its spending limit before it finished. It is a pause, not a failure: the work so far is
+# A code change that reached its spending limit before it finished. It is a pause, not a failure. The work so far is
 # committed and kept on a branch of its own, and the person the change runs as decides with Continue or Stop. Continue
 # gives it another budget of the same size and carries on where it stopped, in the same box and the same agent session
 # while the box is still there, otherwise from the saved branch with a handover. Stop deletes the saved branch.

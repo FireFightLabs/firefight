@@ -61,7 +61,7 @@ class Chat::Watch < ApplicationRecord
 
   def active? = status == STATUS_ACTIVE
 
-  def asker_name = asker.try(:display_name) || asker.try(:name) || "The person who asked"
+  def asker_name = asker.try(:display_name) || asker.try(:name) || "the person who asked"
 
   def limit_minutes = ((expires_at - created_at) / 60).round
 

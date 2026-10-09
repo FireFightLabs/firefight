@@ -52,7 +52,7 @@ class Investigation::Performance
     end
   end
 
-  # A fix counts once: as undone when its undo went through, otherwise by how it ended.
+  # A fix counts once, as undone when its undo went through, otherwise by how it ended.
   def fixes = @fixes ||= count_fixes
 
   # The answers the team marked wrong, newest first, each with what Halon learned from its incident.

@@ -1,6 +1,6 @@
 # What Halon told about a pull request it opened: the problems the code host showed (a conflict with its base, failing
 # checks, a reviewer asking for changes) on one head, with Fix it. One per set of problems on the same commits, which a
-# unique index holds, so a live update and the sweep arriving together say it once. Fix it is the only yes: nothing on
+# unique index holds, so a live update and the sweep arriving together say it once. Fix it is the only yes. Nothing on
 # the branch changes until the person the change runs as presses it, and then it runs as them through the gateway.
 class CodeAgentSession::Notice < ApplicationRecord
   STATUS_OFFERED = "offered"

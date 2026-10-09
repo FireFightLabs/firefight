@@ -26,7 +26,7 @@ class Chat::CodeFixProgress
   ChangedFile = Data.define(:path, :added, :removed)
 
   # question is the agent's latest question as CodeAgentQuestion#to_h, checks what ran on the change in the sandbox, and
-  # review what Halon's review of it found (Github::Fixing::Reviewed#to_h).
+  # review what Halon's review of it found, as the code review hands it back.
   # pause is the change's pause at its spending limit as CodeAgentSession::Pause#to_h.
   attr_reader :started_at, :lines, :total, :changed, :tests, :files, :finished_at, :outcome, :pull_request, :reason, :question, :checks, :review,
               :pause

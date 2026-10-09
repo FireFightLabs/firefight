@@ -11,7 +11,7 @@ class IncidentEvent < ApplicationRecord
   ACTION_PICKED_UP = "action.picked_up"
   ACTION_COMPLETED = "action.completed"
   ACTION_REASSIGNED = "action.reassigned"
-  # Changes that reach an item only from its issue in a tracker.
+  # Changes to an item from its linked issue or from an agent over MCP.
   ACTION_RENAMED = "action.renamed"
   ACTION_REOPENED = "action.reopened"
   ACTION_UNASSIGNED = "action.unassigned"

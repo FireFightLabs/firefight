@@ -96,7 +96,7 @@ class CodeAgentSession < ApplicationRecord
   def look_up_web!(params, &)
     AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: Ability::Action::WEB_READ, workspace: workspace,
                               params: params, context: { source: AbilityGateway::SOURCE_CODE_AGENT,
-                                                         triggered_by_label: "Coding agent for #{repository}" }, &)
+                                                         triggered_by_label: triggered_by_label }, &)
   end
 
   # A coding agent looks a few things up for one change. More is something else spending Firefight's searches.

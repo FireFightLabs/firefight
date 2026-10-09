@@ -1,5 +1,5 @@
 # A secret a tool call in a chat moves without Halon seeing it. An entry asks the person who made the call to type a value
-# that the tool then sends, such as a GitHub Actions secret. A reveal shows that person a credential the tool made, such
+# that the tool then sends, such as a CI secret. A reveal shows that person a credential the tool made, such
 # as a workflow's webhook address, read live from the provider each time. Both are drawn as a card under the step, and a
 # chat in a Slack thread is pointed to the card. The row holds where the value goes or comes from (Integrations::
 # SecretHandoffs), never the value, so it is not one of the places a secret is stored.
@@ -96,8 +96,6 @@ class Chat::SecretEntry < ApplicationRecord
     self.class.where(id: id, status: STATUS_SETTING).update_all(status: STATUS_PENDING, updated_at: Time.current)
     reload
   end
-
-  def target_value(key) = target.to_h[key.to_s]
 
   # The words on the card and in Slack.
   def headline = enter? && shown_status == STATUS_PENDING ? "Enter the value for #{title}" : title

@@ -83,8 +83,8 @@ class ResourceMap::HostMatcher
         [ ResourceMap::CERTAINTY_POSSIBLE, "#{variable} on #{user.name} names an address #{stores.size} stores report, #{store.name} among them" ]
       else
         [ ResourceMap::CERTAINTY_LIKELY,
-          "#{variable} on #{user.name} names #{ResourceMap.provider_name(store.provider)}'s shared host and a database named as #{store.name} is, " \
-          "which another account could also have" ]
+          "#{variable} on #{user.name} names #{ResourceMap.provider_name(store.provider)}'s shared host and the database #{store.name}, " \
+          "which another account on that host could also have" ]
       end
       Match.new(user: user, store: store, variables: [ variable ], certainty: certainty, clues: [ clue ])
     end
