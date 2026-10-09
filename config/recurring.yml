@@ -18,6 +18,10 @@ development:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
     queue: background
     schedule: every hour
+  ai_account_low_balance:
+    class: AiAccountLowBalanceJob # alerts the team when one of the deployment's own AI keys has little left to spend
+    queue: background
+    schedule: every hour
   workspace_ai_account_recheck:
     class: WorkspaceAiAccountRecheckJob # checks a workspace's own AI accounts set aside for credit or a refused key, so a fixed one is used again
     queue: background
@@ -120,6 +124,10 @@ staging:
     schedule: at 4am every day
   ai_account_balance:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
+    queue: background
+    schedule: every hour
+  ai_account_low_balance:
+    class: AiAccountLowBalanceJob # alerts the team when one of the deployment's own AI keys has little left to spend
     queue: background
     schedule: every hour
   workspace_ai_account_recheck:
@@ -250,6 +258,10 @@ production:
     schedule: at 4am every day
   ai_account_balance:
     class: AiAccountBalanceJob # reads the balance of AI accounts out of credit, so a refilled one stops reading as out
+    queue: background
+    schedule: every hour
+  ai_account_low_balance:
+    class: AiAccountLowBalanceJob # alerts the team when one of the deployment's own AI keys has little left to spend
     queue: background
     schedule: every hour
   workspace_ai_account_recheck:
