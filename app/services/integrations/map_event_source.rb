@@ -64,8 +64,8 @@ module Integrations
     # How often a change log is read unless the source says otherwise.
     POLL_EVERY = 5.minutes
 
-    # Standard Webhooks (standardwebhooks.com, the spec's Verifying webhooks): each signature in webhook-signature is a
-    # version and a base64 HMAC-SHA256 of "<id>.<timestamp>.<body>", and a delivery is refused when its timestamp is
+    # Standard Webhooks (standardwebhooks.com, the spec's Verifying webhooks) puts in webhook-signature signatures that are
+    # each a version and a base64 HMAC-SHA256 of "<id>.<timestamp>.<body>", and a delivery is refused when its timestamp is
     # further from now than tolerance. key is the signing key as bytes, which each provider reads from its secret its way.
     STANDARD_ID_HEADER = "webhook-id".freeze
     STANDARD_TIMESTAMP_HEADER = "webhook-timestamp".freeze

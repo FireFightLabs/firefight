@@ -14,7 +14,7 @@ module Integrations
       ACTIVITY_LIMIT = 15
       QUERY_SHOWN = 400
       QUALIFIED_NAME = /\A(?:(?<schema>[A-Za-z_][\w$]*)\.)?(?<table>[A-Za-z_][\w$]*)\z/
-      # Functions a read-only transaction allows that act on the server: signal or end sessions, reload or rotate its
+      # Functions a read-only transaction allows that act on the server, which signal or end sessions, reload or rotate its
       # files, move the WAL or promote it, take advisory locks, reset its statistics, change a setting such as the
       # statement timeout, or reach another connection or a file. A quoted name counts, and so does an escaped one.
       ACTS = /\b(pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile|pg_switch_wal|pg_create_restore_point|pg_promote|

@@ -540,7 +540,7 @@ module Integrations
             "Finish what the request asks that the branch does not do yet, then verify it." ].compact.join("\n\n")
         end
 
-        # Stop on a paused change: its saved branch is deleted. A delete that fails raises, so the person is told the branch
+        # Stop on a paused change deletes its saved branch. A delete that fails raises, so the person is told the branch
         # may still be there. The box is closed by whoever stops the pause.
         def discard_pause!(environment_row, pause)
           return unless pause.saved_branch
@@ -665,8 +665,8 @@ module Integrations
         def gate_url = "#{proxy_base}#{GATE_PATH}"
 
         # A path the connection keeps out of code changes is refused before anything reaches the code host, from what the
-        # box says the change touches: all of a new branch, and of a branch that already had work only what this run
-        # changed there, as landed! reads it back from GitHub, which checks again.
+        # box says the change touches. That is all of a new branch, and of a branch that already had work only what this
+        # run changed there, as landed! reads it back from GitHub, which checks again.
         def kept_out!(environment_row, repo, change, updating:)
           refusal = ConnectionSettings.of(environment_row).protected_paths_refusal(repo, updating ? change.updated_paths : change.counts.keys)
           fail_policy! refusal if refusal
