@@ -96,8 +96,7 @@ module Mcp
     end
 
     def self.build(spec, tools, workspace)
-      schema = Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools))
-      schema["properties"] = schema["properties"].merge(APPROVAL_ID_ARG.to_s => { "type" => "string", "description" => "Approval id when retrying an approved call" })
+      schema = with_approval_id(Integrations::Capabilities.schema(spec, Integrations::Capabilities.connection_choices(workspace, spec, tools)))
       key = spec.key
       ::MCP::Tool.define(
         name: spec.tool_name,
@@ -129,7 +128,7 @@ module Mcp
 
       # The gateway uses an approval id only on the call it approved, so the retry carries it to both.
       backup = invoke_call(call.fallback, server_context, approval_id: approval_id)
-      failure = Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n") if response.error?
+      failure = ToolDispatcher.text_of(response) if response.error?
       [ ::MCP::Tool::Response.new([ { type: "text", text: Integrations::Capabilities.fell_back(call, failure: failure) }, *Array(backup.content) ],
                                   structured_content: backup.structured_content, error: backup.error? && response.error?),
         (call.fallback unless backup.is_a?(Waiting) || backup.error?) ]
@@ -148,7 +147,7 @@ module Mcp
         [ found.environment_row, invoke_call(found, server_context, approval_id: nil, alone: false) ]
       end
       text = results.map do |row, response|
-        Integrations::Capabilities.headed(row, Array(response.content).filter_map { |part| part[:text] || part["text"] }.join("\n"))
+        Integrations::Capabilities.headed(row, ToolDispatcher.text_of(response))
       end
       structured = results.filter_map { |row, response| [ Integrations::Capabilities.connection_label(row), response.structured_content ] if response.structured_content }
       ::MCP::Tool::Response.new([ { type: "text", text: text.join("\n\n") } ], structured_content: structured.to_h.presence,

@@ -65,7 +65,7 @@ module Mcp
     def self.ledger_failure(authorization, answer)
       return unless answer["isError"] == true
 
-      authorization.answer_failed!(Array(answer["content"]).filter_map { |part| part["text"] }.join("\n"))
+      authorization.answer_failed!(text_of(::MCP::Tool::Response.new(answer["content"])))
     end
 
     # One of Firefight's own rules refused the call, such as a push to a protected branch. The agent is told it is
