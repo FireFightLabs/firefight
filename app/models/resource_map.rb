@@ -104,6 +104,9 @@ module ResourceMap
   # A provider as a tool parameter offers it, by its key and its name.
   Provider = Data.define(:slug, :name)
 
+  # The tool an agent reads the whole map with. It is Firefight's own, so no provider can drop it.
+  READ_TOOL = "get_resource_map".freeze
+
   # Each provider something on the workspace's map came from.
   def self.providers(workspace)
     Resource.where(workspace: workspace).present.distinct.order(:provider).pluck(:provider).map { |key| Provider.new(slug: key, name: provider_name(key)) }

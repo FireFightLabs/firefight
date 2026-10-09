@@ -4,6 +4,7 @@ import type { Principal } from "@/types/serializers"
 import { abilityGrantPath, withholdAbilityGrantsPath } from "@/lib/routes"
 import { Button } from "@/components/ui/button"
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
+import { GRANT_KINDS } from "@/lib/generated/constants"
 
 type DefaultAccess = Principal["defaultAccess"][number]
 
@@ -24,7 +25,7 @@ export function DefaultAccessRow({
       {
         principal_kind: principal.kind,
         principal_id: principal.id,
-        ...(access.kind === "set" ? { role_id: access.targetId } : { action_id: access.targetId }),
+        ...(access.kind === GRANT_KINDS.SET ? { role_id: access.targetId } : { action_id: access.targetId }),
       },
       { preserveScroll: true },
     )

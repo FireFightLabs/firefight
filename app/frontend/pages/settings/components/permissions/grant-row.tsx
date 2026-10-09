@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { formatDate } from "@/lib/formatters"
+import { GRANT_KINDS } from "@/lib/generated/constants"
 
 type Grant = Principal["grants"][number]
 
@@ -73,7 +74,7 @@ export function GrantRow({
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
       <div className="flex min-w-0 items-center gap-2">
-        {grant.kind === "set" ? (
+        {grant.kind === GRANT_KINDS.SET ? (
           <>
             <span className="min-w-0 truncate text-sm font-medium">{grant.label}</span>
             <Badge variant="outline" className="shrink-0">

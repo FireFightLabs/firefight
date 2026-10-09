@@ -9,8 +9,7 @@ class Chat::SkillProblem < ApplicationRecord
   def self.check!
     skills = Chat::Skill.all.reject { |skill| skill.firefight? || Integrations::NativePack.for(skill.source) }
     offered = Hash.new { |known, provider| known[provider] = offered_by(provider) }
-    # The map is Firefight's own, so a provider cannot drop it.
-    missing = skills.to_h { |skill| [ skill.name, skill.tools - offered[skill.source] - [ Mcp::Tools::GET_RESOURCE_MAP ] ] }.reject { |_skill, tools| tools.empty? }
+    missing = skills.to_h { |skill| [ skill.name, skill.tools - offered[skill.source] - [ ResourceMap::READ_TOOL ] ] }.reject { |_skill, tools| tools.empty? }
 
     record!(missing, provider_of: skills.to_h { |skill| [ skill.name, skill.source ] })
   end

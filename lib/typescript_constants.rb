@@ -216,6 +216,7 @@ module TypescriptConstants
         "USER" => Ability::Principal::KIND_USER, "AGENT" => Ability::Principal::KIND_AGENT,
         "API_KEY" => Ability::Principal::KIND_API_KEY, "SYSTEM_AGENT" => Ability::Principal::KIND_SYSTEM_AGENT
       }, nil),
+      Export.new("GRANT_KINDS", { "ACTION" => PrincipalSerializer::KIND_ACTION, "SET" => PrincipalSerializer::KIND_SET }, nil),
       Export.new("AI_ACCOUNT_STATES", WorkspaceAiAccount::STATES.to_h { |state| [ state.to_s.upcase, state.to_s ] }, nil),
       Export.new("APPROVAL_RUN_WINDOW_MINUTES", Ability::Approval::RUN_WINDOW.in_minutes.to_i, nil),
       Export.new("WATCH_SPEC_KEYS", Chat::Watch::SPEC_KEYS.transform_keys { |key| key.to_s.upcase }, nil),

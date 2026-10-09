@@ -38,7 +38,7 @@ class IntegrationEnvironment < ApplicationRecord
   }
 
   # What the gateway checks a call through this row against, its environment when it has one.
-  def ability_scope = catalog_entry_id ? { "environment" => catalog_entry_id } : {}
+  def ability_scope = catalog_entry_id ? { Ability::Scope::DIMENSION_ENVIRONMENT => catalog_entry_id } : {}
 
   def credentials_hash
     JSON.parse(credentials.presence || "{}")

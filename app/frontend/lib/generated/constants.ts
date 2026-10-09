@@ -942,6 +942,11 @@ export const PRINCIPAL_KINDS = {
   "SYSTEM_AGENT": "system_agent"
 } as const
 
+export const GRANT_KINDS = {
+  "ACTION": "action",
+  "SET": "set"
+} as const
+
 export const AI_ACCOUNT_STATES = {
   "VERIFIED": "verified",
   "UNCHECKED": "unchecked",
