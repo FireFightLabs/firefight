@@ -97,3 +97,11 @@ shared_id_text_only:
   provider: perplexity
   capabilities: []
   modalities: {"input": [], "output": []}
+
+# Bedrock names a model by its own id, so a Bedrock account is checked against this row rather than Anthropic's.
+bedrock_claude_sonnet:
+  model_id: anthropic.claude-sonnet-4-5-20250929-v1:0
+  context_window: 200000
+  name: Claude Sonnet 4.5
+  provider: bedrock
+  capabilities: ["function_calling", "reasoning"]

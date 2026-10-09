@@ -18,7 +18,10 @@ module AiAccountTestHelper
   # Models the test registry holds, since the recommended ones are newer than its few rows.
   REGISTERED_MODELS = {
     "anthropic" => { "main" => "claude-sonnet-4-5", "fast" => "claude-haiku-4-5" },
-    "openai" => { "main" => "gpt-4o", "fast" => "gpt-4o-mini" }
+    "openai" => { "main" => "gpt-4o", "fast" => "gpt-4o-mini" },
+    "bedrock" => { "main" => "anthropic.claude-sonnet-4-5-20250929-v1:0", "fast" => "anthropic.claude-sonnet-4-5-20250929-v1:0" },
+    "vertexai" => { "main" => "claude-opus-5-5", "fast" => "claude-opus-5-5" },
+    "openrouter" => { "main" => "openai/shared-vision", "fast" => "openai/shared-vision" }
   }.freeze
 
   def add_ai_account!(workspace, provider: "anthropic", key: "sk-ant-own-key-4f2a", label: nil, settings: {}, models: nil, **attributes)

@@ -49,8 +49,7 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
   test "Bedrock needs its own access key and secret, so it never falls back to credentials the server holds" do
     account = @workspace.workspace_ai_accounts.new(provider: "bedrock", label: "Bedrock", kind: AiProviders::KIND_API_KEY, position: 1)
     account.assign_settings("region" => "us-east-1")
-    account.assign_models("main" => "claude-sonnet-4-5", "fast" => "claude-haiku-4-5")
-    FirefightAi.stubs(:context_window).with("claude-sonnet-4-5", provider: "bedrock").returns(200_000)
+    account.assign_models("main" => "anthropic.claude-sonnet-4-5-20250929-v1:0", "fast" => "anthropic.claude-sonnet-4-5-20250929-v1:0")
 
     assert_not account.valid?
     assert_includes account.errors[:base], "Access key ID is required"
