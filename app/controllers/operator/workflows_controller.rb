@@ -46,8 +46,8 @@ module Operator
       blocked = Actions.cancel_blocked_reason(@workflow)
       return respond(false, nil, blocked) if blocked
 
-      moved = @workflow.cancel!(reason: "Cancelled from the operator console", by: operator_label)
-      respond(moved, "#{@workflow.workflow_class} is cancelled.", "#{@workflow.workflow_class} could not be cancelled. It may have just finished.")
+      moved = @workflow.cancel!(reason: "Canceled from the operator console", by: operator_label)
+      respond(moved, "#{@workflow.workflow_class} is canceled.", "#{@workflow.workflow_class} could not be canceled. It may have just finished.")
     end
 
     private

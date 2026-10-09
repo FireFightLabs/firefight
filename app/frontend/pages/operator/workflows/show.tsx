@@ -124,7 +124,7 @@ export default function OperatorWorkflowPage() {
       <ConfirmDeleteDialog
         open={confirmingCancel}
         title={`Cancel ${workflow.workflowClass}?`}
-        description="Its steps that have not run are cancelled and do not run. A cancelled workflow cannot be resumed."
+        description="Its steps that have not run are canceled and do not run. A canceled workflow cannot be resumed."
         confirmLabel="Cancel workflow"
         onConfirm={cancel}
         onCancel={stopAsking}
