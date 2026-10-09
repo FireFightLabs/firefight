@@ -45,7 +45,7 @@ module IncidentAction::IssueLink
   # Why nobody can ask for an issue for this item now, or nil when they can.
   def issue_request_blocked_reason
     return "This item already has an issue." if external_url.present?
-    return "Firefight is opening its issue now." if issue_sync_state == ISSUE_CREATING
+    return "Firefight is opening its issue now." if issue_opening?
     return "Its issue is waiting for approval." if issue_sync_state == ISSUE_AWAITING_APPROVAL
     return "Choose an issue tracker under Settings, Workspace to open issues." if workspace.issue_tracker.blank? || workspace.issue_creation_never?
 
@@ -62,9 +62,11 @@ module IncidentAction::IssueLink
 
   def issue_missing? = ISSUE_MISSING.include?(issue_sync_state)
 
+  def issue_opening? = issue_sync_state == ISSUE_CREATING
+
   # What a person reads about the item's issue while it is not there or not kept in step, or nil.
   def issue_status_text
-    return "Firefight is opening its issue." if issue_sync_state == ISSUE_CREATING
+    return "Firefight is opening its issue." if issue_opening?
 
     issue_sync_note
   end
