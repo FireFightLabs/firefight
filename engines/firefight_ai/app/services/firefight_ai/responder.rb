@@ -56,7 +56,7 @@ module FirefightAi
 
     private
 
-    def output_cap = FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: ai_model.model)
+    def output_cap = FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: ai_model)
 
     def inference_context
       {

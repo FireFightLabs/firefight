@@ -50,6 +50,7 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
     account = @workspace.workspace_ai_accounts.new(provider: "bedrock", label: "Bedrock", kind: AiProviders::KIND_API_KEY, position: 1)
     account.assign_settings("region" => "us-east-1")
     account.assign_models("main" => "claude-sonnet-4-5", "fast" => "claude-haiku-4-5")
+    FirefightAi.stubs(:context_window).with("claude-sonnet-4-5", provider: "bedrock").returns(200_000)
 
     assert_not account.valid?
     assert_includes account.errors[:base], "Access key ID is required"
@@ -89,6 +90,10 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
 
     account.assign_models("main" => "a-model-nobody-has")
     assert_not account.valid?
+    assert account.errors[:"models.main"].any?
+
+    account.assign_models("main" => "gpt-4o")
+    assert_not account.valid?, "a model another provider lists is not one this provider serves"
     assert account.errors[:"models.main"].any?
   end
 

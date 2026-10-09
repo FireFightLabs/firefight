@@ -216,7 +216,7 @@ class Chat < ApplicationRecord
   def self.open!(owner:, workspace:, model_choice:)
     chat = new(owner: owner, workspace: workspace)
     chat.provider = model_choice.provider if model_choice.provider.present?
-    chat.assume_model_exists = model_choice.provider.present? && !FirefightAi.registered?(model_choice.model)
+    chat.assume_model_exists = model_choice.provider.present? && !FirefightAi.registered?(model_choice.model, model_choice.provider)
     chat.model = model_choice.model
     chat.save!
     chat

@@ -267,7 +267,7 @@ class WorkspaceAiAccount < ApplicationRecord
     ROLES.each do |role|
       model = model_for(role)
       next errors.add(:"models.#{role}", "needs a model") if model.blank?
-      next if role == FAST || FirefightAi.context_window(model)
+      next if role == FAST || FirefightAi.context_window(model, provider: provider)
 
       errors.add(:"models.#{role}", "is a model Firefight does not know the size of, so Halon cannot run on it. Choose another, or ask whoever runs Firefight to add it to the model registry")
     end

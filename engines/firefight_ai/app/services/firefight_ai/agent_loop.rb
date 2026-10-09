@@ -172,7 +172,7 @@ module FirefightAi
       FirefightAi.bind(@chat, following)
       @inference = @inference.merge(following.ledger)
       if @output
-        @output = FirefightAi.output_cap(@purpose, model: following.model)
+        @output = FirefightAi.output_cap(@purpose, choice: following)
         @output_limit = @output.max
         @chat.to_llm.with_max_output_tokens(@output_limit)
       end

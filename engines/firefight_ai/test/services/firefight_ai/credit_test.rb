@@ -82,7 +82,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
   end
 
   test "each purpose reserves what it writes, never the model's own maximum" do
-    caps = AiPurpose::ALL.excluding(AiPurpose::CODE_FIX).index_with { |purpose| FirefightAi.output_cap(purpose, model: "gpt-4o") }
+    caps = AiPurpose::ALL.excluding(AiPurpose::CODE_FIX).index_with { |purpose| FirefightAi.output_cap(purpose, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)) }
 
     assert_equal 16_000, caps[AiPurpose::INVESTIGATION].max
     assert_equal 16_000, caps[AiPurpose::POSTMORTEM].max
@@ -94,8 +94,8 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
   test "a purpose's env var sets its maximum, and the registry's limit for the model still holds" do
     ENV["POSTMORTEM_AI_MAX_OUTPUT_TOKENS"] = "24000"
 
-    assert_equal 24_000, FirefightAi.output_cap(AiPurpose::POSTMORTEM, model: "gpt-4o").max
-    small = FirefightAi.output_cap(AiPurpose::POSTMORTEM, model: "gpt-3.5-turbo")
+    assert_equal 24_000, FirefightAi.output_cap(AiPurpose::POSTMORTEM, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil)).max
+    small = FirefightAi.output_cap(AiPurpose::POSTMORTEM, choice: FirefightAi::ModelChoice.new(model: "gpt-3.5-turbo", provider: nil))
     assert_equal 4_096, small.max
     assert_equal 4_096, small.floor
   end
@@ -243,7 +243,7 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
       chat: chat, answered: -> { false }, reply_is_answer: true,
       budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50),
       inference: { workspace: @workspace, feature: "credit_loop", provider: "openai", model: "gpt-4o", inferable: @incident },
-      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, model: "gpt-4o")
+      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: nil))
     ).run
   end
 end
