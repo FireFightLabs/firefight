@@ -763,7 +763,7 @@ module Integrations
             "a database or a service by hand, such as with initdb, pg_ctl, compiling a server or installing system packages. Use what " \
             "the sandbox already provides, and the sandbox's own way to start a service, when it offers one. Keep your " \
             "own temporary files, such as a log, under $TMPDIR, which is yours for this change. Firefight pushes the branch after its " \
-            "review and the repository's own CI runs on the pull request, so never mention pushing.",
+            "review, and the repository's own CI, when it has one, runs on the pull request, so never mention pushing.",
             "End with a short summary in plain words: what the change does and why, what you verified and how, and only the questions " \
             "you genuinely could not answer that matter for whether the change works. When a check or test could not run here, list " \
             "each under a line that reads #{CodeWriteUp::NOT_RUN}:, one per line starting with \"- \", with why. " \

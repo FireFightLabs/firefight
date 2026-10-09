@@ -193,7 +193,7 @@ module Integrations
           assert_includes brief, "never a reason to stop or to leave the change unwritten"
           assert_includes brief, "Never build an environment, a database or a service by hand"
           assert_includes brief, "the sandbox's own way to start a service, when it offers one"
-          assert_includes brief, "the repository's own CI runs on the pull request"
+          assert_includes brief, "the repository's own CI, when it has one, runs on the pull request"
           assert_includes brief, "under a line that reads #{CodeWriteUp::NOT_RUN}:"
           assert_includes brief, "$TMPDIR"
         end
