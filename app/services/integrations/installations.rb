@@ -55,6 +55,10 @@ module Integrations
     # side is seen before Firefight says it is missing.
     RECHECK_AFTER = 1.minute
 
+    # The ledger's action for removing the app from the account, the same a person needs to disconnect.
+    UNINSTALL_ACTION_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_DELETE)
+    UNINSTALL_LABEL = "Disconnect".freeze
+
     module_function
 
     def pack_of(provider_key)
@@ -230,7 +234,7 @@ module Integrations
         next if row.installation_state == REMOVED
 
         shared = uninstall_blocked_reason(row)
-        error = row.uninstall_app!(by: by) if chosen.include?(installation_id) && shared.nil?
+        error = uninstall_as(row, by: by) if chosen.include?(installation_id) && shared.nil?
         removed = chosen.include?(installation_id) && shared.nil? && error.nil?
         Disconnected.new(account: row.installation_account || "the account", provider: provider_name(row), page: row.installation_page,
                          removed: removed, error: error, shared: shared)
@@ -239,8 +243,18 @@ module Integrations
       done
     end
 
-    # Removes the app from the account at the provider, for IntegrationEnvironment#uninstall_app!, which records it.
-    def uninstall!(row) = pack_of(row.integration.provider).uninstall(row)
+    # Removes the app from the account at the provider as the person disconnecting, in the activity log under their name.
+    # Answers why it could not, or nil once it is gone.
+    def uninstall_as(row, by:)
+      Chat::ToolCall.run!(
+        principal: by, action_key: UNINSTALL_ACTION_KEY, workspace: row.integration.workspace,
+        params: { "app" => "uninstall", "connection" => row.integration.slug, "account" => row.installation_account }.compact,
+        context: { source: AbilityGateway::SOURCE_WEB, triggered_by_label: UNINSTALL_LABEL }
+      ) { pack_of(row.integration.provider).uninstall(row) }
+      nil
+    rescue Integrations::Error, AbilityGateway::Denied, AbilityGateway::PendingApproval => error
+      error.message
+    end
 
     # Firefight forgets the installation and what it cached for it, so nothing calls the provider as it again.
     def forget!(row)

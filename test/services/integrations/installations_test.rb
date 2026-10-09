@@ -149,7 +149,7 @@ module Integrations
       assert done.removed
       assert_equal "Firefight's app was removed from acme on GitHub.", done.words
       assert_nil done.link
-      entry = Ability::Invocation.find_by!(workspace: @workspace, action_key: IntegrationEnvironment::UNINSTALL_ACTION_KEY, source: AbilityGateway::SOURCE_WEB)
+      entry = Ability::Invocation.find_by!(workspace: @workspace, action_key: Integrations::Installations::UNINSTALL_ACTION_KEY, source: AbilityGateway::SOURCE_WEB)
       assert_equal [ "uninstall", "acme", Ability::Invocation::OUTCOME_SUCCESS ], [ entry.params["app"], entry.params["account"], entry.outcome ]
       @row.reload
       assert_nil @row.installation_id
