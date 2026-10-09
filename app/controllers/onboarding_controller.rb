@@ -53,11 +53,14 @@ class OnboardingController < InertiaController
     redirect_to onboarding_install_path
   end
 
-  # Set in the auth callback on first install, or when a workspace is created, and consumed here, so the founder's
-  # letter renders exactly once. It leads on to setup, where connecting Slack is one of the steps.
+  # Reached after a first install, a new workspace, or a Slack sign-in that carried on in a workspace without Slack.
+  # Whether the letter was seen is kept on the workspace's onboarding, so it renders once, and a workspace left before
+  # reading it shows it next time. It leads on to setup, where connecting Slack is one of the steps.
   def welcome
-    return redirect_to(dashboard_path) unless session.delete(:show_welcome_note)
+    onboarding = current_workspace.onboarding
+    return redirect_to(dashboard_path) unless onboarding&.founder_letter_pending?
 
+    onboarding.founder_letter_seen!
     render inertia: "onboarding/welcome", props: { userName: current_user.name }
   end
 

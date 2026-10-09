@@ -155,7 +155,7 @@ class Auth::OmniauthCallbacksControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to onboarding_welcome_path
     assert_equal installer.id, session[:user_id]
     assert_equal workspace.id, session[:workspace_id]
-    assert session[:show_welcome_note]
+    assert workspace.onboarding.founder_letter_pending?
     assert_nil session[:pending_user_id]
     assert_nil session[:pending_team_id]
     assert_nil session[:pending_team_name]

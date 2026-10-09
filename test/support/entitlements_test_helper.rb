@@ -25,6 +25,12 @@ module EntitlementsTestHelper
     def next_step_path(_workspace) = path
   end
 
+  # Sends only a workspace without a plan on to choose one, as a hosted build's plan picker does once a workspace pays.
+  PlanPickerBackend = Struct.new(:path, :subscribed_ids) do
+    def check(_workspace, _feature) = Entitlements.allow
+    def next_step_path(workspace) = subscribed_ids.include?(workspace.id) ? nil : path
+  end
+
   def deny_entitlements!(message = "Your trial has ended.")
     Entitlements.backend = DenyingBackend.new(message)
     message
@@ -37,5 +43,9 @@ module EntitlementsTestHelper
 
   def send_new_workspaces_to!(path)
     Entitlements.backend = NextStepBackend.new(path)
+  end
+
+  def send_unpaid_workspaces_to!(path, subscribed: [])
+    Entitlements.backend = PlanPickerBackend.new(path, subscribed.map(&:id))
   end
 end

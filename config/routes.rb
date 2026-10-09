@@ -150,6 +150,7 @@ Rails.application.routes.draw do
   post "/onboarding/connect-slack", to: "onboarding#connect_slack", as: :onboarding_connect_slack
   get "/signup/workspace", to: "workspace_signups#new", as: :signup_workspace
   post "/signup/workspace", to: "workspace_signups#create"
+  post "/signup/workspace/reuse", to: "workspace_signups#reuse", as: :reuse_signup_workspace
 
   scope :app do
     get "/", to: "dashboard#index", as: :dashboard
