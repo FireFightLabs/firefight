@@ -20,7 +20,7 @@ class WorkspaceInvitationsController < InertiaController
 
   def destroy
     invitation = find_invitation
-    return redirect_to(settings_members_path, alert: invitation.resend_blocked_reason) unless invitation.revoke!
+    return redirect_to(settings_members_path, alert: invitation.revoke_blocked_reason) unless invitation.revoke!
 
     redirect_to settings_members_path, notice: "Invitation to #{invitation.email} revoked."
   end

@@ -121,6 +121,9 @@ class WorkspaceInvitationsTest < ActionDispatch::IntegrationTest
     sign_in_by_email(@admin)
     post resend_workspace_invitation_path(invitation)
     assert_equal WorkspaceInvitation::REVOKED_REASON, flash[:alert]
+
+    delete workspace_invitation_path(invitation)
+    assert_equal WorkspaceInvitation::REVOKED_REASON, flash[:alert]
   end
 
   test "a member who is not an admin cannot invite, resend or revoke" do
