@@ -40,9 +40,7 @@ export interface AgentPageProps extends SharedProps {
   setupGuide: SetupGuide | null
 }
 
-// unsaved marks a step only the socket has reported so far. Who may answer its question or decide its pause comes with
-// the saved copy, so until then neither offers anything.
-export type AgentStep = AgentChatMessage["tools"][number] & { unsaved?: boolean }
+export type AgentStep = AgentChatMessage["tools"][number]
 
 export type AgentCard = NonNullable<AgentStep["card"]>
 

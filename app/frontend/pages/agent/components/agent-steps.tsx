@@ -62,7 +62,6 @@ function toRow(step: AgentStep): ThinkingRow {
           running={status === "running"}
           questionBlockedReason={step.questionBlockedReason}
           pauseBlockedReason={step.pauseBlockedReason}
-          readOnly={step.unsaved}
           reloads={CODE_AGENT_RELOADS}
         />
       )

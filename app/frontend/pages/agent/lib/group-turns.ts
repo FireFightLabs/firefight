@@ -113,7 +113,7 @@ function mergeSteps(saved: AgentStep[], live: AgentStep[]): AgentStep[] {
     if (!reported) {
       return step
     }
-    return { ...reported, questionBlockedReason: step.questionBlockedReason, pauseBlockedReason: step.pauseBlockedReason, unsaved: false }
+    return { ...reported, questionBlockedReason: step.questionBlockedReason, pauseBlockedReason: step.pauseBlockedReason }
   })
   const unseen = live.filter((step) => !saved.some((candidate) => candidate.key === step.key))
   return [ ...merged, ...unseen ]
