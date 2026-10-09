@@ -835,7 +835,7 @@ module Integrations
           "ready #{state}", "#{shares[short(revision['name'])]}% of traffic" ].compact.join(", ")
       end
 
-      # A revision's rollout as every run history reads it: from when it was made (createTime) to when its Ready condition
+      # A revision's rollout as every run history reads it, from when it was made (createTime) to when its Ready condition
       # last moved (lastTransitionTime), from Cloud Run Admin API v2's Revision and Condition. A revision still reconciling
       # has not finished.
       def history_run(revision)

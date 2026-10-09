@@ -726,7 +726,7 @@ module Integrations
           note: "Log Analytics keeps #{what} for #{target.name} only when a diagnostic setting on it sends them to a workspace, so no lines can also mean none is set." }
       end
 
-      # A Container App's logs are kept by its environment: in the environment's Log Analytics workspace, or in Azure
+      # A Container App's logs are kept by its environment, in the environment's Log Analytics workspace or in Azure
       # Monitor tables a diagnostic setting on the environment writes, whichever the environment is set to.
       def container_log_source(environment_row, target, stream)
         fail!("Only an App Service or Function app keeps request logs here. Ask for stream #{STREAM_APP} or #{STREAM_SYSTEM}.") if stream == STREAM_REQUESTS
