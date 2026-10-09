@@ -990,3 +990,9 @@ export const APPROVER_ROLES = [
   "admin"
 ] as const
 export type ApproverRole = (typeof APPROVER_ROLES)[number]
+
+export const SANDBOX_SERVICES = [
+  "postgres",
+  "redis"
+] as const
+export type SandboxService = (typeof SANDBOX_SERVICES)[number]

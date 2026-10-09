@@ -230,6 +230,9 @@ Rails.application.routes.draw do
         get :live_updates_setup
         patch :protected_paths
       end
+      resources :repository_setups, only: [ :create, :update, :destroy ], path: "setups" do
+        post :derive, on: :member
+      end
       collection do
         get :oauth_start
         get "oauth/callback", action: :oauth_callback, as: :oauth_callback

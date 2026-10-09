@@ -72,6 +72,12 @@ class IntegrationSerializer < BaseSerializer
     integration.protected_paths if integration.holds_code?
   end
 
+  # How each repository the connection holds is set up before its tests, by repository. Empty for a provider that holds
+  # no code.
+  has_many :repository_setups, as: :setups, serializer: RepositorySetupSerializer do
+    integration.holds_code? ? integration.repository_setups.sort_by(&:repository) : []
+  end
+
   # The app installations disconnecting may also remove from their account at the provider, one for each the connection
   # was made through, with what the choice reads and why it cannot be made (another connection still uses it), or null.
   type "{ installationId: string; label: string; page: string | null; blockedReason: string | null }[]"

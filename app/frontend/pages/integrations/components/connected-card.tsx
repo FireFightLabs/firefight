@@ -31,6 +31,7 @@ import { CodeChanges } from "@/pages/integrations/components/code-changes";
 import { DisconnectDialog } from "@/pages/integrations/components/disconnect-dialog";
 import { InstallationStopped } from "@/pages/integrations/components/installation-stopped";
 import { LiveUpdates } from "@/pages/integrations/components/live-updates";
+import { RepositorySetups } from "@/pages/integrations/components/repository-setups";
 import { ScopeChoice } from "@/pages/integrations/components/scope-choice";
 import { Blocked } from "@/components/blocked-tooltip";
 
@@ -310,6 +311,10 @@ export function ConnectedCard({
             paths={integration.protectedPaths}
             canManage={canManage}
           />
+        )}
+
+        {integration.protectedPaths && (
+          <RepositorySetups integrationId={integration.id} setups={integration.setups} canManage={canManage} />
         )}
 
         {integration.tools.length === 0 ? (

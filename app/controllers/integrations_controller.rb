@@ -20,7 +20,7 @@ class IntegrationsController < InertiaController
     render inertia: "integrations/index", props: {
       integrations: IntegrationSerializer.many(
         current_workspace.integrations.where(deleted_at: nil).order(:name)
-                         .includes(:tools, integration_environments: :environment)
+                         .includes(:tools, :repository_setups, integration_environments: :environment)
       ),
       providers: IntegrationProviderSerializer.many(IntegrationProvider.all),
       categories: IntegrationProvider.categories,
