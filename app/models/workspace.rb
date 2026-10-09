@@ -160,6 +160,13 @@ class Workspace < ApplicationRecord
     @reading_tool_names ||= Integration::Tool.in_workspace(self).select(&:read_only).map(&:model_facing_name).to_set
   end
 
+  # Every tool of a connection not deleted, switched on or not, by the name the agent calls it. Memoized for the same
+  # reason, since each step of a chat names its tool's connection.
+  def connection_tools_by_name
+    @connection_tools_by_name ||= Integration::Tool.joins(:integration).where(integrations: { workspace_id: id, deleted_at: nil })
+                                                   .includes(:integration).index_by(&:model_facing_name)
+  end
+
   # Returns the row an admin customized, otherwise creates one from the
   # defaults so overlay rows have a real incident_form_id to attach to.
   def ensure_incident_form!(slug)

@@ -3,15 +3,7 @@
 # refused before anyone is asked.
 module Chat::Tools::Target
   # The connection tool the agent calls by name, in this workspace, or nil.
-  def self.connection_tool(workspace, tool_name)
-    name = tool_name.to_s
-    workspace.integrations.where(deleted_at: nil).to_a.select { |integration| name.start_with?("#{integration.slug}_") }
-             .sort_by { |integration| -integration.slug.length }.each do |integration|
-      tool = integration.tools.find { |each| each.model_facing_name == name }
-      return tool if tool
-    end
-    nil
-  end
+  def self.connection_tool(workspace, tool_name) = workspace.connection_tools_by_name[tool_name.to_s]
 
   def self.capability_spec(tool_name) = Integrations::Capabilities::SPECS.values.find { |spec| spec.tool_name == tool_name.to_s }
 
