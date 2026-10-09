@@ -1,11 +1,12 @@
-import { Link, useForm, usePage } from "@inertiajs/react";
+import { Link, router, useForm, usePage } from "@inertiajs/react";
 import type { HttpResponse } from "@inertiajs/core";
+import { useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginPath, signInWithSlackPath, signupWorkspacePath } from "@/lib/routes";
+import { loginPath, reuseSignupWorkspacePath, signInWithSlackPath, signupWorkspacePath } from "@/lib/routes";
 import { retryWait, TOO_MANY_STATUS } from "@/lib/http";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { CardHeader } from "@/components/auth/card-header";
@@ -19,14 +20,34 @@ interface SignupWorkspacePageProps extends SharedProps {
   inviteRequired: boolean;
   // Someone new by email has no name yet.
   askName: boolean;
+  // A Slack sign-in by someone who owns workspaces without Slack, who carries on in one of them or makes another.
+  unconnectedWorkspaces: UnconnectedWorkspace[];
+}
+
+interface UnconnectedWorkspace {
+  id: string;
+  name: string;
 }
 
 const LINK_CLASS =
   "font-semibold text-fg-primary underline decoration-border-control underline-offset-[3px] transition-colors duration-120 hover:decoration-fg-primary";
 
 export default function SignupWorkspace() {
-  const { email, suggestedName, nameMaxLength, inviteRequired, askName } = usePage<SignupWorkspacePageProps>().props;
-  const form = useForm({ name: suggestedName, invite_code: "", person_name: "" });
+  const { email, suggestedName, nameMaxLength, inviteRequired, askName, unconnectedWorkspaces } =
+    usePage<SignupWorkspacePageProps>().props;
+  const choosing = unconnectedWorkspaces.length > 0;
+  const [creatingNew, setCreatingNew] = useState(false);
+  const form = useForm({ name: suggestedName, invite_code: "", person_name: "", create_new: choosing });
+
+  function createNew() {
+    setCreatingNew(true);
+  }
+
+  if (choosing && !creatingNew) {
+    return (
+      <ChooseWorkspace workspaces={unconnectedWorkspaces} teamName={suggestedName} email={email} onCreateNew={createNew} />
+    );
+  }
 
   function changePersonName(event: ChangeEvent<HTMLInputElement>) {
     form.setData("person_name", event.target.value);
@@ -132,14 +153,80 @@ export default function SignupWorkspace() {
             </a>{" "}
             or ask an admin to invite you.
           </p>
-          <p>
-            Signed in as <span className="font-medium text-fg-primary">{email}</span>.{" "}
-            <Link href={loginPath()} className={LINK_CLASS}>
-              Use another account
-            </Link>
-          </p>
+          <SignedInAs email={email} />
         </div>
       </div>
     </AuthLayout>
+  );
+}
+
+interface ChooseWorkspaceProps {
+  workspaces: UnconnectedWorkspace[];
+  teamName: string;
+  email: string;
+  onCreateNew: () => void;
+}
+
+// Several workspaces of theirs have no Slack yet, so which one this Slack joins is theirs to say.
+function ChooseWorkspace({ workspaces, teamName, email, onCreateNew }: ChooseWorkspaceProps) {
+  const [choosingId, setChoosingId] = useState<string | null>(null);
+
+  function stopChoosing() {
+    setChoosingId(null);
+  }
+
+  function choose(workspaceId: string) {
+    setChoosingId(workspaceId);
+    router.post(reuseSignupWorkspacePath(), { workspace_id: workspaceId }, { onFinish: stopChoosing });
+  }
+
+  return (
+    <AuthLayout title="Choose your workspace" containerClassName="max-w-[420px]">
+      <div>
+        <CardHeader
+          title="Choose your workspace"
+          subtitle={
+            <>
+              These workspaces of yours are not connected to Slack yet. Choose the one to connect to{" "}
+              <span className="font-medium text-fg-primary">{teamName || "this Slack"}</span>.
+            </>
+          }
+        />
+        <ul className="space-y-2">
+          {workspaces.map((workspace) => (
+            <li key={workspace.id}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full cursor-pointer justify-start font-medium"
+                disabled={choosingId !== null}
+                onClick={() => choose(workspace.id)}
+              >
+                {workspace.name}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-center text-xs">
+          <button type="button" className={`cursor-pointer ${LINK_CLASS}`} onClick={onCreateNew}>
+            Create a new workspace
+          </button>
+        </p>
+        <div className="mt-6 border-t border-border pt-4 text-center text-xs leading-relaxed text-fg-muted">
+          <SignedInAs email={email} />
+        </div>
+      </div>
+    </AuthLayout>
+  );
+}
+
+function SignedInAs({ email }: { email: string }) {
+  return (
+    <p>
+      Signed in as <span className="font-medium text-fg-primary">{email}</span>.{" "}
+      <Link href={loginPath()} className={LINK_CLASS}>
+        Use another account
+      </Link>
+    </p>
   );
 }

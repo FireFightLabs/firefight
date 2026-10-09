@@ -118,7 +118,7 @@ app/frontend/
       invitation.tsx       # /auth/invitation, joining a workspace from an email invitation
       components/          # terms-notice (login-only)
     signup/
-      workspace.tsx        # /signup/workspace, naming a new workspace
+      workspace.tsx        # /signup/workspace, naming a new workspace, or choosing one of yours without Slack
     incidents/
       index.tsx            # /incidents/:id
       postmortem.tsx       # /incidents/:id/postmortem

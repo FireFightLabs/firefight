@@ -64,6 +64,15 @@ class WorkspaceOnboarding < ApplicationRecord
     update!(dialog_dismissed_at: Time.current) if dialog_dismissed_at.nil?
   end
 
+  # The founder's letter opens setup, once per workspace, however the workspace was reached.
+  def founder_letter_pending?
+    founder_letter_seen_at.nil?
+  end
+
+  def founder_letter_seen!
+    update!(founder_letter_seen_at: Time.current) if founder_letter_seen_at.nil?
+  end
+
   def complete!
     update!(completed_at: Time.current) if completed_at.nil?
   end

@@ -107,7 +107,7 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to login_path
   end
 
-  test "welcome redirects signed-in users to dashboard when show_welcome_note is not set" do
+  test "welcome redirects signed-in users to dashboard when no founder letter is waiting" do
     membership = workspace_memberships(:alice_workspace_one)
     OmniAuth.config.mock_auth[:slack_openid] = mock_slack_openid_auth_hash(
       uid: membership.platform_user_id,
@@ -120,8 +120,7 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to dashboard_path
   end
 
-  # show_welcome_note is only set on first install, not on a regular sign-in.
-  test "welcome consumes show_welcome_note so it renders exactly once" do
+  test "welcome renders exactly once after a first install" do
     require_invite!
     stub_successful_slack_workflow
     SlackWorkspaceSetupWorkflow.stubs(:start!).returns(OpenStruct.new(id: "wf-1", status: "running"))
@@ -142,6 +141,29 @@ class OnboardingControllerTest < ActionDispatch::IntegrationTest
 
     get onboarding_welcome_path
     assert_redirected_to dashboard_path
+  end
+
+  test "the founder letter waits on the workspace, not the session, and is kept as seen once shown" do
+    FeatureFlags.enable_globally!(FeatureFlags::SELF_SERVE_SIGNUP)
+    owner = User.create!(email: "letter@example.com", name: "Lee Letter")
+    onboarding = Workspace.sign_up!(name: "Letter Co", user: owner).workspace.onboarding
+    assert onboarding.founder_letter_pending?
+
+    post consume_email_sign_in_path, params: { token: LoginToken.issue!(email: owner.email) }
+    delete logout_path
+    post consume_email_sign_in_path, params: { token: LoginToken.issue!(email: owner.email) }
+    assert_equal owner.id, session[:user_id]
+
+    get onboarding_welcome_path, headers: inertia_headers
+    assert_equal "onboarding/welcome", JSON.parse(response.body)["component"]
+    assert_not onboarding.reload.founder_letter_pending?
+    seen_at = onboarding.founder_letter_seen_at
+
+    delete logout_path
+    post consume_email_sign_in_path, params: { token: LoginToken.issue!(email: owner.email) }
+    get onboarding_welcome_path
+    assert_redirected_to dashboard_path
+    assert_equal seen_at, onboarding.reload.founder_letter_seen_at
   end
 
   private

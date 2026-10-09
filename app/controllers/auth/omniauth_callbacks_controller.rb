@@ -27,7 +27,8 @@ module Auth
         user: pending_user || current_user,
         invite_code: claimed_invite_code,
         pending_team_id: session[:pending_team_id],
-        connecting: connecting
+        connecting: connecting,
+        reused: connecting.present? && session[:reused_workspace_id] == connecting.id
       )
       return apply_connect_outcome(outcome) if connecting
 
@@ -111,14 +112,19 @@ module Auth
 
     def sign_in_and_redirect(outcome)
       return_to = start_session(user_id: outcome.membership.user_id, workspace_id: outcome.membership.workspace_id)
-      session[:show_welcome_note] = true if outcome.first_install?
       target = outcome.first_install? ? onboarding_welcome_path : (return_to || dashboard_path)
       redirect_to(target, notice: outcome.message)
     end
 
     # With self-serve signup on, a team Firefight does not know names its workspace first, like any other sign-in.
+    # Someone who owns one workspace without Slack carries on in it, and someone with several chooses on the signup page.
     def start_install_and_redirect(outcome)
       if SignInMethods.self_serve?
+        unconnected = outcome.user.owned_unconnected_memberships.to_a
+        if unconnected.one?
+          return continue_in_unconnected(unconnected.sole, team_id: outcome.team_id, team_name: outcome.team_name)
+        end
+
         return start_signup(user: outcome.user, team_id: outcome.team_id, team_name: outcome.team_name, method: UserIdentity::SLACK)
       end
 
@@ -130,7 +136,7 @@ module Auth
     end
 
     def clear_pending_session_keys
-      %i[pending_user_id pending_team_id pending_team_name invite_code_id connecting_workspace_id].each do |key|
+      %i[pending_user_id pending_team_id pending_team_name invite_code_id connecting_workspace_id reused_workspace_id].each do |key|
         session.delete(key)
       end
     end

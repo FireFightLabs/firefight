@@ -13,6 +13,7 @@ module Workspace::ChatConnection
     validates :platform_id, uniqueness: { scope: :platform }, allow_nil: true
 
     scope :chat_connected, -> { where.not(platform: nil) }
+    scope :chat_unconnected, -> { where(platform: nil) }
   end
 
   def chat_connected?
