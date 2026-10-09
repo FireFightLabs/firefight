@@ -38,9 +38,10 @@ module Integrations
       ONE_REQUEST = /\A\s*async\s*\(\s*\)\s*=>\s*(?:\{\s*return\s+)?(?:await\s+)?cloudflare\.request\(\s*(?<options>\{(?:[^{}()]|\{[^{}()]*\})*\})\s*\)\s*;?\s*\}?\s*\z/
       GET_METHOD = /["']?\bmethod["']?\s*:\s*(["'`])GET\1/
       ANY_METHOD = /\bmethod\b/
+      # A computed or escaped key, or a spread, can name the method without the word method, so options holding one are
+      # never shown to read.
+      HIDDEN_KEY = /[\[\]\\]|\.\.\./
       REQUEST = /cloudflare\.request\(/
-      # A computed key, an escape or a spread can spell a second method no text check would count.
-      HIDDEN_KEY = /[\[\\]|\.\.\./
 
       def self.guards?(tool_name) = tool_name == TOOL
 
