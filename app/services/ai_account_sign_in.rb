@@ -53,7 +53,7 @@ class AiAccountSignIn
   rescue Unreachable => e
     Rails.logger.warn({ event: "ai_account.token_refresh_unreachable", workspace_ai_account_id: account.id, error: e.message }.to_json)
   rescue Failed => e
-    account.key_refused!(FirefightAi::TerminalError.new(e.message, reason: AiAccountError::KEY_REASONS.first))
+    AiRefusal.key_refused!(account, FirefightAi::TerminalError.new(e.message, reason: AiAccountError::KEY_REASONS.first))
   end
 
   private

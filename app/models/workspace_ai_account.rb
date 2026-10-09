@@ -146,13 +146,14 @@ class WorkspaceAiAccount < ApplicationRecord
     STATE_UNCHECKED
   end
 
-  # One statement moves it, so of two calls refused at once only one tells the admins.
+  # One statement moves it, and only the call that moved it answers true, so of two calls refused at once only one
+  # tells the admins (AiRefusal).
   def ran_out!(error)
-    stuck!(:out_of_credit_since, error, NOTICE_OUT_OF_CREDIT)
+    stuck!(:out_of_credit_since, error)
   end
 
   def key_refused!(error)
-    stuck!(:failing_since, error, NOTICE_KEY_REFUSED)
+    stuck!(:failing_since, error)
   end
 
   # Every answered call says it works.
@@ -231,11 +232,9 @@ class WorkspaceAiAccount < ApplicationRecord
     values.merge("api_key" => secrets["access_token"], "api_base" => sign_in&.api_base)
   end
 
-  def stuck!(column, error, notice)
-    moved = self.class.where(id: id, column => nil)
-                .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
-    WorkspaceAiAccountNoticeJob.perform_later(id, notice) if moved
-    moved
+  def stuck!(column, error)
+    self.class.where(id: id, column => nil)
+        .update_all(column => Time.current, :last_error => AiAccountError.words(error, model: nil), :updated_at => Time.current) == 1
   end
 
   def provider_offered

@@ -126,12 +126,21 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
     second = WorkspaceAiAccount.find(account.id)
 
     assert_enqueued_jobs 1, only: WorkspaceAiAccountNoticeJob do
-      threads = [ first, second ].map { |copy| Thread.new { copy.ran_out!(FirefightAi::OutOfCredit.new("Your credit balance is too low")) } }
+      threads = [ first, second ].map { |copy| Thread.new { AiRefusal.account_ran_out!(copy, FirefightAi::OutOfCredit.new("Your credit balance is too low")) } }
       assert_equal [ true, false ], threads.map(&:value).sort_by { |moved| moved ? 0 : 1 }
     end
     assert_equal :out_of_credit, account.reload.state
     assert_equal "The account has no credit left.", account.last_error
     assert_not WorkspaceAiAccount.usable.exists?(account.id)
+  end
+
+  test "the account only records that it stopped, and the admins are told by whoever handled the refusal" do
+    account = add_ai_account!(@workspace)
+
+    assert_no_enqueued_jobs { assert account.ran_out!(FirefightAi::OutOfCredit.new) }
+    assert_enqueued_with(job: WorkspaceAiAccountNoticeJob, args: [ account.id, WorkspaceAiAccount::NOTICE_KEY_REFUSED ]) do
+      assert AiRefusal.key_refused!(account, FirefightAi::TerminalError.new("bad key", reason: "UnauthorizedError"))
+    end
   end
 
   test "an answered call puts the account back in use" do
