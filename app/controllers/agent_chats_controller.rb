@@ -77,7 +77,8 @@ class AgentChatsController < InertiaController
   def show
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => AgentChatSerializer.one(conversation),
-      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, ruby_llm_tool_calls: :result) || []),
+      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, ruby_llm_tool_calls: :result) || [],
+                                                       member: current_membership),
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
       PROP_OPEN_INVESTIGATION => open_investigation,

@@ -130,6 +130,21 @@ class Chat::CodeFixProgress
   # Waiting on a person, so the headline says so rather than the agent's last step.
   def waiting_for_answer? = question.present? && question["status"] == CodeAgentQuestion::STATUS_OPEN && !finished?
 
+  # Why principal cannot answer the agent's open question, or nil. Looked up within the workspace, since the work is
+  # read back from what a step kept.
+  def question_blocked_reason(workspace_id, principal)
+    return unless waiting_for_answer?
+
+    CodeAgentQuestion.find_by(id: question["id"], workspace_id: workspace_id)&.answer_blocked_reason(principal)
+  end
+
+  # Why principal cannot continue or stop the change paused here, or nil.
+  def pause_blocked_reason(workspace_id, principal)
+    return unless pause
+
+    CodeAgentSession::Pause.find_by(id: pause["id"], workspace_id: workspace_id)&.decide_blocked_reason(principal)
+  end
+
   # Only a check's name, how it went and what one that could not run was missing are kept, never what it printed, which
   # can quote the repository.
   def checked!(found)

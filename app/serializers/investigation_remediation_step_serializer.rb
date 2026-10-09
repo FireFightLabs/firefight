@@ -53,19 +53,15 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   # Why whoever is looking cannot continue or stop the change paused at its spending limit, or nil.
   type :string, optional: true
   def pause_blocked_reason
-    pause = step.work&.pause
-    return unless pause
-
-    CodeAgentSession::Pause.find_by(id: pause["id"])&.decide_blocked_reason(Current.principal)
+    work = step.work
+    work.pause_blocked_reason(step.workspace_id, Current.principal) if work&.pause
   end
 
   # Why whoever is looking cannot answer the coding agent's open question, or nil.
   type :string, optional: true
   def question_blocked_reason
     work = step.work
-    return unless work&.waiting_for_answer?
-
-    CodeAgentQuestion.find_by(id: work.question["id"])&.answer_blocked_reason(Current.principal)
+    work.question_blocked_reason(step.workspace_id, Current.principal) if work&.waiting_for_answer?
   end
 
   type :string, optional: true

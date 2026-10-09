@@ -52,23 +52,10 @@ class AgentChatMessageSerializer < BaseSerializer
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
-        progress: works[call.tool_call_id]&.to_h, questionBlockedReason: question_blocked_reason(chat, call, works[call.tool_call_id]),
-        pauseBlockedReason: pause_blocked_reason(chat, works[call.tool_call_id]) }
+        progress: works[call.tool_call_id]&.to_h,
+        questionBlockedReason: works[call.tool_call_id]&.question_blocked_reason(chat.workspace_id, options[:member]),
+        pauseBlockedReason: works[call.tool_call_id]&.pause_blocked_reason(chat.workspace_id, options[:member]) }
     end
-  end
-
-  # Why whoever is looking cannot answer the coding agent's open question on this step, or nil.
-  def question_blocked_reason(chat, call, work)
-    return unless work&.waiting_for_answer?
-
-    CodeAgentQuestion.find_by(id: work.question["id"], workspace_id: chat.workspace_id)&.answer_blocked_reason(Current.principal)
-  end
-
-  # Why whoever is looking cannot continue or stop the change paused on this step, or nil.
-  def pause_blocked_reason(chat, work)
-    return unless work&.pause
-
-    CodeAgentSession::Pause.find_by(id: work.pause["id"], workspace_id: chat.workspace_id)&.decide_blocked_reason(Current.principal)
   end
 
   def card_for(step, call, charted)
