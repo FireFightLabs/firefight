@@ -8,7 +8,7 @@ module Integrations
     FILES_LISTED = 30
     FOOTER = "Written by Halon. Review it like any other change before merging.".freeze
     # The section for what could not run here, which the coding agent's summary uses as its heading too.
-    NOT_RUN = "Could not run here".freeze
+    NOT_RUN = FirefightAi::Copy::NOT_RUN_HEADING
     # Said when the repository has no CI, after the host's own words for where it looked.
     NO_CI = "With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, and the owner's review decides whether it is ready.".freeze
 

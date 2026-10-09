@@ -182,6 +182,26 @@ module Integrations
           assert_includes text, "Could not run here:\n"
         end
 
+        test "a Postgres extension or service the setup names that the sandbox lacks is said under Could not run here, told to the agent, and never stops the change" do
+          CodeReading.any_instance.stubs(:prepare).returns(
+            "left_out" => [ "elasticsearch" ], "missing_extensions" => [ { "extension" => "postgis", "image" => "postgis/postgis:16-3.4" } ]
+          )
+          brief = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && (brief = argv[4]) }.returns("stdout" => agent_output, "timed_out" => false)
+          body = nil
+          GithubApp.expects(:open_pull_request).with { |*, **options| body = options[:body] }.returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it" })
+
+          lines = "- What needs elasticsearch, since the sandbox cannot start it.\n" \
+                  "- What needs the Postgres postgis extension, which the CI's postgis/postgis:16-3.4 image names, since the sandbox's Postgres does not have it."
+          assert_includes body, "**Could not run here**\n#{lines}"
+          assert_includes text, "Could not run here:\n#{lines}"
+          refute_match(/blocked/i, body)
+          assert_includes brief, "Firefight lists these under #{CodeWriteUp::NOT_RUN} itself"
+          assert_includes brief, "the Postgres postgis extension"
+        end
+
         test "the agent writes the change first, never builds a database by hand, and lists what could not run" do
           brief = nil
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && (brief = argv[4]) }.returns("stdout" => agent_output, "timed_out" => false)
@@ -195,6 +215,8 @@ module Integrations
           assert_includes brief, "the sandbox's own way to start a service, when it offers one"
           assert_includes brief, "the repository's own CI, when it has one, runs on the pull request"
           assert_includes brief, "under a line that reads #{CodeWriteUp::NOT_RUN}:"
+          assert_includes brief, FirefightAi::Copy::NOT_RUN
+          refute_includes brief, "The sandbox cannot give this repository's tests", "a repository the sandbox serves whole hears nothing about gaps"
           assert_includes brief, "$TMPDIR"
         end
 

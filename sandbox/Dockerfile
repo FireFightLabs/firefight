@@ -18,6 +18,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       util-linux procps shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
+# Debian's Postgres carries the contrib extensions (pg_trgm, hstore, uuid-ossp, citext, pgcrypto and the rest) but not
+# pgvector, so it is built from a pinned release, portable across CPUs. What building it installed is removed by name,
+# since apt's autoremove keeps the compilers another package suggests.
+ARG PGVECTOR_VERSION=v0.8.6
+RUN pg="$(ls /usr/lib/postgresql)" \
+    && dpkg-query -W -f '${Package}\n' | sort > /tmp/before \
+    && apt-get update && apt-get install -y --no-install-recommends "postgresql-server-dev-${pg}" \
+    && git clone --quiet --depth 1 --branch "${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git /tmp/pgvector \
+    && make -C /tmp/pgvector OPTFLAGS="" with_llvm=no \
+    && make -C /tmp/pgvector with_llvm=no install \
+    && dpkg-query -W -f '${Package}\n' | sort > /tmp/after \
+    && apt-get purge -y $(comm -13 /tmp/before /tmp/after) \
+    && rm -rf /tmp/pgvector /tmp/before /tmp/after /var/lib/apt/lists/*
+
 ARG GO_VERSION=1.26.8
 RUN arch="$(dpkg --print-architecture)" \
     && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${arch}.tar.gz" | tar -C /usr/local -xz

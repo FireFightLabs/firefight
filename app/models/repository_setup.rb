@@ -26,8 +26,8 @@ class RepositorySetup < ApplicationRecord
 
     def to_h = { "name" => name, "image" => image, "port" => port, "env" => env }.compact
 
-    # What the sandbox is handed, which needs no image.
-    def for_box = { "name" => name, "port" => port, "env" => env }.compact
+    # What the sandbox is handed. The image says which Postgres extension the CI's tests expect, which the box checks it has.
+    def for_box = to_h
   end
 
   belongs_to :workspace
