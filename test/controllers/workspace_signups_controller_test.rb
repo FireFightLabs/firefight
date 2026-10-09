@@ -350,11 +350,12 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     assert_not workspace.reload.chat_connected?
   end
 
-  test "someone who owns several workspaces without Slack chooses one, and only their own are offered" do
+  test "someone who owns several workspaces without Slack chooses one, told apart by when each was made, and only their own are offered" do
     owner = User.create!(email: "many@example.com", name: "Max Many")
-    first = Workspace.sign_up!(name: "First Co", user: owner).workspace
-    second = Workspace.sign_up!(name: "Second Co", user: owner).workspace
-    first.update_columns(created_at: 2.days.ago)
+    first = Workspace.sign_up!(name: "Many Co", user: owner).workspace
+    second = Workspace.sign_up!(name: "Many Co", user: owner).workspace
+    first.update_columns(created_at: Time.utc(2026, 10, 8, 10, 4, 52))
+    second.update_columns(created_at: Time.utc(2026, 10, 8, 22, 32, 52))
     stranger = User.create!(email: "stranger@example.com", name: "Sam Stranger")
     joined = Workspace.sign_up!(name: "Joined Co", user: stranger).workspace
     joined.workspace_memberships.create!(user: owner, role: :admin, joined_at: Time.current)
@@ -368,8 +369,10 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
 
     get signup_workspace_path, headers: inertia_headers
     assert_equal "signup/workspace", JSON.parse(response.body)["component"]
-    assert_equal [ { "id" => first.id, "name" => "First Co" }, { "id" => second.id, "name" => "Second Co" } ],
-                 inertia_props["unconnectedWorkspaces"]
+    assert_equal [
+      { "id" => first.id, "name" => "Many Co", "createdAt" => "2026-10-08T10:04:52Z" },
+      { "id" => second.id, "name" => "Many Co", "createdAt" => "2026-10-08T22:32:52Z" }
+    ], inertia_props["unconnectedWorkspaces"]
 
     assert_no_difference -> { Workspace.count } do
       post signup_workspace_path, params: { name: "Silent Co" }

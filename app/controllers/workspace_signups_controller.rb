@@ -20,7 +20,7 @@ class WorkspaceSignupsController < InertiaController
       nameMaxLength: Workspace::NAME_MAX_LENGTH,
       inviteRequired: InviteCode.required?,
       askName: asks_name?,
-      unconnectedWorkspaces: unconnected_memberships.map { |membership| { id: membership.workspace_id, name: membership.workspace.name } }
+      unconnectedWorkspaces: unconnected_workspaces_props
     }
   end
 
@@ -84,6 +84,14 @@ class WorkspaceSignupsController < InertiaController
     return @unconnected_memberships if defined?(@unconnected_memberships)
 
     @unconnected_memberships = signup_user && session[:signup_team_id].present? ? signup_user.owned_unconnected_memberships.to_a : []
+  end
+
+  # Each carries when it was made, so two of the same name can be told apart.
+  def unconnected_workspaces_props
+    unconnected_memberships.map do |membership|
+      workspace = membership.workspace
+      { id: workspace.id, name: workspace.name, createdAt: workspace.created_at.utc.iso8601 }
+    end
   end
 
   # A Slack sign-in already named its team, so the welcome continues straight to connecting it.
