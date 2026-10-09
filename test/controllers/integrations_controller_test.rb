@@ -710,6 +710,11 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
   private
 
+  def live_toggle(name)
+    get integrations_url, headers: inertia_headers
+    inertia_props["integrations"].find { |each| each["name"] == name }["environments"].sole["liveUpdates"]["toggle"]
+  end
+
   def stub_begin_flow
     Integrations::OauthClient.stubs(:begin_flow).returns(
       authorize_url: "https://auth.example/authorize", state: "abc",
@@ -788,7 +793,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     get integrations_url, headers: inertia_headers
     state = inertia_props["integrations"].find { |each| each["name"] == "Live hook" }["environments"].sole["liveUpdates"]
-    assert_equal [ false, LiveTestHook.asking, nil ], [ state["on"], state["turnOn"], state["turnOff"] ]
+    assert_equal [ false, { "turnsOn" => true, "words" => LiveTestHook.asking, "blockedReason" => nil } ], [ state["on"], state["toggle"] ]
 
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
     assert_redirected_to integrations_path
@@ -797,6 +802,7 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
 
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
     assert_equal "Live updates are already on for Live hook.", flash[:alert]
+    assert_equal false, live_toggle("Live hook")["turnsOn"]
 
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: false }
     assert_equal "Live updates are off. Firefight removed its webhook from Live hook.", flash[:notice]
@@ -805,6 +811,10 @@ class IntegrationsControllerTest < ActionDispatch::IntegrationTest
     LiveTestHook.failure = "Live hook answered 500: down"
     patch live_updates_integration_url(integration), params: { environment_row_id: row.id, on: true }
     assert_equal "Firefight could not follow Live hook's changes: Live hook answered 500: down. The map still updates at each sweep.", flash[:alert]
+
+    row.update_columns(enabled: false)
+    assert_equal({ "turnsOn" => true, "words" => LiveTestHook.asking, "blockedReason" => "Live hook is switched off. Switch it on first." },
+                 live_toggle("Live hook"), "a switch that cannot be pressed is shown with why, never hidden")
   ensure
     LiveTestHook.asking = nil
     LiveTestHook.failure = nil

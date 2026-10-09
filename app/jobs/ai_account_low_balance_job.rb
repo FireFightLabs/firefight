@@ -1,19 +1,18 @@
-# Hourly, reads what each of the deployment's own keys may still spend, for the providers that say, and alerts the
-# people running Firefight when one is below FIREFIGHT_AI_LOW_BALANCE_USD. A key with no spending limit of its own
-# spends the whole account, which only a management key can read, so it is logged and not alerted on.
+# Hourly, reads what each of the deployment's own accounts holds, for the providers that say, and alerts the people
+# running Firefight when one is below FIREFIGHT_AI_LOW_BALANCE_USD. Reading a balance takes its own key (OpenRouter's
+# management key in OPENROUTER_MANAGEMENT_KEY), so without it nothing is read and that is logged.
 class AiAccountLowBalanceJob < ApplicationJob
   queue_as :background
 
   def perform
+    FirefightAi::Balance.unchecked.each do |provider, key_name|
+      Rails.logger.info({ event: "ai.balance_unchecked", provider: provider, missing: key_name }.to_json)
+    end
     FirefightAi::Balance.providers.each do |provider|
-      balance = FirefightAi::Balance.key(provider)
-      next unless balance
+      account = FirefightAi::Balance.account(provider)
+      next unless account
 
-      if balance.unlimited?
-        Rails.logger.info({ event: "ai.balance_unlimited", provider: provider }.to_json)
-      elsif balance.remaining < Rails.configuration.x.ai_low_balance_usd
-        AiAccountAlert.low_balance!(provider, balance)
-      end
+      AiAccountAlert.low_balance!(provider, account) if account.remaining < Rails.configuration.x.ai_low_balance_usd
     end
   end
 end

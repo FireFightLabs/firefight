@@ -28,12 +28,12 @@ class IntegrationSerializer < BaseSerializer
   # settings are what the connection was set up with beside its credentials, each with its label. choices are the
   # fields chosen after connecting, with what the connection learned to choose from.
   # liveUpdates is null for a provider that cannot say what changed. setup is for a provider an admin sends changes from
-  # by hand, and its address is null while Firefight's own address is not set. turnOn and turnOff are what a person
-  # confirms before switching live updates, and turnOnBlocked and turnOffBlocked say why they cannot. offer is for a
-  # provider a person sets up from a template. Its link is a redirect (live_updates_setup), so the connection's secret
-  # is never in the page.
+  # by hand, and its address is null while Firefight's own address is not set. toggle is the switch for a provider
+  # Firefight registers its webhook with, saying which way it turns, what a person confirms and why it cannot be pressed
+  # now, and null for any other provider. offer is for a provider a person sets up from a template. Its link is a
+  # redirect (live_updates_setup), so the connection's secret is never in the page.
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlockedReason: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null; turnOnBlocked: string | null; turnOffBlocked: string | null } | null".freeze
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlockedReason: string | null } | null; offer: #{OFFER_TYPE}; toggle: { turnsOn: boolean; words: string; blockedReason: string | null } | null } | null".freeze
 
   # scopes is what the connection reads at its provider for a provider that names it by a scope field, such as a host's
   # projects. It holds the field, the values chosen (one value, the field's all, for every one the credentials can
@@ -124,10 +124,8 @@ class IntegrationSerializer < BaseSerializer
       { words: offered.words, action: offered.action, unavailable: offered.unavailable, removal: offered.removal,
         places: offered.places.map { |place| { place: place.place, label: place.label, sentAt: place.sent_at&.utc&.iso8601, unavailable: place.unavailable } } }
     end
-    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup, offer: offer,
-      turnOn: (row.live_updates_turn_on_words unless row.live_updates_turn_on_blocked_reason),
-      turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason),
-      turnOnBlocked: row.live_updates_turn_on_blocked_reason, turnOffBlocked: row.live_updates_turn_off_blocked_reason }
+    toggle = row.live_updates_toggle&.then { |found| { turnsOn: found.turns_on, words: found.words, blockedReason: found.blocked_reason } }
+    { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup, offer: offer, toggle: toggle }
   end
 
   def scopes_of(row)

@@ -41,8 +41,11 @@ module Conversation::Watches
   # A line's mark: its kind while the watch goes on, how it ended for the last one.
   TONES = [ *(Chat::Watch::Update::KINDS - [ Chat::Watch::Update::KIND_ENDED ]), *ENDED_TONES.values ].freeze
 
-  # One line a watch said, as the chat, the platform's message and MCP show it.
-  Said = Data.define(:id, :watch_id, :title, :kind, :tone, :text, :at)
+  # One line a watch said, as the chat, the platform's message and MCP show it. live is whether the watch still went
+  # when it was said, which is when the platform's message offers Stop.
+  Said = Data.define(:id, :watch_id, :title, :kind, :tone, :text, :at, :live) do
+    def initialize(live: false, **rest) = super
+  end
 
   # Starts a watch for whoever asks this turn, and answers what Halon tells the person: how long it will watch and
   # why, and anything it cannot follow. arguments are start_watch's, with string keys.
@@ -490,6 +493,28 @@ module Conversation::Watches
     nil
   end
 
+  # Stop pressed on a line the watch said on the platform, by whoever pressed it. The watch's end is said where it
+  # reports, as any stop is, and the pressed message loses its Stop once the watch is over, also when it had ended
+  # already. Returns why it was not stopped, or nil.
+  def self.stop_pressed!(update, by:, channel_id:, message_id:)
+    watch = update.watch
+    blocked = stop!(watch, by: by)
+    take_stop_away(watch, update, channel_id, message_id) unless watch.reload.active?
+    blocked
+  end
+
+  def self.take_stop_away(watch, update, channel_id, message_id)
+    return if channel_id.blank? || message_id.blank?
+
+    conversation = watch.conversation
+    adapter = WorkspaceAdapter.for(watch.workspace)
+    adapter.update_watch_update(channel_id: channel_id, message_id: message_id, update: said(watch, update),
+                                direct: adapter.direct_conversation?(channel_id: channel_id),
+                                conversation_id: (conversation.id if conversation.personal?))
+  rescue AdapterError => error
+    Rails.logger.warn({ event: "watch.stop_unshown", watch_id: watch.id, update_id: update.id, error: error.class.name }.to_json)
+  end
+
   # A live update about a connection a watch reads through wakes it now rather than at the next sweep.
   def self.wake!(environment_row)
     Chat::Watch.reading_through(environment_row).pluck(:id).each { |id| WatchCheckJob.perform_later(id) }
@@ -520,7 +545,8 @@ module Conversation::Watches
 
   def self.said(watch, update)
     tone = update.kind == Chat::Watch::Update::KIND_ENDED ? ENDED_TONES.fetch(watch.status, TONE_DONE) : update.kind
-    Said.new(id: update.id, watch_id: watch.id, title: watch.title, kind: update.kind, tone: tone, text: update.text, at: update.created_at)
+    Said.new(id: update.id, watch_id: watch.id, title: watch.title, kind: update.kind, tone: tone, text: update.text, at: update.created_at,
+             live: watch.active?)
   end
 
   # What Halon hears at its next turn: each line its watches said since, and the ones still going, once each.

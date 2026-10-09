@@ -12,10 +12,13 @@ module Integrations
     # Said when the repository has no CI, after the host's own words for where it looked.
     NO_CI = "With no CI, nothing beyond the checks that ran in Firefight's sandbox tested this change, and the owner's review decides whether it is ready.".freeze
 
-    # lead is what the change does and why, context what other changes in the same fix did, warning the CI warning or nil,
+    # The description is made from the change, its checks and its review only, never from what Halon told the coding
+    # agent, since a repository may be public and the brief holds instructions and what was read of live systems. lead is
+    # what the review says the change does, or the title when the review did not run. warning is the CI warning or nil,
     # and no_ci the code host's words that the repository has no CI, or nil when it has.
-    def self.body(lead:, context:, warning:, reviewed:, change:, no_ci: nil)
-      text = [ lead, context.presence, warning, *sections(reviewed, change, bold: true), without_ci(no_ci, bold: true), files("**Files**", change.counts), FOOTER ]
+    def self.body(title:, warning:, reviewed:, change:, no_ci: nil)
+      lead = reviewed&.summary.presence || title
+      text = [ lead, warning, *sections(reviewed, change, bold: true), without_ci(no_ci, bold: true), files("**Files**", change.counts), FOOTER ]
       Chat::SecretFree.redacted(text.compact.join("\n\n"))
     end
 

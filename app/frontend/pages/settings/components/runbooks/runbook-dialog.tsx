@@ -47,7 +47,7 @@ import {
   inputPlaceholders,
   procedurePayload,
   procedureState,
-  watchErrors,
+  watchError,
   type ProcedureState,
 } from "@/pages/settings/lib/runbook-procedure"
 import {
@@ -159,16 +159,23 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
 
   const placeholders: SearchableSelectOption[] = inputPlaceholders(model.procedure.inputs)
   const placeOptions: SearchableSelectOption[] = (places ?? []).map((place) => ({ value: place.name, label: place.name, group: place.kind }))
-  const watchProblems = watchErrors(model.procedure.watch)
-  const [ shownWatchProblems, setShownWatchProblems ] = useState<ReturnType<typeof watchErrors>>({ watch: null, steps: {} })
+  const watchProblem = watchError(model.procedure.watch)
+  const [ shownWatchProblem, setShownWatchProblem ] = useState<string | null>(null)
 
   // A server error outlives the value that caused it, so it is cleared once the
   // field changes.
   useEffect(() => {
     setErrors({})
     setStepErrors({})
-    setShownWatchProblems({ watch: null, steps: {} })
+    setShownWatchProblem(null)
   }, [model])
+
+  // The page comes back without the pickers' choices, which it loads only on request, so they are asked for again to keep
+  // showing what was picked beside the error.
+  function showErrors(formErrors: Errors) {
+    setErrors(formErrors)
+    loadChoices()
+  }
 
   function patch(next: Partial<EditModel>) {
     setModel((prev) => ({ ...prev, ...next }))
@@ -209,9 +216,9 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
     }
 
     const problems = stepProblems(model.steps, tools)
-    if (Object.keys(problems).length > 0 || watchProblems.watch || Object.keys(watchProblems.steps).length > 0) {
+    if (Object.keys(problems).length > 0 || watchProblem) {
       setStepErrors(problems)
-      setShownWatchProblems(watchProblems)
+      setShownWatchProblem(watchProblem)
       return
     }
     const procedure = procedurePayload(model.procedure)
@@ -235,7 +242,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
       onStart: () => setProcessing(true),
       onFinish: () => setProcessing(false),
       onSuccess: () => onOpenChange(false),
-      onError: (formErrors: Errors) => setErrors(formErrors),
+      onError: showErrors,
     }
 
     if (runbook) {
@@ -313,7 +320,7 @@ export function RunbookDialog({ open, onOpenChange, runbook, incidentTypes, seve
             <RunbookProcedureEditor
               state={model.procedure}
               errors={{ aliases: errors.aliases, inputs: errors.inputs, watch: errors.watch }}
-              watchErrors={shownWatchProblems}
+              watchError={shownWatchProblem}
               reads={reads}
               placeholders={placeholders}
               places={placeOptions}

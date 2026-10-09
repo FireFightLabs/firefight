@@ -133,6 +133,34 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_equal Chat::Memory::STATE_UNCONFIRMED, memory("Checkout runs in Frankfurt").state
   end
 
+  test "a run saves what it learns unconfirmed through the gateway, as the investigator, and the change is in the activity log" do
+    investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400)
+
+    assert_equal "Remembered, unconfirmed until a person confirms it.", Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
+
+    memory = memory("Checkout runs in Frankfurt")
+    assert_equal [ Chat::Memory::STATE_UNCONFIRMED, investigation, nil ], [ memory.state, memory.source, memory.added_by ]
+    entry = @workspace.ability_invocations.find_by!(action_key: "memory.create", principal: SystemAgent.investigator)
+    assert_equal [ Ability::Invocation::DECISION_ALLOW, AbilityGateway::SOURCE_INVESTIGATION ], [ entry.decision, entry.source ]
+    assert entry.completed_at
+  end
+
+  test "once an admin revokes the investigator's memory grant a run saves and disputes nothing, says why, and the refusal is logged" do
+    investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400)
+    disputed = Chat::Memory.create!(workspace: @workspace, text: "Checkout runs in Dublin", state: Chat::Memory::STATE_UNCONFIRMED)
+    @workspace.ability_grants.where(principal: SystemAgent.investigator, action: Ability::Action.where(key: %w[memory.create memory.update])).destroy_all
+
+    assert_equal "Not allowed: this agent has no grant for memory.create in this workspace.",
+                 Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
+    assert_equal "Not allowed: this agent has no grant for memory.update in this workspace.",
+                 Chat::Tools::DisputeMemory.new(investigation).call("memory" => disputed.id, "reason" => "The deploy log shows Frankfurt")
+
+    assert_nil Chat::Memory.find_by(workspace: @workspace, text: "Checkout runs in Frankfurt")
+    assert_equal Chat::Memory::STATE_UNCONFIRMED, disputed.reload.state
+    assert_equal [ Ability::Invocation::DECISION_DENY ] * 2,
+                 @workspace.ability_invocations.where(principal: SystemAgent.investigator, action_key: %w[memory.create memory.update]).pluck(:decision)
+  end
+
   test "a rehearsal reads memory, but is never offered a way to change it and never counts a use" do
     rehearsal = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true,
                                                   max_turns: 10, max_spend_cents: 400)

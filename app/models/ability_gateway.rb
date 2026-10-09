@@ -96,7 +96,8 @@ class AbilityGateway
 
   # Without a block, returns an Authorization the caller must finalize. With one, the block is handed it, so an answer
   # that says it failed can be ledgered as one. On PendingApproval, the retry passes context[:approval_id] once approved.
-  # holdable: false is for a way in nothing could resume after an approval, which is ledgered but never held.
+  # holdable: false is for a way in nothing could resume after an approval, or a search that only reads Firefight's own
+  # data, which is ledgered but never held.
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {}, holdable: true)
     action = Ability::Action.lookup(action_key, workspace)
 

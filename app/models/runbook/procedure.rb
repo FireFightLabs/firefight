@@ -64,7 +64,19 @@ module Runbook::Procedure
     Resolved.new(values: values.compact, missing: inputs.reject { |input| values[input["key"]].present? })
   end
 
-  def filled_watch(values) = watch.presence && self.class.filled(watch, values)
+  # The watch to start, with its inputs filled in and each item with no name named after what it reads. A read tool is
+  # named as tool_title calls it.
+  def filled_watch(values, &tool_title)
+    return if watch.blank?
+
+    filled = self.class.filled(watch, values)
+    label = Chat::Watch::SPEC_KEYS[:label]
+    steps = Array(filled["steps"]).map do |step|
+      named = step[label].to_s.strip.present? ? nil : Chat::Watch::Step.default_label(step, &tool_title)
+      named ? step.merge(label => named) : step
+    end
+    filled.merge("steps" => steps)
+  end
 
   private
 
@@ -83,7 +95,7 @@ module Runbook::Procedure
     end
     errors.add(:inputs, "must each have a key of their own") unless input_keys.uniq.size == input_keys.size
     unknown = self.class.placeholders_in(watch) - input_keys
-    errors.add(:watch, "uses #{unknown.map { |key| "{{#{key}}}" }.to_sentence}, which is not one of its inputs") if unknown.any?
+    errors.add(:watch, "Watch uses #{unknown.map { |key| "{{#{key}}}" }.to_sentence}, which is not one of its inputs") if unknown.any?
   end
 
   def watch_well_formed
@@ -91,20 +103,22 @@ module Runbook::Procedure
 
     steps = watch.is_a?(Hash) ? watch["steps"] : nil
     unless steps.is_a?(Array) && steps.any? && steps.all? { |step| step.is_a?(Hash) }
-      return errors.add(:watch, "needs steps, each naming the capability to check and the resource")
+      return errors.add(:watch, "Watch needs steps, each naming the capability to check and the resource")
     end
 
-    # Steps are named by their number, as the settings page numbers them, so whoever reads it finds the one to fix.
-    unnamed = step_numbers(steps) { |step| step["capability"].blank? || step["resource"].blank? }
-    return errors.add(:watch, "needs #{unnamed} to name the capability to check and the resource") if unnamed
-
-    undecided = step_numbers(steps) { |step| Chat::Watch::Step.undecided?(step) }
-    errors.add(:watch, "needs what counts as done for #{undecided} (done when, failed when or a goal)") if undecided
+    steps.each_with_index do |step, index|
+      if step["capability"].blank? || step["resource"].blank?
+        errors.add(:watch, "Watch #{item_name(step, index)}: needs the capability to check and the resource")
+      elsif Chat::Watch::Step.undecided?(step)
+        errors.add(:watch, "Watch #{item_name(step, index)}: needs what counts as done (done when, failed when or a goal)")
+      end
+    end
   end
 
-  # "step 2" or "steps 1 and 3" for the steps the block picks, nil for none.
-  def step_numbers(steps)
-    numbers = steps.each_index.select { |index| yield(steps[index]) }.map { |index| index + 1 }
-    "#{'step'.pluralize(numbers.size)} #{numbers.to_sentence}" if numbers.any?
+  # An error names a watch item by its name, or by its number as the settings page numbers them when it has none.
+  # Each watch error is a whole sentence (config/locales/en.yml), so every surface shows it the same.
+  def item_name(step, index)
+    label = step[Chat::Watch::SPEC_KEYS[:label]].to_s.squish
+    label.present? ? "'#{label}'" : (index + 1).to_s
   end
 end

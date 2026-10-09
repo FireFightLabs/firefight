@@ -15,7 +15,7 @@ class TimelineEventSerializer < BaseSerializer
 
   # Mirrors ActorCompactSerializer. The generator only resolves a has_one, and person
   # is built by hand for people with no membership row.
-  ACTOR_TYPE = "{ name: string; initials: string; avatarUrl?: string; kind: #{ActorCompactSerializer::KIND_UNION} }"
+  ACTOR_TYPE = "{ name: string; avatarUrl?: string; kind: #{ActorCompactSerializer::KIND_UNION} }"
 
   type :string
   def actor
@@ -201,7 +201,6 @@ class TimelineEventSerializer < BaseSerializer
 
     {
       name: name,
-      initials: name.split.map { |part| part[0] }.join.upcase,
       avatarUrl: avatar_url,
       kind: Ability::Principal::KIND_USER
     }

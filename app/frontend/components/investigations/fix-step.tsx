@@ -3,9 +3,9 @@ import { IconAlertTriangle } from "@tabler/icons-react"
 import { CodeFixWorkView } from "@/components/code-fix-work"
 import { ApprovedStep } from "@/components/investigations/approved-step"
 import { FixStepStatus } from "@/components/investigations/fix-step-status"
-import { FIX_STEP_STATUS_LABELS, REMEDIATION_STEP_LABELS, receiptLine } from "@/components/investigations/labels"
+import { REMEDIATION_STEP_LABELS, receiptLine } from "@/components/investigations/labels"
 import { MarkDone } from "@/components/investigations/mark-done"
-import { REMEDIATION_STEP_STATUS_DONE, REMEDIATION_STEP_STATUS_RUNNING } from "@/lib/generated/constants"
+import { REMEDIATION_STEP_STATUS_RUNNING } from "@/lib/generated/constants"
 import type { InvestigationRemediationStep } from "@/types/serializers"
 
 // Step numbers read as a list, such as "1, 2 and 3".
@@ -26,20 +26,13 @@ function after(step: InvestigationRemediationStep): string | undefined {
   return step.dependsOn.length === 1 ? `After step ${steps}` : `After steps ${steps}`
 }
 
-function stepStatus(step: InvestigationRemediationStep): string | null {
-  if (step.status === REMEDIATION_STEP_STATUS_DONE && step.doneBy) {
-    return `Done by ${step.doneBy}`
-  }
-  return FIX_STEP_STATUS_LABELS[step.status]
-}
-
 function receipt(step: InvestigationRemediationStep): string | undefined {
   return step.receipt ? receiptLine(step.receipt) : undefined
 }
 
 // One step of a fix, with how to undo it, how it went and what may be done with it now.
 export function FixStep({ investigationId, step }: { investigationId: string; step: InvestigationRemediationStep }) {
-  const status = stepStatus(step)
+  const status = step.statusLabel
 
   return (
     <li className="flex gap-3 rounded-lg border border-border bg-background px-3 py-2.5">

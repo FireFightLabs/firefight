@@ -1,7 +1,8 @@
 module Slack
   module Messages
-    # One line a watch Halon keeps said, titled by what is watched. In the asker's direct messages it also offers to open
-    # the chat when the chat is on the dashboard.
+    # One line a watch Halon keeps said, titled by what is watched. While the watch goes it offers Stop, which asks first as
+    # the dashboard's Stop does. In the asker's direct messages it also offers to open the chat when the chat is on the
+    # dashboard.
     module WatchUpdate
       TITLES = {
         Chat::Watch::Update::KIND_STARTED => ":eyes:", Chat::Watch::Update::KIND_MILESTONE => ":large_green_circle:",
@@ -17,8 +18,8 @@ module Slack
           { type: "divider" },
           { type: "section", text: { type: "mrkdwn", text: Mrkdwn.escape(update.text).truncate(Formatting::SECTION_TEXT_LIMIT) } }
         ]
-        open = direct && link(conversation_id)
-        blocks << open if open
+        buttons = [ (stop_button(update) if update.live), (direct && link(conversation_id)) ].compact
+        blocks << { type: "actions", elements: buttons } if buttons.any?
         blocks
       end
 
@@ -30,7 +31,18 @@ module Slack
         url = conversation_id && DashboardUrl.agent_chat(conversation_id)
         return unless url
 
-        { type: "actions", elements: [ { type: "button", text: { type: "plain_text", text: "Open the chat" }, url: url } ] }
+        { type: "button", text: { type: "plain_text", text: "Open the chat" }, url: url }
+      end
+
+      def self.stop_button(update)
+        {
+          type: "button", text: { type: "plain_text", text: "Stop" }, action_id: Identifiers::WATCH_STOP, value: update.id.to_s,
+          confirm: {
+            title: { type: "plain_text", text: "Stop watching?" },
+            text: { type: "plain_text", text: "Halon stops following #{update.title} and says so here. It will not report on it again.".truncate(300) },
+            confirm: { type: "plain_text", text: "Stop watching" }, deny: { type: "plain_text", text: "Cancel" }
+          }
+        }
       end
     end
   end

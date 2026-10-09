@@ -46,6 +46,8 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     Integrations::Issues::Event.new(keys: [ "ENG-12" ], at: at, url: URL, **fields)
   end
 
+  def approval_for(item) = Ability::Approval.find_by!("resume_payload->>'action_id' = ?", item.id)
+
   def saves = tracker_calls.select { |name, _| name == "save_issue" }.map(&:last)
 
   test "never opens no issue, and offers none" do
@@ -186,7 +188,7 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     item = create_item.reload
     assert_equal IncidentAction::ISSUE_AWAITING_APPROVAL, item.issue_sync_state
     assert_match "waiting for approval", item.issue_sync_note
-    approval = Ability::Approval.find(item.issue_approval_id)
+    approval = approval_for(item)
     assert_equal ApprovalResumption::KIND_ISSUE_SYNC, approval.resume_payload["kind"]
 
     approval.update!(status: Ability::Approval::STATUS_APPROVED, approver: @alice, resolved_at: Time.current)
@@ -194,7 +196,7 @@ class IssueSyncServiceTest < ActiveSupport::TestCase
     assert_equal [ IncidentAction::ISSUE_LINKED, "ENG-12" ], [ item.reload.issue_sync_state, item.external_key ]
 
     declined = create_item.reload
-    denial = Ability::Approval.find(declined.issue_approval_id)
+    denial = approval_for(declined)
     denial.update!(status: Ability::Approval::STATUS_DENIED, approver: @alice, resolved_at: Time.current)
     ApprovalResumption.decline!(denial)
     assert_equal IncidentAction::ISSUE_DECLINED, declined.reload.issue_sync_state

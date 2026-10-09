@@ -17,7 +17,10 @@ module Integrations
         TEAM = /\A[\w.-]+\z/
         SHOWN_TEXT = 1_500
         PROVIDER = GithubApp::PROVIDER
-        GRANT_WHERE = "An owner of the GitHub account grants it under Settings, GitHub Apps, by accepting the App's new permissions".freeze
+        # Where GitHub's own settings take an owner (docs.github.com, Reviewing and modifying installed GitHub Apps).
+        GRANT_WHERE = "An owner of the GitHub account accepts it on GitHub, under the organization's Settings, GitHub Apps " \
+                      "(Settings, Applications, Installed GitHub Apps for a personal account), with Configure next to Firefight's " \
+                      "App, then Review request and Accept new permissions".freeze
         NOT_GIVEN = "GitHub answers not found for a repository this connection's GitHub App was not given, and list_repositories names the ones it was".freeze
 
         private

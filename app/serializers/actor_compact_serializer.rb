@@ -8,11 +8,6 @@ class ActorCompactSerializer < BaseSerializer
     actor.actor_display_name
   end
 
-  type :string
-  def initials
-    actor.actor_display_name.split.map { |part| part[0] }.join.upcase
-  end
-
   type :string, optional: true
   def avatar_url
     return nil unless actor.respond_to?(:user)

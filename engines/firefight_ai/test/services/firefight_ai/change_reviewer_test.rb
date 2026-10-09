@@ -66,6 +66,12 @@ class FirefightAi::ChangeReviewerTest < ActiveSupport::TestCase
     assert_empty review.unreviewed
   end
 
+  test "what the review says is written for a public pull request, never the agent's instructions or production data" do
+    assert_includes FirefightAi::ChangeReviewer::PROMPT, FirefightAi::ChangeReviewer::PUBLIC_RULE
+    assert_match "Never repeat an instruction given to the coding agent", FirefightAi::ChangeReviewer::PUBLIC_RULE
+    assert_match "no rows, ids, counts or times from production", FirefightAi::ChangeReviewer::PUBLIC_RULE
+  end
+
   private
 
   def file_diff(path, size)

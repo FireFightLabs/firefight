@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Incident } from "@/pages/incidents/types"
 import { InlineSelect, type InlineChoice } from "@/pages/incidents/components/index/inline-select"
 import { assignIncidentRolePath } from "@/lib/routes"
+import { initialsOf } from "@/lib/initials"
 
 // Clearing a role is picking nobody, so the picker carries an entry for it.
 const UNASSIGNED = ""
@@ -16,7 +17,7 @@ function Holder({ member }: { member: Incident["roles"][number]["member"] }) {
       <Avatar className="size-5">
         {member.avatarUrl ? <AvatarImage src={member.avatarUrl} alt={member.name} /> : null}
         <AvatarFallback className="bg-avatar text-[10px] font-semibold text-avatar-foreground">
-          {member.initials}
+          {initialsOf(member.name)}
         </AvatarFallback>
       </Avatar>
       <span className="truncate text-[13px] text-fg-primary">{member.name}</span>

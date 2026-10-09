@@ -12,7 +12,7 @@ import type { RunbookWatchRead } from "@/types/serializers"
 interface RunbookProcedureEditorProps {
   state: ProcedureState
   errors: Partial<Record<"aliases" | "inputs" | "watch", ErrorValue>>
-  watchErrors: { watch: string | null; steps: Record<string, string> }
+  watchError: string | null
   reads: RunbookWatchRead[] | null
   placeholders: SearchableSelectOption[]
   places: SearchableSelectOption[]
@@ -21,7 +21,7 @@ interface RunbookProcedureEditorProps {
 
 // What lets Halon run the runbook by name: other names people call it, what to ask each time, and what to watch once
 // every step went through. A runbook that leaves all of it empty is an ordinary incident runbook.
-export function RunbookProcedureEditor({ state, errors, watchErrors, reads, placeholders, places, onChange }: RunbookProcedureEditorProps) {
+export function RunbookProcedureEditor({ state, errors, watchError, reads, placeholders, places, onChange }: RunbookProcedureEditorProps) {
   function patch(next: Partial<ProcedureState>) {
     onChange({ ...state, ...next })
   }
@@ -120,8 +120,8 @@ export function RunbookProcedureEditor({ state, errors, watchErrors, reads, plac
         reads={reads}
         placeholders={placeholders}
         places={places}
-        errors={watchErrors}
-        serverError={errors.watch ? String(errors.watch) : null}
+        error={watchError}
+        serverErrors={errors.watch ?? []}
         onChange={setWatch}
       />
     </div>

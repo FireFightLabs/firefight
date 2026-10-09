@@ -299,4 +299,15 @@ class IncidentActionsControllerTest < ActionDispatch::IntegrationTest
     patch reopen_incident_item_path(incident_id: @incident.id, id: action.id)
     assert_equal [ "The item was reopened.", IncidentAction::STATUS_OPEN ], [ flash[:notice], action.reload.status ]
   end
+
+  test "a title past 3,000 characters is refused under the field it was typed in" do
+    action = @incident.incident_actions.create!(created_by: @member, action_type: IncidentAction::ACTION_TYPE_ACTION, description: "Restart")
+
+    patch rename_incident_item_path(incident_id: @incident.id, id: action.id), params: { description: "a" * 3_001 }
+
+    assert_redirected_to incident_path(@incident)
+    assert_equal [ "This is a little long. Please shorten it to 3,000 characters or fewer (it's 3,001 now)." ], session["inertia_errors"][:description]
+    assert_nil flash[:alert]
+    assert_equal "Restart", action.reload.description
+  end
 end

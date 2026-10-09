@@ -120,8 +120,6 @@ export const REMEDIATION_PLAN_STATUSES = [
 ] as const
 export type RemediationPlanStatus = (typeof REMEDIATION_PLAN_STATUSES)[number]
 
-export const REMEDIATION_STEP_STATUS_DONE = "done" as const
-
 export const REMEDIATION_STEP_STATUS_RUNNING = "running" as const
 
 export const HELD_CALL_STATUSES = {
@@ -969,7 +967,8 @@ export const WATCH_SPEC_KEYS = {
   "REPORT_START": "report_start",
   "DONE_WHEN": "done_when",
   "FAILED_WHEN": "failed_when",
-  "GOAL": "goal"
+  "GOAL": "goal",
+  "TOOL": "tool"
 } as const
 
 export const IMPLICIT_AUTHORITIES = {

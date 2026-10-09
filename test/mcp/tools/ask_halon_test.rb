@@ -26,7 +26,7 @@ class Mcp::Tools::AskHalonTest < ActiveSupport::TestCase
 
     response = Mcp::Tools::AskHalon.perform_with_principal(workspace: @workspace, principal: @member, args: { question: "What changed today?" })
 
-    said = "Halon cannot answer right now because the AI account behind this Firefight is out of credit. Whoever runs Firefight needs to add credit."
+    said = "Halon couldn't reach its AI just now."
     assert response.error?
     assert_equal said, response.content.first[:text]
     conversation = @workspace.conversations.sole

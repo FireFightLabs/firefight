@@ -39,13 +39,13 @@ class CodeAgent::Reader
     "Not allowed: #{session.principal&.actor_display_name || 'whoever asked for this change'} cannot use #{action_key}. Work from what you can read, and say in your summary what you could not check."
   end
 
-  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, **, &block)
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
     raise AbilityGateway::Denied.new(action_key) unless session.principal
 
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: session.principal, action_key: action_key, params: params, scope: scope,
       context: { source: AbilityGateway::SOURCE_CODE_AGENT, triggered_by_label: session.triggered_by_label, approval_id: approval_id }.compact,
-      &block
+      holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)
   end

@@ -28,11 +28,13 @@ class IncidentActionEditsTest < ActiveSupport::TestCase
     assert_equal [ @alice, IncidentActionUpdate::RENAMED ], [ event.actor, event.eventable.update_type ]
   end
 
-  test "a rename to nothing or to the same title is refused" do
+  test "a rename to nothing, to the same title or past 3,000 characters is refused" do
     action = item
 
     assert_equal "Give the item a title.", @service.rename_action(action: action, description: " ", renamed_by: @alice)
     assert_equal "That is already its title.", @service.rename_action(action: action, description: "Restart the worker", renamed_by: @alice)
+    assert_equal "This is a little long. Please shorten it to 3,000 characters or fewer (it's 3,001 now).",
+                 @service.rename_action(action: action, description: "a" * 3_001, renamed_by: @alice)
     assert_not @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_RENAMED)
   end
 
