@@ -93,7 +93,8 @@ module Operator
       versions = PromptVersion.where(template: FirefightAi::Investigator::FEATURE).order(first_seen_at: :desc).limit(PROMPT_LIMIT)
       ledger = @filter.scope(Inference.where(prompt_template: FirefightAi::Investigator::FEATURE, prompt_version: versions.map(&:version), inferable_type: Investigation.name))
       # A run that spans a deploy counts under the version it started with.
-      first_version = ledger.order(:created_at).pluck(:inferable_id, :prompt_version).reverse.to_h
+      first_version = ledger.select("DISTINCT ON (inferable_id) inferable_id, prompt_version").order(:inferable_id, :created_at)
+                            .to_h { |row| [ row.inferable_id, row.prompt_version ] }
       runs = Investigation.seen.where(id: first_version.keys).includes(:finding).index_by(&:id)
 
       versions.map do |version|

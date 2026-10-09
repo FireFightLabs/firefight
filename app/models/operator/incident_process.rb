@@ -34,9 +34,10 @@ module Operator
 
       steps = WorkflowRuns.failed_steps_by_incident(ids)
       hooks = WebhookDelivery.failed.joins(:incident_event).where(incident_events: { incident_id: ids }).group("incident_events.incident_id").count
-      calls = incidents.select(&:channel_id).each_with_object(Hash.new(0)) do |incident, counts|
-        counts[incident.id] = PlatformCallFailure.where(workspace_id: incident.workspace_id, channel_id: incident.channel_id).count
-      end
+      pairs = incidents.select(&:channel_id)
+      failures = PlatformCallFailure.where(workspace_id: pairs.map(&:workspace_id), channel_id: pairs.map(&:channel_id))
+                                    .group(:workspace_id, :channel_id).count
+      calls = pairs.to_h { |incident| [ incident.id, failures.fetch([ incident.workspace_id, incident.channel_id ], 0) ] }
       ids.index_with { |id| steps.fetch(id, 0) + hooks.fetch(id, 0) + calls.fetch(id, 0) }
     end
 

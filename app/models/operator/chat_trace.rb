@@ -132,11 +132,7 @@ module Operator
 
     def message_text(message)
       requested = calls.select { |call| call.message_id == message.id }.map { |call| "#{call.name} #{call.arguments.to_json}" }
-      [
-        ("Thinking\n#{message.thinking_text}" if message.thinking_text.present?),
-        ("Said\n#{message.content}" if message.content.present?),
-        ("Asked for\n#{requested.join("\n")}" if requested.any?)
-      ].compact.join("\n\n")
+      Trace.message_text(message, requested)
     end
   end
 end

@@ -67,5 +67,14 @@ module Operator
     def self.size(text)
       ActiveSupport::NumberHelper.number_to_human_size(text.to_s.bytesize) if text.present?
     end
+
+    # What a model turn thought, said and asked for. calls are its tool calls as "name arguments".
+    def self.message_text(message, calls)
+      [
+        ("Thinking\n#{message.thinking_text}" if message.thinking_text.present?),
+        ("Said\n#{message.content}" if message.content.present?),
+        ("Asked for\n#{calls.join("\n")}" if calls.any?)
+      ].compact.join("\n\n")
+    end
   end
 end

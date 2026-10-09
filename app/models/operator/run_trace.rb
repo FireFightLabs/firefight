@@ -239,11 +239,7 @@ module Operator
       calls = RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: message.id).map do |call|
         "#{call.name} #{call.arguments.to_json}"
       end
-      [
-        ("Thinking\n#{message.thinking_text}" if message.thinking_text.present?),
-        ("Said\n#{message.content}" if message.content.present?),
-        ("Asked for\n#{calls.join("\n")}" if calls.any?)
-      ].compact.join("\n\n")
+      Trace.message_text(message, calls)
     end
 
     def answer_text(finding)
