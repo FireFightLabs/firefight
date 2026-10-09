@@ -140,6 +140,41 @@ class AbilityRolesControllerTest < ActionDispatch::IntegrationTest
     assert_includes sets.map { |set| set["name"] }, Ability::Role::CHANGES_EVERYWHERE_NAME
   end
 
+  test "creating, changing and deleting a set each say so" do
+    post ability_roles_url, params: { name: "Database helpers" }
+    assert_equal "Database helpers was created.", flash[:notice]
+
+    role = @workspace.ability_roles.find_by!(name: "Database helpers")
+    patch ability_role_url(role), params: { action_ids: [ @list.id ] }
+    assert_equal "Database helpers was updated.", flash[:notice]
+
+    delete ability_role_url(role)
+    assert_equal "Database helpers was deleted.", flash[:notice]
+  end
+
+  test "deleting a set that is held says it was revoked from everyone holding it" do
+    role = @workspace.ability_roles.create!(name: "Database helpers")
+    @workspace.ability_grants.create!(principal: @member, role: role, scope: {})
+
+    delete ability_role_url(role)
+
+    assert_equal "Database helpers was deleted and revoked from everyone who held it.", flash[:notice]
+  end
+
+  test "each set counts the people, keys and agents holding it" do
+    role = @workspace.ability_roles.create!(name: "Database helpers")
+    @workspace.ability_grants.create!(principal: @member, role: role, scope: {})
+    @workspace.ability_grants.create!(principal: workspace_memberships(:alice_workspace_one), role: role, scope: {})
+    @workspace.ability_grants.create!(principal: api_keys(:full_access_key), role: role, scope: {})
+    agent = @workspace.agents.create!(name: "Deploy bot", slug: "deploy_bot")
+    @workspace.ability_grants.create!(principal: agent, role: role, scope: {})
+
+    get gateway_permissions_url, headers: inertia_headers
+
+    set = inertia_props["sets"].find { |entry| entry["name"] == "Database helpers" }
+    assert_equal [ 2, 1, 1 ], set.values_at("peopleCount", "keyCount", "agentCount")
+  end
+
   private
 
   def sign_in(user, workspace)

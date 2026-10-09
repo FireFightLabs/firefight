@@ -31,7 +31,7 @@ class SetupController < InertiaController
       stackAnswers: @onboarding.stack_answers,
       environments: EnvironmentOptionSerializer.many(current_workspace.environment_entries),
       principals: PrincipalSerializer.many(Ability::Principal.all(current_workspace)),
-      packs: AbilityRoleSerializer.many(current_workspace.ability_roles.built_in.order(:name).includes(:grants, :role_actions, :integration)),
+      packs: AbilityRoleSerializer.many(current_workspace.ability_roles.built_in.order(:name).with_holder_counts.includes(:grants, :role_actions, :integration)),
       firstQuestion: @onboarding.first_question,
       walkthrough: WorkspaceOnboarding::STEPS
     }

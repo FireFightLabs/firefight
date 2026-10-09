@@ -9,10 +9,33 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Blocked } from "@/components/blocked-tooltip"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
+import { andList } from "@/lib/formatters"
 import { ActionLabel } from "@/pages/settings/components/permissions/action-label"
 import { RequiresApprovalBadge } from "@/pages/settings/components/permissions/requires-approval-badge"
 import { RISK_VARIANT } from "@/pages/settings/components/permissions/risk"
 import { useGroupedActions } from "@/pages/settings/components/permissions/use-grouped-actions"
+
+function counted(count: number, one: string, many: string): string | null {
+  if (count === 0) {
+    return null
+  }
+  return `${count} ${count === 1 ? one : many}`
+}
+
+// Names who loses what the set gives, since deleting revokes every grant of it at once.
+function deleteDescription(set: AbilityRole): string {
+  const holders = [
+    counted(set.peopleCount, "person", "people"),
+    counted(set.keyCount, "service key", "service keys"),
+    counted(set.agentCount, "agent", "agents"),
+  ].filter((holder): holder is string => holder !== null)
+
+  if (holders.length === 0) {
+    return "Nobody holds it, so nobody loses anything."
+  }
+  return `It is revoked from ${andList(holders)} straight away, and they lose what it gives. This cannot be undone.`
+}
 
 export function SetEditor({
   set,
@@ -26,6 +49,7 @@ export function SetEditor({
   canManage: boolean
 }) {
   const [search, setSearch] = useState("")
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   // A built-in pack is kept in step by Firefight, so it lists what it holds and is never edited here.
   const canEdit = canManage && !set.editBlockedReason
@@ -53,6 +77,18 @@ export function SetEditor({
     router.patch(abilityRolePath(set.id), { action_ids: next }, { preserveScroll: true })
   }
 
+  function askToDelete() {
+    setConfirmingDelete(true)
+  }
+
+  function stopDeleting() {
+    setConfirmingDelete(false)
+  }
+
+  function deleteSet() {
+    router.delete(abilityRolePath(set.id), { preserveScroll: true, onFinish: stopDeleting })
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
@@ -73,7 +109,7 @@ export function SetEditor({
               variant="ghost"
               className="text-destructive shrink-0"
               disabled={Boolean(set.deleteBlockedReason)}
-              onClick={() => router.delete(abilityRolePath(set.id))}
+              onClick={askToDelete}
             >
               Delete set
             </Button>
@@ -141,6 +177,14 @@ export function SetEditor({
           )}
         </div>
       </CardContent>
+      <ConfirmDeleteDialog
+        open={confirmingDelete}
+        title={`Delete ${set.name}?`}
+        description={deleteDescription(set)}
+        confirmLabel="Delete set"
+        onConfirm={deleteSet}
+        onCancel={stopDeleting}
+      />
     </Card>
   )
 }

@@ -40,3 +40,11 @@ export function formatDuration(start: string, end: string | null | undefined): s
   const remainingHours = hours % 24
   return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`
 }
+
+// "a", "a and b", "a, b and c".
+export function andList(words: string[]): string {
+  if (words.length <= 1) {
+    return words.join("")
+  }
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`
+}

@@ -42,4 +42,11 @@ class AbilityRoleSerializer < BaseSerializer
   def grant_count
     role.grants.size
   end
+
+  # From Ability::Role.with_holder_counts, which every page listing sets loads.
+  attributes(
+    people_count: { type: :number },
+    key_count: { type: :number },
+    agent_count: { type: :number }
+  )
 end
