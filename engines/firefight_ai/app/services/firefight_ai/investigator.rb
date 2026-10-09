@@ -98,7 +98,7 @@ module FirefightAi
         - A reply without a tool call does nothing. Only conclude ends the run.
         - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
       PROMPT
     end
 

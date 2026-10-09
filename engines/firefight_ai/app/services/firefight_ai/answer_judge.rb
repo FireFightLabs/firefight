@@ -45,7 +45,7 @@ module FirefightAi
         - Same means they blame the same thing going wrong, even in other words or with different detail. A different service, change, resource or failure is a different cause.
         - One answer naming a cause and the other naming none, or both naming none, is unclear.
         - Judge only the cause, never which answer is better written or more complete.
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
       PROMPT
     end
   end

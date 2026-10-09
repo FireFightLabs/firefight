@@ -58,7 +58,7 @@ module FirefightAi
 
         How to finish:
         - Call report_state once. now is one or two plain sentences on how it stands now, naming what you read, such as "web runs deploy 4f2a1c, started 12 minutes ago, 2 of 2 instances healthy". change is unchanged, changed, already_done or gone, and unknown when you could not read it.
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
       PROMPT
     end
   end

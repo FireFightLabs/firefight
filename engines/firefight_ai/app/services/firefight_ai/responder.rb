@@ -124,7 +124,7 @@ module FirefightAi
         - #{MemoryRule::INSTRUCTIONS}
         - #{MemoryRule::RULE}
         - #{MemoryRule::CHAT_RULE}
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
         #{@output_style}
       PROMPT
     end

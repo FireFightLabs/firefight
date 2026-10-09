@@ -151,6 +151,9 @@ class CodeAgent::QuestionsTest < ActionDispatch::IntegrationTest
     assert_match "Nobody answering within 5 minutes means your recommendation", description
     assert_match "never placeholders such as team T or team A", description
     assert_match "Today Firefight offers to create a new workspace for Side Project", description
+    assert_includes description, FirefightAi::Copy::PEOPLE
+    assert_includes description, FirefightAi::Copy::QUOTING
+    assert_match "quoting the person's words it follows exactly and in quotes", tool.input_schema_value.to_h.to_json
     assert_equal %w[question options recommended reason], tool.input_schema_value.to_h[:required]
   end
 

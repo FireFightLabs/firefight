@@ -12,7 +12,7 @@ module CodeAgent::QuestionTools
           "placeholders such as team T or team A, say what happens today, then ask, and give the options in plain words. " \
           "For example: \"You are in the Acme workspace, which is connected to Acme's Slack. You sign in with Slack from a " \
           "different company's Slack, Side Project, which no workspace uses yet. Today Firefight offers to create a new " \
-          "workspace for Side Project. What should happen?\"".freeze
+          "workspace for Side Project. What should happen?\" #{FirefightAi::Copy::PEOPLE} #{FirefightAi::Copy::QUOTING}".freeze
   STILL_WAITING = "No answer yet. Call #{WAIT} to keep waiting, and do nothing else until it answers.".freeze
 
   # Offered only where the change was asked for, a chat or a fix, since that is where the question can be seen.
@@ -42,7 +42,8 @@ module CodeAgent::QuestionTools
                                      consequence: { type: "string", description: "What choosing it leads to, in one line" } } }
             },
             recommended: { type: "string", description: "The label of the option you recommend, the one most consistent with how the code already behaves and what the person said" },
-            reason: { type: "string", description: "Why you recommend it, in one sentence, naming the existing behaviour or the person's words it follows" }
+            reason: { type: "string", description: "Why you recommend it, in one sentence, naming the existing behaviour it follows, or quoting " \
+                                                 "the person's words it follows exactly and in quotes" }
           }
         }
       ) do |question:, options: [], recommended: nil, reason: nil, **|

@@ -55,7 +55,7 @@ module FirefightAi
       - Judge only from the reading. Never guess at what is not in it.
       - A run that exists, is in progress, or has a job or step that started or finished has begun, so it is running unless it is over.
       - When unsure, keep where it was so far.
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     WHY_PROMPT = <<~PROMPT.freeze
@@ -63,7 +63,7 @@ module FirefightAi
 
       - Use only the evidence. Quote an error message briefly when it says it best.
       - When the evidence does not show why, answer exactly: #{UNKNOWN}
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     # Seen in a real chat, a manual deploy was reported as a success when what the person wanted was the webhook path
@@ -76,7 +76,7 @@ module FirefightAi
       - Offer to do it. Never say it was done.
       - At most two sentences, plain words, no preamble.
       - When nothing useful can be said, answer exactly: #{UNKNOWN}
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     # Each prompt is its own template in the ledger, so a version change means its wording changed.

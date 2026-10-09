@@ -45,7 +45,7 @@ module FirefightAi
         - Helpful, highlight the most important details first
         - Honest, if the data doesn't contain an answer, say so
 
-        #{Punctuation::RULE}
+        #{Copy::RULE}
 
         #{@output_style.presence || DEFAULT_OUTPUT_STYLE}
 

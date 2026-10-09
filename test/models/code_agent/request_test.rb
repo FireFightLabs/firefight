@@ -37,4 +37,11 @@ class CodeAgent::RequestTest < ActiveSupport::TestCase
     assert_operator request.evidence.size, :<=, CodeAgent::Request::EVIDENCE_ITEMS
     assert(request.evidence.all? { |item| item.text.length <= CodeAgent::Request::EVIDENCE_ITEM_LIMIT })
   end
+
+  test "the agent handed the person's words is told to quote them exactly when it gives them as a reason" do
+    request = CodeAgent::Request.new(principal: @bob, source: AbilityGateway::SOURCE_CONVERSATION, words: [ "Never silently create another workspace" ])
+
+    assert_includes request.asked_section, FirefightAi::Copy::QUOTING
+    assert_includes request.asked_section, "> Never silently create another workspace"
+  end
 end

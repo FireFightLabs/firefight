@@ -77,7 +77,7 @@ module FirefightAi
       - Open questions are only what genuinely could not be checked from the material and would matter if it were wrong, such as how another system behaves where nothing shows it. Never list something the material answers, a check that could not run here, a file you were not shown, or a general doubt. Never invent a problem the material does not show.
       - Write for the person who will review the pull request: short plain sentences they understand on first read, each naming the file or the value. No jargon, no metaphors, and no words about how the work was done, such as brief, session, sandbox or agent.
       - #{Evidence::RULE} The diff is evidence too.
-      - #{Punctuation::RULE}
+      - #{Copy::RULE}
     PROMPT
 
     private

@@ -91,7 +91,7 @@ module FirefightAi
         - Never restate a lesson learned before, in any words.
         - Never write anything the workspace already remembers, in any words. One marked rejected is known to be wrong, so never write it either.
         - Plain sentences, no markdown.
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
       PROMPT
     end
 

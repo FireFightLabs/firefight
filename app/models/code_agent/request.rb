@@ -57,7 +57,8 @@ class CodeAgent::Request
   def asked_section
     return if words.empty?
 
-    "What the person asked, in their own words, oldest first. A later message corrects an earlier one:\n" +
+    "What the person asked, in their own words, oldest first. A later message corrects an earlier one. " \
+      "#{FirefightAi::Copy::QUOTING}\n" +
       words.map { |text| text.lines.map { |line| "> #{line}" }.join }.join("\n\n")
   end
 

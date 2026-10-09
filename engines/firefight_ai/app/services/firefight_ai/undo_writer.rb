@@ -70,7 +70,7 @@ module FirefightAi
         - Never invent a value you were not given. Never put a credential in a step.
         - #{Evidence::RULE}
         - Plain sentences, no markdown.
-        - #{Punctuation::RULE}
+        - #{Copy::RULE}
       PROMPT
     end
 

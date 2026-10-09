@@ -90,7 +90,8 @@ module Integrations
 
         pack.fix_code(environment_row: @row.reload, arguments: ARGUMENTS)
 
-        assert_includes prompt, "A later message corrects an earlier one:\n> Raise the timeout\n\n> No, to 30 seconds"
+        assert_includes prompt, "A later message corrects an earlier one. #{FirefightAi::Copy::QUOTING}\n> Raise the timeout\n\n> No, to 30 seconds"
+        assert_includes prompt, FirefightAi::Copy::PEOPLE
         assert_includes prompt, "<tool_result tool=\"Search logs\" trust=\"untrusted\">\ngateway timeout after 10s"
       end
 

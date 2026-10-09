@@ -42,6 +42,8 @@ module FirefightAi
         Output ONLY the rewritten HTML for the selection. No commentary, no
         markdown fences, no preamble. The output replaces the selection inline,
         so it must be valid HTML that fits in place where the selection was.
+
+        #{Copy::PEOPLE}
       PROMPT
     end
 
