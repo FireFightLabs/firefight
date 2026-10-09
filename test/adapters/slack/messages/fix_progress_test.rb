@@ -36,6 +36,19 @@ class Slack::Messages::FixProgressTest < ActiveSupport::TestCase
     assert_equal "8 more steps on the run page.", blocks.last.dig(:elements, 0, :text)
   end
 
+  test "approved steps take three blocks each, and the message still fits in Slack's fifty" do
+    30.times do |index|
+      @plan.steps.create!(position: index + 4, kind: Investigation::RemediationStep::KIND_MANUAL, description: "Check #{index}",
+                          status: Investigation::RemediationStep::STATUS_APPROVED)
+    end
+
+    blocks = Slack::Messages::FixProgress.build(@plan.reload)
+
+    assert_operator blocks.size, :<=, 50
+    shown = blocks.count { |block| block[:type] == "section" } - 1
+    assert_equal "#{33 - shown} more steps on the run page.", blocks.find { |block| block[:type] == "context" && block.dig(:elements, 0, :text).include?("run page") }.dig(:elements, 0, :text)
+  end
+
   test "a fix that ended offers Undo fix, which asks first, and one still applying or already undone does not" do
     @plan.apply!(by: workspace_memberships(:alice_workspace_one), from: AbilityGateway::SOURCE_SLACK)
     assert_nil undo_button(@plan)

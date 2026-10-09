@@ -4,8 +4,9 @@ module Slack
     module FixProgress
       SECTION_TEXT_LIMIT = 3000
       RESULT_SHOWN = 300
-      # Slack takes 50 blocks, so a long fix shows its first steps and sends the rest to the run page.
-      STEPS_SHOWN = 45
+      # Slack takes 50 blocks. The steps share this many, an approved one taking three, and the rest of the room is kept for
+      # the heading, the count of steps left out, Undo and Cancel. A long fix sends what does not fit to the run page.
+      STEP_BLOCKS = 45
       HEADINGS = {
         Investigation::RemediationPlan::STATUS_PROPOSED => "Fix in progress",
         Investigation::RemediationPlan::STATUS_APPLYING => "Applying the fix",
@@ -32,9 +33,17 @@ module Slack
       }.freeze
 
       def self.build(plan)
-        steps = plan.steps.includes(:done_by).to_a
-        blocks = [ { type: "section", text: { type: "mrkdwn", text: heading(plan, steps) } }, *steps.first(STEPS_SHOWN).flat_map { |step| step_blocks(step, steps) } ]
-        hidden = steps.size - STEPS_SHOWN
+        steps = plan.steps.includes(:done_by, approval: :approver).to_a
+        blocks = [ { type: "section", text: { type: "mrkdwn", text: heading(plan, steps) } } ]
+        shown = 0
+        steps.each do |step|
+          rows = step_blocks(step, steps)
+          break if blocks.size - 1 + rows.size > STEP_BLOCKS
+
+          blocks.concat(rows)
+          shown += 1
+        end
+        hidden = steps.size - shown
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: "#{hidden} more #{'step'.pluralize(hidden)} on the run page." } ] } if hidden.positive?
         blocks << undo_block(plan) if plan.undo_blocked_reason.nil?
         blocks << cancel_block(plan) if plan.cancel_blocked_reason.nil?
