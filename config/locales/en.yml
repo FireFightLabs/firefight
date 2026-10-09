@@ -29,3 +29,11 @@
 
 en:
   hello: "Hello world"
+  activerecord:
+    errors:
+      models:
+        runbook:
+          attributes:
+            watch:
+              # Each watch error is a whole sentence that names the watch, or the item in it, itself.
+              format: "%{message}"

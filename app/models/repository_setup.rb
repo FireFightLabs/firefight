@@ -26,9 +26,9 @@ class RepositorySetup < ApplicationRecord
 
     def to_h = { "name" => name, "image" => image, "port" => port, "env" => env }.compact
 
-    # What the sandbox is handed. A box that runs containers starts the service from its image, and one that does not
-    # starts its own service of that name.
-    def for_box = { "name" => name, "image" => image, "port" => port, "env" => env }.compact
+    # What the sandbox is handed. A box that runs containers starts the service from its image, and another reads from
+    # the image which Postgres extension the CI's tests expect.
+    def for_box = to_h
   end
 
   belongs_to :workspace

@@ -140,6 +140,17 @@ class Api::V1::ActionItemsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "a title past 3,000 characters is refused with how long it is" do
+    action = incident_actions(:inc1_action_in_progress)
+    title = action.description
+
+    patch api_v1_incident_action_item_url(@incident, action), params: { description: "a" * 3_001 }, headers: api_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Please shorten it to 3,000 characters or fewer (it's 3,001 now)."
+    assert_equal title, action.reload.description
+  end
+
   test "a refused status leaves the rename in the same request unwritten" do
     action = incident_actions(:inc1_action_in_progress)
     action.update!(status: IncidentAction::STATUS_DONE)

@@ -30,8 +30,9 @@ class CodeAgent::AnswerChangeTest < ActionDispatch::IntegrationTest
 
     assert @question.answer_as_halon!("The tag, as Bob said.", option: 0)
     assert_nil @question.change_answer_blocked_reason(@bob)
-    assert_equal "Only Bob Jones can change the answer, since the change runs as them.", @question.change_answer_blocked_reason(@alice)
-    assert_equal "Only Bob Jones can change the answer, since the change runs as them.", @question.change_answer_blocked_reason(nil)
+    assert_equal "Only Bob Jones can answer, since the change runs as them.", @question.change_answer_blocked_reason(@alice)
+    assert_equal "Only Bob Jones can answer, since the change runs as them.", @question.change_answer_blocked_reason(nil)
+    assert @question.to_h["changeable"], "Change answer is offered to everyone, and disabled with the reason for anyone but Bob"
 
     @session.open_push!(5.minutes)
     assert_equal "The change this question was for has finished, so its answer can no longer change.", @question.reload.change_answer_blocked_reason(@bob)
@@ -40,6 +41,7 @@ class CodeAgent::AnswerChangeTest < ActionDispatch::IntegrationTest
 
     @session.close!
     assert_equal "The change this question was for has finished, so its answer can no longer change.", @question.reload.change_answer_blocked_reason(@bob)
+    assert_not @question.to_h["changeable"]
   end
 
   test "an answer that went with the recommendation can be changed too, and one that ended the change cannot" do
@@ -118,7 +120,7 @@ class CodeAgent::AnswerChangeTest < ActionDispatch::IntegrationTest
     @question.answer!("Send the tag.", by: @bob, option: 0)
     sign_in(@alice.user, @workspace)
     post code_agent_question_change_path(@question), params: { option: 1 }
-    assert_equal "Only Bob Jones can change the answer, since the change runs as them.", flash[:alert]
+    assert_equal "Only Bob Jones can answer, since the change runs as them.", flash[:alert]
 
     sign_in(@bob.user, @workspace)
     post code_agent_question_change_path(@question), params: { option: 0 }
@@ -147,7 +149,7 @@ class CodeAgent::AnswerChangeTest < ActionDispatch::IntegrationTest
     current = work.with_current_question(@workspace.id)
     assert_equal [ "Send the commit", "Bob Jones", 1 ], current.question.values_at("changedTo", "changedBy", "changedChosen")
     assert_nil current.question_change_blocked_reason(@workspace.id, @bob)
-    assert_equal "Only Bob Jones can change the answer, since the change runs as them.", current.question_change_blocked_reason(@workspace.id, @alice)
+    assert_equal "Only Bob Jones can answer, since the change runs as them.", current.question_change_blocked_reason(@workspace.id, @alice)
   end
 
   private

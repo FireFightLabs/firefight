@@ -187,9 +187,13 @@ class Investigation < ApplicationRecord
   # A rehearsal is measurement nobody in the workspace sees, so it reads memory and never saves, disputes or counts one.
   def changes_memory? = !rehearsal?
 
-  # A run writes what it learned, and disputes what a result contradicted, as the agent. It never vouches for a fact,
-  # so there is no person's authority to check.
-  def memory_change(_crud_action, params:, tool_name:) = yield
+  # A run writes what it learned, and disputes what a result contradicted, as the agent, through the gateway, so an admin
+  # who revokes the investigator's memory grant stops it and each change is in the activity log. It never vouches for a
+  # fact, and it is not a step of the run, since it checks nothing.
+  def memory_change(crud_action, params:, tool_name:, &)
+    Chat::ToolCall.run!(workspace: workspace, principal: acting_principal, params: params, context: ledger_context,
+                        action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), &)
+  end
 
   # Where what the agent remembers came from. Nobody taught it, since a run acts as the agent.
   def memory_source = self

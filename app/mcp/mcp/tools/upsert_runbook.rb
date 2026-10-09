@@ -36,8 +36,9 @@ module Mcp
           },
           watch: {
             type: "object",
-            description: "What Halon watches once every step went through, as start_watch takes it: title, steps (each with label, " \
-                         "capability, resource and what counts as done or failed) and minutes (optional). Inputs fill in as {{key}}"
+            description: "What Halon watches once every step went through, as start_watch takes it: title, steps (each with capability, " \
+                         "resource, what counts as done or failed, and label, optional and named after the capability when left out) " \
+                         "and minutes (optional). Inputs fill in as {{key}}"
           },
           conditions: {
             type: "array",

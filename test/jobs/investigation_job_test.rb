@@ -166,7 +166,7 @@ class InvestigationJobTest < ActiveSupport::TestCase
   test "a run whose AI account ran out of credit ends at once and says so in its thread, without naming the provider" do
     @investigation.update!(thread_id: "1700000000.000100")
     Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::OutOfCredit.new("OpenRouter: can only afford 60329"))
-    said = "Halon cannot answer right now because the AI account behind this Firefight is out of credit. Whoever runs Firefight needs to add credit"
+    said = "Halon couldn't reach its AI just now"
     Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
       has_entries(thread_id: "1700000000.000100", reason: said, rerun: @incident)
     )

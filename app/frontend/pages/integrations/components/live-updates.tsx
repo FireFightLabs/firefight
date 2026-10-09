@@ -5,6 +5,7 @@ import { IconCheck, IconCopy } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Blocked } from "@/components/blocked-tooltip"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { LiveUpdatesOffer } from "@/pages/integrations/components/live-updates-offer"
@@ -50,8 +51,10 @@ export function LiveUpdates({
 }) {
   const [secret, setSecret] = useState("")
   const [copied, setCopied] = useState(false)
-  const [confirming, setConfirming] = useState<"on" | "off" | "forget" | null>(null)
+  const [confirming, setConfirming] = useState<"turn" | "forget" | null>(null)
   const setup = state.setup
+  const toggle = state.toggle
+  const turnLabel = toggle?.turnsOn ? "Turn on" : "Turn off"
   const secretId = `map-events-secret-${rowId}`
 
   function changeSecret(event: ChangeEvent<HTMLInputElement>) {
@@ -71,12 +74,8 @@ export function LiveUpdates({
     )
   }
 
-  function askTurnOn() {
-    setConfirming("on")
-  }
-
-  function askTurnOff() {
-    setConfirming("off")
+  function askTurn() {
+    setConfirming("turn")
   }
 
   function stopConfirming() {
@@ -99,7 +98,7 @@ export function LiveUpdates({
   function confirmTurn() {
     router.patch(
       liveUpdatesIntegrationPath(integrationId),
-      { environment_row_id: rowId, on: confirming === "on" },
+      { environment_row_id: rowId, on: toggle?.turnsOn },
       { preserveScroll: true, preserveState: true, onFinish: stopConfirming },
     )
   }
@@ -120,37 +119,26 @@ export function LiveUpdates({
         <span className={state.on ? "font-medium" : "font-medium text-muted-foreground"}>{liveUpdatesLine(state)}</span>
       </p>
       {state.reason && <p className="text-muted-foreground text-xs">{state.reason}</p>}
-      {canManage && (state.turnOn || state.turnOff) && (
+      {canManage && toggle && (
         <div className="pt-1">
-          {state.turnOn && (
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={askTurnOn}>
-              Turn on
+          <Blocked reason={toggle.blockedReason ?? undefined} side="top">
+            <Button type="button" size="sm" variant="outline" className="h-8" disabled={toggle.blockedReason !== null} onClick={askTurn}>
+              {turnLabel}
             </Button>
-          )}
-          {state.turnOff && (
-            <Button type="button" size="sm" variant="outline" className="h-8" onClick={askTurnOff}>
-              Turn off
-            </Button>
-          )}
+          </Blocked>
         </div>
       )}
-      <ConfirmDeleteDialog
-        open={confirming === "on"}
-        title="Turn on live updates?"
-        description={state.turnOn ?? ""}
-        confirmLabel="Turn on"
-        confirmVariant="default"
-        onConfirm={confirmTurn}
-        onCancel={stopConfirming}
-      />
-      <ConfirmDeleteDialog
-        open={confirming === "off"}
-        title="Turn off live updates?"
-        description={state.turnOff ?? ""}
-        confirmLabel="Turn off"
-        onConfirm={confirmTurn}
-        onCancel={stopConfirming}
-      />
+      {toggle && (
+        <ConfirmDeleteDialog
+          open={confirming === "turn"}
+          title={`${turnLabel} live updates?`}
+          description={toggle.words}
+          confirmLabel={turnLabel}
+          confirmVariant={toggle.turnsOn ? "default" : "destructive"}
+          onConfirm={confirmTurn}
+          onCancel={stopConfirming}
+        />
+      )}
       {state.offer && canManage && <LiveUpdatesOffer integrationId={integrationId} rowId={rowId} offer={state.offer} />}
       {setup && canManage && (
         <div className="flex flex-col gap-2 pt-1">

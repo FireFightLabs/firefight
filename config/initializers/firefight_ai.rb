@@ -3,6 +3,7 @@ FirefightAi.configure do |config|
     ENV[setting.to_s.upcase].presence
   end.compact
   config.openai_api_key ||= Rails.application.credentials.dig(:openai, :api_key)
+  config.openrouter_management_key = ENV["OPENROUTER_MANAGEMENT_KEY"].presence
 
   config.default_model = ENV["FIREFIGHT_AI_MODEL"]
   config.default_provider = ENV["FIREFIGHT_AI_PROVIDER"]

@@ -20,6 +20,23 @@ module Integrations
     RETIRE_AFTER = 5.minutes
 
     class << self
+      # What a prepared copy's tests cannot reach, one line each, for what could not run here. That is a service its setup
+      # starts that the box cannot, with why when one from an image failed, and a Postgres extension the box's Postgres lacks.
+      def not_run(prepared)
+        why = prepared&.dig("left_out_why").to_h
+        services = Array(prepared&.dig("left_out")).map do |name|
+          why[name] ? "What needs #{name}, since it could not start in the sandbox (#{Sentence.clean(why[name])})" : "What needs #{name}, since the sandbox cannot start it"
+        end
+        extensions = Array(prepared&.dig("missing_extensions")).map { |missing| missing_extension(missing) }
+        services + extensions
+      end
+
+      def missing_extension(missing)
+        "What needs the Postgres #{missing['extension']} extension, which #{extension_named_by(missing)} names, since the sandbox's Postgres does not have it"
+      end
+
+      def extension_named_by(missing) = missing["image"].present? ? "the CI's #{missing['image']} image" : "a setup command"
+
       def close(key)
         box = CodeBox.live.find_by(key: key)
         stop(box) if box

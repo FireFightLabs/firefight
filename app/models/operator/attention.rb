@@ -16,11 +16,12 @@ module Operator
     KIND_SKILL_BROKEN = "skill_broken".freeze
     KIND_AI_OUT_OF_CREDIT = "ai_out_of_credit".freeze
     KIND_AI_SHORT_OF_CREDIT = "ai_short_of_credit".freeze
+    KIND_AI_BALANCE_UNCHECKED = "ai_balance_unchecked".freeze
     KIND_SANDBOX_FAILOVER = "sandbox_failover".freeze
     KINDS = [
       KIND_WORKFLOW_FAILED, KIND_WORKFLOW_STUCK, KIND_WEBHOOK_FAILING, KIND_PLATFORM_FAILED, KIND_ALERT_STUCK,
       KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK,
-      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT, KIND_SANDBOX_FAILOVER
+      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT, KIND_AI_BALANCE_UNCHECKED, KIND_SANDBOX_FAILOVER
     ].freeze
 
     # The page an item opens.
@@ -197,13 +198,15 @@ module Operator
 
     # The AI accounts are the deployment's, one per provider and shared by every workspace, so they show only when no
     # workspace is selected. AiAccount says which is out of credit and since when, until a call answers or its balance
-    # shows credit. One that was refused in the window and has credit now is short, a warning.
+    # shows credit. One that was refused in the window and has credit now is short, a warning. A provider the deployment
+    # calls whose balance cannot be read, for want of the key that reads it, is a warning too, since it is never checked.
     def credit_items
       return [] if @filter.workspace
 
       out = AiAccount.out_of_credit.order(:out_of_credit_since).to_a
       short = credit_refusals.where(created_at: @filter.range).where.not(provider: out.map(&:provider)).distinct.pluck(:provider)
-      out.map { |account| out_of_credit_item(account) } + short.sort.map { |provider| short_of_credit_item(provider) }
+      out.map { |account| out_of_credit_item(account) } + short.sort.map { |provider| short_of_credit_item(provider) } +
+        FirefightAi::Balance.unchecked.map { |provider, key_name| balance_unchecked_item(provider, key_name) }
     end
 
     def credit_refusals = Inference.where(error_kind: Inference::ERROR_OUT_OF_CREDIT)
@@ -221,6 +224,12 @@ module Operator
       item(key: "credit-#{provider}", kind: KIND_AI_SHORT_OF_CREDIT, tone: IncidentProcess::TONE_WARN, title: "AI account running short of credit",
            subject: provider, detail: "#{refusals.count} #{'call'.pluralize(refusals.count)} refused for credit, answering again since",
            at: refusals.maximum(:created_at), target: nil)
+    end
+
+    def balance_unchecked_item(provider, key_name)
+      item(key: "balance-#{provider}", kind: KIND_AI_BALANCE_UNCHECKED, tone: IncidentProcess::TONE_WARN, title: "AI balance not checked",
+           subject: provider, detail: "#{key_name} is not set, so no low balance alert is sent and a refilled account reads as out until a call answers",
+           at: Time.current, target: nil)
     end
 
     def run_label(run) = run.label

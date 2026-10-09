@@ -41,13 +41,15 @@ class Conversation::Watches::Agent
 
   def refusal(action_key) = "#{@asker.try(:display_name) || 'The person who asked'} may not use #{action_key}."
 
-  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, **, &block)
+  # A tool no approval rule holds, such as the map search, is read whatever the rules say.
+  def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
     raise Conversation::Watches::Reader::Refused, "An approval rule covers #{action_key}, and nobody is there to approve each read." if
-      Chat::ToolCall.held_by_rule?(workspace: workspace, action_key: action_key, scope: scope)
+      holdable && Chat::ToolCall.held_by_rule?(workspace: workspace, action_key: action_key, scope: scope)
 
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: acting_principal, action_key: action_key, params: params, scope: scope,
-      context: { source: Chat::Watch::SOURCE, incident_id: @conversation.try(:incident_id), approval_id: approval_id }.compact, &block
+      context: { source: Chat::Watch::SOURCE, incident_id: @conversation.try(:incident_id), approval_id: approval_id }.compact,
+      holdable: holdable, &block
     )
     Chat::ToolCall::Outcome.new(value: value)
   end

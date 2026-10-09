@@ -26,6 +26,7 @@ module Integrations
         replace(::Sandbox::Repos, :commit) { |_name, ref| ref }
         replace(::Sandbox::Repos, :run_copy) { |name, sha| File.join(::Sandbox::RUNS, "#{name}-#{sha}").tap { |dir| FileUtils.mkdir_p(File.join(dir, ".git", "info")) } }
         ::Sandbox::Services::STARTED.clear
+        ::Sandbox::Images::FROM_IMAGE.clear
         @server = TCPServer.new("127.0.0.1", 0)
         @accepting = Thread.new { loop { Thread.new(@server.accept) { |socket| ::Sandbox::Http.handle(socket) } } }
         @client = Client.new(Box.new(ref: "box", address: "http://127.0.0.1:#{@server.addr[1]}", key: ::Sandbox::KEY))
@@ -37,6 +38,7 @@ module Integrations
         @replaced.each { |(owner, name), original| owner.define_singleton_method(name, original) }
         @constants.each { |(owner, name), value| set_constant(owner, name, value, keep: false) }
         ::Sandbox::Services::STARTED.clear
+        ::Sandbox::Images::FROM_IMAGE.clear
         FileUtils.rm_rf(@root)
       end
 
@@ -90,6 +92,31 @@ module Integrations
         end
         assert_match "is not a name Postgres takes", error.message
         assert_raises(::Sandbox::Refused) { ::Sandbox::Services.start([ { "name" => "postgres", "port" => 5434 } ]) }
+      end
+
+      test "a Postgres extension the setup's CI image or a setup command names, that the box's Postgres lacks, is answered, also for a copy prepared before" do
+        copy = copy_of("acme__api", "aaa")
+        ran = @ran
+        replace(::Sandbox, :run) do |argv, **options|
+          ran << { argv: argv, env: options[:env] || {} }
+          { "stdout" => argv.last == "SELECT name FROM pg_available_extensions" ? "plpgsql\nvector\npg_trgm\n" : "", "stderr" => "", "exit_code" => 0 }
+        end
+        File.stubs(:directory?).returns(true)
+        ::Sandbox::Services.start([ "postgres" ])
+        File.unstub(:directory?)
+        setup = { "services" => [ { "name" => "postgres", "image" => "postgis/postgis:16-3.4" } ],
+                  "commands" => [ %(psql -c 'CREATE EXTENSION IF NOT EXISTS "timescaledb"'), "psql -c 'create extension pg_trgm'" ] }
+        missing = [ { "extension" => "postgis", "image" => "postgis/postgis:16-3.4" }, { "extension" => "timescaledb" } ]
+
+        assert_equal missing, @client.prepare(repository: "acme__api", ref: "aaa", setup: setup)["missing_extensions"]
+        FileUtils.touch(File.join(copy, ::Sandbox::Prepare::MARKER))
+        again = @client.prepare(repository: "acme__api", ref: "aaa", setup: setup)
+        assert again["already"]
+        assert_equal missing, again["missing_extensions"]
+        assert_empty ::Sandbox::Services.missing_extensions("services" => [ { "name" => "postgres", "image" => "pgvector/pgvector:pg18" } ]),
+                     "the box's Postgres has pgvector"
+        assert_empty ::Sandbox::Services.missing_extensions("services" => [ { "name" => "redis" } ], "commands" => [ "psql -c 'CREATE EXTENSION postgis'" ]),
+                     "a setup with no Postgres asks nothing of it"
       end
 
       test "a service the sandbox cannot start is answered in a sentence" do
@@ -214,6 +241,7 @@ module Integrations
         assert_equal [ "minio", "mysql" ].sort, prepared["left_out"].sort
         assert_equal "minio/minio listens on 9000, and the sandbox can only move a Postgres image to 9100.", prepared.dig("left_out_why", "minio")
         refute @ran.any? { |run| run[:argv].first.to_s.end_with?("pg_ctl") }, "the box's own Postgres is not started in its place"
+        assert_empty prepared["missing_extensions"], "a Postgres from the CI's own image has the extensions its tests expect"
         assert_equal true, @client.images?
       end
 

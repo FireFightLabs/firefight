@@ -70,6 +70,7 @@ import {
   settingsTypesPath,
   settingsWorkspacePath,
 } from "@/lib/routes"
+import { initialsOf } from "@/lib/initials"
 
 // The counts a link can carry, named apart from its title so renaming a link keeps its badge.
 const BADGES = { APPROVALS: "approvals", PACK_REQUESTS: "packRequests" } as const
@@ -203,7 +204,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
                     <Avatar className="size-8 rounded-lg">
                       <AvatarImage src={currentWorkspace.avatarUrl} alt={currentWorkspace.name} />
                       <AvatarFallback className="rounded-lg bg-avatar text-xs text-avatar-foreground">
-                        {currentWorkspace.name.slice(0, 2).toUpperCase()}
+                        {initialsOf(currentWorkspace.name)}
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate text-base font-semibold tracking-tight text-fg-headline">

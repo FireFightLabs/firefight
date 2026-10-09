@@ -76,6 +76,7 @@ module Integrations
         refute_includes prompt, "nothing under .github/"
         assert_includes prompt, "A test that cannot run in your environment is never a reason to stop or to leave the change unwritten"
         assert_includes prompt, "under #{CodeWriteUp::NOT_RUN} in its description"
+        assert_includes prompt, FirefightAi::Copy::NOT_RUN
       end
 
       test "the brief carries the person's own words and what Halon read, as Firefight's own agent gets them" do

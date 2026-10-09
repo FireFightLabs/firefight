@@ -2,6 +2,7 @@ import { router } from "@inertiajs/react"
 import { IconLoader2, IconPlayerPause } from "@tabler/icons-react"
 import { useState } from "react"
 
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { type CodeFixPause, decisionVisit, pauseContinuing, pauseOffered } from "@/lib/code-fix-work"
 import { codeAgentPauseContinuePath, codeAgentPauseStopPath } from "@/lib/routes"
@@ -20,9 +21,10 @@ type Choice = "continue" | "stop"
 
 // A code change that reached its spending limit before it finished, under the step that ran it. The person it runs as
 // continues it, which gives it another budget of the same size and carries on where it stopped, or stops it, which
-// deletes the work saved so far. Once decided, who decided and how.
+// deletes the work saved so far once they confirm it. Once decided, who decided and how.
 export function CodeFixPauseCard({ pause, blockedReason, readOnly = false, reloads }: CodeFixPauseProps) {
   const [ sending, setSending ] = useState<Choice | null>(null)
+  const [ confirmingStop, setConfirmingStop ] = useState(false)
 
   function decide(choice: Choice) {
     setSending(choice)
@@ -38,7 +40,16 @@ export function CodeFixPauseCard({ pause, blockedReason, readOnly = false, reloa
     decide("continue")
   }
 
+  function askToStop() {
+    setConfirmingStop(true)
+  }
+
+  function cancelStop() {
+    setConfirmingStop(false)
+  }
+
   function stopChange() {
+    setConfirmingStop(false)
     decide("stop")
   }
 
@@ -56,12 +67,20 @@ export function CodeFixPauseCard({ pause, blockedReason, readOnly = false, reloa
             {sending === "continue" && <IconLoader2 className="motion-safe:animate-spin" />}
             Continue
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={stopChange} disabled={sending !== null}>
+          <Button type="button" size="sm" variant="outline" onClick={askToStop} disabled={sending !== null}>
             {sending === "stop" && <IconLoader2 className="motion-safe:animate-spin" />}
             Stop
           </Button>
         </div>
       )}
+      <ConfirmDeleteDialog
+        open={confirmingStop}
+        title="Stop this fix?"
+        description="The work saved so far is deleted."
+        confirmLabel="Stop"
+        onConfirm={stopChange}
+        onCancel={cancelStop}
+      />
       {!pauseOffered(pause) && (
         <p className="m-0 text-fg-body">
           <span className="font-medium text-fg-primary">{pause.decidedBy ?? "Someone"}</span>

@@ -59,7 +59,7 @@ module Chat::Tools::Choices
   # The reads a watch can check with, run history first since it follows a run by its status.
   def reads
     Integrations::Capabilities::SPECS.values.reject(&:writes).sort_by { |spec| spec.key == Integrations::Capabilities::HISTORY ? 0 : 1 }.map do |spec|
-      Read.new(name: spec.tool_name, label: spec.what.upcase_first, history: spec.key == Integrations::Capabilities::HISTORY)
+      Read.new(name: spec.tool_name, label: Chat::Watch::Step.read_label(spec), history: spec.key == Integrations::Capabilities::HISTORY)
     end
   end
 

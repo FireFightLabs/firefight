@@ -3,6 +3,7 @@ import { IconKey, IconRobot, type Icon } from "@tabler/icons-react"
 import type { ActorCompact } from "@/types/serializers"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PRINCIPAL_KINDS } from "@/lib/generated/constants"
+import { initialsOf } from "@/lib/initials"
 
 // A machine gets the same chip as a person, marked so an agent's work is not
 // read as a colleague's.
@@ -23,7 +24,7 @@ export function ActorChip({ actor, fallback }: { actor?: ActorCompact; fallback:
       <Avatar className="size-5">
         {actor.avatarUrl ? <AvatarImage src={actor.avatarUrl} alt={actor.name} /> : null}
         <AvatarFallback className="text-[10px] font-semibold bg-avatar text-avatar-foreground">
-          {MachineIcon ? <MachineIcon className="size-3" aria-label="Agent" /> : actor.initials}
+          {MachineIcon ? <MachineIcon className="size-3" aria-label="Agent" /> : initialsOf(actor.name)}
         </AvatarFallback>
       </Avatar>
       <span className="font-medium truncate">{actor.name}</span>

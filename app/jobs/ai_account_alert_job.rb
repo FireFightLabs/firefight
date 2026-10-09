@@ -28,8 +28,8 @@ class AiAccountAlertJob < ApplicationJob
   end
 
   def low_balance(provider, remaining, usage)
-    "The #{provider} AI key is running low. It has #{dollars(remaining)} left to spend, and has spent #{dollars(usage)} in all. " \
-      "Alerts start below #{dollars(Rails.configuration.x.ai_low_balance_usd)}. Add credit or raise the key's limit before Halon stops answering."
+    "The #{provider} AI account is running low. It has #{dollars(remaining)} of credit left, and has spent #{dollars(usage)} in all. " \
+      "Alerts start below #{dollars(Rails.configuration.x.ai_low_balance_usd)}. Add credit before Halon stops answering."
   end
 
   def dollars(amount) = format("$%.2f", amount.to_f)

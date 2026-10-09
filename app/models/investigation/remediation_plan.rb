@@ -115,11 +115,12 @@ class Investigation::RemediationPlan < ApplicationRecord
     reload
   end
 
-  # Whether anything is moving on its own now, which is when the run page keeps itself current. A step held for approval
-  # or waiting on a person is not, so the page does not poll for hours. An approved step Halon is still checking is.
+  # Whether anything can change without the person looking at the page, which is when the run page keeps itself
+  # current. A step waiting for approval is, since the approval can be given in Slack or by another admin. A step
+  # waiting on a person to press it is not. An approved step Halon is still checking is.
   def moving?
     return true if writing_undo?
-    return true if steps.any?(&:checking?)
+    return true if steps.any? { |step| step.checking? || step.status == Investigation::RemediationStep::STATUS_WAITING_APPROVAL }
     # A step still running after the fix was cancelled is still worth watching finish.
     return true if steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING }
 

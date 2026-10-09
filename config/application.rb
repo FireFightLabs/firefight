@@ -12,6 +12,9 @@ module Firefight
 
     config.session_store :cookie_store, key: "_firefight_session", expire_after: 12.hours, same_site: :lax
 
+    # Lets a model's locale say an attribute's errors are whole sentences, such as a runbook's watch naming the item at fault.
+    config.active_model.i18n_customize_full_message = true
+
     # Rails renders its own debug pages where they apply, this covers the rest.
     config.exceptions_app = routes
 

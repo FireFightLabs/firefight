@@ -236,6 +236,14 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     shot("code-fix-paused-phone")
     page.current_window.resize_to(1280, 900)
 
+    click_button "Stop"
+    within(find("[role='dialog']", text: "Stop this fix?")) do
+      assert_text "The work saved so far is deleted."
+      shot("code-fix-stop-confirm")
+      click_button "Cancel"
+    end
+    assert pause.reload.offered?, "Stop asks first, so cancelling leaves the choice open"
+
     click_button "Continue"
     assert_text "The change carries on."
     trace = find("button[aria-expanded]", text: /Worked for/)
@@ -271,6 +279,31 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
       find("li", text: "Drop the rule from dns.tf").scroll_to(:center)
     end
     shot("code-question-run-page")
+  end
+
+  test "on a run's fix step someone the change does not run as sees Change answer disabled, with who can answer" do
+    plan = build_fix_plan(@workspace)
+    plan.apply!(by: workspace_memberships(:bob_workspace_one), from: AbilityGateway::SOURCE_WEB)
+    code = plan.steps.third
+    code.move!(from: Investigation::RemediationStep::STATUS_PROPOSED, to: Investigation::RemediationStep::STATUS_RUNNING, started_at: 2.minutes.ago)
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/infra", request: code.code_agent_request(workspace_memberships(:bob_workspace_one)))
+    question = ask_question!(session, "Should the rule go from dns.tf only, or from the staging copy too?")
+    question.answer_as_halon!("From dns.tf only, as Bob said.", option: 0)
+    work = running_work
+    work.asked!(question.reload.to_h)
+    code.track!(work)
+    investigation = plan.finding.investigation
+
+    visit incident_path(investigation.incident, Investigation::QUERY_PARAM => investigation.id)
+
+    within("[role=dialog]") do
+      button = find("button", text: "Change answer")
+      assert button.disabled?
+      button.find(:xpath, "..").hover
+    end
+    assert_selector "[role='tooltip']", text: "Only Bob Jones can answer, since the change runs as them."
+    shot("code-question-change-disabled")
   end
 
   private

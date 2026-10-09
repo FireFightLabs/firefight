@@ -117,6 +117,20 @@ class Operator::AttentionTest < ActiveSupport::TestCase
     assert install_items.none? { |item| item.kind.in?([ Operator::Attention::KIND_AI_OUT_OF_CREDIT, Operator::Attention::KIND_AI_SHORT_OF_CREDIT ]) }
   end
 
+  test "a deployment calling OpenRouter without the management key is told its balance is never checked" do
+    FirefightAi.configuration.stubs(:provider_settings).returns(openrouter_api_key: "sk-or-key")
+    FirefightAi.configuration.stubs(:openrouter_management_key).returns(nil)
+
+    unchecked = install_items.find { |item| item.kind == Operator::Attention::KIND_AI_BALANCE_UNCHECKED }
+
+    assert_equal [ "AI balance not checked", "openrouter", Operator::IncidentProcess::TONE_WARN ], [ unchecked.title, unchecked.subject, unchecked.tone ]
+    assert_match "OPENROUTER_MANAGEMENT_KEY is not set", unchecked.detail
+    assert items.none? { |item| item.kind == Operator::Attention::KIND_AI_BALANCE_UNCHECKED }, "the account is the install's, not a workspace's"
+
+    FirefightAi.configuration.stubs(:openrouter_management_key).returns("sk-or-management")
+    assert install_items.none? { |item| item.kind == Operator::Attention::KIND_AI_BALANCE_UNCHECKED }
+  end
+
   test "failures come before warnings" do
     run!(status: Investigation::STATUS_FAILED, error_summary: Investigation::BUDGET_SPENT)
     run!(status: Investigation::STATUS_FAILED, error_summary: "Faraday::TimeoutError")

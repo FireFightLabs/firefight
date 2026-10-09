@@ -27,17 +27,35 @@ class RunbookTest < ActiveSupport::TestCase
     assert_match "what counts as done", runbook.errors[:watch].join
   end
 
-  test "a refused watch names each step that is short of something by its number" do
+  test "a refused watch names each item that is short of something by its name, or by its number when it has none" do
     named = { "label" => "Release", "capability" => "run_history", "resource" => "firefight" }
-    unnamed = { "label" => "Web", "capability" => "resource_status" }
-    runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "web", "steps" => [ named, unnamed ] })
+    unplaced = { "label" => "Deploy finished", "capability" => "resource_status" }
+    runbook = @workspace.runbooks.new(name: "Deploy", watch: { "title" => "web", "steps" => [ named, unplaced ] })
     assert_not runbook.valid?
-    assert_equal [ "needs step 2 to name the capability to check and the resource" ], runbook.errors[:watch]
+    assert_equal [ "Watch 'Deploy finished': needs the capability to check and the resource" ], runbook.errors.full_messages
+    assert_equal runbook.errors.full_messages, runbook.errors[:watch], "the settings page shows the same sentence"
 
-    undecided = { "label" => "Web", "capability" => "resource_status", "resource" => "web" }
-    runbook.watch = { "title" => "web", "steps" => [ undecided, named, undecided ] }
+    undecided = { "capability" => "resource_status", "resource" => "web" }
+    runbook.watch = { "title" => "web", "steps" => [ undecided, named, undecided.merge("label" => " ") ] }
     assert_not runbook.valid?
-    assert_equal [ "needs what counts as done for steps 1 and 3 (done when, failed when or a goal)" ], runbook.errors[:watch]
+    assert_equal [ "Watch 1: needs what counts as done (done when, failed when or a goal)", "Watch 3: needs what counts as done (done when, failed when or a goal)" ],
+                 runbook.errors.full_messages
+    assert_no_match(/step/i, runbook.errors.full_messages.join)
+  end
+
+  test "a watch item's name is optional, and one left without is named after what it reads when the runbook runs" do
+    unnamed = { "capability" => "run_history", "resource" => "firefight" }
+    named = { "label" => "Web", "capability" => "resource_status", "resource" => "web", "goal" => "web runs {{version}}" }
+    tool = { "tool" => "api_request", "capability" => "resource_status", "resource" => "web", "goal" => "done" }
+    runbook = @workspace.runbooks.create!(name: "Deploy", inputs: [ { "key" => "version", "question" => "Which version?" } ],
+                                          watch: { "title" => "release", "steps" => [ unnamed, named, tool ] })
+
+    assert_nil runbook.reload.watch["steps"].first["label"]
+    steps = runbook.filled_watch("version" => "v2")["steps"]
+    assert_equal [ "Run history", "Web", "api_request" ], steps.map { |step| step["label"] }
+    assert_equal "web runs v2", steps.second["goal"]
+    titled = runbook.filled_watch("version" => "v2") { |tool| Chat::Tools.title_for(tool, @workspace) }["steps"]
+    assert_equal "Api request", titled.third["label"]
   end
 
   test "a watch step that follows a run needs nothing more, and one that reads a status saves with a goal" do

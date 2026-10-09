@@ -91,6 +91,8 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_match "Read its error and where it points", FirefightAi::Responder::FAILED_CHANGE_RULE
     assert_match "does not cancel the change unless they say so", FirefightAi::Responder::FAILED_CHANGE_RULE
     assert_match "asks the person again wherever the first one asked", FirefightAi::Responder::FAILED_CHANGE_RULE
+    assert_includes instructions, FirefightAi::Responder::PULL_REQUEST_CHANGE_RULE
+    assert_match "only when a tool's answer in this chat read it back from the code host", FirefightAi::Responder::PULL_REQUEST_CHANGE_RULE
   end
 
   # Seen in a real chat, a pasted guide said to ask which DNS provider held a domain, and the agent asked, though the

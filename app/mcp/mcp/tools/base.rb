@@ -109,6 +109,13 @@ module Mcp
           @authorization = [ resource, action ]
         end
 
+        # A tool that only reads Firefight's own data and that no approval rule should stall. The permission check stays.
+        def never_held
+          @never_held = true
+        end
+
+        def holdable? = !@never_held
+
         def authorization(_workspace, _args)
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end

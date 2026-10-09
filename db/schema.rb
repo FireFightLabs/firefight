@@ -196,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_150200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "alerted_at"
+    t.datetime "out_of_credit_alerted_at"
     t.index ["provider"], name: "index_ai_accounts_on_provider", unique: true
   end
 
@@ -961,7 +962,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_150200) do
     t.uuid "issue_integration_id"
     t.string "issue_sync_state"
     t.text "issue_sync_note"
-    t.uuid "issue_approval_id"
     t.datetime "issue_status_synced_at"
     t.datetime "issue_assignee_synced_at"
     t.datetime "issue_title_synced_at"

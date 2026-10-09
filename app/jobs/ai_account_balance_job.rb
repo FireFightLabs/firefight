@@ -1,5 +1,6 @@
 # Hourly, reads the balance of each account out of credit whose provider says it, so one that was refilled stops
-# reading as out before anyone calls the model again.
+# reading as out before anyone calls the model again. Reading a balance takes its own key, so without it nothing is
+# read, which AiAccountLowBalanceJob logs.
 class AiAccountBalanceJob < ApplicationJob
   queue_as :background
 
@@ -8,6 +9,8 @@ class AiAccountBalanceJob < ApplicationJob
 
   def perform
     AiAccount.out_of_credit.find_each do |account|
+      next unless FirefightAi::Balance.readable?(account.provider)
+
       left = FirefightAi::Balance.remaining(account.provider)
       account.update_columns(balance_checked_at: Time.current)
       AiAccount.refilled!(account.provider) if left && left >= REFILLED_DOLLARS

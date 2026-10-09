@@ -132,6 +132,18 @@ module Integrations
           assert_match "postgres could not start: pulling postgres:16 failed: toomanyrequests. The setup ran without it.", text
         end
 
+        test "tests in a copy prepared before still say which Postgres extension the CI's image names that the sandbox lacks" do
+          CodeReading.any_instance.stubs(:prepare).returns(
+            "already" => true, "prepared" => [], "setup" => [], "left_out" => [], "missing_extensions" => [ { "extension" => "postgis", "image" => "postgis/postgis:16-3.4" } ]
+          )
+          CodeReading.any_instance.stubs(:exec).returns(result(stdout: "1 runs, 0 failures\n"))
+
+          text = @pack.run_tests(environment_row: @row, arguments: { "repo" => "acme/app", "command" => "bin/rails test" })
+
+          assert_match "The sandbox's Postgres does not have the postgis extension the CI's postgis/postgis:16-3.4 image names, so tests that need it could not run here.", text
+          refute_match(/blocked/i, text)
+        end
+
         test "a service that does not exist is refused before anything starts" do
           CodeReading.any_instance.expects(:prepare).never
 

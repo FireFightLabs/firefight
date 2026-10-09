@@ -60,7 +60,7 @@ class Chat::Tools::Firefight < RubyLLM::Tool
     # An error response is still text the model reads, and the call is marked so a reader and the ledger see it failed.
     said = @agent_run.tool_call(
       action_key: action_key, params: @tool_class.ledger_params(arguments).transform_keys(&:to_s), tool_name: name,
-      label: Chat::Tools.label(name, arguments), **{ approval_id: approval_id }.compact
+      label: Chat::Tools.label(name, arguments), holdable: @tool_class.holdable?, **{ approval_id: approval_id }.compact
     ) do |authorization|
       response = Mcp::ToolDispatcher.run(
         tool: @tool_class, workspace: @agent_run.workspace, principal: @agent_run.acting_principal, args: arguments

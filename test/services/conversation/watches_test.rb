@@ -234,7 +234,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     start_release_watch
     watch = @conversation.chat.watches.sole
     Slack::Client.expects(:post_message).with { |channel:, thread_ts: nil, **| channel == "C1" && thread_ts == "111.1" }.returns(ts: "1", channel: "C1")
-    Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && blocks.none? { |block| block[:type] == "actions" } }
+    Slack::Client.expects(:post_message).with { |channel:, blocks:, **| channel == @alice.platform_user_id && actions_of(blocks) == [ Identifiers::WATCH_STOP ] }
                  .returns(ts: "2", channel: "D1")
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
 
@@ -564,6 +564,9 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     answers("ci_runs" => History.result(finished_runs("release", 18.minutes), what: "repo"))
     Conversation::Watches.start(@turn, watch_of([ release_step(report_start: report_start) ]))
   end
+
+  # The buttons on a message, by action id or by address for a link.
+  def actions_of(blocks) = blocks.select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements].map { |button| button[:action_id] || button[:url] } }
 
   def check!(watch)
     Chat::Watch.where(id: watch.id).update_all(check_claimed_at: nil, checked_at: nil)

@@ -636,6 +636,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Redraws a line a watch said where it was posted, such as once the watch is over and Stop has nothing left to stop.
+  # direct and conversation_id are as the line was first sent with.
+  # @return [Hash] { success: true }
+  def update_watch_update(channel_id:, message_id:, update:, direct: false, conversation_id: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A pull request Halon opened that needs attention, with why and Fix it, in the thread of the chat or run it came
   # from. notice is a CodeAgentSession::Notice.
   # @return [Hash] { message_id:, channel_id: }

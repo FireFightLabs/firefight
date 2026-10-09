@@ -153,6 +153,10 @@ module Sandbox
     DEFAULT_PORTS = { "postgres" => 5432, "redis" => 6379 }.freeze
     # A role or database a setup asks for, which goes into SQL inside double quotes.
     IDENTIFIER = /\A[A-Za-z_][\w-]{0,62}\z/
+    # The extension a Postgres image is built around, by the image's own name, which its CI's tests expect to find.
+    IMAGE_EXTENSIONS = { "pgvector" => "vector", "postgis" => "postgis", "timescaledb" => "timescaledb", "timescaledb-ha" => "timescaledb",
+                         "citus" => "citus", "paradedb" => "pg_search", "pgrouting" => "pgrouting" }.freeze
+    CREATE_EXTENSION = /\bCREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z_][\w-]*)"?/i
 
     # names is a list of service names, or of { "name", "image", "port", "env" } as a setup gives them. A service
     # with an image runs from that image when the box can run containers (Docker), and the built-in ones otherwise.
@@ -179,6 +183,27 @@ module Sandbox
         why[parts(service).first] = error.message
       end
       [ env, unknown.map { |service| parts(service).first } + why.keys, why ]
+    end
+
+    # The Postgres extensions a setup names, by its postgres service's image or a setup command that creates one, that the
+    # box's Postgres does not have, each with the image that named it. Nothing when the setup starts no Postgres.
+    def self.missing_extensions(setup)
+      postgres = Array((setup || {})["services"]).select { |service| parts(service).first == "postgres" }
+      port = STARTED["postgres"]
+      # A Postgres started from the CI's own image has whatever extensions its tests expect.
+      return [] if postgres.empty? || !port || Images::FROM_IMAGE.key?("postgres")
+
+      named = postgres.filter_map do |service|
+        image = Sandbox.given(service["image"]) if service.is_a?(Hash)
+        extension = IMAGE_EXTENSIONS[image.split("@").first.split("/").last.split(":").first.downcase] if image
+        { "extension" => extension, "image" => image } if extension
+      end
+      Array(setup["commands"]).each { |command| command.to_s.scan(CREATE_EXTENSION) { |(extension)| named << { "extension" => extension.downcase } } }
+      listed = Sandbox.run([ "psql", "-h", "127.0.0.1", "-p", port.to_s, "-U", "runner", "-d", "postgres", "-qAt", "-c", "SELECT name FROM pg_available_extensions" ], user: "runner")
+      return [] unless listed["exit_code"] == 0
+
+      available = listed["stdout"].split("\n").map(&:strip)
+      named.uniq { |entry| entry["extension"] }.reject { |entry| available.include?(entry["extension"]) }
     end
 
     def self.parts(service)
@@ -305,6 +330,8 @@ module Sandbox
     PULL_TIMEOUT = 15 * 60
     READY_TIMEOUT = 120
     POSTGRES = /postgres|postgis|pgvector|timescale/
+    # The services started from an image, by name, with the image.
+    FROM_IMAGE = {}
     REDIS = /redis|valkey/
 
     def self.start(name, image, port, settings)
@@ -336,6 +363,7 @@ module Sandbox
           Docker.json!(Net::HTTP::Post, "/containers/#{container}/start")
           wait_for(name, port)
           Services::STARTED[name] = port
+          FROM_IMAGE[name] = image
         end
         answer(name, image, Services::STARTED[name], settings)
       end
@@ -435,9 +463,13 @@ module Sandbox
       [ env(dir).merge(started, setup_env(setup)), left_out, why ]
     end
 
+    # Answers what it installed and ran, with the services and Postgres extensions the setup named that the box lacks,
+    # so a copy prepared before still says what its tests cannot reach.
     def self.run(dir, setup = nil)
       marker = File.join(dir, MARKER)
-      return { "prepared" => [], "setup" => [], "already" => true } if File.exist?(marker)
+      env, left_out, why = environment(dir, setup)
+      lacking = { "left_out" => left_out, "left_out_why" => why, "missing_extensions" => Services.missing_extensions(setup) }
+      return { "prepared" => [], "setup" => [], "already" => true, **lacking } if File.exist?(marker)
 
       exclude = File.join(dir, ".git", "info", "exclude")
       FileUtils.mkdir_p(File.dirname(exclude))
@@ -445,7 +477,6 @@ module Sandbox
       File.open(exclude, "a") { |file| INSTALLED.map { |path| "/#{path}" }.reject { |path| listed.include?(path) }.each { |path| file.puts(path) } }
 
       restored = File.exist?(File.join(dir, RESTORED))
-      env, left_out, why = environment(dir, setup)
       done = []
       (restored ? REFRESH : STEPS).each do |file, argv|
         next unless File.exist?(File.join(dir, file))
@@ -461,7 +492,7 @@ module Sandbox
         end
       end
       FileUtils.touch(marker) if (done + ran).all? { |step| step["exit_code"] == 0 }
-      { "prepared" => done, "setup" => ran, "left_out" => left_out, "left_out_why" => why, "restored" => restored, "already" => false }
+      { "prepared" => done, "setup" => ran, "restored" => restored, "already" => false, **lacking }
     end
 
     def self.step(argv, dir, env, said)

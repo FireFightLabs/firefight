@@ -22,14 +22,14 @@ interface RunbookWatchEditorProps {
   reads: RunbookWatchRead[] | null
   placeholders: SearchableSelectOption[]
   places: SearchableSelectOption[]
-  errors: { watch: string | null; steps: Record<string, string> }
-  serverError: string | null
+  error: string | null
+  serverErrors: string[]
   onChange: (watch: WatchState) => void
 }
 
 // What Halon watches once every step went through: a title, each thing to follow (a run in a resource's history, or a
 // reading that says when it is done) and an optional time limit. Anything saved that this does not show is kept.
-export function RunbookWatchEditor({ watch, reads, placeholders, places, errors, serverError, onChange }: RunbookWatchEditorProps) {
+export function RunbookWatchEditor({ watch, reads, placeholders, places, error, serverErrors, onChange }: RunbookWatchEditorProps) {
   const readOptions = (reads ?? []).map((read) => ({ value: read.name, label: read.label }))
 
   function patch(next: Partial<WatchState>) {
@@ -95,7 +95,6 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, errors,
               history={isHistoryRead(step.spec, reads ?? [])}
               readOptions={readOptions}
               resourceOptions={[ ...places, ...placeholders ]}
-              error={errors.steps[step.key]}
               onChange={(field, entered) => setStep(step.key, field, entered)}
               onRemove={() => removeStep(step.key)}
             />
@@ -106,8 +105,10 @@ export function RunbookWatchEditor({ watch, reads, placeholders, places, errors,
           </Button>
         </div>
       )}
-      {errors.watch && <p className="text-xs text-destructive">{errors.watch}</p>}
-      {serverError && <p className="text-xs text-destructive">{serverError}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {serverErrors.map((sentence, index) => (
+        <p key={index} className="text-xs text-destructive">{sentence}</p>
+      ))}
     </div>
   )
 }

@@ -67,7 +67,7 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
       planned = step.tool? ? "#{step.tool} #{Runbook.filled(step.arguments, values).to_json}" : BY_HAND
       [ "Step #{step.position}: #{step.title}", planned.truncate(Chat::Tools::ASKED_LIMIT) ]
     end
-    watch = runbook.filled_watch(values)
+    watch = runbook.filled_watch(values) { |tool| Chat::Tools.title_for(tool, workspace) }
     steps + (watch ? [ [ "Then watch", watched(watch) ] ] : [])
   end
 
@@ -123,7 +123,7 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
       return self if @stopped
 
       @lines << "Every step of #{@runbook.name} went through."
-      watch = @runbook.filled_watch(@values)
+      watch = @runbook.filled_watch(@values) { |tool| Chat::Tools.title_for(tool, @runbook.workspace) }
       @lines << Conversation::Watches.start(@turn.__getobj__, watch) if watch
       self
     end

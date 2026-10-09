@@ -40,7 +40,6 @@ const PLACEHOLDER = /^\s*\{\{\s*[a-z0-9_]+\s*\}\}\s*$/
 const NUMBER = /^\s*-?\d+(\.\d+)?\s*$/
 export const NOT_A_NUMBER = "A number, or an input such as {{count}}."
 export const REQUIRED = "Required."
-const WATCH_LABEL_REQUIRED = "Name what is watched."
 const WATCH_NO_STEPS = "Add at least one thing to watch, or turn the watch off."
 
 export function isObject(value: unknown): value is JsonObject {
@@ -177,22 +176,15 @@ export function isHistoryRead(spec: JsonObject, reads: RunbookWatchRead[]): bool
   return reads.some((read) => read.history && read.name === spec[WATCH_SPEC_KEYS.CAPABILITY])
 }
 
-// What is wrong with the watch before it is sent, as one sentence for the section and one per step by its key. What
-// each step must name to be followed is checked by the server when it saves (Runbook::Procedure).
-export function watchErrors(watch: WatchState): { watch: string | null; steps: Record<string, string> } {
-  const steps: Record<string, string> = {}
+// What is wrong with the watch before it is sent, as one sentence for the section. What each item must name to be
+// followed is checked by the server when it saves (Runbook::Procedure), and an item's name is optional.
+export function watchError(watch: WatchState): string | null {
   if (!watch.on) {
-    return { watch: null, steps }
+    return null
   }
-  watch.steps.forEach((step) => {
-    if (!stepText(step.spec, WATCH_SPEC_KEYS.LABEL)) {
-      steps[step.key] = WATCH_LABEL_REQUIRED
-    }
-  })
   const minutes = watch.minutesDraft.trim()
   const badMinutes = minutes.length > 0 && !NUMBER.test(minutes) && !PLACEHOLDER.test(minutes)
-  const sectionError = watch.steps.length === 0 ? WATCH_NO_STEPS : badMinutes ? NOT_A_NUMBER : null
-  return { watch: sectionError, steps }
+  return watch.steps.length === 0 ? WATCH_NO_STEPS : badMinutes ? NOT_A_NUMBER : null
 }
 
 function sentWatch(watch: WatchState): JsonObject | null {
