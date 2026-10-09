@@ -93,11 +93,11 @@ module Integrations
         fields["assignee"] = nil if unassign
         if fields.any?
           result = call(EDIT_ISSUE, issue_arguments(site, key).merge("fields" => fields), "change #{key}")
-          return Issues::Outcome.new(notes: notes, gone: true) if missing?(result)
+          return Issues::Outcome.new(notes: notes, gone: true) if gone?(result, key, target)
 
           answered!(EDIT_ISSUE, result, "change #{key}")
         end
-        return Issues::Outcome.new(notes: notes, gone: true) if state && transition(site, key, state, notes) == :gone
+        return Issues::Outcome.new(notes: notes, gone: true) if state && transition(site, key, state, notes, target) == :gone
 
         Issues::Outcome.new(notes: notes)
       end
@@ -246,9 +246,9 @@ module Integrations
 
       # Moves the issue through the first transition that leads to a status in the state's category. Answers :gone when
       # the issue is no longer there.
-      def transition(site, key, state, notes)
+      def transition(site, key, state, notes, target)
         result = call(LIST_TRANSITIONS, issue_arguments(site, key), "list #{key}'s transitions")
-        return :gone if missing?(result)
+        return :gone if gone?(result, key, target)
 
         listing = data!(answered!(LIST_TRANSITIONS, result, "list #{key}'s transitions"), "the transitions")
         found = objects_of(listing, "transitions").find { |each| each.dig("to", "statusCategory", "key") == CATEGORIES.fetch(state) }

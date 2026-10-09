@@ -75,6 +75,14 @@ module Integrations
         assert_nil reader.read("OPS-42", target: TARGET)
       end
 
+      test "a change refused for something else it names fails with Jira's words, and the issue stays kept" do
+        reader, = tracker("editjiraissue" => error_answer("Field 'customfield_1' does not exist."), "getjiraissue" => json_answer({ "key" => "OPS-42", "fields" => {} }),
+                          "listjiraissuetransitions" => error_answer("Status not found"))
+
+        assert_raises(Integrations::Issues::Failed) { reader.update(key: "OPS-42", target: TARGET, title: "x") }
+        assert_raises(Integrations::Issues::Failed) { reader.update(key: "OPS-42", target: TARGET, state: Integrations::Issues::STATE_DONE) }
+      end
+
       test "a delivery counts only with Jira's sha256 signature over the raw body" do
         body, headers = jira_delivery({ "webhookEvent" => "jira:issue_updated" })
 

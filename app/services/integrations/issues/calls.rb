@@ -34,6 +34,10 @@ module Integrations
       # Whether an error answer says the issue is gone.
       def missing?(result) = result.is_a?(Hash) && result["isError"] && Capabilities::Answers.text(result).match?(MISSING)
 
+      # Whether an error answer to a change means the issue is gone. A change names more than the issue, such as an
+      # assignee, a team or a status, so the issue alone is read again to be sure.
+      def gone?(result, key, target) = missing?(result) && read(key, target: target).nil?
+
       def self.signed?(secret, raw_body, given)
         expected = OpenSSL::HMAC.hexdigest("SHA256", secret, raw_body.to_s)
         given.present? && ActiveSupport::SecurityUtils.secure_compare(expected, given.to_s.downcase)
