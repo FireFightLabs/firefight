@@ -113,8 +113,28 @@ module Integrations
         assert_predicate polled.events.sole.scope, :everything?
 
         AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything).raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform cloudtrail:LookupEvents")
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "us-east-1", :lookup_events, anything).raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized to perform cloudtrail:LookupEvents")
         error = assert_raises(Integrations::Error) { Aws.poll(@row, since: since) }
         assert_equal "#{Aws::DENIED}. AWS answered AccessDeniedException: not authorized to perform cloudtrail:LookupEvents.", error.message
+      end
+
+      test "a region that refuses keeps its place and says so, while the other regions are still read" do
+        travel_to Time.zone.parse("2026-10-06 10:00:00 UTC")
+        since = { "eu-west-1" => 10.minutes.ago.utc.iso8601(6), "us-east-1" => 10.minutes.ago.utc.iso8601(6) }.to_json
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything)
+              .raises(AwsApi::Denied, "AWS answered UnrecognizedClientException: The security token included in the request is invalid")
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "us-east-1", :lookup_events, anything)
+              .returns(events: [ { event_id: "ev-1", event_source: Aws::ECS, cloud_trail_event: update_service_record.to_json } ])
+
+        polled = Aws.poll(@row, since: since)
+
+        assert_equal [ "ev-1" ], polled.events.map(&:id)
+        assert_equal JSON.parse(since)["eu-west-1"], JSON.parse(polled.cursor)["eu-west-1"]
+        assert_equal Time.current.utc.iso8601(6), JSON.parse(polled.cursor)["us-east-1"]
+        assert_equal "CloudTrail in eu-west-1 could not be read: AWS answered UnrecognizedClientException: The security token included in the request is invalid.", polled.error
+
+        AwsApi.any_instance.stubs(:call).with(:cloudtrail, "eu-west-1", :lookup_events, anything).raises(AwsApi::Error, "AWS could not be reached: timed out")
+        assert_equal "CloudTrail in eu-west-1 could not be read: AWS could not be reached: timed out.", Aws.poll(@row, since: since).error
       end
 
       test "each connected region offers a quick-create link with the connection's address and key, once the template is published" do

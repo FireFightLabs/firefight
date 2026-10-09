@@ -102,15 +102,19 @@ module Integrations
 
         # Reads every connected region's history from where the last read ended. A region read for the first time starts
         # now. One AWS asked to slow down keeps its place and is read again next time, and a region too busy to read in
-        # MAX_PAGES is swept in full.
+        # MAX_PAGES is swept in full. A region that cannot be read, such as an opt-in region the account has not enabled,
+        # keeps its place and is said in error while the others are read. Only when every region read fails does the read fail.
         def poll(row, since:)
           now = Time.current
           places = cursors_of(since).slice(*regions(row))
           api = api(row)
           found = []
+          failures = {}
+          read = 0
           regions(row).each do |region|
             from = places[region]&.then { |stamp| Time.iso8601(stamp) }
             if from
+              read += 1
               records, complete = lookup(api, region, from - LAG, now)
               found.concat(records.flat_map { |record| record_events(record) })
               found << busy(region, now) unless complete
@@ -118,10 +122,12 @@ module Integrations
             places[region] = now.utc.iso8601(6)
           rescue RateLimited
             next
-          rescue AwsApi::Denied => error
-            raise Integrations::Error, Sentence.all(DENIED, error)
+          rescue AwsApi::Error => error
+            failures[region] = error
           end
-          MapEventSource::Polled.new(events: found, cursor: places.to_json)
+          raise_when_all_failed(failures, read)
+          error = failures.map { |region, failed| Sentence.join("CloudTrail in #{region} could not be read", failed) }.join(" ").presence
+          MapEventSource::Polled.new(events: found, cursor: places.to_json, error: error)
         end
 
         # Each region the connection reads, where a person may create the stack.
@@ -286,6 +292,15 @@ module Integrations
         # A region whose history held more than one read takes, which a sweep reads in full instead.
         def busy(region, now)
           ResourceMap::Event.new(id: "cloudtrail-busy #{region} #{now.utc.iso8601(6)}", at: now, action: ResourceMap::Event::UPDATED, scope: ResourceMap::Scope.everything)
+        end
+
+        def raise_when_all_failed(failures, count)
+          return if failures.size < count || failures.empty?
+
+          first = failures.values.first
+          raise Integrations::Error, Sentence.all(DENIED, first) if failures.values.all?(AwsApi::Denied)
+
+          raise first
         end
 
         def cursors_of(since)
