@@ -31,9 +31,6 @@ class IntegrationProvider
   HISTORIES = [ HISTORY_FIREFIGHT, HISTORY_NONE ].freeze
   HISTORY_EXPLAINED = [ HISTORY_NONE ].freeze
 
-  # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
-  # treated as reads rather than as writes that each ask to be confirmed.
-
   # One place a provider runs its service, such as Datadog's EU1, for a provider that offers several. The connect dialog
   # offers the choice when there is more than one, and the connection keeps it. server_url is its MCP server, site the
   # address of the provider's app there, which links open, and authorization_endpoint and token_endpoint its OAuth
@@ -276,6 +273,8 @@ class IntegrationProvider
         description: raw.fetch("description"), server_url: regions.first&.server_url || raw["server_url"].to_s,
         # kind: native runs through Integrations::NativePack instead of an MCP server.
         kind: raw["kind"] || Integration::KIND_MCP,
+        # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
+        # treated as reads rather than as writes that each ask to be confirmed.
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
         source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
@@ -405,9 +404,9 @@ class IntegrationProvider
   end
   Card = Data.define(:category, :rows)
 
-  # One category as a workspace sees it: every provider in it, and where each stands.
-  def self.card_for(workspace, category)
-    by_provider = workspace.integrations.where(deleted_at: nil).includes(:integration_environments).group_by(&:provider)
+  # One category as a workspace sees it: every provider in it, and where each stands. by_provider is the workspace's
+  # connections by provider, loaded once when several cards are drawn.
+  def self.card_for(workspace, category, by_provider = connections_by_provider(workspace))
     rows = all.select { |provider| provider.category == category.name }.map do |provider|
       connections = by_provider.fetch(provider.key, [])
       Row.new(provider: provider, state: state_for(connections), connections: connections.map { |integration| { id: integration.id, name: integration.name } })
@@ -416,7 +415,12 @@ class IntegrationProvider
   end
 
   def self.cards_for(workspace)
-    category_list.map { |category| card_for(workspace, category) }
+    by_provider = connections_by_provider(workspace)
+    category_list.map { |category| card_for(workspace, category, by_provider) }
+  end
+
+  def self.connections_by_provider(workspace)
+    workspace.integrations.where(deleted_at: nil).includes(:integration_environments).group_by(&:provider)
   end
 
   def self.state_for(connections)
@@ -428,15 +432,13 @@ class IntegrationProvider
     failing = live.any? { |integration| integration.integration_environments.any? { |row| row.enabled && row.health_status == IntegrationEnvironment::HEALTH_FAILING } }
     failing ? STATE_NEEDS_ATTENTION : STATE_CONNECTED
   end
-  private_class_method :state_for
+  private_class_method :state_for, :connections_by_provider
 
   def self.registry
     @registry ||= YAML.load_file(REGISTRY_PATH)
   end
   private_class_method :registry
 
-  # Providers without dynamic registration, such as GitHub, read one Firefight-wide app from
-  # INTEGRATION_<KEY>_CLIENT_ID and _CLIENT_SECRET. Tokens are still per workspace.
   # Firefight's own app with the provider (App), as INTEGRATION_<KEY>_APP_CLIENT_ID and _APP_CLIENT_SECRET name it, or
   # empty when this install registered none.
   def self.app_client(key)
@@ -447,6 +449,8 @@ class IntegrationProvider
     { client_id: client_id, client_secret: ENV["#{prefix}_CLIENT_SECRET"].presence }
   end
 
+  # Providers without dynamic registration, such as GitHub, read one Firefight-wide app from
+  # INTEGRATION_<KEY>_CLIENT_ID and _CLIENT_SECRET. Tokens are still per workspace.
   def self.oauth_client(key)
     prefix = "INTEGRATION_#{key.to_s.upcase}"
     client_id = ENV["#{prefix}_CLIENT_ID"].presence ||

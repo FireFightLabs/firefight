@@ -155,9 +155,9 @@ module WorkspaceOnboarding::Checklist
   end
 
   # The question the chat suggests first, naming what was connected in the categories the registry marks for it, such
-  # as where the stack runs and its databases.
-  def first_question
-    names = stack_cards.select { |card| card.category.in_first_question && stack_answers[card.category.slug] == ANSWER_CONNECTED }
+  # as where the stack runs and its databases. cards are stack_cards, passed when the page already read them.
+  def first_question(cards = stack_cards)
+    names = cards.select { |card| card.category.in_first_question && stack_answers[card.category.slug] == ANSWER_CONNECTED }
                        .flat_map { |card| card.rows.select { |row| row.state == IntegrationProvider::STATE_CONNECTED }.map { |row| row.provider.name } }
     return "What runs where in my stack?" if names.empty? || names.size > QUESTION_NAMES
 
