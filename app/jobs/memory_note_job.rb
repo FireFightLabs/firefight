@@ -3,7 +3,7 @@
 class MemoryNoteJob < ApplicationJob
   queue_as :default
 
-  discard_on ActiveRecord::RecordNotFound, ActiveJob::DeserializationError
+  discard_on ActiveRecord::RecordNotFound
 
   def perform(memory_id, kind, owner)
     memory = Chat::Memory.find(memory_id)

@@ -1,5 +1,5 @@
 module Interactions
-  # Cancel on a fix's progress while it is being applied, after Slack's own confirm. Who may start a run may stop its
+  # Cancel on a fix's progress while it is being applied, after the platform's own confirm. Who may start a run may stop its
   # fix, and only the clicker is told what happened. The progress message redraws itself.
   class CancelFixHandler
     extend HandlerAuthorization

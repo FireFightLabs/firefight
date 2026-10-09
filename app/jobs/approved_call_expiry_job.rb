@@ -6,7 +6,7 @@ class ApprovedCallExpiryJob < ApplicationJob
     approval = Ability::Approval.find_by(id: approval_id)
     return unless approval&.approved? && approval.consumed_at.nil? && approval.run_expires_at
 
-    # Run a moment early by the queue, so it looks again once the window has passed.
+    # The queue can run this a moment early, so it waits again until the window has passed.
     return self.class.set(wait_until: approval.run_expires_at).perform_later(approval.id) unless approval.run_lapsed?
 
     ApprovalResumption.lapsed!(approval) if approval.lapse_run!

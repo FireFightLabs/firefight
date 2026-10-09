@@ -12,6 +12,9 @@ class IncidentAction < ApplicationRecord
   STATUS_DONE = "done"
   STATUSES = [ STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_DONE ].freeze
 
+  # A guarded change that found the item already moved by someone else.
+  CHANGED_FIRST = "Someone changed that item first.".freeze
+
   belongs_to :incident
   # Polymorphic because an agent takes part as itself.
   belongs_to :created_by, polymorphic: true

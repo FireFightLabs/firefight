@@ -37,6 +37,9 @@ class IntegrationEnvironment < ApplicationRecord
            .merge(where(catalog_entry_id: nil).or(where(catalog_entries: { deleted_at: nil })))
   }
 
+  # What the gateway checks a call through this row against, its environment when it has one.
+  def ability_scope = catalog_entry_id ? { "environment" => catalog_entry_id } : {}
+
   def credentials_hash
     JSON.parse(credentials.presence || "{}")
   rescue JSON::ParserError

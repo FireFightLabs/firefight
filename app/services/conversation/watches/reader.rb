@@ -65,7 +65,7 @@ class Conversation::Watches::Reader
     raise Refused, "#{handle} is not switched on, so the log could not be read." unless tool&.read_only?
 
     arguments = log[Integrations::Capabilities::History::LOG_ARGUMENTS].to_h
-    scope = environment_row.catalog_entry_id ? { "environment" => environment_row.catalog_entry_id } : {}
+    scope = environment_row.ability_scope
     raise Refused, held_tool_words(tool) if Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: tool.action_key, scope: scope)
 
     result = authorized(tool, scope, arguments) do

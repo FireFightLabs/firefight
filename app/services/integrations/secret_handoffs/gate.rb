@@ -59,9 +59,8 @@ module Integrations::SecretHandoffs::Gate
   # holdable: false, since an approval rule over the tool held the call that made or asked for the secret, and this is
   # its second half.
   def self.authorized(tool, environment_row, principal:, source:, params:, &)
-    scope = environment_row.catalog_entry_id ? { "environment" => environment_row.catalog_entry_id } : {}
-    Chat::ToolCall.run!(principal: principal, action_key: tool.action_key, workspace: tool.integration.workspace, scope: scope,
-                        params: params, context: { source: source }, holdable: false, &)
+    Chat::ToolCall.run!(principal: principal, action_key: tool.action_key, workspace: tool.integration.workspace,
+                        scope: environment_row.ability_scope, params: params, context: { source: source }, holdable: false, &)
   end
   private_class_method :located, :authorized
 end

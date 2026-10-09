@@ -4,8 +4,7 @@ class ConversationReplyJob < ApplicationJob
 
   # A second turn would clear away the empty reply RubyLLM saves while the first is working, orphaning its tool results.
   # The lock outlives a dead worker no longer than the page waits on it.
-  limits_concurrency key: ->(conversation_id, _asker_id = nil, _held_call_id = nil, _watch_step_id = nil, _pull_request_notice_id = nil, _pause_id = nil) { conversation_id },
-                     duration: Conversation::REPLY_CEILING
+  limits_concurrency key: ->(conversation_id, *) { conversation_id }, duration: Conversation::REPLY_CEILING
 
   retry_on FirefightAi::TransientError, wait: :polynomially_longer, attempts: 3 do |job, _error|
     say_nothing_came_of_it(job)

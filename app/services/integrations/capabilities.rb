@@ -133,7 +133,7 @@ module Integrations
       def initialize(fallback: nil, **) = super
       def environment_entry = environment_row.environment
 
-      def scope = environment_row.catalog_entry_id ? { "environment" => environment_row.catalog_entry_id } : {}
+      def scope = environment_row.ability_scope
 
       def present_result(result) = present ? present.call(result) : result
 

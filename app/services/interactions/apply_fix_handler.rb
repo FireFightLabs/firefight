@@ -1,5 +1,5 @@
 module Interactions
-  # Apply fix on an answer, after Slack's own confirm. The steps run as whoever clicked, so who may start a run may
+  # Apply fix on an answer, after the platform's own confirm. The steps run as whoever clicked, so who may start a run may
   # apply its fix, and each step is still the gateway's to allow. A refusal is told only to them.
   class ApplyFixHandler
     extend HandlerAuthorization

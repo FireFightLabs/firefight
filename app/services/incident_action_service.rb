@@ -119,7 +119,7 @@ class IncidentActionService
 
     to = action.assigned? ? IncidentAction::STATUS_IN_PROGRESS : IncidentAction::STATUS_OPEN
     moved = guarded(action, IncidentEvent::ACTION_REOPENED, reopened_by) { action.move_status!(from: IncidentAction::STATUS_DONE, to: to) }
-    return "Someone changed that item first." unless moved
+    return IncidentAction::CHANGED_FIRST unless moved
 
     edited(action, [ ISSUE_STATE ], reopened_by)
     nil
@@ -142,7 +142,7 @@ class IncidentActionService
     moved = guarded(action, IncidentEvent::ACTION_UNASSIGNED, unassigned_by) do
       action.move_status!(from: IncidentAction::STATUS_IN_PROGRESS, to: IncidentAction::STATUS_OPEN, assignee_id: nil, assignee_type: nil)
     end
-    return "Someone changed that item first." unless moved
+    return IncidentAction::CHANGED_FIRST unless moved
 
     edited(action, [ ISSUE_ASSIGNEE, ISSUE_STATE ], unassigned_by)
     nil
