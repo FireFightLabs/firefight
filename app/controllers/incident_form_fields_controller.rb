@@ -46,13 +46,13 @@ class IncidentFormFieldsController < InertiaController
   def move_up
     form_id = @form_field.incident_form_id
     form_service.move_up(@form_field)
-    redirect_to settings_forms_path(form: form_id), notice: "Field order updated."
+    redirect_to settings_forms_path(form: form_id), notice: "#{@form_field.source_name} was moved up."
   end
 
   def move_down
     form_id = @form_field.incident_form_id
     form_service.move_down(@form_field)
-    redirect_to settings_forms_path(form: form_id), notice: "Field order updated."
+    redirect_to settings_forms_path(form: form_id), notice: "#{@form_field.source_name} was moved down."
   end
 
   def reorder
