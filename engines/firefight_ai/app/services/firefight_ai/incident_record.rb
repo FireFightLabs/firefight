@@ -40,7 +40,7 @@ module FirefightAi
       assignee = action[:assignee] ? " (assigned to #{action[:assignee]})" : ""
       link = [ action[:external_key], action[:external_url] ].compact.join(", ")
       link = " [#{link}]" if link.present?
-      "- [#{action[:type]}] #{action[:description]}#{link} — #{action[:status]}#{assignee}"
+      "- [#{action[:type]}] #{action[:description]}#{link}, #{action[:status]}#{assignee}"
     end
   end
 end

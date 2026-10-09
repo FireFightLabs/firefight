@@ -15,6 +15,7 @@ class Inference < ApplicationRecord
 
   # Embedding the providers' documentation serves every workspace at once, so it is the one call recorded with none.
   FEATURE_PROVIDER_DOCS = "provider_docs".freeze
+  FEATURE_EMBEDDING = "embedding".freeze
 
   CONTEXT_KEYS = %i[
     workspace feature provider model inferable member api_key prompt_template prompt_version max_output_tokens

@@ -299,7 +299,7 @@ module FirefightAi
   def embed(text, workspace:, inferable: nil)
     choice = deployment_model_for(AiPurpose::EMBEDDING)
     embedding, = translating_errors do
-      Inference.track(workspace: workspace, feature: "embedding", inferable: inferable, **choice.ledger) do
+      Inference.track(workspace: workspace, feature: Inference::FEATURE_EMBEDDING, inferable: inferable, **choice.ledger) do
         RubyLLM.embed(text, model: choice.model, provider: choice.provider&.to_sym)
       end
     rescue RubyLLM::Error => e

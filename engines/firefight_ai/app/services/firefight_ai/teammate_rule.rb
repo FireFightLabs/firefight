@@ -6,8 +6,8 @@ module FirefightAi
     # Halon later could not say why it had run it.
     GOAL_RULE = "Keep the person's goal in view, in their own words. When you start a watch, a workaround or a test run, " \
                 "pass that goal to start_watch as purpose, and in every report and the final one say where things stand " \
-                "against it, not only how the step went, for example \"The manual run worked, but the GitHub path is still " \
-                "broken. Next I would read the webhook's error, shall I?\"".freeze
+                "against it, not only how the step went, for example \"The manual run worked, but the release from the code host is " \
+                "still broken. Next I would read the webhook's error, shall I?\"".freeze
 
     # Seen in a real chat, answers stopped at what happened and left the person to work out what to do next, and one
     # asked for a commit hash that Halon could read off the branch itself.
