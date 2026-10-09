@@ -20,27 +20,27 @@ module SolidWorkflow
     def sweep_orphaned_steps
       SolidWorkflow::Step.orphaned.find_each do |step|
         if step.attempts >= step.max_attempts
+          next unless move_orphan(step, status: :failed, completed_at: Time.current,
+                                        last_error: "Step crashed the worker on every attempt (failed by sweeper after #{step.attempts} attempts)")
+
           Rails.logger.warn({ event: "workflow.sweeper.failing_orphan", step_id: step.id, attempts: step.attempts })
-
-          step.update!(
-            status: :failed,
-            completed_at: Time.current,
-            last_error: "Step crashed the worker on every attempt (failed by sweeper after #{step.attempts} attempts)"
-          )
-
           step.workflow.record_event(SolidWorkflow::Events::Step::FAILED, step: step, reason: "sweeper_max_attempts")
           step.workflow.enqueue_next_steps_later
         else
+          next unless move_orphan(step, status: :pending, last_error: "Step was running but worker appears to have crashed (reset by sweeper)")
+
           Rails.logger.warn({ event: "workflow.sweeper.resetting_orphan", step_id: step.id })
-
-          step.update!(
-            status: :pending,
-            last_error: "Step was running but worker appears to have crashed (reset by sweeper)"
-          )
-
           step.workflow.record_event(SolidWorkflow::Events::Step::RESET, step: step, reason: "sweeper")
         end
       end
+    end
+
+    # Only a step still running as it was when the sweep read it, so one a resumed job took up since is left to that job.
+    def move_orphan(step, **changes)
+      moved = SolidWorkflow::Step.where(id: step.id, status: :running, updated_at: step.updated_at)
+                                 .update_all(**changes, claimed_by: nil, updated_at: Time.current)
+      step.reload if moved == 1
+      moved == 1
     end
 
     def sweep_timed_out_workflows
