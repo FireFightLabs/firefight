@@ -15,7 +15,10 @@ class IncidentAiResponseJob < ApplicationJob
     Rails.logger.warn({ event: "incident_response.out_of_credit_undelivered", incident_id: incident_id, error: error.message }.to_json)
   end
 
-  def perform(incident_id, channel_id, question)
+  # A job queued before replies left threads carries (thread, question, scope) after the channel, and is answered in
+  # the channel like any other.
+  def perform(incident_id, channel_id, *asked)
+    question = asked.one? ? asked.first : asked.second
     incident = Incident.find(incident_id)
 
     unless Entitlements.allows?(incident.workspace, Entitlements::AI)
