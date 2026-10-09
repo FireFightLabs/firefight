@@ -20,6 +20,9 @@ module Conversation::Watches::Shown
 
   def ended_headline(watch) = format(ENDED.fetch(watch.status), watch.title)
 
+  # Such as "Watching: release run #46, up to 40 min" while it runs, and how it ended once it has.
+  def headline(watch) = watch.active? ? "Watching: #{watch.title}, up to #{limit_label(watch)}" : ended_headline(watch)
+
   def basis(watch)
     usual = watch.usual_seconds && Integrations::Capabilities::History.duration(watch.usual_seconds)
     case watch.limit_basis

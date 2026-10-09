@@ -27,11 +27,7 @@ class AgentChatWatchSerializer < BaseSerializer
 
   # Such as "Watching: release run #46, up to 40 min".
   type :string
-  def headline
-    return "Watching: #{watch.title}, up to #{Conversation::Watches::Shown.limit_label(watch)}" if watch.active?
-
-    Conversation::Watches::Shown.ended_headline(watch)
-  end
+  def headline = Conversation::Watches::Shown.headline(watch)
 
   type :string, optional: true
   def outcome
