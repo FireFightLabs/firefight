@@ -31,6 +31,20 @@ class IncidentLearningServiceTest < ActiveSupport::TestCase
     assert_equal "1.1", post.message_id
   end
 
+  test "a lesson that contradicts a memory about the same thing disputes it, and the channel is asked which is right before the new lessons" do
+    old = Chat::Memory.create!(workspace: @workspace, text: "Auth Service keeps sessions in Postgres", subject: @entry, state: Chat::Memory::STATE_CONFIRMED)
+    stub_lessons([ lesson("Auth Service keeps sessions in Redis", about: @entry.name) ])
+    FirefightAi::MemoryJudge.any_instance.stubs(:verdicts).returns([ FirefightAi::MemoryJudge::Verdict.new(id: old.id, verdict: FirefightAi::Schemas::MemoryVerdicts::CONTRADICTS) ])
+    posted = []
+    @adapter.stubs(:post_learned_memories).with { |post:, **| (posted << [ post.kind, post.memories.map(&:id) ]) || true }.returns(message_id: "1.1", channel_id: @incident.channel_id)
+
+    saved = IncidentLearningService.new(@workspace).learn!(@incident).sole
+
+    assert_equal [ Chat::Memory::STATE_DISPUTED, "#{@incident.identifier} showed \"Auth Service keeps sessions in Redis\".", saved.id ],
+                 old.reload.values_at(:state, :state_reason, :contradicted_by_id)
+    assert_equal [ [ Chat::MemoryPost::KIND_DISPUTED, [ old.id ] ], [ Chat::MemoryPost::KIND_INCIDENT, [ saved.id ] ] ], posted
+  end
+
   test "the extractor is handed what the workspace already holds on what the incident touches, rejected ones marked, never the incident's own" do
     own = Chat::Memory.create!(workspace: @workspace, text: "Sessions live in Redis", state: Chat::Memory::STATE_UNCONFIRMED, source: @incident)
     Chat::Memory.create!(workspace: @workspace, text: "Auth Service runs two instances", subject: @entry, state: Chat::Memory::STATE_CONFIRMED)

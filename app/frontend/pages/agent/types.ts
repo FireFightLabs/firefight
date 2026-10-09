@@ -3,7 +3,7 @@ import type { ComponentProps } from "react"
 import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
-  AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatHeldCall, AgentChatIncident, AgentChatMessage,
+  AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatHeldCall, AgentChatIncident, AgentChatMemoryQuestion, AgentChatMessage,
   AgentChatPackRefusal, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, EnvironmentOption,
   IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
@@ -37,6 +37,7 @@ export interface AgentPageProps extends SharedProps {
   watches: AgentChatWatch[]
   watchUpdates: AgentChatWatchUpdate[]
   pullRequestNotices: AgentChatPullRequestNotice[]
+  memoryQuestions: AgentChatMemoryQuestion[]
   setupGuide: SetupGuide | null
 }
 

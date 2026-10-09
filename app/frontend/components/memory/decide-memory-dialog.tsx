@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react"
+import type { FormEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,14 +13,19 @@ import {
 } from "@/components/ui/dialog"
 import { CHAT_MEMORY_TEXT_LIMIT } from "@/lib/generated/constants"
 import { correctMemoryPath, rejectMemoryPath } from "@/lib/routes"
-import { TextField } from "@/pages/memory/components/text-field"
-import type { ChatMemory } from "@/types/serializers"
+import { TextField } from "@/components/memory/text-field"
+
+// The memory deciding is about, from the Memory page or a card in a chat.
+export interface DecidedMemory {
+  id: string
+  text: string
+}
 
 export const DECISIONS = { CORRECT: "correct", REJECT: "reject" } as const
 export type Decision = (typeof DECISIONS)[keyof typeof DECISIONS]
 
 interface DecideMemoryDialogProps {
-  memory: ChatMemory | null
+  memory: DecidedMemory | null
   decision: Decision
   onClose: () => void
 }
@@ -46,12 +52,12 @@ export function DecideMemoryDialog({ memory, decision, onClose }: DecideMemoryDi
   const unchanged = correcting && text === memory?.text.trim()
   const invalid = correcting ? text.length === 0 || text.length > CHAT_MEMORY_TEXT_LIMIT || unchanged : false
 
-  function submit(event: React.FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault()
     if (!memory) {
       return
     }
-    post(correcting ? correctMemoryPath(memory.id) : rejectMemoryPath(memory.id), { preserveScroll: true, onSuccess: onClose })
+    post(correcting ? correctMemoryPath(memory.id) : rejectMemoryPath(memory.id), { preserveScroll: true, preserveState: true, onSuccess: onClose })
   }
 
   function writeText(value: string) {

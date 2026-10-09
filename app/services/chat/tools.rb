@@ -237,6 +237,17 @@ module Chat::Tools
     MemoryNoteJob.perform_later(memory.id, kind, agent_run.chat_owner)
   end
 
+  # A memory something contradicted is asked about at once where it was found, while the person still has the context:
+  # in its incident's channel like any dispute, and as a card in a dashboard chat. evidence is what showed it wrong, said
+  # to the chat's owner.
+  def self.raise_dispute(agent_run, memory, evidence:)
+    tell_incident(agent_run, memory, Chat::MemoryPost::KIND_DISPUTED)
+    chat = agent_run.chat_owner
+    return unless agent_run.changes_memory? && chat.is_a?(Conversation) && chat.personal?
+
+    MemoryPostService.new(agent_run.workspace).ask_in_chat!(chat, memory, evidence: evidence)
+  end
+
   def self.memory_change(agent_run, crud_action, tool_name:, params:, tool_call_id:, &)
     agent_run.memory_change(crud_action, params: params, tool_name: tool_name, &)
   rescue AbilityGateway::Denied => denied

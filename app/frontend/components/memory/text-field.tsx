@@ -1,3 +1,5 @@
+import type { ChangeEvent } from "react"
+
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -17,7 +19,7 @@ interface TextFieldProps {
 export function TextField({ id, label, value, limit, rows = 3, placeholder, optional = false, className = "", onChange }: TextFieldProps) {
   const over = limit !== undefined && value.length > limit
 
-  function write(event: React.ChangeEvent<HTMLTextAreaElement>) {
+  function write(event: ChangeEvent<HTMLTextAreaElement>) {
     onChange(event.target.value)
   }
 

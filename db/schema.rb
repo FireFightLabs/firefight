@@ -480,8 +480,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
     t.string "outdated_from"
     t.string "outdated_cause"
     t.uuid "decided_by_postmortem_id"
+    t.uuid "contradicted_by_id"
     t.index ["added_by_id"], name: "index_chat_memories_on_added_by_id"
     t.index ["confirmed_by_id"], name: "index_chat_memories_on_confirmed_by_id"
+    t.index ["contradicted_by_id"], name: "index_chat_memories_on_contradicted_by_id"
     t.index ["decided_by_postmortem_id"], name: "index_chat_memories_on_decided_by_postmortem_id"
     t.index ["rejected_by_id"], name: "index_chat_memories_on_rejected_by_id"
     t.index ["replaced_by_id"], name: "index_chat_memories_on_replaced_by_id"
@@ -492,16 +494,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
 
   create_table "chat_memory_posts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "workspace_id", null: false
-    t.uuid "incident_id", null: false
+    t.uuid "incident_id"
     t.string "kind", null: false
-    t.string "channel_id", null: false
+    t.string "channel_id"
     t.string "thread_id"
     t.string "message_id"
     t.uuid "memory_ids", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.uuid "conversation_id"
+    t.uuid "recipient_id"
+    t.text "evidence"
+    t.index ["conversation_id"], name: "index_chat_memory_posts_on_conversation_id"
     t.index ["incident_id"], name: "index_chat_memory_posts_on_incident_id"
+    t.index ["recipient_id"], name: "index_chat_memory_posts_on_recipient_id"
     t.index ["workspace_id"], name: "index_chat_memory_posts_on_workspace_id"
+    t.check_constraint "channel_id IS NOT NULL OR conversation_id IS NOT NULL", name: "chat_memory_posts_has_a_place"
   end
 
   create_table "chat_memory_uses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2537,13 +2545,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
   add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspaces"
+  add_foreign_key "chat_memories", "chat_memories", column: "contradicted_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "chat_memories", column: "replaced_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "postmortems", column: "decided_by_postmortem_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspace_memberships", column: "rejected_by_id", on_delete: :nullify
   add_foreign_key "chat_memories", "workspaces"
+  add_foreign_key "chat_memory_posts", "conversations", on_delete: :cascade
   add_foreign_key "chat_memory_posts", "incidents", on_delete: :cascade
+  add_foreign_key "chat_memory_posts", "workspace_memberships", column: "recipient_id", on_delete: :cascade
   add_foreign_key "chat_memory_posts", "workspaces"
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"

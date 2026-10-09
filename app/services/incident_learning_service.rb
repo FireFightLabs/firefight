@@ -117,9 +117,13 @@ class IncidentLearningService
   end
 
   # Only new lessons are shown. One already known, or rejected before, is not learned again.
+  # A lesson that contradicts a memory about the same thing disputes it, and the channel is asked which is right.
   def save(incident, lessons)
+    judge = FirefightAi::MemoryJudge.new(@workspace, inferable: incident)
     lessons.filter_map do |lesson|
-      learned = Chat::Memory.learn!(@workspace, text: lesson.fact, subject: subjects(incident)[lesson.about], source: incident)
+      learned = Chat::Memory.learn!(@workspace, text: lesson.fact, subject: subjects(incident)[lesson.about], source: incident,
+                                                judge: judge, contradiction: "#{incident.identifier} showed \"#{lesson.fact}\".")
+      learned.contradicted.each { |memory| posts.post!(incident, [ memory ], kind: Chat::MemoryPost::KIND_DISPUTED) }
       learned.memory if learned.outcome == Chat::Memory::LEARNED_SAVED
     rescue ActiveRecord::RecordInvalid
       # One holding a secret is dropped rather than failing the others.

@@ -26,6 +26,10 @@ module Slack
       build(:integrations_url, Integration::DETAILS_QUERY_PARAM => integration_id)
     end
 
+    def self.memory
+      build(:memory_url, {})
+    end
+
     def self.permissions
       build(:gateway_permissions_url, {})
     end

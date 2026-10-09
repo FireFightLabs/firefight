@@ -582,7 +582,7 @@ module Slack::WorkspaceAdapter::IncidentMessaging
         workspace: @workspace, channel: channel_id, thread_ts: thread_id,
         text: Slack::Messages::LearnedMemories.fallback(post), blocks: Slack::Messages::LearnedMemories.build(post)
       )
-      { message_id: result[:ts], channel_id: channel_id }
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
     end
   end
 

@@ -30,28 +30,32 @@ class MemoryController < InertiaController
     redirect_to memory_path, alert: error.record.errors.full_messages.to_sentence
   end
 
+  # Deciding works from the Memory page and from a card in a chat, and each goes back to where it was pressed.
   def confirm_memory
     memory = memories.find(params[:id])
-    return redirect_to(memory_path, alert: memory.confirm_blocked_reason) unless memory.confirm!(by: current_membership)
+    return redirect_back_or_to(memory_path, alert: memory.confirm_blocked_reason) unless memory.confirm!(by: current_membership)
 
-    redirect_to memory_path, notice: "Confirmed. Halon now reads it as confirmed by you."
+    kept = memory.contradicted_by ? "Kept as still right. Halon stops using what contradicted it." : "Confirmed. Halon now reads it as confirmed by you."
+    redirect_back_or_to memory_path, notice: kept
   end
 
   def correct_memory
     memory = memories.find(params[:id])
     replacement = memory.reject!(by: current_membership, reason: params[:reason].to_s.strip, correction: params[:text].to_s.strip)
-    return redirect_to(memory_path, alert: memory.reject_blocked_reason) unless replacement
+    return redirect_back_or_to(memory_path, alert: memory.reject_blocked_reason) unless replacement
 
-    redirect_to memory_path, notice: "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
+    redirect_back_or_to memory_path, notice: "Corrected. Halon keeps the old wording as rejected so it does not learn it again."
   rescue ActiveRecord::RecordInvalid => error
-    redirect_to memory_path, alert: error.record.errors.full_messages.to_sentence
+    redirect_back_or_to memory_path, alert: error.record.errors.full_messages.to_sentence
   end
 
   def reject_memory
     memory = memories.find(params[:id])
-    return redirect_to(memory_path, alert: memory.reject_blocked_reason) unless memory.reject!(by: current_membership, reason: params[:reason].to_s.strip)
+    return redirect_back_or_to(memory_path, alert: memory.reject_blocked_reason) unless memory.reject!(by: current_membership, reason: params[:reason].to_s.strip)
 
-    redirect_to memory_path, notice: "Rejected. Halon stops using it and does not learn it again."
+    instead = memory.replaced_by
+    rejected = instead ? "Marked not right. Halon now remembers \"#{instead.text}\" instead, confirmed by you." : "Rejected. Halon stops using it and does not learn it again."
+    redirect_back_or_to memory_path, notice: rejected
   end
 
   def destroy_memory

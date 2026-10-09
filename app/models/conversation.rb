@@ -24,6 +24,8 @@ class Conversation < ApplicationRecord
   has_one :chat, as: :owner, dependent: :destroy
   # The runs this chat started. A run outlives the chat that asked for it.
   has_many :investigations, dependent: :nullify
+  # Cards asking the person about a memory something contradicted in this chat.
+  has_many :memory_posts, class_name: "Chat::MemoryPost", dependent: :delete_all
 
   validates :kind, inclusion: { in: KINDS }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }

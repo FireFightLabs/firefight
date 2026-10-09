@@ -45,6 +45,31 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
     assert_includes context_text(build(Chat::MemoryPost::KIND_INCIDENT)), "Someone deleted these on the Memory page."
   end
 
+  test "a reminder says how many wait and why confirming matters, and links the Memory page" do
+    ENV.stubs(:[]).returns(nil)
+    ENV.stubs(:[]).with("APP_HOST").returns("firefight.test")
+    blocks = Slack::Messages::LearnedMemories.build(Shown.new(post_id: "post-1", kind: Chat::MemoryPost::KIND_REMINDER, incident_identifier: nil,
+                                                              memories: [ memory(Chat::Memory::STATE_UNCONFIRMED), memory(Chat::Memory::STATE_UNCONFIRMED) ],
+                                                              reminder: MemoryPostService::ShownReminder.new(taught: 2, learned: 0, direct: true)))
+
+    assert_equal ":bell:  *Memories nobody confirmed yet*", blocks.first.dig(:text, :text)
+    assert_equal "Halon picked up 2 things from your chats that nobody has confirmed yet. Confirming keeps them in use, and anything wrong stops Halon repeating it.",
+                 blocks.third.dig(:text, :text)
+    assert_equal [ "Confirm", "Not right", "Correct" ] * 2, buttons(blocks)
+    assert_equal "Everything waiting is on the <https://firefight.test/app/memory|Memory page>.", blocks.last[:elements].first[:text]
+  end
+
+  test "a reminder names an incident in its channel, and an admin is told why they are asked" do
+    channel = intro(MemoryPostService::ShownReminder.new(taught: 0, learned: 1, direct: false))
+    admin = intro(MemoryPostService::ShownReminder.new(taught: 0, learned: 3, direct: true))
+    both = intro(MemoryPostService::ShownReminder.new(taught: 1, learned: 2, direct: true))
+
+    assert_equal "Halon picked up 1 thing from INC-007 that nobody has confirmed yet. Confirming keeps it in use, and if it is wrong Halon stops repeating it.", channel
+    assert_equal "Halon picked up 3 things from incidents and investigations that nobody has confirmed yet. You are asked as a workspace admin, since no " \
+                 "incident channel is left to ask in. Confirming keeps them in use, and anything wrong stops Halon repeating it.", admin
+    assert_match "Halon picked up 1 thing from your chats, and 2 from incidents and investigations, that nobody has confirmed yet.", both
+  end
+
   private
 
   def memory(state, text: "Sessions live in Redis", about: nil, about_removed: false, reason: nil, decided_by: nil, correction: nil)
@@ -52,6 +77,11 @@ class Slack::Messages::LearnedMemoriesTest < ActiveSupport::TestCase
   end
 
   def build(kind, *memories) = Slack::Messages::LearnedMemories.build(Shown.new(post_id: "post-1", kind: kind, incident_identifier: "INC-007", memories: memories))
+
+  def intro(reminder)
+    Slack::Messages::LearnedMemories.intro(Shown.new(post_id: "post-1", kind: Chat::MemoryPost::KIND_REMINDER, incident_identifier: "INC-007", memories: [],
+                                                     reminder: reminder))
+  end
 
   def buttons(blocks) = blocks.select { |block| block[:type] == "actions" }.flat_map { |block| block[:elements].map { |button| button.dig(:text, :text) } }
 

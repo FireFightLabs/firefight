@@ -213,6 +213,15 @@ export const CHAT_MEMORY_STATES = [
 ] as const
 export type ChatMemoryState = (typeof CHAT_MEMORY_STATES)[number]
 
+export const CHAT_MEMORY_STATE = {
+  "UNCONFIRMED": "unconfirmed",
+  "CONFIRMED": "confirmed",
+  "DISPUTED": "disputed",
+  "OUTDATED": "outdated",
+  "REJECTED": "rejected",
+  "EXPIRED": "expired"
+} as const
+
 export const CHAT_MEMORY_TEXT_LIMIT = 500 as const
 
 export const MEMORY_EXPIRY_DAY_CHOICES = [
@@ -687,7 +696,8 @@ export const AGENT_STREAM_EVENTS = {
   "WATCH": "watch",
   "SECRET_ENTRY": "secret_entry",
   "PULL_REQUEST": "pull_request",
-  "CODE_FIX": "code_fix"
+  "CODE_FIX": "code_fix",
+  "MEMORY": "memory"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -782,7 +792,8 @@ export const AGENT_CHAT_PROPS = {
   "SETUP_GUIDE": "setupGuide",
   "WATCHES": "watches",
   "WATCH_UPDATES": "watchUpdates",
-  "PULL_REQUEST_NOTICES": "pullRequestNotices"
+  "PULL_REQUEST_NOTICES": "pullRequestNotices",
+  "MEMORY_QUESTIONS": "memoryQuestions"
 } as const
 
 export const SETUP_STEPS = {

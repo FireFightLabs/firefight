@@ -32,6 +32,8 @@ class AgentChatsController < InertiaController
   PROP_WATCH_UPDATES = "watchUpdates"
   # What Halon said about pull requests it opened from this chat that need attention, each with Fix it.
   PROP_PULL_REQUEST_NOTICES = "pullRequestNotices"
+  # Memories something contradicted in this chat, each asking the person which is right.
+  PROP_MEMORY_QUESTIONS = "memoryQuestions"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
   PROPS = {
@@ -42,7 +44,7 @@ class AgentChatsController < InertiaController
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
-    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES
+    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -68,7 +70,7 @@ class AgentChatsController < InertiaController
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
-      PROP_PULL_REQUEST_NOTICES => []
+      PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => []
     )
   end
 
@@ -89,7 +91,8 @@ class AgentChatsController < InertiaController
                                                                  member: current_membership),
       PROP_WATCHES => AgentChatWatchSerializer.many(watches_shown, member: current_membership),
       PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown),
-      PROP_PULL_REQUEST_NOTICES => AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership)
+      PROP_PULL_REQUEST_NOTICES => AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership),
+      PROP_MEMORY_QUESTIONS => AgentChatMemoryQuestionSerializer.many(conversation.memory_posts.order(:created_at), member: current_membership)
     )
   end
 
