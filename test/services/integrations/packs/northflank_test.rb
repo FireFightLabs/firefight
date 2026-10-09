@@ -380,7 +380,7 @@ module Integrations
       end
 
       test "a read the token's role may not make asks for read permission, not for the right to update services" do
-        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Error, "Northflank answered 403: Missing permission: Read")
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Forbidden, "Northflank answered 403: Missing permission: Read")
 
         error = assert_raises(Integrations::Error) { call(:api_request, "method" => "GET", "path" => "secrets") }
 
@@ -389,7 +389,7 @@ module Integrations
       end
 
       test "a change outside services the token's role may not make points at the permission Northflank names" do
-        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Error, "Northflank answered 403: Missing permission: Jobs Update")
+        NorthflankApi.any_instance.stubs(:request).raises(NorthflankApi::Forbidden, "Northflank answered 403: Missing permission: Jobs Update")
 
         error = assert_raises(Integrations::Error) { call(:api_request, "method" => "POST", "path" => "jobs/nightly/runs") }
 
