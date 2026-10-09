@@ -210,11 +210,17 @@ module Integrations
       end
 
       # The active projects the key can read (Integrations::GoogleCloudApi#projects), each with its id and display name.
-      def self.scope_options(values, region: nil, fields: {})
+      # whole refuses a list cut short, for a connection reading every project listed.
+      def self.scope_options(values, region: nil, fields: {}, whole: false)
         key = values.to_h.stringify_keys[KEY].to_s.strip
         raise NativePack::Error, "Paste the service account's JSON key first." if key.empty?
 
-        GoogleCloudApi.new(key).projects.items.select { |project| project["state"].to_s == ACTIVE }.map do |project|
+        read = GoogleCloudApi.new(key).projects
+        if whole && read.incomplete?
+          raise NativePack::Error, "Google Cloud lists more projects than Firefight reads (the first #{read.items.size}). Choose the projects instead of all."
+        end
+
+        read.items.select { |project| project["state"].to_s == ACTIVE }.map do |project|
           IntegrationProvider::ConnectOption.new(value: project["projectId"].to_s, label: project["displayName"].presence || project["projectId"].to_s)
         end
       rescue GoogleCloudApi::Error => error
@@ -223,6 +229,8 @@ module Integrations
 
       # A project that is not waiting to be deleted (Resource Manager v3, Project.State).
       ACTIVE = "ACTIVE".freeze
+
+      def self.scope_listing_capped? = true
 
       # A new key drops the token minted with the one before.
       def self.store_credentials!(environment_row, values)

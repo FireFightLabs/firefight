@@ -88,6 +88,22 @@ module Integrations
         assert_equal [ PROD, STAGING ], ConnectionSettings.of(@azure_row).scopes
       end
 
+      test "a connection reading every project or subscription refuses a listing cut short, while the form and chosen ones still list it" do
+        GoogleCloudApi.any_instance.stubs(:projects).returns(Integrations::Pages::Read.new(items: [ { "projectId" => "acme-prod", "state" => "ACTIVE" } ], complete: false))
+        AzureApi.any_instance.stubs(:subscriptions).returns(Integrations::Pages::Read.new(items: [ { "subscriptionId" => PROD, "state" => "Enabled" } ], complete: false))
+
+        assert_equal [ "acme-prod" ], ConnectionSettings.of(@gcp_row).scope_options.map(&:value)
+        assert_equal [ "acme-prod" ], GoogleCloud.scope_options({ GoogleCloud::KEY => KEY }).map(&:value)
+
+        @gcp_row.store_fields!(GoogleCloud::PROJECT => [ ALL ])
+        error = assert_raises(NativePack::Error) { ConnectionSettings.of(@gcp_row).scopes }
+        assert_equal "Google Cloud lists more projects than Firefight reads (the first 1). Choose the projects instead of all.", error.message
+
+        @azure_row.store_fields!(Azure::TENANT => "contoso.onmicrosoft.com", Azure::CLIENT => "22222222-2222-3333-4444-555555555555", Azure::SUBSCRIPTION => [ ALL ])
+        error = assert_raises(NativePack::Error) { ConnectionSettings.of(@azure_row).scopes }
+        assert_equal "Azure lists more subscriptions than Firefight reads (the first 1). Choose the subscriptions instead of all.", error.message
+      end
+
       test "an Azure restart reaches the subscription its resource lives in, and the confirmation names it" do
         tool!(@azure, Azure, "restart_resource")
         resource = mapped(@azure_row, "azure", STAGING, "/subscriptions/#{STAGING}/resourceGroups/shop/providers/Microsoft.Web/sites/storefront", type: "App Service app")

@@ -74,12 +74,17 @@ module Integrations
         raise NotImplementedError, "#{name} does not list what its credentials can read"
       end
 
-      # The same for a connection already made, from what it stored and what its form asked.
+      # The same for a connection already made, from what it stored and what its form asked. A connection reading all the
+      # credential lists asks for the whole list from a pack whose listing can be cut short, which refuses when it was.
       def scope_options_of(settings)
         values = credential_fields.to_h { |field| [ field.key, settings.credential(field.key) ] }
         fields = IntegrationProvider.find(settings.provider_key).connect_fields.reject(&:scope).to_h { |field| [ field.key, settings.field(field.key) ] }
-        scope_options(values, region: settings.region, fields: fields.compact)
+        whole = scope_listing_capped? && settings.all_scopes? ? { whole: true } : {}
+        scope_options(values, region: settings.region, fields: fields.compact, **whole)
       end
+
+      # Whether scope_options reads a list in capped pages and takes whole:, refusing a list cut short when whole is true.
+      def scope_listing_capped? = false
 
       # The arguments that name a resource the pack's tools act on, which say which scope a call reaches when the
       # connection reaches several (Integrations::Scopes). A pack whose tools name one another way answers them too.
