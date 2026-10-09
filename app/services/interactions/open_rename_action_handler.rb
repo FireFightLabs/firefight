@@ -2,7 +2,7 @@ module Interactions
   # Rename on an item's message opens the form holding its title. trigger_id expires in three seconds, so this stays sync.
   class OpenRenameActionHandler
     extend HandlerAuthorization
-    authorize_as Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE
+    authorize_as Ability::Action::RESOURCE_INCIDENTS
 
     def self.execute(interaction)
       workspace = interaction.workspace

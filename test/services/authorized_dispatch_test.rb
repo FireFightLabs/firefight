@@ -22,6 +22,14 @@ class AuthorizedDispatchTest < ActiveSupport::TestCase
     end
   end
 
+  # The submission declares the write. A held click could never open its form after approval, since trigger_id expires.
+  test "every handler that only opens a form declares a read" do
+    openers = InteractionDispatcher::BLOCK_ACTION_HANDLERS.values.uniq.select { |handler| handler.name.demodulize.start_with?("Open") }
+
+    assert openers.many?
+    openers.each { |handler| assert_equal Ability::Action::ACTION_READ, handler.authorization.last, handler.name }
+  end
+
   test "a member participates in an incident from Slack" do
     interaction = block_action(Identifiers::MARK_ACTION_DONE, @member.platform_user_id)
     Interactions::MarkActionDoneHandler.expects(:execute).with(interaction).once
