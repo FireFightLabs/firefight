@@ -60,6 +60,20 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-purpose.png"))
   end
 
+  test "a step still going shows the jobs that passed so far, and each check's progress is one line in the chat" do
+    @watch.steps.find_by!(label: "Web deploy").update!(parts_told: { "tag" => Chat::Watch::Step::PART_PASSED, "trigger-northflank" => Chat::Watch::Step::PART_PASSED,
+                                                                      "build-images" => Chat::Watch::Step::PART_RUNNING })
+    travel_to(3.seconds.from_now) do
+      @watch.updates.create!(kind: Chat::Watch::Update::KIND_PROGRESS, text: "Web deploy: tag passed, trigger-northflank passed, build-images running.")
+    end
+
+    visit agent_chat_path(@conversation)
+
+    assert_text "Web deploy. Running. Passed so far: tag, trigger-northflank."
+    assert_text "Web deploy: tag passed, trigger-northflank passed, build-images running."
+    page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-progress.png"))
+  end
+
   test "the header's search button is wider from small screens up and an icon on a phone" do
     search = "button[aria-label='Search the map, catalog and memory']"
     visit agent_chat_path(@conversation)

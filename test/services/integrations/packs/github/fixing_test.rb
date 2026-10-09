@@ -4,6 +4,8 @@ module Integrations
   module Packs
     class Github
       class FixingTest < ActiveSupport::TestCase
+        include CodeQuestionTestHelper
+        include ActiveJob::TestHelper
         NEWEST = "n" * 40
         CHANGED = "c" * 40
         PUSHED = "To https://ff.example.com/code_agent/git/change.git\n*\trefs/halon/x:refs/heads/x\t[new branch]\nDone\nPUSH_EXIT 0\n".freeze
@@ -16,7 +18,7 @@ module Integrations
           GithubApp.stubs(:installation_token).returns("ghs_token")
           GithubApp.stubs(:get).with("/repos/acme/api", token: "ghs_token").returns("default_branch" => "main")
           FirefightAi.stubs(:choices_for).returns([ FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic") ])
-          FirefightAi.stubs(:priced?).returns(true)
+          FirefightAi.stubs(:priced_for?).returns(true)
           CodeReading.any_instance.stubs(:prepare).returns({})
           CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
           stub_compare([ "config/database.yml" ])
@@ -48,7 +50,7 @@ module Integrations
                                                                      "brief" => "The pool went from 10 to 2, evidence from the logs",
                                                                      "summary" => "Put the pool back to 10. ghp_#{'a' * 36}" })
 
-          assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main, written on main at start-sha.\nconfig/database.yml | 2 +-\n" \
+          assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main.\n\nChanges:\n- `config/database.yml` (+1 -1)\n\n" \
                        "The code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
           config = JSON.parse(sent[4])
           assert_equal "https://ff.example.com/code_agent/anthropic", config.dig("provider", "anthropic", "options", "baseURL")
@@ -80,7 +82,7 @@ module Integrations
         end
 
         test "an agent that changed nothing opens nothing and says what it said" do
-          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nSTAT\n\nLOG\nI could not find the pool setting.", "timed_out" => false)
+          stub_run("stdout" => "AGENT_EXIT 0\nBASE start-sha\nNOTHING\nLOG\nI could not find the pool setting.", "timed_out" => false)
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
           GithubApp.expects(:open_pull_request).never
 
@@ -116,13 +118,13 @@ module Integrations
           stub_run("stdout" => agent_output(path: ".github/workflows/release.yml"), "timed_out" => false)
           stub_compare([ ".github/workflows/release.yml" ])
           GithubApp.expects(:open_pull_request).with do |_repo, body:, **|
-            body.start_with?("#{CodeChange::CI_WARNING}\n\nPin the release action")
+            body.start_with?("Pin the release action\n\n#{CodeChange::CI_WARNING}")
           end.returns("html_url" => "https://github.com/acme/api/pull/9")
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Pin the release action", "brief" => "Pin it",
                                                                      "summary" => "Pin the release action" })
 
-          assert text.start_with?("#{CodeChange::CI_WARNING}\nOpened https://github.com/acme/api/pull/9 on acme/api against main,")
+          assert text.start_with?("Opened https://github.com/acme/api/pull/9 on acme/api against main.\n\n#{CodeChange::CI_WARNING}")
         end
 
         test "a change to a path the connection keeps out is refused with where the list is, and the agent is told the list" do
@@ -214,14 +216,14 @@ module Integrations
           CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && argv.values_at(6, 7) == [ "fix-pool", "h" * 40 ] }.returns("stdout" => PUSHED)
           GithubApp.expects(:open_pull_request).never
           GithubApp.expects(:write).with do |verb, path, body, token:|
-            verb == :post && path == "/repos/acme/api/issues/7/comments" && body[:body].start_with?("Firefight's coding agent added #{'c' * 12} to this pull request.") &&
-              body[:body].include?("config/database.yml | 2 +-") && token == "ghs_token"
+            verb == :post && path == "/repos/acme/api/issues/7/comments" && body[:body].start_with?("Raise the pool\n\nChanged in this update: `config/database.yml`.") &&
+              body[:body].end_with?("Added by Halon in #{'c' * 12}. Review it like any other change before merging.") && token == "ghs_token"
           end.returns({})
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 })
 
-          assert_equal "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\nconfig/database.yml | 2 +-\n" \
-                       "The code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
+          assert_equal "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\n\n" \
+                       "Changed in this update: `config/database.yml`.\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
         end
 
         test "a merge with the base the agent made on the branch is pushed as it is, and the answer says only what the host says" do
@@ -260,10 +262,10 @@ module Integrations
           output = agent_output(path: ".gitlab-ci.yml").sub("BASE start-sha", "BASE #{'h' * 40}")
           stub_run("stdout" => output, "timed_out" => false)
           stub_compare([ ".gitlab-ci.yml" ])
-          GithubApp.expects(:write).with { |_verb, _path, body, **| body[:body].to_s.start_with?("#{CodeChange::CI_WARNING}\n\nFirefight's coding agent added") }.returns({})
+          GithubApp.expects(:write).with { |_verb, _path, body, **| body[:body].to_s.start_with?("Raise the pool\n\n#{CodeChange::CI_WARNING}\n\nChanged in this update") }.returns({})
           arguments = { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 }
 
-          assert @pack.fix_code(environment_row: @row, arguments: arguments).start_with?("#{CodeChange::CI_WARNING}\nPushed #{'c' * 12} to fix-pool")
+          assert_match(/\APushed #{'c' * 12} to fix-pool.*\n\n#{Regexp.escape(CodeChange::CI_WARNING)}/, @pack.fix_code(environment_row: @row, arguments: arguments))
 
           @integration.protect_paths!([ ".gitlab-ci.yml" ])
           GithubApp.expects(:write).with(:patch, "/repos/acme/api/git/refs/heads/fix-pool", { sha: "h" * 40, force: true }, token: "ghs_token").returns({})
@@ -383,9 +385,8 @@ module Integrations
                                          "- The workflow sends the commit in a body the provider ignores."
           assert_equal CHANGED, runs.last[1], "the second pass starts from the first change"
           assert_operator runs.last[2], :<=, Fixing::SEND_BACK_TIMEOUT
-          assert body.start_with?("### Check before merging\n\n**Not verified**\n- That the provider reads the tag from the ref.\n\nSends the tag"), body
-          assert_includes text, "Halon's review sent the change back once, and the corrected change does what was asked."
-          assert_includes text, "Not verified, so check before merging:\n- That the provider reads the tag from the ref."
+          assert body.start_with?("Sends the tag\n\n**Open questions**\n- That the provider reads the tag from the ref."), body
+          assert_includes text, "Open questions:\n- That the provider reads the tag from the ref."
         end
 
         test "a change still wrong after it was sent back is not opened, and says what the review found" do
@@ -416,9 +417,9 @@ module Integrations
 
           pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send it", "summary" => "Sends the tag" })
 
-          assert body.start_with?("#{CodeChange::CI_WARNING}\n\n### Check before merging\n\n**What Halon's review found**\n- No test covers the new input.\n\n" \
-                                  "**Not verified**\n- That the provider reads the tag.\n\nSends the tag"), body
-          assert_includes body, "Checks run in Firefight's sandbox on the changed files:\n- `actionlint .github/workflows/release.yml`: failed\n- `yaml .github/workflows/release.yml`: passed"
+          assert_equal "Sends the tag\n\n#{CodeChange::CI_WARNING}\n\n**Verified**\n- `yaml .github/workflows/release.yml` passed.\n\n" \
+                       "**Checks that did not pass**\n- `actionlint .github/workflows/release.yml` failed.\n\n**Found in review**\n- No test covers the new input.\n\n" \
+                       "**Open questions**\n- That the provider reads the tag.\n\n**Files**\n- `.github/workflows/release.yml` (+1 -1)\n\n#{CodeWriteUp::FOOTER}", body
         end
 
         test "a review that cannot run opens the change saying nothing was checked" do
@@ -429,8 +430,8 @@ module Integrations
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
 
-          assert body.start_with?("### Check before merging\n\n**Not verified**\n- Halon's review could not run"), body
-          assert_includes text, "Not verified, so check before merging:\n- Halon's review could not run"
+          assert body.start_with?("Fix\n\n**Open questions**\n- Halon's review could not run"), body
+          assert_includes text, "Open questions:\n- Halon's review could not run"
         end
 
         test "a question nobody answered in time ends the change with the question, and the step shows it" do
@@ -443,7 +444,7 @@ module Integrations
             next false unless argv[2] == Fixing::RUN
 
             session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
-            CodeAgentQuestion.ask!(session, "Should the job send the tag or the commit?")
+            ask_question!(session, "Should the job send the tag or the commit?").update_columns(options: nil, recommended: nil)
             on_output.call("")
             travel CodeAgentQuestion::ANSWER_WITHIN + 1.second
             on_output.call("")
@@ -461,7 +462,145 @@ module Integrations
           assert_equal CodeAgentQuestion::STATUS_EXPIRED, Chat::CodeFixProgress.from_h(heard.last).question["status"]
         end
 
+        test "a change that reaches its spending limit pauses: its work is saved to its branch, nothing opens, and the person is asked" do
+          request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
+                                           place: conversation, tool_call_id: "call_1")
+          pack = Github.new(@integration, box_key: "chat-1", request: request)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && spend_all! }
+                     .returns("stdout" => agent_output(exit: 1, session: "ses_abc"), "timed_out" => false)
+          pushed = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && (pushed = argv) }.returns("stdout" => PUSHED)
+          GithubApp.expects(:open_pull_request).never
+          FirefightAi::ChangeReviewer.any_instance.expects(:review).never
+
+          said = nil
+          assert_enqueued_with(job: CodeAgentPauseJob) do
+            said = pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          pause = CodeAgentSession::Pause.find_by!(workspace: @workspace)
+          assert_match "reached its spending limit before finishing, so it is paused. Its work so far is saved on #{pause.saved_branch}", said
+          assert pause.saved_branch.start_with?(Fixing::BRANCH_PREFIX)
+          assert_equal [ pause.saved_branch, "", pause.saved_branch ], pushed.values_at(6, 7, 8), "pushed to a new branch of its own"
+          assert_equal [ CHANGED, NEWEST, "ses_abc", "chat-1", CodeAgentSession::DEFAULT_BUDGET_MICROS, "main" ],
+                       pause.values_at(:saved_commit, :copy_ref, :agent_session_id, :box_key, :budget_micros, :base)
+          assert_equal({ "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" }, pause.arguments)
+          assert_in_delta CodeAgentSession::Pause::RESUMABLE_FOR.from_now, pause.resumable_until, 5.seconds
+          assert_nil pause.target_branch
+        end
+
+        test "a change for an open pull request that pauses is saved beside it, never on the pull request's branch" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION, place: conversation)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::RUN && spend_all! }
+                     .returns("stdout" => agent_output.sub("BASE start-sha", "BASE #{'h' * 40}"), "timed_out" => false)
+          pushed = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && (pushed = argv) }.returns("stdout" => PUSHED)
+          GithubApp.expects(:write).never
+
+          Github.new(@integration, box_key: "chat-1", request: request)
+                .fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise", "brief" => "Raise it", "pull_request" => 7 })
+
+          pause = CodeAgentSession::Pause.find_by!(workspace: @workspace)
+          assert_equal [ pause.saved_branch, "", "fix-pool" ], pushed.values_at(6, 7, 8)
+          assert_not_equal "fix-pool", pause.saved_branch
+          assert_equal [ "fix-pool", "h" * 40 ], pause.values_at(:target_branch, :target_sha)
+        end
+
+        test "Continue while the box is still there carries on the same agent session in the same copy, with a new budget of the same size" do
+          pause = paused_change(box: true)
+          sent = nil
+          CodeReading.any_instance.expects(:exec).with { |repo, ref:, argv:, **| argv[2] == Fixing::RUN && ref == NEWEST && (sent = argv) }
+                     .returns("stdout" => agent_output, "timed_out" => false)
+          pushed = nil
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH && (pushed = argv) }.returns("stdout" => PUSHED)
+          GithubApp.expects(:open_pull_request).with { |_repo, branch:, **| branch == pause.saved_branch }.returns("html_url" => "https://github.com/acme/api/pull/9", "number" => 9)
+
+          continued_pack(pause).fix_code(environment_row: @row, arguments: pause.arguments.merge(Fixing::CONTINUE_ARG => pause.id))
+
+          assert_equal [ "s" * 40, "ses_abc" ], sent.values_at(7, 13), "starts from the saved commit and resumes the agent's session"
+          assert_equal Fixing::CONTINUE_IN_PLACE, sent[5]
+          assert_equal [ pause.saved_branch, "s" * 40 ], pushed.values_at(6, 7), "moves the saved branch on from what it saved"
+          assert_equal 3_000_000, CodeAgentSession.where(workspace: @workspace).order(:created_at).last.budget_micros
+        end
+
+        test "Continue after the box is gone starts again from the saved branch with a handover of what was asked, answered and done" do
+          pause = paused_change(box: false)
+          sent = nil
+          CodeReading.any_instance.expects(:exec).with { |repo, ref:, argv:, **| argv[2] == Fixing::RUN && ref == "s" * 40 && (sent = argv) }
+                     .returns("stdout" => agent_output, "timed_out" => false)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
+          GithubApp.stubs(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/9", "number" => 9)
+
+          continued_pack(pause).fix_code(environment_row: @row, arguments: pause.arguments.merge(Fixing::CONTINUE_ARG => pause.id))
+
+          assert_equal [ "", "" ], sent.values_at(7, 13), "a fresh agent, nothing to resume"
+          assert_includes sent[5], "You are continuing a change an earlier session started and could not finish"
+          assert_includes sent[5], "What it already changed is committed on #{pause.saved_branch}"
+          assert_includes sent[5], "Tag or commit? Bob Jones chose: Send the tag."
+          assert_includes sent[5], "Restore the pool size", "the original request travels with it"
+        end
+
+        test "a pause nobody pressed Continue on is never carried on, whatever the arguments say" do
+          pause = paused_change(box: true)
+          pause.update_columns(status: CodeAgentSession::Pause::STATUS_OFFERED)
+          CodeReading.any_instance.expects(:exec).never
+
+          error = assert_raises(Integrations::Error) do
+            continued_pack(pause).fix_code(environment_row: @row, arguments: pause.arguments.merge(Fixing::CONTINUE_ARG => pause.id))
+          end
+          assert_equal "This paused change cannot be continued now.", error.message
+        end
+
+        test "Stop deletes the saved branch and closes the box" do
+          pause = paused_change(box: true)
+          pause.update_columns(status: CodeAgentSession::Pause::STATUS_OFFERED)
+          GithubApp.expects(:write).with(:delete, "/repos/acme/api/git/refs/heads/halon/fix-saved", token: "ghs_token").returns({})
+          WorkspaceAdapter.stubs(:for).returns(stub(update_code_pause: { success: true }))
+
+          assert_nil CodeAgentPauseService.stop!(pause, by: workspace_memberships(:bob_workspace_one))
+
+          assert pause.reload.stopped?
+          assert_not CodeBox.live.exists?(key: "chat-1")
+        end
+
         private
+
+        def conversation
+          @conversation ||= @workspace.conversations.create!(kind: Conversation::KIND_PERSONAL, started_by: workspace_memberships(:alice_workspace_one),
+                                                              max_turns: 10, max_spend_cents: 50)
+        end
+
+        def spend_all!
+          CodeAgentSession.where(workspace: @workspace, closed_at: nil).update_all(spent_micros: CodeAgentSession::DEFAULT_BUDGET_MICROS)
+          true
+        end
+
+        # A change that paused with its work saved on halon/fix-saved at s..., and Continue pressed by the person it runs as.
+        def paused_change(box:)
+          bob = workspace_memberships(:bob_workspace_one)
+          request = CodeAgent::Request.new(principal: bob, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+          session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic"),
+                                            repository: "acme/api", request: request, box_key: "chat-1")
+          session.update_columns(integration_environment_id: @row.id)
+          question = ask_question!(session, "Tag or commit?")
+          question.choose!(0, by: bob)
+          if box
+            CodeBox.create!(workspace: @workspace, key: "chat-1", address: "http://box", box_ref: "box-1", provider: "docker", secret: "s", last_used_at: Time.current)
+          end
+          CodeAgentSession::Pause.create!(
+            session: session, workspace: @workspace, conversation: conversation, status: CodeAgentSession::Pause::STATUS_CONTINUING,
+            arguments: { "repo" => "acme/api", "title" => "Restore the pool size", "brief" => "Restore the pool size to 10" }, repository: "acme/api",
+            base: "main", saved_branch: "halon/fix-saved", saved_commit: "s" * 40, copy_ref: NEWEST, agent_session_id: "ses_abc", box_key: "chat-1",
+            budget_micros: 3_000_000, resumable_until: 10.minutes.from_now
+          )
+        end
+
+        def continued_pack(pause)
+          request = CodeAgent::Request.new(principal: pause.session.principal, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation)
+          Github.new(@integration, box_key: "chat-1", request: request)
+        end
 
         def pull(number, overrides = {})
           { "number" => number, "state" => "open", "merged_at" => nil, "html_url" => "https://github.com/acme/api/pull/#{number}",
@@ -477,9 +616,9 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/api/rules/branches/#{name}?per_page=100", token: "ghs_token").returns(rules)
         end
 
-        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n")
-          "AGENT_EXIT #{exit}\nBASE start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\nBYTES\t40\n" \
-            "PATCH\t#{Base64.strict_encode64(patch)}\nSTAT\n config/database.yml | 2 +-\nLOG\ndone"
+        def agent_output(path: "config/database.yml", exit: 0, checks: "", patch: "diff --git a/#{path} b/#{path}\n-pool: 2\n+pool: 10\n", session: "")
+          "AGENT_EXIT #{exit}\nBASE start-sha\nSESSION #{session}\nFROM start-sha\n#{checks}CHANGE #{CHANGED}\nCOUNT\t1\t1\t#{Base64.strict_encode64(path)}\n" \
+            "TOUCHED\t#{Base64.strict_encode64(path)}\nBYTES\t40\nPATCH\t#{Base64.strict_encode64(patch)}\nLOG\ndone"
         end
 
         # What the sandbox answers for the agent's run, the push answering as it pushed.
@@ -497,8 +636,9 @@ module Integrations
           "CHECK\t#{Base64.strict_encode64(name)}\t#{code}\t#{Base64.strict_encode64(output)}\n"
         end
 
-        def review(right: true, findings: [], unverified: [])
-          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, unverified: unverified, summary: "Sets the pool to 10.")
+        def review(right: true, findings: [], verified: [], unverified: [], unreviewed: [])
+          FirefightAi::ChangeReviewer::Review.new(right: right, findings: findings, verified: verified, unverified: unverified, unreviewed: unreviewed,
+                                                  summary: "Sets the pool to 10.")
         end
       end
     end

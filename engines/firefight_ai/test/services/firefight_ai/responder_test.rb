@@ -157,6 +157,20 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_includes FirefightAi::Investigator.system_prompt, verify
   end
 
+  # Seen in a real chat, Halon fetched files one at a time, then said it had no shell to look at the code while it held one.
+  test "Halon checks its own tools by name before saying it lacks a capability, and reads code broadly with a shell or a search" do
+    rule = FirefightAi::CannotRule::CAPABILITY_RULE
+    assert_match "check your own tools in this turn: call open_tools and look for it by name in every group", rule
+    assert_match "run_shell, code_search or ask_language_server", rule
+    assert_match "Say you lack it only when no group holds it", rule
+
+    [ FirefightAi::Responder.new(nil, inferable: nil).send(:template_text), FirefightAi::Investigator.system_prompt ].each do |prompt|
+      assert_includes prompt, rule
+      assert_includes prompt, "inspect one checkout with run_shell (grep, ls, cat, git log), or use code_search and ask_language_server. " \
+                              "Fetch single files only for one or two you already know."
+    end
+  end
+
   test "a connection's tool is said to reach only its own account, and a cause is stated only when a result said it" do
     assert_match "A connection's tool reaches only that connection's account or project", FirefightAi::LookFirstRule::CONNECTION_RULE
     assert_match "use that connection's own tool", FirefightAi::LookFirstRule::CONNECTION_RULE

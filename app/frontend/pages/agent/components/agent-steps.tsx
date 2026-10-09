@@ -54,7 +54,7 @@ function toRow(step: AgentStep): ThinkingRow {
     outcome: step.outcome ? <StepOutcomeDetails outcome={step.outcome} /> : undefined,
     quiet: step.kind === AGENT_STEP_KINDS.ROOM,
     live: step.progress
-      ? <CodeFixWorkView work={step.progress} running={status === "running"} questionBlockedReason={step.questionBlockedReason} />
+      ? <CodeFixWorkView work={step.progress} running={status === "running"} questionBlockedReason={step.questionBlockedReason} pauseBlockedReason={step.pauseBlockedReason} />
       : undefined,
   }
 }

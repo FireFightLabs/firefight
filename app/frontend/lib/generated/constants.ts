@@ -188,6 +188,7 @@ export const WATCH_TONES = {
   "PART_FAILED": "part_failed",
   "HANDED_BACK": "handed_back",
   "SLOW": "slow",
+  "PROGRESS": "progress",
   "DONE": "done",
   "FAILED": "failed",
   "TIMED_OUT": "timed_out",
@@ -670,7 +671,8 @@ export const AGENT_STREAM_EVENTS = {
   "PACK_REFUSAL": "pack_refusal",
   "WATCH": "watch",
   "SECRET_ENTRY": "secret_entry",
-  "PULL_REQUEST": "pull_request"
+  "PULL_REQUEST": "pull_request",
+  "CODE_FIX": "code_fix"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -698,20 +700,29 @@ export const CODE_FIX_LINE_RESULTS = {
 export const CODE_FIX_OUTCOMES = {
   "OPENED": "opened",
   "PUSHED": "pushed",
-  "FAILED": "failed"
+  "FAILED": "failed",
+  "PAUSED": "paused"
+} as const
+
+export const CODE_FIX_PAUSE_STATUSES = {
+  "OFFERED": "offered",
+  "CONTINUING": "continuing",
+  "STOPPED": "stopped"
 } as const
 
 export const CODE_AGENT_QUESTION_STATUSES = {
   "OPEN": "open",
   "ANSWERED": "answered",
   "EXPIRED": "expired",
-  "WITHDRAWN": "withdrawn"
+  "WITHDRAWN": "withdrawn",
+  "DEFAULTED": "defaulted"
 } as const
 
 export const CODE_CHECK_STATUSES = {
   "PASSED": "passed",
   "FAILED": "failed",
-  "TIMED_OUT": "timed out"
+  "TIMED_OUT": "timed out",
+  "COULD_NOT_RUN": "could not run"
 } as const
 
 export const AGENT_STEP_KINDS = {

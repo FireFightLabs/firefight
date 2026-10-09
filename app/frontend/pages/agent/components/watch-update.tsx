@@ -1,4 +1,4 @@
-import { type Icon, IconAlertTriangle, IconCheck, IconEye, IconHourglass, IconPlayerStop, IconX } from "@tabler/icons-react"
+import { type Icon, IconAlertTriangle, IconCheck, IconEye, IconHourglass, IconPlayerStop, IconProgress, IconX } from "@tabler/icons-react"
 
 import { formatTime } from "@/lib/formatters"
 import { WATCH_TONES } from "@/lib/generated/constants"
@@ -10,6 +10,7 @@ const TONE_ICONS: Record<string, { icon: Icon; className: string }> = {
   [WATCH_TONES.PART_FAILED]: { icon: IconX, className: "text-danger" },
   [WATCH_TONES.HANDED_BACK]: { icon: IconAlertTriangle, className: "text-warning" },
   [WATCH_TONES.SLOW]: { icon: IconHourglass, className: "text-warning" },
+  [WATCH_TONES.PROGRESS]: { icon: IconProgress, className: "text-ink-2" },
   [WATCH_TONES.DONE]: { icon: IconCheck, className: "text-success" },
   [WATCH_TONES.FAILED]: { icon: IconX, className: "text-danger" },
   [WATCH_TONES.TIMED_OUT]: { icon: IconAlertTriangle, className: "text-warning" },

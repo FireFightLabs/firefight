@@ -5,12 +5,19 @@ class FirefightAi::WatchJudgeTest < ActiveSupport::TestCase
     @judge = FirefightAi::WatchJudge.new(workspaces(:slack_workspace_one))
   end
 
-  test "a reading is done, failed or going with what it shows, and anything it does not recognise is still going" do
-    stub_model(content: { state: "done", said: "web runs the new version." })
-    assert_equal [ "done", "web runs the new version." ], reading_of(@judge.reading(goal: "web is live", before: nil, now: "web is live"))
+  test "a reading is not started, running, done or failed with the jobs it lists, and a state it does not know moves nothing" do
+    stub_model(content: { state: "done", said: "web runs the new version.", parts: [] })
+    assert_equal [ "done", "web runs the new version." ], reading_of(@judge.reading(goal: "web is live", before: nil, now: "web is live", so_far: "not started"))
+
+    stub_model(content: { state: "running", said: "The release run is going.",
+                          parts: [ { name: "tag", state: "passed" }, { name: "trigger-northflank", state: "running" }, { name: "", state: "passed" },
+                                   { name: "build", state: "maybe" } ] })
+    reading = @judge.reading(goal: "the release finishes", before: "queued", now: "in_progress", so_far: "not started")
+    assert_equal FirefightAi::Schemas::WatchReading::RUNNING, reading.state
+    assert_equal [ %w[tag passed], %w[trigger-northflank running] ], reading.parts
 
     stub_model(content: { state: "maybe", said: "" })
-    assert_equal FirefightAi::Schemas::WatchReading::GOING, @judge.reading(goal: "web is live", before: "a", now: "b").state
+    assert_nil @judge.reading(goal: "web is live", before: "a", now: "b", so_far: "running").state
   end
 
   test "why something failed is said from the evidence, and nothing when the evidence does not show it" do

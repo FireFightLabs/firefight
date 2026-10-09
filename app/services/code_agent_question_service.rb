@@ -14,6 +14,7 @@ class CodeAgentQuestionService
   end
 
   GONE = "This question is gone.".freeze
+  NO_SUCH_OPTION = "That option is not one of this question's.".freeze
 
   # The question a platform's button names, and why this member cannot answer it, or nil when they can.
   def self.for_answer(workspace, id, member)
@@ -21,18 +22,21 @@ class CodeAgentQuestionService
     question ? [ question, question.answer_blocked_reason(member) ] : [ nil, GONE ]
   end
 
-  # The person's answer from a platform's form, which names the question by id.
-  def self.answer_by_id!(workspace, id, text, by:)
+  # The person's answer from a platform's form or button, which names the question by id.
+  def self.answer_by_id!(workspace, id, text, by:, option: nil)
     question = CodeAgentQuestion.find_by(id: id, workspace: workspace)
-    question ? answer!(question, text, by: by) : Answered.new(ok: false, words: GONE)
+    question ? answer!(question, text, by: by, option: option) : Answered.new(ok: false, words: GONE)
   end
 
-  # The person's answer. A refusal says why, in the words the guard gives.
-  def self.answer!(question, text, by:)
+  # The person's answer: one of the options by its index, or their own words. A refusal says why, in the words the guard
+  # gives.
+  def self.answer!(question, text, by:, option: nil)
     blocked = question.answer_blocked_reason(by)
     return Answered.new(ok: false, words: blocked) if blocked
-    return Answered.new(ok: false, words: EMPTY) if text.to_s.strip.empty?
-    return Answered.new(ok: false, words: question.reload.answer_blocked_reason(by) || EMPTY) unless question.answer!(text, by: by)
+    return Answered.new(ok: false, words: EMPTY) if option.nil? && text.to_s.strip.empty?
+
+    moved = option.nil? ? question.answer!(text, by: by) : question.choose!(option, by: by)
+    return Answered.new(ok: false, words: question.reload.answer_blocked_reason(by) || NO_SUCH_OPTION) unless moved
 
     redraw!(question)
     Answered.new(ok: true, words: ANSWERED)
@@ -42,10 +46,16 @@ class CodeAgentQuestionService
   def self.try_halon!(question)
     return unless question.open?
 
-    answer = FirefightAi::QuestionAnswerer.new(question.workspace, inferable: question.session).answer(
-      question: question.question, known: known(question.session.place)
+    choices = question.choices
+    recommended = question.recommended_option && "#{question.recommended_option.label}, #{question.recommended_reason}"
+    reply = FirefightAi::QuestionAnswerer.new(question.workspace, inferable: question.session).answer(
+      question: question.question, known: known(question.session.place), options: choices.map { |choice| [ choice.label, choice.consequence ] },
+      recommended: recommended
     )
-    redraw!(question) if answer && question.answer_as_halon!(answer)
+    return unless reply
+
+    picked = choices.index { |choice| choice.label == reply.option }
+    redraw!(question) if question.answer_as_halon!(reply.text, option: picked)
   rescue FirefightAi::Error => error
     Rails.logger.warn({ event: "code_question.halon_did_not_answer", question_id: question.id, error: error.class.name }.to_json)
   end

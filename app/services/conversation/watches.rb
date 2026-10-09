@@ -3,6 +3,20 @@
 # direct messages. A watch only reads, as the person who asked, through the capabilities.
 module Conversation::Watches
   HISTORY = Integrations::Capabilities::HISTORY
+  # How a job or step inside a run stands, in the words its progress is said in.
+  PART_STATES = {
+    Integrations::Capabilities::History::QUEUED => Chat::Watch::Step::PART_WAITING,
+    Integrations::Capabilities::History::RUNNING => Chat::Watch::Step::PART_RUNNING,
+    Integrations::Capabilities::History::SUCCEEDED => Chat::Watch::Step::PART_PASSED,
+    Integrations::Capabilities::History::FAILED => Chat::Watch::Step::PART_FAILED,
+    Integrations::Capabilities::History::CANCELLED => Chat::Watch::Step::PART_FAILED
+  }.freeze
+  READING_PARTS = {
+    FirefightAi::Schemas::WatchReading::PART_WAITING => Chat::Watch::Step::PART_WAITING,
+    FirefightAi::Schemas::WatchReading::PART_RUNNING => Chat::Watch::Step::PART_RUNNING,
+    FirefightAi::Schemas::WatchReading::PART_PASSED => Chat::Watch::Step::PART_PASSED,
+    FirefightAi::Schemas::WatchReading::PART_FAILED => Chat::Watch::Step::PART_FAILED
+  }.freeze
   # A run's state the watch counts as a step's end.
   RUN_ENDS = {
     Integrations::Capabilities::History::SUCCEEDED => Chat::Watch::Step::STATUS_SUCCEEDED,
@@ -165,8 +179,8 @@ module Conversation::Watches
     short ? words.delete_suffix(" minutes") : words
   end
 
-  # One check: each open step read once, its milestones said once, and the watch ended when they are all over or its
-  # time ran out. A watch another worker holds is left to it.
+  # One check: each open step read once, its milestones said once, the jobs or steps that moved said together in one
+  # line, and the watch ended when they are all over or its time ran out. A watch another worker holds is left to it.
   def self.check!(watch, now: Time.current)
     return unless watch.active? && watch.claim_check!(now)
 
@@ -175,28 +189,27 @@ module Conversation::Watches
 
       reader = Conversation::Watches::Reader.new(workspace: watch.workspace, principal: watch.asker, conversation: watch.conversation)
       agent = Conversation::Watches::Agent.new(workspace: watch.workspace, asker: watch.asker, conversation: watch.conversation)
-      watch.open_steps.each { |step| check_step(watch, step, reader, agent, now) }
+      progress = []
+      watch.open_steps.each { |step| check_step(watch, step, reader, agent, now, progress) }
+      tell!(watch, Chat::Watch::Update::KIND_PROGRESS, progress.join("\n")) if progress.any?
       conclude!(watch)
     ensure
       watch.release_check!
     end
   end
 
-  def self.check_step(watch, step, reader, agent, now)
-    step.history? ? follow_run(watch, step, reader, now) : follow_reading(watch, step, reader, agent)
+  def self.check_step(watch, step, reader, agent, now, progress)
+    step.history? ? follow_run(watch, step, reader, now, progress) : follow_reading(watch, step, reader, agent, progress)
   rescue Conversation::Watches::Reader::Unanswered => unanswered
     step.seen!(digest: step.last_digest, state: "Could not read it just now: #{unanswered.message}")
   rescue Conversation::Watches::Reader::Refused => refused
     tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "I can no longer follow #{step.label}. #{refused.message}") if step.unfollowable!(refused.message)
   end
 
-  # A run already found is read by its id, which brings its jobs or steps where the provider breaks a run down.
-  def self.follow_run(watch, step, reader, now)
-    given = step.followed_run_id.present? ? step.arguments.merge(RUN_ARG => step.followed_run_id) : step.arguments
-    answer = reader.read(HISTORY, given)
-    runs = Integrations::Capabilities::History.runs_of(answer.result)
-    raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if runs.nil?
-
+  # A run already found, or the one the person or Halon named, is read by its id, which brings its jobs or steps where
+  # the provider breaks a run down. Only a step with no run named looks through the list of recent runs.
+  def self.follow_run(watch, step, reader, now, progress)
+    answer, runs = exact_run(step, reader) || listed_runs(step, reader)
     run = step.run_among(runs)
     unless run
       step.seen!(digest: nil, state: "No run of #{step.label} has started yet.")
@@ -208,6 +221,8 @@ module Conversation::Watches
     detailed = detailed(run, answer.call.environment_row, step, reader)
     run = detailed.run
     step.seen!(digest: run.status, state: Integrations::Capabilities::History.line(run))
+    moved = step.progress!(Array(run.parts).map { |part| [ part.name.to_s, PART_STATES.fetch(part.status, Chat::Watch::Step::PART_WAITING) ] })
+    progress << "#{step.label}: #{moved.join(', ')}." if moved.any? && !run.finished?
     tell_failed_part(watch, step, run, detailed.environment_row, reader)
     unless run.finished?
       said_start = step.started_told_at.nil? && step.started!(run_id: run.id.to_s, at: run.started_at, url: run.url)
@@ -222,6 +237,28 @@ module Conversation::Watches
 
     took = step.seconds_taken && " after #{Integrations::Capabilities::History.duration(step.seconds_taken)}"
     tell!(watch, Chat::Watch::Update::KIND_MILESTONE, standing(watch, "#{step.label} succeeded#{took}.")) if ended == Chat::Watch::Step::STATUS_SUCCEEDED
+  end
+
+  # The run read by the id the step follows or was given, nil when there is none or the provider finds no run by it.
+  def self.exact_run(step, reader)
+    id = step.followed_run_id.presence || step.run_ref.presence
+    return unless id
+
+    answer = reader.read(HISTORY, step.arguments.merge(RUN_ARG => id))
+    runs = Integrations::Capabilities::History.runs_of(answer.result)
+    return [ answer, runs ] if step.followed_run_id.present? || runs&.any? { |run| run.named?(id) }
+
+    nil
+  rescue Conversation::Watches::Reader::Unanswered
+    raise if step.followed_run_id.present?
+  end
+
+  def self.listed_runs(step, reader)
+    answer = reader.read(HISTORY, step.arguments)
+    runs = Integrations::Capabilities::History.runs_of(answer.result)
+    raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if runs.nil?
+
+    [ answer, runs ]
   end
 
   # A run read again by its id, with its jobs or steps, where the provider's history breaks a run down. One the provider
@@ -308,8 +345,9 @@ module Conversation::Watches
   end
 
   # A reading that is not a run: done or failed by the words the watch was given, and only when it changed and no words
-  # decide it, judged by a model against its goal.
-  def self.follow_reading(watch, step, reader, agent)
+  # decide it, judged by a model into not started, running, done or failed, with the jobs or steps it lists. A reading
+  # that shows it begun moves the step to running.
+  def self.follow_reading(watch, step, reader, agent, progress)
     answer = step.read_tool? ? reader.read_tool(agent, step.tool_name, step.arguments) : reader.read(step.capability, step.arguments)
     raise Conversation::Watches::Reader::Unanswered, answer.text.truncate(300) if answer.failed?
 
@@ -320,13 +358,31 @@ module Conversation::Watches
     step.seen!(digest: digest, state: text)
     return finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, excerpt(text, step.failed_when)) if says?(text, step.failed_when)
     return finish_reading(watch, step, Chat::Watch::Step::STATUS_SUCCEEDED, nil) if says?(text, step.done_when)
-    return unless changed && step.goal.present?
+    return unless changed
 
-    judged = judge(watch)&.reading(goal: step.goal, before: before, now: text.truncate(EVIDENCE_LIMIT))
-    case judged&.state
+    judged = judge(watch)&.reading(goal: reading_goal(step), before: before, now: text.truncate(EVIDENCE_LIMIT), so_far: step.running? ? "running" : "not started")
+    return unless judged
+
+    moved = step.progress!(judged.parts.filter_map { |name, state| [ name, READING_PARTS[state] ] if READING_PARTS[state] }, said: Chat::Watch::Step::READING_SAID)
+    case judged.state
     when FirefightAi::Schemas::WatchReading::DONE then finish_reading(watch, step, Chat::Watch::Step::STATUS_SUCCEEDED, judged.said)
     when FirefightAi::Schemas::WatchReading::FAILED then finish_reading(watch, step, Chat::Watch::Step::STATUS_FAILED, judged.said)
+    when FirefightAi::Schemas::WatchReading::RUNNING
+      reading_started(watch, step)
+      progress << "#{step.label}: #{moved.join(', ')}." if moved.any?
     end
+  end
+
+  # What done means for a reading, from the goal and the words it was given.
+  def self.reading_goal(step)
+    [ step.goal.presence || "#{step.label} finishes.", ("It is done when the reading says #{step.done_when}." if step.done_when.present?),
+      ("It failed when the reading says #{step.failed_when}." if step.failed_when.present?) ].compact.join(" ")
+  end
+
+  def self.reading_started(watch, step)
+    return unless step.started_told_at.nil? && step.started!(run_id: step.followed_run_id, at: Time.current)
+
+    tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "#{step.label} started.") if step.report_start
   end
 
   def self.finish_reading(watch, step, status, said)

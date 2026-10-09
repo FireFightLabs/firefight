@@ -694,6 +694,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     end
   end
 
+  def post_code_pause(channel_id:, thread_id:, pause:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::CodePause.fallback(pause), blocks: Slack::Messages::CodePause.build(pause)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
+  def update_code_pause(channel_id:, message_id:, pause:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::CodePause.fallback(pause),
+                   blocks: Slack::Messages::CodePause.build(pause))
+    { success: true }
+  end
+
   def update_code_question(channel_id:, message_id:, question:)
     update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::CodeQuestion.fallback(question),
                    blocks: Slack::Messages::CodeQuestion.build(question))

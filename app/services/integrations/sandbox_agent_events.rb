@@ -74,7 +74,7 @@ module Integrations
       when /#{CodeAgent::ReadTools::SKILLS}\z/o then said("Listed the skills and guides", failed)
       when /#{CodeAgent::ReadTools::SKILL}\z/o then said(input["reference"].present? ? "Read #{input['reference']} from #{input['skill']}" : "Read the #{input['skill']} skill", failed)
       when /#{CodeAgent::QuestionTools::ASK}\z/o then said("Asked a question", failed)
-      when /#{CodeAgent::QuestionTools::WAIT}\z/o then said("Waited for an answer", failed)
+      when /#{CodeAgent::QuestionTools::WAIT}\z/o then @progress.waited!(Chat::CodeFixProgress.parse_time(@progress.question&.dig("askedAt")))
       when "invalid" then said("Tried a tool it does not have", true)
       else said("Used #{part['tool']}", failed)
       end

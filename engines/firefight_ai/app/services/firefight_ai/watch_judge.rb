@@ -1,10 +1,12 @@
 module FirefightAi
   # What a watch asks a model, only when a reading changed and no rule the watch was given decides it: whether the new
-  # reading shows the goal reached, failed or still going, and once something failed, why, from the logs a watch read.
+  # reading shows it not started, running, done or failed, with each job or step it lists, and once something failed,
+  # why, from the logs a watch read.
   # One call with no tools, on the workspace's quick model. The app reads and keeps everything, this only judges text.
   class WatchJudge
     FEATURE = "watch".freeze
-    Reading = Data.define(:state, :said)
+    # state is nil when the model gave none it knows, so nothing moves. parts are [name, state] pairs.
+    Reading = Data.define(:state, :said, :parts)
 
     def initialize(workspace, inferable: nil, member: nil)
       @workspace = workspace
@@ -12,10 +14,16 @@ module FirefightAi
       @member = member
     end
 
-    def reading(goal:, before:, now:)
-      content = ask(READING_PROMPT, Schemas::WatchReading, "## The goal\n#{goal}\n\n## The reading before\n#{before.presence || '(none)'}\n\n## The reading now\n#{now}")
-      state = content[:state].presence_in([ Schemas::WatchReading::DONE, Schemas::WatchReading::FAILED, Schemas::WatchReading::GOING ])
-      Reading.new(state: state || Schemas::WatchReading::GOING, said: content[:said].to_s.strip)
+    # so_far is where the watch last had it, not started or running.
+    def reading(goal:, before:, now:, so_far:)
+      content = ask(READING_PROMPT, Schemas::WatchReading,
+                    "## The goal\n#{goal}\n\n## Where it was so far\n#{so_far}\n\n## The reading before\n#{before.presence || '(none)'}\n\n## The reading now\n#{now}")
+      parts = Array(content[:parts]).filter_map do |part|
+        part = part.to_h.with_indifferent_access
+        state = part[:state].presence_in(Schemas::WatchReading::PART_STATES)
+        [ part[:name].to_s.strip, state ] if part[:name].present? && state
+      end
+      Reading.new(state: content[:state].presence_in(Schemas::WatchReading::STATES), said: content[:said].to_s.strip, parts: parts)
     end
 
     # One or two sentences saying why it failed, from what was read, or nil when the evidence does not say.
@@ -42,10 +50,11 @@ module FirefightAi
     UNKNOWN = "unknown".freeze
 
     READING_PROMPT = <<~PROMPT.freeze
-      A person asked to be told when something in a production system is done. You get the goal, the last reading and the new one. Say whether the new reading shows the goal reached (done), something gone wrong such as a failed or crashed state (failed), or neither yet (going).
+      A person asked to be told when something in a production system is done. You get the goal, where it was so far, the last reading and the new one. Say whether the new reading shows it not begun (not_started), begun and not over (running), the goal reached (done), or something gone wrong such as a failed or crashed state (failed). List each job or step the reading shows with its state.
 
       - Judge only from the reading. Never guess at what is not in it.
-      - When unsure, it is going.
+      - A run that exists, is in progress, or has a job or step that started or finished has begun, so it is running unless it is over.
+      - When unsure, keep where it was so far.
       - #{Punctuation::RULE}
     PROMPT
 

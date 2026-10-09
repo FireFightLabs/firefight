@@ -30,7 +30,48 @@ class FirefightAi::ChangeReviewerTest < ActiveSupport::TestCase
     assert_equal [ "It does not do what was asked. Sends the commit." ], @reviewer.review(asked: "", brief: "", evidence: "", diff: "", checks: "", said: "").findings
   end
 
+  test "a long diff shows the file the person named whole, fills the rest with whole files, and names every file left out" do
+    named = file_diff(".github/workflows/release.yml", 30_000)
+    others = (1..8).map { |index| file_diff("app/services/part_#{index}.rb", 9_000) }
+    asked = nil
+    stub_model(content: { does_what_was_asked: true, findings: [], verified: [ "The run name holds only hyphens." ], unverified: [], summary: "Fixes the name." }) { |text| asked = text }
+
+    review = @reviewer.review(asked: "1. Fix the run name in release.yml", brief: "", evidence: "", diff: [ *others.first(4), named, *others.drop(4) ].join,
+                              checks: "", said: "")
+
+    assert_includes asked, named, "the file the change is about is never cut"
+    assert_equal 5, review.unreviewed.size
+    assert_includes asked, "## Files not shown, since the change is too large to review whole\n- #{review.unreviewed.first}"
+    review.unreviewed.each { |path| assert_not_includes asked, "diff --git a/#{path} " }
+    assert_equal [ "The run name holds only hyphens." ], review.verified
+  end
+
+  test "a long diff naming no file still reviews whole files and never cuts one" do
+    parts = [ file_diff("a.rb", 70_000), file_diff("b.rb", 20_000) ]
+
+    shown, left_out = FirefightAi::ChangeReviewer.shown(parts.join, named: "Fix it")
+
+    assert_equal parts.last, shown
+    assert_equal [ "a.rb" ], left_out
+  end
+
+  test "an update to an open pull request names the files it changed, and a short diff is shown whole" do
+    asked = nil
+    stub_model(content: { does_what_was_asked: true, findings: [], verified: [], unverified: [], summary: "Merges main." }) { |text| asked = text }
+
+    review = @reviewer.review(asked: "", brief: "", evidence: "", diff: file_diff("release.yml", 100), checks: "", said: "", updated: [])
+
+    assert_includes asked, "## Files this update changed\n(none of the pull request's files, only a merge)"
+    assert_includes asked, "## The diff of the pull request against its base branch"
+    assert_empty review.unreviewed
+  end
+
   private
+
+  def file_diff(path, size)
+    header = "diff --git a/#{path} b/#{path}\n--- a/#{path}\n+++ b/#{path}\n"
+    "#{header}#{"+#{'x' * 99}\n" * ((size - header.size) / 101)}"
+  end
 
   def stub_model(content:, &seen)
     chat = mock("chat")

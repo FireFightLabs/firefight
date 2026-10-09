@@ -248,7 +248,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
                                                      "done_when" => "live", "goal" => "web is live on the new version" } ], title: "web"))
     watch = @conversation.chat.watches.sole
     Investigation.stubs(:unavailable_reason).returns(nil)
-    FirefightAi::WatchJudge.any_instance.expects(:reading).once.returns(FirefightAi::WatchJudge::Reading.new(state: "going", said: "Still deploying."))
+    FirefightAi::WatchJudge.any_instance.expects(:reading).once.returns(FirefightAi::WatchJudge::Reading.new(state: "running", said: "Still deploying.", parts: []))
 
     check!(watch)
     answers("describe_resource" => { "content" => [ { "type" => "text", "text" => "web is deploying, updated 3 minutes ago" } ] })
@@ -286,7 +286,9 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     2.times { check!(watch) }
 
-    said = watch.updates.reload.sole
+    said, progress = watch.updates.reload.order(:created_at).to_a
+    assert_equal [ Chat::Watch::Update::KIND_PART_FAILED, Chat::Watch::Update::KIND_PROGRESS ], [ said.kind, progress.kind ]
+    assert_equal "GitHub Release workflow: tag passed.", progress.text, "the job that passed is said once, the failed one only with its reason"
     assert_equal "GitHub Release workflow: trigger-northflank failed at Notify Northflank of the release, 4 seconds in. Northflank refused the webhook " \
                  "because the name v0.0.14 has dots it does not take. https://github.com/acme/firefight/actions/runs/37831890378/job/113499155075 " \
                  "The GitHub path is still broken. Next I would change the name the release sends, shall I?", said.text
@@ -326,6 +328,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_match "Nothing was started", refused
     assert_match "only reads, so its method must be GET", refused
 
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
     assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ step ], title: "the release workflow", purpose: "ship main"))
     watch = @conversation.chat.watches.sole
     assert_equal [ Chat::Watch::Step::READ_TOOL, "northflank_api_request" ], [ watch.steps.sole.capability, watch.steps.sole.tool_name ]
@@ -342,6 +345,85 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     calls = Ability::Invocation.where(workspace: @workspace, action_key: "northflank.api_request", decision: Ability::Invocation::DECISION_ALLOW)
     assert calls.all? { |invocation| invocation.source == AbilityGateway::SOURCE_WATCH }
     assert calls.any?
+  end
+
+  test "a read tool step moves to running once its reading shows the run began, and says each job as it starts or passes, once per check" do
+    northflank_api!
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    step = { "label" => "Northflank release workflow", "tool" => "northflank_api_request", "done_when" => '"status":"success"',
+             "arguments" => { "method" => "GET", "path" => "workflows/release/runs/release-v0-0-15" } }
+    answers("api_request" => northflank_run("queued"))
+    Conversation::Watches.start(@turn, watch_of([ step ], title: "the release"))
+    watch = @conversation.chat.watches.sole
+    passed = ->(*names) { names.map { |name| [ name, FirefightAi::Schemas::WatchReading::PART_PASSED ] } }
+    running = ->(name) { [ [ name, FirefightAi::Schemas::WatchReading::PART_RUNNING ] ] }
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::NOT_STARTED, said: "Queued.", parts: [])
+    ).then.returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::RUNNING, said: "Running.", parts: passed.call("tag") + running.call("trigger-northflank"))
+    ).then.returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::RUNNING, said: "Running.",
+                                           parts: passed.call("tag", "trigger-northflank") + running.call("build-images"))
+    )
+
+    check!(watch)
+    followed = watch.steps.sole
+    assert_equal [ Chat::Watch::Step::STATUS_WAITING, "Waiting for it to start." ], [ followed.reload.status, Conversation::Watches::Shown.step_state(followed) ]
+    assert_empty watch.updates.reload
+
+    answers("api_request" => northflank_run("running", jobs: 1))
+    check!(watch)
+    assert_equal Chat::Watch::Step::STATUS_RUNNING, followed.reload.status
+    assert followed.started_at
+    assert_equal "Running. Passed so far: tag.", Conversation::Watches::Shown.step_state(followed)
+    assert_equal [ "Northflank release workflow: tag passed, trigger-northflank running." ], watch.updates.reload.map(&:text)
+
+    answers("api_request" => northflank_run("running", jobs: 2))
+    check!(watch)
+    assert_equal "Northflank release workflow: trigger-northflank passed, build-images running.", watch.updates.reload.order(:created_at).last.text
+    assert_equal 2, watch.updates.where(kind: Chat::Watch::Update::KIND_PROGRESS).count, "one line per check, never one per job"
+
+    answers("api_request" => northflank_run("success", jobs: 3))
+    check!(watch)
+    assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
+    assert_equal [ Chat::Watch::Update::KIND_PROGRESS, Chat::Watch::Update::KIND_PROGRESS, Chat::Watch::Update::KIND_MILESTONE, Chat::Watch::Update::KIND_ENDED ],
+                 watch.updates.order(:created_at).map(&:kind)
+    watch.updates.each { |update| assert_no_match(/\u2014|;/, update.text) }
+  end
+
+  test "a run Halon names is followed by its id from the first check, and its jobs are said as they pass, then the end" do
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
+    id = "37853417403"
+    answers("ci_runs" => History.result(finished_runs("Release", 7.minutes), what: "repo"))
+    Conversation::Watches.start(@turn, watch_of([ { "label" => "Release run", "capability" => "run_history", "resource" => "firefight", "name" => "Release",
+                                                     "run" => id } ], title: "the release run"))
+    watch = @conversation.chat.watches.sole
+    started = Time.current
+    part = ->(name, status) { History::Part.new(id: name, name: name, status: status, started_at: started) }
+    release = ->(status, parts) { History::Run.new(id: id, number: "51", name: "Release", status: status, started_at: started, parts: parts) }
+    asked = []
+    reading = lambda do |runs|
+      Integrations::NativeExecutor.stubs(:call).with { |tool:, arguments:, **| tool.name == "ci_runs" && asked << arguments["run"] }
+                                  .returns(History.result(runs, what: "repo"))
+    end
+
+    reading.call([])
+    check!(watch)
+    assert_equal Chat::Watch::Step::STATUS_WAITING, watch.steps.sole.status
+
+    reading.call([ release.call(History::RUNNING, [ part.call("tag", History::SUCCEEDED), part.call("trigger-northflank", History::RUNNING) ]) ])
+    check!(watch)
+    reading.call([ release.call(History::RUNNING, [ part.call("tag", History::SUCCEEDED), part.call("trigger-northflank", History::SUCCEEDED) ]) ])
+    check!(watch)
+    reading.call([ release.call(History::SUCCEEDED, [ part.call("tag", History::SUCCEEDED), part.call("trigger-northflank", History::SUCCEEDED) ])
+                     .with(finished_at: started + 4.minutes) ])
+    check!(watch)
+
+    assert_equal id, asked.first, "the first read asks for that run"
+    assert_equal [ id ], asked.drop(asked.index(nil) + 1).uniq, "the recent runs are read only while it is not there yet, then always that run"
+    assert_equal [ "Release run: tag passed, trigger-northflank running.", "Release run: trigger-northflank passed.", "Release run succeeded after 4 minutes." ],
+                 watch.updates.order(:created_at).first(3).map(&:text)
+    assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
   end
 
   test "a run that never shows up in its history is handed back to Halon to re-plan, once, while a step before it still goes it waits" do
@@ -393,6 +475,19 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
   end
 
   def tool(integration, name) = integration.tools.find_by!(name: name)
+
+  def northflank_api!
+    northflank = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "northflank", name: "Northflank", slug: "northflank")
+    northflank.integration_environments.create!(credentials: { token: "x" }.to_json)
+    northflank.tools.create!(name: "api_request", description: "Any call to Northflank's API", read_only: false, enabled: true,
+                             params_schema: { "type" => "object", "properties" => { "method" => { "type" => "string" }, "path" => { "type" => "string" } } })
+    Ability::Approval.stubs(:self_approvable_by?).returns(false)
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(true)
+  end
+
+  def northflank_run(status, jobs: 0)
+    { "content" => [ { "type" => "text", "text" => { "data" => { "name" => "release-v0-0-15", "status" => status, "jobs_done" => jobs } }.to_json } ] }
+  end
 
   def bust!(principal)
     Ability::Resolver.bust!(principal_type: principal.class.polymorphic_name, principal_id: principal.id, workspace_id: @workspace.id)

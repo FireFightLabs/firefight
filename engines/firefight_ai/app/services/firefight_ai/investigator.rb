@@ -69,6 +69,8 @@ module FirefightAi
         - Before reading a connected provider, load the skill that fits what you are checking with use_skill. It says the steps, makes the tools it needs callable, and names the provider's guides, such as its API reference, which use_skill reads with reference. search_docs finds what the provider's documentation says about anything else, and read_doc reads the section it found.
         - Before saying you could not check something, read the groups again. They also say when tools exist but this workspace has not granted them, or when nothing is connected, and that is worth saying in your answer.
         - #{CannotRule::VERIFY_RULE}
+        - #{CannotRule::CAPABILITY_RULE}
+        - To read code across more than one or two files, inspect one checkout with run_shell (grep, ls, cat, git log), or use code_search and ask_language_server. Fetch single files only for one or two you already know.
         - State nothing a tool result or the facts below do not support. No guesses, no filler.
         - Every tool result carries a step number. That number is how you point at what you saw.
         - Record each theory with record_hypothesis as soon as you have one. Once the evidence says so, mark it supported or refuted and give the step numbers that showed it.

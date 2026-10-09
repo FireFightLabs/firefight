@@ -79,6 +79,10 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
             refreshWatches()
             return
           }
+          if (event.type === AGENT_STREAM_EVENTS.CODE_FIX) {
+            refreshOpenChat()
+            return
+          }
           if (event.type === AGENT_STREAM_EVENTS.PULL_REQUEST) {
             refreshPullRequestNotices()
             return

@@ -179,6 +179,12 @@ module Identifiers
   MEMORY_CORRECT = "memory_correct"
   # Opens a form to answer a coding agent's question.
   CODE_QUESTION_ANSWER = "code_question_answer"
+  # Picks one of a coding agent's options. Each button adds its place, since Slack wants a block's action ids unique.
+  CODE_QUESTION_CHOOSE = "code_question_choose"
+  # Continue or Stop on a code change paused at its spending limit.
+  CODE_PAUSE_CONTINUE = "code_pause_continue"
+  CODE_PAUSE_STOP = "code_pause_stop"
+  CODE_QUESTION_CHOOSE_IDS = (0...CodeAgentQuestion::MAX_OPTIONS).map { |index| "#{CODE_QUESTION_CHOOSE}_#{index}" }.freeze
 
   # Slack event types (top-level Events API)
   EVENT_REACTION_ADDED  = "reaction_added"

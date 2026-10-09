@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_100200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -640,6 +640,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
     t.datetime "handed_back_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "parts_told", default: {}, null: false
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
     t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"
@@ -710,6 +711,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
     t.string "message_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "options"
+    t.integer "recommended"
+    t.text "recommended_reason"
+    t.integer "chosen"
     t.index ["code_agent_session_id"], name: "index_code_agent_questions_on_code_agent_session_id"
     t.index ["workspace_id"], name: "index_code_agent_questions_on_workspace_id"
   end
@@ -733,6 +738,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
     t.index ["conversation_id"], name: "index_code_agent_session_notices_on_conversation_id"
     t.index ["session_id", "fingerprint"], name: "index_code_agent_session_notices_on_session_id_and_fingerprint", unique: true
     t.index ["workspace_id"], name: "index_code_agent_session_notices_on_workspace_id"
+  end
+
+  create_table "code_agent_session_pauses", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "session_id", null: false
+    t.uuid "workspace_id", null: false
+    t.uuid "conversation_id"
+    t.uuid "decided_by_id"
+    t.string "status", default: "offered", null: false
+    t.text "arguments", null: false
+    t.string "repository", null: false
+    t.string "base", null: false
+    t.string "target_branch"
+    t.string "target_sha"
+    t.string "saved_branch"
+    t.string "saved_commit"
+    t.string "copy_ref", null: false
+    t.string "agent_session_id"
+    t.string "box_key"
+    t.bigint "budget_micros", null: false
+    t.datetime "resumable_until", null: false
+    t.datetime "decided_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "told_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_code_agent_session_pauses_on_conversation_id"
+    t.index ["decided_by_id"], name: "index_code_agent_session_pauses_on_decided_by_id"
+    t.index ["session_id"], name: "index_code_agent_session_pauses_on_session_id"
+    t.index ["workspace_id"], name: "index_code_agent_session_pauses_on_workspace_id"
   end
 
   create_table "code_agent_sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2528,6 +2563,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_200100) do
   add_foreign_key "code_agent_questions", "workspaces", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "code_agent_sessions", column: "session_id", on_delete: :cascade
   add_foreign_key "code_agent_session_notices", "workspaces", on_delete: :cascade
+  add_foreign_key "code_agent_session_pauses", "code_agent_sessions", column: "session_id"
+  add_foreign_key "code_agent_session_pauses", "conversations"
+  add_foreign_key "code_agent_session_pauses", "workspace_memberships", column: "decided_by_id"
+  add_foreign_key "code_agent_session_pauses", "workspaces"
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"

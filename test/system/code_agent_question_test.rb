@@ -4,6 +4,7 @@ require "application_system_test_case"
 # change carries on. Once it opens, the step shows what Halon's review found and what nobody could verify.
 class CodeAgentQuestionTest < ApplicationSystemTestCase
   include FixPlanTestHelper
+  include CodeQuestionTestHelper
 
   PHONE = [ 390, 844 ].freeze
 
@@ -28,10 +29,11 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     ActionCable.server.restart
   end
 
-  test "the person answers the agent's question under the running step, and sees who answered once it moves on" do
+  test "the person picks one of the agent's options in a click under the running step, and sees what they chose once it moves on" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     conversation.ask!("Make the release job send the tag")
-    question = ask(conversation, "The workflow can send the tag name or the full ref. Which does the deploy webhook expect?")
+    question = ask(conversation, "Today the release workflow tells Northflank to start a run named after the commit. When you tag v1.4.0, " \
+                                 "what should the Northflank run be called?")
     visit agent_chat_path(conversation)
     assert_text "Make the release job send the tag"
 
@@ -41,13 +43,18 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     delivery.step(key: "call_1", step: step, status: :running)
     work = running_work
     work.add("Asked a question")
+    3.times { |seconds| travel(seconds * 40) { work.waited!(question.created_at) } }
     work.asked!(question.to_h)
     delivery.progress(key: "call_1", step: step, progress: work)
 
     assert_text "The coding agent asks"
-    assert_text "Which does the deploy webhook expect?"
-    assert_text "Waiting for an answer"
-    assert_text(/Expires in [45] minutes\. If nobody answers by then, the change stops\./)
+    assert_text "what should the Northflank run be called?"
+    recommended = find("button", text: "Send the tag")
+    assert_match(/Send the tag\s*Recommended\s*Northflank names the run after the release, such as v1\.4\.0\.\s*The release workflow already names its runs after the tag\./,
+                 recommended.text)
+    assert_match "Northflank names the run after the commit", find("button", text: "Send the commit").text
+    assert_text(/Expires in [45] minutes\. If nobody answers by then, the change goes with the recommendation\./)
+    assert_equal 1, all("li", text: "Waiting for your answer").size, "waits in a row are one line"
     shot("code-question-open")
 
     page.current_window.resize_to(*PHONE)
@@ -55,23 +62,25 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     shot("code-question-open-phone")
     page.current_window.resize_to(1280, 900)
 
-    fill_in "Your answer", with: "The tag name, such as v1.4.0."
-    click_button "Send answer"
+    recommended.click
     assert_text "Your answer was sent to the coding agent."
-    assert_equal [ CodeAgentQuestion::STATUS_ANSWERED, "The tag name, such as v1.4.0." ], question.reload.values_at(:status, :answer)
+    assert_equal [ CodeAgentQuestion::STATUS_ANSWERED, 0 ], question.reload.values_at(:status, :chosen)
 
     travel 2.seconds do
       work.asked!(question.to_h)
       work.add("Edited .github/workflows/release.yml")
       delivery.progress(key: "call_1", step: step, progress: work)
     end
-    assert_text "Alice Smith answered: The tag name, such as v1.4.0."
+    assert_text "Alice Smith chose: Send the tag"
     assert_no_button "Send answer"
+    assert_no_selector "button", text: "Send the commit"
     assert_no_text "Waiting for an answer"
     shot("code-question-answered")
+    page.current_window.resize_to(*PHONE)
+    shot("code-question-answered-phone")
   end
 
-  test "once it opened, the step leads with Halon's review, what nobody verified, and the checks that ran" do
+  test "once it opened, the step leads with Halon's review, what it verified, what is open, and the checks that ran or could not run" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     conversation.ask!("Make the release job send the tag")
     chat = conversation.chat
@@ -80,8 +89,11 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     chat.add_message(role: :tool, content: "Opened https://github.com/acme/api/pull/7", tool_call_id: "call_1")
     work = running_work
     work.checked!([ Integrations::CodeChecks::Check.new(name: "actionlint .github/workflows/release.yml", status: Integrations::CodeChecks::PASSED, output: ""),
-                    Integrations::CodeChecks::Check.new(name: "yaml .github/workflows/release.yml", status: Integrations::CodeChecks::PASSED, output: "") ])
+                    Integrations::CodeChecks::Check.new(name: "yaml .github/workflows/release.yml", status: Integrations::CodeChecks::PASSED, output: ""),
+                    Integrations::CodeChecks::Check.new(name: "bin/rails test test/jobs/release_test.rb", status: Integrations::CodeChecks::COULD_NOT_RUN,
+                                                        output: "PG::ConnectionBad", reason: "no database was available") ])
     work.reviewed!({ "ran" => true, "right" => true, "findings" => [ "No test covers the release job." ],
+                     "verified" => [ "The run name holds only letters, digits and hyphens, which Northflank's error message says it allows." ],
                      "unverified" => [ "That the deploy webhook reads the tag from the ref field, which its docs did not say." ],
                      "summary" => "Sends the tag", "sentBack" => true })
     work.opened!(files: { ".github/workflows/release.yml" => [ 3, 1 ] }, pull_request: "https://github.com/acme/api/pull/7")
@@ -95,11 +107,57 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
 
     assert_text "Halon's review sent it back once, and the corrected change does what was asked"
     assert_text "No test covers the release job."
-    assert_text "Not verified, so check before merging"
+    assert_text "Verified"
+    assert_text "which Northflank's error message says it allows"
+    assert_text "Open questions"
     assert_text "That the deploy webhook reads the tag from the ref field"
     assert_text "actionlint .github/workflows/release.yml"
+    assert_text "Could not run here, since no database was available."
     assert_link "Open the pull request", href: "https://github.com/acme/api/pull/7"
     shot("code-fix-reviewed")
+  end
+
+  test "a change that reached its spending limit asks to continue under its step, and the person continues it in a click" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("Make the release job send the tag")
+    chat = conversation.chat
+    reply = chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: @tool.model_facing_name, arguments: @arguments)
+    chat.add_message(role: :tool, content: "The code change reached its spending limit before finishing, so it is paused.", tool_call_id: "call_1")
+    request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+    session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
+                                      repository: "acme/api", request: request)
+    pause = CodeAgentSession::Pause.create!(
+      session: session, workspace: @workspace, conversation: conversation, arguments: @arguments, repository: "acme/api", base: "main",
+      saved_branch: "halon/fix-1a2b3c4d", saved_commit: "s" * 40, copy_ref: "c" * 40, budget_micros: 2_000_000, resumable_until: 15.minutes.from_now
+    )
+    work = running_work
+    work.paused!(pause.to_h)
+    Chat::StepProgress.keep!(chat, "call_1", work)
+    conversation.note!("It reached its spending limit, so I paused it. Continue or Stop it under the step.")
+    conversation.reply_delivered!
+
+    visit agent_chat_path(conversation)
+    trace = find("button[aria-expanded]", text: /Worked for/)
+    trace.click if trace["aria-expanded"] == "false"
+
+    assert_text "This fix has reached its spending limit before finishing. Continue?"
+    assert_text "Its work so far is saved on halon/fix-1a2b3c4d."
+    assert_no_text "$"
+    shot("code-fix-paused")
+    page.current_window.resize_to(*PHONE)
+    find("button", text: "Continue").scroll_to(:center)
+    shot("code-fix-paused-phone")
+    page.current_window.resize_to(1280, 900)
+
+    click_button "Continue"
+    assert_text "The change carries on."
+    trace = find("button[aria-expanded]", text: /Worked for/)
+    trace.click if trace["aria-expanded"] == "false"
+    assert_text "Alice Smith chose Continue."
+    assert_no_button "Stop"
+    assert pause.reload.continuing?
+    shot("code-fix-continued")
   end
 
   test "on a run's fix step the question shows too, and someone the change does not run as is told who can answer" do
@@ -110,7 +168,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     request = code.code_agent_request(workspace_memberships(:bob_workspace_one))
     session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
                                       repository: "acme/infra", request: request)
-    question = CodeAgentQuestion.ask!(session, "Should the rule go from dns.tf only, or from the staging copy too?")
+    question = ask_question!(session, "Should the rule go from dns.tf only, or from the staging copy too?")
     work = running_work
     work.asked!(question.to_h)
     code.track!(work)
@@ -122,6 +180,8 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
       assert_text "Should the rule go from dns.tf only"
       assert_text "Only Bob Jones can answer, since the change runs as them."
       assert_no_button "Send answer"
+      assert_text "Send the tag"
+      assert_no_selector "button", text: "Send the tag"
       find("li", text: "Drop the rule from dns.tf").scroll_to(:center)
     end
     shot("code-question-run-page")
@@ -133,7 +193,7 @@ class CodeAgentQuestionTest < ApplicationSystemTestCase
     request = CodeAgent::Request.new(principal: @member, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
     session, = CodeAgentSession.open!(workspace: @workspace, choice: FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"),
                                       repository: "acme/api", request: request)
-    CodeAgentQuestion.ask!(session, text)
+    ask_question!(session, text)
   end
 
   def running_work

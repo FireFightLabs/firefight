@@ -1,8 +1,9 @@
 import { IconCheck, IconCopy } from "@tabler/icons-react"
-import { type ComponentProps, useEffect, useRef, useState } from "react"
+import { type ComponentProps, isValidElement, type ReactNode, useEffect, useRef, useState } from "react"
 import Markdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { fenceLanguage, highlight } from "@/lib/code-highlight"
 import { newTabAttributes } from "@/lib/links"
 
 interface AnswerTextProps {
@@ -65,10 +66,51 @@ function Table({ node: _node, ...props }: Rendered<"table">) {
   )
 }
 
-// What the agent hands over as code is usually meant to be pasted somewhere, a WAF rule or a query, so it copies in one click.
-function CodeBlock({ node: _node, ...props }: Rendered<"pre">) {
+interface Fenced {
+  code: string
+  language: string | undefined
+}
+
+// The text and the language of the code react-markdown put inside a fenced block's pre.
+function fenced(children: ReactNode): Fenced | null {
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(children)) {
+    return null
+  }
+  const text = children.props.children
+  return typeof text === "string" ? { code: text.replace(/\n$/, ""), language: fenceLanguage(children.props.className) } : null
+}
+
+// The block highlighted once its language has loaded, plain until then and whenever it cannot be.
+function useHighlighted(block: Fenced | null): string | null {
+  const [ shown, setShown ] = useState<{ code: string; html: string | null } | null>(null)
+  const code = block?.code
+  const language = block?.language
+
+  useEffect(() => {
+    if (code === undefined) {
+      return
+    }
+    let current = true
+    highlight(code, language).then((html) => {
+      if (current) {
+        setShown({ code, html })
+      }
+    }).catch(() => undefined)
+    return () => {
+      current = false
+    }
+  }, [ code, language ])
+
+  return shown && shown.code === code ? shown.html : null
+}
+
+// What the agent hands over as code is usually meant to be pasted somewhere, a WAF rule or a query, so it copies in one
+// click. A fenced block is highlighted in its language, or in the one it most likely is when the fence names none.
+function CodeBlock({ node: _node, children, ...props }: Rendered<"pre">) {
   const block = useRef<HTMLPreElement>(null)
   const [ copied, setCopied ] = useState(false)
+  const source = fenced(children)
+  const html = useHighlighted(source)
 
   useEffect(() => {
     if (!copied) {
@@ -89,7 +131,9 @@ function CodeBlock({ node: _node, ...props }: Rendered<"pre">) {
         ref={block}
         {...props}
         className="overflow-x-auto px-3.5 py-3 pr-11 font-mono text-[12.5px] leading-[1.65] text-ink"
-      />
+      >
+        {html === null ? children : <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />}
+      </pre>
       <button
         type="button"
         onClick={copy}

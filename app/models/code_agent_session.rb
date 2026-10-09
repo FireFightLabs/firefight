@@ -23,6 +23,8 @@ class CodeAgentSession < ApplicationRecord
   # Where the change was asked for, a chat or a fix's step, where its questions are shown.
   belongs_to :place, polymorphic: true, optional: true
   has_many :questions, -> { order(:created_at, :id) }, class_name: "CodeAgentQuestion", dependent: :delete_all, inverse_of: :session
+  has_many :pauses, -> { order(:created_at, :id) }, class_name: "CodeAgentSession::Pause", foreign_key: :session_id, dependent: :delete_all,
+                    inverse_of: :session
 
   scope :live, -> { where(closed_at: nil).where("expires_at > ?", Time.current) }
 
@@ -120,7 +122,8 @@ class CodeAgentSession < ApplicationRecord
 
   def open_question = questions.find_by(status: CodeAgentQuestion::STATUS_OPEN)
 
-  # A question nobody answered in time ends the change, whatever the agent did after.
+  # A question nobody answered in time with nothing to fall back on ends the change, whatever the agent did after. One
+  # with a recommendation went with it.
   def unanswered_question = questions.find_by(status: CodeAgentQuestion::STATUS_EXPIRED)
 
   def close!

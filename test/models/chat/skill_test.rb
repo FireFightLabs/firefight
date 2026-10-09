@@ -177,6 +177,22 @@ class Chat::SkillTest < ActiveSupport::TestCase
     assert_match "Only when the zone is not on the map, find it with `execute`", Chat::Skill.find("cloudflare_triage").steps
   end
 
+  # Seen in a real chat, asked how a part of the code worked, Halon fetched files one at a time and then said it had no
+  # shell to look with.
+  test "each code host's code skill reads many files with a shell or a search, and fetches single files only when it knows them" do
+    %w[github_code gitlab_code bitbucket_code].each do |name|
+      skill = Chat::Skill.find(name)
+
+      assert_match "across many files", skill.used_when, name
+      assert_equal %w[running_commit run_shell code_search], skill.tools.first(3), name
+      broad = skill.steps.index("inspect one checkout broadly with `run_shell`")
+      single = skill.steps.index("Call `fetch_file` only for one or two files you already know")
+      assert broad && single && broad < single, "#{name} leads with run_shell before single files"
+      assert_match "`code_search` with a `pattern`", skill.steps, name
+      assert_match "`ask_language_server`", skill.steps, name
+    end
+  end
+
   # Seen in a real chat, asked to create a Northflank pipeline, Halon searched Northflank's site and guessed POST
   # pipelines three times, though Northflank's API has no call that creates one.
   test "Northflank's fixes skill sends Halon to the API reference before the web, and says what the API does not offer" do

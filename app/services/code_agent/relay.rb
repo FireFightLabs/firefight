@@ -37,7 +37,8 @@ class CodeAgent::Relay
 
   def record(proxy, started)
     usage = proxy.usage
-    cost = FirefightAi.cost_micros(@session.model, input: usage.input, output: usage.output, cache_read: usage.cache_read)
+    cost = FirefightAi.cost_micros(@session.model, provider: @session.provider, input: usage.input, output: usage.output,
+                                   cache_read: usage.cache_read, cache_write: usage.cache_write)
     payer = @session.payer
     inference = Inference.create!(
       workspace: @session.workspace, feature: CodeAgentSession::FEATURE, provider: @session.provider, model: @session.model,

@@ -528,6 +528,20 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A code change paused at its spending limit, asking whether to continue, with Continue and Stop, in the thread of the
+  # chat or run it came from, or to whoever asked when the chat has no thread (thread_id nil). pause is a
+  # CodeAgentSession::Pause.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_code_pause(channel_id:, thread_id:, pause:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it once someone decided.
+  # @return [Hash] { success: true }
+  def update_code_pause(channel_id:, message_id:, pause:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Opens the form that answers a coding agent's question.
   def open_code_question_modal(trigger_id:, question:)
     raise NotImplemented.new(__method__, self.class)

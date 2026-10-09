@@ -1,11 +1,12 @@
-import { IconAlertTriangle, IconCheck, IconExternalLink, IconX } from "@tabler/icons-react"
+import { IconAlertTriangle, IconCheck, IconExternalLink, IconMinus, IconX } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { CodeAgentQuestion } from "@/components/code-agent-question"
+import { CodeFixPauseCard } from "@/components/code-fix-pause"
 import { useElapsed } from "@/hooks/use-elapsed"
 import {
-  type CodeFixLine, type CodeFixReview, type CodeFixWork, checkPassed, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests,
-  passedLine, questionOpen, shownLines, stepsWord, stopped, wroteChange,
+  type CodeFixCheck, type CodeFixLine, type CodeFixReview, type CodeFixWork, checkCouldNotRun, checkPassed, duration, earlierCount, failedLine, fileCounts, filesWord, latestTests,
+  passedLine, paused, questionOpen, shownLines, stepsWord, stopped, wroteChange,
 } from "@/lib/code-fix-work"
 
 interface CodeFixWorkProps {
@@ -14,13 +15,15 @@ interface CodeFixWorkProps {
   running: boolean
   // Why whoever is looking cannot answer the agent's question, from the server, or null when they can.
   questionBlockedReason?: string | null
+  // Why whoever is looking cannot continue or stop a change paused at its spending limit, or null when they can.
+  pauseBlockedReason?: string | null
 }
 
 // What a coding agent writing a change is doing, under the step that runs it. While it works, its newest steps with the
 // earlier ones a click away, how long it has been, the files it changed so far and any question it asked. Once it wrote
 // the change, what it changed, the tests and checks that ran, what Halon's review found and the link. When it stopped,
 // its last steps and why.
-export function CodeFixWorkView({ work, running, questionBlockedReason = null }: CodeFixWorkProps) {
+export function CodeFixWorkView({ work, running, questionBlockedReason = null, pauseBlockedReason = null }: CodeFixWorkProps) {
   const elapsed = useElapsed(work.startedAt, work.finishedAt, running)
   const [ allLines, setAllLines ] = useState(false)
 
@@ -77,6 +80,7 @@ export function CodeFixWorkView({ work, running, questionBlockedReason = null }:
       {waiting && <WaitingLine words="Waiting for an answer" />}
       {work.question && <CodeAgentQuestion question={work.question} blockedReason={running ? questionBlockedReason : null} />}
       {stopped(work) && work.reason && <p className="m-0 font-medium text-error [overflow-wrap:anywhere]">{work.reason}</p>}
+      {paused(work) && work.pause && <CodeFixPauseCard pause={work.pause} blockedReason={pauseBlockedReason} />}
       <span className="text-fg-muted">
         {working ? `${duration(elapsed)} so far` : `Ran for ${duration(elapsed)}`}
         {work.changed.length > 0 && ` · ${filesWord(work.changed.length)} changed: ${changedList(work.changed)}`}
@@ -216,8 +220,10 @@ function Review({ review }: { review: CodeFixReview }) {
         <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
         {review.sentBack ? "Halon's review sent it back once, and the corrected change does what was asked" : "Halon's review: it does what was asked"}
       </span>
-      {review.findings.length > 0 && <Notes title="What the review found" notes={review.findings} />}
-      {review.unverified.length > 0 && <Notes title="Not verified, so check before merging" notes={review.unverified} warn />}
+      {review.verified.length > 0 && <Notes title="Verified" notes={review.verified} />}
+      {review.findings.length > 0 && <Notes title="Found in review" notes={review.findings} />}
+      {review.unverified.length > 0 && <Notes title="Open questions" notes={review.unverified} warn />}
+      {review.unreviewed.length > 0 && <Notes title="Not reviewed, since the change is too large to review whole" notes={review.unreviewed} warn />}
     </div>
   )
 }
@@ -245,15 +251,35 @@ function Checks({ work }: { work: CodeFixWork }) {
       <span className="font-medium text-fg-primary">Checks</span>
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
         {work.checks.map((check) => (
-          <li key={check.name} className="flex min-w-0 items-start gap-2">
-            {checkPassed(check)
-              ? <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
-              : <IconX aria-hidden className="mt-[3px] size-3.5 shrink-0 text-error" />}
-            <code className="min-w-0 font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
-            <span className={`shrink-0 font-medium ${checkPassed(check) ? "text-success" : "text-error"}`}>{check.status}</span>
-          </li>
+          <CheckRow key={check.name} check={check} />
         ))}
       </ul>
     </div>
+  )
+}
+
+function CheckRow({ check }: { check: CodeFixCheck }) {
+  if (checkCouldNotRun(check)) {
+    return (
+      <li className="flex min-w-0 items-start gap-2">
+        <IconMinus aria-hidden className="mt-[3px] size-3.5 shrink-0 text-fg-muted" />
+        <span className="flex min-w-0 flex-col">
+          <code className="font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
+          {check.reason && <span className="text-fg-muted">Could not run here, since {check.reason}.</span>}
+        </span>
+        <span className="shrink-0 font-medium text-fg-muted">could not run</span>
+      </li>
+    )
+  }
+
+  const passed = checkPassed(check)
+  return (
+    <li className="flex min-w-0 items-start gap-2">
+      {passed
+        ? <IconCheck aria-hidden className="mt-[3px] size-3.5 shrink-0 text-success" />
+        : <IconX aria-hidden className="mt-[3px] size-3.5 shrink-0 text-error" />}
+      <code className="min-w-0 font-mono text-[11.5px] text-fg-secondary [overflow-wrap:anywhere]">{check.name}</code>
+      <span className={`shrink-0 font-medium ${passed ? "text-success" : "text-error"}`}>{check.status}</span>
+    </li>
   )
 }
