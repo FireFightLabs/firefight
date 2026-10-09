@@ -579,6 +579,24 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # Opens the form that changes the answer to a coding agent's settled question.
+  # @return [Hash] { success: true }
+  def open_code_question_change_modal(trigger_id:, question:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # What the change form was submitted with: the option picked, by its index, or nil, and the person's own words.
+  # @return [#option, #answer]
+  def code_question_change(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps the change form open with why it was refused.
+  # @return [Hash] the platform's answer to the form
+  def code_question_change_error(message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Redraws a confirmation message once some of its calls are answered.
   # @return [Hash] { success: true }
   def update_agent_confirmation(channel_id:, message_id:, conversation_id:, confirmations:)

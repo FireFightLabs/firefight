@@ -3,7 +3,9 @@ module Slack
     # A question a coding agent asked while it writes a change, in the thread of the chat or fix the change was asked in:
     # the question in a line, then each option with what it leads to and the recommended one marked with why. A button
     # per option answers in one click, and Something else opens a form for an answer in the person's own words. Only the
-    # person the change runs as can answer. Once settled it says who answered and how, and the buttons are gone.
+    # person the change runs as can answer. Once settled it says who answered and how, and the option buttons are gone.
+    # While the change is still written, Change answer opens a form for another option or the person's own words, and a
+    # changed answer says what it changed to and who changed it.
     module CodeQuestion
       def self.build(question)
         blocks = [
@@ -12,7 +14,7 @@ module Slack
           { type: "section", text: { type: "mrkdwn", text: "*#{Mrkdwn.escape(question.question)}*".truncate(Formatting::SECTION_TEXT_LIMIT) } },
           *option_blocks(question)
         ]
-        return blocks << { type: "context", elements: [ { type: "mrkdwn", text: settled(question) } ] } unless question.open?
+        return settled_blocks(blocks, question) unless question.open?
 
         blocks << { type: "actions", elements: [ *option_buttons(question), something_else(question, primary: question.choices.empty?) ] }
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: waiting(question) } ] }
@@ -28,7 +30,7 @@ module Slack
       def self.option_blocks(question)
         question.choices.each_with_index.map do |choice, index|
           mark = index == question.recommended ? "  ·  _Recommended. #{Mrkdwn.escape(question.recommended_reason.to_s)}_" : ""
-          picked = index == question.chosen && !question.open? ? ":white_check_mark:  " : ""
+          picked = index == question.current_chosen && !question.open? ? ":white_check_mark:  " : ""
           { type: "section", text: { type: "mrkdwn", text: "#{picked}*#{Mrkdwn.escape(choice.label)}*#{mark}\n#{Mrkdwn.escape(choice.consequence)}".truncate(Formatting::SECTION_TEXT_LIMIT) } }
         end
       end
@@ -45,6 +47,21 @@ module Slack
         button = { type: "button", text: { type: "plain_text", text: question.choices.empty? ? "Answer" : "Something else" },
                    action_id: Identifiers::CODE_QUESTION_ANSWER, value: question.id }
         primary ? button.merge(style: "primary") : button
+      end
+
+      def self.settled_blocks(blocks, question)
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: settled(question) } ] }
+        blocks << { type: "context", elements: [ { type: "mrkdwn", text: changed(question) } ] } if question.changed?
+        blocks << { type: "actions", elements: [ change_button(question) ] } if question.changeable?
+        blocks
+      end
+
+      def self.changed(question)
+        "Changed to *#{Mrkdwn.escape(question.changed_to.to_s)}* by *#{Mrkdwn.escape(question.changed_by_name.to_s)}*".truncate(Formatting::SECTION_TEXT_LIMIT)
+      end
+
+      def self.change_button(question)
+        { type: "button", text: { type: "plain_text", text: "Change answer" }, action_id: Identifiers::CODE_QUESTION_CHANGE, value: question.id }
       end
 
       def self.waiting(question)
