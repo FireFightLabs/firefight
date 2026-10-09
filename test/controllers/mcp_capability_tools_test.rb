@@ -163,6 +163,16 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
     assert Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, server_context, { resource: "web", connection: "all" }).error?
   end
 
+  test "a call refused for want of a pack names the pack and who can give it" do
+    AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new(@search.action_key))
+    Mcp::ConnectionToolFactory.stubs(:pack_hint).with(@search).returns(" Ask Alice for the Northflank changes pack.")
+
+    response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "web" })
+
+    assert response.error?
+    assert_match "Ask Alice for the Northflank changes pack.", response.content.sole[:text]
+  end
+
   test "a resource nothing holds is said, not sent" do
     response = Mcp::CapabilityToolFactory.invoke(Integrations::Capabilities::LOGS, { workspace: @workspace, principal: @alice }, { resource: "checkout" })
 

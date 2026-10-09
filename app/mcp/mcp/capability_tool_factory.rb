@@ -184,7 +184,7 @@ module Mcp
     rescue Integrations::Capabilities::Unroutable => e
       ToolDispatcher.error_response(e.message)
     rescue AbilityGateway::Denied
-      ToolDispatcher.error_response("No grant covers '#{tool.action_key}' here. Token scopes are documented at #{Docs::MCP_SERVER}")
+      ToolDispatcher.error_response("No grant covers '#{tool.action_key}' here.#{ConnectionToolFactory.pack_hint(tool)} Token scopes are documented at #{Docs::MCP_SERVER}")
     rescue AbilityGateway::PendingApproval => e
       retry_as = alone ? "Retry the identical call" : "Retry with connection: \"#{call.connection}\" instead of #{Integrations::Capabilities::ALL}"
       text = "Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} must approve " \
