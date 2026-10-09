@@ -24,10 +24,7 @@ module Operator
     def workspace_name = original.workspace.name
 
     type :string
-    def label
-      incident = original.incident
-      incident ? "#{incident.identifier} #{incident.name}" : original.question.to_s
-    end
+    def label = original.label
 
     type :string
     def original_id = original.id

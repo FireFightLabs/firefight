@@ -118,8 +118,7 @@ module Operator
     end
 
     def run_match(run, via: nil, span: nil)
-      label = run.incident ? "#{run.incident.identifier} #{run.incident.name}" : run.question.to_s
-      Match.new(kind: KIND_RUN, id: run.id, label: label, place: run.workspace.name, via: via, span: span)
+      Match.new(kind: KIND_RUN, id: run.id, label: run.label, place: run.workspace.name, via: via, span: span)
     end
 
     def chat_match(conversation, via: nil, span: nil)

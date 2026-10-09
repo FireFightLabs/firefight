@@ -144,6 +144,9 @@ class Investigation < ApplicationRecord
     brief&.dig(Investigation::Brief::KEY_SYMPTOM)
   end
 
+  # Named by its incident, or by its question when it has no incident.
+  def label = incident ? "#{incident.identifier} #{incident.name}" : question.to_s
+
   # Ties a run asked without an incident to the one declared from its answer. Only once, and only from no incident.
   def attach_to!(incident)
     moved = self.class.where(id: id, subject_id: nil)

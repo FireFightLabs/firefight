@@ -203,9 +203,7 @@ module Operator
            at: refusals.maximum(:created_at), target: nil)
     end
 
-    def run_label(run)
-      run.incident ? "#{run.incident.identifier} #{run.incident.name}" : run.question.to_s
-    end
+    def run_label(run) = run.label
 
     def subject_place(subject)
       subject.respond_to?(:workspace) ? subject.workspace.name : all_workspaces

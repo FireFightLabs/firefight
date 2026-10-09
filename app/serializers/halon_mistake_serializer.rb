@@ -13,7 +13,7 @@ class HalonMistakeSerializer < BaseSerializer
 
   # Named by its incident, or by its question when it has no incident.
   type :string
-  def label = incident ? "#{incident.identifier} #{incident.name}" : finding.investigation.question.to_s
+  def label = finding.investigation.label
 
   type :string
   def summary = finding.summary
