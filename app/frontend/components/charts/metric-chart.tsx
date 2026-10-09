@@ -69,7 +69,7 @@ function Legend({ chart }: { chart: ChatChart }) {
   return (
     <ul className="flex flex-col gap-1 text-xs">
       {chart.series.map((series, index) => (
-        <li key={series.label} className="flex min-w-0 items-center gap-2">
+        <li key={`s${index}`} className="flex min-w-0 items-center gap-2">
           <span aria-hidden className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
           <span className="truncate font-mono text-[11.5px] text-fg-body" title={series.label}>
             {series.label}
@@ -100,8 +100,8 @@ export function MetricChart({ chart }: { chart: ChatChart }) {
             <XAxis dataKey="at" type="number" scale="time" domain={[ "dataMin", "dataMax" ]} tickFormatter={tickFormatterFor(chart)} tickLine={false} axisLine={false} minTickGap={32} />
             <YAxis tickLine={false} axisLine={false} width={48} />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={tooltipTime} />} />
-            {chart.series.map((series, index) => (
-              <Line key={series.label} dataKey={`s${index}`} type="monotone" stroke={`var(--color-s${index})`} strokeWidth={1.6} dot={false} connectNulls={false} isAnimationActive={false} />
+            {chart.series.map((_series, index) => (
+              <Line key={`s${index}`} dataKey={`s${index}`} type="monotone" stroke={`var(--color-s${index})`} strokeWidth={1.6} dot={false} connectNulls={false} isAnimationActive={false} />
             ))}
           </LineChart>
         </ChartContainer>

@@ -1,20 +1,20 @@
-import { router } from "@inertiajs/react"
 import { IconAlertTriangle } from "@tabler/icons-react"
 
-import { Button } from "@/components/ui/button"
-import { confirmResourceMapLinkPath, dismissResourceMapLinkPath } from "@/lib/routes"
-import { Clues } from "@/pages/map/components/clues"
-import { changeLabel, howFound, RELATION_SENTENCES } from "@/pages/map/lib/labels"
-import { liveUpdatesLine } from "@/lib/live-updates"
+import { RESOURCE_MAP_CHANGE_WINDOW_HOURS } from "@/lib/generated/constants"
 import { shortAgo } from "@/lib/time"
+import { LinkSuggestion } from "@/pages/map/components/link-suggestion"
+import { LiveRow } from "@/pages/map/components/live-row"
+import { PanelSection } from "@/pages/map/components/panel-section"
+import { PickRow } from "@/pages/map/components/pick-row"
+import { StatCount } from "@/pages/map/components/stat-count"
+import { accountOf } from "@/pages/map/lib/graph"
+import { changeLabel } from "@/pages/map/lib/labels"
 import type {
   ResourceMapChange,
   ResourceMapConnection,
   ResourceMapLink,
   ResourceMapResource,
 } from "@/types/serializers"
-
-const VISIT = { preserveScroll: true, preserveState: true }
 
 interface AttentionPanelProps {
   resources: ResourceMapResource[]
@@ -33,12 +33,12 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
   const linked = new Set(links.flatMap((link) => [ link.fromId, link.toId ]))
   const alone = resources.filter((resource) => !linked.has(resource.id))
   const unread = connections.filter((connection) => connection.error || connection.baselineError || connection.logPatternsError || connection.gaps.length > 0)
-  const accounts = new Set(resources.map((resource) => `${resource.provider}:${resource.account}`))
+  const accounts = new Set(resources.map((resource) => accountOf(resource).key))
   const live = connections.filter((connection) => connection.liveUpdates)
 
   return (
     <aside className="flex flex-col gap-6 overflow-y-auto border-t border-border bg-card/40 p-5 lg:border-t-0 lg:border-l" aria-label="What needs attention">
-      <Section title="Needs attention now">
+      <PanelSection title="Needs attention now">
         {burning.length === 0 && <p className="text-sm text-muted-foreground">No open incident touches anything on the map.</p>}
         {burning.flatMap((resource) =>
           resource.openIncidents.map((incident) => (
@@ -48,9 +48,9 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
             </PickRow>
           )),
         )}
-      </Section>
+      </PanelSection>
 
-      <Section title="Changed in the last 24 hours">
+      <PanelSection title={`Changed in the last ${RESOURCE_MAP_CHANGE_WINDOW_HOURS} hours`}>
         {changes.length === 0 && <p className="text-sm text-muted-foreground">Nothing changed.</p>}
         {changes.slice(0, 8).map((change) => (
           <PickRow key={change.id} resourceId={change.resourceId} onPick={onPick}>
@@ -60,30 +60,30 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
             </span>
           </PickRow>
         ))}
-      </Section>
+      </PanelSection>
 
-      <Section title="To review">
+      <PanelSection title="To review">
         {toReview.length === 0 && alone.length === 0 && <p className="text-sm text-muted-foreground">Nothing waits on you.</p>}
         {toReview.map((link) => (
-          <Suggestion key={link.id} link={link} byId={byId} canCurate={canCurate} />
+          <LinkSuggestion key={link.id} link={link} byId={byId} canCurate={canCurate} />
         ))}
         {alone.length > 0 && (
           <p className="text-sm text-muted-foreground">
             {alone.length === 1 ? "1 resource has" : `${alone.length} resources have`} no links: {alone.map((resource) => resource.name).join(", ")}.
           </p>
         )}
-      </Section>
+      </PanelSection>
 
       {live.length > 0 && (
-        <Section title="Live updates">
+        <PanelSection title="Live updates">
           {live.map((connection) => (
             <LiveRow key={connection.id} connection={connection} />
           ))}
-        </Section>
+        </PanelSection>
       )}
 
       {unread.length > 0 && (
-        <Section title="Not read">
+        <PanelSection title="Not read">
           {unread.map((connection) => (
             <div key={connection.id} className="edge-bar flex gap-2.5 rounded-lg bg-warning-tint px-3 py-2 [--edge-bar:var(--warning)] text-sm text-fg-primary">
               <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -102,106 +102,14 @@ export function AttentionPanel({ resources, links, changes, connections, canCura
               </span>
             </div>
           ))}
-        </Section>
+        </PanelSection>
       )}
 
       <section className="grid grid-cols-3 gap-2">
-        <Count value={resources.length} label="Resources" />
-        <Count value={links.length} label="Links" />
-        <Count value={accounts.size} label="Accounts" />
+        <StatCount value={resources.length} label="Resources" />
+        <StatCount value={links.length} label="Links" />
+        <StatCount value={accounts.size} label="Accounts" />
       </section>
     </aside>
-  )
-}
-
-function LiveRow({ connection }: { connection: ResourceMapConnection }) {
-  const state = connection.liveUpdates
-  if (!state) {
-    return null
-  }
-
-  return (
-    <div className="flex gap-2.5 rounded-lg px-3 py-2 text-sm">
-      <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${state.on ? "bg-success" : "bg-muted-foreground/50"}`} />
-      <span className="flex flex-col gap-0.5">
-        <span className="font-medium">{connection.name}</span>
-        <span className="text-xs text-muted-foreground">{liveUpdatesLine(state)}</span>
-        {state.reason && <span className="text-xs text-muted-foreground">{state.reason}</span>}
-      </span>
-    </div>
-  )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2.5">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
-interface PickRowProps {
-  resourceId: string
-  onPick: (resourceId: string) => void
-  tone?: "danger"
-  children: React.ReactNode
-}
-
-function PickRow({ resourceId, onPick, tone, children }: PickRowProps) {
-  function pick() {
-    onPick(resourceId)
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={pick}
-      className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-        tone ? "border border-destructive/40 bg-destructive/10 hover:bg-destructive/15" : "hover:bg-muted/50"
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function Suggestion({ link, byId, canCurate }: { link: ResourceMapLink; byId: Map<string, ResourceMapResource>; canCurate: boolean }) {
-  function confirm() {
-    router.post(confirmResourceMapLinkPath(link.id), {}, VISIT)
-  }
-
-  function dismiss() {
-    router.post(dismissResourceMapLinkPath(link.id), {}, VISIT)
-  }
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-brand-border bg-brand-tint px-3 py-2.5 text-sm">
-      <span>
-        <b className="font-semibold">{byId.get(link.fromId)?.name}</b> {RELATION_SENTENCES[link.relation]}{" "}
-        <b className="font-semibold">{byId.get(link.toId)?.name}</b>
-      </span>
-      <span className="text-xs text-muted-foreground">{howFound(link)}{link.note ? `: ${link.note}` : ""}</span>
-      {link.clues.length > 0 && <Clues clues={link.clues} />}
-      {canCurate && (
-        <div className="flex gap-2">
-          <Button type="button" size="sm" onClick={confirm}>
-            Confirm link
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={dismiss}>
-            Dismiss
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Count({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-background/50 px-3 py-2">
-      <span className="text-lg font-semibold tabular-nums">{value}</span>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-    </div>
   )
 }
