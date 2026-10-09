@@ -26,7 +26,7 @@ class ProviderDocsSyncJob < ApplicationJob
   # Sync has already recorded and reported why a source could not be read.
   def read(definition, client, progress)
     ProviderDocs::Sync.run!(definition, client: client, progress: progress)
-  rescue DocsClient::Error, SystemCallError, JSON::ParserError, KeyError
+  rescue *ProviderDocs::Sync::READ_ERRORS
     nil
   end
 
