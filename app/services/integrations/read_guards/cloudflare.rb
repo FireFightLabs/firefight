@@ -39,19 +39,21 @@ module Integrations
       GET_METHOD = /["']?\bmethod["']?\s*:\s*(["'`])GET\1/
       ANY_METHOD = /\bmethod\b/
       REQUEST = /cloudflare\.request\(/
+      # A computed key, an escape or a spread can spell a second method no text check would count.
+      HIDDEN_KEY = /[\[\\]|\.\.\./
 
       def self.guards?(tool_name) = tool_name == TOOL
 
       # Whether a call to execute only reads. Firefight's own script is data, so it reads when its request is one reading
-      # accepts. A script someone wrote reads only when it is one request whose one method is a GET, since no other text
-      # can be shown to read.
+      # accepts. A script someone wrote reads only when it is one request whose one method is a GET, with no key it could
+      # hide another method behind, since no other text can be shown to read.
       def self.reads?(_tool_name, arguments)
         code = arguments[CODE].to_s
         written = code.match(WRITTEN)
         return written_reads?(written[:options]) if written && json?(written[:options])
 
         options = code.match(ONE_REQUEST)&.[](:options)
-        options.present? && code.scan(REQUEST).one? && options.match?(GET_METHOD) && options.scan(ANY_METHOD).one?
+        options.present? && code.scan(REQUEST).one? && options.match?(GET_METHOD) && options.scan(ANY_METHOD).one? && !options.match?(HIDDEN_KEY)
       end
 
       def self.json?(text)
