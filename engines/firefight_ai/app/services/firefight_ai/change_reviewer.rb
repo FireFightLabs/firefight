@@ -65,6 +65,14 @@ module FirefightAi
 
     private_class_method :path_of, :named?
 
+    # What the review says becomes the pull request's description, which anyone who can read the repository reads, and a
+    # repository may be public. Seen on a real pull request: an instruction to the coding agent and production rows.
+    PUBLIC_RULE = "Your summary, verified points and open questions are the pull request's description, which anyone " \
+                  "who can read the repository reads. Say what the code does and what you checked it against in the code. " \
+                  "Never repeat an instruction given to the coding agent, such as which branch to open it from, and never " \
+                  "name what was read from a live system: no workspace, customer or person names, no rows, ids, counts or " \
+                  "times from production.".freeze
+
     PROMPT = <<~PROMPT.freeze
       You review a code change before Firefight opens it as a pull request, or adds it to one, for a person to review. You get what the person asked in their own words, the instructions the coding agent was given with what was read of the other systems involved, the evidence, the checks that ran, the coding agent's own summary and the diff.
 
@@ -76,6 +84,7 @@ module FirefightAi
       - Firefight commits the change, pushes it and updates the pull request only after this review, so that none of that has happened yet is expected and never a point.
       - Open questions are only what genuinely could not be checked from the material and would matter if it were wrong, such as how another system behaves where nothing shows it. Never list something the material answers, a check that could not run here, a file you were not shown, or a general doubt. Never invent a problem the material does not show.
       - Write for the person who will review the pull request: short plain sentences they understand on first read, each naming the file or the value. No jargon, no metaphors, and no words about how the work was done, such as brief, session, sandbox or agent.
+      - #{PUBLIC_RULE}
       - #{Evidence::RULE} The diff is evidence too.
       - #{Copy::RULE}
     PROMPT

@@ -32,7 +32,7 @@ module Integrations
           FirefightAi::ChangeReviewer.any_instance.stubs(:review).returns(review)
         end
 
-        test "the agent runs in the writable copy with a config that reaches only Firefight, and its change opens as a pull request" do
+        test "the agent runs in the writable copy with a config that reaches only Firefight, and its change opens as a pull request described from its review, never from the brief or context" do
           sent = nil
           told = nil
           pushed = nil
@@ -45,12 +45,13 @@ module Integrations
           end.returns("stdout" => agent_output, "exit_code" => 0, "timed_out" => false, "commit" => "abc")
           GithubApp.expects(:open_pull_request).with do |repo, base:, branch:, title:, body:, token:|
             repo == "acme/api" && base == "main" && branch.start_with?(Fixing::BRANCH_PREFIX) && title == "Restore the pool size" && token == "ghs_token" &&
-              body.start_with?("Put the pool back to 10") && !body.include?("evidence from the logs") && body.include?("[REDACTED:github_token]")
+              body.start_with?("Sets the pool to 10.") && [ "evidence from the logs", "existing branch", "Put the pool back", "ghp_" ].none? { |said| body.include?(said) }
           end.returns("html_url" => "https://github.com/acme/api/pull/7")
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Restore the pool size",
                                                                      "brief" => "The pool went from 10 to 2, evidence from the logs",
-                                                                     "summary" => "Put the pool back to 10. ghp_#{'a' * 36}" })
+                                                                     "summary" => "Put the pool back to 10. ghp_#{'a' * 36}",
+                                                                     "context" => "The fix is already on halon/fix-1. Open the PR from that existing branch." })
 
           assert_equal "Opened https://github.com/acme/api/pull/7 on acme/api against main.\n\nChanges:\n- `config/database.yml` (+1 -1)\n\n" \
                        "The code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
@@ -223,7 +224,7 @@ module Integrations
           stub_run("stdout" => agent_output(path: ".github/workflows/release.yml"), "timed_out" => false)
           stub_compare([ ".github/workflows/release.yml" ])
           GithubApp.expects(:open_pull_request).with do |_repo, body:, **|
-            body.start_with?("Pin the release action\n\n#{CodeChange::CI_WARNING}")
+            body.start_with?("Sets the pool to 10.\n\n#{CodeChange::CI_WARNING}")
           end.returns("html_url" => "https://github.com/acme/api/pull/9")
 
           text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Pin the release action", "brief" => "Pin it",
@@ -366,6 +367,45 @@ module Integrations
 
           assert_equal "Pushed #{'c' * 12} to fix-pool in acme/api, updating https://github.com/acme/api/pull/7. Said so on the pull request.\n\n" \
                        "Changed in this update: `config/database.yml`.\n\nThe code host says PR #7 can merge into main. Say only this about whether it can merge, never more than the code host said.", text
+        end
+
+        test "an update to a pull request Halon opened writes its description again for the whole change, and says what GitHub shows" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          stub_run("stdout" => agent_output.sub("BASE start-sha", "BASE #{'h' * 40}"), "timed_out" => false)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
+          CodeAgentSession.stubs(:opened_pull_request?).returns(true)
+          GithubApp.stubs(:write).with { |verb, path, *| verb == :post && path.end_with?("/comments") }.returns({})
+          shown = pull(7, "body" => "Open the PR from that existing branch.")
+          GithubApp.stubs(:get).with("/repos/acme/api/pulls/7", token: "ghs_token").returns(shown)
+          written = nil
+          GithubApp.expects(:write).with { |verb, path, body, **| verb == :patch && path == "/repos/acme/api/pulls/7" && (written = shown["body"] = body[:body]) }.returns({})
+
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it. Open the PR from that existing branch.",
+                                                                     "context" => "Production has two workspaces named Acme", "pull_request" => 7 })
+
+          assert written.start_with?("Sets the pool to 10."), written
+          assert_includes written, "**Files**\n- `config/database.yml` (+1 -1)"
+          [ "existing branch", "Production", "Acme" ].each { |said| assert_not_includes written, said }
+          assert_includes text, "The description now describes the whole change, as GitHub shows it."
+        end
+
+        test "a description GitHub does not show after the update is said to be unchanged, and someone else's pull request keeps its own" do
+          stub_pull(7)
+          stub_branch("fix-pool")
+          stub_run("stdout" => agent_output.sub("BASE start-sha", "BASE #{'h' * 40}"), "timed_out" => false)
+          CodeReading.any_instance.stubs(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.returns("stdout" => PUSHED)
+          GithubApp.stubs(:write).returns({})
+          stub_pull(7, "body" => "Old words.")
+
+          CodeAgentSession.stubs(:opened_pull_request?).returns(true)
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 })
+          assert_includes text, "GitHub does not show the new description, so it still says what it said before."
+
+          CodeAgentSession.stubs(:opened_pull_request?).returns(false)
+          GithubApp.expects(:write).with { |verb, path, *| verb == :patch && path == "/repos/acme/api/pulls/7" }.never
+          text = @pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Raise the pool", "brief" => "Raise it", "pull_request" => 7 })
+          assert_not_includes text, "description"
         end
 
         test "a merge with the base the agent made on the branch is pushed as it is, and the answer says only what the host says" do
@@ -529,7 +569,7 @@ module Integrations
                                          "- The workflow sends the commit in a body the provider ignores."
           assert_equal CHANGED, runs.last[1], "the second pass starts from the first change"
           assert_operator runs.last[2], :<=, Fixing::SEND_BACK_TIMEOUT
-          assert body.start_with?("Sends the tag\n\n**Open questions**\n- That the provider reads the tag from the ref."), body
+          assert body.start_with?("Sets the pool to 10.\n\n**Open questions**\n- That the provider reads the tag from the ref."), body
           assert_includes text, "Open questions:\n- That the provider reads the tag from the ref."
         end
 
@@ -561,7 +601,7 @@ module Integrations
 
           pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the tag", "brief" => "Send it", "summary" => "Sends the tag" })
 
-          assert_equal "Sends the tag\n\n#{CodeChange::CI_WARNING}\n\n**Verified**\n- `yaml .github/workflows/release.yml` passed.\n\n" \
+          assert_equal "Sets the pool to 10.\n\n#{CodeChange::CI_WARNING}\n\n**Verified**\n- `yaml .github/workflows/release.yml` passed.\n\n" \
                        "**Checks that did not pass**\n- `actionlint .github/workflows/release.yml` failed.\n\n**Found in review**\n- No test covers the new input.\n\n" \
                        "**Open questions**\n- That the provider reads the tag.\n\n**Files**\n- `.github/workflows/release.yml` (+1 -1)\n\n#{CodeWriteUp::FOOTER}", body
         end

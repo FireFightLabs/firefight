@@ -24,6 +24,12 @@ module FirefightAi
                          "what you changed. When a change fails for any other reason, say why in plain words, quoting " \
                          "what the provider said.".freeze
 
+    # Seen on a real pull request, Halon said it cleaned the description when nothing had changed it. What a pull request
+    # shows is what the code host read back after the call, never what was meant to happen.
+    PULL_REQUEST_CHANGE_RULE = "Say that a pull request's description, title, labels or comments changed only when a tool's " \
+                               "answer in this chat read it back from the code host showing that, and say only what it shows. " \
+                               "Never say you changed one because you meant to, asked for it, or a coding agent's summary says so.".freeze
+
     def initialize(workspace, inferable:, member: nil, output_style: nil)
       @workspace = workspace
       @inferable = inferable
@@ -81,6 +87,7 @@ module FirefightAi
         - #{ContractRule::RULE}
         - #{ContractRule::BRIEF_RULE}
         - #{FAILED_CHANGE_RULE}
+        - #{PULL_REQUEST_CHANGE_RULE}
         - #{TeammateRule::PLAN_RULE}
         - #{TeammateRule::STARTED_RULE}
         - #{TeammateRule::GOAL_RULE}

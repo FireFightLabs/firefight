@@ -18,8 +18,8 @@ module Integrations
     end
 
     test "the body leads with what the change does, then what was verified, what could not run here and the open questions, in plain copy" do
-      body = CodeWriteUp.body(lead: "Replaces the dots in the release run name with hyphens, since Northflank refuses dots.", context: nil,
-                              warning: CodeChange::CI_WARNING, reviewed: @reviewed, change: @change)
+      reviewed = @reviewed.with(summary: "Replaces the dots in the release run name with hyphens, since Northflank refuses dots.")
+      body = CodeWriteUp.body(title: "Sanitize the run name", warning: CodeChange::CI_WARNING, reviewed: reviewed, change: @change)
 
       assert_equal <<~TEXT.strip, body
         Replaces the dots in the release run name with hyphens, since Northflank refuses dots.
@@ -44,8 +44,15 @@ module Integrations
       assert_no_dashes_or_semicolons body
     end
 
+    test "the body is made from the change, its checks and its review, and leads with the title when the review did not run" do
+      body = CodeWriteUp.body(title: "Sanitize the run name", warning: nil, reviewed: Fixing::Reviewed.not_run("Halon's review did not run."), change: @change)
+
+      assert body.start_with?("Sanitize the run name\n\n")
+      assert_equal %i[title warning reviewed change no_ci], CodeWriteUp.method(:body).parameters.map(&:last)
+    end
+
     test "a check that could not run is never an open question or a failed check" do
-      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed.with(unverified: []), change: @change)
+      body = CodeWriteUp.body(title: "Raise the pool", warning: nil, reviewed: @reviewed.with(unverified: []), change: @change)
 
       assert_not_includes body, "Open questions"
       assert_not_includes body, "did not pass"
@@ -54,7 +61,7 @@ module Integrations
 
     test "what the agent's summary says could not run here joins the checks that could not, each a sentence" do
       change = @change.with(not_run: [ "`bin/rails test test/system`, since no browser was installed", "The full suite needs Redis." ])
-      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: change)
+      body = CodeWriteUp.body(title: "Raise the pool", warning: nil, reviewed: @reviewed, change: change)
 
       assert_includes body, "**Could not run here**\n- `bin/rails test test/models/pool_test.rb`: no database was available.\n" \
                             "- `bin/rails test test/system`, since no browser was installed.\n- The full suite needs Redis.\n\n**Open questions**"
@@ -64,7 +71,7 @@ module Integrations
 
     test "a repository with no CI says so plainly in the body, the comment and the answer, after what could not run, and one with CI says nothing" do
       said = "acme/api has no .github/workflows folder"
-      body = CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: @change, no_ci: said)
+      body = CodeWriteUp.body(title: "Raise the pool", warning: nil, reviewed: @reviewed, change: @change, no_ci: said)
       comment = CodeWriteUp.comment(lead: "Raises it again.", warning: nil, reviewed: @reviewed, change: @change, base: "main", no_ci: said)
       answer = CodeWriteUp.answer(done: "Opened it.", warning: nil, reviewed: @reviewed, change: @change, base: "main", updating: false, no_ci: said)
 
@@ -73,7 +80,7 @@ module Integrations
       assert_includes body, "**No CI**\n#{plain}\n\n**Files**"
       assert_includes comment, "**No CI**\n#{plain}"
       assert answer.end_with?("No CI:\n#{plain}")
-      assert_not_includes CodeWriteUp.body(lead: "Raises the pool.", context: nil, warning: nil, reviewed: @reviewed, change: @change), "No CI"
+      assert_not_includes CodeWriteUp.body(title: "Raise the pool", warning: nil, reviewed: @reviewed, change: @change), "No CI"
     end
 
     test "an update's comment says what this update changed in the pull request, and a merge from the base adds no file" do

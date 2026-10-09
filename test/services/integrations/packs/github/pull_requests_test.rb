@@ -115,12 +115,25 @@ module Integrations
           GithubApp.expects(:write).with do |verb, path, body, token:|
             verb == :post && path == "/repos/acme/checkout/issues/412/comments" && token == "ghs_token" &&
               body[:body].start_with?("Rolled back. Token") && !body[:body].include?("ghp_#{'a' * 36}")
-          end.returns("html_url" => "https://github.com/acme/checkout/pull/412#issuecomment-1")
+          end.returns("id" => 1, "html_url" => "https://github.com/acme/checkout/pull/412#issuecomment-1")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/issues/comments/1", token: "ghs_token")
+                   .returns("id" => 1, "html_url" => "https://github.com/acme/checkout/pull/412#issuecomment-1")
 
           result = @pack.comment_on_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "body" => "Rolled back. Token ghp_#{'a' * 36}" })
 
-          assert_includes text_of(result), "Commented on PR #412 Fix payment retries in acme/checkout."
+          assert_includes text_of(result), "Commented on PR #412 Fix payment retries in acme/checkout, and GitHub shows the comment. #{PullRequests::READ_BACK}"
           assert text_of(result).end_with?("https://github.com/acme/checkout/pull/412#issuecomment-1")
+        end
+
+        test "a comment GitHub does not show when read back is never reported as made" do
+          stub_pull(412)
+          GithubApp.expects(:write).returns("id" => 2, "html_url" => "https://github.com/acme/checkout/pull/412#issuecomment-2")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/issues/comments/2", token: "ghs_token").raises(GithubApp::NotFound, "GitHub answered 404")
+
+          text = text_of(@pack.comment_on_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "body" => "Done" }))
+
+          assert_includes text, "GitHub does not show a comment on PR #412 Fix payment retries in acme/checkout, so nothing was said there."
+          assert_not_includes text, "Commented on"
         end
 
         test "a reply goes in the review comment's thread" do
@@ -154,12 +167,27 @@ module Integrations
           stub_pull(412)
           GithubApp.expects(:write).with(:patch, "/repos/acme/checkout/pulls/412", { title: "Bound payment retries", base: "release" }, token: "ghs_token")
                    .returns(pull(412).merge("title" => "Bound payment retries"))
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412", token: "ghs_token")
+                   .returns(pull(412)).then.returns(pull(412, "title" => "Bound payment retries", "base" => { "ref" => "release" }))
 
           result = @pack.update_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "title" => "Bound payment retries", "base" => "release" })
 
-          assert_includes text_of(result), "Changed its title and its base to release on PR #412 Bound payment retries in acme/checkout."
+          assert_includes text_of(result), "Changed the title and base on PR #412 Bound payment retries in acme/checkout. GitHub now shows the title " \
+                                           "\"Bound payment retries\", the base release, and a description of 23 characters starting \"Retries were unbounded.\". " \
+                                           "#{PullRequests::READ_BACK}"
           assert_equal "Give a title, body or base to change.",
                        assert_raises(NativePack::Error) { @pack.update_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 }) }.message
+        end
+
+        test "a description GitHub does not show when read back is said to be unchanged, and only what GitHub shows is said" do
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412", token: "ghs_token").returns(pull(412))
+          GithubApp.expects(:write).with(:patch, "/repos/acme/checkout/pulls/412", { body: "Bounds retries at five." }, token: "ghs_token").returns(pull(412))
+
+          text = text_of(@pack.update_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "body" => "Bounds retries at five." }))
+
+          assert_includes text, "GitHub does not show the new description, so it is unchanged."
+          assert_includes text, "a description of 23 characters starting \"Retries were unbounded.\""
+          assert_not_includes text, "Changed the"
         end
 
         test "reviewers are asked by login and team slug" do
@@ -179,10 +207,12 @@ module Integrations
           GithubApp.stubs(:get).with("/repos/acme/checkout/labels?per_page=100&page=1", token: "ghs_token").returns([ { "name" => "incident" }, { "name" => "hotfix" } ])
           GithubApp.expects(:write).with(:post, "/repos/acme/checkout/issues/412/labels", { labels: [ "incident" ] }, token: "ghs_token").returns([])
           GithubApp.expects(:write).with(:delete, "/repos/acme/checkout/issues/412/labels/needs%20review", token: "ghs_token").raises(GithubApp::NotFound, "GitHub answered 404: Label does not exist")
+          GithubApp.stubs(:get).with("/repos/acme/checkout/issues/412/labels", token: "ghs_token").returns([ { "name" => "incident" } ])
 
           text = text_of(@pack.label_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "add" => [ "incident" ], "remove" => [ "needs review" ] }))
 
-          assert_includes text, "Added incident to PR #412 Fix payment retries in acme/checkout. PR #412 Fix payment retries did not have needs review."
+          assert_includes text, "Added incident to PR #412 Fix payment retries in acme/checkout. PR #412 Fix payment retries did not have needs review. " \
+                                "GitHub now shows the labels incident. #{PullRequests::READ_BACK}"
           GithubApp.expects(:write).never
           assert_match "acme/checkout has no label sev1, and Firefight never makes a label by adding one. Its labels are incident, hotfix.",
                        assert_raises(PolicyRefusal) { @pack.label_pull_request(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412, "add" => "sev1" }) }.message
