@@ -34,6 +34,7 @@ import { RowActions } from "@/components/row-actions"
 import { ConnectedAgentsCard } from "@/pages/settings/components/api-keys/connected-agents-card"
 import type { ConnectedAgent } from "@/pages/settings/api-keys"
 import { whenClosed } from "@/lib/handlers"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 
 function formatRelative(iso: string | null | undefined, now: number) {
   if (!iso) {
@@ -74,8 +75,21 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
     }
   }, [flash?.api_key_token])
 
+  const [deletingKey, setDeletingKey] = useState<ApiKeyType | null>(null)
+
   function handleDelete(apiKey: ApiKeyType) {
-    router.delete(apiKeyPath(apiKey.id))
+    setDeletingKey(apiKey)
+  }
+
+  function stopDeleting() {
+    setDeletingKey(null)
+  }
+
+  function confirmDelete() {
+    if (!deletingKey) {
+      return
+    }
+    router.delete(apiKeyPath(deletingKey.id), { preserveScroll: true, onFinish: stopDeleting })
   }
 
   const now = useMemo(() => Date.now(), [])
@@ -203,6 +217,14 @@ export function ApiKeysTab({ apiKeys, canManageServiceKeys, connectedAgents }: A
       <AbilitiesDialog
         apiKey={abilitiesKey}
         onDismiss={() => setAbilitiesKey(null)}
+      />
+
+      <ConfirmDeleteDialog
+        open={deletingKey !== null}
+        title={`Delete ${deletingKey?.name ?? "this key"}?`}
+        description={`Anything that signs in with ${deletingKey?.name ?? "this key"} stops working straight away, and the key cannot be brought back. Make a new key to replace it.`}
+        onConfirm={confirmDelete}
+        onCancel={stopDeleting}
       />
     </div>
   )
