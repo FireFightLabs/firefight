@@ -1482,11 +1482,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
     t.datetime "outcome_at"
     t.uuid "outcome_by_id"
     t.string "outcome_by_type"
-    t.jsonb "proposed_solution", default: {}, null: false
     t.datetime "published_at"
     t.string "published_state", default: "unpublished", null: false
     t.datetime "relearned_at"
-    t.string "remediation_type"
     t.boolean "suggests_incident", default: false, null: false
     t.text "summary"
     t.datetime "updated_at", null: false
