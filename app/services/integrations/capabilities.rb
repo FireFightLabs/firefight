@@ -26,7 +26,8 @@ module Integrations
     # app is what the code prints, requests the traffic reaching it, internal the calls between services, cdn what a
     # CDN in front of it served, backup and restore a database's own jobs.
     STREAM_APP = "app".freeze
-    LOG_STREAMS = [ STREAM_APP, *%w[build requests internal cdn backup restore] ].freeze
+    STREAM_BUILD = "build".freeze
+    LOG_STREAMS = [ STREAM_APP, STREAM_BUILD, *%w[requests internal cdn backup restore] ].freeze
     # The metric names every adapter maps to its provider's own, so a question reads the same whatever answers it.
     # latency_p95 is the time 95% of requests finished within, duration a function's average run, invocations its runs
     # and throttles the runs its provider turned away.

@@ -175,6 +175,20 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert Ability::Invocation.where(workspace: @workspace, principal: key, decision: Ability::Invocation::DECISION_ALLOW, action_key: "github.ci_runs").exists?
   end
 
+  test "a failed deploy reads the app's log first unless its step is a build, a test or CI run" do
+    asked = []
+    reader = stub
+    reader.stubs(:read).with { |_capability, given| asked << given["stream"] }.returns(stub(failed?: true))
+    call = stub(resource: stub(kind: ResourceMap::KIND_SERVICE, id: "web"))
+
+    Conversation::Watches.log_evidence(stub(label: "Deploy pricing service"), stub(started_at: nil), reader, call)
+    assert_equal [ Integrations::Capabilities::STREAM_APP, Integrations::Capabilities::STREAM_BUILD ], asked
+
+    asked.clear
+    Conversation::Watches.log_evidence(stub(label: "Run the tests"), stub(started_at: nil), reader, call)
+    assert_equal [ Integrations::Capabilities::STREAM_BUILD ], asked
+  end
+
   test "more time is given up to a day from when it started, and only while it goes" do
     start_release_watch
     watch = @conversation.chat.watches.sole

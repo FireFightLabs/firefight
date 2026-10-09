@@ -405,7 +405,8 @@ module Conversation::Watches
   end
 
   def self.log_evidence(step, run, reader, call)
-    streams = call.resource.kind == ResourceMap::KIND_REPOSITORY || step.label.match?(/build|ci|test/i) ? %w[build] : %w[app build]
+    build = Integrations::Capabilities::STREAM_BUILD
+    streams = call.resource.kind == ResourceMap::KIND_REPOSITORY || step.label.match?(/\b(build|ci|tests?)\b/i) ? [ build ] : [ Integrations::Capabilities::STREAM_APP, build ]
     minutes = run.started_at ? (((Time.current - run.started_at) / 60).ceil + 5).clamp(5, Integrations::Capabilities::MAX_MINUTES) : 60
     streams.each do |stream|
       given = { Integrations::Capabilities::RESOURCE_ARG => call.resource.id, "stream" => stream, "minutes" => minutes, "limit" => LOG_LINES }
