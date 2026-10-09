@@ -556,6 +556,7 @@ class PlatformAdapter
   end
 
   # Opens the form that answers a coding agent's question.
+  # @return [Hash] { success: true }
   def open_code_question_modal(trigger_id:, question:)
     raise NotImplemented.new(__method__, self.class)
   end
