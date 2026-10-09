@@ -8,6 +8,7 @@ import type {
   InvestigationTrigger,
   LedgerDecision,
 } from "@/lib/generated/constants"
+import { formatTime } from "@/lib/formatters"
 
 // How each kind of fix step gets done, as a person reads it.
 export const REMEDIATION_STEP_LABELS: Record<RemediationStepKind, string> = {
@@ -104,4 +105,9 @@ export function labelFor<Key extends string>(labels: Record<Key, string>, value:
 
 export function isKeyOf<Key extends string>(record: Record<Key, unknown>, value: string): value is Key {
   return value in record
+}
+
+// The ledger's receipt for a step, such as "Allowed at 10:02".
+export function receiptLine(receipt: { decision: string; at: string }): string {
+  return `${labelFor(DECISION_LABELS, receipt.decision)} at ${formatTime(receipt.at)}`
 }

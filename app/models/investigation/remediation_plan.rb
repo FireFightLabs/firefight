@@ -113,9 +113,10 @@ class Investigation::RemediationPlan < ApplicationRecord
   end
 
   # Whether anything is moving on its own now, which is when the run page keeps itself current. A step held for approval
-  # or waiting on a person is not, so the page does not poll for hours.
+  # or waiting on a person is not, so the page does not poll for hours. An approved step Halon is still checking is.
   def moving?
     return true if writing_undo?
+    return true if steps.any?(&:checking?)
     # A step still running after the fix was cancelled is still worth watching finish.
     return true if steps.any? { |step| step.status == Investigation::RemediationStep::STATUS_RUNNING }
 

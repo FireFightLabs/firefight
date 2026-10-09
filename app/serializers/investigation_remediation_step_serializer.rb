@@ -84,6 +84,10 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type :boolean
   def lapsed = step.lapsed?
 
+  # What the step says once its approval ran out, worded from the approval's run window.
+  type :string, optional: true
+  def lapsed_reason = step.lapsed_reason
+
   type :string, optional: true
   def state = step.report&.state
 

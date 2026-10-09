@@ -18,6 +18,9 @@ module Integrations
     # The fields the connect form asks a provider connected with credentials for (NativePack::CredentialField).
     def self.fields_for(provider_key) = NativePack.for(provider_key)&.credential_fields.to_a
 
+    # The placeholder and hint the connect form shows for a provider connected from a pasted URL, or nil.
+    def self.connection_url_words_for(provider_key) = NativePack.for(provider_key)&.connection_url_words
+
     # Why the values cannot be used, read with the provider before anything is saved, or nil. region is the
     # IntegrationProvider::Region chosen, or nil for a provider that lists none, and fields what the form asked beside
     # the credentials.

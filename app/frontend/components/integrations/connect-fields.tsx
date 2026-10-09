@@ -1,108 +1,14 @@
 import type { IntegrationProvider } from "@/types/serializers"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { SearchableMultiSelect } from "@/components/searchable-multi-select"
-import { ScopeSelect, type ScopeListing } from "@/components/integrations/scope-select"
+import { FieldControl } from "@/components/integrations/field-control"
+import { asList, type ConnectValue, type ConnectValues, type ScopeLister } from "@/components/integrations/connect-values"
+
+export type { ConnectValue, ConnectValues, ScopeLister } from "@/components/integrations/connect-values"
 
 type ConnectField = IntegrationProvider["connectFields"][number]
 
-// A field that holds several values keeps a list, every other field one string.
-export type ConnectValue = string | string[]
-export type ConnectValues = Record<string, ConnectValue>
-
-// How a form lists what its credentials can read for a scope field, and when that listing is stale, such as a token
-// typed again.
-export interface ScopeLister {
-  load: () => Promise<ScopeListing>
-  key: string
-}
-
 function fieldLabel(field: ConnectField) {
   return field.optional ? `${field.label} (optional)` : field.label
-}
-
-function asList(value: ConnectValue | undefined) {
-  if (Array.isArray(value)) {
-    return value
-  }
-  return value ? [value] : []
-}
-
-function asText(value: ConnectValue | undefined) {
-  return Array.isArray(value) ? value.join(",") : (value ?? "")
-}
-
-function FieldControl({
-  field,
-  value,
-  compact,
-  scopes,
-  onChange,
-}: {
-  field: ConnectField
-  value: ConnectValue | undefined
-  compact: boolean
-  scopes?: ScopeLister
-  onChange: (key: string, value: ConnectValue) => void
-}) {
-  if (field.scope && scopes) {
-    return (
-      <ScopeSelect
-        label={field.label}
-        placeholder={field.placeholder}
-        value={asList(value)}
-        listingKey={scopes.key}
-        load={scopes.load}
-        onChange={(chosen) => onChange(field.key, chosen)}
-      />
-    )
-  }
-  if (field.multiple) {
-    return (
-      <SearchableMultiSelect
-        value={asList(value)}
-        options={field.options}
-        onValueChange={(chosen) => onChange(field.key, chosen)}
-        placeholder={field.placeholder || `Choose ${field.label.toLowerCase()}`}
-        searchPlaceholder="Search..."
-      />
-    )
-  }
-  if (field.options.length > 0) {
-    return (
-      <Select value={asText(value)} onValueChange={(chosen) => onChange(field.key, chosen)}>
-        <SelectTrigger id={`connect-${field.key}`} className={compact ? "h-8" : undefined}>
-          <SelectValue placeholder={field.placeholder || `Choose ${field.label.toLowerCase()}`} />
-        </SelectTrigger>
-        <SelectContent>
-          {field.options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  }
-  return (
-    <Input
-      id={`connect-${field.key}`}
-      inputMode={field.numeric ? "numeric" : undefined}
-      autoComplete="off"
-      spellCheck={false}
-      value={asText(value)}
-      onChange={(event) => onChange(field.key, event.target.value)}
-      placeholder={field.placeholder}
-      className={compact ? "h-8" : undefined}
-    />
-  )
 }
 
 // What a provider's connect form asks beside the credentials, such as the organization its server's address names, the

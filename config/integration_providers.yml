@@ -769,6 +769,8 @@ providers:
     # that creates webhooks (linear.app/developers/webhooks).
     app:
       label: Connect for issue sync
+      description: Connects Firefight's own Linear app, which keeps incident actions and follow-ups in step with issues and sets up the webhook that sends changes back, so there is nothing to paste. Choose it under Settings, Workspace once it is connected.
+      connection_name: Linear issue sync
       authorization_endpoint: https://linear.app/oauth/authorize
       token_endpoint: https://api.linear.app/oauth/token
       scopes: [read, write, admin]
@@ -794,6 +796,8 @@ providers:
     # /webhooks for the webhook). offline_access gives the refresh token Atlassian documents.
     app:
       label: Connect for issue sync
+      description: Connects Firefight's own Jira app, which keeps incident actions and follow-ups in step with issues and sets up the webhook that sends changes back, so there is nothing to paste. Choose it under Settings, Workspace once it is connected.
+      connection_name: Jira issue sync
       authorization_endpoint: https://auth.atlassian.com/authorize
       token_endpoint: https://auth.atlassian.com/oauth/token
       scopes: [read:jira-work, write:jira-work, read:jira-user, manage:jira-webhook, offline_access]

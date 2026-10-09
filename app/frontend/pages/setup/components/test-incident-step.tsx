@@ -30,8 +30,8 @@ export function TestIncidentStep({ step }: { step: OnboardingStep }) {
       </p>
 
       <ol className="flex list-decimal flex-col gap-2.5 pl-5 text-sm leading-relaxed text-fg-body marker:text-fg-muted">
-        {walkthrough.map((item) => (
-          <li key={item.title}>
+        {walkthrough.map((item, index) => (
+          <li key={index}>
             <span className="font-medium text-fg-primary">{item.title}</span> {item.detail}
           </li>
         ))}

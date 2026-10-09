@@ -19,7 +19,7 @@ function exclusive(previous: string[], chosen: string[]) {
   return chosen.length > 1 ? chosen.filter((value) => value !== all) : chosen
 }
 
-// What a connection reads at its provider, such as Northflank projects: one, several, or all the credentials can read.
+// What a connection reads at its provider, such as a provider's projects: one, several, or all the credentials can read.
 // The choices are listed from the provider when the list first opens, by load, and listed again when listingKey
 // changes, such as a token typed again. An id the listing could not show can still be typed.
 export function ScopeSelect({

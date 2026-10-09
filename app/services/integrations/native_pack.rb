@@ -51,6 +51,10 @@ module Integrations
       # The certificates a pack connected from a URL may be given, pasted as text.
       def certificate_fields = []
 
+      # What the connect form shows under the URL field, as { placeholder:, hint: }, so the words come from the pack
+      # that enforces them.
+      def connection_url_words = nil
+
       # A pack connected with credentials (connect_with: api_token) lists the fields it asks for, says why the values
       # cannot be used or nil, and stores them on an environment row. It owns their shape, so nothing else reads them.
       # region is the provider's region the person chose (IntegrationProvider::Region), or nil for a provider with one,

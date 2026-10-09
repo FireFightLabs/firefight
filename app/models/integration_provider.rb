@@ -53,7 +53,9 @@ class IntegrationProvider
   # scopes are joined with scope_separator, params go on the authorization URL as the provider documents them, pkce says
   # whether the provider takes a code challenge, and token_format whether its token endpoint takes form or JSON. Its
   # client id and secret are INTEGRATION_<KEY>_APP_CLIENT_ID and INTEGRATION_<KEY>_APP_CLIENT_SECRET.
-  App = Data.define(:label, :authorization_endpoint, :token_endpoint, :scopes, :scope_separator, :params, :pkce, :token_format) do
+  # description says what connecting the app does and connection_name is what the connection it makes is called.
+  App = Data.define(:label, :description, :connection_name, :authorization_endpoint, :token_endpoint, :scopes, :scope_separator, :params, :pkce,
+                    :token_format) do
     def initialize(scopes: [], scope_separator: " ", params: {}, pkce: false, token_format: "form", **) = super
 
     def scope = scopes.join(scope_separator)

@@ -38,7 +38,7 @@ class IntegrationSerializer < BaseSerializer
   # to remove it. The link itself is a
   # redirect (live_updates_setup), so the connection's secret is never in the page.
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlocked: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null } | null".freeze
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlockedReason: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null } | null".freeze
 
   # scopes is what the connection reads at its provider for a provider that names it by a scope field, such as
   # Northflank's projects. It holds the field, the values chosen (one value, the field's all, for every one the credentials can
@@ -118,7 +118,7 @@ class IntegrationSerializer < BaseSerializer
       setup = { address: Integrations::MapEvents.url_for(row), steps: row.map_event_source.setup_steps, secretSet: row.map_events_secret_set?,
                 manySecrets: row.map_event_source.many_secrets?, secretCount: row.map_events_secrets.size,
                 forgetSecrets: (row.forget_map_events_secrets_words unless row.forget_map_events_secrets_blocked_reason),
-                forgetSecretsBlocked: row.forget_map_events_secrets_blocked_reason }
+                forgetSecretsBlockedReason: row.forget_map_events_secrets_blocked_reason }
     end
     offer = row.live_updates_offer&.then do |offered|
       { words: offered.words, action: offered.action, unavailable: offered.unavailable, removal: offered.removal,

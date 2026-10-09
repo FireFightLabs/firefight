@@ -356,13 +356,9 @@ function ConnectForm({
           {provider.app && !useMcpServer && (
             <div className="border-border flex flex-col gap-2 rounded-lg border p-3">
               <p className="text-sm font-medium">{provider.app.label}</p>
-              <p className="text-muted-foreground text-xs">
-                Connects Firefight&apos;s own {provider.name} app, which keeps incident actions and follow-ups in step with
-                issues and sets up the webhook that sends changes back, so there is nothing to paste. Choose it under
-                Settings, Workspace once it is connected.
-              </p>
+              <p className="text-muted-foreground text-xs">{provider.app.description}</p>
               <Button asChild size="sm" variant="outline" className="self-start">
-                <a href={oauthHref({ providerKey: provider.key, kind: INTEGRATION_KINDS.NATIVE, name: separateAccount ? name : `${provider.name} issue sync`, environmentId, region: "", fields: {}, returnTo })}>
+                <a href={oauthHref({ providerKey: provider.key, kind: INTEGRATION_KINDS.NATIVE, name: separateAccount ? name : provider.app.connectionName, environmentId, region: "", fields: {}, returnTo })}>
                   Connect the {provider.name} app
                 </a>
               </Button>

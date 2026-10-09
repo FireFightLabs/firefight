@@ -27,7 +27,7 @@ export function AddNote({ investigationId }: { investigationId: string }) {
       <Textarea
         id={fieldId}
         rows={2}
-        placeholder="For example, skip GitHub and look at 5xx errors on web"
+        placeholder="For example, skip the deploy history and look at 5xx errors on web"
         className="resize-none"
         value={data.note}
         onChange={write}

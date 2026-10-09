@@ -94,6 +94,12 @@ module Integrations
 
       def self.certificate_fields = Connection::CERTIFICATES
 
+      def self.connection_url_words
+        { placeholder: "postgresql://readonly:password@db.example.com:5432/app",
+          hint: "Use a database user that can only read. Firefight also runs every query read-only and stops any that runs " \
+                "longer than #{Connection::STATEMENT_TIMEOUT_MS / 1000} seconds. Connections over the internet are always encrypted." }
+      end
+
       # Each connect sets the whole credential, so certificates left out are removed rather than kept from before.
       def self.store_connection!(environment_row, url:, certificates:)
         environment_row.store_credential!(CONNECTION_URL, url.to_s.strip)

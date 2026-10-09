@@ -66,6 +66,10 @@ class IntegrationProviderSerializer < BaseSerializer
 
   # Firefight's own app with the provider, which connects it to keep incident items in step with issues, or null when
   # the provider has none or this install did not register it.
-  type "{ label: string } | null"
-  def app = provider.app_connect? ? { label: provider.app.label } : nil
+  type "{ label: string, description: string, connectionName: string } | null"
+  def app = provider.app_connect? ? { label: provider.app.label, description: provider.app.description, connectionName: provider.app.connection_name } : nil
+
+  # What the connect form shows under the URL field of a provider connected from a pasted URL, or null.
+  type "{ placeholder: string, hint: string } | null"
+  def connection_url = Integrations::Credentials.connection_url_words_for(provider.key)
 end
