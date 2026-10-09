@@ -51,18 +51,21 @@ class WorkspaceAiAccountService
 
   private
 
-  # The address as written was checked when the account was validated. Where private networks are refused, the name
-  # must also resolve to a public address, or a name pointing inside Firefight's network would pass.
+  # The address as written was checked when the account was validated, which also says why a private one is refused.
+  # Where private networks are refused, the name must also resolve to an address every call may reach, checked the
+  # same way as before each call (Integrations::ModelAddress), so a name pointing inside Firefight's network never saves.
   def guard_address!(account)
     address = account.settings.to_h[AiProviders::ADDRESS_SETTING]
     return if address.blank? || Entitlements.private_ai_endpoints?(@workspace)
 
     host = URI.parse(address).host.to_s
-    return if AiAccountAddress.private_host?(host) || Webhooks::SsrfProtector.resolve_public_ip(host)
+    return if AiAccountAddress.private_host?(host)
 
-    account.errors.add(:base, "The API base URL does not resolve to a public address, which Firefight needs to reach it")
+    Integrations::ModelAddress.ip_for!(host)
+  rescue Integrations::ModelAddress::Refused => e
+    account.errors.add(:base, e.message)
     raise ActiveRecord::RecordInvalid, account
-  rescue URI::InvalidURIError, Resolv::ResolvError
+  rescue URI::InvalidURIError
     nil
   end
 end
