@@ -105,10 +105,10 @@ module PullRequestFollowing
   def fix!(notice, by:)
     blocked = notice.fix_blocked_reason(by)
     return blocked if blocked
-    return notice.reload.fix_blocked_reason(by) || "This was already taken care of." unless notice.claim_fix!(by)
 
     conversation = notice.conversation || thread_conversation(notice, by)
     return COULD_NOT_FIX unless conversation
+    return notice.reload.fix_blocked_reason(by) || "This was already taken care of." unless notice.claim_fix!(by)
 
     notice.update_columns(conversation_id: conversation.id)
     conversation.expect_reply!
