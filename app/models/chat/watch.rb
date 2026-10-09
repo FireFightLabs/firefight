@@ -96,12 +96,17 @@ class Chat::Watch < ApplicationRecord
 
   NOTHING_TO_STOP = "This watch has already ended.".freeze
 
-  # Whoever asked may stop it, and so may anyone who may read the chat it reports to, since it is theirs.
+  # Whoever asked may stop it. In a channel or thread anyone there may too, since the asker may be away while it runs
+  # on. A personal chat is its owner's alone.
   def stop_blocked_reason(member)
     return NOTHING_TO_STOP unless active?
-    return "Only #{asker_name} can stop this watch." unless asker == member || conversation.try(:started_by) == member
+    return if asker == member || in_shared_place?(member) || conversation.try(:started_by) == member
 
-    nil
+    "Only #{asker_name} or whoever this chat belongs to can stop this watch."
+  end
+
+  def in_shared_place?(member)
+    member.is_a?(WorkspaceMembership) && member.workspace_id == workspace_id && conversation.try(:kind) == Conversation::KIND_CHANNEL
   end
 
   # The steps that are not over yet.

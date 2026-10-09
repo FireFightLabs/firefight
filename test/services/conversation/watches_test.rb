@@ -125,16 +125,29 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_match "the time limit. Last I saw: Release run #46: - #46 release: running", watch.outcome
   end
 
-  test "stopping says so once, and only whoever asked may" do
+  test "stopping says so once, and in a personal chat only whoever asked may" do
     start_release_watch
     watch = @conversation.chat.watches.sole
 
-    assert_equal "Only #{@alice.display_name} can stop this watch.", Conversation::Watches.stop!(watch, by: workspace_memberships(:bob_workspace_one))
+    assert_equal "Only #{@alice.display_name} or whoever this chat belongs to can stop this watch.",
+                 Conversation::Watches.stop!(watch, by: workspace_memberships(:bob_workspace_one))
     assert_nil Conversation::Watches.stop!(watch, by: @alice)
     assert_equal Chat::Watch::NOTHING_TO_STOP, Conversation::Watches.stop!(watch, by: @alice)
 
     assert_equal [ Chat::Watch::STATUS_STOPPED, @alice ], [ watch.reload.status, watch.stopped_by ]
     assert_equal [ "#{@alice.display_name} stopped the watch on release run #46." ], watch.updates.map(&:text)
+  end
+
+  test "anyone in the channel or thread a watch reports to may stop it" do
+    thread = Conversation.create!(workspace: @workspace, kind: Conversation::KIND_CHANNEL, channel_id: "C0WATCH", thread_id: "1700000000.000100",
+                                  started_by: @alice, max_turns: 5, max_spend_cents: 100)
+    @turn = Conversation::Turn.new(thread, asker: @alice)
+    start_release_watch
+    watch = thread.chat.watches.sole
+    bob = workspace_memberships(:bob_workspace_one)
+
+    assert_nil Conversation::Watches.stop!(watch, by: bob)
+    assert_equal [ Chat::Watch::STATUS_STOPPED, bob ], [ watch.reload.status, watch.stopped_by ]
   end
 
   test "a watch reads only what the asker may, and stops following a read taken away from them" do
