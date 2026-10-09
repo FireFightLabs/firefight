@@ -127,7 +127,7 @@ class SetupControllerTest < ActionDispatch::IntegrationTest
 
   test "a page visit after the last step finished elsewhere opens normally" do
     @onboarding.update!(ai_choice: WorkspaceOnboarding::AI_HOUSE, ai_chosen_at: Time.current, stack_done_at: Time.current,
-                        permissions_reviewed_at: Time.current, halon_answered_at: Time.current, slack_skipped_at: Time.current)
+                        permissions_reviewed_at: Time.current, halon_answered_at: Time.current, chat_skipped_at: Time.current)
     sign_in(@owner.user, @workspace)
 
     get settings_workspace_path

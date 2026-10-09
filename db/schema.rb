@@ -2435,6 +2435,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
   create_table "workspace_onboardings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "ai_choice"
     t.datetime "ai_chosen_at"
+    t.datetime "chat_skipped_at"
     t.datetime "checklist_completed_at"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -2442,7 +2443,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_124200) do
     t.datetime "halon_answered_at"
     t.uuid "installer_id"
     t.datetime "permissions_reviewed_at"
-    t.datetime "slack_skipped_at"
     t.jsonb "stack_answers", default: {}, null: false
     t.datetime "stack_done_at"
     t.datetime "updated_at", null: false

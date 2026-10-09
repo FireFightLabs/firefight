@@ -68,7 +68,7 @@ class SetupController < InertiaController
   end
 
   def skip_slack
-    @onboarding.skip_slack!
+    @onboarding.skip_chat!
     advance("Slack can wait. Connect it from the banner at the top of any page.")
   end
 

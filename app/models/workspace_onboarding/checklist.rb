@@ -164,7 +164,7 @@ module WorkspaceOnboarding::Checklist
     "What runs where in my stack across #{names.to_sentence(last_word_connector: ' and ')}?"
   end
 
-  def skip_slack! = stamp_once!(:slack_skipped_at)
+  def skip_chat! = stamp_once!(:chat_skipped_at)
 
   private
 
@@ -211,7 +211,7 @@ module WorkspaceOnboarding::Checklist
   def slack_state
     return [ STATE_DONE, nil ] if workspace.chat_connected?
 
-    slack_skipped_at && [ STATE_SKIPPED, nil ]
+    chat_skipped_at && [ STATE_SKIPPED, nil ]
   end
 
   # The test incident runs in Slack, so without it the step waits for Slack and holds nothing up.
@@ -219,7 +219,7 @@ module WorkspaceOnboarding::Checklist
     return [ STATE_DONE, nil ] if first_incident
 
     reason = workspace.incidents_blocked_reason
-    reason && slack_skipped_at && [ STATE_SKIPPED, reason ]
+    reason && chat_skipped_at && [ STATE_SKIPPED, reason ]
   end
 
   # A test incident waiting on Slack says so, whatever else is left before it.
