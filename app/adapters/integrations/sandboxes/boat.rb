@@ -25,6 +25,16 @@ module Integrations
       KEPT_GRACE = 1.hour
       IMAGE_PREFIX = "halon-image-".freeze
       KEPT_PREFIX = "halon-kept-".freeze
+      PHASES = {
+        "init" => ProviderSandbox::PHASE_STARTING, "provisioning" => ProviderSandbox::PHASE_STARTING, "provisioned" => ProviderSandbox::PHASE_STARTING,
+        "cloning" => ProviderSandbox::PHASE_STARTING, "ready" => ProviderSandbox::PHASE_RUNNING, "idle" => ProviderSandbox::PHASE_RUNNING,
+        "running" => ProviderSandbox::PHASE_RUNNING, "archiving" => ProviderSandbox::PHASE_STOPPING, "archived" => ProviderSandbox::PHASE_STOPPED,
+        "error" => ProviderSandbox::PHASE_FAILED, "cancelled" => ProviderSandbox::PHASE_FAILED
+      }.freeze
+      SNAPSHOT_PHASES = { "saving" => ProviderSandbox::PHASE_STARTING, "ready" => ProviderSandbox::PHASE_READY, "failed" => ProviderSandbox::PHASE_FAILED }.freeze
+      FREE_SNAPSHOTS = 10
+      # $1.70 a month for each named snapshot beyond the free ones.
+      SNAPSHOT_MONTHLY_MICROS = 1_700_000
       # boat's snapshots carry Docker named volumes and not a container's own layer (docs.boat.dev/snapshots), so
       # everything a prepared copy needs lives on one.
       VOLUMES = {
@@ -84,6 +94,35 @@ module Integrations
 
           Running.new(ref: sandbox["id"], started_at: (Time.zone.parse(sandbox["createdAt"].to_s) if sandbox["createdAt"]))
         end
+      end
+
+      # Every sandbox and named snapshot named like Firefight's, in any state. boat keeps an account's 10 newest named
+      # snapshots free and charges for each one beyond (docs.boat.dev/snapshots, Named snapshot pricing), so an older
+      # one of Firefight's past the tenth carries that price.
+      def inventory
+        boxes = @api.sandboxes.select { |sandbox| sandbox["name"].to_s.start_with?(NAME_PREFIX) }.map do |sandbox|
+          Held.new(kind: ProviderSandbox::KIND_BOX, ref: sandbox["id"], name: sandbox["name"], state: sandbox["state"], phase: PHASES[sandbox["state"]],
+                   size: sandbox["type"],
+                   started_at: stamp(sandbox["createdAt"]), updated_at: stamp(sandbox["updatedAt"]))
+        end
+        newest_first = @api.snapshots.sort_by { |snapshot| stamp(snapshot["createdAt"]) || Time.zone.at(0) }.reverse
+        copies = newest_first.each_with_index.filter_map do |snapshot, index|
+          next unless snapshot["name"].to_s.start_with?(KEPT_PREFIX, IMAGE_PREFIX)
+
+          purpose = snapshot["name"].to_s.start_with?(KEPT_PREFIX) ? ProviderSandbox::PURPOSE_PREPARED : ProviderSandbox::PURPOSE_IMAGE
+          Held.new(kind: ProviderSandbox::KIND_SNAPSHOT, ref: snapshot["name"], purpose: purpose, name: snapshot["name"], state: snapshot["status"],
+                   phase: SNAPSHOT_PHASES[snapshot["status"]], size: snapshot["type"],
+                   started_at: stamp(snapshot["createdAt"]), byte_size: snapshot["sizeBytes"],
+                   monthly_micros: index >= FREE_SNAPSHOTS ? SNAPSHOT_MONTHLY_MICROS : 0)
+        end
+        boxes + copies
+      end
+
+      # Deleted for good, its snapshots with it.
+      def delete(ref)
+        @api.delete(ref)
+      rescue BoatApi::NotFound
+        nil
       end
 
       # Starts keeping the box's disk as it is now under a new name, answering the name. boat takes a fresh capture of a
@@ -186,6 +225,8 @@ module Integrations
       rescue BoatApi::Error => error
         Rails.logger.warn({ event: "code_box.delete_failed", provider: SandboxProviders::BOAT, box_ref: ref, error: error.message }.to_json)
       end
+
+      def stamp(value) = value.present? ? Time.zone.parse(value.to_s) : nil
 
       def older_than?(stamp, age) = stamp.present? && Time.zone.parse(stamp.to_s) < age.ago
 

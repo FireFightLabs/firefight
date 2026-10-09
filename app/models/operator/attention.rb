@@ -18,10 +18,14 @@ module Operator
     KIND_AI_SHORT_OF_CREDIT = "ai_short_of_credit".freeze
     KIND_AI_BALANCE_UNCHECKED = "ai_balance_unchecked".freeze
     KIND_SANDBOX_FAILOVER = "sandbox_failover".freeze
+    KIND_SANDBOX_ROGUE = "sandbox_rogue".freeze
+    KIND_SANDBOX_TROUBLE = "sandbox_trouble".freeze
+    KIND_SANDBOX_UNREAD = "sandbox_unread".freeze
     KINDS = [
       KIND_WORKFLOW_FAILED, KIND_WORKFLOW_STUCK, KIND_WEBHOOK_FAILING, KIND_PLATFORM_FAILED, KIND_ALERT_STUCK,
       KIND_QUEUE_BACKED_UP, KIND_JOBS_FAILED, KIND_HALON_FAILED, KIND_HALON_LIMIT, KIND_HALON_NOT_POSTED, KIND_HALON_STUCK,
-      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT, KIND_AI_BALANCE_UNCHECKED, KIND_SANDBOX_FAILOVER
+      KIND_SKILL_BROKEN, KIND_AI_OUT_OF_CREDIT, KIND_AI_SHORT_OF_CREDIT, KIND_AI_BALANCE_UNCHECKED, KIND_SANDBOX_FAILOVER,
+      KIND_SANDBOX_ROGUE, KIND_SANDBOX_TROUBLE, KIND_SANDBOX_UNREAD
     ].freeze
 
     # The page an item opens.
@@ -31,7 +35,8 @@ module Operator
     TARGET_FAILED_JOBS = "failed_jobs".freeze
     TARGET_QUEUES = "queues".freeze
     TARGET_WORKSPACE = "workspace".freeze
-    TARGETS = [ TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES, TARGET_WORKSPACE ].freeze
+    TARGET_SANDBOXES = "sandboxes".freeze
+    TARGETS = [ TARGET_WORKFLOW, TARGET_INCIDENT, TARGET_RUN, TARGET_FAILED_JOBS, TARGET_QUEUES, TARGET_WORKSPACE, TARGET_SANDBOXES ].freeze
 
     # Stop reasons worth tuning. The other reasons are a person's choice or the model ending without an answer.
     TUNING_LIMITS = [ Investigation::BUDGET_SPENT, Investigation::TOO_MANY_TURNS ].freeze
@@ -55,7 +60,7 @@ module Operator
     def items
       @items ||= [
         *credit_items, *workflow_items, *webhook_items, *platform_items, *alert_items, *job_items, *halon_items, *skill_items,
-        *sandbox_items
+        *sandbox_items, *inventory_items
       ].sort_by { |item| [ item.tone == IncidentProcess::TONE_BAD ? 0 : 1, -item.at.to_f ] }
     end
 
@@ -115,6 +120,28 @@ module Operator
              detail: "#{count} #{'box'.pluralize(count)} · #{box.failover_reason.to_s.lines.first&.strip}", at: box.created_at,
              target: TARGET_WORKSPACE, target_id: box.workspace_id)
       end
+    end
+
+    # What the sandbox page flags now, whatever the window, since a rogue box costs until someone stops it. One item per
+    # provider for rogue ones, one per box that failed or is stuck, and one per provider that could not be read.
+    def inventory_items
+      sandboxes = Sandboxes.new
+      rogue = sandboxes.rogue.group_by(&:provider).map do |provider, found|
+        item(key: "rogue-#{provider}", kind: KIND_SANDBOX_ROGUE, title: "Sandbox with no record", subject: SandboxProviders.name_of(provider),
+             detail: "#{found.size} held there with no record in Firefight",
+             at: Time.current, target: TARGET_SANDBOXES)
+      end
+      trouble = sandboxes.boxes.select { |box| box.held && box.flags.intersect?([ Sandboxes::FLAG_FAILED, Sandboxes::FLAG_STUCK ]) }.first(PER_KIND).map do |box|
+        item(key: "trouble-#{box.key}", kind: KIND_SANDBOX_TROUBLE, tone: IncidentProcess::TONE_WARN,
+             title: box.flags.include?(Sandboxes::FLAG_FAILED) ? "Sandbox failed" : "Sandbox stuck", subject: box.name || box.ref,
+             place: box.workspace&.name, detail: "#{SandboxProviders.name_of(box.provider)} says #{box.state}", at: box.started_at || Time.current,
+             target: TARGET_SANDBOXES)
+      end
+      unread = SandboxProviderRead.where.not(error: nil).map do |read|
+        item(key: "unread-#{read.provider}", kind: KIND_SANDBOX_UNREAD, tone: IncidentProcess::TONE_WARN, title: "Sandbox provider not read",
+             subject: SandboxProviders.name_of(read.provider), detail: read.error.to_s.lines.first&.strip, at: read.read_at, target: TARGET_SANDBOXES)
+      end
+      rogue + trouble + unread
     end
 
     def platform_items

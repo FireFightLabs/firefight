@@ -490,6 +490,13 @@ Rails.application.routes.draw do
       member { post :redeliver }
     end
     get "find", to: "find#show", as: :find
+    resources :sandboxes, only: :index do
+      collection do
+        post :stop
+        post :destroy, path: "delete", as: :delete
+        post :clean_up
+      end
+    end
     resources :workspaces, only: %i[index show] do
       member { post :sandbox }
     end

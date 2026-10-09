@@ -38,6 +38,21 @@ module Integrations
         end
       end
 
+      PHASES = {
+        "created" => ProviderSandbox::PHASE_STARTING, "restarting" => ProviderSandbox::PHASE_STARTING, "running" => ProviderSandbox::PHASE_RUNNING,
+        "removing" => ProviderSandbox::PHASE_STOPPING, "paused" => ProviderSandbox::PHASE_STOPPED, "exited" => ProviderSandbox::PHASE_STOPPED,
+        "dead" => ProviderSandbox::PHASE_FAILED
+      }.freeze
+
+      # Every container with Firefight's label, stopped ones too, which a box that crashed leaves behind.
+      def inventory
+        filters = { label: [ "#{LABEL}=1" ] }.to_json
+        request(Net::HTTP::Get, "/containers/json?#{{ all: true, filters: filters }.to_query}").map do |container|
+          Held.new(kind: ProviderSandbox::KIND_BOX, ref: container["Id"], name: Array(container["Names"]).first.to_s.delete_prefix("/"),
+                   state: container["State"], phase: PHASES[container["State"]], size: size, started_at: Time.zone.at(container["Created"].to_i))
+        end
+      end
+
       def size = "#{cpus.to_s.delete_suffix('.0')} CPU, #{memory_text}"
 
       private

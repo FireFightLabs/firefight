@@ -50,6 +50,18 @@ module Integrations
         assert_equal Time.zone.at(1_790_000_000), running.started_at
       end
 
+      test "every labelled container is held, stopped ones too, with its state in one vocabulary" do
+        asked = nil
+        Docker.any_instance.stubs(:request).with { |_verb, path| asked = path }.returns([
+          { "Id" => "abc123", "Names" => [ "/halon-box-1" ], "State" => "exited", "Created" => 1_790_000_000 }
+        ])
+
+        held = Docker.new.inventory.sole
+
+        assert_includes asked, "all=true"
+        assert_equal [ "abc123", "halon-box-1", "exited", ProviderSandbox::PHASE_STOPPED ], [ held.ref, held.name, held.state, held.phase ]
+      end
+
       test "a daemon that cannot be reached says where it looked" do
         ENV.stubs(:[]).with("DOCKER_HOST").returns("unix:///nowhere/docker.sock")
 

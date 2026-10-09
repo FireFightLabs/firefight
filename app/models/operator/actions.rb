@@ -28,6 +28,27 @@ module Operator
       "Only a failed delivery can be sent again." unless delivery.failed?
     end
 
+    def self.sandbox_stop_blocked_reason(box)
+      return "No such box." unless box
+      return "#{SandboxProviders.name_of(box.provider)} no longer holds this box." unless box.held
+
+      "This box is not running." unless Sandboxes::ACTIVE.include?(box.phase)
+    end
+
+    def self.sandbox_delete_blocked_reason(box)
+      return "No such box." unless box
+
+      "#{SandboxProviders.name_of(box.provider)} no longer holds this box." unless box.held
+    end
+
+    def self.copy_delete_blocked_reason(copy)
+      "No such copy." unless copy
+    end
+
+    def self.clean_up_blocked_reason(sandboxes)
+      "Nothing is rogue." if sandboxes.rogue.empty?
+    end
+
     # Blank holds the workspace to no provider, so it follows the deployment's own.
     def self.sandbox_placement_blocked_reason(key)
       return if key.blank? || SandboxProviders::KEYS.include?(key)

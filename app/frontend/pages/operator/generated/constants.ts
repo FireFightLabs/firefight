@@ -101,3 +101,31 @@ export const OPERATOR_SPAN_PARAM = "span" as const
 export const OPERATOR_SPAN_BODY_PROP = "spanBody" as const
 
 export const OPERATOR_REGRESSION_MODELS_PROP = "models" as const
+
+export const OPERATOR_SANDBOX_FLAGS = {
+  "ROGUE": "rogue",
+  "OVERDUE": "overdue",
+  "FAILED": "failed",
+  "STUCK": "stuck",
+  "MISSING": "missing"
+} as const
+
+export const OPERATOR_SANDBOX_PHASES = {
+  "STARTING": "starting",
+  "RUNNING": "running",
+  "STOPPING": "stopping",
+  "STOPPED": "stopped",
+  "READY": "ready",
+  "FAILED": "failed"
+} as const
+
+export const OPERATOR_SANDBOX_KINDS = {
+  "BOX": "box",
+  "SNAPSHOT": "snapshot"
+} as const
+
+export const OPERATOR_SANDBOX_PURPOSES = {
+  "RUN": "run",
+  "IMAGE": "image",
+  "PREPARED": "prepared"
+} as const

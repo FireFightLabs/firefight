@@ -101,6 +101,29 @@ module Integrations
         assert_equal [ "bx_1" ], @boat.running.map(&:ref)
       end
 
+      test "what boat holds for Firefight is listed with its state in one vocabulary, and copies past the free ten carry a price" do
+        @api.stubs(:sandboxes).returns([
+          { "id" => "bx_1", "name" => "halon-box-1", "state" => "idle", "type" => "default", "createdAt" => "2026-10-09T10:00:00Z" },
+          { "id" => "bx_2", "name" => "halon-box-2", "state" => "error", "type" => "default", "createdAt" => "2026-10-09T10:00:00Z" },
+          { "id" => "bx_3", "name" => "My sandbox", "state" => "running", "createdAt" => "2026-10-09T10:00:00Z" }
+        ])
+        others = (1..10).map { |index| { "name" => "web-stack-#{index}", "status" => "ready", "createdAt" => index.hours.ago.iso8601 } }
+        @api.stubs(:snapshots).returns(others + [
+          { "name" => "halon-kept-old", "status" => "ready", "sizeBytes" => 2_000_000_000, "createdAt" => 2.days.ago.iso8601 },
+          { "name" => "halon-image-0123456789abcdef", "status" => "saving", "createdAt" => 1.minute.ago.iso8601 }
+        ])
+
+        held = @boat.inventory.index_by(&:ref)
+
+        assert_equal %w[bx_1 bx_2 halon-image-0123456789abcdef halon-kept-old].sort, held.keys.sort, "only what is named like Firefight's"
+        assert_equal ProviderSandbox::PHASE_RUNNING, held["bx_1"].phase
+        assert_equal ProviderSandbox::PHASE_FAILED, held["bx_2"].phase
+        assert_equal [ ProviderSandbox::PURPOSE_PREPARED, ProviderSandbox::PHASE_READY, Boat::SNAPSHOT_MONTHLY_MICROS, 2_000_000_000 ],
+                     held["halon-kept-old"].then { |copy| [ copy.purpose, copy.phase, copy.monthly_micros, copy.byte_size ] }
+        assert_equal [ ProviderSandbox::PURPOSE_IMAGE, ProviderSandbox::PHASE_STARTING, 0 ],
+                     held["halon-image-0123456789abcdef"].then { |copy| [ copy.purpose, copy.phase, copy.monthly_micros ] }
+      end
+
       test "a box is priced by its size, from boat's list prices" do
         ENV.stubs(:[]).with(anything).returns(nil)
         ENV.stubs(:[]).with("BOAT_SANDBOX_TYPE").returns("large")

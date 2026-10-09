@@ -11,6 +11,14 @@ module Integrations
       def initialize(relayed: false, **) = super
     end
     Running = Data.define(:ref, :started_at)
+    # Something a provider holds for Firefight, a box or a kept copy (ProviderSandbox::KINDS), in the provider's own
+    # words for its state and size, with the state in ProviderSandbox::PHASES too. monthly_micros is what keeping a copy
+    # costs a month, when it costs anything.
+    # purpose is ProviderSandbox's, a run's box, the image's own copy or a prepared repository.
+    Held = Data.define(:kind, :ref, :purpose, :name, :state, :phase, :size, :started_at, :updated_at, :byte_size, :monthly_micros) do
+      def initialize(purpose: ProviderSandbox::PURPOSE_RUN, name: nil, state: nil, phase: nil, size: nil, started_at: nil, updated_at: nil, byte_size: nil,
+                     monthly_micros: nil, **) = super
+    end
 
     # Every box's name starts with this, so a provider lists only the boxes it started for Firefight.
     NAME_PREFIX = "halon-box-".freeze
@@ -47,6 +55,19 @@ module Integrations
       def hourly_micros = nil
 
       def keeps_copies? = false
+
+      # Every box and kept copy the provider holds for Firefight, found by Firefight's name or label, running or not.
+      def inventory
+        running.map do |box|
+          Held.new(kind: ProviderSandbox::KIND_BOX, ref: box.ref, name: box.ref, state: "running", phase: ProviderSandbox::PHASE_RUNNING, started_at: box.started_at)
+        end
+      end
+
+      # Removes a box for good. Stopping one already removes it on a provider that keeps nothing.
+      def delete(ref) = stop(ref)
+
+      # Lets go of a kept copy. A provider that keeps none has none to let go of.
+      def discard(_ref) = nil
 
       # Tidies what the provider keeps beyond its running boxes. kept_refs are the copies the app still knows.
       def tidy(kept_refs:) = nil

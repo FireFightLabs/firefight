@@ -35,12 +35,17 @@ module Integrations
         raise unless error.message.include?("404")
       end
 
-      def running
-        services = request(Net::HTTP::Get, "/projects/#{project}/services?per_page=100").dig("data", "services").to_a
-        services.filter_map do |service|
-          next unless service["name"].to_s.start_with?(NAME_PREFIX)
+      def running = boxes.map { |service| Running.new(ref: service["id"], started_at: Time.zone.parse(service["createdAt"].to_s)) }
 
-          Running.new(ref: service["id"], started_at: Time.zone.parse(service["createdAt"].to_s))
+      PHASES = { "PENDING" => ProviderSandbox::PHASE_STARTING, "IN_PROGRESS" => ProviderSandbox::PHASE_STARTING,
+                 "COMPLETED" => ProviderSandbox::PHASE_RUNNING, "FAILED" => ProviderSandbox::PHASE_FAILED }.freeze
+
+      # Northflank lists a service's deployment state under status.deployment.status (docs/v1/api/services/list-services).
+      def inventory
+        boxes.map do |service|
+          state = service.dig("status", "deployment", "status")
+          Held.new(kind: ProviderSandbox::KIND_BOX, ref: service["id"], name: service["name"], state: state, phase: PHASES[state],
+                   size: size, started_at: (Time.zone.parse(service["createdAt"].to_s) if service["createdAt"]))
         end
       end
 
@@ -57,6 +62,12 @@ module Integrations
       end
 
       private
+
+      # Only services named like a box, so the app's own services in a shared project are never listed.
+      def boxes
+        services = request(Net::HTTP::Get, "/projects/#{project}/services?per_page=100").dig("data", "services").to_a
+        services.select { |service| service["name"].to_s.start_with?(NAME_PREFIX) }
+      end
 
       def project = ENV["NORTHFLANK_SANDBOX_PROJECT"].presence || raise(Error, "NORTHFLANK_SANDBOX_PROJECT is not set.")
 

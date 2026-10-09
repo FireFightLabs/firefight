@@ -28,7 +28,7 @@ class CodeAgent::Reader
   def reads_only? = true
   def changes_memory? = false
   def uses_skills? = false
-  def code_box_key = session.box_key.presence || "code-agent-#{session.id}"
+  def code_box_key = session.box_key.presence || "#{CodeAgentSession::CODE_BOX_PREFIX}#{session.id}"
   def progress_listener(_tool_call_id) = nil
   def confirms?(*, **) = false
   def hold!(*, **) = false

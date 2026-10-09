@@ -74,7 +74,7 @@ module Integrations
       end
 
       # Boxes nothing has used for a while, boxes a provider still runs that no row knows, and what a provider keeps that
-      # the app no longer needs. One provider that cannot be asked leaves the others to be swept.
+      # the app no longer needs, then what each provider holds now. One provider that cannot be asked leaves the others.
       def sweep!
         CodeBox.abandoned.find_each { |box| stop(box) }
         known = CodeBox.live.pluck(:box_ref).to_set
@@ -89,6 +89,7 @@ module Integrations
         rescue Sandboxes::Error => error
           Rails.logger.warn({ event: "code_box.sweep_failed", provider: key, error: error.message }.to_json)
         end
+        SandboxInventory.record!
       end
 
       # Prepared copies nobody used for PreparedCopy::KEPT_UNUSED_FOR. A copy a provider keeps is let go of there first,
