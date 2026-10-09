@@ -2,9 +2,10 @@ module Integrations
   module Packs
     # Northflank for the projects an environment reads, one, several or every one its token can read (the project
     # connect field, a scope). It reads what runs there, its logs, its metrics and its builds, with the API token the
-    # workspace creates in Northflank. Every tool reads, except api_request, which reaches all of Northflank's API inside
-    # one project when the token's role allows it and it is switched on, and add_workflow_webhook (WorkflowWebhooks). A call reaches one project, the one it
-    # names or the one its resource lives in (Integrations::Scopes), and a listing named none lists every project.
+    # workspace creates in Northflank. Every tool reads except api_request, which reaches all of Northflank's API inside
+    # one project when the token's role allows it and it is switched on, and add_workflow_webhook (WorkflowWebhooks),
+    # which adds a trigger to a workflow. A call reaches one project, the one it names or the one its resource lives in
+    # (Integrations::Scopes), and a listing named none lists every project.
     class Northflank < NativePack
       # The environment row's credentials, which only this pack reads.
       API_TOKEN = "api_token".freeze
@@ -62,10 +63,13 @@ module Integrations
       CONTAINER_LIMIT = 50
       RUN_LIMIT = 20
       BACKUPS_SHOWN = 3
+      TASK_RUNNING = "TASK_RUNNING".freeze
+      TASK_FAILED = "TASK_FAILED".freeze
+      BUILD_SERVICE = "build".freeze
       # Northflank's container states, as the model should read them.
       CONTAINER_STATES = {
-        "TASK_RUNNING" => "running", "TASK_STARTING" => "starting", "TASK_STAGING" => "scheduled", "TASK_KILLING" => "stopping",
-        "TASK_KILLED" => "stopped", "TASK_FAILED" => "failed", "TASK_FINISHED" => "finished"
+        TASK_RUNNING => "running", "TASK_STARTING" => "starting", "TASK_STAGING" => "scheduled", "TASK_KILLING" => "stopping",
+        "TASK_KILLED" => "stopped", TASK_FAILED => "failed", "TASK_FINISHED" => "finished"
       }.freeze
 
       RANGE = {
@@ -307,7 +311,8 @@ module Integrations
         link = project_link(environment_row)
         return Telemetry.result("Project #{project} has no services or databases.", link: link) if rows.empty?
 
-        Telemetry.result("Project #{project}, #{rows.size} services and databases.\n#{rows.join("\n")}", link: link)
+        cut = " Only the first #{rows.size} were read, so name a resource by its id to reach the rest." if resources_cut?(environment_row)
+        Telemetry.result("Project #{project}, #{rows.size} services and databases.#{cut}\n#{rows.join("\n")}", link: link)
       end
 
       def search_logs(environment_row:, arguments:)
@@ -353,12 +358,22 @@ module Integrations
           fail!(Sentence.all(error, NO_SUCH_CALL)) if error.message.start_with?(*MISSING_CALL)
           raise unless error.message.start_with?("Northflank answered 403")
 
-          fail!(Sentence.all(error, "The API token's role cannot make this change. In Northflank, give the role permission " \
-                                   "to update services (Project, Services, General, Update), then run it again."))
+          fail!(Sentence.all(error, refused_role(verb, path)))
         end
         asked = query.any? ? "#{path}?#{URI.encode_www_form(query)}" : path
         Telemetry.result("Northflank answered #{verb} #{asked}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
       end
+
+      # What to give the token's role when Northflank refused a call for want of a permission. Only a change to a service
+      # is known to need the update right on services, so any other call names what Northflank's answer named.
+      def refused_role(verb, path)
+        return "The API token's role cannot read this. In Northflank, give the role read permission for what #{path} names, then run it again." if verb == "GET"
+        return "The API token's role cannot make this change. Give it the permission Northflank names above, then run it again." unless path.start_with?("#{KIND_SERVICES}/")
+
+        "The API token's role cannot make this change. In Northflank, give the role permission to update services " \
+          "(Project, Services, General, Update), then run it again."
+      end
+      private :refused_role
 
       # A call the API reference lists takes only the names it gives, and any other call takes plain names. A value is
       # text, a number, true or false, and the client encodes it, so nothing in it can reach the path.
@@ -504,8 +519,8 @@ module Integrations
           state = CONTAINER_STATES.fetch(container["status"].to_s, container["status"].to_s.downcase)
           "#{container['name']}, #{state}, started #{epoch(container['createdAt'])}, last changed #{epoch(container['updatedAt'])}"
         end
-        running = containers.count { |container| container["status"] == "TASK_RUNNING" }
-        failed = containers.count { |container| container["status"] == "TASK_FAILED" }
+        running = containers.count { |container| container["status"] == TASK_RUNNING }
+        failed = containers.count { |container| container["status"] == TASK_FAILED }
         Telemetry.result("#{resource[:name]}: #{running} running, #{failed} failed, #{rows.size} listed, newest first.\n#{rows.join("\n")}", link: link)
       end
 
@@ -513,13 +528,15 @@ module Integrations
         return every_project(environment_row) { |pack| pack.list_jobs(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
 
         project = project_of(environment_row)
-        rows = api(environment_row).jobs(project).items.map do |job|
+        jobs = api(environment_row).jobs(project)
+        rows = jobs.items.map do |job|
           [ "#{job['name']} (#{job['id']})", "#{job['jobType']} job", ("suspended" if job["suspended"]) ].compact.join(", ")
         end
         link = project_link(environment_row, KIND_JOBS)
         return Telemetry.result("Project #{project} has no jobs.", link: link) if rows.empty?
 
-        Telemetry.result("Project #{project}, #{rows.size} jobs.\n#{rows.join("\n")}", link: link)
+        cut = " Only the first #{rows.size} were read, so name a job by its id to reach the rest." if jobs.incomplete?
+        Telemetry.result("Project #{project}, #{rows.size} jobs.#{cut}\n#{rows.join("\n")}", link: link)
       end
 
       def job_runs(environment_row:, arguments:)
@@ -527,8 +544,9 @@ module Integrations
         wanted = arguments["job"].to_s.strip.downcase
         fail! "Say which job, by name or id. list_jobs shows them." if wanted.empty?
 
-        job = api(environment_row).jobs(project).items.find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
-        fail! "No job called #{arguments['job']} in this project. list_jobs shows what there is." unless job
+        jobs = api(environment_row).jobs(project)
+        job = jobs.items.find { |each| [ each["id"], each["name"] ].compact.map(&:downcase).include?(wanted) }
+        job ||= job_past_cut(environment_row, project, arguments["job"].to_s.strip, jobs)
 
         runs = api(environment_row).job_runs(project, job["id"], limit: limit(arguments, RUN_LIMIT))
         link = project_link(environment_row, KIND_JOBS, job["id"], "runs")
@@ -540,6 +558,17 @@ module Integrations
         end
         Telemetry.result("Latest #{rows.size} runs of #{job['name']}, newest first.\n#{rows.join("\n")}", link: link)
       end
+
+      # A job the listing did not reach, read by its id, or the refusal that says why it was not found.
+      def job_past_cut(environment_row, project, asked, jobs)
+        fail! "No job called #{asked} in this project. list_jobs shows what there is." if jobs.complete
+
+        api(environment_row).job(project, asked).presence ||
+          fail!("Only the first #{jobs.items.size} jobs were read, and none is called #{asked}. Name it by its id, which Northflank shows on its page.")
+      rescue NorthflankApi::NotFound
+        fail! "Only the first #{jobs.items.size} jobs were read, and none is called #{asked}. Name it by its id, which Northflank shows on its page."
+      end
+      private :job_past_cut
 
       def build_logs(environment_row:, arguments:)
         resource = find_resource(environment_row, arguments["resource"])
@@ -634,7 +663,7 @@ module Integrations
       # The settings a service runs with, from the secret groups that apply to it and its own runtime variables, and the
       # databases those groups link it to. A build service runs nothing.
       def service_uses(environment_row, mapping, service, groups)
-        return [] if service["serviceType"] == "build"
+        return [] if service["serviceType"] == BUILD_SERVICE
 
         key = mapping.key_of(ResourceMap::KIND_SERVICE, service["id"])
         inherited = groups.select { |group| group.applies_to?(service["id"], service["tags"]) }.sort_by(&:priority)
@@ -734,7 +763,7 @@ module Integrations
 
       # Builds the snapshot for map_of, one resource at a time.
       class MapReading
-        SERVICE_KINDS = { "build" => ResourceMap::KIND_BUILD_SERVICE }.freeze
+        SERVICE_KINDS = { BUILD_SERVICE => ResourceMap::KIND_BUILD_SERVICE }.freeze
 
         attr_reader :resources, :links
 
@@ -853,9 +882,7 @@ module Integrations
       # The pack of the project a notification's service, addon or job is in, the one the map has it in, or else the first
       # project that has it, for one added since the last sweep. nil when none does.
       def project_holding(environment_row, scope)
-        on_map = ResourceMap::Resource.present.where(workspace_id: environment_row.integration.workspace_id, provider: PROVIDER_KEY, external_id: scope.external_id)
-                                      .where("resource_map_resources.integration_environment_id = :row OR resource_map_resources.sightings ? :row", row: environment_row.id.to_s)
-                                      .pick(Arel.sql("details ->> '#{ResourceMap::SCOPE}'"))
+        on_map = Scopes.holding(environment_row, scope.external_id)
         return scoped(on_map) if on_map.present?
 
         reader = REFRESHERS[scope.kind]
@@ -869,17 +896,26 @@ module Integrations
       def resources(environment_row)
         @resources ||= begin
           project = project_of(environment_row)
-          services = api(environment_row).services(project).items.map do |service|
-            status = service.dig("status", "deployment", "status") || service.dig("status", "build", "status") || "unknown"
-            { kind: KIND_SERVICES, id: service["id"], name: service["name"], type: "#{service['serviceType']} service",
-              status: status.to_s.downcase, app_id: service["appId"] }
-          end
-          addons = api(environment_row).addons(project).items.map do |addon|
-            { kind: KIND_ADDONS, id: addon["id"], name: addon["name"], type: "#{addon.dig('spec', 'type')} database",
-              status: addon["status"].to_s.downcase, app_id: addon["appId"] }
-          end
-          services + addons
+          reads = [ api(environment_row).services(project), api(environment_row).addons(project) ]
+          @resources_cut = reads.any?(&:incomplete?)
+          reads.first.items.map { |service| service_entry(service) } + reads.last.items.map { |addon| addon_entry(addon) }
         end
+      end
+
+      def resources_cut?(environment_row)
+        resources(environment_row)
+        @resources_cut
+      end
+
+      def service_entry(service)
+        status = service.dig("status", "deployment", "status") || service.dig("status", "build", "status") || "unknown"
+        { kind: KIND_SERVICES, id: service["id"], name: service["name"], type: "#{service['serviceType']} service",
+          status: status.to_s.downcase, app_id: service["appId"] }
+      end
+
+      def addon_entry(addon)
+        { kind: KIND_ADDONS, id: addon["id"], name: addon["name"], type: "#{addon.dig('spec', 'type')} database",
+          status: addon["status"].to_s.downcase, app_id: addon["appId"] }
       end
 
       def find_resource(environment_row, asked)
@@ -887,7 +923,24 @@ module Integrations
         fail! "Say which service or database, by name or id. list_resources shows them." if wanted.empty?
 
         found = resources(environment_row).find { |resource| [ resource[:id], resource[:name] ].compact.map(&:downcase).include?(wanted) }
-        found || fail!("No service or database called #{asked} in this project. list_resources shows what there is.")
+        return found if found
+        fail!("No service or database called #{asked} in this project. list_resources shows what there is.") unless resources_cut?(environment_row)
+
+        resource_by_id(environment_row, asked.to_s.strip) ||
+          fail!("Only the first #{resources(environment_row).size} services and databases were read, and none is called #{asked}. " \
+                "Name it by its id, which Northflank shows on its page.")
+      end
+
+      # A service or database past the listing's cut, read by its id.
+      def resource_by_id(environment_row, id)
+        project = project_of(environment_row)
+        [ [ :service, :service_entry ], [ :addon, :addon_entry ] ].each do |reader, entry|
+          found = api(environment_row).public_send(reader, project, id)
+          return send(entry, found) if found.present?
+        rescue NorthflankApi::NotFound
+          next
+        end
+        nil
       end
 
       def limit(arguments, most) = arguments["limit"].to_i.positive? ? [ arguments["limit"].to_i, most ].min : most

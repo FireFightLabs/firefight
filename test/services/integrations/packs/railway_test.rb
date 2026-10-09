@@ -51,6 +51,21 @@ module Integrations
         assert text.end_with?("https://railway.com/project/prj-1?environmentId=env-prod")
       end
 
+      test "a list cut short says so, and a service past it is read by its id rather than called missing" do
+        RailwayApi.any_instance.stubs(:service_instances).with("prj-1", "env-prod").returns(Integrations::Pages::Read.new(items: [
+          { "serviceId" => "svc-web", "serviceName" => "web" }
+        ], complete: false))
+        RailwayApi.any_instance.stubs(:service_instance).with("env-prod", "svc-api").returns(
+          "serviceId" => "svc-api", "serviceName" => "api", "restartPolicyType" => "ALWAYS", "latestDeployment" => { "status" => "SUCCESS" }
+        )
+        RailwayApi.any_instance.stubs(:service_instance).with("env-prod", "svc-gone").raises(RailwayApi::NotFound, "Railway answered: Service not found")
+
+        assert_match "Only the first 1 were read, so name a resource by its id to reach the rest.", call(:list_resources)
+        assert_match "api", call(:describe_resource, "resource" => "svc-api")
+        error = assert_raises(NativePack::Error) { call(:describe_resource, "resource" => "svc-gone") }
+        assert_match "Only the first 1 services were read", error.message
+      end
+
       test "app logs are the environment's filtered to the service, with text and exclude in Railway's syntax, newest first" do
         RailwayApi.any_instance.expects(:environment_logs).with do |variables|
           variables["environmentId"] == "env-prod" && variables["filter"] == "@service:svc-web AND \"timeout\" AND -\"healthz\"" &&
