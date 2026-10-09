@@ -1,3 +1,5 @@
+import type { HttpResponse } from "@inertiajs/core"
+
 export function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ""
 }
@@ -26,4 +28,15 @@ export async function requestJson<T>(
 
 export function postJson<T>(path: string, body?: unknown, init: Omit<JsonRequestInit, "body" | "method"> = {}) {
   return requestJson<T>(path, { ...init, method: "POST", body })
+}
+
+const HOUR_SECONDS = 3600
+
+// "in an hour" or "in a minute", from the Retry-After a throttled answer carries, so the page never restates the throttle.
+export function retryWait(response: HttpResponse): string {
+  const seconds = Number(response.headers["retry-after"])
+  if (!seconds) {
+    return "later"
+  }
+  return seconds >= HOUR_SECONDS ? "in an hour" : "in a minute"
 }

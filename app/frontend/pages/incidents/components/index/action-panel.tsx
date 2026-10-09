@@ -1,11 +1,15 @@
 import { useEffect } from "react"
-import { router } from "@inertiajs/react"
+import { usePoll } from "@inertiajs/react"
 
+import type { IncidentPageProp } from "@/pages/incidents/lib/after-mutation"
 import type { IncidentAction } from "@/pages/incidents/types"
 import type { InlineChoice } from "@/pages/incidents/components/index/inline-select"
 import { ActionItem } from "@/pages/incidents/components/index/action-item"
 import { AddActionDialog } from "@/pages/incidents/components/index/add-action-dialog"
 import { ProgressRail } from "@/pages/incidents/components/index/progress-rail"
+
+const ISSUE_POLL_MS = 3000
+const ITEMS: IncidentPageProp[] = ["actions"]
 
 export function ActionPanel({
   title,
@@ -29,14 +33,16 @@ export function ActionPanel({
   const isEmpty = items.length === 0
   const issueOpening = items.some((item) => item.issueOpening)
 
+  const { start, stop } = usePoll(ISSUE_POLL_MS, { only: ITEMS }, { autoStart: false })
+
   // An issue is opened in a job, so the items are read again until it is there.
   useEffect(() => {
     if (!issueOpening) {
       return
     }
-    const interval = setInterval(reloadItems, 3000)
-    return () => clearInterval(interval)
-  }, [issueOpening])
+    start()
+    return stop
+  }, [issueOpening, start, stop])
 
   if (isEmpty) {
     return (
@@ -73,8 +79,4 @@ export function ActionPanel({
       </div>
     </section>
   )
-}
-
-function reloadItems() {
-  router.reload({ only: ["actions"] })
 }

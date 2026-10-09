@@ -21,7 +21,7 @@ export function ImageDialog({ image, onOpenChange }: ImageDialogProps) {
           <img src={image.url} alt={image.name} className="max-h-[calc(100dvh-8rem)] max-w-full justify-self-center rounded-md object-contain" />
         )}
         {image && (
-          <a href={image.url} target="_blank" rel="noreferrer" className="justify-self-start text-[13px] text-ink-2 underline-offset-2 hover:underline">
+          <a href={image.url} target="_blank" rel="noreferrer" className="justify-self-start text-[13px] text-fg-secondary underline-offset-2 hover:text-fg-primary hover:underline">
             Open the original
           </a>
         )}
