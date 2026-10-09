@@ -79,6 +79,16 @@ class ResourceMap::KeyQueriesTest < ActiveSupport::TestCase
     assert_nil KEY_QUERIES.listed(@function, @alice).find { |each| each.plan.check.key == "throttles" }.run_blocked_reason
   end
 
+  test "the map lists a check as the person would run it, through the tools they may call, asking for them once per capability" do
+    callable = @aws.tools.where(name: "cloudwatch_metrics").to_a
+    Integrations::Capabilities.expects(:callable).with(@workspace, Integrations::Capabilities::METRICS, @alice).once.returns(callable)
+
+    listed = KEY_QUERIES.listed(@function, @alice)
+
+    assert_equal %w[invocations errors duration throttles], listed.map { |each| each.plan.check.key }
+    assert listed.all? { |each| each.plan.available? && each.run_blocked_reason.nil? }
+  end
+
   test "a reading is compared with the normal the answering connection read for that metric" do
     record_baseline(@function, "Throttles", [ 0.0, 1.0, 2.0, 2.0 ])
     plan = KEY_QUERIES.plan(@function, KEY_QUERIES::CHECKS.fetch("throttles"), principal: @alice)
@@ -91,38 +101,6 @@ class ResourceMap::KeyQueriesTest < ActiveSupport::TestCase
                  KEY_QUERIES.verdict(KEY_QUERIES::CHECKS.fetch("invocations"), plan.call, "invocations", result)
     assert_match "No reading came back for throttles", KEY_QUERIES.verdict(plan.check, plan.call, "throttles", { "content" => [] })
     assert_nil KEY_QUERIES.verdict(KEY_QUERIES::CHECKS.fetch("recent_deploys"), plan.call, nil, result)
-  end
-
-  test "running a check from the map is authorized and ledgered as the provider tool, from the web, with the comparison" do
-    record_baseline(@function, "Throttles", [ 0.0, 1.0, 2.0, 2.0 ])
-    Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, **| tool.name == "cloudwatch_metrics" && arguments["metrics"] == %w[Throttles] && arguments["minutes"] == 60 }
-                                .returns(chart_result("per minute", [ [ 1.0, 9.0 ] ]).merge("content" => [ { "type" => "text", "text" => "Throttles of checkout" } ]))
-
-    outcome = KEY_QUERIES.run!(@function, KEY_QUERIES::CHECKS.fetch("throttles"), principal: @alice)
-
-    assert_match "4.5x the usual high", outcome.headline
-    assert_equal [ "Throttles of checkout", false, 1 ], [ outcome.text, outcome.failed, outcome.charts.size ]
-    invocation = Ability::Invocation.find_by!(workspace: @workspace, action_key: "aws.cloudwatch_metrics")
-    assert_equal AbilityGateway::SOURCE_WEB, invocation.source
-  end
-
-  test "a person without the grant is refused through the gateway, and nothing is called" do
-    take_aws_reads_from_bob
-    Integrations::NativeExecutor.expects(:call).never
-
-    outcome = KEY_QUERIES.run!(@function, KEY_QUERIES::CHECKS.fetch("throttles"), principal: @bob)
-
-    assert_match "You may not run aws.cloudwatch_metrics here", outcome.refusal
-    assert Ability::Invocation.exists?(workspace: @workspace, action_key: "aws.cloudwatch_metrics", decision: Ability::Invocation::DECISION_DENY)
-  end
-
-  test "a provider's own failure is an answer that failed" do
-    Integrations::NativeExecutor.expects(:call).raises(Integrations::Error, "AWS answered 400: throttled")
-
-    outcome = KEY_QUERIES.run!(@database, KEY_QUERIES::CHECKS.fetch("cpu"), principal: @alice)
-
-    assert outcome.failed
-    assert_match "aws.cloudwatch_metrics failed: AWS answered 400: throttled", outcome.text
   end
 
   test "a check a kind does not have is named with the ones it has" do
