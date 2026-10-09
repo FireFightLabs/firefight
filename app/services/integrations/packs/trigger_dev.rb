@@ -378,19 +378,19 @@ module Integrations
         ResourceMap::Snapshot.new(resources: resources, links: [], gaps: gaps, uses: uses)
       end
 
-      # What normal looks like for each task over the week: runs started and failed per minute, from one query over every
-      # task, and the CPU and memory of its runs, one query each. A bucket with no runs is a zero, so a quiet task's normal
-      # is not read off its busy minutes only. Being asked to slow down stops the whole read.
+      # What normal looks like for each task over the week: runs started and failed per minute, and the CPU and memory of
+      # its runs, each from one query over every task. A bucket with no runs is a zero, so a quiet task's normal is not
+      # read off its busy minutes only. Being asked to slow down stops the whole read.
       def baselines_of(environment_row, resources, window)
         tasks = resources.select { |resource| resource.kind == ResourceMap::KIND_JOB }.index_by(&:external_id)
         return [] if tasks.empty?
 
         api = api(environment_row)
-        rows = api.query(grouped_counts, from: window.begin, to: window.end)
+        rows = grouped_rows(api, tasks.keys, window) { |task| grouped_counts(task) }
         step = step_of(rows.filter_map { |row| Telemetry.parse_time(row["bucket"]) })
         found = step ? counted_baselines(tasks, rows, step, window) : []
         found + RUNTIME_METRICS.keys.flat_map do |metric|
-          api.query(grouped_runtime(metric), from: window.begin, to: window.end).group_by { |row| row["task"] }.filter_map do |task, readings|
+          grouped_rows(api, tasks.keys, window) { |task| grouped_runtime(metric, task) }.group_by { |row| row["task"] }.filter_map do |task, readings|
             resource = tasks[task]
             next unless resource
 
@@ -441,7 +441,6 @@ module Integrations
       end
 
       def project_of(environment_row) = ConnectionSettings.of(environment_row).field(PROJECT) || fail!("This environment has no Trigger.dev project ref. Reconnect it.")
-
 
       def task_of(arguments)
         task = arguments["task"].to_s.strip
@@ -585,14 +584,24 @@ module Integrations
         rows.filter_map { |row| (at = Telemetry.parse_time(row["bucket"])) && [ at, scale(metric, row["value"]) ] }
       end
 
-      def grouped_counts
-        "SELECT task_identifier AS task, timeBucket() AS bucket, count() AS runs, countIf(status IN ('Failed', 'Crashed')) AS failed " \
-          "FROM runs GROUP BY task, bucket ORDER BY bucket LIMIT #{QUERY_ROWS}"
+      # The rows of one query over every task, or of one query per task when that one filled QUERY_ROWS, since its rows
+      # come oldest bucket first and the newest would be the ones cut.
+      def grouped_rows(api, tasks, window)
+        rows = api.query(yield(nil), from: window.begin, to: window.end)
+        return rows if rows.size < QUERY_ROWS
+
+        tasks.select { |task| task.match?(TASK_ID) }.flat_map { |task| api.query(yield(task), from: window.begin, to: window.end) }
       end
 
-      def grouped_runtime(metric)
+      def grouped_counts(task = nil)
+        "SELECT task_identifier AS task, timeBucket() AS bucket, count() AS runs, countIf(status IN ('Failed', 'Crashed')) AS failed " \
+          "FROM runs #{"WHERE task_identifier = #{quoted(task)} " if task}GROUP BY task, bucket ORDER BY bucket LIMIT #{QUERY_ROWS}"
+      end
+
+      def grouped_runtime(metric, task = nil)
         "SELECT task_identifier AS task, timeBucket() AS bucket, avg(metric_value) AS value FROM metrics " \
-          "WHERE metric_name = '#{RUNTIME_METRICS.fetch(metric)}' GROUP BY task, bucket ORDER BY bucket LIMIT #{QUERY_ROWS}"
+          "WHERE metric_name = '#{RUNTIME_METRICS.fetch(metric)}' #{"AND task_identifier = #{quoted(task)} " if task}GROUP BY task, bucket " \
+          "ORDER BY bucket LIMIT #{QUERY_ROWS}"
       end
 
       def counted_baselines(tasks, rows, step, window)

@@ -230,6 +230,23 @@ module Integrations
         assert_equal [ tasks.last.key, [ 100.0 ] ], [ memory.key, memory.points.map(&:last) ]
       end
 
+      test "a grouped baseline query that fills its row limit is read again one task at a time, so the newest steps are not zeros" do
+        task = ResourceMap::Resource.create!(workspace: @workspace, provider: TriggerDev::PROVIDER_KEY, account: "proj_acme", kind: ResourceMap::KIND_JOB,
+                                             external_id: "send-email", name: "send-email", integration_environment: @row, first_seen_at: Time.current, last_seen_at: Time.current)
+        window = Time.utc(2026, 10, 1, 0, 0)..Time.utc(2026, 10, 1, 0, 30)
+        full = Array.new(TriggerDev::QUERY_ROWS) { { "task" => "busy", "bucket" => "2026-10-01 00:00:00", "runs" => 1, "failed" => 0 } }
+        TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM runs") && trql.exclude?("task_identifier =") }.returns(full)
+        TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM runs") && trql.include?("task_identifier = 'send-email'") }.returns([
+          { "task" => "send-email", "bucket" => "2026-10-01 00:00:00", "runs" => 10, "failed" => 2 },
+          { "task" => "send-email", "bucket" => "2026-10-01 00:10:00", "runs" => 20, "failed" => 0 }
+        ])
+        TriggerDevApi.any_instance.stubs(:query).with { |trql, **| trql.include?("FROM metrics") }.returns([])
+
+        requests = @pack.baselines_of(@row, [ task ], window).find { |reading| reading.metric == "requests" }
+
+        assert_equal [ 1.0, 2.0, 0.0, 0.0 ], requests.points.map(&:last)
+      end
+
       test "promoting a version says it moves every task, and a key that may not deploy is told what to do" do
         TriggerDevApi.any_instance.expects(:promote).with("20261001.1").returns({ "version" => "20261001.1" })
         assert_match "for every task in it", call(:promote_deployment, "version" => "20261001.1")
