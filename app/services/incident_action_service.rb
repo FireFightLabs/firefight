@@ -125,6 +125,15 @@ class IncidentActionService
     nil
   end
 
+  # Open is nobody holding it, so a done item reopens and a held one is let go. Answers why it cannot, or nil once it is.
+  def open_action(action:, opened_by:)
+    if action.done?
+      reopen_action(action: action, reopened_by: opened_by)
+    elsif action.assigned?
+      unassign_action(action: action, unassigned_by: opened_by)
+    end
+  end
+
   # Nobody holds it any more and it is open again. Answers why it cannot be, or nil once it is.
   def unassign_action(action:, unassigned_by:)
     reason = action.unassign_blocked_reason

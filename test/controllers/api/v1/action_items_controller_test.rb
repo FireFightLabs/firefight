@@ -139,4 +139,17 @@ class Api::V1::ActionItemsControllerTest < ActionDispatch::IntegrationTest
     patch api_v1_incident_action_item_url(@incident, action), params: { description: "" }, headers: api_headers, as: :json
     assert_response :unprocessable_entity
   end
+
+  test "a refused status leaves the rename in the same request unwritten" do
+    action = incident_actions(:inc1_action_in_progress)
+    action.update!(status: IncidentAction::STATUS_DONE)
+    title = action.description
+
+    patch api_v1_incident_action_item_url(@incident, action),
+          params: { description: "Restart every worker", status: IncidentAction::STATUS_DONE }, headers: api_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal title, action.reload.description
+    assert_not @incident.incident_events.exists?(event_type: IncidentEvent::ACTION_RENAMED)
+  end
 end

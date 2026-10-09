@@ -25,9 +25,12 @@ class Api::V1::ActionItemsController < Api::V1::ApiController
   end
 
   # One call covers renaming, taking, handing over, finishing, reopening and letting go. The service decides which
-  # event is recorded. status open reopens a done item and lets go of one in progress, since open is nobody holding it.
+  # event is recorded. Every refusal is checked first, so a refused request changes nothing.
   def update
     authorize!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE)
+
+    refusal = @action_item.change_blocked_reason(description: params.key?(:description) ? params[:description].to_s : nil, status: params[:status])
+    return render json: error_response("validation_error", refusal), status: :unprocessable_entity if refusal
 
     if params.key?(:description)
       refusal = service.rename_action(action: @action_item, description: params[:description], renamed_by: Current.principal)
@@ -35,21 +38,12 @@ class Api::V1::ActionItemsController < Api::V1::ApiController
     end
 
     if params[:status] == IncidentAction::STATUS_OPEN
-      item = @action_item.reload
-      refusal = if item.done? then service.reopen_action(action: item, reopened_by: Current.principal)
-      elsif item.assigned? then service.unassign_action(action: item, unassigned_by: Current.principal)
-      end
+      refusal = service.open_action(action: @action_item.reload, opened_by: Current.principal)
       return render json: error_response("validation_error", refusal), status: :unprocessable_entity if refusal
     end
 
     assign_item if params.key?(:assignee_id)
-
-    if params[:status] == IncidentAction::STATUS_DONE
-      blocked_reason = @action_item.reload.completion_blocked_reason
-      return render json: error_response("validation_error", blocked_reason), status: :unprocessable_entity if blocked_reason
-
-      service.complete_action(action: @action_item, completed_by: Current.principal)
-    end
+    service.complete_action(action: @action_item.reload, completed_by: Current.principal) if params[:status] == IncidentAction::STATUS_DONE
 
     @action_item.reload
     render :show

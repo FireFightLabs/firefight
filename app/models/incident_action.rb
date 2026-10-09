@@ -78,6 +78,19 @@ class IncidentAction < ApplicationRecord
     "Nobody holds that item." unless assigned?
   end
 
+  # Open means nobody holds it, so a done item reopens and a held one is let go. An open one is already there.
+  def open_blocked_reason
+    reopen_blocked_reason if done?
+  end
+
+  # Every refusal a combined change could meet, checked before any of it is written so a refused request changes
+  # nothing. A nil description means the title is not being changed.
+  def change_blocked_reason(description: nil, status: nil)
+    (rename_blocked_reason(description) unless description.nil?) ||
+      (open_blocked_reason if status == STATUS_OPEN) ||
+      (completion_blocked_reason if status == STATUS_DONE)
+  end
+
   # Moves the item's status on only from where it was, so two people or a person and its issue never both land. False
   # when it had moved.
   def move_status!(from:, to:, **columns)
