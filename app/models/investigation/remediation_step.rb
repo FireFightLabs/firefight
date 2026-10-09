@@ -41,6 +41,11 @@ class Investigation::RemediationStep < ApplicationRecord
     STATUS_APPROVED => "approved and waiting to be run",
     STATUS_DONE => "done", STATUS_FAILED => "failed", STATUS_DECLINED => "declined", STATUS_SKIPPED => "skipped"
   }.freeze
+  # Where a step has got to, as the run page and Slack both say it. A step not started yet says nothing.
+  STATUS_LABELS = {
+    STATUS_RUNNING => "Running", STATUS_WAITING_APPROVAL => "Waiting for approval", STATUS_APPROVED => "Approved, waiting for someone to run it",
+    STATUS_DONE => "Done", STATUS_FAILED => "Failed", STATUS_DECLINED => "Declined", STATUS_SKIPPED => "Skipped, since a step it waits on did not go through"
+  }.freeze
 
   belongs_to :plan, class_name: "Investigation::RemediationPlan", optional: true
   belongs_to :invocation, class_name: "Ability::Invocation", optional: true
@@ -92,6 +97,12 @@ class Investigation::RemediationStep < ApplicationRecord
   def proposed? = status == STATUS_PROPOSED
 
   def done? = status == STATUS_DONE
+
+  def status_label
+    return "Done by #{done_by.display_name}" if done? && done_by
+
+    STATUS_LABELS[status]
+  end
 
   def ended? = ENDED.include?(status)
 

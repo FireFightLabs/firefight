@@ -6,18 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SignInMethodsList } from "@/pages/profile/components/sign-in-methods-list"
 import type { SignInMethod } from "@/types/serializers"
 import type { SharedProps } from "@/types"
+import { initialsOf } from "@/lib/initials"
 
 interface ProfilePageProps extends SharedProps {
   [key: string]: unknown
   signInMethods: SignInMethod[]
-}
-
-function initialsOf(name: string): string {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
 }
 
 export default function Profile() {

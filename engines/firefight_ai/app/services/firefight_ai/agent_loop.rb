@@ -133,34 +133,20 @@ module FirefightAi
       generate
     end
 
-    # A provider that still says too long gets the chat rebuilt and one more try, never a second. One that refuses for
-    # credit and names an output it can still pay for gets one more try at that, which stays the cap for the rest of the
-    # run, since every later turn would be refused the same way.
+    # A provider that still says too long gets the chat rebuilt and one more try, never a second. A refusal for credit
+    # goes to the next account when one can carry on, and otherwise fails the run.
     def generate
-      shortened = false
-      begin
-        Inference.track(tracked) { @chat.step(&streamer) }.first
-      rescue RubyLLM::ContextLengthExceededError
-        raise if @made_room_after_refusal || !@room.possible?
+      Inference.track(tracked) { @chat.step(&streamer) }.first
+    rescue RubyLLM::ContextLengthExceededError
+      raise if @made_room_after_refusal || !@room.possible?
 
-        @made_room_after_refusal = true
-        @room.make_after_refusal
-        retry
-      rescue RubyLLM::Error => e
-        smaller = @output && !shortened ? @output.after_refusal(e, @output_limit) : nil
-        unless smaller
-          raise unless take_over(e)
+      @made_room_after_refusal = true
+      @room.make_after_refusal
+      retry
+    rescue RubyLLM::Error => e
+      raise unless take_over(e)
 
-          shortened = false
-          retry
-        end
-
-        FirefightAi.note_short_of_credit(@inference[:feature], @output_limit, smaller)
-        shortened = true
-        @output_limit = smaller
-        @chat.to_llm.with_max_output_tokens(smaller)
-        retry
-      end
+      retry
     end
 
     # The next account carries on from the same step, on its own model and with its own cap. False when none can.

@@ -172,7 +172,7 @@ class IssueSyncService
     issue = outcome.issue
     now = Time.current
     linked = action.move_issue!(
-      from: waiting, to: IncidentAction::ISSUE_LINKED, external_key: issue.key, external_url: issue.url, issue_approval_id: nil,
+      from: waiting, to: IncidentAction::ISSUE_LINKED, external_key: issue.key, external_url: issue.url,
       issue_sync_note: notes_of(outcome, action), issue_title_synced_at: now, issue_status_synced_at: now, issue_assignee_synced_at: now
     )
     return unless linked
@@ -315,7 +315,7 @@ class IssueSyncService
     approval.update!(resume_payload: { kind: ApprovalResumption::KIND_ISSUE_SYNC, action_id: action.id, operation: operation, fields: fields,
                                        by: by&.to_global_id&.to_s })
     if from
-      action.move_issue!(from: from, to: to, issue_approval_id: approval.id, issue_sync_note: note)
+      action.move_issue!(from: from, to: to, issue_sync_note: note)
       refresh(action)
     else
       action.issue_note!(note)
@@ -323,7 +323,7 @@ class IssueSyncService
   end
 
   def fail_open(action, from, note)
-    refresh(action) if action.move_issue!(from: from, to: IncidentAction::ISSUE_FAILED, issue_sync_note: note, issue_approval_id: nil)
+    refresh(action) if action.move_issue!(from: from, to: IncidentAction::ISSUE_FAILED, issue_sync_note: note)
   end
 
   def state_of(action)

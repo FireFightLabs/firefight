@@ -39,6 +39,24 @@ module SignInSession
     redirect_to signup_workspace_path
   end
 
+  # A Slack sign-in from a team no workspace has yet, by someone who chose a workspace of theirs without Slack, carries
+  # on in that workspace rather than making another. Its setup keeps its progress, and connecting Slack connects the
+  # team they signed in with. It goes where a new workspace goes, so one with no plan yet chooses one first.
+  def continue_in_unconnected(membership, team_id:, team_name:)
+    start_session(user_id: membership.user_id, workspace_id: membership.workspace_id)
+    hold_team_to_connect(membership, team_id: team_id, team_name: team_name)
+    session[:reused_workspace_id] = membership.workspace_id
+    redirect_to(Entitlements.next_step_path(membership.workspace) || onboarding_welcome_path)
+  end
+
+  # Connecting Slack to this workspace next accepts only this team (SlackAuthenticationService#handle_install).
+  def hold_team_to_connect(membership, team_id:, team_name:)
+    session[:connecting_workspace_id] = membership.workspace_id
+    session[:pending_user_id] = membership.user_id
+    session[:pending_team_id] = team_id
+    session[:pending_team_name] = team_name
+  end
+
   def safe_return_to(path)
     return nil if path.blank?
     return nil unless path.is_a?(String) && path.start_with?("/app/")

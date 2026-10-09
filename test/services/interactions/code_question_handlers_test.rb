@@ -79,7 +79,7 @@ class Interactions::CodeQuestionHandlersTest < ActiveSupport::TestCase
     Interactions::OpenCodeQuestionChangeHandler.execute(change_button(@bob))
 
     @adapter.expects(:open_code_question_change_modal).never
-    @adapter.expects(:post_ephemeral).with(channel_id: "C9", user_id: @alice.platform_user_id, text: "Only Bob Jones can change the answer, since the change runs as them.")
+    @adapter.expects(:post_ephemeral).with(channel_id: "C9", user_id: @alice.platform_user_id, text: "Only Bob Jones can answer, since the change runs as them.")
     Interactions::OpenCodeQuestionChangeHandler.execute(change_button(@alice))
 
     @question.session.close!

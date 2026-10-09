@@ -147,11 +147,13 @@ class CodeAgentQuestion < ApplicationRecord
     return "This question is still waiting for an answer, so answer it rather than change it." if open?
     return "The change this question was for has ended." unless CHANGEABLE.include?(status)
     return "The change this question was for has finished, so its answer can no longer change." unless session.running?
-    return "Only #{session.principal&.actor_display_name || 'the person who asked for the change'} can change the answer, since the change runs as them." unless member && session.principal == member
+    return "Only #{session.principal&.actor_display_name || 'the person who asked for the change'} can answer, since the change runs as them." unless member && session.principal == member
 
     nil
   end
 
+  # Settled while the change is still written, so Change answer is offered, to the person it runs as and disabled for
+  # everyone else.
   def changeable? = CHANGEABLE.include?(status) && session.running?
 
   def changed? = changed_at.present?
@@ -269,6 +271,6 @@ class CodeAgentQuestion < ApplicationRecord
       "answeredAt" => answered_at&.utc&.iso8601, "options" => choices.map(&:to_h), "recommended" => recommended,
       "recommendedReason" => recommended_reason, "chosen" => chosen, "timeoutOutcome" => timeout_outcome, "changedTo" => changed_to,
       "changedBy" => changed_by_name, "changedAt" => changed_at&.utc&.iso8601(6), "changedChosen" => (changed_chosen if changed?),
-      "updatedAt" => updated_at&.utc&.iso8601(6) }
+      "changeable" => changeable?, "updatedAt" => updated_at&.utc&.iso8601(6) }
   end
 end

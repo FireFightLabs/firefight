@@ -33,6 +33,10 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   type "RemediationStepStatus"
   def status = step.status
 
+  # The same words Slack's fix message uses.
+  type :string, optional: true
+  def status_label = step.status_label
+
   # What a tool step sends, shown before anyone applies it, since it runs as them. Written by the agent and checked for
   # anything that looks like a credential when the fix was written.
   type :string, optional: true

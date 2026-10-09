@@ -47,6 +47,7 @@ import { TimelineFileAttachment } from "@/pages/incidents/components/index/timel
 import { TimelineUpdateMessage } from "@/pages/incidents/components/index/timeline-update-message"
 import { revealAction } from "@/pages/incidents/lib/action-anchor"
 import { actionStatusIcons, actionStatusLabels, actionStatusStyles } from "@/pages/incidents/lib/action-status"
+import { initialsOf } from "@/lib/initials"
 
 type EventType = TimelineEvent["eventType"]
 
@@ -204,7 +205,7 @@ function NoteStatement({ event }: { event: TimelineEvent }) {
         <Avatar className="size-5 shrink-0">
           {person.avatarUrl ? <AvatarImage src={person.avatarUrl} alt={person.name} /> : null}
           <AvatarFallback className="bg-avatar text-[10px] font-semibold text-avatar-foreground">
-            {person.initials}
+            {initialsOf(person.name)}
           </AvatarFallback>
         </Avatar>
       )}

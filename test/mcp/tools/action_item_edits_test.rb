@@ -26,6 +26,14 @@ class Mcp::Tools::ActionItemEditsTest < ActiveSupport::TestCase
     assert_equal IncidentAction::STATUS_OPEN, call(Mcp::Tools::ReopenActionItem).structured_content[:status]
   end
 
+  test "a title past 3,000 characters is refused with how long it is" do
+    refused = call(Mcp::Tools::RenameActionItem, description: "a" * 3_001)
+
+    assert refused.error?
+    assert_equal "This is a little long. Please shorten it to 3,000 characters or fewer (it's 3,001 now).", refused.content.first[:text]
+    assert_equal "Restart", @action.reload.description
+  end
+
   test "the agent in a chat is offered them with the other item tools" do
     tools = Chat::Tools::Groups::FIREFIGHT.find { |group| group.key == Chat::Tools::Groups::FOLLOW_UPS }.tools
     assert_includes tools, Mcp::Tools::RENAME_ACTION_ITEM

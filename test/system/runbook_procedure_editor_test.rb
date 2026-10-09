@@ -80,6 +80,27 @@ class RunbookProcedureEditorTest < ApplicationSystemTestCase
                  @runbook.reload.watch)
   end
 
+  test "a watch item's name is optional and shows what it is named after, and a refused item is named in the error" do
+    @runbook.update!(watch: nil)
+    open_editor
+    find("#runbook-watch-on").click
+    assert_equal "Name (optional), Run history if left empty", find("input[aria-label='Watch 1 label']")[:placeholder]
+    find("button[role='combobox']", text: /How to check it|Run history/).click
+    find("[cmdk-item]", text: "Status").click
+    assert_equal "Name (optional), Status if left empty", find("input[aria-label='Watch 1 label']")[:placeholder]
+    find("button[role='combobox']", text: "On which resource").click
+    find("[cmdk-item]", text: "firefight").click
+    click_button "Save changes"
+
+    assert_text "Watch 1: needs what counts as done (done when, failed when or a goal)"
+    page.save_screenshot(Rails.root.join("tmp/screenshots/runbook-editor-watch-item-error.png"))
+    find("input[aria-label='Watch 1 goal']").fill_in(with: "firefight is up")
+    click_button "Save changes"
+    assert_text "Release Firefight was updated."
+
+    assert_equal({ "steps" => [ { "capability" => "resource_status", "resource" => "firefight", "goal" => "firefight is up" } ] }, @runbook.reload.watch)
+  end
+
   private
 
   # The tools' fields arrive once the editor asks for them, which the step's own description shows.

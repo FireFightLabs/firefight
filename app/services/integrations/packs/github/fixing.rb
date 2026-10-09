@@ -186,12 +186,13 @@ module Integrations
                                                                          "cite that system's documented contract and its live setup as you read them, and say what you could not verify" },
                       "title" => { "type" => "string", "description" => "What the change does, in plain words, such as \"Allow only letters, digits and hyphens in the release run name\". " \
                                                                          "The pull request's title, or the commit's message when it adds to one" },
-                      "summary" => { "type" => "string", "description" => "One or two plain sentences leading the pull request: what the change does and why. When adding " \
-                                                                           "to an open pull request, what this update changes. No words about how the work was done (optional, the title)" },
+                      "summary" => { "type" => "string", "description" => "When adding to an open pull request, one or two plain sentences leading the comment " \
+                                                                           "posted there, saying what this update changes. No words about how the work was done. A pull request's " \
+                                                                           "description is written from the change and its review (optional, the title)" },
                       "base" => { "type" => "string", "description" => "The branch to open it against (optional, the default branch)" },
                       "pull_request" => { "type" => "integer", "description" => "An open pull request in the same repository whose branch the change is added to, instead of opening one. Leave out to open a new pull request" },
                       "branch" => { "type" => "string", "description" => "A branch in the same repository the change is added to, instead of opening a pull request. Leave out to open a new pull request" },
-                      "context" => { "type" => "string", "description" => "What other changes in the same fix did, such as pull requests opened in other repositories (optional)" }
+                      "context" => { "type" => "string", "description" => "What other changes in the same fix did, such as pull requests opened in other repositories. The coding agent reads it, and it never reaches the pull request (optional)" }
                     }, %w[repo brief title]),
                     read_only: false
         end
@@ -221,8 +222,7 @@ module Integrations
           files = landed!(repo, base: base, branch: branch, head: change.commit, before: nil, environment_row: environment_row, token: token)
 
           warning = CodeChange.ci_warning(files)
-          body = CodeWriteUp.body(lead: arguments["summary"].presence || title, context: arguments["context"], warning: warning, reviewed: reviewed, change: change,
-                                  no_ci: @no_ci)
+          body = CodeWriteUp.body(title: title, warning: warning, reviewed: reviewed, change: change, no_ci: @no_ci)
           opened = begin
             GithubApp.open_pull_request(repo, base: base, branch: branch, title: title, token: token, body: body)
           rescue GithubApp::Error
@@ -265,7 +265,8 @@ module Integrations
           @work.pushed!(files: change.counts.slice(*change.touched), pull_request: target.pull&.dig("html_url"))
           report(@work)
           said = target.pull && comment_on_change(repo, target.pull, base, arguments["summary"].presence || title, change, warning, reviewed, token)
-          pushed_words = "Pushed #{change.commit[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}"
+          described = target.pull && describe_again(repo, target.pull, change, reviewed, token)
+          pushed_words = "Pushed #{change.commit[0, 12]} to #{target.branch} in #{repo}#{", updating #{target.pull['html_url']}" if target.pull}.#{said}#{described}"
           CodeAgentSession.opened_pull_request(integration.workspace, repo, target.pull["number"])&.check_soon! if target.pull
           [ CodeWriteUp.answer(done: pushed_words, warning: warning, reviewed: reviewed, change: change, base: base, updating: true, no_ci: @no_ci),
             (standing(environment_row, repo, target.pull["number"]) if target.pull) ].compact.join("\n\n")
@@ -362,6 +363,22 @@ module Integrations
 
           rules = branch_rules(repo, branch, token)
           fail_policy! "A ruleset in #{repo} keeps pushes off #{branch}, so Firefight does not push to it." if rules.any? { |rule| Branches::PUSH_RULES.include?(rule["type"]) }
+        end
+
+        # A pull request Halon opened has its description written again for the whole change as it stands now, so a line
+        # an earlier version made true and this one does not is gone. Someone else's pull request keeps its own words. What
+        # is said is what GitHub shows when the description is read back.
+        def describe_again(repo, pull, change, reviewed, token)
+          return "" unless CodeAgentSession.opened_pull_request?(integration.workspace, repo, pull["number"])
+
+          body = CodeWriteUp.body(title: pull["title"], warning: CodeChange.ci_warning(change.counts.keys), reviewed: reviewed, change: change, no_ci: @no_ci)
+          GithubApp.write(:patch, "/repos/#{repo}/pulls/#{pull['number']}", { body: body }, token: token)
+          shown = GithubApp.get("/repos/#{repo}/pulls/#{pull['number']}", token: token)["body"]
+          return " The description now describes the whole change, as GitHub shows it." if same_text?(shown, body)
+
+          " GitHub does not show the new description, so it still says what it said before."
+        rescue GithubApp::Error => error
+          " #{Sentence.join('The description could not be written again for this change', error)}"
         end
 
         def comment_on_change(repo, pull, base, summary, change, warning, reviewed, token)

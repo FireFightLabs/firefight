@@ -12,8 +12,8 @@ class AiAccountLowBalanceJobTest < ActiveSupport::TestCase
     Rails.configuration.x.ai_low_balance_usd = 10.0
   end
 
-  test "a key below the threshold alerts once, however many checks find it low within the interval" do
-    FirefightAi::Balance.stubs(:key).with("openrouter").returns(FirefightAi::Balance::Key.new(remaining: 7.25, usage: 92.75))
+  test "an account below the threshold alerts once, however many checks find it low within the interval" do
+    FirefightAi::Balance.stubs(:account).with("openrouter").returns(FirefightAi::Balance::Account.new(remaining: 7.25, usage: 92.75))
 
     assert_enqueued_with(job: AiAccountAlertJob, args: [ "openrouter", AiAccountAlert::LOW_BALANCE, 7.25, 92.75 ]) do
       2.times { AiAccountLowBalanceJob.perform_now }
@@ -26,19 +26,30 @@ class AiAccountLowBalanceJobTest < ActiveSupport::TestCase
     assert_enqueued_jobs 2, only: AiAccountAlertJob
   end
 
-  test "a key at or above the threshold, one with no limit of its own, or one that cannot be read alerts nobody" do
+  test "an account at or above the threshold, or one that cannot be read, alerts nobody" do
     Rails.configuration.x.ai_low_balance_usd = 5.0
-    FirefightAi::Balance.stubs(:key).with("openrouter")
-                        .returns(FirefightAi::Balance::Key.new(remaining: 7.25, usage: 1.0))
-                        .then.returns(FirefightAi::Balance::Key.new(remaining: nil, usage: 1.0))
+    FirefightAi::Balance.stubs(:account).with("openrouter")
+                        .returns(FirefightAi::Balance::Account.new(remaining: 7.25, usage: 1.0))
                         .then.returns(nil)
 
-    assert_no_enqueued_jobs(only: AiAccountAlertJob) { 3.times { AiAccountLowBalanceJob.perform_now } }
+    assert_no_enqueued_jobs(only: AiAccountAlertJob) { 2.times { AiAccountLowBalanceJob.perform_now } }
+  end
+
+  test "without the management key nothing is read, and the run says so once in the log" do
+    FirefightAi.configuration.stubs(:provider_settings).returns(openrouter_api_key: "sk-or-key")
+    FirefightAi.configuration.stubs(:openrouter_management_key).returns(nil)
+    Net::HTTP.expects(:start).never
+    logged = []
+    Rails.logger.stubs(:info).with { |line| logged << line }
+
+    assert_no_enqueued_jobs(only: AiAccountAlertJob) { AiAccountLowBalanceJob.perform_now }
+    unchecked = logged.select { |line| line.to_s.include?("ai.balance_unchecked") }.map { |line| JSON.parse(line) }
+    assert_equal [ { "event" => "ai.balance_unchecked", "provider" => "openrouter", "missing" => "OPENROUTER_MANAGEMENT_KEY" } ], unchecked
   end
 
   test "with no webhook set nothing is sent, and that is logged" do
     Rails.configuration.x.install_notification_webhook_url = nil
-    FirefightAi::Balance.stubs(:key).with("openrouter").returns(FirefightAi::Balance::Key.new(remaining: 1.0, usage: 99.0))
+    FirefightAi::Balance.stubs(:account).with("openrouter").returns(FirefightAi::Balance::Account.new(remaining: 1.0, usage: 99.0))
     Rails.logger.stubs(:info)
     Rails.logger.expects(:info).with { |line| line.include?("ai.account_alert_unsent") }
 

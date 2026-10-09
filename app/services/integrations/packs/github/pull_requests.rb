@@ -10,6 +10,10 @@ module Integrations
         STATES = %w[open closed all].freeze
         SORTS = %w[created updated popularity long-running].freeze
         REVIEW_EVENTS = { "approve" => "APPROVE", "request_changes" => "REQUEST_CHANGES", "comment" => "COMMENT" }.freeze
+        # Every change to a pull request is read back from GitHub before it is reported, and Halon says only what that shows.
+        READ_BACK = "Say only what GitHub shows here about what changed on the pull request.".freeze
+        # How much of a description read back is quoted.
+        SHOWN_BODY = 300
         MERGE_METHODS = %w[merge squash rebase].freeze
         # mergeable_state as GitHub reports it (GraphQL's MergeStateStatus, which the REST field mirrors in lower case):
         # clean, unstable (non-required checks fail) and has_hooks can merge. behind, blocked, dirty, draft and unknown cannot.
@@ -221,7 +225,9 @@ module Integrations
           asking("comment_on_pull_request", "GitHub has no pull request #{number} in #{repo}") do
             pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
             comment = GithubApp.write(:post, "/repos/#{repo}/issues/#{number}/comments", { body: body }, token: token)
-            linked("Commented on PR ##{number} #{pull['title']} in #{repo}.", comment["html_url"].presence || pull["html_url"])
+            shown = comment_shown(repo, comment["id"], token)
+            said = shown ? "Commented on PR ##{number} #{pull['title']} in #{repo}, and GitHub shows the comment." : "GitHub does not show a comment on PR ##{number} #{pull['title']} in #{repo}, so nothing was said there."
+            linked("#{said} #{READ_BACK}", shown&.dig("html_url").presence || pull["html_url"])
           end
         end
 
@@ -264,9 +270,9 @@ module Integrations
             pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
             fail! "PR ##{number} in #{repo} is merged, so it cannot change." if pull["merged_at"]
 
-            updated = GithubApp.write(:patch, "/repos/#{repo}/pulls/#{number}", changes, token: token)
-            said = changes.keys.map { |key| { title: "its title", body: "its description", base: "its base to #{changes[:base]}" }.fetch(key) }
-            linked("Changed #{said.to_sentence} on PR ##{number} #{updated['title'] || pull['title']} in #{repo}.", updated["html_url"].presence || pull["html_url"])
+            GithubApp.write(:patch, "/repos/#{repo}/pulls/#{number}", changes, token: token)
+            now = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
+            linked(updated_words(repo, number, changes, now), now["html_url"].presence || pull["html_url"])
           end
         end
 
@@ -289,7 +295,8 @@ module Integrations
           repo, number, token = pull_target(arguments, environment_row)
           asking("label_pull_request", "GitHub has no pull request #{number} in #{repo}") do
             pull = GithubApp.get("/repos/#{repo}/pulls/#{number}", token: token)
-            linked(relabel(repo, number, "PR ##{number} #{pull['title']}", arguments, token), pull["html_url"])
+            said = relabel(repo, number, "PR ##{number} #{pull['title']}", arguments, token)
+            linked("#{said} #{labels_shown(repo, number, token)} #{READ_BACK}", pull["html_url"])
           end
         end
 
@@ -379,6 +386,40 @@ module Integrations
         end
 
         private
+
+        # What GitHub shows after a change was asked for: each change said only when the pull request read back shows it.
+        def updated_words(repo, number, changes, now)
+          shown = { title: now["title"], body: now["body"], base: now.dig("base", "ref") }
+          names = { title: "title", body: "description", base: "base" }
+          landed, missing = changes.keys.partition { |key| same_text?(shown[key], changes[key]) }
+          [ ("Changed the #{landed.map { |key| names[key] }.to_sentence} on PR ##{number} #{now['title']} in #{repo}." if landed.any?),
+            ("GitHub does not show the new #{missing.map { |key| names[key] }.to_sentence}, so it is unchanged." if missing.any?),
+            "GitHub now shows the title #{now['title'].to_s.inspect}, the base #{shown[:base]}, and #{description_shown(now['body'])}",
+            READ_BACK ].compact.join(" ")
+        end
+
+        def description_shown(body)
+          text = body.to_s.strip
+          return "no description." if text.empty?
+
+          "a description of #{text.size.to_fs(:delimited)} characters starting #{text.truncate(SHOWN_BODY).inspect}."
+        end
+
+        def labels_shown(repo, number, token)
+          names = Array(GithubApp.get("/repos/#{repo}/issues/#{number}/labels", token: token)).map { |label| label["name"] }
+          names.any? ? "GitHub now shows the labels #{names.to_sentence}." : "GitHub now shows no labels on it."
+        rescue GithubApp::Error
+          "Its labels could not be read back, so do not say what they are."
+        end
+
+        def comment_shown(repo, id, token)
+          id && GithubApp.get("/repos/#{repo}/issues/comments/#{id}", token: token)
+        rescue GithubApp::NotFound
+          nil
+        end
+
+        # GitHub keeps text as it was sent apart from line endings and the space around it.
+        def same_text?(shown, sent) = shown.to_s.gsub("\r\n", "\n").strip == sent.to_s.gsub("\r\n", "\n").strip
 
         def settled_pull(repository, number, token, settle)
           tries = settle ? SETTLE_TRIES : 1

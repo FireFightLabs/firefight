@@ -41,8 +41,9 @@ class SlackAuthenticationService
 
   # user comes from the prior OIDC sign-in, never the install auth_hash. pending_team_id must
   # match the auth_hash team, or someone could sign in to team A and install into team B past the invite gate.
-  # connecting is a workspace that started without Slack and is being connected by one of its admins.
-  def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil, connecting: nil)
+  # connecting is a workspace that started without Slack and is being connected by one of its admins. reused says it was
+  # not just named but carried on from an earlier signup (SignInSession#continue_in_unconnected), so connecting it is news.
+  def handle_install(auth_hash, user: nil, invite_code: nil, pending_team_id: nil, connecting: nil, reused: false)
     team_id = auth_hash.extra.team_info["id"]
 
     if pending_team_id.present? && pending_team_id != team_id
@@ -54,7 +55,7 @@ class SlackAuthenticationService
       return AuthOutcome.invite_required(message: WORKSPACE_MISMATCH_MESSAGE)
     end
 
-    return connect(auth_hash, connecting, user, signed_up_with_team: pending_team_id.present?) if connecting
+    return connect(auth_hash, connecting, user, signed_up_with_team: pending_team_id.present? && !reused) if connecting
 
     existing_workspace = Workspace.find_by(platform: :slack, platform_id: team_id)
 

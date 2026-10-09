@@ -3,8 +3,13 @@
 module Workspace::AgentDefaults
   extend ActiveSupport::Concern
 
-  # A run locates what it investigates on the map before anything else, so it reads the map in every environment.
-  INVESTIGATOR_DEFAULTS = [ Ability::Action::MAP_READ ].freeze
+  # A run locates what it investigates on the map before anything else, so it reads the map in every environment. It
+  # saves what it learns to memory, unconfirmed until a person confirms it, and disputes a memory a result contradicted.
+  INVESTIGATOR_DEFAULTS = [
+    Ability::Action::MAP_READ,
+    Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_CREATE),
+    Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_UPDATE)
+  ].freeze
 
   def grant_agent_defaults!
     investigator = SystemAgent.investigator

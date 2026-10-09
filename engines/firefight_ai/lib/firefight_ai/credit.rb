@@ -1,14 +1,12 @@
 module FirefightAi
-  # Whether a provider refused a call because the account paying for it has no credit left, and how much output it said
-  # it could still pay for. Each provider says it its own way, so this reads the status, the error's code and its words.
+  # Whether a provider refused a call because the account paying for it has no credit left. Each provider says it its own
+  # way, so this reads the status, the error's code and its words.
   class Credit
     PAYMENT_REQUIRED = 402
     # OpenAI says a spent balance with a 429 whose code is insufficient_quota, which is not a rate limit to wait out.
     QUOTA_CODES = %w[insufficient_quota].freeze
     # Said only in words: Anthropic's balance too low (a 400) and Gemini's prepaid balance spent (a 429).
     OUT_OF_CREDIT_WORDS = /credit balance is too low|prepayment credits are depleted/i
-    # OpenRouter's 402 when the balance pays for fewer output tokens than were reserved, naming how many it can.
-    AFFORDABLE = /can only afford (\d+)/i
     # OpenRouter's 402 for too much spend in flight at once, which clears by itself and says when.
     IN_FLIGHT_SOURCE = "openrouter_in_flight_budget".freeze
     RETRY_AFTER = "retry-after".freeze
@@ -48,13 +46,6 @@ module FirefightAi
     # A wait-and-retry, never a spent balance. OpenRouter documents a 402 with Retry-After as the only one to retry.
     def in_flight?
       @status == PAYMENT_REQUIRED && (@headers[RETRY_AFTER].present? || @error.dig("metadata", "limit_source") == IN_FLIGHT_SOURCE)
-    end
-
-    # The output tokens the provider said the balance still covers, or nil when it named none.
-    def affordable
-      return nil unless out_of_credit?
-
-      @words[AFFORDABLE, 1]&.to_i
     end
 
     private

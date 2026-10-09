@@ -15,10 +15,10 @@ class AiCreditTest < ActiveSupport::TestCase
     Rails.configuration.x.install_notification_webhook_url = nil
   end
 
-  test "an install on its own keys tells people whoever runs it needs to add credit" do
+  test "an install on its own keys with no alert set up says Halon could not reach its AI, without claiming anyone was told" do
     assert_equal Entitlements::AI_ACCOUNT_OPERATOR, Entitlements.ai_account(@workspace)
-    assert_equal "Halon cannot answer right now because the AI account behind this Firefight is out of credit. " \
-                 "Whoever runs Firefight needs to add credit.", AiCredit.cannot(@workspace)
+    assert_equal "Halon couldn't reach its AI just now.", AiCredit.cannot(@workspace)
+    assert_equal "Halon couldn't reach its AI just now.", AiCredit.cannot(@workspace, "write this postmortem")
   end
 
   test "an install on its own keys whose team gets alerts is told the same as Firefight's cloud" do

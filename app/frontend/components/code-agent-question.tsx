@@ -5,8 +5,9 @@ import { QuestionChangeForm } from "@/components/code-fix/question-change-form"
 import { QuestionOptions } from "@/components/code-fix/question-options"
 import { QuestionSettled } from "@/components/code-fix/question-settled"
 import { QuestionWaiting } from "@/components/code-fix/question-waiting"
+import { Blocked } from "@/components/blocked-tooltip"
 import { Button } from "@/components/ui/button"
-import { type CodeFixQuestion, questionChangeable, questionOpen } from "@/lib/code-fix-work"
+import { type CodeFixQuestion, questionOpen } from "@/lib/code-fix-work"
 
 interface CodeAgentQuestionProps {
   question: CodeFixQuestion
@@ -23,12 +24,14 @@ interface CodeAgentQuestionProps {
 // A question the coding agent asked while it writes a change, under the step that runs it: the question, then each option
 // with what it leads to and the one the agent recommends with why. While it waits, the person the change runs as picks
 // one in a click or writes something else, unless Halon already answered. Once settled, who answered and what they chose,
-// and while the change is still written, Change answer lets them pick another option or write their own.
+// and while the change is still written, Change answer lets them pick another option or write their own. Anyone else sees
+// Change answer disabled, with who can answer.
 export function CodeAgentQuestion({ question, blockedReason = null, changeBlockedReason = null, readOnly = false, reloads }: CodeAgentQuestionProps) {
   const [ changing, setChanging ] = useState(false)
   const open = questionOpen(question)
   const choosable = open && blockedReason === null && !readOnly
-  const changeable = questionChangeable(question) && changeBlockedReason === null && !readOnly
+  const changeOffered = Boolean(question.changeable) && !readOnly
+  const changeable = changeOffered && changeBlockedReason === null
   const editing = changing && changeable
 
   function startChanging() {
@@ -58,10 +61,12 @@ export function CodeAgentQuestion({ question, blockedReason = null, changeBlocke
           <QuestionSettled question={question} />
         </>
       )}
-      {changeable && !editing && (
-        <Button type="button" size="sm" variant="outline" className="w-fit" onClick={startChanging}>
-          Change answer
-        </Button>
+      {changeOffered && !editing && (
+        <Blocked reason={changeBlockedReason ?? undefined} side="top">
+          <Button type="button" size="sm" variant="outline" className="w-fit" disabled={!changeable} onClick={startChanging}>
+            Change answer
+          </Button>
+        </Blocked>
       )}
       {open && <QuestionWaiting question={question} blockedReason={blockedReason} readOnly={readOnly} reloads={reloads} />}
     </div>

@@ -66,30 +66,23 @@ module FirefightAi
     }.fetch(purpose)
   end
 
-  # How much one call for a purpose may write, and the least still worth asking for when the account can pay for less.
-  OutputCap = Data.define(:max, :floor) do
-    # The cap to try once more after the provider refused for credit and named what it can still pay for. Nil when it
-    # named nothing, or too little for a useful answer.
-    def after_refusal(error, tried)
-      affordable = Credit.from(error).affordable
-      affordable if affordable && affordable >= floor && affordable < tried
-    end
-  end
+  # How much one call for a purpose may write. A provider that refuses for credit is never asked again with less, since
+  # an answer cut to fit a balance is worse than a clean failure that tells the team.
+  OutputCap = Data.define(:max)
 
   # A provider reserves the whole cap against the balance before it writes a word, and with no cap it reserves the
   # model's own maximum, so each purpose asks for what it writes plus room for the model's reasoning. Read from the
-  # ledger: an agent turn wrote at most about 5,200 tokens, a citation check about 1,500, the rest under 1,000. Each
-  # floor is what a full answer of that kind has needed, so a reply cut shorter is never asked for.
+  # ledger: an agent turn wrote at most about 5,200 tokens, a citation check about 1,500, the rest under 1,000.
   def output_caps
     {
-      AiPurpose::INVESTIGATION => [ 16_000, 4_000 ],
-      AiPurpose::POSTMORTEM => [ 16_000, 6_000 ],
-      AiPurpose::CITATION_CHECK => [ 8_000, 2_000 ],
-      AiPurpose::LESSONS => [ 8_000, 2_000 ],
-      AiPurpose::CODE_FIX => [ 8_000, 2_000 ],
-      AiPurpose::INCIDENT_RESPONSE => [ 4_000, 1_000 ],
-      AiPurpose::SUMMARY => [ 4_000, 1_000 ],
-      AiPurpose::MILESTONES => [ 4_000, 1_000 ]
+      AiPurpose::INVESTIGATION => 16_000,
+      AiPurpose::POSTMORTEM => 16_000,
+      AiPurpose::CITATION_CHECK => 8_000,
+      AiPurpose::LESSONS => 8_000,
+      AiPurpose::CODE_FIX => 8_000,
+      AiPurpose::INCIDENT_RESPONSE => 4_000,
+      AiPurpose::SUMMARY => 4_000,
+      AiPurpose::MILESTONES => 4_000
     }
   end
 
@@ -97,10 +90,8 @@ module FirefightAi
   # writes is its own even on its parent's model. Never above what the registry says the model can write, as the
   # choice's provider serves it.
   def output_cap(purpose, choice:)
-    built_in_max, floor = output_caps.fetch(purpose)
-    max = ENV["#{env_prefix(purpose)}_MAX_OUTPUT_TOKENS"].presence&.to_i || built_in_max
-    max = [ max, max_output_tokens(choice.model, provider: choice.provider) ].compact.min
-    OutputCap.new(max: max, floor: [ floor, max ].min)
+    max = ENV["#{env_prefix(purpose)}_MAX_OUTPUT_TOKENS"].presence&.to_i || output_caps.fetch(purpose)
+    OutputCap.new(max: [ max, max_output_tokens(choice.model, provider: choice.provider) ].compact.min)
   end
 
   # What the registry says the model can write in one answer. Nil when it is not known. One id can be several
@@ -112,34 +103,20 @@ module FirefightAi
     nil
   end
 
-  # One model call for a purpose, in the ledger and capped at what the purpose writes. A provider that refuses for
-  # credit and names an output it can still pay for is asked once more with that, when it still fits a useful answer.
-  # The block gets a fresh chat each time. Returns the response and its ledger row, as Inference.track does.
-  # A workspace's own account that runs dry or refuses its key hands the call to the next one in its order, which is
-  # asked afresh.
+  # One model call for a purpose, in the ledger and capped at what the purpose writes. The block gets a fresh chat
+  # each time. Returns the response and its ledger row, as Inference.track does. A workspace's own account that runs
+  # dry or refuses its key hands the call to the next one in its order, which is asked afresh. Any other refusal fails
+  # the call.
   def generate(choice, purpose:, inference:)
     translating_errors do
       ensure_paid!(choice)
-      cap = output_cap(purpose, choice: choice)
-      limit = cap.max
-      retried = false
       begin
+        limit = output_cap(purpose, choice: choice).max
         Inference.track(inference.merge(choice.ledger, max_output_tokens: limit)) { yield chat(choice).with_max_output_tokens(limit) }
       rescue RubyLLM::Error => e
-        smaller = retried ? nil : cap.after_refusal(e, limit)
-        unless smaller
-          choice = take_over(choice, e, purpose: purpose, workspace: inference[:workspace])
-          raise unless choice
+        choice = take_over(choice, e, purpose: purpose, workspace: inference[:workspace])
+        raise unless choice
 
-          cap = output_cap(purpose, choice: choice)
-          limit = cap.max
-          retried = false
-          retry
-        end
-
-        note_short_of_credit(inference[:feature], limit, smaller)
-        limit = smaller
-        retried = true
         retry
       end
     end
@@ -167,10 +144,6 @@ module FirefightAi
     raise OutOfCredit, error.message if following.unpaid? || following.payer == choice.payer
 
     following
-  end
-
-  def note_short_of_credit(feature, asked, affordable)
-    Rails.logger.warn({ event: "ai.short_of_credit", feature: feature, asked: asked, affordable: affordable }.to_json)
   end
 
   # The model and payer a call for the purpose runs on now: the workspace's first account that can pay (AiFunding).

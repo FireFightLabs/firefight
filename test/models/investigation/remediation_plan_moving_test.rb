@@ -22,6 +22,13 @@ class Investigation::RemediationPlanMovingTest < ActiveSupport::TestCase
     assert_not @plan.reload.moving?
   end
 
+  test "a step waiting for approval keeps the run page current, since the approval can come from elsewhere" do
+    @plan.steps.first.update_columns(status: Investigation::RemediationStep::STATUS_WAITING_APPROVAL)
+    @plan.steps.where.not(id: @plan.steps.first.id).update_all(status: Investigation::RemediationStep::STATUS_SKIPPED)
+
+    assert @plan.reload.moving?
+  end
+
   test "an approved step that lapsed says so, worded from the approval's run window" do
     step = @plan.steps.first
     assert_nil step.lapsed_reason

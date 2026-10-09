@@ -47,10 +47,9 @@ class AiCreditPayersTest < ActiveSupport::TestCase
                  "An admin can fix this under Settings, Workspace, AI accounts.", AiCredit.cannot(@workspace)
   end
 
-  test "an install on its own keys still points at whoever runs it once its own accounts are spent" do
+  test "an install on its own keys says Halon could not reach its AI once the workspace's own accounts are spent" do
     add_ai_account!(@workspace).ran_out!(FirefightAi::OutOfCredit.new)
 
-    assert_equal "Halon cannot answer right now because the AI account behind this Firefight is out of credit. " \
-                 "Whoever runs Firefight needs to add credit.", AiCredit.cannot(@workspace)
+    assert_equal "Halon couldn't reach its AI just now.", AiCredit.cannot(@workspace)
   end
 end

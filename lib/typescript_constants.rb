@@ -42,7 +42,6 @@ module TypescriptConstants
       Export.new("REMEDIATION_STEP_KINDS", Investigation::RemediationStep::KINDS, "RemediationStepKind"),
       Export.new("REMEDIATION_STEP_STATUSES", Investigation::RemediationStep::STATUSES, "RemediationStepStatus"),
       Export.new("REMEDIATION_PLAN_STATUSES", Investigation::RemediationPlan::STATUSES, "RemediationPlanStatus"),
-      Export.new("REMEDIATION_STEP_STATUS_DONE", Investigation::RemediationStep::STATUS_DONE, nil),
       Export.new("REMEDIATION_STEP_STATUS_RUNNING", Investigation::RemediationStep::STATUS_RUNNING, nil),
       Export.new("HELD_CALL_STATUSES", {
         "WAITING" => Chat::HeldCall::STATUS_WAITING, "CHECKING" => Chat::HeldCall::STATUS_CHECKING, "READY" => Chat::HeldCall::STATUS_READY,

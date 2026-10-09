@@ -97,6 +97,7 @@ class InteractionDispatcher
     Identifiers::CODE_QUESTION_CHANGE => Interactions::OpenCodeQuestionChangeHandler,
     Identifiers::CODE_PAUSE_CONTINUE => Interactions::CodePauseDecisionHandler,
     Identifiers::CODE_PAUSE_STOP => Interactions::CodePauseDecisionHandler,
+    Identifiers::WATCH_STOP => Interactions::StopWatchHandler,
     **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler }
   }.freeze
 

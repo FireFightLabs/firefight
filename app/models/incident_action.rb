@@ -12,6 +12,9 @@ class IncidentAction < ApplicationRecord
   STATUS_DONE = "done"
   STATUSES = [ STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_DONE ].freeze
 
+  # The most a title can say. Every surface refuses a longer one.
+  TITLE_LIMIT = 3_000
+
   # A guarded change that found the item already moved by someone else.
   CHANGED_FIRST = "Someone changed that item first.".freeze
 
@@ -65,8 +68,18 @@ class IncidentAction < ApplicationRecord
   # A title is what the item says needs doing, so it cannot be emptied.
   def rename_blocked_reason(description)
     return "Give the item a title." if description.to_s.strip.empty?
+    too_long = title_length_refusal(description)
+    return too_long if too_long
 
     "That is already its title." if description.to_s.strip == self.description
+  end
+
+  # Why a title is too long, counted as typed, or nil.
+  def title_length_refusal(description)
+    length = description.to_s.strip.length
+    return if length <= TITLE_LIMIT
+
+    "This is a little long. Please shorten it to #{TITLE_LIMIT.to_fs(:delimited)} characters or fewer (it's #{length.to_fs(:delimited)} now)."
   end
 
   def reopen_blocked_reason

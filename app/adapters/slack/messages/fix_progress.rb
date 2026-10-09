@@ -20,17 +20,6 @@ module Slack
         Investigation::RemediationPlan::STATUS_PARTLY_APPLIED => "Fix partly undone",
         Investigation::RemediationPlan::STATUS_CANCELLED => "Undo cancelled"
       }.freeze
-      STATUSES = {
-        Investigation::RemediationStep::STATUS_PROPOSED => "Not started",
-        Investigation::RemediationStep::STATUS_RUNNING => "Running",
-        Investigation::RemediationStep::STATUS_WAITING_APPROVAL => "Waiting for approval",
-        Investigation::RemediationStep::STATUS_APPROVED => "Approved, waiting for someone to run it",
-        Investigation::RemediationStep::STATUS_DONE => "Done",
-        Investigation::RemediationStep::STATUS_FAILED => "Failed",
-        Investigation::RemediationStep::STATUS_DECLINED => "Declined",
-        Investigation::RemediationStep::STATUS_SKIPPED => "Skipped, since a step it waits on did not go through"
-      }.freeze
-
       def self.build(plan)
         steps = plan.steps.includes(:done_by, approval: :approver).to_a
         blocks = [ { type: "section", text: { type: "mrkdwn", text: heading(plan, steps) } } ]
@@ -167,11 +156,11 @@ module Slack
       # coding agent works on the step, where it has got to stands in for the result, the latest thing it did and the
       # counts, never every line.
       def self.step_text(step)
-        status = STATUSES.fetch(step.status)
-        status = "Done by #{Mrkdwn.escape(step.done_by.display_name)}" if step.done? && step.done_by
+        status = step.status_label
+        status = status ? "\n_#{Mrkdwn.escape(status)}_" : ""
         said = step.status == Investigation::RemediationStep::STATUS_RUNNING && step.work ? step.work.headline : step.result
         result = said.present? ? "\n>#{Mrkdwn.escape(said.truncate(RESULT_SHOWN)).gsub("\n", "\n>")}" : ""
-        "*#{step.position}.* #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(step.description))}\n_#{status}_#{result}"
+        "*#{step.position}.* #{Formatting.markdown_to_mrkdwn(Mrkdwn.escape(step.description))}#{status}#{result}"
       end
     end
   end

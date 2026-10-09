@@ -14,6 +14,9 @@ module IntegrationEnvironment::LiveUpdates
   # not) or why it cannot be set up there, why no setup can be made anywhere, if so, and how to remove it.
   Offered = Data.define(:words, :action, :places, :unavailable, :removal)
   OfferedPlace = Data.define(:place, :label, :sent_at, :unavailable)
+  # The one switch for a provider Firefight registers its webhook with. It reads Turn on while none is registered and
+  # Turn off while one is, with what it does and why it cannot be pressed now, if so.
+  Toggle = Data.define(:turns_on, :words, :blocked_reason)
 
   # A webhook Firefight registers changes how the connection is set up at the provider, recorded as such.
   MAP_EVENTS_WEBHOOK_ACTION_KEY = Ability::Action.system_key(Ability::Action::RESOURCE_INTEGRATIONS, Ability::Action::ACTION_UPDATE)
@@ -169,6 +172,17 @@ module IntegrationEnvironment::LiveUpdates
     return "Live updates are already off for #{integration.name}." if map_events_webhook_id.blank?
 
     "Firefight's webhook costs #{integration.name} nothing, so live updates stay on while it is connected." if map_events_confirmation.blank?
+  end
+
+  # Nil for a provider Firefight cannot register a webhook with, whose live updates are not a switch.
+  def live_updates_toggle
+    return unless map_event_source&.registers?
+
+    if map_events_webhook_id.blank?
+      Toggle.new(turns_on: true, words: live_updates_turn_on_words, blocked_reason: live_updates_turn_on_blocked_reason)
+    else
+      Toggle.new(turns_on: false, words: live_updates_turn_off_words, blocked_reason: live_updates_turn_off_blocked_reason)
+    end
   end
 
   # What turning live updates on does, for the person about to, said before they confirm.

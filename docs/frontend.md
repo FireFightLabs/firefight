@@ -118,7 +118,7 @@ app/frontend/
       invitation.tsx       # /auth/invitation, joining a workspace from an email invitation
       components/          # terms-notice (login-only)
     signup/
-      workspace.tsx        # /signup/workspace, naming a new workspace
+      workspace.tsx        # /signup/workspace, naming a new workspace, or choosing one of yours without Slack
     incidents/
       index.tsx            # /incidents/:id
       postmortem.tsx       # /incidents/:id/postmortem
@@ -286,7 +286,7 @@ capitalized. That is the accepted trade-off, not an oversight.
 ## Search
 
 - **One search in the app shell.** `components/navigation/search-palette.tsx` is a `Dialog` composing `Command` with `shouldFilter={false}`, as the chat search does, mounted once by `AuthenticatedLayout`. It opens from the Search button in the page header (`SiteHeader`, an icon alone below the `sm` width, with the shortcut shown from `md`) and from Cmd or Ctrl K on every page through `hooks/use-search-shortcut.ts`, which ignores the key inside an open dialog. A page with a search of its own on that key keeps it by passing `ownsSearchShortcut` to the layout, and the header button still opens this one. The chat page does, so Cmd or Ctrl K there still searches chats.
-- **The server ranks and says why.** A query goes to `GET /search` (`MapSearchController`, `map: read`) through `hooks/use-remote-search.ts`, which answers `{ results, refusal }`. A person who reads no part of the map is refused by the gateway, and the endpoint answers with no results and a sentence saying so (`NO_MAP_REACH`), which the dialog shows in place of the list, rather than redirecting a search box. Otherwise the page draws `MapSearchResult` rows in the order given, the first selected so Enter opens it. Each row is the title, where it lives (kind, provider, account and environment for a resource, labelled with `KIND_LABELS`, the catalog type for an entry, the subject for a memory) and the server's sentence on why it matched. Choosing one visits its `href`.
+- **The server ranks and says why.** A query goes to `GET /search` (`MapSearchController`, `map: read`) through `hooks/use-remote-search.ts`, which answers `{ results, refusal }`. A person who reads no part of the map is refused by the gateway, and the endpoint answers with no results and a sentence saying so (`NO_MAP_REACH`), which the dialog shows in place of the list, rather than redirecting a search box. No approval rule holds a search, so there is no pending state to show. Otherwise the page draws `MapSearchResult` rows in the order given, the first selected so Enter opens it. Each row is the title, where it lives (kind, provider, account and environment for a resource, labelled with `KIND_LABELS`, the catalog type for an entry, the subject for a memory) and the server's sentence on why it matched. Choosing one visits its `href`.
 - **The pages it opens read their address.** The map takes `view` and `resource` (`RESOURCE_MAP_PAGE_QUERY`, `RESOURCE_MAP_VIEWS`, generated from `ResourceMap`). A catalog type page opens the entry named by `entry` (`CATALOG_ENTRY_QUERY_PARAM`) and keeps the address in step as entries open and close. The Memory page marks the memory named by `memory` (`MEMORY_QUERY_PARAM`), under the filter that holds it, and scrolls it into view.
 
 ## A run's story

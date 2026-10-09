@@ -273,8 +273,7 @@ module Integrations
           yield
         rescue GithubApp::NotPermitted => error
           fail! Sentence.join("GitHub refused to #{what}", error, after: "Firefight's GitHub App needs the #{WRITE_PERMISSION} permission " \
-                                                                          "on this installation for that. An owner of the GitHub account grants it " \
-                                                                          "under Settings, GitHub Apps, by accepting the App's new permissions")
+                                                                          "on this installation for that. #{Asking::GRANT_WHERE}")
         end
 
         def history_run(run)

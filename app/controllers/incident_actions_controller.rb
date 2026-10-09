@@ -45,7 +45,12 @@ class IncidentActionsController < InertiaController
     act(:completion_blocked_reason, :complete_action, "The item was marked done.", completed_by: current_member)
   end
 
+  # A title too long is said under the field it was typed in, every other refusal as an alert.
   def rename
+    incident = current_workspace.incidents.find(params[:incident_id])
+    too_long = incident.incident_actions.active.find(params[:id]).title_length_refusal(params.require(:description))
+    return redirect_to(incident_path(incident), inertia: { errors: { description: [ too_long ] } }) if too_long
+
     edit("The item was renamed.") { |action| service.rename_action(action: action, description: params.require(:description), renamed_by: current_member) }
   end
 

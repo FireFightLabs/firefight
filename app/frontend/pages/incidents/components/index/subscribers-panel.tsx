@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import type { Incident } from "@/pages/incidents/types"
 import { afterMutation } from "@/pages/incidents/lib/after-mutation"
 import { incidentSubscriptionPath } from "@/lib/routes"
+import { initialsOf } from "@/lib/initials"
 
 type Subscriber = Incident["subscribers"][number]
 
@@ -16,7 +17,7 @@ function SubscriberChip({ subscriber }: { subscriber: Subscriber }) {
       <Avatar className="size-5">
         {member.avatarUrl ? <AvatarImage src={member.avatarUrl} alt={member.name} /> : null}
         <AvatarFallback className="bg-avatar text-[10px] font-semibold text-avatar-foreground">
-          {member.initials}
+          {initialsOf(member.name)}
         </AvatarFallback>
       </Avatar>
       <span className="truncate text-[13px] text-fg-primary">{member.name}</span>

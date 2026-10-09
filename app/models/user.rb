@@ -20,6 +20,13 @@ class User < ApplicationRecord
     user
   end
 
+  # The workspaces this person owns that no chat platform has connected yet, oldest first. A Slack sign-in from a team
+  # no workspace has yet connects one of these rather than starting another.
+  def owned_unconnected_memberships
+    workspace_memberships.owner_role.joins(:workspace).merge(Workspace.chat_unconnected).includes(:workspace)
+                         .order(Workspace.arel_table[:created_at])
+  end
+
   def member_of?(workspace)
     workspaces.include?(workspace)
   end

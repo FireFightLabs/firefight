@@ -139,8 +139,7 @@ class PostmortemGenerationJobTest < ActiveSupport::TestCase
     generator = mock("generator")
     generator.stubs(:generate).raises(FirefightAi::OutOfCredit.new("OpenRouter: can only afford 900"))
     FirefightAi::PostmortemGenerator.stubs(:new).returns(generator)
-    said = "Halon cannot write this postmortem right now because the AI account behind this Firefight is out of credit. " \
-           "Whoever runs Firefight needs to add credit."
+    said = "Halon couldn't reach its AI just now."
     adapter = mock("adapter")
     WorkspaceAdapter.stubs(:for).returns(adapter)
     adapter.expects(:post_postmortem_generation_failed).with(has_entries(incident: @incident, retrying: false, note: said)).once

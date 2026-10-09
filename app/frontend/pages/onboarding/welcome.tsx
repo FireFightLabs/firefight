@@ -18,7 +18,7 @@ export default function Welcome({ userName }: WelcomePageProps) {
   return (
     <AuthLayout title="Welcome to Firefight" variant="centered">
       <div>
-        <FireFightLogo className="mx-auto size-8" />
+        <FireFightLogo className="mx-auto size-12" />
 
         <div className="mt-5 border-t border-border" />
 
