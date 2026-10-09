@@ -1,6 +1,6 @@
 # Moves each workspace's issue tracker webhook to the environment row its chosen tracker connection is called through
 # (Integration#resolve_environment with no environment), then drops it from workspaces. A workspace whose tracker has no
-# such row keeps nothing, as an admin saves the secret again once it has one.
+# such row loses its secret, so each one is named in the output for an operator to ask its admin to save it again.
 class MoveIssueWebhookOffWorkspaces < ActiveRecord::Migration[8.1]
   COLUMNS = %w[issue_webhook_secret issue_webhook_id issue_webhook_expires_at issue_webhook_error].freeze
 
@@ -24,7 +24,12 @@ class MoveIssueWebhookOffWorkspaces < ActiveRecord::Migration[8.1]
       values = workspace.attributes.slice(*COLUMNS)
       next if values.values.all?(&:blank?)
 
-      row_for(workspace)&.update!(values)
+      row = row_for(workspace)
+      if row
+        row.update!(values)
+      else
+        say "No tracker connection environment to copy the issue webhook to for workspace #{workspace.id} (#{workspace.name})"
+      end
     end
     change_table(:workspaces, bulk: true) { |t| t.remove(*COLUMNS) }
   end
