@@ -1,4 +1,6 @@
 class RunbooksController < InertiaController
+  include FreeFormParams
+
   authorizes Ability::Action::RESOURCE_RUNBOOKS, create: :create, update: %i[update disable enable reorder], delete: :destroy
   before_action :set_runbook, only: [ :update, :destroy, :disable, :enable ]
 
@@ -89,9 +91,6 @@ class RunbooksController < InertiaController
       watch: (object_param(params[:watch]) if params.key?(:watch))
     }.compact.tap { |given| given[:watch] = nil if params.key?(:watch) && params[:watch].blank? }
   end
-
-  # A free form object, such as a tool's arguments or a watch, which the model checks.
-  def object_param(value) = value.is_a?(ActionController::Parameters) ? value.to_unsafe_h : nil
 
   def condition_params
     Array(params[:conditions])
