@@ -84,7 +84,7 @@ module Slack
       update_message(
         channel_id: channel_id,
         message_id: message_id,
-        text: "Approval #{approval.status}: #{approval.action_key}",
+        text: Slack::Messages::Approval.resolved_fallback(approval),
         blocks: Slack::Messages::Approval.build_resolved(approval)
       )
     end
