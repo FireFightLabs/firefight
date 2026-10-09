@@ -5,6 +5,7 @@ class AgentChatAttachmentsController < InertiaController
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create destroy]
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[show]
 
+  include RequiresAgent
   before_action :require_agent!
   skip_before_action :continue_setup
 
@@ -42,9 +43,7 @@ class AgentChatAttachmentsController < InertiaController
 
   def refuse(sentence) = render(json: { error: sentence }, status: :unprocessable_content)
 
-  def require_agent!
-    return if Investigation.available_for?(current_workspace)
-
-    render json: { error: Investigation.unavailable_reason(current_workspace) }, status: :forbidden
+  def refuse_without_agent(reason)
+    render json: { error: reason }, status: :forbidden
   end
 end

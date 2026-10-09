@@ -60,6 +60,7 @@ class AgentChatsController < InertiaController
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
+  include RequiresAgent
   before_action :require_agent!
   # Setup's Meet Halon step is a chat here.
   skip_before_action :continue_setup
@@ -370,10 +371,4 @@ class AgentChatsController < InertiaController
   end
 
   def own_chats = current_workspace.conversations.personal_for(current_membership)
-
-  def require_agent!
-    return if Investigation.available_for?(current_workspace)
-
-    redirect_to dashboard_path, alert: Investigation.unavailable_reason(current_workspace)
-  end
 end

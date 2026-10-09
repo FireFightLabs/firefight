@@ -11,6 +11,7 @@ class MemoryController < InertiaController
   TAB_INSTRUCTIONS = "instructions"
   CHANGED_FIRST = "Someone changed these instructions first. Their version is shown now."
 
+  include RequiresAgent
   before_action :require_agent!
 
   def index
@@ -89,12 +90,6 @@ class MemoryController < InertiaController
   end
 
   private
-
-  def require_agent!
-    return if Investigation.available_for?(current_workspace)
-
-    redirect_to dashboard_path, alert: Investigation.unavailable_reason(current_workspace)
-  end
 
   def instructions_page = memory_path(TAB_QUERY => TAB_INSTRUCTIONS)
 
