@@ -429,6 +429,62 @@ class WorkspaceSignupsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "T_ALICE_NEW", session[:pending_team_id]
   end
 
+  test "a workspace carried on before its founder letter shows the letter once, then continues to setup" do
+    owner = User.create!(email: "unread@example.com", name: "Uma Unread")
+    onboarding = Workspace.sign_up!(name: "Unread Co", user: owner).workspace.onboarding
+    assert onboarding.founder_letter_pending?
+
+    slack_openid_sign_in(owner, uid: "U_UMA", team_id: "T_UNREAD", team_name: "Unread Slack")
+    assert_redirected_to onboarding_welcome_path
+
+    get onboarding_welcome_path, headers: inertia_headers
+    assert_equal "onboarding/welcome", JSON.parse(response.body)["component"]
+    assert_not onboarding.reload.founder_letter_pending?
+
+    get onboarding_welcome_path
+    assert_redirected_to dashboard_path
+    get dashboard_path
+    assert_redirected_to onboarding_checklist_path
+  end
+
+  test "a workspace carried on after its founder letter goes straight back to setup where it was left" do
+    owner = User.create!(email: "read@example.com", name: "Rex Read")
+    onboarding = Workspace.sign_up!(name: "Read Co", user: owner).workspace.onboarding
+    onboarding.update!(founder_letter_seen_at: 2.days.ago, ai_choice: WorkspaceOnboarding::AI_ACCOUNT, ai_chosen_at: 2.days.ago)
+    seen_at = onboarding.founder_letter_seen_at
+
+    slack_openid_sign_in(owner, uid: "U_REX", team_id: "T_READ", team_name: "Read Slack")
+    get onboarding_welcome_path
+    assert_redirected_to dashboard_path
+    get dashboard_path
+    assert_redirected_to onboarding_checklist_path
+
+    onboarding.reload
+    assert_equal seen_at, onboarding.founder_letter_seen_at
+    assert_equal WorkspaceOnboarding::AI_ACCOUNT, onboarding.ai_choice
+  end
+
+  test "a workspace carried on is not sent to a hosted build's plan picker again, and a new one still is" do
+    send_new_workspaces_to!("/app/billing/plans")
+    owner = User.create!(email: "subscribed@example.com", name: "Sue Subscribed")
+    Workspace.sign_up!(name: "Subscribed Co", user: owner)
+
+    slack_openid_sign_in(owner, uid: "U_SUE", team_id: "T_SUBSCRIBED", team_name: "Subscribed Slack")
+    assert_redirected_to onboarding_welcome_path
+
+    other = User.create!(email: "two-plans@example.com", name: "Tia Two")
+    Workspace.sign_up!(name: "Plan One", user: other)
+    Workspace.sign_up!(name: "Plan Two", user: other)
+    slack_openid_sign_in(other, uid: "U_TIA", team_id: "T_TWO_PLANS", team_name: "Two Plans")
+    post reuse_signup_workspace_path, params: { workspace_id: Workspace.find_by!(name: "Plan Two").id }
+    assert_redirected_to onboarding_welcome_path
+
+    delete logout_path
+    slack_openid_sign_in(other, uid: "U_TIA", team_id: "T_THIRD_PLAN", team_name: "Third Plan")
+    post signup_workspace_path, params: { name: "Third Plan", create_new: true }
+    assert_redirected_to "/app/billing/plans"
+  end
+
   test "a Google sign-in with no workspace is offered nothing to carry on in" do
     google_sign_in("nobody-yet@example.com")
 
