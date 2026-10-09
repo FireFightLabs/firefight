@@ -16,9 +16,8 @@ module Mcp
       authorize_as Ability::Action::RESOURCE_MAP
       description "The first place to find which provider and account hold a named domain, zone, service or database. " \
                   "It only reads, so look here before asking a person or using a provider's own tools. " \
-                  "What runs where, read off the workspace's connections: services, build services, databases and " \
-                  "branches, jobs, repositories and domains, and at the edge zones, Workers, Pages sites, buckets, KV " \
-                  "namespaces, queues, database proxies, tunnels, load balancers and their pools, and Access applications, " \
+                  "What runs where, read off the workspace's connections, every kind the map holds " \
+                  "(#{ResourceMap::KINDS.map { |kind| kind.tr('_', ' ').pluralize }.to_sentence}), " \
                   "by provider and account, with how they depend on each other and which repository each is managed in " \
                   "as code, such as Terraform or Helm, so a fix to one goes to that code. A zone's details carry its SSL mode, " \
                   "certificates and rule counts, and a change to them is recorded. " \

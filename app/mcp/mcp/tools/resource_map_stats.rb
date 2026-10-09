@@ -13,6 +13,7 @@ module Mcp
                   "by kind of change. Only what runs in the environments the caller may read is counted. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       choice :environment, from: ->(workspace) { workspace.environment_entries }
+      choice :provider, from: MapFilters::PROVIDERS
       input_schema(
         properties: MapFilters::PROPERTIES.merge(
           group_by: { type: "string", enum: ResourceMap::Stats::DIMENSIONS, description: "What to count by. provider by default" }

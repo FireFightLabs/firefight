@@ -26,6 +26,7 @@ module Mcp
         assert_equal "No environment called Staging is in the catalog.", text(response(environment: [ "Staging" ]))
         assert_match "One of: development (Development), production (Production)",
                      FindResources.schema_for(@workspace).dig(:properties, :environment, :description)
+        assert_equal "Providers by key. One of: aws (AWS), github (GitHub)", FindResources.schema_for(@workspace).dig(:properties, :provider, :description)
         assert_equal [ orders ], names(status: [ "failed" ])
         assert_equal [ repo ], names(health: [ ResourceMap::Resource::HEALTH_UNKNOWN ])
         assert_equal [ web ], names(tag: [ "team=payments" ])

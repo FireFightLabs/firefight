@@ -101,6 +101,14 @@ module ResourceMap
     site && path.present? ? repository_of("#{site.chomp('/')}/#{path}") : nil
   end
 
+  # A provider as a tool parameter offers it, by its key and its name.
+  Provider = Data.define(:slug, :name)
+
+  # Each provider something on the workspace's map came from.
+  def self.providers(workspace)
+    Resource.where(workspace: workspace).present.distinct.order(:provider).pluck(:provider).map { |key| Provider.new(slug: key, name: provider_name(key)) }
+  end
+
   def self.provider_name(key) = IntegrationProvider.find(key)&.name || PROVIDER_NAMES.fetch(key, key.to_s.humanize)
 
   # The registry's mark and colour, so the map draws a provider the way the Integrations page does. nil for a provider

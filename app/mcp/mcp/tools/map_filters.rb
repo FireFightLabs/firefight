@@ -7,10 +7,13 @@ module Mcp
 
       def self.list(about) = { type: "array", items: { type: "string" }, description: about }
 
+      # The provider filter lists what is on this workspace's map, so no provider is named in shared text.
+      PROVIDERS = ->(workspace) { ResourceMap.providers(workspace) }
+
       PROPERTIES = {
-        provider: list("Providers' keys, such as northflank, cloudflare or aws"),
+        provider: list("Providers by key"),
         kind: { type: "array", items: { type: "string", enum: ResourceMap::KINDS }, description: "Kinds of resource" },
-        account: list("Accounts as the map names them, such as acme/shop for a Northflank team and project"),
+        account: list("Accounts as the map names them, as find_resources rows show them"),
         environment: list("Environments by slug or name, the environment the connection that reported a resource is wired to"),
         status: list("Statuses as the last sweep saw them, such as running or failed"),
         health: { type: "array", items: { type: "string", enum: ResourceMap::Resource::HEALTHS },
