@@ -69,11 +69,18 @@ Production-grade or not at all. Every one of these has already been violated onc
 - **There are pre-existing type errors on `main`** (5 at the time of writing: `progress-rail.tsx`, `postmortem.tsx`, `field-dialog.tsx`, `option-dialog.tsx` ×2). Compare your branch's count against `main` rather than expecting zero.
 - **Finish the whole path, or say exactly what you left undone.** Deferring part of a task is fine when it is stated. Silence reads as complete, which makes it a false claim.
 
+## Every change says it happened (always applies)
+
+- **Every create, update and delete of a resource or configuration shows a toast, anywhere in the app.** Settings, permissions, the catalogue, integrations, the map, the incident page and its items, the agent chat's list and the operator console alike. That covers enable, disable, connect, turn on or off, reorder, set-default, move, approve and deny too. An action that succeeds silently is indistinguishable from one that failed.
+- **The controller says it.** `redirect_to ..., notice:` is enough, `FlashToaster` renders it. A refusal is `alert:` with the model's sentence. Never a client `toast()` in `onSuccess` for a change the server made, so the page and the server cannot both speak or disagree.
+- **Name the thing in plain words**, "Checkout was deleted.", "Linear is off.", "Routing rule was moved up.". Same punctuation rules as all copy.
+- **A test asserts the notice** for each new mutating action (`assert_equal "...", flash[:notice]`).
+
 ## Settings screen UX standards (always apply)
 
 Every settings list behaves the same way. A new one joins this pattern rather than inventing its own.
 
-- **Every mutating action confirms itself with a toast.** Create, update, delete, enable, disable, reorder, set-default. An action that succeeds silently is indistinguishable from one that failed. `redirect_to ..., notice:` is enough, `FlashToaster` renders it.
+- **Every mutating action confirms itself with a toast**, as everywhere else in the app (Every change says it happened, above).
 - **Delete asks first, via `ConfirmDeleteDialog`.** Never `router.delete` straight from a row. The description says what is lost, and names it: how many deliveries, how many incidents.
 - **Delete only at zero references, disable otherwise.** Above zero the Delete item stays visible but inert, with a tooltip naming the exact count. Never hide the control, and never let it fail silently.
 - **Guard rules live on the model as `*_blocked_reason`**, returning a sentence or nil. Controller turns it into a flash alert, serializer ships it, row renders it as a tooltip. Never re-derive a rule in the controller or the frontend, and never ship a bare `deletable` boolean: it drifts from what the controller enforces.
