@@ -243,6 +243,8 @@ export default function ApprovalCard({
   };
 
   const allAnswered = nextOpen(answers, qi) === null && isAnswered(answers, qi);
+  /* a pick already moves on when every question is a single choice with no typed answer, so Skip and Continue add nothing */
+  const needsActions = allowCustom || questions.some((question) => question.type !== "radio");
 
   /* sends only once every question has an answer, so an early answer to the last one never sends the rest unanswered */
   const advance = () => {
@@ -458,14 +460,16 @@ export default function ApprovalCard({
             </button>
           </div>
 
-          <div className="-mr-0.5 flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={skip}>
-              {t.skip}
-            </Button>
-            <Button variant="accent" size="sm" disabled={!hasAnswer} onClick={() => advance()}>
-              {allAnswered ? t.send : t.continue}
-            </Button>
-          </div>
+          {needsActions && (
+            <div className="-mr-0.5 flex items-center gap-1.5">
+              <Button variant="ghost" size="sm" onClick={skip}>
+                {t.skip}
+              </Button>
+              <Button variant="accent" size="sm" disabled={!hasAnswer} onClick={() => advance()}>
+                {allAnswered ? t.send : t.continue}
+              </Button>
+            </div>
+          )}
         </div>
         )}
       </div>

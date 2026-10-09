@@ -10,7 +10,7 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     @chat = @conversation.chat
   end
 
-  test "answering the last question first moves to the open ones, and Send waits for every answer" do
+  test "answering the last question first moves to the open ones, and nothing is sent until every one is answered" do
     pause_on("delete_permission_set", "delete_permission_set", "delete_permission_set")
     visit agent_chat_path(@conversation)
 
@@ -20,7 +20,8 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     end
     answer("set_3", "Confirm")
     on_question("set_1")
-    assert_button "Continue", disabled: true
+    assert_no_button "Continue"
+    assert_no_button "Skip"
     assert_no_button "Send"
     assert_equal [ Chat::APPROVAL_REQUESTED ] * 3, approvals, "nothing is sent while two questions are open"
 
