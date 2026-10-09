@@ -62,8 +62,8 @@ module Mcp
       found.is_a?(String) ? ToolDispatcher.error_response(found) : found
     end
 
-    # run_key_query, for anything on the map: one of the resource's key checks through the capability it names, each
-    # call authorized as that capability's would be, the answer led by how it compares with normal.
+    # run_key_query runs one of a resource's key checks through the capability it names, each call authorized as that
+    # capability's would be, and leads the answer with how it compares with normal.
     def self.key_query_tool
       ::MCP::Tool.define(
         name: ResourceMap::KeyQueries::TOOL_NAME,

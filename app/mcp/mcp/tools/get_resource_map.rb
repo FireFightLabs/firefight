@@ -1,7 +1,7 @@
 module Mcp
   module Tools
     # The map read off the workspace's connections, so an agent starts from what is known rather than listing each
-    # provider again. Facts only, never live values: a status here is what the last sweep saw.
+    # provider again. Facts only, never live values, so a status here is what the last sweep saw.
     class GetResourceMap < Base
       extend MapPayloads
 
