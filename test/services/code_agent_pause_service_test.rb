@@ -74,7 +74,12 @@ class CodeAgentPauseServiceTest < ActionDispatch::IntegrationTest
     )
 
     assert @pause.reload.stopped?
-    assert_equal "*Bob Jones* chose Stop, so the saved work was deleted.", Slack::Messages::CodePause.build(@pause).last[:elements].sole[:text]
+    blocks = Slack::Messages::CodePause.build(@pause)
+    assert_equal "*Bob Jones* chose Stop, so the saved work was deleted.", blocks.last[:elements].sole[:text]
+    assert_not blocks.any? { |block| block.dig(:elements, 0, :text).to_s.include?("is saved on") }, "a stopped change no longer says its work is saved"
+
+    @pause.update_columns(saved_branch: nil)
+    assert_equal "*Bob Jones* chose Stop.", Slack::Messages::CodePause.build(@pause).last[:elements].sole[:text]
   end
 
   test "a turn started by Continue runs the change through the person's own tool with the pause named" do
