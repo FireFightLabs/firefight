@@ -28,6 +28,8 @@ class CodeAgentSession < ApplicationRecord
                     inverse_of: :session
 
   scope :live, -> { where(closed_at: nil).where("expires_at > ?", Time.current) }
+  # Still being written, so an answer to its agent's question can still change: live and not being pushed.
+  scope :running, -> { live.where("push_open_until IS NULL OR push_open_until <= ?", Time.current) }
 
   # The session and the token the box sends, which is shown once and kept only as a digest.
   # request is the CodeAgent::Request the change was asked with, nil for a change nobody asked for in person.
@@ -152,6 +154,8 @@ class CodeAgentSession < ApplicationRecord
   end
 
   def pushing? = push_open_until.present? && push_open_until.future?
+
+  def running? = closed_at.nil? && expires_at.future? && !pushing?
 
   def time_left = [ expires_at - Time.current, 0 ].max
 

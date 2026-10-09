@@ -506,6 +506,62 @@ module Integrations
           assert_equal CodeAgentQuestion::STATUS_EXPIRED, Chat::CodeFixProgress.from_h(heard.last).question["status"]
         end
 
+        test "an answer changed after the agent finished without reading it sends the change back with the new answer before the review" do
+          heard = []
+          alice = workspace_memberships(:alice_workspace_one)
+          request = CodeAgent::Request.new(principal: alice, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+          pack = Github.new(@integration, box_key: "chat-1", request: request, progress: ->(update) { heard << update.to_h.deep_dup })
+          runs = []
+          CodeReading.any_instance.expects(:exec).twice.with do |*, argv:, on_output: nil, **|
+            next false unless argv[2] == Fixing::RUN
+
+            runs << [ argv[4], argv[6] ]
+            if runs.one?
+              session = CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api")
+              question = ask_question!(session, "Tag or commit?")
+              question.answer_as_halon!("The tag.", option: 0)
+              on_output.call("")
+              assert CodeAgentQuestionService.change!(question, nil, by: alice, option: 1).ok
+              question.update_columns(message_channel_id: "C9", message_id: "5.6")
+            end
+            true
+          end.returns("stdout" => agent_output, "timed_out" => false)
+          GithubApp.expects(:open_pull_request).returns("html_url" => "https://github.com/acme/api/pull/7")
+
+          assert_enqueued_with(job: CodeAgentQuestionJob) do
+            pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Send the commit", "brief" => "Send the commit" })
+          end
+
+          assert_includes runs.last[0], "The person changed their answer to your question \"Tag or commit?\". This replaces the earlier answer. Alice Smith chose: Send the commit."
+          assert_equal CHANGED, runs.last[1], "the correction starts from the change it finished"
+          assert_empty CodeAgentQuestion.correction_waiting.where(workspace: @workspace)
+          shown = Chat::CodeFixProgress.from_h(heard.last).question
+          assert_equal [ "Send the commit", "Alice Smith" ], shown.values_at("changedTo", "changedBy")
+          assert_includes Chat::CodeFixProgress.from_h(heard.last).lines.map(&:text), "Sent the change back to the coding agent with the changed answer"
+        end
+
+        test "an answer changed as the push opens stops the change rather than pushing one built on the earlier answer" do
+          alice = workspace_memberships(:alice_workspace_one)
+          request = CodeAgent::Request.new(principal: alice, source: AbilityGateway::SOURCE_CONVERSATION, place: conversation, tool_call_id: "call_1")
+          pack = Github.new(@integration, box_key: "chat-1", request: request)
+          question = nil
+          CodeReading.any_instance.expects(:exec).with do |*, argv:, **|
+            next false unless argv[2] == Fixing::RUN
+
+            question = ask_question!(CodeAgentSession.find_by!(workspace: @workspace, repository: "acme/api"), "Tag or commit?")
+            question.answer_as_halon!("The tag.", option: 0)
+          end.returns("stdout" => agent_output, "timed_out" => false)
+          CodeAgentSession.any_instance.stubs(:open_push!).with { question.change_answer!(nil, by: alice, option: 1) }.returns("push-token")
+          CodeReading.any_instance.expects(:exec).with { |*, argv:, **| argv[2] == Fixing::PUSH }.never
+          GithubApp.expects(:open_pull_request).never
+
+          error = assert_raises(Integrations::Error) do
+            pack.fix_code(environment_row: @row, arguments: { "repo" => "acme/api", "title" => "Fix", "brief" => "Fix it" })
+          end
+
+          assert_equal "An answer to the coding agent's question changed as the change was pushed, so nothing was pushed. Ask again to write it with the new answer.", error.message
+        end
+
         test "a change that reaches its spending limit pauses: its work is saved to its branch, nothing opens, and the person is asked" do
           request = CodeAgent::Request.new(principal: workspace_memberships(:alice_workspace_one), source: AbilityGateway::SOURCE_CONVERSATION,
                                            place: conversation, tool_call_id: "call_1")

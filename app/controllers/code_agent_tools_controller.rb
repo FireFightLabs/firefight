@@ -12,7 +12,7 @@ class CodeAgentToolsController < ActionController::API
     return render(json: { error: CodeAgentSession::ENDED }, status: :unauthorized) unless session
 
     tools = CodeAgent::WebTools.for(session) + CodeAgent::ReadTools.for(session) + CodeAgent::QuestionTools.for(session)
-    answer = MCP::Server.new(name: SERVER_NAME, version: SERVER_VERSION, tools: tools).handle_json(request.raw_post)
+    answer = CodeAgent::QuestionTools.with_corrections(session, MCP::Server.new(name: SERVER_NAME, version: SERVER_VERSION, tools: tools).handle_json(request.raw_post))
     answer.nil? ? head(:accepted) : render(json: answer)
   end
 

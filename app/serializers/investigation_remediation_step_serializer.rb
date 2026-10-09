@@ -48,21 +48,23 @@ class InvestigationRemediationStepSerializer < BaseSerializer
 
   # What its coding agent has done so far, or did, the same shape a chat step carries.
   type "#{AgentChatMessageSerializer::PROGRESS_TYPE} | null"
-  def progress = step.work&.to_h
+  def progress = work&.to_h
 
   # Why whoever is looking cannot continue or stop the change paused at its spending limit, or nil.
   type :string, optional: true
   def pause_blocked_reason
-    work = step.work
     work.pause_blocked_reason(step.workspace_id, Current.principal) if work&.pause
   end
 
   # Why whoever is looking cannot answer the coding agent's open question, or nil.
   type :string, optional: true
   def question_blocked_reason
-    work = step.work
     work.question_blocked_reason(step.workspace_id, Current.principal) if work&.waiting_for_answer?
   end
+
+  # Why whoever is looking cannot change the answer to the coding agent's settled question, or nil.
+  type :string, optional: true
+  def question_change_blocked_reason = work&.question_change_blocked_reason(step.workspace_id, Current.principal)
 
   type :string, optional: true
   def done_by = step.done_by&.display_name
@@ -112,4 +114,9 @@ class InvestigationRemediationStepSerializer < BaseSerializer
   def receipt
     step.invocation && { decision: step.invocation.decision, at: step.invocation.created_at.utc.iso8601 }
   end
+
+  private
+
+  # The work as the step kept it, with its question as it stands now.
+  def work = memo.fetch(:work) { step.work&.with_current_question(step.workspace_id) }
 end

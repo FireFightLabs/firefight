@@ -43,6 +43,41 @@ class CodeAgentQuestionService
     Answered.new(ok: true, words: ANSWERED)
   end
 
+  CHANGED = "Your new answer was sent to the coding agent.".freeze
+  CHANGE_EMPTY = "Pick an option or write your own answer.".freeze
+  CHANGE_BOTH = "Pick an option or write your own answer, not both.".freeze
+  SAME = "That is already the answer.".freeze
+  CHANGED_MEANWHILE = "The answer changed a moment ago. Look at it again before changing it.".freeze
+
+  # The question a platform's Change answer names, and why this member cannot change its answer, or nil when they can.
+  def self.for_change(workspace, id, member)
+    question = CodeAgentQuestion.find_by(id: id, workspace: workspace)
+    question ? [ question, question.change_answer_blocked_reason(member) ] : [ nil, GONE ]
+  end
+
+  def self.change_by_id!(workspace, id, text, by:, option: nil)
+    question = CodeAgentQuestion.find_by(id: id, workspace: workspace)
+    question ? change!(question, text, by: by, option: option) : Answered.new(ok: false, words: GONE)
+  end
+
+  # The person changes a settled answer to another option or their own words. The agent reads it with its next call
+  # (CodeAgent::QuestionTools.correct), and the thread's message is drawn again.
+  def self.change!(question, text, by:, option: nil)
+    blocked = question.change_answer_blocked_reason(by)
+    return Answered.new(ok: false, words: blocked) if blocked
+    return Answered.new(ok: false, words: CHANGE_EMPTY) if option.nil? && text.to_s.strip.empty?
+    return Answered.new(ok: false, words: CHANGE_BOTH) if option && text.to_s.strip.present?
+    return Answered.new(ok: false, words: SAME) if question.same_answer?(text, option)
+
+    unless question.change_answer!(text, by: by, option: option)
+      words = question.reload.change_answer_blocked_reason(by) || (option && !question.choice_at(option) ? NO_SUCH_OPTION : CHANGED_MEANWHILE)
+      return Answered.new(ok: false, words: words)
+    end
+
+    redraw!(question)
+    Answered.new(ok: true, words: CHANGED)
+  end
+
   # Halon answers only what the person's words and the evidence settle, and anything else waits for the person.
   def self.try_halon!(question)
     return unless question.open?

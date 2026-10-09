@@ -34,7 +34,8 @@ class Chat::CodeFixProgress
   # A review kept before it said what it verified and left out reads as having said nothing of either.
   REVIEW_LISTS = { "verified" => [], "unreviewed" => [] }.freeze
   # A question kept before questions had options reads as one with none.
-  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil, "timeoutOutcome" => nil }.freeze
+  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil, "timeoutOutcome" => nil,
+                       "changedTo" => nil, "changedBy" => nil, "changedAt" => nil, "changedChosen" => nil, "updatedAt" => nil }.freeze
 
   # reason says what a check that could not run was missing.
   Check = Data.define(:name, :status, :reason)
@@ -135,7 +136,22 @@ class Chat::CodeFixProgress
   def question_blocked_reason(workspace_id, principal)
     return unless waiting_for_answer?
 
-    CodeAgentQuestion.find_by(id: question["id"], workspace_id: workspace_id)&.answer_blocked_reason(principal)
+    question_record(workspace_id)&.answer_blocked_reason(principal)
+  end
+
+  # Why principal cannot change the answer to the agent's settled question, or nil when they can.
+  def question_change_blocked_reason(workspace_id, principal)
+    return unless question
+
+    question_record(workspace_id)&.change_answer_blocked_reason(principal)
+  end
+
+  # The question as it stands now rather than as the step last reported it, since its answer can change after the
+  # change's last report. Returns self.
+  def with_current_question(workspace_id)
+    current = question && question_record(workspace_id)
+    @question = current.to_h if current
+    self
   end
 
   # Why principal cannot continue or stop the change paused here, or nil.
@@ -237,4 +253,9 @@ class Chat::CodeFixProgress
   end
 
   def clean(text, limit) = Chat::SecretFree.redacted(text.to_s.squish).truncate(limit)
+
+  def question_record(workspace_id)
+    @question_records ||= {}
+    @question_records.fetch(workspace_id) { @question_records[workspace_id] = CodeAgentQuestion.find_by(id: question["id"], workspace_id: workspace_id) }
+  end
 end

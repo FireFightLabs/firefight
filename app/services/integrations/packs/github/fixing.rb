@@ -398,9 +398,11 @@ module Integrations
             pause!(environment_row, reading, repo, ref, session, reached.change, events, base: base, branch: branch, lease: lease)
           end
           first = FIX_TIMEOUT + (CodeAgentQuestion::MAX_PER_CHANGE * CodeAgentQuestion::ANSWER_WITHIN).to_i
+          resend = ->(words, earlier, timeout) { pass.call("#{told}\n\n#{words}", earlier, timeout) }
           change = if @pause&.resumable_in_place?
             @work.add("Carrying on where it stopped")
-            pass.call(CONTINUE_IN_PLACE, @pause.saved_commit, first, @pause.agent_session_id)
+            continued = [ CONTINUE_IN_PLACE, *CodeAgentQuestion.claim_corrections!(@pause.session).map(&:correction_words) ].join("\n\n")
+            pass.call(continued, @pause.saved_commit, first, @pause.agent_session_id)
           elsif @pause
             @work.add("Starting again from #{@pause.saved_branch || base}")
             pass.call("#{told}\n\n#{handover(@pause)}", nil, first)
@@ -409,13 +411,21 @@ module Integrations
           end
           fail! "The coding agent changed nothing in #{repo}.\n#{events.redacted(change.log)}" if change.nothing?
 
+          change = corrected(session, change, &resend)
           reviewed = review(session, choice, brief, change, events, updating: lease.present?)
           if reviewed.ran && !reviewed.right
-            change = send_back(session, change, reviewed) { |words, earlier, timeout| pass.call("#{told}\n\n#{words}", earlier, timeout) }
+            change = corrected(session, send_back(session, change, reviewed, &resend), &resend)
             again = review(session, choice, brief, change, events, updating: lease.present?)
             fail! "Halon's review still found the change wrong after sending it back once, so nothing is opened.\n#{bullets(again.findings)}" if again.ran && !again.right
 
             reviewed = again.with(sent_back: true)
+          end
+          if CodeAgentQuestion.correction_waiting.exists?(code_agent_session_id: session.id)
+            change = corrected(session, change, &resend)
+            after = review(session, choice, brief, change, events, updating: lease.present?)
+            fail! "Halon's review found the change wrong once it followed the changed answer, so nothing is opened.\n#{bullets(after.findings)}" if after.ran && !after.right
+
+            reviewed = after.with(sent_back: reviewed.sent_back)
           end
           kept_out!(environment_row, repo, change, updating: lease.present?)
           push!(session, reading, repo, ref, branch, lease)
@@ -423,16 +433,14 @@ module Integrations
         ensure
           CodeAgentQuestion.withdraw_open!(session) if session
           session&.close!
+          CodeAgentQuestion.changes_closed!(session) if session
         end
 
         def run_agent(environment_row, reading, repo, ref, session, agent_token, choice, events, words, earlier, timeout, gate, resume = nil)
           argv = [ "bash", "-c", RUN, AGENT, words.truncate(BRIEF_LIMIT), "#{choice.provider_name}/#{choice.model}", earlier.to_s, *gate, resume.to_s ]
           stdin = "#{gate_credential(agent_token)}\n#{agent_config(choice, agent_token).to_json}\n"
           result = reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: timeout, argv: argv, stdin: stdin,
-                                      on_output: lambda { |text|
-                                        watch_questions(session)
-                                        report(events.read(text))
-                                      })
+                                      on_output: ->(text) { report(events.read(text)) })
           fail! "The coding agent did not finish in #{timeout / 60} minutes." if result["timed_out"]
           fail! "The change was too large for the sandbox to hand back whole, so nothing is opened." if result["truncated"]
 
@@ -465,6 +473,12 @@ module Integrations
           @work.add("Pushing #{branch}")
           report(@work)
           push_token = session.open_push!((PUSH_TIMEOUT + Sandboxes::Client::MARGIN).seconds) || fail!("This code change's session has ended, so nothing was pushed.")
+          # An answer can change until the push opens, so one that landed after the last look stops the change rather than
+          # being lost. A pause's push only saves the work, and Continue hands the agent the changed answer.
+          if from.nil? && CodeAgentQuestion.correction_waiting.exists?(code_agent_session_id: session.id)
+            session.close_push!
+            fail! "An answer to the coding agent's question changed as the change was pushed, so nothing was pushed. Ask again to write it with the new answer."
+          end
           result = begin
             reading.exec(repo, ref: ref, where: Sandboxes::Client::IN_COPY, timeout: PUSH_TIMEOUT, stdin: "#{gate_credential(push_token)}\n",
                          argv: [ "bash", "-c", PUSH, "push", gate_url, branch, lease.to_s, (from || branch).to_s ])
@@ -552,6 +566,28 @@ module Integrations
           nil
         end
         public :discard_pause!
+
+        # A question can be answered, or its answer changed, at any moment, so every report shows it as it stands.
+        def report(update)
+          watch_questions(@session) if @session && update.equal?(@work)
+          super
+        end
+
+        # The person changed an answer the agent had not read when it finished, so the change goes back to it with the new
+        # answer while there is time to, as often as that happens.
+        def corrected(session, change)
+          loop do
+            changed = CodeAgentQuestion.claim_corrections!(session)
+            return change if changed.empty?
+
+            left = session.reload.time_left.to_i - REVIEW_MARGIN
+            fail! "An answer to the coding agent's question changed after it finished, and there was no time left to send the change back, so nothing is opened." if left < MIN_SEND_BACK
+
+            @work.add("Sent the change back to the coding agent with the changed answer")
+            report(@work)
+            change = yield changed.map(&:correction_words).join("\n\n"), change.commit, [ SEND_BACK_TIMEOUT, left ].min
+          end
+        end
 
         # The question the agent asked is shown with the step, live, and one past its time is ended here too, in case the
         # agent stopped waiting for it.
