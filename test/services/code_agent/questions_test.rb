@@ -124,6 +124,14 @@ class CodeAgent::QuestionsTest < ActionDispatch::IntegrationTest
     assert_nil @session.unanswered_question, "a change that went with the recommendation carries on"
   end
 
+  test "a question says what happens when nobody answers, which the page and Slack show as they are" do
+    question = ask_question!(@session, "Tag or commit?")
+    assert_equal "the change goes with the recommendation", question.to_h["timeoutOutcome"]
+
+    question.update_columns(options: nil, recommended: nil)
+    assert_equal "the change stops", question.reload.to_h["timeoutOutcome"]
+  end
+
   test "a question needs two to four options with what each leads to, a recommendation among them and why" do
     assert_match "Give 2 to 4 options", assert_raises(CodeAgentQuestion::Refused) { ask_question!(@session, "Tag?", options: TAG_OR_COMMIT.first(1)) }.message
     no_consequence = [ { "label" => "Tag" }, { "label" => "Commit", "consequence" => "Named after the commit." } ]

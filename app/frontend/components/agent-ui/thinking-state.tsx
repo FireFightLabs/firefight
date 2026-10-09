@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-import DetailList, { type Detail } from "@/components/agent-ui/detail-list";
+import { type Detail, DetailList } from "@/components/detail-list";
 
 /* ─────────────────────────────────────────────────────────
  * THINKING, an expandable agent trace

@@ -1,7 +1,10 @@
 import { router } from "@inertiajs/react"
 
 import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
-import { agentChatAskPath, agentChatConfirmPath, agentChatPath, agentChatStopPath, agentChatsPath, investigationStopPath } from "@/lib/routes"
+import {
+  agentChatAskPath, agentChatConfirmPath, agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath,
+  agentChatStopPath, agentChatsPath, agentChatWatchStopPath, investigationStopPath,
+} from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat, AgentChatAttachment } from "@/types/serializers"
 
@@ -108,6 +111,36 @@ export function closeRun(chatId: string) {
 }
 
 // A run answers after the turn that started it, so its card is told to look again whenever it moves.
+// A card's action reloads only the card's own props, so the redirect after it never asks for the list again.
+interface CardCallbacks {
+  onSuccess?: () => void
+  onFinish: () => void
+}
+
+// Run, Dismiss and Ask again on a held call each post to their own path.
+export function sendHeldCallAction(path: string, callbacks: CardCallbacks) {
+  router.post(path, {}, { ...IN_PLACE, only: HELD_CALLS, ...callbacks })
+}
+
+export function askAdminForPack(conversationId: string, refusalId: string, callbacks: CardCallbacks) {
+  router.post(agentChatPackRefusalAskPath(conversationId, refusalId), {}, { ...IN_PLACE, only: PACK_REFUSALS, ...callbacks })
+}
+
+export function fixPullRequest(conversationId: string, noticeId: string, callbacks: CardCallbacks) {
+  router.post(agentChatPullRequestFixPath(conversationId, noticeId), {}, { ...IN_PLACE, only: PULL_REQUEST_NOTICES, ...callbacks })
+}
+
+export function fillSecretEntry(conversationId: string, entryId: string, value: string, callbacks: CardCallbacks) {
+  router.post(agentChatSecretEntryFillPath(conversationId, entryId), { secret_value: value }, { ...IN_PLACE, only: SECRET_ENTRIES, ...callbacks })
+}
+
+export function stopWatch(conversationId: string, watchId: string, callbacks: CardCallbacks) {
+  router.post(agentChatWatchStopPath(conversationId, watchId), {}, { ...IN_PLACE, only: WATCHES, ...callbacks })
+}
+
+// A coding agent's question and pause sit in a step's saved message, so answering one reloads the messages.
+export const CODE_AGENT_RELOADS = [ AGENT_CHAT_PROPS.MESSAGES ]
+
 export function refreshRuns() {
   router.reload({ only: RUNS })
 }

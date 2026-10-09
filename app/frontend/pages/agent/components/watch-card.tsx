@@ -1,25 +1,16 @@
-import { router } from "@inertiajs/react"
-import { type Icon, IconCheck, IconCircleDashed, IconEye, IconLoader2, IconMinus, IconX } from "@tabler/icons-react"
+import { IconEye, IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
-import { WATCH_STATUSES, WATCH_STEP_STATUSES } from "@/lib/generated/constants"
-import { agentChatWatchStopPath } from "@/lib/routes"
-import { refreshWatches } from "@/pages/agent/lib/chat-updates"
+import { WATCH_STATUSES } from "@/lib/generated/constants"
+import { WatchStep } from "@/pages/agent/components/watch-step"
+import { stopWatch } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatWatch } from "@/types/serializers"
 
 interface WatchCardProps {
   conversationId: string
   watch: AgentChatWatch
-}
-
-const STEP_ICONS: Record<string, { icon: Icon; className: string }> = {
-  [WATCH_STEP_STATUSES.WAITING]: { icon: IconCircleDashed, className: "text-ink-3" },
-  [WATCH_STEP_STATUSES.RUNNING]: { icon: IconLoader2, className: "text-ink-2 motion-safe:animate-spin" },
-  [WATCH_STEP_STATUSES.SUCCEEDED]: { icon: IconCheck, className: "text-success" },
-  [WATCH_STEP_STATUSES.FAILED]: { icon: IconX, className: "text-danger" },
-  [WATCH_STEP_STATUSES.UNFOLLOWABLE]: { icon: IconMinus, className: "text-ink-3" },
 }
 
 // Something Halon keeps watching for this chat after its answer. While it goes it names what it follows, how long it
@@ -41,9 +32,7 @@ export function WatchCard({ conversationId, watch }: WatchCardProps) {
   function stop() {
     setConfirming(false)
     setStopping(true)
-    router.post(agentChatWatchStopPath(conversationId, watch.id), {}, {
-      preserveScroll: true, preserveState: true, onSuccess: refreshWatches, onFinish: doneStopping,
-    })
+    stopWatch(conversationId, watch.id, { onFinish: doneStopping })
   }
 
   function doneStopping() {
@@ -84,25 +73,5 @@ export function WatchCard({ conversationId, watch }: WatchCardProps) {
         onCancel={cancelStop}
       />
     </section>
-  )
-}
-
-interface WatchStepProps {
-  label: string
-  status: string
-  state: string | null
-}
-
-function WatchStep({ label, status, state }: WatchStepProps) {
-  const mark = STEP_ICONS[status] ?? STEP_ICONS[WATCH_STEP_STATUSES.WAITING]
-  const Mark = mark.icon
-  return (
-    <li className="flex items-start gap-2 text-[13px] leading-relaxed">
-      <Mark className={`mt-1 size-3.5 shrink-0 ${mark.className}`} />
-      <span className="min-w-0 [overflow-wrap:anywhere]">
-        <span className="font-medium text-ink">{label}</span>
-        {state && <span className="text-ink-2">. {state}</span>}
-      </span>
-    </li>
   )
 }

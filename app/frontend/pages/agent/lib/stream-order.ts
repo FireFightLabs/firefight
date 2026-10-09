@@ -94,6 +94,7 @@ function stepOf(event: StreamEvent): AgentStep {
     progress: event.progress ?? null,
     questionBlockedReason: null,
     pauseBlockedReason: null,
+    unsaved: true,
   }
 }
 

@@ -22,7 +22,7 @@ function questionFor(confirmation: AgentChatConfirmation): ApprovalQuestion {
   }
   return {
     q: confirmation.intent ?? confirmation.question,
-    eyebrow: confirmation.intent ? confirmation.question.replace(/\?$/, "") : undefined,
+    eyebrow: confirmation.intent ? confirmation.toolLabel : undefined,
     details,
     type: "radio",
     options: OPTIONS,

@@ -62,6 +62,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     assert_equal "List the zones to find firefight.app", confirmation.intent
     assert_equal "Cloudflare execute?", confirmation.question
+    assert_equal "Cloudflare execute", confirmation.tool_label
     assert_equal [ [ "code", "async () => 1" ] ], confirmation.asked
     assert_equal "List the zones to find firefight.app", step.headline
   end

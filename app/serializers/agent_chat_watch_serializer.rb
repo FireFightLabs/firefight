@@ -55,7 +55,7 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.created_at.utc.iso8601(3)
   end
 
-  type "{ id: string; label: string; status: string; state: string | null }[]"
+  type "{ id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(" | ")}; state: string | null }[]"
   def steps
     watch.steps.map { |step| { id: step.id, label: step.label, status: Conversation::Watches::Shown.step_status(step), state: Conversation::Watches::Shown.step_state(step) } }
   end

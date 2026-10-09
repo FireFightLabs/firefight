@@ -94,6 +94,9 @@ class CodeAgentQuestion < ApplicationRecord
 
   def overdue? = open? && answer_due_at <= Time.current
 
+  # What happens when nobody answers in time, read after "If nobody answers by then,".
+  def timeout_outcome = recommended_option ? "the change goes with the recommendation" : "the change stops"
+
   def by_halon? = answered_by.is_a?(SystemAgent)
 
   def answered_by_name = by_halon? ? HALON : answered_by&.actor_display_name
@@ -177,6 +180,6 @@ class CodeAgentQuestion < ApplicationRecord
     { "id" => id, "text" => question, "askedAt" => created_at&.utc&.iso8601, "answerDueAt" => answer_due_at&.utc&.iso8601,
       "status" => status, "answer" => answer, "answeredBy" => answered_by_name, "byHalon" => by_halon?,
       "answeredAt" => answered_at&.utc&.iso8601, "options" => choices.map(&:to_h), "recommended" => recommended,
-      "recommendedReason" => recommended_reason, "chosen" => chosen }
+      "recommendedReason" => recommended_reason, "chosen" => chosen, "timeoutOutcome" => timeout_outcome }
   end
 end

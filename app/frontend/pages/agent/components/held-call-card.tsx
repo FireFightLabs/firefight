@@ -1,14 +1,13 @@
-import { router } from "@inertiajs/react"
 import { IconAlertTriangle, IconClock, IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
-import DetailList from "@/components/agent-ui/detail-list"
+import { DetailList } from "@/components/detail-list"
 import { useExpiresIn } from "@/hooks/use-expires-in"
 import { formatTime } from "@/lib/formatters"
 import { APPROVED_CALL_ACTIONS, HELD_CALL_STATUSES } from "@/lib/generated/constants"
 import { agentChatHeldCallAskAgainPath, agentChatHeldCallDismissPath, agentChatHeldCallRunPath } from "@/lib/routes"
-import { refreshHeldCalls } from "@/pages/agent/lib/chat-updates"
+import { sendHeldCallAction } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatHeldCall } from "@/types/serializers"
 
 interface HeldCallCardProps {
@@ -16,7 +15,7 @@ interface HeldCallCardProps {
   heldCall: AgentChatHeldCall
 }
 
-const OPEN_STATUSES: string[] = [ HELD_CALL_STATUSES.CHECKING, HELD_CALL_STATUSES.READY ]
+const OPEN_STATUSES: AgentChatHeldCall["status"][] = [ HELD_CALL_STATUSES.CHECKING, HELD_CALL_STATUSES.READY ]
 
 // A call Halon made that an approval rule held for someone else. Approving it never ran it, so once approved the card
 // asks to run it, under how things stand now as Halon just read them. Nothing runs until Run is pressed, and the
@@ -32,7 +31,11 @@ export function HeldCallCard({ conversationId, heldCall }: HeldCallCardProps) {
 
   function send(action: string, path: string) {
     setSending(action)
-    router.post(path, {}, { preserveScroll: true, preserveState: true, onSuccess: refreshHeldCalls, onFinish: () => setSending(null) })
+    sendHeldCallAction(path, { onFinish: doneSending })
+  }
+
+  function doneSending() {
+    setSending(null)
   }
 
   function run() {

@@ -1,8 +1,11 @@
-/* What a tool was given, one argument per line. The name keeps its own column, and a long value such as a command
- * wraps under itself rather than into the name. */
-export type Detail = { label: string; meta: string };
+// What a tool was given, one argument per line. The name keeps its own column, and a long value such as a command
+// wraps under itself rather than into the name.
+export interface Detail {
+  label: string
+  meta: string
+}
 
-export default function DetailList({ details, className = "" }: { details: Detail[]; className?: string }) {
+export function DetailList({ details, className = "" }: { details: Detail[]; className?: string }) {
   return (
     <dl className={`grid grid-cols-[minmax(3.5rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-1.5 ${className}`}>
       {details.map((detail, index) => (
@@ -14,5 +17,5 @@ export default function DetailList({ details, className = "" }: { details: Detai
         </div>
       ))}
     </dl>
-  );
+  )
 }

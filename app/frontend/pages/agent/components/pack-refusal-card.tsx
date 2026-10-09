@@ -1,10 +1,8 @@
-import { router } from "@inertiajs/react"
 import { IconLoader2, IconLock } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
-import { agentChatPackRefusalAskPath } from "@/lib/routes"
-import { refreshPackRefusals } from "@/pages/agent/lib/chat-updates"
+import { askAdminForPack } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatPackRefusal } from "@/types/serializers"
 
 interface PackRefusalCardProps {
@@ -19,9 +17,7 @@ export function PackRefusalCard({ conversationId, refusal }: PackRefusalCardProp
 
   function ask() {
     setSending(true)
-    router.post(agentChatPackRefusalAskPath(conversationId, refusal.id), {}, {
-      preserveScroll: true, preserveState: true, onSuccess: refreshPackRefusals, onFinish: stopSending,
-    })
+    askAdminForPack(conversationId, refusal.id, { onFinish: stopSending })
   }
 
   function stopSending() {

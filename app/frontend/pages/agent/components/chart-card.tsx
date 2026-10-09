@@ -1,6 +1,6 @@
 import { usePage } from "@inertiajs/react"
 
-import { MetricChart } from "@/components/charts/metric-chart"
+import { ChartGrid } from "@/pages/agent/components/chart-grid"
 import type { AgentPageProps } from "@/pages/agent/types"
 
 interface ChartCardProps {
@@ -15,13 +15,5 @@ export function ChartCard({ toolCallKey }: ChartCardProps) {
     return null
   }
 
-  return (
-    <div className={`grid w-full gap-2 ${shown.length > 1 ? "max-w-160 sm:grid-cols-2" : "max-w-110"}`}>
-      {shown.map((chart) => (
-        <section key={chart.id} className="rounded-card bg-surface px-3.5 py-3 shadow-card">
-          <MetricChart chart={chart} />
-        </section>
-      ))}
-    </div>
-  )
+  return <ChartGrid charts={shown} />
 }

@@ -105,9 +105,16 @@ function lastQuestionIndex(messages: AgentChatMessage[]): number {
   return messages.map((message) => message.role).lastIndexOf(CHAT_MESSAGE_ROLES.USER)
 }
 
-// A step the socket reported is newer than its saved copy, so it wins.
+// A step the socket reported is newer than its saved copy, so it wins, except for who may answer or decide, which only
+// the saved copy knows.
 function mergeSteps(saved: AgentStep[], live: AgentStep[]): AgentStep[] {
-  const merged = saved.map((step) => live.find((candidate) => candidate.key === step.key) ?? step)
+  const merged = saved.map((step) => {
+    const reported = live.find((candidate) => candidate.key === step.key)
+    if (!reported) {
+      return step
+    }
+    return { ...reported, questionBlockedReason: step.questionBlockedReason, pauseBlockedReason: step.pauseBlockedReason, unsaved: false }
+  })
   const unseen = live.filter((step) => !saved.some((candidate) => candidate.key === step.key))
   return [ ...merged, ...unseen ]
 }

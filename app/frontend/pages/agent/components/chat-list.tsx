@@ -66,7 +66,7 @@ export function ChatList({ chats: loaded, archivedCount, currentId, className, o
           className="flex flex-col gap-4"
           loading={
             <p className="flex items-center gap-1.5 px-2.5 text-[12px] text-ink-3">
-              <IconLoader2 className="size-3.5 animate-spin" />
+              <IconLoader2 className="size-3.5 motion-safe:animate-spin" />
               Loading more chats
             </p>
           }

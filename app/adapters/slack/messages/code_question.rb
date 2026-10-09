@@ -51,8 +51,7 @@ module Slack
         asker = question.session.principal
         who = asker ? Mrkdwn.mention(asker) : "the person who asked for the change"
         due = "<!date^#{question.answer_due_at.to_i}^{time}|#{question.answer_due_at.utc.strftime('%H:%M UTC')}>"
-        after = question.recommended_option ? "the change goes with the recommendation" : "the change stops"
-        "Only #{who} can answer.  ·  If nobody answers by #{due}, #{after}."
+        "Only #{who} can answer.  ·  If nobody answers by #{due}, #{question.timeout_outcome}."
       end
 
       def self.settled(question)

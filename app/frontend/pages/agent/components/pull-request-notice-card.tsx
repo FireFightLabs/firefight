@@ -1,11 +1,10 @@
-import { router } from "@inertiajs/react"
-import { IconAlertTriangle, IconCheck, IconCornerUpLeft, IconExternalLink, IconLoader2, IconTool } from "@tabler/icons-react"
+import { IconExternalLink, IconLoader2 } from "@tabler/icons-react"
 import { useState } from "react"
 
 import { Button } from "@/components/agent-ui/button"
 import { PULL_REQUEST_NOTICE_STATUSES } from "@/lib/generated/constants"
-import { agentChatPullRequestFixPath } from "@/lib/routes"
-import { refreshPullRequestNotices } from "@/pages/agent/lib/chat-updates"
+import { NoticeMark } from "@/pages/agent/components/notice-mark"
+import { fixPullRequest } from "@/pages/agent/lib/chat-updates"
 import type { AgentChatPullRequestNotice } from "@/types/serializers"
 
 interface PullRequestNoticeCardProps {
@@ -13,7 +12,7 @@ interface PullRequestNoticeCardProps {
   notice: AgentChatPullRequestNotice
 }
 
-const ENDED_LINES: Record<string, string> = {
+const ENDED_LINES: Partial<Record<AgentChatPullRequestNotice["status"], string>> = {
   [PULL_REQUEST_NOTICE_STATUSES.CLEARED]: "The code host no longer shows this.",
   [PULL_REQUEST_NOTICE_STATUSES.REPLACED]: "Something newer about this pull request is below.",
   [PULL_REQUEST_NOTICE_STATUSES.ENDED]: "The pull request was merged or closed, so Halon stopped following it.",
@@ -32,9 +31,7 @@ export function PullRequestNoticeCard({ conversationId, notice }: PullRequestNot
 
   function fix() {
     setSending(true)
-    router.post(agentChatPullRequestFixPath(conversationId, notice.id), {}, {
-      preserveScroll: true, preserveState: true, onSuccess: refreshPullRequestNotices, onFinish: doneSending,
-    })
+    fixPullRequest(conversationId, notice.id, { onFinish: doneSending })
   }
 
   return (
@@ -64,17 +61,4 @@ export function PullRequestNoticeCard({ conversationId, notice }: PullRequestNot
       {offered && notice.fixBlockedReason && <p className="text-[12.5px] text-ink-3">{notice.fixBlockedReason}</p>}
     </section>
   )
-}
-
-function NoticeMark({ status }: { status: string }) {
-  if (status === PULL_REQUEST_NOTICE_STATUSES.FIXING) {
-    return <IconTool className="mt-0.5 size-4 shrink-0 text-ink-2" />
-  }
-  if (status === PULL_REQUEST_NOTICE_STATUSES.CLEARED) {
-    return <IconCheck className="mt-0.5 size-4 shrink-0 text-success" />
-  }
-  if (status === PULL_REQUEST_NOTICE_STATUSES.OFFERED) {
-    return <IconAlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-  }
-  return <IconCornerUpLeft className="mt-0.5 size-4 shrink-0 text-ink-3" />
 }

@@ -34,7 +34,7 @@ class Chat::CodeFixProgress
   # A review kept before it said what it verified and left out reads as having said nothing of either.
   REVIEW_LISTS = { "verified" => [], "unreviewed" => [] }.freeze
   # A question kept before questions had options reads as one with none.
-  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil }.freeze
+  QUESTION_CHOICES = { "options" => [], "recommended" => nil, "recommendedReason" => nil, "chosen" => nil, "timeoutOutcome" => nil }.freeze
 
   # reason says what a check that could not run was missing.
   Check = Data.define(:name, :status, :reason)

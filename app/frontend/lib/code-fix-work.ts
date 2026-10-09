@@ -117,3 +117,9 @@ export function checkPassed(check: CodeFixCheck): boolean {
 export function checkCouldNotRun(check: CodeFixCheck): boolean {
   return check.status === CODE_CHECK_STATUSES.COULD_NOT_RUN
 }
+
+// Answering a question or deciding a pause redirects back. A page whose list loads by the page names the props that
+// change, so the redirect never asks for the list again. Elsewhere it is an ordinary visit.
+export function decisionVisit(reloads: string[] | undefined) {
+  return reloads ? { preserveScroll: true, preserveState: true, only: reloads } : { preserveScroll: true }
+}

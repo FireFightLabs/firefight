@@ -1,3 +1,5 @@
+import type { ComponentProps } from "react"
+
 import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
@@ -38,7 +40,9 @@ export interface AgentPageProps extends SharedProps {
   setupGuide: SetupGuide | null
 }
 
-export type AgentStep = AgentChatMessage["tools"][number]
+// unsaved marks a step only the socket has reported so far. Who may answer its question or decide its pause comes with
+// the saved copy, so until then neither offers anything.
+export type AgentStep = AgentChatMessage["tools"][number] & { unsaved?: boolean }
 
 export type AgentCard = NonNullable<AgentStep["card"]>
 
@@ -68,4 +72,15 @@ export interface AgentStream {
   owed: boolean
   text: string
   steps: AgentStep[]
+}
+
+// A tag react-markdown renders through one of our components, with the syntax tree node it passes along.
+export type RenderedTag<Tag extends "a" | "pre" | "table"> = ComponentProps<Tag> & { node?: unknown }
+
+// The dialogs a secret entry opens, to type a value or to reveal one.
+export interface SecretDialogProps {
+  conversationId: string
+  entry: AgentChatSecretEntry
+  open: boolean
+  onClose: () => void
 }

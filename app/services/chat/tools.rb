@@ -68,7 +68,10 @@ module Chat::Tools
 
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
   # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
-  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call)
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call) do
+    # The question as a label, which the dashboard shows above the agent's own sentence about the call.
+    def tool_label = question.delete_suffix("?")
+  end
 
   # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
   # whoever approves it. It is taken off before the call is made, so the tool never sees it.
