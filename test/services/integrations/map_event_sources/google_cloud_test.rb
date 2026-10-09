@@ -60,6 +60,10 @@ module Integrations
         ], complete: false))
         assert_equal "2026-10-06T12:02:30.000000Z", JSON.parse(GoogleCloud.poll(@row, since: "2026-10-06T12:00:00Z").cursor)["acme-prod"]
 
+        GoogleCloudApi.any_instance.stubs(:log_entries_since).returns(Pages::Read.new(items: [], complete: false))
+        assert_equal "2026-10-06T12:00:00.000000Z", JSON.parse(GoogleCloud.poll(@row, since: "2026-10-06T12:00:00Z").cursor)["acme-prod"],
+                     "pages still searching with no entries keep the cursor where it was"
+
         GoogleCloudApi.any_instance.stubs(:log_entries_since).raises(GoogleCloudApi::Forbidden, "Google Cloud answered 403: Permission denied")
         assert_raises(GoogleCloudApi::Forbidden) { GoogleCloud.poll(@row, since: "2026-10-06T12:00:00Z") }
       end

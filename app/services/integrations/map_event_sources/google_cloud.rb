@@ -47,7 +47,11 @@ module Integrations
 
           read = api.log_entries_since(project, filter(project, Time.iso8601(since) - OVERLAP))
           events = read.items.filter_map { |entry| event_of(project, entry) }
-          cursor = read.complete ? now : Time.iso8601(read.items.last["timestamp"].to_s)
+          # Cloud Logging may answer pages with no entries while it is still searching, which leaves the cursor where it was.
+          cursor = if read.complete then now
+          elsif read.items.any? then Time.iso8601(read.items.last["timestamp"].to_s)
+          else Time.iso8601(since)
+          end
           MapEventSource::Polled.new(events: events, cursor: cursor.utc.iso8601(6))
         end
 
