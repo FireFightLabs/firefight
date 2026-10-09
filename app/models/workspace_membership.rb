@@ -135,7 +135,8 @@ class WorkspaceMembership < ApplicationRecord
     return [] if admin_access?
 
     resolved = Ability::Resolver.resolve(self, workspace_id)
-    withheld = ability_grants.where(workspace_id: workspace_id).includes(:action, :role).select(&:no_access?)
+    grants = ability_grants.loaded? ? ability_grants : ability_grants.includes(:action, :role)
+    withheld = grants.select { |grant| grant.workspace_id == workspace_id && grant.no_access? }
     by_action = withheld.select(&:action).index_by { |grant| grant.action.key }
     by_role = withheld.select(&:role).index_by(&:role_id)
     system = NARROWABLE_KEYS.map do |key|
@@ -160,10 +161,15 @@ class WorkspaceMembership < ApplicationRecord
   end
   private :pack_state
 
-  def read_packs
+  # Every connection's read pack that holds a tool. A listing of every member sets it once for all of them.
+  def self.read_packs_of(workspace)
     workspace.ability_roles.where(pack: Ability::Role::PACK_READ).joins(:integration).merge(Integration.where(deleted_at: nil))
              .includes(:actions, :integration).order(:name).select { |pack| pack.actions.any? }
   end
+
+  attr_writer :read_packs
+
+  def read_packs = @read_packs ||= self.class.read_packs_of(workspace)
   private :read_packs
 
   scope :by_role, ->(role) { where(role: role) }

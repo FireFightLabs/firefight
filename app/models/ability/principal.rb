@@ -43,10 +43,12 @@ module Ability
 
     def self.all(workspace)
       associations = { ability_grants: [ :action, { role: :role_actions } ] }
-      memberships = workspace.workspace_memberships.includes(:user, associations)
+      memberships = workspace.workspace_memberships.includes(:user, associations).to_a
+      packs = WorkspaceMembership.read_packs_of(workspace)
+      memberships.each { |membership| membership.read_packs = packs }
       agents = workspace.agents.active.includes(associations)
       keys = workspace.api_keys.where(deleted_at: nil).service.includes(associations)
-      memberships.to_a + agents.to_a + keys.to_a + system_agents(workspace)
+      memberships + agents.to_a + keys.to_a + system_agents(workspace)
     end
 
     # Each is told which workspace's grants to show.
