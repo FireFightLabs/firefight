@@ -125,14 +125,17 @@ module Integrations
                              limit: Answers.limit(given, History::LIMIT))
       end
 
+      # The field of an operation naming the resource it ran on, by the resource's kind. A database has none.
+      OPERATION_FIELDS = { ResourceMap::KIND_BRANCH => "branch_id", ResourceMap::KIND_COMPUTE => "endpoint_id" }.freeze
+
       # The project's operations on the resource, the whole project's for the database.
       def self.operations_on(resource, id, data)
-        field = { ResourceMap::KIND_BRANCH => "branch_id", ResourceMap::KIND_COMPUTE => "endpoint_id" }[resource.kind]
+        field = OPERATION_FIELDS[resource.kind]
         Array(data.is_a?(Hash) ? data["operations"] : data).select { |operation| field.nil? || operation[field] == id }
       end
 
       def self.deploys_result(resource, id, data, given)
-        field = { ResourceMap::KIND_BRANCH => "branch_id", ResourceMap::KIND_COMPUTE => "endpoint_id" }[resource.kind]
+        field = OPERATION_FIELDS[resource.kind]
         operations = operations_on(resource, id, data)
         operations = operations.sort_by { |operation| operation["created_at"].to_s }.reverse.first(Answers.limit(given, DEPLOY_MOST, default: DEPLOY_LIMIT))
         link = Answers.page(resource, PROVIDER)
