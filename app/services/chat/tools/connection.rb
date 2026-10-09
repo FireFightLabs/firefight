@@ -129,8 +129,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
       result = begin
         integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
                                   progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id), request: code_request(tool_call_id))
-      rescue Integrations::PolicyRefusal => refusal
-        next refused_by_rule!(tool_call_id, authorization, refusal.message)
+      rescue Integrations::PolicyRefusal => policy
+        next refused_by_rule!(tool_call_id, authorization, policy.message)
       end
       result = present.call(result) if present
       result = handed_over(result, tool_call_id, environment_row) if present.nil?
