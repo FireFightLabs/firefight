@@ -50,7 +50,7 @@ class InvestigationCardSerializer < BaseSerializer
   # whole of each step is in the run's story.
   type "{ position: number, label: string, status: string, outcome: string | null }[]"
   def steps
-    investigation.steps.where.not(position: nil).map do |step|
+    investigation.steps.reject { |step| step.position.nil? }.map do |step|
       { position: step.position, label: step.shown_label, status: step.status, outcome: Chat::StepOutcome.kind_for_step(step) }
     end
   end

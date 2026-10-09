@@ -272,7 +272,7 @@ class AgentChatsController < InertiaController
   end
 
   def started_investigations
-    conversation.investigations.seen.includes(:subject, :finding).order(:created_at)
+    conversation.investigations.seen.includes(:subject, :finding, :steps, chat: :charts).order(:created_at)
   end
 
   # Only a run this chat started opens over it. Any other opens nothing.

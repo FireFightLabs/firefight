@@ -448,11 +448,14 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
       trigger_source: Investigation::TRIGGER_CONVERSATION, triggered_by: @member, max_turns: 10, max_spend_cents: 400,
       conversation: chat, tool_call_id: "call_1", brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow" }
     )
+    run.steps.create!(position: 1, tool_name: "commit_lookup", label: "Commit lookup abc123", status: Investigation::Step::STATUS_SUCCEEDED, started_at: Time.current)
+    run.steps.create!(position: nil, tool_name: "search_logs", status: Investigation::Step::STATUS_RUNNING, started_at: Time.current)
 
     get agent_chat_url(chat, Investigation::QUERY_PARAM => run.id), headers: inertia_headers
 
     card = inertia_props[AgentChatsController::PROP_INVESTIGATIONS].sole
     assert_equal [ "call_1", "checkout is slow" ], [ card["toolCallId"], card["question"] ]
+    assert_equal [ "Commit lookup abc123" ], card["steps"].map { |step| step["label"] }
     assert_equal run.id, inertia_props.dig(AgentChatsController::PROP_OPEN_INVESTIGATION, "id")
   end
 
