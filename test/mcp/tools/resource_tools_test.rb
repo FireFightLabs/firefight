@@ -33,7 +33,8 @@ module Mcp
         assert_equal [ @web.id, twin.id ].sort, shared[:candidates].map { |row| row[:id] }.sort
         assert_equal twin.id, call(GetResource, resource: twin.id)[:id]
 
-        assert_equal "Nothing called nowhere is on the map. find_resources searches it by name.", call(GetResource, resource: "nowhere")[:error]
+        assert_equal ResourceMap::Resource.not_found_words("nowhere"), call(GetResource, resource: "nowhere")[:error]
+        assert GetResource.perform_with_principal(workspace: @workspace, principal: @admin, args: { resource: "nowhere" }).error?
       end
 
       test "a present resource is chosen over a gone one of the same name" do

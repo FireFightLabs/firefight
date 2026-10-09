@@ -22,28 +22,16 @@ module Mcp
 
       # Both ends are found among what the principal reads on the map, so one outside it answers as not on the map.
       def self.perform_with_principal(workspace:, principal:, args:)
-        visible = ResourceMap::Resource.visible_to(principal, workspace)
-        from = one(workspace, visible, args[:from])
-        return from if from.is_a?(::MCP::Tool::Response)
+        from = ResourceMap::Resource.locate(workspace, principal, args[:from])
+        return refuse(error: from) if from.is_a?(String)
 
-        to = one(workspace, visible, args[:to])
-        return to if to.is_a?(::MCP::Tool::Response)
+        to = ResourceMap::Resource.locate(workspace, principal, args[:to])
+        return refuse(error: to) if to.is_a?(String)
 
         link = ResourceMap::Link.suggest!(from: from, to: to, relation: args[:relation].to_s, note: args[:evidence].to_s.strip)
-        return respond(error: link) if link.is_a?(String)
+        return refuse(error: link) if link.is_a?(String)
 
         respond(suggested: link.sentence, note: "Shown on the map as a suggestion until a person confirms it.")
-      end
-
-      def self.one(workspace, visible, reference)
-        found = visible.referenced(workspace, reference).present.includes(integration_environment: :integration).to_a
-        return respond(error: "Nothing called #{reference} is on the map. get_resource_map shows what is.") if found.empty?
-        return found.first if found.one?
-
-        named = found.map do |each|
-          "#{each.kind} #{each.scoped_name} (map id #{each.id}, on #{each.integration_environment&.integration&.display_name || each.provider}, its provider's id #{each.external_id})"
-        end
-        respond(error: "More than one resource is called #{reference}: #{named.join(', ')}. Name one by its map id.")
       end
     end
   end

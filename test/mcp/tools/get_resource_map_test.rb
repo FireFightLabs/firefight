@@ -101,7 +101,7 @@ module Mcp
       end
 
       test "a name that is not on the map says how to see what is" do
-        assert_match "Leave the resource out to see the whole map", call(resource: "checkout")[:error]
+        assert_equal ResourceMap::Resource.not_found_words("checkout"), call(resource: "checkout")[:error]
       end
 
       test "below 300 resources every one is listed, and from 300 the map is given as its numbers, saying so and where to look" do

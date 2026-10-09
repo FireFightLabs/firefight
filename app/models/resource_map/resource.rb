@@ -83,14 +83,34 @@ class ResourceMap::Resource < ApplicationRecord
       .order(Arel.sql("resource_map_resources.removed_at IS NOT NULL"), :provider, :account, :kind)
   end
 
+  # The resources within that a reference names, present ones only. With removed: true, a name nothing present has
+  # answers with the removed ones, for a read about something gone. Every tool looks a name up here, so it resolves alike.
+  def self.candidates(within, workspace, reference, removed: false)
+    named = within.referenced(workspace, reference.to_s).includes(integration_environment: %i[integration environment])
+    return named.present.to_a unless removed
+
+    found = named.to_a
+    found.reject(&:removed_at).presence || found
+  end
+
+  def self.not_found_words(reference) = "Nothing on the resource map is called #{reference}. find_resources searches it."
+
+  def self.ambiguous_words(reference, found)
+    named = found.map do |each|
+      "#{each.kind} #{each.scoped_name} (map id #{each.id}, on #{each.integration_environment&.integration&.display_name || each.provider}, " \
+        "its provider's id #{each.external_id})"
+    end
+    "More than one resource is called #{reference}: #{named.to_sentence}. Name it by its map id."
+  end
+
   # The one present resource principal may read by that reference, or a sentence saying nothing is called that or which
   # ones share the name, so a tool that acts on one resource refuses in the same words on every surface.
   def self.locate(workspace, principal, reference)
-    found = visible_to(principal, workspace).referenced(workspace, reference.to_s).present.to_a
-    return "Nothing on the resource map is called #{reference}. find_resources searches it." if found.empty?
+    found = candidates(visible_to(principal, workspace), workspace, reference)
+    return not_found_words(reference) if found.empty?
     return found.first if found.one?
 
-    "More than one resource is called #{reference}: #{found.map { |each| "#{each.kind} #{each.scoped_name} (map id #{each.id})" }.to_sentence}. Name it by its map id."
+    ambiguous_words(reference, found)
   end
 
   # Its name, with the scope it lives in when its connection reaches several (ResourceMap::SCOPE), such as "web in

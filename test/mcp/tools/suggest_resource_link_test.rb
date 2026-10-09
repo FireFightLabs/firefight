@@ -31,14 +31,17 @@ module Mcp
 
         assert_match "map id #{faylee_web.id}, on Faylee (Northflank)", error
         assert_match "map id #{web.id}, on Northflank", error
-        assert_match "Name one by its map id", error
+        assert_match "Name it by its map id", error
       end
 
-      test "a resource not on the map, or a pair already linked, is refused with the reason" do
-        assert_match "get_resource_map shows what is", call(from: "checkout", to: "db", relation: ResourceMap::RELATION_USES, evidence: "x")[:error]
+      test "a resource not on the map, or a pair already linked, is refused with the reason and marked failed" do
+        assert_equal ResourceMap::Resource.not_found_words("checkout"), call(from: "checkout", to: "db", relation: ResourceMap::RELATION_USES, evidence: "x")[:error]
 
         call(from: "web", to: "db", relation: ResourceMap::RELATION_USES, evidence: "x")
-        assert_match "already on the map", call(from: "web", to: "db", relation: ResourceMap::RELATION_USES, evidence: "x")[:error]
+        again = SuggestResourceLink.perform_with_principal(workspace: @workspace, principal: map_reader,
+                                                           args: { from: "web", to: "db", relation: ResourceMap::RELATION_USES, evidence: "x" })
+        assert again.error?
+        assert_match "already on the map", again.structured_content[:error]
       end
 
       private

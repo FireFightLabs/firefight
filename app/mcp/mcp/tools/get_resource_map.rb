@@ -45,10 +45,8 @@ module Mcp
         visible = ResourceMap::Resource.visible_to(principal, workspace)
         return respond(overview(workspace, visible, ResourceMap::Resource.environments_visible_to(principal, workspace))) if args[:resource].blank?
 
-        found = visible.referenced(workspace, args[:resource]).includes(integration_environment: %i[integration environment]).to_a
-        if found.empty?
-          return respond(error: "Nothing called #{args[:resource]} is on the map. Leave the resource out to see the whole map.")
-        end
+        found = ResourceMap::Resource.candidates(visible, workspace, args[:resource], removed: true)
+        return refuse(error: ResourceMap::Resource.not_found_words(args[:resource])) if found.empty?
 
         more = "#{found.size - SHEETS_SHOWN} more share this name, name one by its id on the map" if found.size > SHEETS_SHOWN
         respond({ resources: found.first(SHEETS_SHOWN).map { |resource| sheet(resource, visible, principal: principal) }, more: more }.compact)

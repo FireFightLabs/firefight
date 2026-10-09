@@ -137,6 +137,14 @@ module Mcp
           )
         end
 
+        # A refusal is still an answer, marked failed so the ledger and a chat card do not call it done.
+        def refuse(payload)
+          ::MCP::Tool::Response.new(
+            [ { type: "text", text: JSON.pretty_generate(payload) } ],
+            structured_content: payload, error: true
+          )
+        end
+
         # The model decides who may approve or deny.
         def resolve_approval(workspace, principal, args, decision)
           approval = workspace.ability_approvals.find_by!(id: args[:id].to_s)
