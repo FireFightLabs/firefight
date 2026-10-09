@@ -163,7 +163,7 @@ module Workspace::IssueSync
     trackers = integrations.where(deleted_at: nil, provider: issue_tracker_providers).order(:name)
     none = TrackerChoice.new(value: nil, label: "None", fields: [], steps: [])
     [ none ] + trackers.map do |integration|
-      TrackerChoice.new(value: integration.slug, label: issue_tracker_label(integration),
+      TrackerChoice.new(value: integration.slug, label: integration.display_name,
                         fields: Integrations::Issues.target_fields(integration.provider), steps: Integrations::Issues.setup_steps(integration.provider))
     end
   end
@@ -173,11 +173,6 @@ module Workspace::IssueSync
   private
 
   def issue_tracker_providers = IntegrationProvider.all.map(&:key).select { |key| Integrations::Issues.syncs?(key) }
-
-  def issue_tracker_label(integration)
-    provider = IntegrationProvider.find(integration.provider).name
-    integration.name == provider ? provider : "#{integration.name} (#{provider})"
-  end
 
   def forget_previous_issue_webhook
     previous = issue_tracker_before_last_save
