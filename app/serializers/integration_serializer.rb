@@ -25,30 +25,24 @@ class IntegrationSerializer < BaseSerializer
     integration.disabled_at.present?
   end
 
-  # settings are what the connection was set up with beside its credentials: the region it is in, when its provider
-  # offers more than one, and what the connect form asked, each with its label.
-  # choices are the fields chosen after connecting, each with what the connection learned to choose from and the value
-  # chosen, or null.
-  # liveUpdates says whether the provider's changes reach the map between sweeps, null for a provider that cannot say
-  # what changed. setup is there for a provider an admin sends them from by hand: the connection's own address (null
-  # while Firefight's own address is not set), the steps, and whether a signing secret is saved. turnOn and turnOff are
-  # what a person confirms before turning live updates on or off, null where they cannot. offer is there for a provider
-  # a person may set up to send changes as they happen from a template, with what it does, the button's words, each place
-  # with when it last sent something or why it cannot be set up there, why it cannot be set up at all (or null) and how
-  # to remove it. The link itself is a
-  # redirect (live_updates_setup), so the connection's secret is never in the page.
+  # settings are what the connection was set up with beside its credentials, each with its label. choices are the
+  # fields chosen after connecting, with what the connection learned to choose from.
+  # liveUpdates is null for a provider that cannot say what changed. setup is for a provider an admin sends changes from
+  # by hand, and its address is null while Firefight's own address is not set. turnOn and turnOff are what a person
+  # confirms before switching live updates, and turnOnBlocked and turnOffBlocked say why they cannot. offer is for a
+  # provider a person sets up from a template. Its link is a redirect (live_updates_setup), so the connection's secret
+  # is never in the page.
   OFFER_TYPE = "{ words: string; action: string; unavailable: string | null; removal: string; places: { place: string; label: string; sentAt: string | null; unavailable: string | null }[] } | null".freeze
-  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlockedReason: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null } | null".freeze
+  LIVE_UPDATES_TYPE = "{ on: boolean; lastEventAt: string | null; reason: string | null; setup: { address: string | null; steps: string[]; secretSet: boolean; manySecrets: boolean; secretCount: number; forgetSecrets: string | null; forgetSecretsBlockedReason: string | null } | null; offer: #{OFFER_TYPE}; turnOn: string | null; turnOff: string | null; turnOnBlocked: string | null; turnOffBlocked: string | null } | null".freeze
 
-  # scopes is what the connection reads at its provider for a provider that names it by a scope field, such as
-  # Northflank's projects. It holds the field, the values chosen (one value, the field's all, for every one the credentials can
+  # scopes is what the connection reads at its provider for a provider that names it by a scope field, such as a host's
+  # projects. It holds the field, the values chosen (one value, the field's all, for every one the credentials can
   # read) and the names they were last listed with. null for any other provider.
   SCOPES_TYPE = "{ key: string; label: string; hint: string; values: string[]; options: { value: string; label: string }[] } | null".freeze
 
   # installation is there for a connection made through an app installed at the provider: what the provider calls the
-  # app, the account it is on, the
-  # address of its settings there, and while the provider says it was removed, suspended or given nothing, the state with
-  # its label and why the connection stopped. null otherwise.
+  # app, the account it is on, the address of its settings there, and while the provider says it was removed, suspended
+  # or given nothing, the state with its label and why the connection stopped. null otherwise.
   INSTALLATION_STATE_UNION = Integrations::Installations::STATES.map(&:inspect).join(" | ")
   INSTALLATION_TYPE = "{ app: string; account: string | null; page: string | null; state: #{INSTALLATION_STATE_UNION} | null; label: string | null; reason: string | null } | null".freeze
 
@@ -126,7 +120,8 @@ class IntegrationSerializer < BaseSerializer
     end
     { on: state.on, lastEventAt: state.last_event_at&.utc&.iso8601, reason: state.reason, setup: setup, offer: offer,
       turnOn: (row.live_updates_turn_on_words unless row.live_updates_turn_on_blocked_reason),
-      turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason) }
+      turnOff: (row.live_updates_turn_off_words unless row.live_updates_turn_off_blocked_reason),
+      turnOnBlocked: row.live_updates_turn_on_blocked_reason, turnOffBlocked: row.live_updates_turn_off_blocked_reason }
   end
 
   def scopes_of(row)
