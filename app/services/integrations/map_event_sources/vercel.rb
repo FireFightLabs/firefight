@@ -1,10 +1,11 @@
 module Integrations
   module MapEventSources
-    # Vercel's changes, sent to a webhook Firefight registers for the whole of each team the connection reaches with the connection's access token (spec,
-    # createWebhook, openapi.vercel.sh). Vercel signs each delivery with an HMAC-SHA1 of the raw body in x-vercel-signature,
-    # keyed by the secret it answers when the webhook is made (vercel.com/docs/webhooks/webhooks-api, Securing webhooks).
-    # Each event names the project it is about, which the map reads again. Account webhooks are for Pro and Enterprise
-    # teams, up to 20 a team (vercel.com/docs/webhooks, Account Webhooks).
+    # Vercel's changes, sent to a webhook Firefight registers for the whole of each team the connection reaches with the
+    # connection's access token (spec, createWebhook, openapi.vercel.sh). Vercel signs each delivery with an HMAC-SHA1
+    # of the raw body in x-vercel-signature, keyed by the secret it answers when the webhook is made
+    # (vercel.com/docs/webhooks/webhooks-api, Securing webhooks). Each event names the project it is about, which the
+    # map reads again. Account webhooks are for Pro and Enterprise teams, up to 20 a team (vercel.com/docs/webhooks,
+    # Account Webhooks).
     class Vercel < MapEventSource
       SIGNATURE_HEADER = "x-vercel-signature".freeze
       PRODUCTION = "production".freeze

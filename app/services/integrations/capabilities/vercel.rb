@@ -15,7 +15,7 @@ module Integrations
       }.freeze
       # deployment_logs reads any deployment, which the capability cannot name, so it stays offered as it is.
       WRAPPED = TOOLS.values.excluding(TOOLS[LOGS]).freeze
-      STREAMS = { STREAM_APP => "runtime", "build" => "build" }.freeze
+      STREAMS = { STREAM_APP => PACK::RUNTIME, "build" => PACK::BUILD }.freeze
 
       def self.route(key, resource, given, tool: nil, settings: nil)
         id = resource.external_id

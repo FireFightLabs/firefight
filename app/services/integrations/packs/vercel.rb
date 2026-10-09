@@ -3,9 +3,10 @@ module Integrations
     # Vercel for the teams an environment reads, one, several or every one its token can reach, or the token's own account
     # when the team connect field (a scope) is left empty. A call reaches one team, the one it names or the one its
     # project lives in (Integrations::Scopes), and a listing named none lists every team. It reads their projects, the
-    # projects' deployments and their build and runtime logs, with an access token a person creates in Vercel. Every tool reads, except the rollback and promotion Halon uses
-    # to apply fixes. Paths, parameters and answers are the ones in Vercel's OpenAPI spec (openapi.vercel.sh),
-    # and how a rollback or promotion is asked follows Vercel's own CLI (vercel/vercel, packages/cli/src/commands).
+    # projects' deployments and their build and runtime logs, with an access token a person creates in Vercel. Every
+    # tool reads, except the rollback and promotion Halon uses to apply fixes. Paths, parameters and answers are the ones
+    # in Vercel's OpenAPI spec (openapi.vercel.sh), and how a rollback or promotion is asked follows Vercel's own CLI
+    # (vercel/vercel, packages/cli/src/commands).
     # Vercel's remote MCP server only accepts the AI clients Vercel has approved, so Firefight reaches its API directly.
     class Vercel < NativePack
       # The environment row's credentials, which only this pack reads.
@@ -19,6 +20,7 @@ module Integrations
 
       LOG_TYPES = %w[runtime build].freeze
       RUNTIME = LOG_TYPES.first
+      BUILD = LOG_TYPES.last
       # How long a runtime log read watches the live stream. Vercel's CLI watches for up to 5 minutes, and a tool call
       # stays far shorter.
       DEFAULT_SECONDS = 20
@@ -175,8 +177,9 @@ module Integrations
         end
         team = team_of(environment_row)
         named = team ? "Team #{ConnectionSettings.of(environment_row).scope_name(team)}" : "This team"
-        text = rows.empty? ? "#{named} has no projects." : "#{named}, #{rows.size} projects.\n#{rows.join("\n")}"
-        Telemetry.result(text, link: nil)
+        cut = project_list(environment_row).incomplete? ? " Only the first #{rows.size} projects were read." : ""
+        text = rows.empty? ? "#{named} has no projects." : "#{named}, #{rows.size} projects.#{cut}\n#{rows.join("\n")}"
+        Telemetry.result(text, link: team_link(environment_row))
       end
 
       def describe_resource(environment_row:, arguments:)
@@ -237,7 +240,7 @@ module Integrations
 
       def deployment_logs(environment_row:, arguments:)
         project = find_project(environment_row, arguments["resource"])
-        build = arguments["type"].to_s == "build"
+        build = arguments["type"].to_s == BUILD
         # A build that failed is the newest deployment, not the one serving production.
         asked = arguments["deployment"].presence || (latest_id(environment_row, project) if build)
         deployment = find_deployment(environment_row, project, asked)
@@ -441,7 +444,22 @@ module Integrations
         fail! "Say which project, by name or id. list_resources shows them." if asked.to_s.strip.empty?
 
         rows = projects(environment_row).map { |project| { id: project["id"], name: project["name"], project: project } }
-        Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row)&.dig(:project) || fail!("No project called #{asked} in this team. list_resources shows what there is.")
+        found = Named.find(rows, asked, id: :id, name: :name, provider: PROVIDER, connection: environment_row)&.dig(:project)
+        return found if found
+        fail!("No project called #{asked} in this team. list_resources shows what there is.") if project_list(environment_row).complete
+
+        project_past_list(environment_row, asked.to_s.strip) ||
+          fail!("No project called #{asked} among the first #{rows.size} projects read from this team, and Vercel has none by that id or name.")
+      end
+
+      # A project past the list's cap, read by its id or name (spec, getProject). Vercel answers 404 for one it does not hold.
+      def project_past_list(environment_row, asked)
+        project = api(environment_row).project(asked)
+        project["id"].present? ? project : nil
+      rescue Integrations::RateLimited
+        raise
+      rescue VercelApi::Error
+        nil
       end
 
       # The deployment asked for, or the production one, checked to be the project's own.
@@ -555,6 +573,12 @@ module Integrations
       def project_link(environment_row, project)
         slug = owner_slug(environment_row)
         slug ? Telemetry::Link.new(provider: PROVIDER, url: "#{ConnectionSettings.of(environment_row).site}/#{ERB::Util.url_encode(slug)}/#{ERB::Util.url_encode(project['name'])}") : nil
+      end
+
+      # The team's page, https://vercel.com/<team slug>, the address Vercel's CLI calls a team's URL (commands/teams/add.ts).
+      def team_link(environment_row)
+        slug = owner_slug(environment_row)
+        slug ? Telemetry::Link.new(provider: PROVIDER, url: "#{ConnectionSettings.of(environment_row).site}/#{ERB::Util.url_encode(slug)}") : nil
       end
 
       # The project's Logs page, the address Vercel's docs open as /[team]/[project]/logs (docs, logs/runtime).
