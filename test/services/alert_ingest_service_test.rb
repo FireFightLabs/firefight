@@ -118,6 +118,20 @@ class AlertIngestServiceTest < ActiveSupport::TestCase
     assert_equal Alert::ROUTING_ROUTED, alert.routing_state
   end
 
+  test "an alert meant to declare an incident before Slack is connected is kept for the sweep, with no incident" do
+    routing_policy!({ "action" => AlertIngestService::ACTION_AUTO_CREATE })
+    @workspace.update_columns(platform: nil, platform_id: nil)
+    Rails.logger.expects(:error).never
+    Rails.logger.expects(:warn).with { |line| JSON.parse(line)["event"] == "alert_routing.incidents_blocked" }
+
+    alert = @service.ingest(firing_fields, {})
+
+    assert alert.persisted?
+    assert_nil alert.reload.incident
+    assert_equal [ Alert::ROUTING_PENDING, 1 ], [ alert.routing_state, alert.routing_attempts ]
+    assert_not AlertGroup.exists?(workspace: @workspace)
+  end
+
   test "auto_create uses outcome severity override, else source severity map" do
     severities = @workspace.incident_severities.active.order(:rank).to_a
     override = severities.first
