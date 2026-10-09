@@ -141,7 +141,7 @@ class Chat::Memory < ApplicationRecord
     lowered = wanted.downcase
     by_id = wanted.match?(CatalogEntry::ReferenceManagement::UUID_FORMAT)
     [
-      *(by_id ? resources.where(id: wanted) : ResourceMap::Resource.named(workspace, wanted).merge(resources)).to_a,
+      *(by_id ? resources.where(id: wanted) : ResourceMap::Resource.referenced(workspace, wanted).merge(resources)).to_a,
       *(by_id ? entries.where(id: wanted) : entries.where("lower(name) = :wanted OR lower(slug) = :wanted", wanted: lowered)).includes(:catalog_type).to_a
     ]
   end

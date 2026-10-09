@@ -47,7 +47,7 @@ class Investigation::MapFacts
 
   def named
     NAMING_CLUES.flat_map { |key| Array(@clues[key]) }.flat_map do |clue|
-      visible.present.named(@investigation.workspace, clue["value"]).includes(integration_environment: :environment)
+      visible.present.referenced(@investigation.workspace, clue["value"]).includes(integration_environment: :environment)
              .sort_by(&:id).map { |resource| [ resource, clue["source"] ] }
     end
   end

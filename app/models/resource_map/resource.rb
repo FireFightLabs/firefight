@@ -73,16 +73,7 @@ class ResourceMap::Resource < ApplicationRecord
   NEIGHBORHOOD_DEPTH = 2
   NEIGHBORHOOD_LIMIT = 100
 
-  # A resource named the way a person or Halon would, by its name or its provider's id, still present ones first.
-  def self.named(workspace, reference)
-    wanted = reference.to_s.strip.downcase
-    return none if wanted.empty?
-
-    where(workspace: workspace).where("lower(name) = :wanted OR lower(external_id) = :wanted", wanted: wanted)
-      .order(Arel.sql("removed_at IS NOT NULL"), :provider, :account, :kind)
-  end
-
-  # A resource by its name, its provider's id or Firefight's own id. A provider's id can look like Firefight's, so both are tried.
+  # A resource by its name, its provider's id or Firefight's own id, still present ones first. A provider's id can look like Firefight's, so both are tried.
   def self.referenced(workspace, reference)
     wanted = reference.to_s.strip.downcase
     return none if wanted.empty?
