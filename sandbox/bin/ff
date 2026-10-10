@@ -1,0 +1,113 @@
+#!/usr/bin/env ruby
+# Firefight's own command line, for scripts Halon runs in its terminal. It calls the workspace's connected tools through
+# Firefight, which adds the keys, checks permissions and approval rules, and records each call in the activity log.
+# The box holds only a token that lasts as long as the command it was given for, never a provider's key.
+require "json"
+require "net/http"
+require "uri"
+
+module Ff
+  USAGE = <<~TEXT.freeze
+    ff tools [words]                 List the tools you can call, a line each, optionally only those matching words
+    ff help <tool>                   One tool's description and the arguments it takes
+    ff <tool> [key=value ...]        Call a tool. A value that reads as JSON (a number, true, a list) is sent as one
+    ff <tool> --json '{"key": 1}'    Call a tool with its arguments as one JSON object
+    ff with <connection> -- <cmd>    Run a provider's own command line tool against that connection, through Firefight
+
+    The answer is printed as the provider gave it. ff exits 1 when the call failed or was refused, and 3 when it waits
+    for someone's approval, so a script can stop or carry on.
+  TEXT
+  WAITING = 3
+
+  def self.main(args)
+    command = args.shift
+    case command
+    when nil, "-h", "--help" then puts(USAGE)
+    when "tools" then tools(args.join(" "))
+    when "help" then describe(args.first || abort(USAGE))
+    when "with" then with(args)
+    else call(command, args)
+    end
+  end
+
+  def self.tools(words)
+    listed = get("tools", words.empty? ? {} : { "q" => words })["tools"]
+    abort("No tool matches #{words}.") if listed.empty?
+
+    listed.each { |tool| puts("#{tool['name']}  (#{tool['reads'] ? 'reads' : 'changes'})  #{tool['description']}") }
+  end
+
+  def self.describe(name)
+    tool = get("tools/#{escape(name)}")
+    puts(tool["description"], "", JSON.pretty_generate(tool["parameters"]))
+  end
+
+  def self.call(name, args)
+    said = post("tools/#{escape(name)}", { "arguments" => arguments(args) })
+    $stdout.write(said["text"].to_s)
+    $stdout.write("\n") unless said["text"].to_s.end_with?("\n")
+    exit(WAITING) if said["outcome"] == "waiting"
+    exit(1) unless said["outcome"] == "ok"
+  end
+
+  def self.arguments(args)
+    return JSON.parse(args[1].to_s) if args.first == "--json"
+
+    args.to_h do |pair|
+      key, value = pair.split("=", 2)
+      abort("Give each argument as key=value, such as limit=50: #{pair}") if value.nil?
+
+      [ key, parsed(value) ]
+    end
+  rescue JSON::ParserError => error
+    abort("--json needs one JSON object: #{error.message}")
+  end
+
+  def self.parsed(value)
+    JSON.parse(value)
+  rescue JSON::ParserError
+    value
+  end
+
+  def self.with(args)
+    connection = args.shift
+    args.shift if args.first == "--"
+    abort("ff with <connection> -- <command>") if connection.nil? || args.empty?
+
+    cli = get("clis")["clis"].find { |each| each["connection"] == connection }
+    abort("No provider command line tool runs against #{connection}. ff tools lists what you can call instead.") unless cli
+
+    exec(cli["env"], *args)
+  end
+
+  def self.get(path, query = {}) = request(Net::HTTP::Get, path, query: query)
+
+  def self.post(path, payload) = request(Net::HTTP::Post, path, payload: payload)
+
+  def self.request(verb, path, query: {}, payload: nil)
+    base = ENV["FIREFIGHT_RELAY_URL"].to_s
+    abort("ff runs only in Halon's terminal, which sets FIREFIGHT_RELAY_URL.") if base.empty?
+
+    uri = URI.parse("#{base}/#{path}")
+    uri.query = URI.encode_www_form(query) unless query.empty?
+    request = verb.new(uri)
+    request["Authorization"] = "Bearer #{ENV['FIREFIGHT_RELAY_TOKEN']}"
+    if payload
+      request["Content-Type"] = "application/json"
+      request.body = JSON.generate(payload)
+    end
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 600) { |http| http.request(request) }
+    said = JSON.parse(response.body.to_s)
+    abort(said["error"].to_s) unless response.is_a?(Net::HTTPSuccess)
+
+    said
+  rescue JSON::ParserError
+    abort("Firefight answered with something that is not JSON (HTTP #{response&.code}).")
+  rescue SocketError, SystemCallError, Net::OpenTimeout, Net::ReadTimeout => error
+    abort("Firefight could not be reached: #{error.message}")
+  end
+
+  def self.escape(name) = URI.encode_www_form_component(name)
+end
+
+Ff.main(ARGV.dup) if $PROGRAM_NAME == __FILE__

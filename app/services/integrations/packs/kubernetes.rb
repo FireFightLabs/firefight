@@ -453,7 +453,9 @@ module Integrations
         outside = outside_namespaces(namespaces_in(answer), reached) unless named
         fail_policy!("#{outside} Name a namespace in the path, such as /api/v1/namespaces/<namespace>/pods.") if outside
 
-        Telemetry.result(ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Kubernetes.secret?(path)), link: nil)
+        secret = ReadGuards::Kubernetes.secret?(path)
+        Telemetry.result(ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: secret), link: nil,
+                         relayed: (ApiReads.shown(answer, secret: secret) if relayed?))
       end
 
       def outside_namespaces(named, reached)

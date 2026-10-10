@@ -16,6 +16,16 @@ module Sandbox
   CODE = "/code"
   WORK = "/work"
   RUNS = "/runs"
+  # Halon's own terminal is a folder of its own, run as a user that can write nothing else, so a command never touches a
+  # repository or a test copy. Files the app places there for a command to read sit under results.
+  TERMINAL = "/terminal"
+  TERMINAL_USER = "halon"
+  TERMINAL_FILES = File.join(TERMINAL, "results")
+  FILE_NAME = /\A\w[\w.\-]{0,99}\z/
+  # A terminal command is handed the address and token it reaches Firefight with, and a provider command line tool's
+  # settings pointing it there, beside the image's own settings. Never PATH, HOME or what the image sets.
+  ENV_NAME = /\A[A-Z][A-Z0-9_]{0,63}\z/
+  KEPT_ENV = %w[HOME LANG SANDBOX_PROGRESS].freeze
   # What a command started in the background writes as it goes, one file per command, read back by offset.
   PROGRESS = ENV.fetch("SANDBOX_PROGRESS_DIR", "/progress")
   OUTPUT_LIMIT = 10 * 1024 * 1024
@@ -745,7 +755,7 @@ module Sandbox
       FileUtils.mkdir_p(PROGRESS, mode: 0o711)
       path = File.join(PROGRESS, "#{id}.log")
       File.open(path, File::WRONLY | File::CREAT | File::EXCL, 0o600) { }
-      user = request["where"] == "run" || request["action"] == "prepare" ? "runner" : "reader"
+      user = request["action"] == "prepare" ? "runner" : { "run" => "runner", "terminal" => TERMINAL_USER }.fetch(request["where"], "reader")
       FileUtils.chown(user, user, path)
       entry = { "path" => path, "result" => nil, "finished_at" => nil }
       GUARD.synchronize { STORE[id] = entry }
@@ -797,7 +807,8 @@ module Sandbox
   module Handler
     def self.call(method, path, body, query = {})
       case [ method, path ]
-      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "images" => Docker.available? }
+      in [ "GET", "/health" ] then { "ok" => true, "runs" => true, "setups" => true, "prepare_runs" => true, "seeds" => true, "images" => Docker.available?, "terminal" => true }
+      in [ "PUT", %r{\A/terminal/files/([^/]+)\z} ] then Terminal.place(Regexp.last_match(1), body)
       in [ "PUT", %r{\A/repos/([^/]+)\z} ] then Repos.push(Regexp.last_match(1), body)
       in [ "POST", "/exec" ] then exec(JSON.parse(body))
       in [ "POST", "/runs" ] then Runs.start(JSON.parse(body))
@@ -817,6 +828,8 @@ module Sandbox
     # commit, and "run" for one that runs in runner's writable copy. progress is the file a background command writes
     # what it is doing to.
     def self.exec(request, progress: nil)
+      return Terminal.exec(request, progress: progress) if request["where"] == "terminal"
+
       name = request.fetch("repo")
       sha = Repos.commit(name, request["ref"])
       argv = Array(request.fetch("argv")).map(&:to_s)
@@ -894,6 +907,46 @@ module Sandbox
         request.fetch("method"), request["path"].to_s, line: request["line"], column: request["column"], query: request["query"]
       )
       { "result" => result, "root" => dir, "commit" => sha }
+    end
+  end
+
+  # Commands Halon runs for itself, such as a script over a saved result or a check of an address from outside. They run
+  # in the terminal's folder as its own user, with no repository.
+  module Terminal
+    def self.exec(request, progress: nil)
+      argv = Array(request.fetch("argv")).map(&:to_s)
+      raise Refused, "An empty command" if argv.empty?
+
+      timeout = request.fetch("timeout", DEFAULT_TIMEOUT).to_i.clamp(1, MAX_TIMEOUT)
+      told = progress ? { "SANDBOX_PROGRESS" => progress } : {}
+      ready
+      Sandbox.run(argv, dir: TERMINAL, user: TERMINAL_USER, timeout: timeout, env: given_env(request["env"]).merge(told), stdin: request["stdin"]&.to_s)
+    end
+
+    # A file a command reads, such as a large tool result. Placing it again replaces it.
+    def self.place(name, body)
+      raise Refused, "Not a file name: #{name}" unless name.match?(FILE_NAME)
+
+      ready
+      path = File.join(TERMINAL_FILES, name)
+      File.binwrite(path, body.to_s)
+      FileUtils.chown(TERMINAL_USER, TERMINAL_USER, path)
+      { "path" => path, "bytes" => body.to_s.bytesize }
+    end
+
+    def self.ready
+      FileUtils.mkdir_p(TERMINAL_FILES)
+      FileUtils.chown(TERMINAL_USER, TERMINAL_USER, [ TERMINAL, TERMINAL_FILES ])
+    end
+
+    def self.given_env(env)
+      (env || {}).to_h.each_with_object({}) do |(name, value), kept|
+        name = name.to_s
+        allowed = name.match?(ENV_NAME) && !INHERITED.include?(name) && !KEPT_ENV.include?(name)
+        raise Refused, "Not a variable a command may be given: #{name}" unless allowed
+
+        kept[name] = value.to_s
+      end
     end
   end
 

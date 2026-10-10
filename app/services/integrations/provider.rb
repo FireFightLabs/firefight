@@ -18,6 +18,7 @@ module Integrations
   #                    the rows one touches first
   #   mitigation_reader a module answering mitigation?(tool, arguments), whether one call to a general tool is a change
   #                    customers feel for a while (Integrations::Mitigations)
+  #   cli              the provider's own command line tool in Halon's terminal, reaching it through Firefight (Integrations::Clis)
   # redacted_fields names answer fields that hold a credential, which never reach the model, and redacted_patterns the
   # credentials of the provider's own shape, such as an address that works as a password, wherever they appear in an
   # answer. withheld_tools names the tools whose whole answer is a secret, each with the sentence a refusal says
@@ -27,7 +28,9 @@ module Integrations
   # primary_reads names, by tool, the argument and value that send a database read to the primary rather than a replica,
   # which Halon's reads use unless the call asks for the replica (Integrations::Replicas).
   class Provider
-    PARTS = %i[pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader data_writes mitigation_reader].freeze
+    PARTS = %i[
+      pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader data_writes mitigation_reader cli
+    ].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/
 
     attr_reader :key, :redacted_fields, :redacted_patterns, :withheld_tools, :status_words, :primary_reads

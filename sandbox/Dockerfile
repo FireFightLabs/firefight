@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       postgresql redis-server \
       libvips42 fonts-dejavu-core \
       util-linux procps shellcheck \
+      dnsutils jq sqlite3 xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Debian's Postgres carries the contrib extensions (pg_trgm, hstore, uuid-ossp, citext, pgcrypto and the rest) but not
@@ -62,6 +63,30 @@ RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh \
     && chown -R runner:runner /opt/mise
 
 
+# Halon's terminal. halon writes only its own folder, so nothing it runs touches a repository or a test copy. Provider
+# command line tools reach their APIs through Firefight with the command's own token, never a key. Northflank's needs a
+# newer Node than Debian's, so it runs on a pinned one of its own.
+ARG NODE_FOR_CLIS_VERSION=22.20.0
+ARG NORTHFLANK_CLI_VERSION=0.13.0
+RUN useradd --create-home --shell /bin/bash halon \
+    && mkdir -p /terminal/results && chown -R halon:halon /terminal \
+    && arch="$(dpkg --print-architecture | sed 's/amd64/x64/')" \
+    && mkdir -p /opt/clis/node \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_FOR_CLIS_VERSION}/node-v${NODE_FOR_CLIS_VERSION}-linux-${arch}.tar.xz" | tar -C /opt/clis/node --strip-components=1 -xJ \
+    && PATH=/opt/clis/node/bin:$PATH npm install --prefix /opt/clis --no-fund --no-audit "@northflank/cli@${NORTHFLANK_CLI_VERSION}" \
+    && printf '#!/bin/sh\nexec /opt/clis/node/bin/node /opt/clis/node_modules/@northflank/cli/dist/cli.js "$@"\n' > /usr/local/bin/northflank \
+    && chmod 755 /usr/local/bin/northflank \
+    && rm -rf /root/.npm
+
+# kubectl reads its server and token only from flags or a kubeconfig, so a wrapper hands it the ones the box was given.
+ARG KUBECTL_VERSION=v1.34.1
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL -o /opt/clis/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" \
+    && chmod 755 /opt/clis/kubectl
+
+COPY bin/ff /usr/local/bin/ff
+COPY bin/kubectl /usr/local/bin/kubectl
+COPY outside_check.rb /opt/sandbox/outside_check.rb
 COPY server.rb /opt/sandbox/server.rb
 
 EXPOSE 8080

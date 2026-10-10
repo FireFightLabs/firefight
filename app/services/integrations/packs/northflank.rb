@@ -375,7 +375,8 @@ module Integrations
           raise
         end
         asked = query.any? ? "#{path}?#{URI.encode_www_form(query)}" : path
-        Telemetry.result("Northflank answered #{verb} #{asked}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link)
+        Telemetry.result("Northflank answered #{verb} #{asked}.#{"\n#{answer_text(path, answer)}" if answer.present?}", link: link,
+                         relayed: (shown_answer(path, answer) || {} if relayed?))
       end
 
       # What to give the token's role when Northflank refused a call for want of a permission. Only a change to a service
@@ -420,10 +421,14 @@ module Integrations
       # that holds secrets, so no secret reaches the model, the chat or the ledger. Whether a list has another page comes
       # first, since a long answer is cut short at its end.
       def answer_text(path, answer)
-        answer = answer.slice("pagination").merge(answer.except("pagination")) if answer.is_a?(Hash)
-        shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer, external_addon: path.match?(EXTERNAL_ADDON))
-        Chat::SecretFree.redacted(shown.to_json)
+        Chat::SecretFree.redacted(shown_answer(path, answer).to_json)
                                          .truncate(API_RESULT_LIMIT)
+      end
+
+      # The answer with what holds secrets reduced to names, whole, as the model's text and a command line tool both read it.
+      def shown_answer(path, answer)
+        answer = answer.slice("pagination").merge(answer.except("pagination")) if answer.is_a?(Hash)
+        path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer, external_addon: path.match?(EXTERNAL_ADDON))
       end
 
       # What describes a secret rather than holding it stays readable.

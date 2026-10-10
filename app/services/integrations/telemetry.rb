@@ -5,6 +5,9 @@ module Integrations
     # The key a tool result keeps its charts under, next to its text. MCP names this part of a result structuredContent.
     STRUCTURED = "structuredContent".freeze
     CHARTS = "charts".freeze
+    # The provider's answer as its API gave it, for a call its own command line tool made in Halon's terminal
+    # (NativePack#relayed?). The model reads the text, never this.
+    RELAYED = "relayed".freeze
 
     LOG_LINE_LIMIT = 500
     LOG_CELL_LIMIT = 1_000
@@ -71,11 +74,12 @@ module Integrations
     def self.left_out(total) = "#{total - SERIES_LIMIT} more series not shown, only the first #{SERIES_LIMIT} are kept"
 
     # A chart with nothing in it is said in the text and never drawn, so an empty frame never reads as evidence.
-    def self.result(text, link:, charts: [])
+    def self.result(text, link:, charts: [], relayed: nil)
       text = "#{text}\n#{link_line(link)}" if link
       result = { "content" => [ { "type" => "text", "text" => text } ] }
       drawn = charts.reject { |chart| empty?(chart) }
-      result[STRUCTURED] = { CHARTS => drawn.map(&:to_h) } if drawn.any?
+      structured = { CHARTS => (drawn.map(&:to_h) if drawn.any?), RELAYED => relayed }.compact
+      result[STRUCTURED] = structured if structured.any?
       result
     end
 

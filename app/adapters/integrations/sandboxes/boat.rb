@@ -7,6 +7,7 @@ module Integrations
       PORT = 8080
       CONTAINER = "firefight-sandbox".freeze
       DEFAULT_SIZE = "default".freeze
+      REGION = "the EU".freeze
       # Dollars by the hour for each size (docs.boat.dev/pricing), billed by the second while a sandbox runs.
       HOURLY_MICROS = { "small" => 18_000, "default" => 36_000, "large" => 72_000, "xlarge" => 200_000 }.freeze
       # A sandbox archives itself this long after it starts, so one the app lost track of never runs on.
@@ -57,6 +58,9 @@ module Integrations
       def hourly_micros = HOURLY_MICROS[size]
 
       def keeps_copies? = true
+
+      # boat runs every sandbox in the EU and offers no choice of place (docs.boat.dev/machines).
+      def region = REGION
 
       # A box from from, a prepared copy's named snapshot, or from the image's own copy when there is one ready, so the
       # image is pulled only by the first box of each version.

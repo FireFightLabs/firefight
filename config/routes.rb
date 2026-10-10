@@ -116,6 +116,13 @@ Rails.application.routes.draw do
   post "/code_agent/tools", to: "code_agent_tools#create", as: :code_agent_tools
   match "/code_agent/tools", to: "code_agent_tools#method_not_allowed", via: [ :get, :delete, :put, :patch ]
   post "/code_agent/:provider/*path", to: "code_agent#forward", as: :code_agent, format: false
+  # A command in Halon's terminal calling the connected tools, through ff or a provider's own command line tool
+  # (Chat::Terminal::RELAY_PATH).
+  get "/sandbox_relay/tools", to: "sandbox_relay#index", as: :sandbox_relay_tools
+  get "/sandbox_relay/tools/:name", to: "sandbox_relay#show", as: :sandbox_relay_tool
+  post "/sandbox_relay/tools/:name", to: "sandbox_relay#create"
+  get "/sandbox_relay/clis", to: "sandbox_relay#clis", as: :sandbox_relay_clis
+  match "/sandbox_relay/api/:connection/*path", to: "sandbox_relay#api", via: [ :get, :post, :put, :patch, :delete ], as: :sandbox_relay_api, format: false
   match "/mcp", to: "mcp#method_not_allowed", via: [ :get, :delete, :put, :patch ]
 
   root to: "sessions#new"

@@ -95,7 +95,7 @@ end - %w[Integrations::Sandboxes Integrations::WebSearch]
 component :integration_clients, constants: INTEGRATION_CLIENT_CONSTANTS
 
 # A provider's own code: its pack, capabilities adapter, map reader, baseline reader, health probe, link builder, read
-# guard, error reader, issue tracker, map event source and definition. Found by file, so a new provider needs no line here. The shared contracts beside them
+# guard, error reader, issue tracker, map event source, command line tool and definition. Found by file, so a new provider needs no line here. The shared contracts beside them
 # (Capabilities::Adapter, Capabilities::Answers, the run history every adapter reads into, Capabilities::History, and the
 # helper the providers that attach runs to an answer share, Capabilities::RunHistory) are not a provider's.
 SHARED_PROVIDER_CONTRACTS = %w[
@@ -103,7 +103,7 @@ SHARED_PROVIDER_CONTRACTS = %w[
   app/services/integrations/capabilities/history.rb app/services/integrations/capabilities/run_history.rb
 ].freeze
 PROVIDER_CODE_NAMESPACES = Dir.chdir(__dir__) do
-  Dir.glob("app/services/integrations/{packs,capabilities,map_readers,baseline_readers,health_probes,source_links,read_guards,error_readers,issue_trackers,map_event_sources,providers}/*.rb")
+  Dir.glob("app/services/integrations/{packs,capabilities,map_readers,baseline_readers,health_probes,source_links,read_guards,error_readers,issue_trackers,map_event_sources,clis,providers}/*.rb")
 end.sort.-(SHARED_PROVIDER_CONTRACTS).map do |path|
   path.delete_prefix("app/services/").delete_suffix(".rb").split("/").map { |part| part.split("_").map(&:capitalize).join }.join("::")
 end

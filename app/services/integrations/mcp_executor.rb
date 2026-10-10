@@ -3,7 +3,8 @@ module Integrations
   class McpExecutor
     # A remote server keeps its own state, so the run's box key means nothing to it, and it says nothing until it
     # answers, so nobody hears progress from it. Nor does it write code in Firefight's sandbox, so it takes no request.
-    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
+    # Its answer is the same whoever relays it, so relayed changes nothing.
+    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil, relayed: false)
       SecretReads.refuse!(tool, arguments)
       within = QUICK_READ if quick_read?(tool)
       result = client_for(tool.integration, environment_row, within: within)

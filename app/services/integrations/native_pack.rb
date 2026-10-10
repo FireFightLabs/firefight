@@ -27,11 +27,11 @@ module Integrations
         nil
       end
 
-      def fetch!(integration, box_key: nil, progress: nil, request: nil)
+      def fetch!(integration, box_key: nil, progress: nil, request: nil, relayed: false)
         pack_class = self.for(integration.provider)
         raise Error, "No native pack registered for '#{integration.provider}'" unless pack_class
 
-        pack_class.new(integration, box_key: box_key, progress: progress, request: request)
+        pack_class.new(integration, box_key: box_key, progress: progress, request: request, relayed: relayed)
       end
 
       def tool_definitions
@@ -108,15 +108,19 @@ module Integrations
 
     # box_key names the run a call belongs to, so tools that read code share that run's sandbox. progress hears how a
     # long running tool is going, through report. request is the CodeAgent::Request a code change was asked with, who
-    # asked and what they said, nil for any other call.
+    # asked and what they said, nil for any other call. relayed is a call a provider's own command line tool made in Halon's
+    # terminal (Integrations::Clis), which reads the provider's answer as the API gave it, beside the words the model reads.
     attr_reader :integration, :box_key, :request
 
-    def initialize(integration, box_key: nil, progress: nil, request: nil)
+    def initialize(integration, box_key: nil, progress: nil, request: nil, relayed: false)
       @integration = integration
       @box_key = box_key
       @progress = progress
       @request = request
+      @relayed = relayed
     end
+
+    def relayed? = @relayed == true
 
     # Tells whoever runs the tool how it is going, in a sentence, or as a Chat::CodeFixProgress for a coding agent working in
     # the sandbox, handed over again each time it moves. Nobody may be listening.
@@ -144,7 +148,7 @@ module Integrations
 
     # The same pack reading only scope, holding nothing another scope's reads cached.
     def scoped(scope)
-      self.class.new(integration, box_key: box_key, progress: @progress, request: request).tap { |pack| pack.instance_variable_set(:@scope, scope&.to_s) }
+      self.class.new(integration, box_key: box_key, progress: @progress, request: request, relayed: relayed?).tap { |pack| pack.instance_variable_set(:@scope, scope&.to_s) }
     end
 
     # The one scope a call reaches, the one it was given or the connection's only one. A connection that reaches several

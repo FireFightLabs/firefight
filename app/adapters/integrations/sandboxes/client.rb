@@ -6,6 +6,7 @@ module Integrations
       IN_GIT = "git".freeze
       IN_CHECKOUT = "checkout".freeze
       IN_COPY = "run".freeze
+      IN_TERMINAL = "terminal".freeze
       # Replaced by the commit a ref resolves to, so git reads exactly what the heading says.
       COMMIT = "{commit}".freeze
 
@@ -122,6 +123,28 @@ module Integrations
         end
       rescue JSON::ParserError
         raise Error, "The code sandbox answered with something that is not JSON."
+      end
+
+      # Whether the box's image has Halon's terminal. An older one answers health without saying so.
+      def terminal?
+        @terminal = send_json(Net::HTTP::Get, "/health", read_timeout: 5)["terminal"] == true if @terminal.nil?
+        @terminal
+      rescue Error
+        false
+      end
+
+      # A command in the terminal's own folder, with no repository. env is what it is handed beyond the image's own
+      # settings, such as the address and token it reaches Firefight with.
+      def terminal(argv:, env: {}, timeout: 60, on_output: nil)
+        payload = { where: IN_TERMINAL, argv: argv, env: env, timeout: timeout }
+        return send_json(Net::HTTP::Post, "/exec", payload: payload, read_timeout: timeout + MARGIN) unless on_output && runs_in_background?
+
+        follow(send_json(Net::HTTP::Post, "/runs", payload: payload)["id"], deadline: clock + timeout + MARGIN, on_output: on_output)
+      end
+
+      # A file a terminal command reads, under the terminal's results folder.
+      def place_file(name, content)
+        send_json(Net::HTTP::Put, "/terminal/files/#{name}", body: content.to_s, content_type: "application/octet-stream", read_timeout: 120)
       end
 
       # Starts services in the box by name, answering the variables that reach them.
