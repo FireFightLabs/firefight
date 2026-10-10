@@ -63,6 +63,7 @@ module Ability
     def blocked_reason
       return "#{resource.name} is no longer on the resource map, so this rule cannot act." if resource.removed_at
       return "#{investigator_name} holds no grant of #{call.tool.integration.name}'s #{call.tool.name}, so this rule cannot act yet. Grant it under Gateway, Permissions." unless granted?
+      return safeguarded_reason if safeguarded_reason
 
       nil
     rescue Integrations::Capabilities::Unroutable => error
@@ -145,6 +146,16 @@ module Ability
     def investigator_name = SystemAgent.investigator.actor_display_name
 
     private
+
+    # A change whose tool a chat wraps in a safeguard needs a person to answer it, which nobody is there to do.
+    def safeguarded_reason
+      action = call.tool.ability_action
+      named = "#{call.tool.integration.name}'s #{call.tool.name}"
+      return "#{named} stops something someone started, and its owner is asked first, so Halon never makes it on its own." if action&.effect?(Ability::Action::EFFECT_STOPS)
+      return "#{named} changes what customers get for a while, and a person chooses how long, so Halon never makes it on its own." if action&.effect?(Ability::Action::EFFECT_MITIGATION)
+
+      nil
+    end
 
     def granted?
       Ability::Resolver.resolve(SystemAgent.investigator, workspace).covers?(call.tool.action_key, call.scope)

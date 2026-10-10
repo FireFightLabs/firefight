@@ -40,6 +40,9 @@ class Investigation::Unattended
     blocked = rules.find(&:blocked_reason)
     return tell(rules, reason: blocked.blocked_reason) if blocked
 
+    guarded = changes.lazy.filter_map { |step| safeguarded(step) }.first
+    return tell(rules, reason: guarded) if guarded
+
     readings = rules.map { |rule| rule.read!(incident: @investigation.incident) }
     low = readings.reject(&:above?)
     return tell(rules, readings: readings.map(&:words), reason: low.map(&:words).join(" ")) if low.any?
@@ -54,6 +57,21 @@ class Investigation::Unattended
   end
 
   private
+
+  # A change a chat would wrap in a safeguard (Chat::Safeguards) needs a person: a stop asks whoever started what it
+  # stops, a mitigation runs for a time someone chose, and a data write is counted and copied first. Nobody is there to
+  # answer at 3am, so Halon leaves such a change for a person rather than make it without the safeguard.
+  def safeguarded(step)
+    tool = step.tool_to_run(@workspace)
+    return unless tool
+
+    action = tool.ability_action
+    return "Step #{step.position} stops something someone started, and whoever started it is asked first." if action&.effect?(Ability::Action::EFFECT_STOPS)
+    return "Step #{step.position} writes data, which is counted and copied with a person first." if action&.effect?(Ability::Action::EFFECT_DATA_WRITE)
+    return unless Integrations::Mitigations.call?(tool, step.call_arguments)
+
+    "Step #{step.position} changes what customers get for a while, and a person chooses how long before it is undone."
+  end
 
   def act!(covering, rules, readings)
     words = readings.map(&:words)

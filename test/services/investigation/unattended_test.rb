@@ -139,4 +139,26 @@ class Investigation::UnattendedTest < ActiveSupport::TestCase
     assert AbilityGateway.authorize!(principal: SystemAgent.investigator, action_key: @api.action_key, workspace: @workspace, params: arguments,
                                      context: { unattended_rule_id: rule.id })
   end
+
+  test "a change a chat would wrap in a safeguard is left for a person, since nobody is there to answer it" do
+    restart_rule
+    grant_investigator(@api)
+    Integrations::Mitigations.stubs(:call?).returns(true)
+    Integrations::NativeExecutor.expects(:call).never
+    @adapter.expects(:post_unattended_note).with { |note:, **| !note.acted && note.reason.include?("a person chooses how long before it is undone") }
+                                           .returns(message_id: "9.9", channel_id: "C1")
+
+    Investigation::Unattended.consider!(@investigation)
+
+    assert_equal Investigation::RemediationPlan::STATUS_PROPOSED, @plan.reload.status
+  end
+
+  test "a rule whose change stops someone's work says Halon never makes it on its own" do
+    rule = restart_rule
+    grant_investigator(@api)
+    Ability::Action.any_instance.stubs(:effect?).returns(false)
+    Ability::Action.any_instance.stubs(:effect?).with(Ability::Action::EFFECT_STOPS).returns(true)
+
+    assert_match "stops something someone started, and its owner is asked first", rule.blocked_reason
+  end
 end
