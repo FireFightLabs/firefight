@@ -188,11 +188,11 @@ class Investigation < ApplicationRecord
   def changes_memory? = !rehearsal?
 
   # A run writes what it learned, and disputes what a result contradicted, as the agent, through the gateway, so an admin
-  # who revokes the investigator's memory grant stops it and each change is in the activity log. It never vouches for a
-  # fact, and it is not a step of the run, since it checks nothing.
+  # who revokes the investigator's memory grant stops it and each change is in the activity log. No approval rule holds
+  # it, as in a chat. It never vouches for a fact, and it is not a step of the run, since it checks nothing.
   def memory_change(crud_action, params:, tool_name:, &)
     Chat::ToolCall.run!(workspace: workspace, principal: acting_principal, params: params, context: ledger_context,
-                        action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), &)
+                        action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), holdable: false, &)
   end
 
   # Where what the agent remembers came from. Nobody taught it, since a run acts as the agent.

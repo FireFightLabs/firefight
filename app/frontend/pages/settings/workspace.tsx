@@ -20,6 +20,7 @@ import {
   trackerSlug,
   type IssueTrackingState,
 } from "@/pages/settings/components/workspace/issue-tracking-card"
+import { SlackCard } from "@/pages/settings/components/workspace/slack-card"
 import type { AiProviderOption, WorkspaceAiAccount, WorkspaceSettings } from "@/types/serializers"
 import type { SharedProps } from "@/types"
 
@@ -123,6 +124,8 @@ export default function Workspace() {
       <Head title="Workspace" />
 
       <div className="flex flex-col gap-6 px-4 py-4 md:py-6 lg:px-6">
+        <SlackCard teamName={settings.chatTeamName} />
+
         <Card>
           <CardHeader>
             <CardTitle>Incident conversations</CardTitle>

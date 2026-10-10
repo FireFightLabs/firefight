@@ -7,6 +7,8 @@ class SlackAuthenticationService
   CONNECT_FAILED_MESSAGE = "Only an admin of the Firefight workspace can connect Slack to it.".freeze
   ALREADY_CONNECTED_MESSAGE = "This Firefight workspace is already connected to Slack.".freeze
   CONNECTED_MESSAGE = "Slack is connected. Firefight is setting up your incidents channel.".freeze
+  REINSTALLED_MESSAGE = "Slack was reinstalled.".freeze
+  REINSTALL_FAILED_MESSAGE = "Slack could not be reinstalled. Please try again.".freeze
   UNVERIFIED_EMAIL_MESSAGE = "Slack has not verified the email on your account. Verify it in Slack, then sign in again.".freeze
 
   # A Slack user id is only unique inside its team, so the team is part of the identity.
@@ -90,6 +92,21 @@ class SlackAuthenticationService
     )
   rescue InviteCode::RedemptionError
     AuthOutcome.invite_required(message: INVITE_REQUIRED_MESSAGE)
+  end
+
+  # Installing again into the team a workspace is already connected to, so Slack grants what the app asks for now. It
+  # only ever refreshes this workspace and never creates one, so a different team is refused. Whether the person may
+  # reinstall was asked when they started.
+  def handle_reinstall(auth_hash, workspace:, user:)
+    membership = user && workspace.workspace_memberships.find_by(user: user)
+    return AuthOutcome.refused(message: REINSTALL_FAILED_MESSAGE) unless membership && workspace.chat_connected?
+
+    unless auth_hash.extra.team_info["id"] == workspace.platform_id
+      return AuthOutcome.refused(message: "Slack was not reinstalled, because you chose a different Slack workspace. Choose #{workspace.chat_team_name} and try again.")
+    end
+
+    workspace.reinstall_slack!(auth_hash)
+    AuthOutcome.signed_in(membership: membership, message: REINSTALLED_MESSAGE)
   end
 
   # Kept for backward compatibility, older callers still expect a Hash.

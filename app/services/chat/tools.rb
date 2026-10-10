@@ -274,15 +274,13 @@ module Chat::Tools
     MemoryPostService.new(agent_run.workspace).ask_in_chat!(chat, memory, evidence: evidence)
   end
 
-  # A memory write as whoever the agent acts for. A refusal or a wait is text the model reads, and the call is marked.
+  # A memory write as whoever the agent acts for. A refusal is text the model reads, and the call is marked.
   # The ledger gets ids and flags only, never the fact, since a fact holding a secret is refused only after.
   def self.memory_change(agent_run, crud_action, tool_name:, params:, tool_call_id:, &)
     agent_run.memory_change(crud_action, params: params, tool_name: tool_name, &)
   rescue AbilityGateway::Denied => denied
     mark_failed(agent_run, tool_call_id)
     agent_run.refusal(denied.action_key)
-  rescue AbilityGateway::PendingApproval
-    waiting_for_approval(Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action))
   end
 
   # kind says whether the provider answered that what was asked about is not there (Chat::StepOutcome).

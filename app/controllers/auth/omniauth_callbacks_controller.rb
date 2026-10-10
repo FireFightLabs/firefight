@@ -3,6 +3,7 @@ module Auth
     include SignInSession
 
     UNAVAILABLE_MESSAGE = "That way of signing in is not available.".freeze
+    SLACK_INSTALL_STRATEGY = "slack".freeze
     GOOGLE_UNVERIFIED_MESSAGE = "Google has not verified the email on that account. Verify it with Google, then sign in again.".freeze
 
     skip_before_action :verify_authenticity_token, only: [ :slack, :slack_openid ]
@@ -21,6 +22,9 @@ module Auth
     # from the sign-in step as `pending_user_id`, since the install auth_hash's user info is brittle.
     # Connecting Slack to a workspace that started without it runs through here too, marked by connecting_workspace_id.
     def slack
+      reinstalling = reinstalling_workspace
+      return reinstall(reinstalling) if reinstalling
+
       connecting = connecting_workspace
       outcome = SlackAuthenticationService.new.handle_install(
         auth_hash,
@@ -61,7 +65,16 @@ module Auth
     end
 
     def failure
-      error_message = case params[:message]
+      error_message = failure_message
+      return finish_reinstall(alert: error_message) if params[:strategy] == SLACK_INSTALL_STRATEGY && reinstalling_workspace
+
+      redirect_to login_path, alert: error_message
+    end
+
+    private
+
+    def failure_message
+      case params[:message]
       when "csrf_detected"
         "Authentication session expired. Please try again."
       when "access_denied"
@@ -72,11 +85,7 @@ module Auth
       else
         "Authentication failed. Please try again."
       end
-
-      redirect_to login_path, alert: error_message
     end
-
-    private
 
     def auth_hash
       request.env["omniauth.auth"]
@@ -91,6 +100,28 @@ module Auth
     def connecting_workspace
       id = session[:connecting_workspace_id]
       current_user&.workspaces&.find_by(id: id) if id
+    end
+
+    # Only a workspace the signed-in person belongs to, and only while the install still targets its team, so a later
+    # signup into another team is never taken for a reinstall.
+    def reinstalling_workspace
+      id = session[:reinstalling_workspace_id]
+      workspace = current_user&.workspaces&.find_by(id: id) if id
+      workspace if workspace&.platform_id.present? && workspace.platform_id == session[:pending_team_id]
+    end
+
+    def reinstall(workspace)
+      outcome = SlackAuthenticationService.new.handle_reinstall(auth_hash, workspace: workspace, user: current_user)
+      outcome.signed_in? ? finish_reinstall(notice: outcome.message) : finish_reinstall(alert: outcome.message)
+    rescue => e
+      log_auth_failure(:slack_reinstall_failed, e)
+      finish_reinstall(alert: SlackAuthenticationService::REINSTALL_FAILED_MESSAGE)
+    end
+
+    # Back to the settings the reinstall started from, whatever happened.
+    def finish_reinstall(flash)
+      clear_pending_session_keys
+      redirect_to settings_workspace_path, flash
     end
 
     # The person stays signed in to the workspace they were connecting, whatever happened.
@@ -131,7 +162,7 @@ module Auth
     end
 
     def clear_pending_session_keys
-      %i[pending_user_id pending_team_id pending_team_name invite_code_id connecting_workspace_id reused_workspace_id].each do |key|
+      %i[pending_user_id pending_team_id pending_team_name invite_code_id connecting_workspace_id reused_workspace_id reinstalling_workspace_id].each do |key|
         session.delete(key)
       end
     end
