@@ -28,7 +28,7 @@ class Operator::HalonHealthTest < ActiveSupport::TestCase
     assert_not_includes failed, budget
   end
 
-  test "totals count runs in the window, how many answered, and what was spent, never a rehearsal" do
+  test "totals count runs in the window, how many answered, and what was spent, never a rehearsal or a bench replay" do
     before = Operator::HalonHealth.new(@filter).totals
     run!(status: Investigation::STATUS_SUCCEEDED, started_at: 90.seconds.ago, completed_at: Time.current, spent_micros: 1_320_000)
     run!(status: Investigation::STATUS_FAILED, error_summary: Investigation::TOO_MANY_TURNS)
@@ -37,6 +37,10 @@ class Operator::HalonHealthTest < ActiveSupport::TestCase
                       status: Inference::STATUS_SUCCESS, cost_micros: 60_000)
     Inference.create!(workspace: @workspace, feature: FirefightAi::Investigator::FEATURE, provider: "anthropic", model: "claude",
                       status: Inference::STATUS_SUCCESS, cost_micros: 900_000, inferable: rehearsal)
+    bench = Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: Conversation::BenchRun::TRIGGER_CI, prompt_version: "v1", model: "gpt-4o")
+    replayed = bench.results.create!(workspace: @workspace, scenario: "release", title: "Release")
+    Inference.create!(workspace: @workspace, feature: FirefightAi::Responder::FEATURE, provider: "openai", model: "gpt-4o",
+                      status: Inference::STATUS_SUCCESS, cost_micros: 400_000, inferable: replayed)
 
     totals = Operator::HalonHealth.new(@filter).totals
 

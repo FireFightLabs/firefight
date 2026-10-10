@@ -1,0 +1,58 @@
+title: A confirmation that asks for choices already made
+source: A real chat in October 2026, retold with made up names
+shape: >-
+  The person said what to declare, at what severity and who leads. The confirmation card still offered them the
+  severity and the lead to pick, as if Halon had not been told, and Halon asked again in its reply before calling.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: declare an incident, checkout is failing for every card payment. Make it SEV1 and I'll lead it.
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - use_skill
+  - name: get_form
+    description: Reads the fields of one of the workspace's incident forms, with the choices each one takes.
+    reads: true
+    parameters:
+      type: object
+      properties:
+        form: { type: string, description: The form, such as declare }
+      required: [ form ]
+  - name: declare_incident
+    description: 'Declares an incident with the answers to the declare form, by field key. severity is one of: sev1, sev2, sev3. lead takes a person, or "me" for whoever asked.'
+    confirms: true
+    parameters:
+      type: object
+      properties:
+        answers: { type: object, description: The answer to each field of the declare form, by its key }
+      required: [ answers ]
+  - post_incident_update
+  - name: invite_responders
+    description: Invites people to an incident's channel.
+    parameters:
+      type: object
+      properties:
+        incident: { type: string, description: The incident's identifier }
+        people: { type: array, items: { type: string }, description: People by name or email }
+      required: [ incident, people ]
+answers:
+  - tool: get_form
+    result: |-
+      Form declare: name (text, required), severity (one of sev1, sev2, sev3, required), lead (a person, takes "me"), summary (text).
+  - tool: declare_incident
+    match: { answers: { severity: sev1, lead: /^(me|sam rivera)$/ } }
+    result: |-
+      Declared INC-131 "Checkout failing for card payments" at SEV1, led by Sam Rivera. Channel #inc-131-checkout. https://app.firefight.app/incidents/INC-131
+  - tool: declare_incident
+    result: |-
+      Declared INC-131 "Checkout failing for card payments". The severity and lead were not what was asked for: severity sev2, no lead. https://app.firefight.app/incidents/INC-131
+expect:
+  outcome: >-
+    INC-131 is declared at SEV1 with Sam Rivera leading, from what the person said, and the answer links to it.
+  next_step: >-
+    It declares in one confirmation without asking for the severity or the lead again, then offers the next step, such
+    as posting the first update or inviting responders.
+  evidence: [ "INC-131" ]
+  calls: [ declare_incident ]
+  max_cents: 20

@@ -1,0 +1,45 @@
+title: An upstream provider is down
+source: Stress test scenario 10, diagnosis
+shape: >-
+  Payments time out. The timeouts point outward, and the provider's status page says it has an incident. Halon says
+  the cause is upstream, proposes a fallback and drafts the customer update, asking before it posts.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-144 Payments timing out, status Investigating.
+turns:
+  - said: payments are timing out, what's happening?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - search_logs
+  - query_metrics
+  - recent_deploys
+  - provider_status
+  - post_incident_update
+answers:
+  - tool: search_logs
+    result: |-
+      checkout since 10:14: 912 Stripe::APIConnectionError "Timed out connecting to api.stripe.com" from PaymentsController#create. No other errors.
+  - tool: query_metrics
+    result: |-
+      checkout p95 latency 30,100 ms on /payments since 10:14, other endpoints normal. Payment success 61%, normally 98%.
+  - tool: recent_deploys
+    result: No deploy to checkout or api since yesterday at 16:40.
+  - tool: provider_status
+    match: { provider: /stripe/ }
+    result: |-
+      Stripe: Degraded performance on the API since 10:12 UTC. "We are investigating elevated latency and timeouts for API requests in some regions." https://status.stripe.com/incidents/x7k2p9
+  - tool: provider_status
+    result: All systems operational.
+  - tool: post_incident_update
+    result: Posted to INC-144 and the status page.
+expect:
+  outcome: >-
+    Payments time out because Stripe's API is degraded since 10:12, as its status page says, matching the timeouts to
+    api.stripe.com since 10:14. Nothing was deployed on our side.
+  next_step: >-
+    It proposes a fallback such as queueing payments to retry, drafts a customer update, asks once to post it, and
+    offers to watch Stripe's status.
+  evidence: [ "status.stripe.com/incidents/x7k2p9" ]
+  calls: [ provider_status ]
+  max_cents: 25

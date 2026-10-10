@@ -1,0 +1,73 @@
+title: Bad data, not broken infrastructure
+source: Stress test scenario 13, data
+shape: >-
+  Orders show no shipping charge. Nothing is down. Halon queries the data, ties it to a migration's column default,
+  and proposes a repair that runs a dry run first, keeps a copy of the rows it touches and checks afterwards, since a
+  rollback cannot fix data.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: finance says orders since yesterday have $0 shipping. Is something broken?
+    decisions: [ approve, approve, approve ]
+tools:
+  - open_tools
+  - planetscale_execute_read_query
+  - recent_deploys
+  - name: github_commit_lookup
+    description: Shows one commit or the commits that touched a path, with their diff and a link.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        path: { type: string, description: A file or folder (optional) }
+        sha: { type: string, description: A commit (optional) }
+      required: [ repository ]
+  - name: planetscale_execute_write_query
+    description: Runs an INSERT, UPDATE or DELETE on a PlanetScale database branch.
+    source: planetscale
+    confirms: true
+    parameters:
+      type: object
+      properties:
+        database: { type: string, description: The database }
+        branch: { type: string, description: The branch, usually main }
+        query: { type: string, description: The statement }
+      required: [ database, query ]
+answers:
+  - tool: planetscale_execute_read_query
+    match: { query: /group by|count/ }
+    result: |-
+      shipping_cents = 0 on 1,312 orders created since 2026-10-09 14:20, and on 4 orders before that (all free shipping promotions). Orders since 14:20 with shipping_method standard or express: 1,312.
+  - tool: planetscale_execute_read_query
+    match: { query: /information_schema|show create|describe/ }
+    result: |-
+      orders.shipping_cents: integer, NOT NULL, DEFAULT 0. orders.shipping_quote_cents: integer, NULL, holds the quoted price on 1,312 of the affected orders.
+  - tool: planetscale_execute_read_query
+    result: |-
+      id 88102, created 2026-10-09 15:02, shipping_method standard, shipping_cents 0, shipping_quote_cents 799
+  - tool: recent_deploys
+    result: |-
+      api v4.2.0 at 14:18 on 2026-10-09 by Jo Park, "Store shipping as cents" https://github.com/larkspur/shop/pull/2196
+  - tool: github_commit_lookup
+    result: |-
+      db/migrate/20261009_shipping_cents.rb adds orders.shipping_cents integer NOT NULL DEFAULT 0, and the order form still writes shipping_quote_cents, never shipping_cents. https://github.com/larkspur/shop/pull/2196/files
+  - tool: planetscale_execute_write_query
+    match: { query: /^\s*create table/ }
+    result: Created table orders_shipping_backup_20261010 with 1,312 rows.
+  - tool: planetscale_execute_write_query
+    match: { query: /^\s*update/ }
+    result: 1,312 rows updated.
+  - tool: planetscale_execute_write_query
+    result: Done.
+expect:
+  outcome: >-
+    1,312 orders since October 9 at 14:20 have shipping_cents 0 because the 14:18 deploy added shipping_cents with a
+    default of 0 while the order form still writes shipping_quote_cents. Nothing is down and a rollback would not fix
+    the stored rows.
+  next_step: >-
+    It proposes a repair that copies shipping_quote_cents into shipping_cents for those orders, counts the rows first,
+    keeps a copy of them, asks once, then checks the count afterwards, and proposes the code fix so new orders are right.
+  evidence: [ "pull/2196" ]
+  max_cents: 35

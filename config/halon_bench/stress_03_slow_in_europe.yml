@@ -1,0 +1,51 @@
+title: Slow for customers in Europe
+source: Stress test scenario 03, diagnosis
+shape: >-
+  Customers in Europe say the shop is slow. Latency by region shows it, and a check from Halon's box looks fine,
+  because the box runs in one region. The cause is the European origin pool switched off by a failed health check.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: we're getting complaints that the shop is really slow in Europe, can you check?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - use_skill
+  - get_resource_map
+  - query_metrics
+  - run_command
+  - cloudflare_execute
+answers:
+  - tool: get_resource_map
+    result: |-
+      larkspur.shop (Cloudflare zone 7c1e) with load balancer shop-lb: pools eu-origin (Frankfurt) and us-origin (Virginia). web runs in both regions on Northflank.
+  - tool: query_metrics
+    result: |-
+      web p95 latency by region, last 24 hours: Europe 2,840 ms since October 9 at 22:10 (was 280 ms), North America 290 ms.
+  - tool: run_command
+    match: { command: /curl/ }
+    result: |-
+      time_namelookup 0.004 time_connect 0.011 time_starttransfer 0.212 total 0.231 (from the box in us-east)
+  - tool: cloudflare_execute
+    match: { code: /pools/ }
+    reads: true
+    result: |-
+      [{"name":"eu-origin","enabled":true,"healthy":false,"origins":[{"address":"eu.web.larkspur.internal","enabled":true,"healthy":false,"failure_reason":"HTTP timeout on /healthz"}],"monitor_last_change":"2026-10-09T22:09:41Z"},{"name":"us-origin","enabled":true,"healthy":true}]
+      https://dash.cloudflare.com/7c1e/traffic/load-balancing/pools
+  - tool: cloudflare_execute
+    match: { code: /load_balancers/ }
+    reads: true
+    result: |-
+      shop-lb: steering geo, Europe to eu-origin with fallback us-origin. eu-origin unhealthy, so Europe is sent to us-origin.
+  - tool: cloudflare_execute
+    result: Done.
+expect:
+  outcome: >-
+    European visitors are served from the Virginia pool since October 9 at 22:10, because the Frankfurt pool's health
+    check times out on /healthz, so the load balancer fails over across the Atlantic. The box's own check runs from
+    us-east and cannot show what Europe sees.
+  next_step: >-
+    It proposes finding why eu-origin's /healthz times out and bringing the pool back, and says the box checks from one
+    region only.
+  evidence: [ "load-balancing/pools" ]
+  max_cents: 30

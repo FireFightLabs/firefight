@@ -1,0 +1,56 @@
+title: A change outside every tool
+source: Stress test scenario 18, diagnosis
+shape: >-
+  Pods restart and nothing was deployed. The cause is a hand edit to the deployment, which only the cluster's own
+  events show. Halon finds it, names who and when, and proposes the fix.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: api pods keep restarting for the last hour but nobody deployed anything
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - recent_deploys
+  - resource_status
+  - name: kubernetes_events
+    description: Reads a Kubernetes cluster's events and change history for a workload, including edits made by hand.
+    source: kubernetes
+    reads: true
+    parameters:
+      type: object
+      properties:
+        workload: { type: string, description: The workload, such as deployment/api }
+        namespace: { type: string, description: The namespace (optional) }
+      required: [ workload ]
+  - name: kubernetes_patch
+    description: Patches a Kubernetes workload.
+    source: kubernetes
+    confirms: true
+    parameters:
+      type: object
+      properties:
+        workload: { type: string, description: The workload }
+        patch: { type: object, description: A strategic merge patch }
+      required: [ workload, patch ]
+answers:
+  - tool: recent_deploys
+    result: No deploy of api in the last 12 hours.
+  - tool: resource_status
+    result: |-
+      deployment/api in namespace prod: 6 pods, 41 restarts in the last hour, last state OOMKilled.
+  - tool: kubernetes_events
+    result: |-
+      13:02 deployment/api edited with kubectl by jo@larkspur.shop: resources.limits.memory 512Mi to 256Mi. New pods rolled out 13:02 to 13:05.
+      13:09 onwards: pods OOMKilled, back-off restarting.
+  - tool: kubernetes_patch
+    result: deployment/api patched, memory limit 512Mi. Rolling out.
+expect:
+  outcome: >-
+    The restarts are out of memory kills since 13:09, after Jo Park cut api's memory limit from 512Mi to 256Mi by hand
+    with kubectl at 13:02, which no deploy shows.
+  next_step: >-
+    It proposes restoring the 512Mi limit, asks once, applies it, checks the restarts stop, and suggests telling Jo or
+    putting the limit in the deployment's code so it is not undone again.
+  evidence: [ "jo@larkspur.shop" ]
+  calls: [ kubernetes_events ]
+  max_cents: 25

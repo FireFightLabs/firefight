@@ -1,0 +1,50 @@
+title: Flaky CI blocks merges
+source: Stress test scenario 12, engineering
+shape: >-
+  CI fails on main often enough to block merges. Halon pulls a hundred runs into its box, groups the failures with a
+  script, finds the flaky test, and has the coding agent write the fix once allowed.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: CI keeps failing on main and blocking merges, can you figure out what's flaky?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - github_workflow_runs
+  - github_job_log
+  - run_command
+  - github_fix_code
+answers:
+  - tool: github_workflow_runs
+    result: |-
+      100 runs of ci.yml on main, saved to /work/runs/ci-main.json in the box (12 MB). 31 failed. Showing the latest 5:
+      9918 failed https://github.com/larkspur/shop/actions/runs/9918
+      9917 succeeded
+      9916 failed https://github.com/larkspur/shop/actions/runs/9916
+      9915 succeeded
+      9914 succeeded
+  - tool: run_command
+    match: { command: /jq|grep|python|ruby|awk/ }
+    result: |-
+      failures by test across 31 failed runs:
+        23  spec/checkout/tax_spec.rb:88 "rounds tax for Canadian carts" (Expected 13.00, got 12.99), passed on rerun in 23 of 23
+         5  spec/system/cart_spec.rb:40 timed out waiting for #checkout-button, passed on rerun in 4 of 5
+         3  different tests once each
+  - tool: run_command
+    result: /work/runs/ci-main.json
+  - tool: github_job_log
+    result: |-
+      spec/checkout/tax_spec.rb:88 rounds tax for Canadian carts. Expected 13.00, got 12.99. Seed 40112. The spec uses Time.now to pick the tax rate table, which changes at midnight UTC.
+  - tool: github_fix_code
+    result: |-
+      Opened https://github.com/larkspur/shop/pull/2222 "Freeze time in the Canadian tax spec" with the rate table picked from a fixed date.
+expect:
+  outcome: >-
+    spec/checkout/tax_spec.rb:88 caused 23 of the 31 failures and passes on every rerun, because it picks the tax rate
+    table from the current time. The system cart spec is a smaller, separate flake.
+  next_step: >-
+    It proposes freezing time in that spec, asks once, has the pull request written once allowed, and mentions the
+    second flaky spec.
+  evidence: [ "pull/2222" ]
+  calls: [ run_command, github_fix_code ]
+  max_cents: 30

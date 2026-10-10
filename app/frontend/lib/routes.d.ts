@@ -1528,6 +1528,16 @@ export const codeAgentToolsPath: ((
 
 /**
  * Generates rails route to
+ * /operator/halon/bench/compare(.:format)
+ * @param {object | undefined} options
+ * @returns {string} route path
+ */
+export const compareOperatorHalonBenchesPath: ((
+  options?: {format?: OptionalRouteParameter} & RouteOptions
+) => string) & RouteHelperExtras;
+
+/**
+ * Generates rails route to
  * /app/incidents/:incident_id/actions/:id/complete(.:format)
  * @param {any} incidentId
  * @param {any} id
@@ -3265,6 +3275,28 @@ export const operatorFindPath: ((
  * @returns {string} route path
  */
 export const operatorHalonPath: ((
+  options?: {format?: OptionalRouteParameter} & RouteOptions
+) => string) & RouteHelperExtras;
+
+/**
+ * Generates rails route to
+ * /operator/halon/bench/:id(.:format)
+ * @param {any} id
+ * @param {object | undefined} options
+ * @returns {string} route path
+ */
+export const operatorHalonBenchPath: ((
+  id: RequiredRouteParameter,
+  options?: {format?: OptionalRouteParameter} & RouteOptions
+) => string) & RouteHelperExtras;
+
+/**
+ * Generates rails route to
+ * /operator/halon/bench(.:format)
+ * @param {object | undefined} options
+ * @returns {string} route path
+ */
+export const operatorHalonBenchesPath: ((
   options?: {format?: OptionalRouteParameter} & RouteOptions
 ) => string) & RouteHelperExtras;
 

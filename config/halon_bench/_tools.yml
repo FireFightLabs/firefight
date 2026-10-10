@@ -1,0 +1,286 @@
+# Tools many bench scenarios offer, described once. A scenario lists one by name under tools, or describes its own.
+# Each is offered as the scenario describes it and answers only from the scenario's record, so nothing here reaches a
+# real system. See Conversation::BenchCase for what each field means.
+
+open_tools:
+  description: Lists every group of tools there is and opens the one that fits what you need next.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      group: { type: string, description: The group to open (optional) }
+  default: |
+    Every tool this person may use in this chat is already open:
+    %{tools}
+
+use_skill:
+  description: Lists the skills, short recipes for common tasks, and loads the one that fits.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      name: { type: string, description: The skill to load (optional) }
+  default: No skill covers more than the tools already open here.
+
+search_handbook:
+  description: Reads the workspace handbook, the page people here wrote about how they work, such as how they release and who owns what.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      query: { type: string, description: What to look for }
+    required: [ query ]
+  default: The handbook says nothing about that.
+
+get_resource_map:
+  description: The first place to look for where something runs. Lists the services, databases, zones and repositories on the map with the connection that holds each.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      query: { type: string, description: A name to look for (optional) }
+
+resource_status:
+  description: How a resource on the map is right now, read from the connection that holds it.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource: { type: string, description: The resource by name or map id }
+    required: [ resource ]
+
+recent_deploys:
+  description: What was deployed recently across every connected source, newest first, with who started it and a link to each.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource: { type: string, description: Narrow to one resource (optional) }
+      hours: { type: integer, description: How far back to look (optional) }
+
+search_logs:
+  description: Searches a resource's logs for a time window.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource: { type: string, description: The resource by name }
+      query: { type: string, description: Text or a pattern to look for (optional) }
+      minutes: { type: integer, description: How far back (optional) }
+    required: [ resource ]
+
+query_metrics:
+  description: Reads a metric for a resource over a window, such as error rate, latency or CPU.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource: { type: string, description: The resource by name }
+      metric: { type: string, description: The metric, such as error_rate, p95_latency or cpu }
+      minutes: { type: integer, description: How far back (optional) }
+    required: [ resource, metric ]
+
+search_runbooks:
+  description: Finds saved runbooks by what they do, such as releasing or rolling back.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      query: { type: string, description: What the runbook does }
+    required: [ query ]
+  default: No runbook matches that.
+
+run_runbook:
+  description: Runs a saved runbook that has tool steps, such as Release to production, by its name. It changes things, so the person confirms it first.
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      runbook: { type: string, description: The runbook's name or slug }
+      inputs: { type: object, description: A value for each of the runbook's inputs by its key (optional) }
+    required: [ runbook ]
+
+start_watch:
+  description: Watch something after you answer and report back on your own, when a run, build or deploy finishes or reaches a step. It only reads. Give each step the read that checks it, such as a provider's API request for one run by its id.
+  parameters:
+    type: object
+    properties:
+      title: { type: string, description: What is watched, as the person would say it }
+      purpose: { type: string, description: Why the person wants this }
+      steps:
+        type: array
+        description: What to follow, in order
+        items:
+          type: object
+          properties:
+            label: { type: string, description: What this step is }
+            tool: { type: string, description: The read tool that checks it }
+            arguments: { type: object, description: The read tool's arguments }
+            done_when: { type: string, description: Text in the read's answer that means it is done (optional) }
+            failed_when: { type: string, description: Text in the read's answer that means it failed (optional) }
+          required: [ label ]
+    required: [ title, steps ]
+  default: Watching. I will report each step as it passes and when it ends, for up to 40 minutes.
+
+list_watches:
+  description: How the watches started in this chat are going, with what each last read.
+  reads: true
+  parameters: { type: object, properties: {} }
+  default: No watch is running in this chat.
+
+get_incident:
+  description: One incident with its status, severity, roles, timeline and updates.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      incident: { type: string, description: The incident's identifier, such as INC-118 }
+    required: [ incident ]
+
+post_incident_update:
+  description: Posts an update to an incident's channel and its status page subscribers.
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      incident: { type: string, description: The incident's identifier }
+      message: { type: string, description: The update }
+    required: [ incident, message ]
+  default: Posted.
+
+search_incidents:
+  description: Searches past incidents by words, service or time, newest first.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      query: { type: string, description: What to look for }
+    required: [ query ]
+  default: No past incident matches.
+
+rollback:
+  description: Rolls a service back to an earlier release.
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      resource: { type: string, description: The service by name }
+      to: { type: string, description: The release or deploy to go back to }
+    required: [ resource, to ]
+
+search_activity:
+  description: Searches the activity log, every call Firefight made for anyone, by who, what and when.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      query: { type: string, description: A principal, an action or a resource (optional) }
+      hours: { type: integer, description: How far back (optional) }
+
+list_integrations:
+  description: Shows a category of integrations as a table the person connects from.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      category: { type: string, description: The category, such as source_control, hosting or monitoring }
+    required: [ category ]
+  default: Shown to the person as a table they can connect from.
+
+northflank_api_request:
+  description: Calls the Northflank API of the shop connection with a method and a path. GET reads anything. Read the API reference skill before a path you do not know.
+  source: northflank
+  confirms: true
+  reads_when: { method: [ GET ] }
+  parameters:
+    type: object
+    properties:
+      method: { type: string, enum: [ GET, POST, PUT, PATCH, DELETE ], description: The HTTP method }
+      path: { type: string, description: The path, such as /v1/projects/shop/services }
+      body: { type: object, description: The request body (optional) }
+    required: [ method, path ]
+
+github_workflow_runs:
+  description: Lists recent runs of the repository's GitHub Actions workflows, with their status, branch and a link to each.
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repository: { type: string, description: owner/name }
+      workflow: { type: string, description: A workflow file or name (optional) }
+      limit: { type: integer, description: How many runs, at most 100 (optional) }
+    required: [ repository ]
+
+github_job_log:
+  description: Reads one GitHub Actions job's log.
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repository: { type: string, description: owner/name }
+      job: { type: string, description: The job's id }
+    required: [ repository, job ]
+
+github_fix_code:
+  description: Has Firefight's coding agent write a code change on a branch and open a pull request a person reviews.
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repository: { type: string, description: owner/name }
+      task: { type: string, description: What to change and why, with the evidence }
+    required: [ repository, task ]
+
+planetscale_execute_read_query:
+  description: Runs a read only SQL query on a PlanetScale database branch.
+  source: planetscale
+  reads: true
+  parameters:
+    type: object
+    properties:
+      database: { type: string, description: The database }
+      branch: { type: string, description: The branch, usually main }
+      query: { type: string, description: A SELECT, SHOW or EXPLAIN }
+    required: [ database, query ]
+
+planetscale_get_insights:
+  description: PlanetScale's query insights for a database branch, the slowest and most frequent queries over a window.
+  source: planetscale
+  reads: true
+  parameters:
+    type: object
+    properties:
+      database: { type: string, description: The database }
+      branch: { type: string, description: The branch (optional) }
+      hours: { type: integer, description: How far back (optional) }
+    required: [ database ]
+
+cloudflare_execute:
+  description: Runs a short script against the Cloudflare API of the shop account. Use it for what no other tool reads. It can change things, so the person confirms each call.
+  source: cloudflare
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      code: { type: string, description: The script, which calls cloudflare.request(method, path, body) }
+    required: [ code ]
+
+provider_status:
+  description: Reads a provider's public status page, with any incident it lists now.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      provider: { type: string, description: The provider, such as stripe or aws }
+    required: [ provider ]
+
+run_command:
+  description: Runs a command in Halon's own box, a Linux machine with curl, dig, openssl, jq and the provider command line tools. A provider command's calls go out through Firefight, which adds the keys. Big results saved from other tools are files here.
+  parameters:
+    type: object
+    properties:
+      command: { type: string, description: The shell command }
+    required: [ command ]

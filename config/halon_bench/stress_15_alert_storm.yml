@@ -1,0 +1,64 @@
+title: An alert storm
+source: Stress test scenario 15, on-call
+shape: >-
+  Dozens of alerts arrive at once across services. They are already grouped, and Halon works the group as one problem,
+  finding the shared cause, instead of starting one investigation per alert.
+context: |-
+  You are acting for Firefight's on-call agent, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  This chat was started by an alert group, not a person.
+turns:
+  - said: "Alert group AG-52: 48 alerts in 3 minutes from web, api, checkout and worker, all failing health checks."
+tools:
+  - open_tools
+  - name: get_alert_group
+    description: One alert group with its alerts, the services they name and when each fired.
+    reads: true
+    parameters:
+      type: object
+      properties:
+        group: { type: string, description: The group's id }
+      required: [ group ]
+  - resource_status
+  - provider_status
+  - name: start_investigation
+    description: Starts an investigation that responders follow in the incident's channel. Each one costs a full run.
+    parameters:
+      type: object
+      properties:
+        question: { type: string, description: What to investigate }
+      required: [ question ]
+  - name: page_on_call
+    description: Pages whoever is on call for a service, with a message they read on their phone.
+    parameters:
+      type: object
+      properties:
+        service: { type: string, description: The service by name }
+        message: { type: string, description: What they need to know and decide }
+      required: [ service, message ]
+answers:
+  - tool: get_alert_group
+    result: |-
+      AG-52: 48 alerts from 14:02:10 to 14:05:02. web 14, api 12, checkout 11, worker 11. All "health check failed". All four services run in Northflank region us-east.
+  - tool: resource_status
+    result: |-
+      Running, but 0 of 3 instances pass their health check since 14:02. Region us-east.
+  - tool: provider_status
+    match: { provider: /northflank/ }
+    result: |-
+      Northflank: Partial outage in us-east since 14:01 UTC, "Networking issues affecting service health checks and ingress." https://status.northflank.com/incidents/nf-2210
+  - tool: provider_status
+    result: All systems operational.
+  - tool: start_investigation
+    result: Started investigation 7731.
+  - tool: page_on_call
+    result: Paged Jo Park.
+expect:
+  outcome: >-
+    All 48 alerts come from one cause, Northflank's partial outage in us-east since 14:01, where all four services run.
+  next_step: >-
+    It treats the group as one problem, pages on-call once with the cause and the status link, and proposes what can be
+    done while the provider recovers, without starting a run per alert.
+  evidence: [ "status.northflank.com/incidents/nf-2210" ]
+  calls: [ provider_status, page_on_call ]
+  never_calls: [ start_investigation ]
+  max_cents: 25

@@ -24,6 +24,10 @@ module Operator
       "A regression run is still going. Start another once it finishes." if Investigation::RegressionRun.exists?(status: Investigation::RegressionRun::STATUS_RUNNING)
     end
 
+    def self.bench_blocked_reason
+      "A bench run is still going. Start another once it finishes." if Conversation::BenchRun.of_scenarios.exists?(status: Conversation::BenchRun::STATUS_RUNNING)
+    end
+
     def self.redelivery_blocked_reason(delivery)
       "Only a failed delivery can be sent again." unless delivery.failed?
     end

@@ -1688,6 +1688,14 @@ export const codeAgentToolsPath = /*#__PURE__*/ __route({"format":{}}, [2,[7,"/"
 
 /**
  * Generates rails route to
+ * /operator/halon/bench/compare(.:format)
+ * @param {object | undefined} options
+ * @returns {string} route path
+ */
+export const compareOperatorHalonBenchesPath = /*#__PURE__*/ __route({"format":{}}, [2,[7,"/"],[2,[6,"operator"],[2,[7,"/"],[2,[6,"halon"],[2,[7,"/"],[2,[6,"bench"],[2,[7,"/"],[2,[6,"compare"],[1,[2,[8,"."],[3,"format"]]]]]]]]]]]);
+
+/**
+ * Generates rails route to
  * /app/incidents/:incident_id/actions/:id/complete(.:format)
  * @param {any} incidentId
  * @param {any} id
@@ -3012,6 +3020,23 @@ export const operatorFindPath = /*#__PURE__*/ __route({"format":{}}, [2,[7,"/"],
  * @returns {string} route path
  */
 export const operatorHalonPath = /*#__PURE__*/ __route({"format":{}}, [2,[7,"/"],[2,[6,"operator"],[2,[7,"/"],[2,[6,"halon"],[1,[2,[8,"."],[3,"format"]]]]]]]);
+
+/**
+ * Generates rails route to
+ * /operator/halon/bench/:id(.:format)
+ * @param {any} id
+ * @param {object | undefined} options
+ * @returns {string} route path
+ */
+export const operatorHalonBenchPath = /*#__PURE__*/ __route({"id":{"r":true},"format":{}}, [2,[7,"/"],[2,[6,"operator"],[2,[7,"/"],[2,[6,"halon"],[2,[7,"/"],[2,[6,"bench"],[2,[7,"/"],[2,[3,"id"],[1,[2,[8,"."],[3,"format"]]]]]]]]]]]);
+
+/**
+ * Generates rails route to
+ * /operator/halon/bench(.:format)
+ * @param {object | undefined} options
+ * @returns {string} route path
+ */
+export const operatorHalonBenchesPath = /*#__PURE__*/ __route({"format":{}}, [2,[7,"/"],[2,[6,"operator"],[2,[7,"/"],[2,[6,"halon"],[2,[7,"/"],[2,[6,"bench"],[1,[2,[8,"."],[3,"format"]]]]]]]]]);
 
 /**
  * Generates rails route to
