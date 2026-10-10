@@ -512,10 +512,10 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
              "done_when" => '"count":"2"' }
     Investigation.stubs(:unavailable_reason).returns("unavailable")
 
-    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ step ], title: "primary"))
+    assert_match "Started Watch", Conversation::Watches.start(@turn, watch_of([ step ], title: "primary"))
     check!(@conversation.chat.watches.find_by!(title: "primary"))
     replica = step.merge("arguments" => { "query" => "select 2", "use_replica" => true })
-    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ replica ], title: "replica"))
+    assert_match "Started Watch", Conversation::Watches.start(@turn, watch_of([ replica ], title: "replica"))
     check!(@conversation.chat.watches.find_by!(title: "replica"))
 
     assert sent.any?
