@@ -26,6 +26,10 @@ class ResourceMap::Timeline
   SUBJECT_RESOURCE = "resource".freeze
   SUBJECT_SERVICE = "service".freeze
   SUBJECT_WORKSPACE = "workspace".freeze
+  # The resources an incident's catalog entries run, as the map lights them up for it.
+  SUBJECT_INCIDENT = "incident".freeze
+  # An incident's list starts this long before it was detected or declared, where the change behind it usually is.
+  INCIDENT_LEAD = 2.hours
 
   KIND_DEPLOY = "deploy".freeze
   KIND_CONFIG = "config".freeze
@@ -80,7 +84,8 @@ class ResourceMap::Timeline
     end
   end
 
-  # The list is about a resource, a catalog service and the resources that run it, or the whole workspace.
+  # The list is about a resource, a catalog service and the resources that run it, an incident and the resources its
+  # catalog entries run, or the whole workspace.
   Subject = Data.define(:kind, :name, :resources, :entry) do
     def initialize(entry: nil, **) = super
 
@@ -88,6 +93,7 @@ class ResourceMap::Timeline
       case kind
       when SUBJECT_RESOURCE then name
       when SUBJECT_SERVICE then "#{name} (service)"
+      when SUBJECT_INCIDENT then name
       else "the workspace"
       end
     end
@@ -129,6 +135,17 @@ class ResourceMap::Timeline
 
     Subject.new(kind: SUBJECT_SERVICE, name: entry.name, entry: entry,
                 resources: visible.present.where(id: ResourceMap::EntryLink.where(catalog_entry: entry).select(:resource_id)).order(:name).to_a)
+  end
+
+  # An incident's subject and window: the resources its catalog entries run, from a little before it was detected or
+  # declared until now, at most the longest window.
+  def self.for_incident(workspace, principal, incident)
+    entries = incident.incident_field_values.where.not(catalog_entry_id: nil).select(:catalog_entry_id)
+    visible = ResourceMap::Resource.visible_to(principal, workspace).present
+    resources = visible.where(id: ResourceMap::EntryLink.where(catalog_entry_id: entries).select(:resource_id)).order(:name).to_a
+    to = Time.current
+    from = [ (incident.detected_at || incident.declared_at) - INCIDENT_LEAD, to - MAX_MINUTES.minutes ].max
+    [ Subject.new(kind: SUBJECT_INCIDENT, name: incident.identifier, resources: resources), from, to ]
   end
 
   def self.service(workspace, reference)
@@ -197,7 +214,7 @@ class ResourceMap::Timeline
   # What the list could not cover, each a sentence. read are notes from the caller's live reads, such as a provider that
   # could not be asked.
   def notes(read: [])
-    [ *read, *swept_only, *flags, activity_note, live_note, kept_note ].compact
+    [ unlinked_note, *read, *swept_only, *flags, activity_note, live_note, kept_note ].compact
   end
 
   def text(live: [], read: [])
@@ -351,6 +368,13 @@ class ResourceMap::Timeline
     @workspace.integrations.active.select { |integration| IntegrationProvider.find(integration.provider)&.holds_flags }.map do |integration|
       "Feature flag changes are kept at #{integration.display_name}, and this list does not read them. Its own tools and its feature flags skill do."
     end
+  end
+
+  def unlinked_note
+    return unless @subject.kind == SUBJECT_INCIDENT && @subject.resources.empty?
+
+    "No catalog entry on this incident is linked to a resource on the map, so nothing that runs it can be read. Name the affected " \
+      "service on the incident, or link the service to what runs it on the map."
   end
 
   def activity_note

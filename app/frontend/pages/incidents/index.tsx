@@ -3,6 +3,7 @@ import { Deferred, Head, Link, router, usePage } from "@inertiajs/react";
 import { AuthenticatedLayout } from "@/components/layout/authenticated-layout";
 import { ActionsSkeleton } from "@/pages/incidents/components/index/actions-skeleton";
 import { AlertsPanel } from "@/pages/incidents/components/index/alerts-panel";
+import { ChangesPanel } from "@/pages/incidents/components/index/changes-panel";
 import { IncidentHeader } from "@/pages/incidents/components/index/incident-header";
 import { TestIncidentBanner } from "@/pages/incidents/components/index/test-incident-banner";
 import { IncidentTimeline } from "@/pages/incidents/components/index/incident-timeline";
@@ -31,6 +32,7 @@ export default function IncidentPage() {
     linkableIncidents,
     memberChoices,
     subscribed,
+    canReadMap,
     openInvestigation,
     investigationStart,
   } = usePage<IncidentPageProps>().props;
@@ -118,6 +120,7 @@ export default function IncidentPage() {
                 />
               </Deferred>
               <AlertsPanel alerts={incident.alerts} />
+              <ChangesPanel incidentId={incident.id} canReadMap={canReadMap} />
               <RunbooksPanel
                 runbooks={incident.runbooks}
                 attachable={attachableRunbooks}

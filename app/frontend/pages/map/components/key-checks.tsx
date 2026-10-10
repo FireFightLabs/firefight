@@ -1,6 +1,6 @@
 import { resourceMapResourceChecksPath } from "@/lib/routes"
 import { CheckRow } from "@/pages/map/components/check-row"
-import { useResourceJson } from "@/pages/map/hooks/use-resource-json"
+import { useResourceJson } from "@/hooks/use-resource-json"
 import type { ResourceMapCheck } from "@/types/serializers"
 
 interface ChecksAnswer {

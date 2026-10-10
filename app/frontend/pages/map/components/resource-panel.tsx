@@ -15,7 +15,7 @@ import { PointingSettings } from "@/pages/map/components/pointing-settings"
 import { Remembered } from "@/pages/map/components/remembered"
 import { ResourceFacts } from "@/pages/map/components/resource-facts"
 import { UsualLogLines } from "@/pages/map/components/usual-log-lines"
-import { WhatChanged } from "@/pages/map/components/what-changed"
+import { ResourceChanges } from "@/pages/map/components/resource-changes"
 import { settingsPointingAt } from "@/pages/map/lib/pointing"
 import type { SharedProps } from "@/types"
 import type { ResourceMapEntry, ResourceMapLink, ResourceMapResource } from "@/types/serializers"
@@ -149,7 +149,7 @@ export function ResourcePanel({ resource, resources, links, catalogEntries, canC
       )}
 
       <PanelSection title="What changed">
-        <WhatChanged key={resource.id} resourceId={resource.id} lastChange={resource.lastChange} />
+        <ResourceChanges key={resource.id} resourceId={resource.id} lastChange={resource.lastChange} />
       </PanelSection>
     </aside>
   )

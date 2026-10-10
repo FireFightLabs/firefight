@@ -1,5 +1,7 @@
 # The resource map page: what runs where, read off the connections, and the links people add or confirm on it.
 class ResourceMapController < InertiaController
+  include WhatChangedJson
+
   authorizes Ability::Action::RESOURCE_MAP, read: %i[index checks run_check log_lines changes]
   authorizes Ability::Action::RESOURCE_INTEGRATIONS, update: %i[sync]
   authorizes Ability::Action::RESOURCE_CATALOG,
@@ -43,16 +45,12 @@ class ResourceMapController < InertiaController
                    reason: ResourceMap::LogTemplate.missing_reason(target, current_membership) }
   end
 
-  # What changed around a resource over the last week, read when its panel opens from what Firefight holds. live reads
-  # its runs from the provider that runs it as well, as the person, through the gateway as run history.
+  # What changed around a resource over the last week, read when its panel opens.
   def changes
     target = resource(params[:id])
     subject = ResourceMap::Timeline.subject(current_workspace, current_membership, ResourceMap::Timeline::RESOURCE_ARG => target.id)
-    timeline = ResourceMap::Timeline.new(workspace: current_workspace, principal: current_membership, subject: subject,
-                                         from: ResourceMap::Timeline::PANEL_WINDOW.ago, to: Time.current)
-    live, read = params[:live].present? ? ResourceMap::WhatChanged.read_as(timeline, principal: current_membership) : [ [], [] ]
-    render json: { entries: ResourceMapTimelineEntrySerializer.many(timeline.entries(live: live)), notes: timeline.notes(read: read),
-                   readsRuns: ResourceMap::WhatChanged.targets(timeline).any?, readLive: params[:live].present? }
+    render_what_changed(ResourceMap::Timeline.new(workspace: current_workspace, principal: current_membership, subject: subject,
+                                                  from: ResourceMap::Timeline::PANEL_WINDOW.ago, to: Time.current))
   end
 
   def sync

@@ -1,19 +1,26 @@
 import { IconExternalLink } from "@tabler/icons-react"
-import { useState } from "react"
+import { type ReactNode, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { useResourceJson } from "@/hooks/use-resource-json"
 import type { ResourceMapTimelineSource } from "@/lib/generated/constants"
-import { resourceMapResourceChangesPath } from "@/lib/routes"
 import { shortAgo } from "@/lib/time"
-import { useResourceJson } from "@/pages/map/hooks/use-resource-json"
-import { changeLabel } from "@/pages/map/lib/labels"
-import type { ResourceMapChange, ResourceMapTimelineEntry } from "@/types/serializers"
+import type { ResourceMapTimelineEntry } from "@/types/serializers"
 
 interface ChangesAnswer {
   entries: ResourceMapTimelineEntry[]
   notes: string[]
   readsRuns: boolean
   readLive: boolean
+}
+
+interface WhatChangedProps {
+  // The answer's address, with how many times runs were asked for, 0 until the button is pressed.
+  pathFor: (reads: number) => string
+  // What a list with nothing in it says.
+  quiet: string
+  // A line shown above the list, such as the last change the map saw.
+  glance?: ReactNode
 }
 
 const SOURCE_TONES: Record<ResourceMapTimelineSource, string> = {
@@ -23,28 +30,28 @@ const SOURCE_TONES: Record<ResourceMapTimelineSource, string> = {
   firefight: "border-border bg-muted text-foreground",
 }
 
-// What changed around a resource over the last week, read when its panel opens from what Firefight holds. Reading its
-// runs asks the provider that runs it, as the person, so it waits for the button.
-export function WhatChanged({ resourceId, lastChange }: { resourceId: string; lastChange?: ResourceMapChange }) {
+// What changed, read from what Firefight holds when it opens. Reading runs asks the provider that runs each resource, as
+// the person, so it waits for the button.
+export function WhatChanged({ pathFor, quiet, glance }: WhatChangedProps) {
   const [ reads, setReads ] = useState(0)
-  const path = reads > 0 ? resourceMapResourceChangesPath(resourceId, { live: reads }) : resourceMapResourceChangesPath(resourceId)
-  const loaded = useResourceJson<ChangesAnswer>(path)
+  const loaded = useResourceJson<ChangesAnswer>(pathFor(reads))
 
   function readRuns() {
     setReads(reads + 1)
   }
 
   if (loaded.state === "loading") {
-    return <p className="text-sm text-muted-foreground">{reads > 0 ? "Reading its runs from the provider." : "Reading what changed."}</p>
+    return <p className="text-sm text-muted-foreground">{reads > 0 ? "Reading runs from the provider." : "Reading what changed."}</p>
   }
   if (loaded.state === "failed") {
-    return <p className="text-sm text-muted-foreground">What changed could not be read. Open the resource again to retry.</p>
+    return <p className="text-sm text-muted-foreground">What changed could not be read. Open it again to retry.</p>
   }
   const { entries, notes, readsRuns, readLive } = loaded.answer
 
   return (
     <div className="flex flex-col gap-2">
-      {entries.length === 0 && <p className="text-sm text-muted-foreground">{nothingSentence(lastChange)}</p>}
+      {entries.length === 0 && <p className="text-sm text-muted-foreground">{quiet}</p>}
+      {entries.length > 0 && glance}
       {entries.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {entries.map((entry) => (
@@ -55,7 +62,7 @@ export function WhatChanged({ resourceId, lastChange }: { resourceId: string; la
       {readsRuns && (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2">
           <span className="grow text-sm text-muted-foreground">
-            {readLive ? "Its runs were read just now." : "Its deploys and runs are the ones the map saw."}
+            {readLive ? "Runs were read just now." : "Deploys and runs here are the ones the map saw."}
           </span>
           <Button type="button" variant="outline" size="sm" onClick={readRuns}>
             {readLive ? "Read again" : "Read runs now"}
@@ -71,13 +78,6 @@ export function WhatChanged({ resourceId, lastChange }: { resourceId: string; la
       )}
     </div>
   )
-}
-
-function nothingSentence(lastChange?: ResourceMapChange): string {
-  if (!lastChange) {
-    return "Nothing Firefight holds changed in the last week."
-  }
-  return `Nothing Firefight holds changed in the last week. The last change seen was ${changeLabel(lastChange)}, ${shortAgo(lastChange.happenedAt)} ago.`
 }
 
 function ChangeRow({ entry }: { entry: ResourceMapTimelineEntry }) {

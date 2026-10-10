@@ -35,14 +35,32 @@ class MapWhatChangedTest < ApplicationSystemTestCase
 
     within("aside[aria-label='About web']") do
       assert_text(/what changed/i)
+      assert_text "web appeared\n1m ago"
       assert_text "Northflank reported web changed, and nothing in Firefight's activity log matches it"
       assert_text "Restart service through Northflank, from Halon chat"
       assert_text "web deployed 9f1c2e7"
-      assert_text "Its deploys and runs are the ones the map saw."
+      assert_text "Deploys and runs here are the ones the map saw."
       click_on "Read runs now"
       assert_text "web run #46 build failed, took 3 minutes, from Northflank"
-      assert_text "Its runs were read just now."
+      assert_text "Runs were read just now."
       assert_button "Read again"
     end
+  end
+
+  test "an incident's page lists what changed on what it touches, and reads its runs when asked" do
+    incident = incidents(:active_critical_ws1)
+    entry = catalog_entries(:auth_service)
+    incident.incident_field_values.create!(incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
+    ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: entry, resource: @web)
+    incident.update_columns(declared_at: 1.hour.ago, detected_at: nil)
+    run = History::Run.new(id: "b47", number: "47", name: "build", status: History::SUCCEEDED, started_at: 20.minutes.ago, finished_at: 16.minutes.ago)
+    Integrations::NativeExecutor.stubs(:call).returns(Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "1 build" } ] }, [ run ]))
+
+    visit incident_path(incident)
+
+    assert_text "Northflank reported web changed"
+    assert_no_text "web deployed 9f1c2e7"
+    click_on "Read runs now"
+    assert_text "web run #47 build succeeded, took 4 minutes, from Northflank"
   end
 end

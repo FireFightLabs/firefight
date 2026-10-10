@@ -77,6 +77,29 @@ class ResourceMap::TimelineTest < ActiveSupport::TestCase
     assert_match "Nothing in the catalog is called billing", ResourceMap::Timeline.subject(@workspace, @admin, ResourceMap::Timeline::SERVICE_ARG => "billing")
   end
 
+  test "an incident reads the resources its catalog entries run, from a little before it was detected until now" do
+    incident = incidents(:active_critical_ws1)
+    incident.update_columns(detected_at: 3.hours.ago)
+    entry = catalog_entries(:auth_service)
+    incident.incident_field_values.create!(incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
+    ResourceMap::EntryLink.create!(workspace: @workspace, catalog_entry: entry, resource: @web)
+
+    subject, from, to = ResourceMap::Timeline.for_incident(@workspace, @admin, incident)
+
+    assert_equal [ ResourceMap::Timeline::SUBJECT_INCIDENT, incident.identifier, [ @web ] ], [ subject.kind, subject.described, subject.resources ]
+    assert_in_delta 5.hours.ago, from, 5
+    listed = ResourceMap::Timeline.new(workspace: @workspace, principal: @admin, subject: subject, from: from, to: to)
+    assert_equal [ @web ], listed.live_targets
+    assert_equal [ "web deployed bbbbbbb" ], listed.entries.map(&:what)
+  end
+
+  test "an incident whose catalog entries run nothing on the map says so" do
+    subject, from, to = ResourceMap::Timeline.for_incident(@workspace, @admin, incidents(:active_critical_ws1))
+
+    notes = ResourceMap::Timeline.new(workspace: @workspace, principal: @admin, subject: subject, from: from, to: to).notes
+    assert_match "No catalog entry on this incident is linked to a resource on the map", notes.first
+  end
+
   test "the whole workspace reads no runs live, says so, and names where feature flags are kept" do
     @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "posthog", name: "PostHog", slug: "posthog")
     listed = ResourceMap::Timeline.new(workspace: @workspace, principal: @admin, subject: ResourceMap::Timeline.subject(@workspace, @admin, {}),
