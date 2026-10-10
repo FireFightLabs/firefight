@@ -1,5 +1,5 @@
 import type {
-  ChatCompaction, InvestigationDetail, InvestigationHelper, InvestigationHypothesis, InvestigationNote, InvestigationStep,
+  ChatCompaction, ChatModelSwitch, InvestigationDetail, InvestigationHelper, InvestigationHypothesis, InvestigationNote, InvestigationStep,
 } from "@/types/serializers"
 
 // One helper of a batch, with the steps it took in the order they were numbered.
@@ -16,6 +16,7 @@ export type StoryEntry =
   | { kind: "note"; key: string; note: InvestigationNote }
   | { kind: "room"; key: string; compaction: ChatCompaction }
   | { kind: "helpers"; key: string; groups: HelperGroup[] }
+  | { kind: "switch"; key: string; modelSwitch: ChatModelSwitch }
   | { kind: "end"; key: string }
 
 function beforeStep(hypothesis: InvestigationHypothesis, step: InvestigationStep): boolean {
@@ -27,9 +28,18 @@ function readBefore(note: InvestigationNote, step: InvestigationStep): boolean {
   return note.takenAt != null && step.startedAt != null && note.takenAt <= step.startedAt
 }
 
-// Room is made just before the model chooses its next step, so it sits ahead of every step that started after it.
-function madeBefore(compaction: ChatCompaction, step: InvestigationStep): boolean {
-  return step.startedAt != null && Date.parse(compaction.at) <= Date.parse(step.startedAt)
+type QuietLine = { kind: "room"; line: ChatCompaction } | { kind: "switch"; line: ChatModelSwitch }
+
+// Room is made, and a backup model takes over, just before the model chooses its next step, so each sits ahead of
+// every step that started after it.
+function madeBefore(quiet: QuietLine, step: InvestigationStep): boolean {
+  return step.startedAt != null && Date.parse(quiet.line.at) <= Date.parse(step.startedAt)
+}
+
+function storyEntryFor(quiet: QuietLine): StoryEntry {
+  return quiet.kind === "room"
+    ? { kind: "room", key: quiet.line.key, compaction: quiet.line }
+    : { kind: "switch", key: quiet.line.key, modelSwitch: quiet.line }
 }
 
 // The run in the order it happened. A theory appears where it was first written down, and again as settled right
@@ -71,13 +81,16 @@ export function buildStory(investigation: InvestigationDetail): StoryEntry[] {
     }
   }
 
-  const unplacedRoom = [...investigation.compactions].sort((first, second) => Date.parse(first.at) - Date.parse(second.at))
+  const unplacedRoom: QuietLine[] = [
+    ...investigation.compactions.map((line): QuietLine => ({ kind: "room", line })),
+    ...investigation.modelSwitches.map((line): QuietLine => ({ kind: "switch", line })),
+  ].sort((first, second) => Date.parse(first.line.at) - Date.parse(second.line.at))
 
   function placeRoomBefore(step: InvestigationStep | null) {
     while (unplacedRoom.length > 0 && (step == null || madeBefore(unplacedRoom[0], step))) {
-      const compaction = unplacedRoom.shift()
-      if (compaction) {
-        story.push({ kind: "room", key: compaction.key, compaction })
+      const quiet = unplacedRoom.shift()
+      if (quiet) {
+        story.push(storyEntryFor(quiet))
       }
     }
   }

@@ -4,11 +4,17 @@ class Conversation::Delivery
   # The last line of an answer a lost turn was writing, so what it said so far never reads as finished.
   INTERRUPTED_HERE = "Interrupted here.".freeze
 
-  # Saved in the chat and said where the person asked, so a turn that could not finish is never a silence.
+  # Saved in the chat and said where the person asked, so a turn that could not finish is never a silence. What Halon did
+  # before it stopped follows the reason, so the people it was helping carry on from there.
   def self.give_up!(conversation, text)
+    text = with_where_it_stopped(conversation, text)
     conversation.note!(text)
     conversation.reply_delivered!
     self.for(conversation).failed!(text)
+  end
+
+  def self.with_where_it_stopped(conversation, text)
+    [ text, Chat::StoppedNote.since_last_answer(conversation.chat) ].compact.join("\n\n")
   end
 
   def self.for(conversation)
@@ -93,6 +99,16 @@ class Conversation::Delivery
 
   # Making room is the dashboard's to show, so a thread says nothing about it.
   def made_room(_compaction) = nil
+
+  # Said once in the thread, as a finished step, so the people reading know why the answer may read differently.
+  def switched_model(switch)
+    @text.flush!
+    adapter.report_agent_step(
+      channel_id: @conversation.channel_id, answer_id: @answer_id, key: switch.step_key, title: switch.shown_as,
+      status: FirefightAi::AgentLoop::STEP_DONE
+    )
+    shown!
+  end
 
   def chunk(text)
     @text.add(text)

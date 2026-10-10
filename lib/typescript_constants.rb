@@ -153,6 +153,7 @@ module TypescriptConstants
         "CHUNK" => Conversation::LiveDelivery::EVENT_CHUNK, "ANSWERED" => Conversation::LiveDelivery::EVENT_ANSWERED,
         "FAILED" => Conversation::LiveDelivery::EVENT_FAILED, "WAITING" => Conversation::LiveDelivery::EVENT_WAITING,
         "INVESTIGATION" => Conversation::LiveDelivery::EVENT_INVESTIGATION, "MADE_ROOM" => Conversation::LiveDelivery::EVENT_MADE_ROOM,
+        "SWITCHED_MODEL" => Conversation::LiveDelivery::EVENT_SWITCHED_MODEL,
         "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL,
         "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
         "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,

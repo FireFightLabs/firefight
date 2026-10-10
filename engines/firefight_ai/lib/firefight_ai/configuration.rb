@@ -19,6 +19,15 @@ module FirefightAi
 
     attr_accessor :default_model, :default_provider, :provider_settings, :request_timeout
 
+    # The deployment's quick model for side jobs (summaries, milestones, mention replies, judging a watch or a memory),
+    # when no purpose names its own. Unset, side jobs run on the quick model the main model's provider recommends.
+    attr_accessor :quick_model, :quick_provider
+
+    # What Halon's own loop carries on with when the main model's provider stops answering, after the workspace's own
+    # accounts on other providers. Unset, the backup model of each provider this deployment holds a key for
+    # (AiProviders.deployment_backup_choices).
+    attr_accessor :backup_model, :backup_provider
+
     # A read-only OpenRouter management key, used only to read the account's balance and never to call a model.
     attr_accessor :openrouter_management_key
 
@@ -32,6 +41,10 @@ module FirefightAi
     def initialize
       @default_model = nil
       @default_provider = nil
+      @quick_model = nil
+      @quick_provider = nil
+      @backup_model = nil
+      @backup_provider = nil
       @provider_settings = {}
       @request_timeout = 120
       @milestones_enabled = true

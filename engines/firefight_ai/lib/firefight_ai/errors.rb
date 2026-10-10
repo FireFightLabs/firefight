@@ -52,6 +52,27 @@ module FirefightAi
   RATE_LIMIT_STATUS = 429
   RATE_LIMIT_WORDS = /rate limit/i
 
+  # The provider did not answer after RubyLLM's own retries. It failed, was overloaded, kept refusing for rate, timed out
+  # or could not be reached, and Halon's loop carries on with a backup model.
+  PROVIDER_DOWN_ERRORS = [
+    RubyLLM::RateLimitError,
+    RubyLLM::ServerError,
+    RubyLLM::ServiceUnavailableError,
+    RubyLLM::OverloadedError,
+    Net::ReadTimeout,
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
+
+  # Credit is the payer's to fix and a wait for spend in flight clears by itself, so neither is the provider being down.
+  def self.provider_down?(error)
+    down = PROVIDER_DOWN_ERRORS.any? { |kind| error.is_a?(kind) } || (error.is_a?(RubyLLM::Error) && rate_limited?(error))
+    return false unless down
+
+    credit = Credit.from(error)
+    !credit.out_of_credit? && !credit.in_flight?
+  end
+
   def self.translating_errors
     yield
   rescue RubyLLM::CancelledError => e

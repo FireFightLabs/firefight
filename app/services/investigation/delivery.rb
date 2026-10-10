@@ -70,13 +70,14 @@ class Investigation::Delivery
   end
 
   # rerunnable is for a stop on our side. A spent budget or a person's stop would only end the same way.
-  def stopped!(reason, rerunnable: false)
+  # where_it_stopped is what the run did before it could not carry on, so responders pick up from there without it.
+  def stopped!(reason, rerunnable: false, where_it_stopped: nil)
     @investigation.note_stopped!(reason)
     tell_chat
     return unless thread_id
 
     adapter.post_investigation_stopped(
-      channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, reason: reason,
+      channel_id: channel_id, thread_id: thread_id, answer_id: @answer_id, reason: reason, where_it_stopped: where_it_stopped,
       rerun: (@investigation.incident if rerunnable),
       rerun_question: (@investigation if rerunnable && @investigation.incident.nil?), investigation: @investigation
     )

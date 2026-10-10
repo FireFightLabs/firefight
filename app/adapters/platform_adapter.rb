@@ -856,7 +856,7 @@ class PlatformAdapter
   # incident, each given only when running it again could end differently. investigation is the run,
   # so the message can link to it.
   # @return [Hash] { message_id:, channel_id: }
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, rerun_question: nil, investigation: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, where_it_stopped: nil, rerun: nil, rerun_question: nil, investigation: nil)
     raise NotImplemented.new(__method__, self.class)
   end
 

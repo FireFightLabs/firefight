@@ -6,7 +6,8 @@ import type { AgentChatMessage, ChatCompaction } from "@/types/serializers"
 
 const LIVE_TURN_ID = "live"
 
-// A time Halon made room, drawn in the trace as a finished step of its own kind with when it happened.
+// A time Halon made room, or carried on with a backup model, drawn in the trace as a finished quiet step with when it
+// happened.
 export function roomStep(compaction: ChatCompaction): AgentStep {
   return {
     key: compaction.key,

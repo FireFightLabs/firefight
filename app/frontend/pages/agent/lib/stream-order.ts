@@ -69,7 +69,7 @@ export function withEvent(streamed: Streamed, event: StreamEvent): Streamed {
   if (event.type === AGENT_STREAM_EVENTS.STEP) {
     return { ...streamed, steps: withStep(streamed.steps, stepOf(event), seq) }
   }
-  if (event.type === AGENT_STREAM_EVENTS.MADE_ROOM) {
+  if (event.type === AGENT_STREAM_EVENTS.MADE_ROOM || event.type === AGENT_STREAM_EVENTS.SWITCHED_MODEL) {
     const key = event.key ?? ""
     if (streamed.steps.some((step) => step.item.key === key)) {
       return streamed

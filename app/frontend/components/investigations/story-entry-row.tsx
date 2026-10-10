@@ -1,4 +1,5 @@
 import {
+  IconArrowsExchange,
   IconArrowsMinimize,
   IconBulb,
   IconCircleCheck,
@@ -165,6 +166,16 @@ export function StoryEntryRow({ entry, investigation, connected }: { entry: Stor
         >
           <HelperGroups groups={entry.groups} investigation={investigation} />
         </StoryRow>
+      )
+    case "switch":
+      return (
+        <StoryRow
+          marker={<StoryIconMarker icon={IconArrowsExchange} />}
+          tone="neutral"
+          title={<span className="text-fg-muted">{entry.modelSwitch.title}</span>}
+          at={entry.modelSwitch.at}
+          connected={connected}
+        />
       )
     case "end":
       return <StoryEndRow investigation={investigation} />

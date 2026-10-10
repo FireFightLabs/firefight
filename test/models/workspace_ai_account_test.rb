@@ -85,7 +85,7 @@ class WorkspaceAiAccountTest < ActiveSupport::TestCase
   test "a model Firefight cannot size cannot be Halon's main model, and the recommended ones are filled in" do
     account = @workspace.workspace_ai_accounts.new(provider: "anthropic", label: "Anthropic", kind: AiProviders::KIND_API_KEY)
     account.assign_models({})
-    assert_equal [ "claude-sonnet-5", "claude-haiku-4-5" ], [ account.model_for(WorkspaceAiAccount::MAIN), account.model_for(WorkspaceAiAccount::FAST) ]
+    assert_equal [ "claude-sonnet-5-5", "claude-haiku-4-5" ], [ account.model_for(WorkspaceAiAccount::MAIN), account.model_for(WorkspaceAiAccount::FAST) ]
 
     account.assign_models("main" => "a-model-nobody-has")
     assert_not account.valid?

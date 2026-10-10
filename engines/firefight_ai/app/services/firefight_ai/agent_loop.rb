@@ -42,9 +42,11 @@ module FirefightAi
     # refuses its key, the next account in its order takes the run over at the same step.
     # purse is what the run has spent (Purse), shared with helpers a tool starts beside the loop, so what they spend counts
     # against this budget too. A fresh one starts from the budget's spend.
+    # on_backup is called with the choice that stopped answering, the backup taking over and the error, once per switch. Without it
+    # a provider that stops answering fails the run as before, which a rehearsal needs to measure one model.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil,
-                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil)
+                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil, on_backup: nil)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -65,6 +67,8 @@ module FirefightAi
       @check = check
       @hold = hold
       @take_messages = take_messages
+      @on_backup = on_backup
+      @given_up_on = []
       @seen_tool_call_ids = messages.flat_map { |message| message.tool_calls&.keys || [] }.to_set
       report_steps_to(on_step) if on_step
     end
@@ -140,7 +144,8 @@ module FirefightAi
     end
 
     # A provider that still says too long gets the chat rebuilt and one more try, never a second. A refusal for credit
-    # goes to the next account when one can carry on, and otherwise fails the run.
+    # goes to the next account when one can carry on, and otherwise fails the run. A provider that stopped answering,
+    # after RubyLLM's own retries, hands the run to a backup when one is set up.
     def generate
       Inference.track(tracked) { @chat.step(&streamer) }.first
     rescue RubyLLM::ContextLengthExceededError
@@ -149,8 +154,8 @@ module FirefightAi
       @made_room_after_refusal = true
       @room.make_after_refusal
       retry
-    rescue RubyLLM::Error => e
-      raise unless take_over(e)
+    rescue RubyLLM::Error, *FirefightAi::PROVIDER_DOWN_ERRORS => e
+      raise unless take_over(e) || back_up(e)
 
       retry
     end
@@ -160,15 +165,33 @@ module FirefightAi
       following = FirefightAi.take_over(@choice, error, purpose: @purpose, workspace: @inference[:workspace])
       return false unless following
 
+      switch_to(following)
+      true
+    end
+
+    # The backup carries on from the same step, and the app is told once for each switch so it can say so.
+    def back_up(error)
+      return false unless @on_backup && FirefightAi.provider_down?(error)
+
+      backup = FirefightAi.backup_for(@choice, purpose: @purpose, workspace: @inference[:workspace], tried: @given_up_on)
+      return false unless backup
+
+      failing = @choice
+      @given_up_on << failing
+      switch_to(backup)
+      @on_backup.call(failing, backup, error)
+      true
+    end
+
+    def switch_to(following)
       @choice = following
       FirefightAi.bind(@chat, following)
       @inference = @inference.merge(following.ledger)
-      if @output
-        @output = FirefightAi.output_cap(@purpose, choice: following)
-        @output_limit = @output.max
-        @chat.to_llm.with_max_output_tokens(@output_limit)
-      end
-      true
+      return unless @output
+
+      @output = FirefightAi.output_cap(@purpose, choice: following)
+      @output_limit = @output.max
+      @chat.to_llm.with_max_output_tokens(@output_limit)
     end
 
     def tracked = @output_limit ? @inference.merge(max_output_tokens: @output_limit) : @inference

@@ -92,4 +92,84 @@ class AiFundingTest < ActiveSupport::TestCase
     assert_nil rehearsal.ai_model.payer, "the deployment's own account pays"
     assert_equal Inference::PAID_BY_ACCOUNT, run.ai_model.payer.paid_by
   end
+
+  test "a provider that stops answering hands the loop to the next account on another provider, never one on the same" do
+    first = add_ai_account!(@workspace, label: "First")
+    add_ai_account!(@workspace, label: "Same provider")
+    other = add_ai_account!(@workspace, provider: "openai", key: "sk-own-openai", label: "Other provider")
+    failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    assert_equal first, failing.payer.account
+
+    backup = FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
+
+    assert_equal other, backup.payer.account
+    assert_equal "gpt-4o", backup.model
+  end
+
+  test "after the workspace's own accounts, the house carries on with the backup the deployment names, even on the same provider" do
+    with_backup("claude-sonnet-4-5", "anthropic") do
+      own = add_ai_account!(@workspace)
+      failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+      house = FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
+      assert_equal "gpt-4o", house.model, "the house's own model is on another provider, so it comes first"
+      assert_equal Inference::PAID_BY_OPERATOR, house.payer.paid_by
+
+      named = FirefightAi.backup_for(house, purpose: AiPurpose::INVESTIGATION, workspace: @workspace, tried: [ failing ])
+      assert_equal [ "claude-sonnet-4-5", "anthropic", Inference::PAID_BY_OPERATOR ], [ named.model, named.provider, named.payer.paid_by ]
+      assert_not_equal own, named.payer.account
+
+      assert_nil FirefightAi.backup_for(named, purpose: AiPurpose::INVESTIGATION, workspace: @workspace, tried: [ failing, house ]),
+                 "nothing is tried twice"
+    end
+  end
+
+  test "with no backup named, the house carries on with the backup of another provider it holds a key for" do
+    keyed = RubyLLM.config.dup
+    keyed.anthropic_api_key = "sk-ant-deployment"
+    keyed.openrouter_api_key = "sk-or-deployment"
+    RubyLLM.stubs(:config).returns(keyed)
+    failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    assert_equal [ "claude-sonnet-5-5", "anthropic" ], [ failing.model, failing.provider ]
+
+    backup = FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
+
+    assert_equal [ "z-ai/glm-5.2", "openrouter" ], [ backup.model, backup.provider ]
+    assert_equal Inference::PAID_BY_OPERATOR, backup.payer.paid_by
+  end
+
+  test "on OpenRouter alone, the house carries on with GLM-5.2 on the same key when Claude stops answering" do
+    keyed = RubyLLM.config.dup
+    keyed.openrouter_api_key = "sk-or-deployment"
+    RubyLLM.stubs(:config).returns(keyed)
+    failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    assert_equal [ "anthropic/claude-sonnet-5.5", "openrouter" ], [ failing.model, failing.provider ]
+    assert_equal "z-ai/glm-5.2", FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace).model, "side jobs run on GLM-5.2 too"
+
+    backup = FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
+
+    assert_equal [ "z-ai/glm-5.2", "openrouter", Inference::PAID_BY_OPERATOR ], [ backup.model, backup.provider, backup.payer.paid_by ]
+    assert_nil FirefightAi.backup_for(backup, purpose: AiPurpose::INVESTIGATION, workspace: @workspace, tried: [ failing ]), "nothing is tried twice"
+  end
+
+  test "a house that cannot pay for the workspace is never its backup" do
+    with_backup("gpt-4o-mini", "openai") do
+      on_firefights_cloud!(credit: AiAccountTestHelper::Credit.new(false, true))
+      add_ai_account!(@workspace)
+      failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+
+      assert_nil FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
+    end
+  end
+
+  private
+
+  def with_backup(model, provider)
+    config = FirefightAi.configuration
+    kept = [ config.backup_model, config.backup_provider ]
+    config.backup_model = model
+    config.backup_provider = provider
+    yield
+  ensure
+    config.backup_model, config.backup_provider = kept
+  end
 end
