@@ -1,6 +1,7 @@
 module Integrations
   # Reaching a provider's host, and the parts of reading its answer every client shares: JSON with its errors mapped,
-  # a 429 as RateLimited, and a file at a signed address. How a provider words its reason stays with its own client.
+  # a 429 as RateLimited, a host that did not answer in time as TimedOut, and a file at a signed address. How a provider
+  # words its reason stays with its own client.
   module Http
     OPEN_TIMEOUT = 5
     TOO_MANY_REQUESTS = 429
@@ -39,7 +40,9 @@ module Integrations
       Net::HTTP.start(uri.hostname, uri.port, **options) do |connection|
         connection.request(request, &)
       end
-    rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error => error
+    rescue Timeout::Error => error
+      raise error_class.new("could not reach #{uri.host} (#{error.class.name})").extend(TimedOut)
+    rescue SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error => error
       raise error_class, "could not reach #{uri.host} (#{error.class.name})"
     end
 

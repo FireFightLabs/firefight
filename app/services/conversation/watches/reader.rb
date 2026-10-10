@@ -64,7 +64,7 @@ class Conversation::Watches::Reader
     tool = environment_row.integration.tools.enabled.available.find_by(name: handle)
     raise Refused, "#{handle} is not switched on, so the log could not be read." unless tool
 
-    arguments = log[Integrations::Capabilities::History::LOG_ARGUMENTS].to_h
+    arguments = Integrations::Replicas.primary_first(tool, log[Integrations::Capabilities::History::LOG_ARGUMENTS].to_h)
     raise Refused, "#{handle} changes things, so a watch does not read a log with it." unless tool.reads_call?(arguments)
 
     scope = environment_row.ability_scope
@@ -78,9 +78,11 @@ class Conversation::Watches::Reader
 
   private
 
+  # A read the provider could serve from a replica goes to the primary, as Halon's own reads do (Integrations::Replicas).
   def run(call)
-    authorized(call.tool, call.scope, call.arguments) do
-      answer = call.tool.integration.executor.call(tool: call.tool, environment_row: call.environment_row, arguments: call.arguments,
+    arguments = Integrations::Replicas.primary_first(call.tool, call.arguments)
+    authorized(call.tool, call.scope, arguments) do
+      answer = call.tool.integration.executor.call(tool: call.tool, environment_row: call.environment_row, arguments: arguments,
                                                    box_key: @conversation.code_box_key)
       call.present_result(answer)
     end

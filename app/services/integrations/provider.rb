@@ -20,13 +20,15 @@ module Integrations
   # (Integrations::SecretReads). status_words maps the
   # provider's own status words onto Firefight's (ResourceMap::Resource::STATUS_HEALTH), applied to everything its
   # connection puts on the map, so a resource never reads unknown for a word that means one Firefight has.
+  # primary_reads names, by tool, the argument and value that send a database read to the primary rather than a replica,
+  # which Halon's reads use unless the call asks for the replica (Integrations::Replicas).
   class Provider
     PARTS = %i[pack adapter map_reader baseline_reader health_probe source_links read_guard issue_tracker map_events error_reader].freeze
     KEY_FORMAT = /\A[a-z0-9_]+\z/
 
-    attr_reader :key, :redacted_fields, :redacted_patterns, :withheld_tools, :status_words
+    attr_reader :key, :redacted_fields, :redacted_patterns, :withheld_tools, :status_words, :primary_reads
 
-    def initialize(key:, redacted_fields: [], redacted_patterns: {}, withheld_tools: {}, status_words: {}, **parts)
+    def initialize(key:, redacted_fields: [], redacted_patterns: {}, withheld_tools: {}, status_words: {}, primary_reads: {}, **parts)
       unknown = parts.keys - PARTS
       raise ArgumentError, "#{key} names parts a provider does not have: #{unknown.join(', ')}" if unknown.any?
 
@@ -35,6 +37,7 @@ module Integrations
       @redacted_patterns = redacted_patterns.transform_keys(&:to_s).freeze
       @withheld_tools = withheld_tools.transform_keys(&:to_s).freeze
       @status_words = status_words.to_h { |word, firefight| [ word.to_s.downcase, firefight.to_s ] }.freeze
+      @primary_reads = primary_reads.to_h { |tool, given| [ tool.to_s, given.transform_keys(&:to_s).freeze ] }.freeze
       @parts = parts.transform_values(&:to_s).freeze
     end
 

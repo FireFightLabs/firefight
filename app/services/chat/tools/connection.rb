@@ -25,7 +25,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # A call that waits for the person also asks for its intent, which the confirmation leads with.
   # A tool that can open an issue in a chat or run about an incident also asks how the issue is kept on it.
   def parameters_schema
-    schema = reading_schema || @tool.offered_schema
+    schema = reading_schema || Integrations::Replicas.offered(@tool, @tool.offered_schema)
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
@@ -119,6 +119,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     # The project or workspace a call reaches is named before it is authorized, so the step, the activity log and an
     # approval say where it goes.
     arguments = Integrations::Scopes.resolved(@tool.integration.resolve_environment(environment_entry&.id), arguments)
+    arguments = Integrations::Replicas.primary_first(@tool, arguments)
     result = nil
     environment_row = nil
     said = @agent_run.tool_call(

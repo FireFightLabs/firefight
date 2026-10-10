@@ -496,6 +496,32 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_match "Change nothing in this turn", note
   end
 
+  test "a watch's database read goes to the primary unless its step asked for a replica, as Halon's own reads do" do
+    planetscale = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", slug: "planetscale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    planetscale.integration_environments.create!
+    planetscale.tools.create!(name: "planetscale_execute_read_query", description: "Runs a read", read_only: true, enabled: true,
+                              params_schema: { "type" => "object", "properties" => { "query" => { "type" => "string" }, "use_replica" => { "type" => "boolean" } } })
+    Integration::Tool.any_instance.stubs(:callable_by?).returns(true)
+    sent = []
+    Integrations::McpExecutor.stubs(:call).with { |arguments:, **| sent << arguments }
+                             .returns("content" => [ { "type" => "text", "text" => '{"rows":[{"count":"1"}]}' } ])
+    step = { "label" => "Workspaces", "tool" => "planetscale_planetscale_execute_read_query", "arguments" => { "query" => "select count(*) from workspaces" },
+             "done_when" => '"count":"2"' }
+    Investigation.stubs(:unavailable_reason).returns("unavailable")
+
+    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ step ], title: "primary"))
+    check!(@conversation.chat.watches.find_by!(title: "primary"))
+    replica = step.merge("arguments" => { "query" => "select 2", "use_replica" => true })
+    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ replica ], title: "replica"))
+    check!(@conversation.chat.watches.find_by!(title: "replica"))
+
+    assert sent.any?
+    assert(sent.all? { |arguments| arguments.key?("use_replica") })
+    assert_equal [ false ], sent.select { |arguments| arguments["query"].include?("workspaces") }.map { |arguments| arguments["use_replica"] }.uniq
+    assert_equal [ true ], sent.select { |arguments| arguments["query"] == "select 2" }.map { |arguments| arguments["use_replica"] }.uniq
+  end
+
   private
 
   def connect!(provider, name, tools)

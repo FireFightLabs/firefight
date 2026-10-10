@@ -20,4 +20,8 @@ module Integrations
   # A provider answered that the thing a call named is not there, a 404 or the provider's own word for one. Every client's
   # not found error is one of these as well as its own, so a caller tells it from a failure without naming the provider.
   module NotFound; end
+
+  # A provider's host did not answer in time. Every client's error for it is one of these as well as its own, so a caller
+  # tells a slow provider from a refusal without naming the provider.
+  module TimedOut; end
 end

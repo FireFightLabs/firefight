@@ -33,6 +33,29 @@ module Integrations
       assert_equal "sess-123", @client.instance_variable_get(:@session_id)
     end
 
+    test "a call given a time limit spends it across the handshake and the call, and stops once it runs out" do
+      client = McpClient.new(server_url: "https://mcp.example/mcp", within: 15)
+      client.stubs(:now).returns(100.0, 104.0, 112.0, 116.0)
+      waits = []
+      Http.stubs(:request).with { |_uri, _request, read_timeout:, **| waits << read_timeout }.returns(answer(id: 1, result: {}), notified)
+
+      error = assert_raises(McpClient::Error) { client.call_tool(name: "execute_read_query", arguments: {}) }
+
+      assert_equal [ 11.0, 3.0 ], waits, "the handshake waits what is left of 15 seconds, and so does the notification after it"
+      assert_kind_of Integrations::TimedOut, error
+      assert_equal "mcp.example did not answer within 15 seconds", error.message
+    end
+
+    test "a call with no time limit waits the usual time on each request" do
+      waits = []
+      Http.stubs(:request).with { |_uri, _request, read_timeout:, **| waits << read_timeout }
+          .returns(answer(id: 1, result: {}), notified, answer(id: 2, result: { "content" => [] }))
+
+      @client.call_tool(name: "execute_read_query", arguments: {})
+
+      assert_equal [ McpClient::READ_TIMEOUT ] * 3, waits
+    end
+
     test "surfaces a JSON-RPC error message" do
       err = stub(code: "200", body: { jsonrpc: "2.0", id: 1, error: { message: "bad token" } }.to_json)
       err.stubs(:[]).with("Content-Type").returns("application/json")
@@ -118,6 +141,20 @@ module Integrations
 
       assert_equal [ "https://eu.example/authorize", "https://eu.example/token" ], metadata.values_at(:authorization_endpoint, :token_endpoint)
       assert_raises(OauthClient::Error) { OauthClient.discover("https://mcp.eu.example/mcp") }
+    end
+
+    private
+
+    def answer(id:, result:)
+      response = stub(code: "200", body: { jsonrpc: "2.0", id: id, result: result }.to_json)
+      response.stubs(:[]).returns(nil)
+      response
+    end
+
+    def notified
+      response = stub(code: "202", body: "")
+      response.stubs(:[]).returns(nil)
+      response
     end
   end
 end
