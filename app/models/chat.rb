@@ -23,6 +23,8 @@ class Chat < ApplicationRecord
   # What Halon was asked to follow and report on later, from this chat.
   has_many :watches, -> { order(:created_at) }, class_name: "Chat::Watch", dependent: :destroy, inverse_of: :chat
   has_many :watch_updates, through: :watches, source: :updates
+  # The plans Halon keeps for requests that take more than one step, made, scheduled, going and ended.
+  has_many :plans, -> { order(:created_at) }, class_name: "Chat::Plan", dependent: :destroy, inverse_of: :chat
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 

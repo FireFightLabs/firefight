@@ -17,7 +17,8 @@ engines/firefight_ai/
     change_reviewer.rb                               # A coding agent's diff against what was asked, before its pull request opens
     question_answerer.rb                             # A coding agent's question, answered only when what Halon read settles it
     contract_rule.rb                                 # Read another system's contract and setup before designing a change to it
-    teammate_rule.rb                                 # Keep the goal, offer the next step, fix only from evidence, say the plan back, follow what it starts
+    teammate_rule.rb                                 # Offer the next step, fix only from evidence, follow what it starts
+    plan_rule.rb                                     # Plan a request of more than one step, keep the plan true, check every change against normal, report
     schemas/postmortem.rb                            # Structured-output schema for postmortem generation
     schemas/milestones.rb                            # Structured-output schema for milestone extraction
   lib/firefight_ai/errors.rb                         # TransientError / TerminalError / OutOfCredit, the only errors that leave the engine
@@ -514,6 +515,31 @@ A responder can add to a run while it works, and the run reads it at its next st
 - **Two ways in.** A mention in a live run's Slack thread (`Investigation.live_in_thread`) is a note, through `Investigation#add_note_from`, which asks the gateway since no controller did, and opens no chat. Once the run has finished, a mention there is a chat as before. On the dashboard the run's story takes one while the run is live (`POST /investigations/:id/notes`).
 - **Whoever may start a run may add to one**, `investigations.create`, which every member holds until an admin narrows it. `Investigation#note_blocked_reason` refuses a finished run and an empty note, and a note with files is never empty.
 - **The story shows each note where the run read it**, and one still waiting last (`InvestigationDetailSerializer#notes`). A note's image opens full size over the story and any other file downloads, as a chat's do. A file Halon did not read has no address, since it was never kept.
+
+## Plans
+
+A request that takes more than one step gets a plan Halon keeps on the chat and updates as it goes, so the goal is carried from turn to turn rather than remembered. People see it as a checklist in the dashboard chat and in Slack.
+
+| Piece | Holds |
+|---|---|
+| `Chat::Plan` / `Chat::Plan::Step` | one plan of a chat and its steps, each a read, a change or a check |
+| `Conversation::Tools::MakePlan`, `UpdatePlan`, `FinishPlan`, `CancelPlan` | the tools Halon keeps it with, never shown as steps (`Chat::Tools.internal_names`) |
+| `Conversation::Plans` | what a person presses on one, the scheduled run, what Halon reads each turn, and telling the page and the platform |
+| `FirefightAi::PlanRule` | the prompt rules, in the engine |
+| `ChatPlanSweepJob` / `ChatPlanRunJob` / `ChatPlanMessageJob` | the minute sweep for plans whose time came, one scheduled run, one Slack post or redraw at a time per plan |
+| `Workspace::FreezeWindows` | the one place a plan reads freeze windows through. The handbook supplies them, and until it does there are none |
+
+The rules:
+
+- **A plan is a chat's record.** It belongs to `Chat`, as every agent run's data does, and the engine never names it. `FirefightAi::PlanRule` only says how to use the tools.
+- **Every change carries its undo before it runs.** `Chat::Plan::Step.checked` refuses a change with no `undo`, and `update_plan` takes an exact one from what the change returned, as `Investigation::UndoWriter` uses what each step returned. Undo makes the undo plan at once from those notes, newest first, then a check (`Chat::Plan#undo_steps`), and hands it to Halon. Each change in it still asks as any change does. A stopped plan being undone is cancelled, so Halon never carries it on beside its undo.
+- **A plan that changed something ends with a check.** `check_steps!` refuses a plan with no check after its last change, `move_step!` refuses a check marked done with no reading through a connection since the last change ended (`Conversation::Plans.read_since?`: the capability reads, `run_key_query`, `new_log_patterns` and every read only connection tool), unless its verdict is `could_not_check`, and `finish!` refuses until that check is done and a next step is given. The prompt points the check at `resource_status` and `run_key_query`, which compares error rate and p95 latency with the resource's normal.
+- **A partial failure stops the plan.** A failed change, or a check whose verdict is `not_held`, moves it to stopped with why (`Chat::Plan#stop!`). The tool hands Halon done, failed with why and not started (`Chat::Plan#standing`) to report, and the card offers Retry and Undo. A failed read does not stop it. Marking a step running again takes a stopped plan up again, which is what Retry hands Halon.
+- **A plan can wait for a time.** `make_plan` takes `run_at` as a local time and `time_zone`, which defaults to the asker's own as their chat platform has it (`Conversation::Plans.time_zone_of`). The turn's context names today's date only, so the prompt stays the same all day for the provider's cache. A plan with a time is proposed until a person presses Schedule on its card, and every change in it names its tool, so the person approves exactly those. A time in the past, more than 30 days ahead or inside a freeze is refused when it is made and again when it is approved.
+- **At its time a scheduled plan reads first.** `ChatPlanSweepJob` queues each plan whose time came every minute, and `Conversation::Plans.run_scheduled!` stops it before anything runs when a freeze covers now, the agent is unavailable, or `Chat::StateCheck` (as whoever approved it, on a chat owned by the plan) reports anything but unchanged. The plan stays scheduled while Halon reads, so a lost worker leaves it to the next sweep, and the claim (`Chat::Plan#claim_run!`) hands it to Halon once. That turn acts as the approver, and `Conversation::Turn#confirms?` skips asking only for the tools its approved changes named. Approval rules still hold every one.
+- **Who may press.** Schedule, Cancel, Retry and Undo are open to whoever a dashboard chat belongs to, and to anyone in the channel for a chat in one (`Chat::Plan#may_act?`), the same rule as stopping a watch, under `investigations.create`. Each has a `*_blocked_reason`, the serializer ships the offers with theirs, the controller says each with a toast, and Slack answers a press someone may not make privately.
+- **Where it shows.** The dashboard chat draws each plan where it last moved (`moved_at`), reloaded on the `plan` stream event. A chat in a Slack thread posts it there when it is made and redraws it as it moves. A dashboard chat's plan goes to its person's direct messages once it has a time they approved, since it runs when they may not be looking. An outside agent's chat shows nothing and cannot schedule, since nobody there can approve.
+- **Halon reads its plans every turn.** `Conversation::Plans.for_halon` lists each plan still in play with every step, its undo and what it said, so it carries each to its goal. `FirefightAi::PlanRule` replaced `TeammateRule::PLAN_RULE` and `GOAL_RULE`: the plan is said back in two lines and started, and each change asks when it runs, so the plan itself never waits for a yes.
 
 ## What a run says in Slack
 

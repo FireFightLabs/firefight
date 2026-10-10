@@ -64,6 +64,37 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal 1, responder.calls.size
   end
 
+  test "a plan whose time came starts a turn told so, where only the changes its approver named skip asking" do
+    personal_chat
+    member = @conversation.started_by
+    plan = Chat::Plan.make!(
+      chat: @conversation.chat_record, made_by: member, goal: "Release main", run_at: 1.hour.from_now, time_zone: "UTC",
+      steps: [ { "kind" => "change", "description" => "Start the release", "tool" => "github_run_workflow", "undo" => "Roll back" },
+               { "kind" => "check", "description" => "Check checkout" } ]
+    )
+    plan.approve!(by: member)
+    plan.update!(state_now: "checkout is healthy on 1.3.")
+    responder = fake(reply: "Started the release.")
+    Conversation::Tools.expects(:for).with do |turn, **|
+      !turn.confirms?(nil, tool_name: "github_run_workflow", declared_destructive: true) && turn.confirms?(nil, tool_name: "aws_delete", declared_destructive: true)
+    end.returns([])
+
+    Conversation::Runner.new(@conversation, asker: member, plan: plan, plan_move: Conversation::Plans::MOVE_RUN).run
+
+    note = @conversation.chat.messages.where(nudge: true).sole
+    assert_match "It is now the time #{member.display_name} approved for the plan to Release main", note.content
+    assert_match "checkout is healthy on 1.3.", note.content
+    assert_match "Plan #{plan.id} (scheduled, runs", responder.calls.sole[:context]
+  end
+
+  test "every turn is told today's date, which a plan's time is worked out from" do
+    responder = fake(reply: "ok")
+
+    travel_to(Time.zone.parse("2026-10-10 09:00 UTC")) { ask(@conversation, "release on saturday at 6") }
+
+    assert_match "Today is Saturday 10 October 2026 (UTC).", responder.calls.sole[:context]
+  end
+
   test "a hand back waits while the person is asked to confirm something, so their question is never withdrawn" do
     personal_chat
     @conversation.chat_record

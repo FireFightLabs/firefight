@@ -134,7 +134,8 @@ module Chat::Tools
   # How the agent writes and finds its way, not what it looked at, so a reader is never shown them.
   def self.internal_names
     @internal_names ||= [
-      Open.tool_name, Investigation::Tools::Conclude.tool_name, Investigation::Tools::RecordHypothesis.tool_name
+      Open.tool_name, Investigation::Tools::Conclude.tool_name, Investigation::Tools::RecordHypothesis.tool_name,
+      *Conversation::Tools.plan_tool_names
     ].freeze
   end
 

@@ -26,7 +26,7 @@ class Chat::Tools::Capability < RubyLLM::Tool
     return false unless @spec.writes
 
     allowed = Chat::Tools::Provenance.allowed?(@agent_run, name)
-    @tools.any? { |tool| @agent_run.confirms?(tool.ability_action, allowed: allowed) }
+    @tools.any? { |tool| @agent_run.confirms?(tool.ability_action, allowed: allowed, tool_name: name) }
   end
 
   # A change whose words name another connection than the one it would run through is refused rather than put to the

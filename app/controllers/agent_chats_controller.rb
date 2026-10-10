@@ -36,6 +36,8 @@ class AgentChatsController < InertiaController
   PROP_MEMORY_QUESTIONS = "memoryQuestions"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
+  # The plans Halon keeps in the open chat, each a checklist that moves as it works.
+  PROP_PLANS = "plans"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
@@ -44,7 +46,7 @@ class AgentChatsController < InertiaController
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
-    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS
+    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -57,7 +59,8 @@ class AgentChatsController < InertiaController
   # Asking spends money, so it needs the same permission as starting an investigation.
   authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file],
                                              update: %i[update ask_pack fill_secret reveal_secret], delete: %i[destroy]
-  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request]
+  authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request
+                                                                schedule_plan cancel_plan retry_plan undo_plan]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   include RequiresAgent
@@ -71,7 +74,7 @@ class AgentChatsController < InertiaController
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
-      PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => []
+      PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => []
     )
   end
 
@@ -94,7 +97,8 @@ class AgentChatsController < InertiaController
       PROP_WATCHES => AgentChatWatchSerializer.many(watches_shown, member: current_membership),
       PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown),
       PROP_PULL_REQUEST_NOTICES => AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership),
-      PROP_MEMORY_QUESTIONS => AgentChatMemoryQuestionSerializer.many(conversation.memory_posts.order(:created_at), member: current_membership)
+      PROP_MEMORY_QUESTIONS => AgentChatMemoryQuestionSerializer.many(conversation.memory_posts.order(:created_at), member: current_membership),
+      PROP_PLANS => AgentChatPlanSerializer.many(plans_shown, member: current_membership)
     )
   end
 
@@ -175,6 +179,25 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation), notice: %(Stopped watching "#{watch.title}".)
   end
 
+  # Schedule on a plan waiting for its time. It runs then, as whoever approved it, once a fresh reading says nothing moved.
+  def schedule_plan
+    decide_plan { |plan| [ Conversation::Plans.approve!(plan, by: current_membership), "Plan scheduled for #{plan.reload.run_at_words}." ] }
+  end
+
+  def cancel_plan
+    decide_plan { |plan| [ Conversation::Plans.cancel!(plan, by: current_membership), "Plan cancelled. Nothing in it will run." ] }
+  end
+
+  # Retry on a plan that stopped. Halon reads how things stand and carries on from the step that failed, as whoever pressed it.
+  def retry_plan
+    decide_plan { |plan| [ Conversation::Plans.retry!(plan, by: current_membership), "Halon is trying the plan again." ] }
+  end
+
+  # Undo has Halon put back what the plan changed, from the undo each change was written with. Each change still asks.
+  def undo_plan
+    decide_plan { |plan| [ Conversation::Plans.undo!(plan, by: current_membership), "Halon is undoing the plan." ] }
+  end
+
   # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
   def fix_pull_request
     notice = conversation.pull_request_notices.find_by(id: params[:notice_id])
@@ -246,6 +269,22 @@ class AgentChatsController < InertiaController
   def watches_shown
     chat = conversation.chat
     chat ? chat.watches.includes(:steps, :asker) : []
+  end
+
+  def plans_shown
+    chat = conversation.chat
+    chat ? chat.plans.includes(:steps, :approved_by, :undoes, :undo_plan, chat: :owner) : []
+  end
+
+  # The block answers with why it was refused, or nil, and the notice for when it went through.
+  def decide_plan
+    plan = conversation.chat&.plans&.find_by(id: params[:plan_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That plan is no longer in this chat.") unless plan
+
+    blocked, done = yield plan
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    redirect_to agent_chat_path(conversation), notice: done
   end
 
   def watch_updates_shown

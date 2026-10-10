@@ -30,16 +30,19 @@ class ConversationReplyJob < ApplicationJob
   # A job queued before the asker was passed along falls back to whoever started the conversation. A held call someone
   # pressed Run on runs at the start of the turn, so it never lands in the middle of another. A watch step handed back
   # to Halon starts a turn of its own that only reads. Fix it pressed on a pull request Halon opened runs its code change
-  # at the start of the turn too, and so does Continue on a code change paused at its spending limit.
-  def perform(conversation_id, asker_id = nil, held_call_id = nil, watch_step_id = nil, pull_request_notice_id = nil, pause_id = nil)
+  # at the start of the turn too, and so does Continue on a code change paused at its spending limit. A plan whose time
+  # came, or that someone pressed Retry or Undo on, starts a turn that carries it out (plan_move, Conversation::Plans).
+  def perform(conversation_id, asker_id = nil, held_call_id = nil, watch_step_id = nil, pull_request_notice_id = nil, pause_id = nil,
+              plan_id = nil, plan_move = nil)
     conversation = Conversation.find(conversation_id)
     asker = conversation.workspace.workspace_memberships.find_by(id: asker_id) || conversation.started_by
     held = conversation.chat&.held_calls&.find_by(id: held_call_id) if held_call_id
     handed_back = Chat::Watch::Step.joins(:watch).find_by(id: watch_step_id, chat_watches: { chat_id: conversation.chat&.id }) if watch_step_id
     fixing = CodeAgentSession::Notice.find_by(id: pull_request_notice_id, conversation_id: conversation.id) if pull_request_notice_id
     continuing = CodeAgentSession::Pause.find_by(id: pause_id, conversation_id: conversation.id) if pause_id
+    plan = conversation.chat&.plans&.find_by(id: plan_id) if plan_id && Conversation::Plans::MOVES.include?(plan_move)
     Conversation::Runner.new(conversation, asker: asker, **{ held_call: held, handed_back: handed_back, pull_request_fix: fixing,
-                                                             code_pause: continuing }.compact).run
+                                                             code_pause: continuing, plan: plan, plan_move: (plan_move if plan) }.compact).run
     # The next question may read the same code, so the box waits a while before it is let go.
     CodeBoxIdleJob.set(wait: CodeBox::IDLE_AFTER).perform_later(conversation.code_box_key) if CodeBox.live.exists?(key: conversation.code_box_key)
   end

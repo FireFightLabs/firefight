@@ -5,11 +5,13 @@ class Conversation::Turn
   delegate :workspace, :incident, :chat, :code_box_key, to: :conversation
 
   # reads_only is for a turn nobody asked for in the moment, such as a watch handing back to Halon, which may read and
-  # re-plan but never change anything.
-  def initialize(conversation, asker:, reads_only: false)
+  # re-plan but never change anything. approved_plan is a scheduled plan whose time came, whose changes the person
+  # approved ahead.
+  def initialize(conversation, asker:, reads_only: false, approved_plan: nil)
     @conversation = conversation
     @asker = asker
     @reads_only = reads_only
+    @approved_tools = approved_plan&.approved_tools.to_a
   end
 
   def acting_principal = asker
@@ -59,12 +61,13 @@ class Conversation::Turn
 
   # Only destructive or irreversible changes wait, plus those an approval rule lets the asker approve themselves, and a
   # tool that declares itself destructive. allowed is whether the person allowed the tool for the rest of the chat and
-  # nothing read from outside has reached it since (Chat::Tools::Provenance), which stops it asking, except where an
-  # approval rule applies, since that rule wants each call signed off.
-  def confirms?(action, allowed: false, declared_destructive: false, **)
+  # nothing read from outside has reached it since (Chat::Tools::Provenance). A tool a scheduled plan named when the
+  # person approved it stops asking too. Neither applies where an approval rule does, since that rule wants each call
+  # signed off.
+  def confirms?(action, allowed: false, tool_name: nil, declared_destructive: false, **)
     return false unless asker
     return true if action && self_approvable?(action)
-    return false if allowed
+    return false if allowed || @approved_tools.include?(tool_name.to_s)
 
     declared_destructive || (action.present? && (action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible))
   end

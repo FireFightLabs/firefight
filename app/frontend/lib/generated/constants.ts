@@ -197,6 +197,42 @@ export const WATCH_TONES = {
   "STOPPED": "stopped"
 } as const
 
+export const CHAT_PLAN_STATUSES = {
+  "PROPOSED": "proposed",
+  "SCHEDULED": "scheduled",
+  "ACTIVE": "active",
+  "COMPLETED": "completed",
+  "STOPPED": "stopped",
+  "CANCELLED": "cancelled"
+} as const
+
+export const CHAT_PLAN_STEP_STATUSES = {
+  "NOT_STARTED": "not_started",
+  "RUNNING": "running",
+  "DONE": "done",
+  "FAILED": "failed",
+  "SKIPPED": "skipped"
+} as const
+
+export const CHAT_PLAN_STEP_KINDS = {
+  "READ": "read",
+  "CHANGE": "change",
+  "CHECK": "check"
+} as const
+
+export const CHAT_PLAN_VERDICTS = {
+  "HELD": "held",
+  "NOT_HELD": "not_held",
+  "COULD_NOT_CHECK": "could_not_check"
+} as const
+
+export const CHAT_PLAN_ACTIONS = {
+  "SCHEDULE": "schedule",
+  "CANCEL": "cancel",
+  "RETRY": "retry",
+  "UNDO": "undo"
+} as const
+
 export const APPROVED_CALL_ACTIONS = {
   "RUN": "run",
   "DISMISS": "dismiss",
@@ -704,7 +740,8 @@ export const AGENT_STREAM_EVENTS = {
   "SECRET_ENTRY": "secret_entry",
   "PULL_REQUEST": "pull_request",
   "CODE_FIX": "code_fix",
-  "MEMORY": "memory"
+  "MEMORY": "memory",
+  "PLAN": "plan"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -800,7 +837,8 @@ export const AGENT_CHAT_PROPS = {
   "WATCHES": "watches",
   "WATCH_UPDATES": "watchUpdates",
   "PULL_REQUEST_NOTICES": "pullRequestNotices",
-  "MEMORY_QUESTIONS": "memoryQuestions"
+  "MEMORY_QUESTIONS": "memoryQuestions",
+  "PLANS": "plans"
 } as const
 
 export const SETUP_STEPS = {

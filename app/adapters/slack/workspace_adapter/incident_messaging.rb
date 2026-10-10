@@ -618,6 +618,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_chat_plan(channel_id:, thread_id:, plan:)
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::ChatPlan.fallback(plan), blocks: Slack::Messages::ChatPlan.build(plan))
+  end
+
+  def post_chat_plan_to_user(user_id:, plan:, conversation_id: nil)
+    post_message(channel_id: user_id, text: Slack::Messages::ChatPlan.fallback(plan),
+                 blocks: Slack::Messages::ChatPlan.build(plan, direct: true, conversation_id: conversation_id))
+  end
+
+  def update_chat_plan(channel_id:, message_id:, plan:, direct: false, conversation_id: nil)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::ChatPlan.fallback(plan),
+                   blocks: Slack::Messages::ChatPlan.build(plan, direct: direct, conversation_id: conversation_id))
+    { success: true }
+  end
+
   def post_pull_request_notice(channel_id:, thread_id:, notice:)
     post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
                           text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice))

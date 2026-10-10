@@ -98,6 +98,10 @@ class InteractionDispatcher
     Identifiers::CODE_PAUSE_CONTINUE => Interactions::CodePauseDecisionHandler,
     Identifiers::CODE_PAUSE_STOP => Interactions::CodePauseDecisionHandler,
     Identifiers::WATCH_STOP => Interactions::StopWatchHandler,
+    Identifiers::CHAT_PLAN_SCHEDULE => Interactions::ChatPlanHandler,
+    Identifiers::CHAT_PLAN_CANCEL => Interactions::ChatPlanHandler,
+    Identifiers::CHAT_PLAN_RETRY => Interactions::ChatPlanHandler,
+    Identifiers::CHAT_PLAN_UNDO => Interactions::ChatPlanHandler,
     **Identifiers::CODE_QUESTION_CHOOSE_IDS.index_with { Interactions::ChooseCodeQuestionOptionHandler }
   }.freeze
 

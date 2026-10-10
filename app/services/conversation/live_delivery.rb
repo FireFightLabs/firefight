@@ -23,6 +23,8 @@ class Conversation::LiveDelivery
   EVENT_CODE_FIX = "code_fix"
   # Something contradicted a memory, so the chat asks the person which is right.
   EVENT_MEMORY = "memory"
+  # A plan Halon keeps in this chat was made, moved a step, or someone pressed something on it, so its card looks again.
+  EVENT_PLAN = "plan"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -70,6 +72,10 @@ class Conversation::LiveDelivery
 
   def self.secret_entry_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_SECRET_ENTRY)
+  end
+
+  def self.plan_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_PLAN)
   end
 
   def initialize(conversation)
