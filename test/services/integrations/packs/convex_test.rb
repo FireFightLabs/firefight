@@ -127,7 +127,7 @@ module Integrations
 
       test "the deployment's environment variables are read in memory for where they point, and a key that may not read them is a gap" do
         ConvexApi.any_instance.stubs(:audit_log).returns("items" => [], "pagination" => { "hasMore" => false })
-        ConvexApi.any_instance.stubs(:environment_variables).returns("DATABASE_URL" => "postgres://app:convex-pass@ep-a.neon.tech/app", "OPENAI_MODEL" => "gpt")
+        ConvexApi.any_instance.stubs(:environment_variables).returns("DATABASE_URL" => "postgres://app:convex-pass@ep-a.neon.tech/app", "LOG_LEVEL" => "debug")
 
         snapshot = @pack.map_of(@row)
 

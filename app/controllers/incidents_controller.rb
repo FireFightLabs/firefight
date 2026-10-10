@@ -30,6 +30,7 @@ class IncidentsController < InertiaController
       linkableIncidents: linkable_incidents(incident),
       memberChoices: member_choices,
       subscribed: incident.subscribed?(current_membership),
+      canReadMap: current_membership.may?(Ability::Action::RESOURCE_MAP, Ability::Action::ACTION_READ, current_workspace),
       hasPostmortem: incident.postmortem.present?,
       postmortemStatus: incident.postmortem&.status,
       postmortemGenerationState: incident.postmortem&.generation_state,

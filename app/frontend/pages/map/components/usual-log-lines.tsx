@@ -1,6 +1,6 @@
 import { resourceMapResourceLogLinesPath } from "@/lib/routes"
 import { LogLine } from "@/pages/map/components/log-line"
-import { useResourceJson } from "@/pages/map/hooks/use-resource-json"
+import { useResourceJson } from "@/hooks/use-resource-json"
 import type { ResourceMapLogTemplate } from "@/types/serializers"
 
 interface LogLinesAnswer {

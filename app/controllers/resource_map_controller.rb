@@ -1,6 +1,8 @@
 # The resource map page: what runs where, read off the connections, and the links people add or confirm on it.
 class ResourceMapController < InertiaController
-  authorizes Ability::Action::RESOURCE_MAP, read: %i[index checks run_check log_lines]
+  include WhatChangedJson
+
+  authorizes Ability::Action::RESOURCE_MAP, read: %i[index checks run_check log_lines changes]
   authorizes Ability::Action::RESOURCE_INTEGRATIONS, update: %i[sync]
   authorizes Ability::Action::RESOURCE_CATALOG,
     update: %i[create_link destroy_link confirm_link dismiss_link link_entry unlink_entry]
@@ -41,6 +43,14 @@ class ResourceMapController < InertiaController
     usual = target.log_templates.this_week.most_lines_first
     render json: { lines: ResourceMapLogTemplateSerializer.many(usual.limit(ResourceMap::LogTemplate::SHOWN)), total: usual.count,
                    reason: ResourceMap::LogTemplate.missing_reason(target, current_membership) }
+  end
+
+  # What changed around a resource over the last week, read when its panel opens.
+  def changes
+    target = resource(params[:id])
+    subject = ResourceMap::Timeline.subject(current_workspace, current_membership, ResourceMap::Timeline::RESOURCE_ARG => target.id)
+    render_what_changed(ResourceMap::Timeline.new(workspace: current_workspace, principal: current_membership, subject: subject,
+                                                  from: ResourceMap::Timeline::PANEL_WINDOW.ago, to: Time.current))
   end
 
   def sync

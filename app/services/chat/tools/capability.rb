@@ -38,7 +38,15 @@ class Chat::Tools::Capability < RubyLLM::Tool
   Answered = Data.define(:call, :result)
   attr_reader :answered
 
+  # A read of logs, errors or traces whose failing lines name an outside provider's host also says how that provider's
+  # status page stands (Chat::Tools::StatusCheck).
   def call(tool_call: nil, **arguments)
+    Chat::Tools::StatusCheck.after(@agent_run, @spec, reply(tool_call, arguments))
+  end
+
+  private
+
+  def reply(tool_call, arguments)
     @answered = nil
     return refused(tool_call, "#{name} changes things, so it is not used while investigating. It belongs in the fix.") if @spec.writes && @agent_run.reads_only?
 
@@ -65,8 +73,6 @@ class Chat::Tools::Capability < RubyLLM::Tool
   rescue Integrations::Capabilities::Unroutable => error
     refused(tool_call, error.message)
   end
-
-  private
 
   # A change only, since only a change carries words for the person. found is the call already routed, when there is one.
   def misdirection(asked, found = nil)

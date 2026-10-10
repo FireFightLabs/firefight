@@ -14,6 +14,8 @@ module Chat::Tools::Groups
   ACCESS = "machine_access".freeze
   # The capabilities, which answer for anything on the resource map whichever provider holds it.
   RESOURCES = "resources".freeze
+  # Systems outside the workspace's own: a provider's public status page, and the systems its apps use that nothing connects.
+  OUTSIDE = "outside_systems".freeze
 
   # Ways in for an outside agent. Halon does not ask itself a question, and a chat has its own start_investigation and
   # its own watches.
@@ -78,12 +80,19 @@ module Chat::Tools::Groups
       covers: "read off the connections, for where something runs and which provider and account hold it, then find resources by " \
               "filter, or search them with the catalog and confirmed memories by a name, an id or what a service does, read one, " \
               "its links and neighbours, walk what it depends on or what depends on it, what fails with it, the map in numbers, " \
-              "and suggest a link",
+              "what changed around a resource, a service or the whole workspace (deploys, runs, settings, hand edits and changes " \
+              "made through Firefight, in one list), and suggest a link",
       tools: [
         Mcp::Tools::GET_RESOURCE_MAP, Mcp::Tools::SEARCH_MAP, Mcp::Tools::FIND_RESOURCES, Mcp::Tools::GET_RESOURCE, Mcp::Tools::GET_RESOURCE_LINKS,
         Mcp::Tools::GET_RESOURCE_NEIGHBOURS, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS, Mcp::Tools::RESOURCE_MAP_STATS,
         Mcp::Tools::SUGGEST_RESOURCE_LINK
       ]
+    ),
+    Firefight.new(
+      key: OUTSIDE, title: "Outside providers and what is not connected",
+      covers: "read an outside provider's public status page now, such as a payment, email, sign-in, CDN or cloud provider, " \
+              "when errors point at it, and find the systems the apps use that no connection reaches, with how to connect each",
+      tools: [ Mcp::Tools::CHECK_STATUS_PAGE, Mcp::Tools::BLIND_SPOTS ]
     ),
     Firefight.new(
       key: CATALOG, title: "Services, teams and ownership",

@@ -89,6 +89,8 @@ module TypescriptConstants
       Export.new("RESOURCE_MAP_ORIGINS", ResourceMap::ORIGINS, "ResourceMapOrigin"),
       Export.new("RESOURCE_MAP_ORIGIN", ResourceMap::ORIGINS.to_h { |origin| [ origin.upcase, origin ] }, nil),
       Export.new("RESOURCE_MAP_CHANGE_KINDS", ResourceMap::Change::KINDS, "ResourceMapChangeKind"),
+      Export.new("RESOURCE_MAP_TIMELINE_KINDS", ResourceMap::Timeline::KINDS, "ResourceMapTimelineKind"),
+      Export.new("RESOURCE_MAP_TIMELINE_SOURCES", ResourceMap::Timeline::SOURCES, "ResourceMapTimelineSource"),
       Export.new("RESOURCE_MAP_HEALTHS", ResourceMap::Resource::HEALTHS, "ResourceMapHealth"),
       Export.new("RESOURCE_MAP_LOG_LEVELS", ResourceMap::LogMiner::LEVELS, "ResourceMapLogLevel"),
       Export.new("RESOURCE_MAP_CERTAINTIES", ResourceMap::CERTAINTIES, "ResourceMapCertainty"),

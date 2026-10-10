@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { PAST_INCIDENT_DAYS } from "@/lib/generated/constants"
 import { incidentPath } from "@/lib/routes"
 import { KIND_LABELS } from "@/lib/resource-map-kinds"
-import { shortAgo } from "@/lib/time"
 import { BaselinesTable } from "@/pages/map/components/baselines-table"
 import { CatalogLinks } from "@/pages/map/components/catalog-links"
 import { KeyChecks } from "@/pages/map/components/key-checks"
@@ -16,16 +15,15 @@ import { PointingSettings } from "@/pages/map/components/pointing-settings"
 import { Remembered } from "@/pages/map/components/remembered"
 import { ResourceFacts } from "@/pages/map/components/resource-facts"
 import { UsualLogLines } from "@/pages/map/components/usual-log-lines"
-import { changeLabel } from "@/pages/map/lib/labels"
+import { ResourceChanges } from "@/pages/map/components/resource-changes"
 import { settingsPointingAt } from "@/pages/map/lib/pointing"
 import type { SharedProps } from "@/types"
-import type { ResourceMapChange, ResourceMapEntry, ResourceMapLink, ResourceMapResource } from "@/types/serializers"
+import type { ResourceMapEntry, ResourceMapLink, ResourceMapResource } from "@/types/serializers"
 
 interface ResourcePanelProps {
   resource: ResourceMapResource
   resources: ResourceMapResource[]
   links: ResourceMapLink[]
-  changes: ResourceMapChange[]
   catalogEntries: ResourceMapEntry[]
   canCurate: boolean
   onAddLink: () => void
@@ -51,14 +49,12 @@ function description(resource: ResourceMapResource): string {
   return `${KIND_LABELS[resource.kind]} in ${where}${environment}.${status}`
 }
 
-export function ResourcePanel({ resource, resources, links, changes, catalogEntries, canCurate, onAddLink, onPick }: ResourcePanelProps) {
+export function ResourcePanel({ resource, resources, links, catalogEntries, canCurate, onAddLink, onPick }: ResourcePanelProps) {
   const { agentAvailable } = usePage<SharedProps>().props
   const byId = new Map(resources.map((each) => [ each.id, each ]))
   const own = links.filter((link) => link.fromId === resource.id || link.toId === resource.id)
   const stops = resource.dependentIds.flatMap((id) => byId.get(id) ?? [])
   const maybe = resource.suggestedDependentIds.flatMap((id) => byId.get(id) ?? [])
-  const recent = changes.filter((change) => change.resourceId === resource.id)
-  const history = recent.length > 0 ? recent : resource.lastChange ? [ resource.lastChange ] : []
   const pointing = settingsPointingAt(resource, own, byId)
 
   return (
@@ -152,14 +148,8 @@ export function ResourcePanel({ resource, resources, links, changes, catalogEntr
         </PanelSection>
       )}
 
-      <PanelSection title="Recent changes">
-        {history.length === 0 && <p className="text-sm text-muted-foreground">No changes seen since it was first swept.</p>}
-        {history.map((change) => (
-          <div key={change.id} className="flex justify-between gap-3 text-sm">
-            <span>{changeLabel(change)}</span>
-            <span className="shrink-0 text-muted-foreground tabular-nums">{shortAgo(change.happenedAt)}</span>
-          </div>
-        ))}
+      <PanelSection title="What changed">
+        <ResourceChanges key={resource.id} resourceId={resource.id} lastChange={resource.lastChange} />
       </PanelSection>
     </aside>
   )

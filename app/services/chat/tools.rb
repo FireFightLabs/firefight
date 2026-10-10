@@ -64,7 +64,7 @@ module Chat::Tools
   # So is a call its guard shows to read through a tool that can also change things, when the call's arguments are known.
   def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
-    reading = [ ReadResult.tool_name, Helpers::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME ].include?(name) ||
+    reading = [ ReadResult.tool_name, Helpers::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME, WhatChanged::NAME ].include?(name) ||
               firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
   end
@@ -364,6 +364,8 @@ module Chat::Tools
     offered = Mcp::Tools.all.reject { |tool_class| Groups::NOT_FOR_HALON.include?(tool_class.name_value.to_s) }
     keys = offered.to_h { |tool_class| [ tool_class, Ability::Action.system_key(*tool_class.authorization(workspace, {})) ] }
     actions = Ability::Action.system_actions.where(key: keys.values).index_by(&:key)
+    # An open action, such as reading a public web page, is made the first time it is asked for.
+    keys.values.uniq.each { |key| actions[key] ||= Ability::Action.lookup(key, workspace) if Ability::Action.open?(key) }
 
     keys.map do |tool_class, action_key|
       # A run that only reads is never handed one of Firefight's own tools that writes, whatever its principal was granted.
@@ -421,7 +423,18 @@ module Chat::Tools
         group: Groups::RESOURCES, source: Chat::Skill::SOURCE_FIREFIGHT, handle: spec.tool_name
       )
     end
-    entries + key_query_entries(agent_run, offered) + log_pattern_entries(agent_run, offered)
+    entries + key_query_entries(agent_run, offered) + log_pattern_entries(agent_run, offered) + [ what_changed_entry(agent_run, offered) ]
+  end
+
+  # what_changed, offered whatever is connected, since the map's own changes and the activity log need no connection.
+  # It reads runs live through run history when a connection answers it.
+  def self.what_changed_entry(agent_run, offered)
+    history = offered.find { |spec, _able, _callable| spec.key == Integrations::Capabilities::HISTORY }
+    ready = agent_run.acting_principal.present?
+    Entry.new(
+      name: WhatChanged::NAME, description: clean(ResourceMap::Timeline::DESCRIPTION, ONE_LINE), state: ready ? STATE_READY : STATE_NOT_GRANTED,
+      tool: (WhatChanged.new(agent_run, history) if ready), group: Groups::MAP, source: Chat::Skill::SOURCE_FIREFIGHT, handle: WhatChanged::NAME
+    )
   end
 
   # new_log_patterns, offered beside search_logs, which it reads through.

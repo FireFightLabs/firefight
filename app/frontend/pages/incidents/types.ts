@@ -22,6 +22,8 @@ export interface IncidentPageOwnProps {
   linkableIncidents: LinkableIncident[]
   memberChoices: { value: string; label: string }[]
   subscribed: boolean
+  // Whether the person may read the map, where what changed around the incident comes from.
+  canReadMap: boolean
   // The run the address asks for, drawn over the page.
   openInvestigation: InvestigationDetail | null
   // The Investigate button, absent where Halon is off or the person may not start a run.

@@ -334,6 +334,7 @@ Rails.application.routes.draw do
     post "/incidents/:incident_id/runbooks/:incident_runbook_id/steps/:step_id/claim", to: "incident_runbooks#claim_step", as: :claim_runbook_step
     post "/incidents/:incident_id/runbooks", to: "incident_runbooks#create", as: :incident_runbooks
     post "/incidents/:incident_id/subscription", to: "incident_subscriptions#create", as: :incident_subscription
+    get "/incidents/:incident_id/changes", to: "incident_changes#show", as: :incident_changes
     delete "/incidents/:incident_id/subscription", to: "incident_subscriptions#destroy"
     patch "/incidents/:incident_id/events/:id/dismiss", to: "incident_events#dismiss", as: :dismiss_incident_event
     get "/incidents/declare/form", to: "incident_lifecycle#declare_form", as: :declare_incident_form
@@ -436,6 +437,7 @@ Rails.application.routes.draw do
     get "/map/resources/:id/checks", to: "resource_map#checks", as: :resource_map_resource_checks
     post "/map/resources/:id/checks/:check", to: "resource_map#run_check", as: :resource_map_resource_check
     get "/map/resources/:id/log_lines", to: "resource_map#log_lines", as: :resource_map_resource_log_lines
+    get "/map/resources/:id/changes", to: "resource_map#changes", as: :resource_map_resource_changes
 
     resources :webhooks, only: [ :create, :update, :destroy ] do
       member do

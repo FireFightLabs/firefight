@@ -41,7 +41,8 @@ class ResourceMap::KeyQueryRun
                 refusal: "#{pending.approval.action_key} needs a workspace #{pending.approval.required_role} to approve it first. Run it again once it is approved.")
   end
 
-  # A provider's own error is an answer that failed, as a chat and MCP read it.
+  # A provider's own error is an answer that failed, as a chat and MCP read it. Shared with what changed on the map
+  # (ResourceMap::WhatChanged), which reads runs the same way.
   def self.ask(call, principal, approval_id)
     Chat::ToolCall.run!(
       principal: principal, action_key: call.tool.action_key, workspace: call.resource.workspace, scope: call.scope, params: call.arguments,
@@ -68,5 +69,5 @@ class ResourceMap::KeyQueryRun
   end
 
   def self.dig(hash, key) = hash.is_a?(Hash) ? hash[key] || hash[key.to_sym] : nil
-  private_class_method :dig, :ask, :charts_of
+  private_class_method :dig, :charts_of
 end

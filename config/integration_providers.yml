@@ -38,6 +38,11 @@
 # makes through one is undone after a time the person sees and can change, unless someone keeps it. stopping_tools end
 # or remove something someone started, such as cancelling a run, so its pack asks whoever started it first. Neither
 # lists a general tool that reaches a whole API, since which call it makes is only known when it is called.
+# status_page is the provider's public status page and hosts the domains its API and apps answer on, read with the
+# outside systems in config/upstreams.yml, which says what each means. A provider that runs only where its customer runs
+# it, such as Kubernetes, has neither.
+# holds_flags marks a provider that keeps a team's feature flags, so what changed around a resource says that flag changes
+# are kept there and read with its own tools.
 # holds_code marks a code host, whose repositories a code change can be written to. Each of its connections keeps the
 # paths Halon may not change (Integration::CodeChanges), which its page shows under Code changes.
 # Section headings on the gallery, listed in the order the gallery shows them. A provider naming a category that is
@@ -94,6 +99,8 @@ providers:
     category: Code
     mark: GH
     color: "#24292f"
+    status_page: { url: https://www.githubstatus.com, feed: statuspage }
+    hosts: [ api.github.com, github.com, githubusercontent.com, ghcr.io ]
     description: Correlate incidents with recent pull requests, commits and GitHub Actions runs from your repositories, read issues, releases, checks and security alerts, and when you allow it, comment on, review, close or merge pull requests, work on issues, and rerun, start or cancel a workflow.
     server_url: ""
     kind: native
@@ -109,6 +116,8 @@ providers:
     category: Code
     mark: GL
     color: "#fc6d26"
+    status_page: { url: https://status.gitlab.com, feed: page }
+    hosts: [ gitlab.com, registry.gitlab.com ]
     description: Merge requests, deployments, pipelines and code of your projects, on GitLab.com or your own GitLab, and retry, run or cancel a pipeline when you allow it.
     # GitLab's own MCP server stays available from the connect dialog, and connections made through it keep running.
     server_url: https://gitlab.com/api/v4/mcp
@@ -133,6 +142,8 @@ providers:
     category: Code
     mark: BB
     color: "#0052cc"
+    status_page: { url: https://bitbucket.status.atlassian.com, feed: statuspage }
+    hosts: [ api.bitbucket.org, bitbucket.org ]
     description: Pull requests, deployments, pipelines and code of the repositories in your Bitbucket workspaces, and rerun, run or stop a pipeline when you allow it.
     # Atlassian's MCP server reaches Bitbucket only for a workspace linked to an organization, and cannot fetch code.
     server_url: ""
@@ -155,6 +166,8 @@ providers:
     category: CI
     mark: CI
     color: "#343434"
+    status_page: { url: https://status.circleci.com, feed: statuspage }
+    hosts: [ circleci.com ]
     description: Read pipelines, workflows and failing jobs with their logs and tests, and rerun a workflow when you allow it.
     # CircleCI's cloud runs in one place, and its hosted server is the one address its docs give.
     server_url: https://mcp.circleci.com/v1/mcp
@@ -169,6 +182,8 @@ providers:
     category: Observability
     mark: NR
     color: "#1ce783"
+    status_page: { url: https://status.newrelic.com, feed: statuspage }
+    hosts: [ newrelic.com, nr-data.net, eu01.nr-data.net ]
     description: Query logs, metrics and traces.
     # New Relic's data centers (docs/accounts/accounts-billing/account-setup/choose-your-data-center), each with the MCP
     # server its setup guide gives (docs/agentic-ai/mcp/setup) and the app address its platform introduction gives.
@@ -192,6 +207,8 @@ providers:
     category: Observability
     mark: DD
     color: "#632ca6"
+    status_page: { url: https://status.datadoghq.com, feed: statuspage }
+    hosts: [ datadoghq.com, datadoghq.eu, us3.datadoghq.com, us5.datadoghq.com ]
     description: Query logs, metrics and monitors.
     # Datadog's sites (docs.datadoghq.com/getting_started/site) with the MCP server each one documents
     # (DataDog/documentation, hugo/assets/scripts/config/regions.config.js, mcp_server_endpoint). US1-FED and US2-FED
@@ -214,6 +231,8 @@ providers:
     category: Cloud and hosting
     mark: NF
     color: "#0aa4d8"
+    status_page: { url: https://status.northflank.com, feed: page }
+    hosts: [ api.northflank.com, code.run ]
     description: Logs, metrics and builds of the services and databases in your Northflank projects, and fixes applied to them when you allow it.
     server_url: ""
     kind: native
@@ -233,6 +252,8 @@ providers:
     category: Observability
     mark: GF
     color: "#f46800"
+    status_page: { url: https://status.grafana.com, feed: statuspage }
+    hosts: [ grafana.net, grafana.com ]
     description: Reach dashboards and datasources behind your Grafana.
     server_url: ""
     source_links: firefight
@@ -250,6 +271,8 @@ providers:
     category: Cloud and hosting
     mark: CF
     color: "#f38020"
+    status_page: { url: https://www.cloudflarestatus.com, feed: statuspage }
+    hosts: [ api.cloudflare.com, workers.dev, pages.dev, r2.cloudflarestorage.com ]
     description: Read traffic, security events, DNS and cache, and block IPs, add rules or purge the cache when you allow it.
     server_url: https://mcp.cloudflare.com/mcp
     # The server marks only execute as a write. search reads the API's own spec and docs reads the documentation.
@@ -290,6 +313,8 @@ providers:
     category: Cloud and hosting
     mark: MD
     color: "#1b1d1a"
+    status_page: { url: https://status.modal.com, feed: page }
+    hosts: [ modal.run, api.modal.com ]
     description: Logs, functions and deployment history of your Modal apps, and rolling an app back, rolling over its containers or changing a function's autoscaler when you allow it.
     site: https://modal.com
     server_url: ""
@@ -309,6 +334,8 @@ providers:
     category: Cloud and hosting
     mark: DO
     color: "#0080ff"
+    status_page: { url: https://status.digitalocean.com, feed: statuspage }
+    hosts: [ api.digitalocean.com, digitaloceanspaces.com, ondigitalocean.app ]
     description: Logs, metrics and deployments of App Platform apps, Droplets and managed databases, and rollbacks, restarts and scaling when you allow it.
     site: https://cloud.digitalocean.com
     server_url: ""
@@ -322,6 +349,8 @@ providers:
     category: Cloud and hosting
     mark: NL
     color: "#00c7b7"
+    status_page: { url: https://www.netlifystatus.com, feed: statuspage }
+    hosts: [ api.netlify.com, netlify.app, netlify.com ]
     description: Deploys and state of your Netlify sites, and rolling a site back to an earlier deploy when you allow it.
     server_url: ""
     kind: native
@@ -334,6 +363,8 @@ providers:
     category: Cloud and hosting
     mark: CX
     color: "#ee342f"
+    status_page: { url: https://status.convex.dev, feed: statuspage }
+    hosts: [ convex.cloud, convex.site ]
     description: Function logs, errors, pushes and state of a Convex deployment.
     site: https://dashboard.convex.dev
     server_url: ""
@@ -352,6 +383,8 @@ providers:
     category: Cloud and hosting
     mark: TR
     color: "#1a1b1f"
+    status_page: { url: https://status.trigger.dev, feed: page }
+    hosts: [ api.trigger.dev, trigger.dev ]
     description: Task runs, logs, errors and deployments of a Trigger.dev environment, and promoting an earlier version when you allow it.
     site: https://cloud.trigger.dev
     server_url: ""
@@ -368,6 +401,8 @@ providers:
     category: Cloud and hosting
     mark: AWS
     color: "#ff9900"
+    status_page: { url: https://health.aws.amazon.com/health/status, feed: page }
+    hosts: [ amazonaws.com, cloudfront.net, aws.amazon.com ]
     description: Logs, metrics, deployments and status of the ECS services, Lambda functions, EC2 instances and RDS databases in an AWS account, and fixes to ECS services and Lambda aliases when you allow it.
     server_url: ""
     kind: native
@@ -427,6 +462,8 @@ providers:
     category: Cloud and hosting
     mark: GC
     color: "#4285f4"
+    status_page: { url: https://status.cloud.google.com, feed: page }
+    hosts: [ googleapis.com, run.app, cloudfunctions.net, appspot.com ]
     description: Logs, metrics, errors and revisions of Cloud Run services, with Cloud SQL, Compute Engine and GKE, across your projects, and rollbacks, restarts and scaling when you allow it.
     server_url: ""
     site: https://console.cloud.google.com
@@ -443,6 +480,8 @@ providers:
     category: Cloud and hosting
     mark: AZ
     color: "#0078d4"
+    status_page: { url: https://azure.status.microsoft/en-us/status, feed: page }
+    hosts: [ azure.com, windows.net, azurewebsites.net, azure-api.net ]
     description: Logs, metrics and deployments of App Service, Functions and Container Apps, with Azure SQL and PostgreSQL, and slot swaps, restarts and scaling when you allow it.
     kind: native
     connect_with: api_token
@@ -465,6 +504,8 @@ providers:
     category: Cloud and hosting
     mark: VC
     color: "#000000"
+    status_page: { url: https://www.vercel-status.com, feed: statuspage }
+    hosts: [ api.vercel.com, vercel.app, vercel.com ]
     description: Projects, deployments and their build and runtime logs, and instant rollback or promotion of a deployment when you allow it.
     server_url: ""
     site: https://vercel.com
@@ -480,6 +521,8 @@ providers:
     category: Cloud and hosting
     mark: RE
     color: "#000000"
+    status_page: { url: https://status.render.com, feed: statuspage }
+    hosts: [ api.render.com, onrender.com ]
     description: Logs, metrics, deploys and events of the services and datastores in your Render workspaces, and restarts, rollbacks and scaling when you allow it.
     server_url: ""
     kind: native
@@ -494,6 +537,8 @@ providers:
     category: Cloud and hosting
     mark: RW
     color: "#0b0d0e"
+    status_page: { url: https://status.railway.com, feed: page }
+    hosts: [ backboard.railway.com, railway.app, up.railway.app ]
     description: Logs, metrics and deployments of the services in your Railway projects, and restarts, rollbacks and scaling when you allow it.
     server_url: ""
     site: https://railway.com
@@ -510,6 +555,8 @@ providers:
     category: Cloud and hosting
     mark: FL
     color: "#24175b"
+    status_page: { url: https://status.flyio.net, feed: statuspage }
+    hosts: [ api.fly.io, fly.dev, fly.io ]
     description: Logs, metrics, releases and machines of the apps in a Fly.io organization, and restarts and rollbacks when you allow it.
     server_url: ""
     site: https://fly.io
@@ -525,6 +572,8 @@ providers:
     category: Observability
     mark: SN
     color: "#362d59"
+    status_page: { url: https://status.sentry.io, feed: statuspage }
+    hosts: [ sentry.io, ingest.sentry.io, ingest.us.sentry.io, ingest.de.sentry.io ]
     description: Search error issues and releases tied to an incident.
     server_url: https://mcp.sentry.dev/mcp
     # Sentry's server holds a connection to the organization, and optionally the project, its address names. The
@@ -557,6 +606,8 @@ providers:
     category: Alerting and on-call
     mark: PD
     color: "#06ac38"
+    status_page: { url: https://status.pagerduty.com, feed: page }
+    hosts: [ api.pagerduty.com, events.pagerduty.com, pagerduty.com ]
     description: See who is on call and what is paging them, and acknowledge, escalate or add responders when you allow it.
     # PagerDuty runs a US and an EU service region, each with its own hosted MCP server (support.pagerduty.com,
     # pagerduty-mcp-server and service-regions). Both servers name their own OAuth endpoints.
@@ -575,6 +626,8 @@ providers:
     category: Alerting and on-call
     mark: OG
     color: "#172b4d"
+    status_page: { url: https://opsgenie.status.atlassian.com, feed: statuspage }
+    hosts: [ api.opsgenie.com, api.eu.opsgenie.com ]
     description: See who is on call and which alerts are open, and acknowledge, escalate or add a note when you allow it.
     kind: native
     connect_with: api_token
@@ -594,6 +647,9 @@ providers:
     category: Product analytics
     mark: PH
     color: "#000000"
+    status_page: { url: https://www.posthogstatus.com, feed: page }
+    hosts: [ us.i.posthog.com, eu.i.posthog.com, posthog.com ]
+    holds_flags: true
     description: How many users an incident reaches, their sessions, errors, logs and traces, and recent feature flag changes, with a flag turned off when you allow it.
     # PostHog Cloud's two regions. mcp.posthog.com is the US address its MCP docs give, and mcp-eu.posthog.com the one
     # its server's README gives EU accounts so OAuth reaches the EU instance (PostHog/posthog, services/mcp/README.md).
@@ -614,6 +670,9 @@ providers:
     category: Product analytics
     mark: MP
     color: "#7856ff"
+    status_page: { url: https://www.mixpanelstatus.com, feed: statuspage }
+    hosts: [ api.mixpanel.com, api-eu.mixpanel.com ]
+    holds_flags: true
     description: How many users an incident reaches, what they did before it, and which feature flags changed, with a flag changed when you allow it.
     # Mixpanel's MCP servers by data residency, from its MCP page (docs.mixpanel.com/docs/mcp, MCP Server URLs), and
     # the app each region's project pages are on, the domains its dynamic client registration names.
@@ -640,6 +699,8 @@ providers:
     category: Observability
     mark: HC
     color: "#f2a31b"
+    status_page: { url: https://status.honeycomb.io, feed: statuspage }
+    hosts: [ api.honeycomb.io, api.eu1.honeycomb.io ]
     description: Query traces, errors, SLOs and triggers of the services Honeycomb watches.
     # Honeycomb's US and EU MCP servers and their apps (docs.honeycomb.io/integrations/mcp/configuration-guide).
     regions:
@@ -661,6 +722,8 @@ providers:
     category: Observability
     mark: AX
     color: "#16161d"
+    status_page: { url: https://status.axiom.co, feed: statuspage }
+    hosts: [ api.axiom.co ]
     description: Query the logs and traces your apps send to Axiom, and its monitors.
     # Axiom documents one hosted MCP server, in the US (axiomhq/docs, console/intelligence/mcp-server.mdx), and its app
     # is where its own skill opens queries (axiomhq/skills, skills/sre/scripts/axiom-link).
@@ -695,6 +758,8 @@ providers:
     category: Observability
     mark: BS
     color: "#4f46e5"
+    status_page: { url: https://status.betterstack.com, feed: page }
+    hosts: [ betterstack.com, logs.betterstack.com, uptime.betterstack.com ]
     description: Read uptime monitors, incidents, logs and errors in Better Stack.
     server_url: https://mcp.betterstack.com
     source_links: server
@@ -723,6 +788,8 @@ providers:
     category: Observability
     mark: OS
     color: "#18181b"
+    status_page: { url: https://status.openstatus.dev, feed: page }
+    hosts: [ api.openstatus.dev ]
     description: Check how the addresses OpenStatus monitors stand, region by region, and read its status reports.
     # One MCP server (openstatusHQ/openstatus, apps/server/src/routes/mcp) and one dashboard, which its own notifications
     # link to (packages/notifications/base/src/utils/message.ts).
@@ -738,6 +805,8 @@ providers:
     category: Observability
     mark: HB
     color: "#ea5937"
+    status_page: { url: https://status.honeybadger.io, feed: statuspage }
+    hosts: [ api.honeybadger.io ]
     description: Read the errors and uptime checks of the projects Honeybadger watches.
     # Honeybadger's US and EU hosted MCP servers and apps (honeybadger-io/honeybadger-mcp-server, README.md).
     regions:
@@ -754,6 +823,8 @@ providers:
     category: Observability
     mark: SZ
     color: "#f4532c"
+    status_page: { url: https://status.signoz.io, feed: page }
+    hosts: [ signoz.cloud ]
     description: Query logs, traces, errors and request counts in SigNoz.
     # SigNoz Cloud's regions, each its own MCP server at mcp.<region>.signoz.cloud (SigNoz/signoz-mcp-server, README.md),
     # with the regions SigNoz's documentation lists (SigNoz/signoz.io, components/Region/RegionContext.tsx). Every team
@@ -772,6 +843,8 @@ providers:
     category: Issues
     mark: LN
     color: "#5E6AD2"
+    status_page: { url: https://linearstatus.com, feed: statuspage }
+    hosts: [ api.linear.app, linear.app ]
     description: Read issues, projects and cycles, and open follow-up work from an incident.
     server_url: https://mcp.linear.app/mcp
     # Firefight's own Linear OAuth application, which keeps incident items in step with issues and registers the webhook
@@ -797,6 +870,8 @@ providers:
     category: Issues
     mark: JR
     color: "#0052cc"
+    status_page: { url: https://jira-software.status.atlassian.com, feed: statuspage }
+    hosts: [ atlassian.net ]
     description: Find issues tied to what broke, and open follow-up issues from an incident.
     # tools=all lists every tool on its own rather than behind Atlassian's discover and execute, so each is switched on
     # and granted by itself.
@@ -825,6 +900,8 @@ providers:
     category: Knowledge
     mark: NO
     color: "#111111"
+    status_page: { url: https://www.notion-status.com, feed: page }
+    hosts: [ api.notion.com, notion.so ]
     description: Bring runbook and architecture pages into investigations.
     server_url: https://mcp.notion.com/mcp
     source_links: server
@@ -850,6 +927,8 @@ providers:
     category: Databases
     mark: NE
     color: "#00e599"
+    status_page: { url: https://neonstatus.com, feed: page }
+    hosts: [ neon.tech, aws.neon.tech, console.neon.tech ]
     description: Read-only queries, branch history and compute status for a Neon Postgres database, and restarting a compute when you allow it.
     server_url: https://mcp.neon.tech/mcp
     site: https://console.neon.tech
@@ -862,6 +941,8 @@ providers:
     category: Databases
     mark: SB
     color: "#3ecf8e"
+    status_page: { url: https://status.supabase.com, feed: statuspage }
+    hosts: [ supabase.co, supabase.com, pooler.supabase.com ]
     description: Read-only queries and project state for a Supabase database.
     server_url: https://mcp.supabase.com/mcp
     site: https://supabase.com/dashboard
@@ -890,6 +971,8 @@ providers:
     category: Databases
     mark: PS
     color: "#000000"
+    status_page: { url: https://www.planetscalestatus.com, feed: statuspage }
+    hosts: [ psdb.cloud, planetscale.com, pg.psdb.cloud ]
     description: Read-only queries, branch schemas and Insights for a PlanetScale database.
     server_url: https://mcp.pscale.dev/mcp/planetscale
     source_links: firefight
@@ -902,6 +985,8 @@ providers:
     category: Databases
     mark: CH
     color: "#151515"
+    status_page: { url: https://status.clickhouse.com, feed: statuspage }
+    hosts: [ clickhouse.cloud ]
     description: Read-only queries, service state, server logs, failed queries and metrics of your ClickHouse Cloud services.
     server_url: https://mcp.clickhouse.cloud/mcp
     site: https://console.clickhouse.cloud
@@ -915,6 +1000,8 @@ providers:
     category: Databases
     mark: TB
     color: "#25283d"
+    status_page: { url: https://status.tinybird.co, feed: statuspage }
+    hosts: [ api.tinybird.co, api.us-east.tinybird.co ]
     description: Read-only queries, data sources, API endpoints, their requests, errors and metrics, and deployments of your Tinybird workspace.
     kind: native
     connect_with: api_token
@@ -942,6 +1029,8 @@ providers:
     category: Databases
     mark: TU
     color: "#4ff8d2"
+    status_page: { url: https://status.turso.tech, feed: page }
+    hosts: [ turso.io, api.turso.tech ]
     description: Read-only queries, top queries and the state of your Turso databases and their branches.
     server_url: https://mcp.turso.ai/mcp
     source_links: none
@@ -955,6 +1044,8 @@ providers:
     category: Databases
     mark: UP
     color: "#00e9a3"
+    status_page: { url: https://status.upstash.com, feed: statuspage }
+    hosts: [ upstash.io, upstash.com ]
     description: State and metrics of your Upstash Redis databases, and QStash delivery logs and dead letter queues.
     server_url: https://mcp.upstash.com/mcp
     site: https://console.upstash.com
@@ -984,6 +1075,8 @@ providers:
     category: Coding agents
     mark: DV
     color: "#14213d"
+    status_page: { url: https://www.devinstatus.com, feed: statuspage }
+    hosts: [ api.devin.ai, devin.ai ]
     description: Hand a fix's code change to Devin, which writes it in its own environment and opens the pull request, while Firefight follows the session.
     server_url: ""
     kind: native
@@ -1004,6 +1097,8 @@ providers:
     category: Coding agents
     mark: CU
     color: "#0f0f0f"
+    status_page: { url: https://status.cursor.com, feed: statuspage }
+    hosts: [ api.cursor.com, cursor.com ]
     description: Hand a fix's code change to a Cursor cloud agent, which writes it and opens the pull request, while Firefight follows the run.
     server_url: ""
     kind: native
@@ -1020,6 +1115,8 @@ providers:
     category: Coding agents
     mark: FA
     color: "#d9480f"
+    status_page: { url: https://status.factory.ai, feed: statuspage }
+    hosts: [ api.factory.ai, factory.ai ]
     description: Hand a fix's code change to a Factory Droid on your Droid Computer, which writes it and opens the pull request, while Firefight follows the session.
     # Factory's Global deployment and its separate EU one, each with its own API (api.factory.ai, api.eu.factory.ai) and
     # app, from Factory's Deployment Patterns page, EU deployment and data residency.

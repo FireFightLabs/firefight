@@ -108,6 +108,9 @@ module FirefightAi
         - #{DatabaseRule::SCHEMA_RULE}
         - #{DatabaseRule::REPLICA_RULE}
         - #{DatabaseRule::SLOW_RULE}
+        - #{OutsideRule::CHANGED_RULE}
+        - #{OutsideRule::STATUS_RULE}
+        - #{OutsideRule::BLIND_SPOT_RULE}
         - #{NormalRule::RULE}
         - #{Helper::RULE}
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.

@@ -1,0 +1,269 @@
+# Outside systems an app commonly depends on that Firefight has no connection for, such as a payment, email or sign-in
+# provider. The providers Firefight connects to keep the same two fields in config/integration_providers.yml, and
+# Upstream reads both lists as one.
+# status_page is the provider's public status page. url is the page a person opens, and feed says how Firefight reads
+# it, statuspage for a page that publishes the Statuspage summary at <url>/api/v2/summary.json, or page for one read as
+# a web page through Firefight's web reading.
+# hosts are the domains the provider's API and apps answer on. An error naming one of them, such as a timeout calling
+# api.stripe.com, points at that provider, and a service's setting whose address is one of them says the app uses it.
+# setting_words are words in a setting's name that say the app uses the provider, such as STRIPE in STRIPE_SECRET_KEY.
+# Each is a whole word in capitals.
+# category is one of the categories listed below, which say what kind of system it is.
+categories:
+  - Payments
+  - Email and messaging
+  - Sign-in
+  - CDN and media
+  - Hosting and data
+  - AI models
+  - Search and product data
+  - Packages and certificates
+  - Chat and support
+
+upstreams:
+  - key: stripe
+    name: Stripe
+    category: Payments
+    status_page: { url: https://status.stripe.com, feed: page }
+    hosts: [ api.stripe.com, js.stripe.com, stripe.com ]
+    setting_words: [ STRIPE ]
+  - key: paypal
+    name: PayPal and Braintree
+    category: Payments
+    status_page: { url: https://www.paypal-status.com, feed: page }
+    hosts: [ api-m.paypal.com, api.paypal.com, paypal.com, braintreegateway.com, braintree-api.com ]
+    setting_words: [ PAYPAL, BRAINTREE ]
+  - key: adyen
+    name: Adyen
+    category: Payments
+    status_page: { url: https://status.adyen.com, feed: page }
+    hosts: [ adyen.com, adyenpayments.com ]
+    setting_words: [ ADYEN ]
+  - key: paddle
+    name: Paddle
+    category: Payments
+    status_page: { url: https://paddlestatus.com, feed: page }
+    hosts: [ api.paddle.com, paddle.com ]
+    setting_words: [ PADDLE ]
+  - key: plaid
+    name: Plaid
+    category: Payments
+    status_page: { url: https://status.plaid.com, feed: statuspage }
+    hosts: [ production.plaid.com, plaid.com ]
+    setting_words: [ PLAID ]
+  - key: twilio
+    name: Twilio
+    category: Email and messaging
+    status_page: { url: https://status.twilio.com, feed: statuspage }
+    hosts: [ api.twilio.com, twilio.com ]
+    setting_words: [ TWILIO ]
+  - key: sendgrid
+    name: SendGrid
+    category: Email and messaging
+    status_page: { url: https://status.twilio.com, feed: statuspage }
+    hosts: [ api.sendgrid.com, sendgrid.net, sendgrid.com ]
+    setting_words: [ SENDGRID ]
+  - key: mailgun
+    name: Mailgun
+    category: Email and messaging
+    status_page: { url: https://status.mailgun.com, feed: statuspage }
+    hosts: [ api.mailgun.net, api.eu.mailgun.net, mailgun.net ]
+    setting_words: [ MAILGUN ]
+  - key: postmark
+    name: Postmark
+    category: Email and messaging
+    status_page: { url: https://status.postmarkapp.com, feed: page }
+    hosts: [ api.postmarkapp.com, postmarkapp.com ]
+    setting_words: [ POSTMARK ]
+  - key: resend
+    name: Resend
+    category: Email and messaging
+    status_page: { url: https://resend-status.com, feed: statuspage }
+    hosts: [ api.resend.com, resend.com ]
+    setting_words: [ RESEND ]
+  - key: mailchimp
+    name: Mailchimp and Mandrill
+    category: Email and messaging
+    status_page: { url: https://status.mailchimp.com, feed: page }
+    hosts: [ mandrillapp.com, api.mailchimp.com ]
+    setting_words: [ MAILCHIMP, MANDRILL ]
+  - key: auth0
+    name: Auth0
+    category: Sign-in
+    status_page: { url: https://status.auth0.com, feed: page }
+    hosts: [ auth0.com, us.auth0.com, eu.auth0.com, au.auth0.com, jp.auth0.com ]
+    setting_words: [ AUTH0 ]
+  - key: okta
+    name: Okta
+    category: Sign-in
+    status_page: { url: https://status.okta.com, feed: page }
+    hosts: [ okta.com, oktapreview.com, okta-emea.com ]
+    setting_words: [ OKTA ]
+  - key: clerk
+    name: Clerk
+    category: Sign-in
+    status_page: { url: https://status.clerk.com, feed: statuspage }
+    hosts: [ api.clerk.com, clerk.accounts.dev, clerk.com ]
+    setting_words: [ CLERK ]
+  - key: workos
+    name: WorkOS
+    category: Sign-in
+    status_page: { url: https://status.workos.com, feed: statuspage }
+    hosts: [ api.workos.com, workos.com ]
+    setting_words: [ WORKOS ]
+  - key: firebase
+    name: Firebase
+    category: Sign-in
+    status_page: { url: https://status.firebase.google.com, feed: page }
+    hosts: [ identitytoolkit.googleapis.com, securetoken.googleapis.com, firebaseio.com, firebaseapp.com ]
+    setting_words: [ FIREBASE ]
+  - key: fastly
+    name: Fastly
+    category: CDN and media
+    status_page: { url: https://www.fastlystatus.com, feed: page }
+    hosts: [ fastly.net, fastly.com, fastlylb.net ]
+    setting_words: [ FASTLY ]
+  - key: akamai
+    name: Akamai
+    category: CDN and media
+    status_page: { url: https://www.akamaistatus.com, feed: statuspage }
+    hosts: [ akamai.net, akamaized.net, akamaiedge.net, edgekey.net, edgesuite.net ]
+    setting_words: [ AKAMAI ]
+  - key: bunny
+    name: Bunny
+    category: CDN and media
+    status_page: { url: https://status.bunny.net, feed: statuspage }
+    hosts: [ b-cdn.net, bunny.net, bunnycdn.com ]
+    setting_words: [ BUNNY, BUNNYCDN ]
+  - key: cloudinary
+    name: Cloudinary
+    category: CDN and media
+    status_page: { url: https://status.cloudinary.com, feed: statuspage }
+    hosts: [ res.cloudinary.com, api.cloudinary.com, cloudinary.com ]
+    setting_words: [ CLOUDINARY ]
+  - key: mapbox
+    name: Mapbox
+    category: CDN and media
+    status_page: { url: https://status.mapbox.com, feed: statuspage }
+    hosts: [ api.mapbox.com, mapbox.com ]
+    setting_words: [ MAPBOX ]
+  - key: heroku
+    name: Heroku
+    category: Hosting and data
+    status_page: { url: https://status.heroku.com, feed: page }
+    hosts: [ herokuapp.com, heroku.com, api.heroku.com ]
+    setting_words: [ HEROKU ]
+  - key: mongodb_atlas
+    name: MongoDB Atlas
+    category: Hosting and data
+    status_page: { url: https://status.mongodb.com, feed: statuspage }
+    hosts: [ mongodb.net ]
+    setting_words: [ ATLAS ]
+  - key: redis_cloud
+    name: Redis Cloud
+    category: Hosting and data
+    status_page: { url: https://status.redis.io, feed: page }
+    hosts: [ redis-cloud.com, redislabs.com, cloud.redislabs.com ]
+    setting_words: [ REDISCLOUD ]
+  - key: docker_hub
+    name: Docker Hub
+    category: Packages and certificates
+    status_page: { url: https://www.dockerstatus.com, feed: statuspage }
+    hosts: [ registry-1.docker.io, docker.io, hub.docker.com ]
+    setting_words: [ DOCKERHUB ]
+  - key: openai
+    name: OpenAI
+    category: AI models
+    status_page: { url: https://status.openai.com, feed: statuspage }
+    hosts: [ api.openai.com, openai.com ]
+    setting_words: [ OPENAI ]
+  - key: anthropic
+    name: Anthropic
+    category: AI models
+    status_page: { url: https://status.claude.com, feed: statuspage }
+    hosts: [ api.anthropic.com, anthropic.com ]
+    setting_words: [ ANTHROPIC ]
+  - key: algolia
+    name: Algolia
+    category: Search and product data
+    status_page: { url: https://status.algolia.com, feed: page }
+    hosts: [ algolia.net, algolianet.com, algolia.io ]
+    setting_words: [ ALGOLIA ]
+  - key: segment
+    name: Segment
+    category: Search and product data
+    status_page: { url: https://status.segment.com, feed: statuspage }
+    hosts: [ api.segment.io, cdn.segment.com, segment.io ]
+    setting_words: [ SEGMENT ]
+  - key: launchdarkly
+    name: LaunchDarkly
+    category: Search and product data
+    status_page: { url: https://status.launchdarkly.com, feed: statuspage }
+    hosts: [ launchdarkly.com, sdk.launchdarkly.com, events.launchdarkly.com ]
+    setting_words: [ LAUNCHDARKLY ]
+  - key: shopify
+    name: Shopify
+    category: Search and product data
+    status_page: { url: https://www.shopifystatus.com, feed: statuspage }
+    hosts: [ myshopify.com, shopify.com ]
+    setting_words: [ SHOPIFY ]
+  - key: hubspot
+    name: HubSpot
+    category: Search and product data
+    status_page: { url: https://status.hubspot.com, feed: statuspage }
+    hosts: [ api.hubapi.com, hubapi.com, hubspot.com ]
+    setting_words: [ HUBSPOT ]
+  - key: npm
+    name: npm
+    category: Packages and certificates
+    status_page: { url: https://status.npmjs.org, feed: statuspage }
+    hosts: [ registry.npmjs.org, npmjs.org, npmjs.com ]
+    setting_words: [ NPM ]
+  - key: pypi
+    name: PyPI
+    category: Packages and certificates
+    status_page: { url: https://status.python.org, feed: statuspage }
+    hosts: [ pypi.org, files.pythonhosted.org ]
+    setting_words: [ PYPI ]
+  - key: rubygems
+    name: RubyGems
+    category: Packages and certificates
+    status_page: { url: https://status.rubygems.org, feed: statuspage }
+    hosts: [ rubygems.org, index.rubygems.org ]
+    setting_words: [ RUBYGEMS ]
+  - key: letsencrypt
+    name: Let's Encrypt
+    category: Packages and certificates
+    status_page: { url: https://letsencrypt.status.io, feed: page }
+    hosts: [ acme-v02.api.letsencrypt.org, letsencrypt.org ]
+    setting_words: [ LETSENCRYPT ]
+  - key: digicert
+    name: DigiCert
+    category: Packages and certificates
+    status_page: { url: https://status.digicert.com, feed: statuspage }
+    hosts: [ digicert.com, ocsp.digicert.com ]
+    setting_words: [ DIGICERT ]
+  - key: slack
+    name: Slack
+    category: Chat and support
+    status_page: { url: https://slack-status.com, feed: page }
+    hosts: [ slack.com, hooks.slack.com, files.slack.com ]
+    setting_words: [ SLACK ]
+  - key: discord
+    name: Discord
+    category: Chat and support
+    status_page: { url: https://discordstatus.com, feed: statuspage }
+    hosts: [ discord.com, discordapp.com ]
+    setting_words: [ DISCORD ]
+  - key: zoom
+    name: Zoom
+    category: Chat and support
+    status_page: { url: https://www.zoomstatus.com, feed: statuspage }
+    hosts: [ api.zoom.us, zoom.us ]
+    setting_words: []
+  - key: zendesk
+    name: Zendesk
+    category: Chat and support
+    status_page: { url: https://status.zendesk.com, feed: page }
+    hosts: [ zendesk.com, zdassets.com ]
+    setting_words: [ ZENDESK ]

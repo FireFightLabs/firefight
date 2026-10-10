@@ -62,10 +62,11 @@ class ResourceMap::Use < ApplicationRecord
     name.include?(".") ? name.split(".").last : nil
   end
 
-  # A setting known by its name only. Kept when the name says where something is or names a store's provider.
+  # A setting known by its name only. Kept when the name says where something is or names a provider or another outside
+  # system the app uses (Upstream), such as STRIPE in STRIPE_SECRET_KEY.
   def self.named(from, variable)
     name = variable.to_s.upcase
-    return unless name.match?(CONNECTION_NAME) || IntegrationProvider.setting_words.any? { |word| words(name).include?(word) }
+    return unless name.match?(CONNECTION_NAME) || Upstream.setting_words.intersect?(words(name))
 
     Found.new(from: from, variable: variable.to_s)
   end
