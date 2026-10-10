@@ -44,10 +44,11 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
     body = rpc("tools/list")
     tools = body.dig("result", "tools")
-    # The registry is the wiring, so the server exposes exactly it rather than a second list that drifts.
-    assert_equal Mcp::Tools.all.map(&:name_value).sort, tools.map { |tool| tool["name"] }.sort
+    # The registry is the wiring, so the server exposes exactly it, and what_changed every caller is offered, rather than a second list that drifts.
+    assert_equal (Mcp::Tools.all.map(&:name_value) + [ ResourceMap::Timeline::TOOL_NAME ]).sort, tools.map { |tool| tool["name"] }.sort
 
-    map_reads = [ Mcp::Tools::FIND_RESOURCES, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS, Mcp::Tools::RESOURCE_MAP_STATS ]
+    map_reads = [ Mcp::Tools::FIND_RESOURCES, Mcp::Tools::TRAVERSE_RESOURCE_MAP, Mcp::Tools::BLAST_RADIUS, Mcp::Tools::RESOURCE_MAP_STATS,
+                  Mcp::Tools::CHECK_STATUS_PAGE, Mcp::Tools::BLIND_SPOTS, ResourceMap::Timeline::TOOL_NAME ]
     read_tools, write_tools = tools.partition { |t| t["name"].start_with?("search", "get", "evaluate", "list") || map_reads.include?(t["name"]) }
     assert read_tools.all? { |t| t.dig("annotations", "readOnlyHint") }
     assert write_tools.all? { |t| t.dig("annotations", "readOnlyHint") == false }

@@ -142,7 +142,6 @@ export default function ResourceMapPage() {
               resource={focused}
               resources={resources}
               links={links}
-              changes={changes}
               catalogEntries={catalogEntries}
               canCurate={canCurate}
               onAddLink={openAddLink}

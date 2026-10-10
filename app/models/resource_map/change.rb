@@ -20,9 +20,12 @@ class ResourceMap::Change < ApplicationRecord
   scope :since, ->(time) { where(happened_at: time..) }
 
   # What changed and when, in the words the map page uses.
-  def line
+  def line = "#{words} at #{happened_at.utc.iso8601}"
+
+  # What changed, without when.
+  def words
     name = resource.name
-    what = case kind
+    case kind
     when KIND_APPEARED then "#{name} appeared"
     when KIND_REMOVED then "#{name} is gone"
     when KIND_DEPLOYED then "#{name} deployed #{to_value.present? ? to_value.first(7) : 'a new build'}"
@@ -30,6 +33,5 @@ class ResourceMap::Change < ApplicationRecord
     when KIND_STATUS_CHANGED then "#{name} went from #{from_value || 'unknown'} to #{to_value || 'unknown'}"
     else "#{name}: #{detail || 'a setting'} went from #{from_value || 'unknown'} to #{to_value || 'unknown'}"
     end
-    "#{what} at #{happened_at.utc.iso8601}"
   end
 end

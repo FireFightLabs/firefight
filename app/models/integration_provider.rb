@@ -176,9 +176,9 @@ class IntegrationProvider
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
-                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools) do
+                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools, :status_page, :hosts, :holds_flags) do
     def initialize(connect_with: nil, read_only_tools: [], mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
-                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, **) = super
+                   connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, status_page: nil, hosts: [], holds_flags: false, **) = super
 
     # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
     def app_connect? = kind == Integration::KIND_MCP && app.present? && IntegrationProvider.app_client(key).present?
@@ -299,7 +299,11 @@ class IntegrationProvider
         app: raw["app"] && App.new(**raw["app"].symbolize_keys),
         # Words in a setting's name that point at this provider's stores, such as NEON in NEON_DATABASE_URL. A clue the
         # map's matcher reads when a setting's value is hidden or names no address a store reported.
-        setting_words: Array(raw["setting_words"]).map { |word| word.to_s.upcase }
+        setting_words: Array(raw["setting_words"]).map { |word| word.to_s.upcase },
+        # Its public status page, and the domains its API and apps answer on, read with the outside systems (Upstream).
+        status_page: Upstream::StatusPage.from(raw), hosts: Upstream.hosts_of(raw),
+        # It keeps a team's feature flags, whose changes are read with its own tools.
+        holds_flags: raw["holds_flags"] == true
       )
     end.freeze
   end

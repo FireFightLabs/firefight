@@ -63,6 +63,8 @@ module Mcp
     TRAVERSE_RESOURCE_MAP = "traverse_resource_map".freeze
     BLAST_RADIUS = "blast_radius".freeze
     RESOURCE_MAP_STATS = "resource_map_stats".freeze
+    CHECK_STATUS_PAGE = "check_status_page".freeze
+    BLIND_SPOTS = "blind_spots".freeze
     SUGGEST_RESOURCE_LINK = "suggest_resource_link".freeze
     UPSERT_SEVERITY = "upsert_severity".freeze
     DELETE_SEVERITY = "delete_severity".freeze
@@ -119,6 +121,7 @@ module Mcp
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,
         GetWorkspaceConfig, UpdateWorkspaceSettings, UpdateProtectedPaths, ListIntegrations, GetResourceMap, SuggestResourceLink,
         FindResources, SearchMap, GetResource, GetResourceLinks, GetResourceNeighbours, TraverseResourceMap, BlastRadius, ResourceMapStats,
+        CheckStatusPage, BlindSpots,
         UpsertSeverity, DeleteSeverity, UpsertStatus, DeleteStatus,
         UpsertIncidentType, DeleteIncidentType, UpsertIncidentRole, DeleteIncidentRole,
         UpsertAlertSource, DeleteAlertSource, UpsertOutboundWebhook, DeleteOutboundWebhook, TestOutboundWebhook,

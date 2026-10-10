@@ -12,10 +12,11 @@ class McpCapabilityToolsTest < ActiveSupport::TestCase
   end
 
   test "an outside agent is offered the capabilities it could call, beside the provider tools" do
-    assert_equal %w[search_logs new_log_patterns], Mcp::CapabilityToolFactory.tools_for(@workspace, @alice).map(&:name_value)
-    assert_equal %w[search_logs new_log_patterns], Mcp::CapabilityToolFactory.tools_for(@workspace, workspace_memberships(:bob_workspace_one)).map(&:name_value),
+    assert_equal %w[search_logs new_log_patterns what_changed], Mcp::CapabilityToolFactory.tools_for(@workspace, @alice).map(&:name_value)
+    assert_equal %w[search_logs new_log_patterns what_changed], Mcp::CapabilityToolFactory.tools_for(@workspace, workspace_memberships(:bob_workspace_one)).map(&:name_value),
                  "every member reads every connected tool"
-    assert_empty Mcp::CapabilityToolFactory.tools_for(@workspace, api_keys(:full_access_key))
+    assert_equal %w[what_changed], Mcp::CapabilityToolFactory.tools_for(@workspace, api_keys(:full_access_key)).map(&:name_value),
+                 "what changed reads the map and the activity log, which need no connection"
   end
 
   test "run_key_query is offered with a capability a check reads through, and runs as that capability's provider tool, led by its comparison" do

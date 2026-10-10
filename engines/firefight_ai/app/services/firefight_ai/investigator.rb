@@ -65,6 +65,9 @@ module FirefightAi
         - #{DatabaseRule::SCHEMA_RULE}
         - #{DatabaseRule::REPLICA_RULE}
         - #{DatabaseRule::SLOW_RULE}
+        - #{OutsideRule::CHANGED_RULE}
+        - #{OutsideRule::STATUS_RULE}
+        - #{OutsideRule::BLIND_SPOT_RULE}
         - #{NormalRule::RULE}
         - #{Helper::RULE}
         - #{MAP_START}

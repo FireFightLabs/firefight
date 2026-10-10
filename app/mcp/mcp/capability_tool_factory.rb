@@ -19,7 +19,59 @@ module Mcp
       end
       reads_checks = callable.any? { |spec, _tools| ResourceMap::KeyQueries::CAPABILITIES_READ.include?(spec.key) }
       reads_logs = callable.any? { |spec, _tools| spec.key == Integrations::Capabilities::LOGS }
-      callable.map { |spec, tools| build(spec, tools, workspace) } + (reads_checks ? [ key_query_tool ] : []) + (reads_logs ? [ log_patterns_tool ] : [])
+      callable.map { |spec, tools| build(spec, tools, workspace) } + (reads_checks ? [ key_query_tool ] : []) + (reads_logs ? [ log_patterns_tool ] : []) +
+        [ what_changed_tool ]
+    end
+
+    # what_changed: what changed around a resource, a service or the workspace (ResourceMap::Timeline), the list a read
+    # of the map, with each resource's runs read live through run history, each read authorized as that capability's
+    # call would be. Listed whatever is connected, since the map's own changes and the activity log need no connection
+    # that reads runs.
+    def self.what_changed_tool
+      ::MCP::Tool.define(
+        name: ResourceMap::Timeline::TOOL_NAME,
+        description: "#{ResourceMap::Timeline::DESCRIPTION} (runs are read through the connection that runs each resource; governed by the Ability Gateway). Docs: #{Docs::WHAT_CHANGED}",
+        input_schema: ResourceMap::Timeline::SCHEMA,
+        annotations: Tools::Base::READ_ONLY.dup
+      ) do |server_context:, **args|
+        CapabilityToolFactory.what_changed(server_context, args)
+      end
+    end
+
+    def self.what_changed(server_context, args)
+      workspace = server_context[:workspace]
+      principal = server_context[:principal]
+      given = args.transform_keys(&:to_s)
+      subject = ResourceMap::Timeline.subject(workspace, principal, given)
+      return ToolDispatcher.error_response(subject) if subject.is_a?(String)
+
+      from, to = ResourceMap::Timeline.window(given)
+      timeline = ResourceMap::Timeline.new(workspace: workspace, principal: principal, subject: subject, from: from, to: to)
+      live, read = what_changed_runs(timeline, server_context)
+      AbilityGateway.authorize!(principal: principal, action_key: Ability::Action::MAP_READ, workspace: workspace, params: given,
+                                context: { source: AbilityGateway::SOURCE_MCP }) do
+        ::MCP::Tool::Response.new([ { type: "text", text: timeline.text(live: live, read: read) } ], structured_content: timeline.to_h(live: live, read: read))
+      end
+    rescue ArgumentError => e
+      ToolDispatcher.error_response(e.message)
+    rescue AbilityGateway::Denied
+      ToolDispatcher.error_response("This token lacks '#{Ability::Action::MAP_READ}' permission, which reading what changed on the map needs.")
+    rescue AbilityGateway::PendingApproval => e
+      ToolDispatcher.error_response("Approval required (id: #{e.approval.id}): a workspace #{e.approval.required_role} must approve reading the map. " \
+                                    "Ask again once it is approved.")
+    end
+
+    def self.what_changed_runs(timeline, server_context)
+      targets = ResourceMap::WhatChanged.targets(timeline)
+      return [ [], [] ] if targets.empty?
+      return [ [], [ "No connection you may use reads runs, so deploys and runs are only those the map saw." ] ] if callable(ResourceMap::WhatChanged::HISTORY, server_context).empty?
+
+      targets.each_with_object([ [], [] ]) do |resource, (live, read)|
+        response, answered = answer(ResourceMap::WhatChanged::HISTORY, server_context, ResourceMap::WhatChanged.arguments(resource))
+        result = { Integrations::Telemetry::STRUCTURED => response.structured_content }
+        found = answered && ResourceMap::WhatChanged.entries(resource, result, through: answered.environment_row.integration.display_name)
+        found ? live.concat(found) : read << ResourceMap::WhatChanged.unread(resource, ToolDispatcher.text_of(response))
+      end
     end
 
     def self.with_approval_id(schema)
@@ -110,9 +162,23 @@ module Mcp
 
     def self.invoke(key, server_context, args)
       given = args.transform_keys(&:to_s).except(APPROVAL_ID_ARG.to_s)
-      return everywhere(key, server_context, args, given) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
+      return pointing_outward(key, everywhere(key, server_context, args, given)) if given[Integrations::Capabilities::CONNECTION_ARG] == Integrations::Capabilities::ALL
 
-      answer(key, server_context, args).first
+      pointing_outward(key, answer(key, server_context, args).first)
+    end
+
+    # Logs, errors or traces whose failing lines name an outside provider's host say so, with the status page
+    # check_status_page reads, so an outside agent can tell an outage upstream from a fault in the team's code.
+    def self.pointing_outward(key, response)
+      return response unless Chat::Tools::StatusCheck::READS.include?(key)
+
+      pointed = Upstream.pointed_at(ToolDispatcher.text_of(response))
+      return response if pointed.empty?
+
+      hints = pointed.map do |found|
+        { type: "text", text: "Failing lines here name #{found.host}, which is #{found.entry.name}'s. check_status_page reads its status page, #{found.entry.status_page.url}." }
+      end
+      response.class.new([ *Array(response.content), *hints ], structured_content: response.structured_content, error: response.error?)
     end
 
     # The response and the call it came from, the platform's when it answered for an observability tool, or no call

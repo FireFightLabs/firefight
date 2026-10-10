@@ -386,6 +386,27 @@ export const RESOURCE_MAP_CHANGE_KINDS = [
 ] as const
 export type ResourceMapChangeKind = (typeof RESOURCE_MAP_CHANGE_KINDS)[number]
 
+export const RESOURCE_MAP_TIMELINE_KINDS = [
+  "deploy",
+  "config",
+  "status",
+  "appeared",
+  "removed",
+  "renamed",
+  "reported",
+  "run",
+  "firefight"
+] as const
+export type ResourceMapTimelineKind = (typeof RESOURCE_MAP_TIMELINE_KINDS)[number]
+
+export const RESOURCE_MAP_TIMELINE_SOURCES = [
+  "map",
+  "live_update",
+  "provider",
+  "firefight"
+] as const
+export type ResourceMapTimelineSource = (typeof RESOURCE_MAP_TIMELINE_SOURCES)[number]
+
 export const RESOURCE_MAP_HEALTHS = [
   "ok",
   "busy",

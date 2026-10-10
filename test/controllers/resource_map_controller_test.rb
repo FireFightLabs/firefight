@@ -170,6 +170,32 @@ class ResourceMapControllerTest < ActionDispatch::IntegrationTest
     assert_nil response.parsed_body["reason"]
   end
 
+  test "what changed around a resource is read when its panel opens, and its runs only when the person asks to read them" do
+    web = resource("web")
+    web.changes_seen.create!(workspace: @workspace, kind: ResourceMap::Change::KIND_STATUS_CHANGED, from_value: "running", to_value: "failed", happened_at: 2.hours.ago)
+    builds = @row.integration.tools.create!(name: "build_history", description: "Builds", read_only: true, enabled: true, params_schema: { "type" => "object" })
+    Integrations::NativeExecutor.expects(:call).never
+
+    get resource_map_resource_changes_path(web)
+
+    body = response.parsed_body
+    assert_equal [ [ "appeared", "Appeared", "map", "web appeared" ], [ "status", "Status", "map", "web went from running to failed" ] ], body["entries"].map { |entry| entry.values_at("kind", "label", "source", "what") }
+    assert_equal [ true, false ], body.values_at("readsRuns", "readLive")
+    assert(body["notes"].any? { |note| note.start_with?("Northflank is read at the hourly sweep") })
+
+    Integrations::NativeExecutor.unstub(:call)
+    run = Integrations::Capabilities::History::Run.new(id: "b1", number: "12", name: "build", status: Integrations::Capabilities::History::FAILED,
+                                                       started_at: 30.minutes.ago, url: "https://app.northflank.com/builds/12")
+    Integrations::NativeExecutor.expects(:call).with { |tool:, **| tool == builds }
+                                .returns(Integrations::Capabilities::RunHistory.with_runs({ "content" => [ { "type" => "text", "text" => "1 build" } ] }, [ run ]))
+
+    get resource_map_resource_changes_path(web, live: 1)
+
+    run_entry = response.parsed_body["entries"].find { |entry| entry["kind"] == "run" }
+    assert_equal [ "provider", "https://app.northflank.com/builds/12" ], run_entry.values_at("source", "link")
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: builds.action_key, source: AbilityGateway::SOURCE_WEB)
+  end
+
   private
 
   def found(kind, id) = ResourceMap::Found.new(provider: "northflank", account: "acme/shop", kind: kind, external_id: id, name: id)
