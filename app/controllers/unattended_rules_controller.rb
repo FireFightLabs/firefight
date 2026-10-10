@@ -40,11 +40,7 @@ class UnattendedRulesController < InertiaController
     "Unattended rule to #{@rule.change_words} is #{@rule.enabled? ? 'on' : 'off'}."
   end
 
-  # A resource is only ever one on this workspace's map.
   def rule_attributes
-    changes = params.require(:rule).permit(:capability, :resource_id, :metric, :threshold, :minutes, :enabled)
-    return changes unless changes.key?(:resource_id)
-
-    changes.merge(resource: ResourceMap::Resource.present.find_by(workspace_id: current_workspace.id, id: changes[:resource_id])).except(:resource_id)
+    Ability::UnattendedRule.changes_from(current_workspace, params.require(:rule).permit(:capability, :resource_id, :metric, :threshold, :minutes, :enabled))
   end
 end

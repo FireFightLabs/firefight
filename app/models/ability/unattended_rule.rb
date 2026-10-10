@@ -109,6 +109,33 @@ module Ability
       resources.map { |resource| ResourceChoice.new(resource: resource, capabilities: CAPABILITIES.select { |key| able[key].key?(resource.id) }) }
     end
 
+    CHANGEABLE = %i[capability metric threshold minutes enabled].freeze
+
+    # What the dashboard, the API or MCP asks to change. The resource is found on this workspace's map by its id there,
+    # its name or its provider's id, so a rule can never name another workspace's. Absent keys keep what the rule has.
+    def self.changes_from(workspace, given)
+      given = given.to_h.symbolize_keys
+      changes = given.slice(*CHANGEABLE)
+      reference = given[:resource_id] || given[:resource]
+      reference.nil? ? changes : changes.merge(resource: resource_named(workspace, reference.to_s))
+    end
+
+    def self.resource_named(workspace, reference)
+      present = ResourceMap::Resource.present.where(workspace_id: workspace.id)
+      by_name = present.where("lower(name) = ?", reference.downcase).limit(2).to_a
+      present.find_by(id: reference) || (by_name.first if by_name.one?) || present.find_by(external_id: reference)
+    end
+
+    # How the API and MCP read a rule back, in the same words the screen shows.
+    def payload
+      {
+        id: id, capability: capability, resource: { id: resource_id, name: resource.name }, metric: metric, threshold: threshold.to_f,
+        minutes: minutes, enabled: enabled, sentence: sentence, created_by: created_by&.display_name, times_acted: usage_count,
+        blocked_reason: blocked_reason, delete_blocked_reason: delete_blocked_reason,
+        created_at: created_at.utc.iso8601, updated_at: updated_at.utc.iso8601
+      }
+    end
+
     # The change in a few words, which names the rule in a notice: "roll back checkout".
     def change_words = "#{CAPABILITY_VERBS.fetch(capability).downcase} #{resource.name}"
 

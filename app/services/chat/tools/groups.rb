@@ -115,11 +115,12 @@ module Chat::Tools::Groups
     ),
     Firefight.new(
       key: PERMISSIONS, title: "Permissions and approvals",
-      covers: "who may do what, permission sets, grants, approval rules, pending approvals, the activity log",
+      covers: "who may do what, permission sets, grants, approval rules, unattended rules, pending approvals, the activity log",
       tools: [
         Mcp::Tools::LIST_ABILITIES, Mcp::Tools::LIST_PRINCIPALS, Mcp::Tools::UPSERT_PERMISSION_SET,
         Mcp::Tools::DELETE_PERMISSION_SET, Mcp::Tools::GRANT_ABILITY, Mcp::Tools::REVOKE_GRANT,
-        Mcp::Tools::UPSERT_APPROVAL_RULE, Mcp::Tools::DELETE_APPROVAL_RULE, Mcp::Tools::SEARCH_APPROVALS,
+        Mcp::Tools::UPSERT_APPROVAL_RULE, Mcp::Tools::DELETE_APPROVAL_RULE, Mcp::Tools::LIST_UNATTENDED_RULES,
+        Mcp::Tools::UPSERT_UNATTENDED_RULE, Mcp::Tools::DELETE_UNATTENDED_RULE, Mcp::Tools::SEARCH_APPROVALS,
         Mcp::Tools::APPROVE_APPROVAL, Mcp::Tools::DENY_APPROVAL, Mcp::Tools::SEARCH_ACTIVITY
       ]
     ),

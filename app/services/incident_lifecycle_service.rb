@@ -64,14 +64,17 @@ class IncidentLifecycleService
     blocked_reason = incident.escalation_blocked_reason
     raise Incident::NotActive, blocked_reason if blocked_reason
 
+    target = escalation_target(escalated_to)
     event = incident.incident_events.create!(
       event_type: IncidentEvent::INCIDENT_ESCALATED,
       actor: changed_by,
-      metadata: escalation_target(escalated_to).to_metadata.merge(reason: reason)
+      metadata: target.to_metadata.merge(reason: reason)
     )
 
     IncidentEscalationWorkflow.start!(incident, context: { escalation_event_id: event.id })
     EscalationAcknowledgementReminderJob.set(wait: ESCALATION_ACK_WAIT).perform_later(incident.id, event.id)
+    # Whoever is paged is on call for the incident now, so requests already waiting there may need them.
+    OnCallApprovalsJob.perform_later(incident.id, target.member.id) if target.member
 
     event
   end

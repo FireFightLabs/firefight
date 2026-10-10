@@ -71,6 +71,7 @@ Rails.application.routes.draw do
           post :move_down
         end
       end
+      resources :unattended_rules, only: [ :index, :create, :update, :destroy ]
       resources :approvals, only: [ :index, :show ] do
         member do
           post :approve

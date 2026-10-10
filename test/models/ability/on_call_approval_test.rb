@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Ability::OnCallApprovalTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
   setup do
     @workspace = workspaces(:slack_workspace_one)
     @incident = incidents(:active_critical_ws1)
@@ -57,5 +58,29 @@ class Ability::OnCallApprovalTest < ActiveSupport::TestCase
     adapter.expects(:post_approval_request_to_user).with { |user_id:, **| user_id == @bob.platform_user_id }.returns(message_id: "1.2", channel_id: "D1")
 
     ApprovalNotificationService.post!(approval(on_call: true))
+  end
+
+  test "someone escalated to after a request was made is asked once, and never while an approver works the incident" do
+    adapter = mock
+    WorkspaceAdapter.stubs(:for).returns(adapter)
+    adapter.stubs(:post_approval_request).returns(message_id: "1.1", channel_id: "C1")
+    waiting = approval(on_call: true)
+    ApprovalNotificationService.post!(waiting)
+    adapter.expects(:post_approval_request_to_user).with { |user_id:, **| user_id == @bob.platform_user_id }.once.returns(message_id: "1.2", channel_id: "D1")
+
+    perform_enqueued_jobs(only: OnCallApprovalsJob) { escalate(@bob) }
+    perform_enqueued_jobs(only: OnCallApprovalsJob) { escalate(@bob) }
+
+    assert_equal [ @bob.id ], waiting.reload.asked_member_ids
+  end
+
+  test "someone escalated to while an approver leads the incident is not asked" do
+    WorkspaceAdapter.stubs(:for).returns(stub(post_approval_request: { message_id: "1.1", channel_id: "C1" }))
+    waiting = approval(on_call: true)
+    @incident.lead = @admin
+
+    perform_enqueued_jobs(only: OnCallApprovalsJob) { escalate(@bob) }
+
+    assert_empty waiting.reload.asked_member_ids
   end
 end

@@ -36,6 +36,8 @@ class CreateOnCallModule < ActiveRecord::Migration[8.1]
     change_table :ability_approvals, bulk: true do |t|
       t.references :approved_under_rule, type: :uuid, foreign_key: { to_table: :ability_unattended_rules, on_delete: :nullify }
       t.boolean :on_call_may_approve, null: false, default: false
+      # Members sent the request directly, so someone escalated to later is asked once and never twice.
+      t.jsonb :asked_member_ids, null: false, default: []
     end
   end
 end

@@ -1,0 +1,1 @@
+json.merge! @rule.payload

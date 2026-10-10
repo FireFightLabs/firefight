@@ -197,6 +197,15 @@ module Ability
       incident.on_call_members
     end
 
+    # Claims asking one member directly, in one statement, so a request is never sent to the same person twice.
+    def claim_ask!(member)
+      asked = [ member.id ].to_json
+      won = self.class.where(id: id).where.not("asked_member_ids @> ?::jsonb", asked)
+                      .update_all([ "asked_member_ids = asked_member_ids || ?::jsonb, updated_at = ?", asked, Time.current ])
+      reload
+      won == 1
+    end
+
     def on_call_approver?(principal)
       on_call_may_approve? && incident.present? && principal.is_a?(WorkspaceMembership) && incident.on_call_members.include?(principal)
     end
