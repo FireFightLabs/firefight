@@ -7,7 +7,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   # RubyLLM pauses the turn before a call that needs the person's decision.
-  def requires_approval? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name))
+  def requires_approval? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name)
 
   # A call shown to read runs without asking, since reads never wait. A call whose words name another connection is
   # refused rather than put to the person (Chat::Tools::Target).

@@ -17,7 +17,7 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
   AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.HELD_CALLS,
   AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
-  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS,
+  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS, AGENT_CHAT_PROPS.PLANS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
@@ -32,6 +32,8 @@ const WATCHES = [ AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES ]
 const PULL_REQUEST_NOTICES = [ AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES ]
 // Something contradicted a memory while Halon worked, so the chat asks which is right.
 const MEMORY_QUESTIONS = [ AGENT_CHAT_PROPS.MEMORY_QUESTIONS ]
+// A plan moves with every step Halon takes, and Retry or Undo start a turn, so the chat looks again.
+const PLANS = [ AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.CONVERSATION ]
 const RUNS = [ AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION ]
 const ARCHIVED_COUNT = [ AGENT_CHAT_PROPS.ARCHIVED_COUNT ]
 // Without preserveState Inertia remounts the page and the list loses its scroll.
@@ -136,6 +138,11 @@ export function fillSecretEntry(conversationId: string, entryId: string, value: 
   router.post(agentChatSecretEntryFillPath(conversationId, entryId), { secret_value: value }, { ...IN_PLACE, only: SECRET_ENTRIES, ...callbacks })
 }
 
+// Schedule, Cancel, Retry and Undo on a plan each post to their own path.
+export function sendPlanAction(path: string, callbacks: CardCallbacks) {
+  router.post(path, {}, { ...IN_PLACE, only: PLANS, ...callbacks })
+}
+
 export function stopWatch(conversationId: string, watchId: string, callbacks: CardCallbacks) {
   router.post(agentChatWatchStopPath(conversationId, watchId), {}, { ...IN_PLACE, only: WATCHES, ...callbacks })
 }
@@ -166,6 +173,10 @@ export function refreshSecretEntries() {
 
 export function refreshWatches() {
   router.reload({ only: WATCHES })
+}
+
+export function refreshPlans() {
+  router.reload({ only: PLANS })
 }
 
 export function refreshPullRequestNotices() {

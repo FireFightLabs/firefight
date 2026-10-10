@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react"
 
 import { AGENT_CARD_KINDS, AGENT_CHANNEL, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import {
-  refreshCharts, refreshHeldCalls, refreshMemoryQuestions, refreshOpenChat, refreshPackRefusals, refreshPullRequestNotices, refreshRuns, refreshSecretEntries,
+  refreshCharts, refreshHeldCalls, refreshMemoryQuestions, refreshOpenChat, refreshPackRefusals, refreshPlans, refreshPullRequestNotices, refreshRuns, refreshSecretEntries,
   refreshWatches,
 } from "@/pages/agent/lib/chat-updates"
 import { NOTHING_STREAMED, type StreamEvent, streamedSteps, streamedText, withEvent } from "@/pages/agent/lib/stream-order"
@@ -88,6 +88,10 @@ export function useAgentStream(conversationId: string | null, owed: boolean): Ag
           }
           if (event.type === AGENT_STREAM_EVENTS.PULL_REQUEST) {
             refreshPullRequestNotices()
+            return
+          }
+          if (event.type === AGENT_STREAM_EVENTS.PLAN) {
+            refreshPlans()
             return
           }
           if (event.type === AGENT_STREAM_EVENTS.MEMORY) {

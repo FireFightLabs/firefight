@@ -53,6 +53,10 @@ development:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
     schedule: every minute
+  chat_plan_sweep:
+    class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
+    queue: background
+    schedule: every minute
   pull_request_sweep:
     class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
     queue: background
@@ -163,6 +167,10 @@ staging:
     schedule: every minute
   watch_sweep:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
+    queue: background
+    schedule: every minute
+  chat_plan_sweep:
+    class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
     queue: background
     schedule: every minute
   pull_request_sweep:
@@ -301,6 +309,10 @@ production:
     schedule: every minute
   watch_sweep:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
+    queue: background
+    schedule: every minute
+  chat_plan_sweep:
+    class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
     queue: background
     schedule: every minute
   pull_request_sweep:

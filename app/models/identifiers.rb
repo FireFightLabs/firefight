@@ -189,6 +189,11 @@ module Identifiers
   CODE_PAUSE_STOP = "code_pause_stop"
   # Stop on a line a watch said in Slack. Anyone who may stop the watch may press it.
   WATCH_STOP = "watch_stop"
+  # Schedule, Cancel, Retry and Undo on a plan Halon keeps in a chat. Anyone who may press them on the dashboard may here.
+  CHAT_PLAN_SCHEDULE = "chat_plan_schedule"
+  CHAT_PLAN_CANCEL = "chat_plan_cancel"
+  CHAT_PLAN_RETRY = "chat_plan_retry"
+  CHAT_PLAN_UNDO = "chat_plan_undo"
   CODE_QUESTION_CHOOSE_IDS = (0...CodeAgentQuestion::MAX_OPTIONS).map { |index| "#{CODE_QUESTION_CHOOSE}_#{index}" }.freeze
 
   # Slack event types (top-level Events API)

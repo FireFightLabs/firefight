@@ -23,7 +23,7 @@ const BACK_LINK_CLASS = "mx-2 mt-2 flex w-fit items-center gap-1 rounded-control
 export default function AgentPage() {
   const {
     conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
-    compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, setupGuide,
+    compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans, setupGuide,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
@@ -105,6 +105,7 @@ export default function AgentPage() {
                   watchUpdates={watchUpdates}
                   pullRequestNotices={pullRequestNotices}
                   memoryQuestions={memoryQuestions}
+                  plans={plans}
                   waiting={waitingMessages}
                   stream={stream}
                 />

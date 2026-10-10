@@ -8,10 +8,14 @@ class Conversation::Runner
   # held_call is an approved call someone pressed Run on, which this turn runs first. handed_back is a watch step that
   # could not find what it followed, which this turn re-plans, reading only. pull_request_fix is a pull request notice
   # someone pressed Fix it on, whose code change this turn runs first. code_pause is a code change paused at its spending
-  # limit that someone pressed Continue on, which this turn carries on first.
-  def initialize(conversation, asker:, held_call: nil, handed_back: nil, pull_request_fix: nil, code_pause: nil)
+  # limit that someone pressed Continue on, which this turn carries on first. plan is a plan whose time came or that
+  # someone pressed Retry or Undo on, as plan_move says, which this turn carries out.
+  def initialize(conversation, asker:, held_call: nil, handed_back: nil, pull_request_fix: nil, code_pause: nil, plan: nil, plan_move: nil)
     @conversation = conversation
-    @turn = Conversation::Turn.new(conversation, asker: asker, reads_only: handed_back.present?)
+    approved = plan if plan_move == Conversation::Plans::MOVE_RUN
+    @turn = Conversation::Turn.new(conversation, asker: asker, reads_only: handed_back.present?, approved_plan: approved)
+    @plan = plan
+    @plan_move = plan_move
     @held_call = held_call
     @handed_back = handed_back
     @pull_request_fix = pull_request_fix
@@ -30,6 +34,7 @@ class Conversation::Runner
     run_held_call(chat) if @held_call
     run_pull_request_fix(chat) if @pull_request_fix
     run_code_pause(chat) if @code_pause
+    chat.nudge!(Conversation::Plans.note(@plan, @plan_move, @turn.asker)) if @plan && room_for_a_note?(chat)
     chat.nudge!(Conversation::Watches.hand_back_note(@handed_back)) if @handed_back&.hand_back_noted!
     # The turn before this one already answered what this job was queued for.
     if answered_already?(chat)
@@ -297,7 +302,7 @@ class Conversation::Runner
 
   # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
-    [ asker_line, incident_line, investigations_line, instructions_line, memories_line ].compact.join("\n")
+    [ asker_line, today_line, incident_line, investigations_line, instructions_line, memories_line, plans_line ].compact.join("\n")
   end
 
   def asker_line
@@ -305,6 +310,16 @@ class Conversation::Runner
     return "You are acting for nobody known, so every tool will refuse." unless asker
 
     "You are acting for #{asker.display_name}, whose role in this workspace is #{asker.role}. Owners and admins can change settings and permissions, members respond to incidents."
+  end
+
+  # The day only, so the prompt stays the same all day and the provider keeps reusing what it read. A plan's time is
+  # worked out from it.
+  def today_line = "Today is #{Time.current.utc.strftime('%A %-d %B %Y')} (UTC)."
+
+  # What Halon is carrying out in this chat, so a goal is never dropped between turns.
+  def plans_line
+    chat = @conversation.chat
+    chat && Conversation::Plans.for_halon(chat)
   end
 
   def incident_line

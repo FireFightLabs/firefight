@@ -553,6 +553,60 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120500) do
     t.index ["pack_request_id"], name: "index_chat_pack_refusals_on_pack_request_id"
   end
 
+  create_table "chat_plan_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "plan_id", null: false
+    t.integer "position", null: false
+    t.string "kind", null: false
+    t.text "description", null: false
+    t.string "place"
+    t.string "tool"
+    t.text "undo"
+    t.string "status", default: "not_started", null: false
+    t.text "note"
+    t.string "verdict"
+    t.jsonb "links", default: [], null: false
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["plan_id", "position"], name: "index_chat_plan_steps_on_plan_id_and_position", unique: true
+  end
+
+  create_table "chat_plans", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "made_by_type"
+    t.uuid "made_by_id"
+    t.text "goal", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "run_at"
+    t.string "time_zone"
+    t.uuid "approved_by_id"
+    t.datetime "approved_at"
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.text "stop_reason"
+    t.text "outcome"
+    t.text "next_step"
+    t.jsonb "links", default: [], null: false
+    t.text "state_now"
+    t.string "state_change"
+    t.datetime "state_checked_at"
+    t.uuid "undoes_id"
+    t.datetime "undo_requested_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "moved_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_chat_plans_on_approved_by_id"
+    t.index ["chat_id"], name: "index_chat_plans_on_chat_id"
+    t.index ["made_by_type", "made_by_id"], name: "index_chat_plans_on_made_by"
+    t.index ["status", "run_at"], name: "index_chat_plans_on_status_and_run_at"
+    t.index ["undoes_id"], name: "index_chat_plans_on_undoes_id"
+    t.index ["workspace_id"], name: "index_chat_plans_on_workspace_id"
+  end
+
   create_table "chat_queued_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "chat_id", null: false
     t.text "content", null: false
@@ -2666,6 +2720,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120500) do
   add_foreign_key "chat_messages", "chats"
   add_foreign_key "chat_pack_refusals", "ability_pack_requests", column: "pack_request_id", on_delete: :cascade
   add_foreign_key "chat_pack_refusals", "chats", on_delete: :cascade
+  add_foreign_key "chat_plan_steps", "chat_plans", column: "plan_id", on_delete: :cascade
+  add_foreign_key "chat_plans", "chat_plans", column: "undoes_id", on_delete: :nullify
+  add_foreign_key "chat_plans", "chats", on_delete: :cascade
+  add_foreign_key "chat_plans", "workspace_memberships", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "chat_plans", "workspaces", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "chats", on_delete: :cascade
   add_foreign_key "chat_queued_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_saved_results", "chats"

@@ -24,7 +24,12 @@ class Conversation::ToolsTest < ActiveSupport::TestCase
     names = Conversation::Tools.for(turn, offer: ->(_tools) { }).map(&:name)
 
     assert_equal [ "open_tools", "use_skill", "search_docs", "read_doc", "read_result", "start_investigation", "run_runbook", "start_watch", "repair_watch", "extend_watch",
-                   "stop_watch", "list_watches", "remember", "recall", "dispute_memory", "correct_memory", "search_web", "read_web_page" ], names
+                   "stop_watch", "list_watches", "make_plan", "update_plan", "finish_plan", "cancel_plan", "remember", "recall", "dispute_memory", "correct_memory",
+                   "search_web", "read_web_page" ], names
+  end
+
+  test "a plan's tools are never shown as steps, since the person sees the plan as its checklist" do
+    Conversation::Tools.plan_tool_names.each { |name| assert_nil Chat::Tools.step(name, {}) }
   end
 
   test "opening a group points at the skills with the steps for its tools, in a chat and in a run, since both hold use_skill" do

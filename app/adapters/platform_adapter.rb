@@ -643,6 +643,25 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A plan Halon keeps for a chat, as a checklist, in the chat's thread. plan is a Chat::Plan.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_chat_plan(channel_id:, thread_id:, plan:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same to the person a dashboard chat belongs to, once a plan has a time they approved. conversation_id is the
+  # chat, which the message offers to open.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_chat_plan_to_user(user_id:, plan:, conversation_id: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws it where it was posted as it moves. direct and conversation_id are as it was first sent with.
+  # @return [Hash] { success: true }
+  def update_chat_plan(channel_id:, message_id:, plan:, direct: false, conversation_id: nil)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A pull request Halon opened that needs attention, with why and Fix it, in the thread of the chat or run it came
   # from. notice is a CodeAgentSession::Notice.
   # @return [Hash] { message_id:, channel_id: }

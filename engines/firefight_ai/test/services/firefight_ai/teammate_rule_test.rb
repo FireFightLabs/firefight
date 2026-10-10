@@ -5,8 +5,7 @@ require "test_helper"
 # with nobody told.
 class FirefightAi::TeammateRuleTest < ActiveSupport::TestCase
   RULES = [
-    FirefightAi::TeammateRule::GOAL_RULE, FirefightAi::TeammateRule::NEXT_STEP_RULE, FirefightAi::TeammateRule::EVIDENCE_FIX_RULE,
-    FirefightAi::TeammateRule::PLAN_RULE, FirefightAi::TeammateRule::STARTED_RULE
+    FirefightAi::TeammateRule::NEXT_STEP_RULE, FirefightAi::TeammateRule::EVIDENCE_FIX_RULE, FirefightAi::TeammateRule::STARTED_RULE
   ].freeze
 
   test "a chat holds every teammate rule" do
@@ -20,14 +19,6 @@ class FirefightAi::TeammateRuleTest < ActiveSupport::TestCase
 
     assert_includes prompt, FirefightAi::TeammateRule::EVIDENCE_FIX_RULE
     assert_not_includes prompt, FirefightAi::TeammateRule::NEXT_STEP_RULE
-    assert_not_includes prompt, FirefightAi::TeammateRule::PLAN_RULE
-  end
-
-  test "the goal travels with a watch and every report says where things stand against it" do
-    rule = FirefightAi::TeammateRule::GOAL_RULE
-
-    assert_match "pass that goal to start_watch as purpose", rule
-    assert_match "in every report and the final one say where things stand against it", rule
   end
 
   test "every answer ends with the next step and an offer, and nothing changes without a yes" do
@@ -47,9 +38,7 @@ class FirefightAi::TeammateRuleTest < ActiveSupport::TestCase
     assert_match "never a fix to try", rule
   end
 
-  test "a plan across systems is said back first, and what Halon starts is watched and its failure told" do
-    assert_match "first say the plan in one short message", FirefightAi::TeammateRule::PLAN_RULE
-    assert_match "act once the person agrees", FirefightAi::TeammateRule::PLAN_RULE
+  test "what Halon starts is watched and its failure told" do
     assert_match "start a watch on it with its purpose", FirefightAi::TeammateRule::STARTED_RULE
     assert_match "when anything you started fails, say so with the reason", FirefightAi::TeammateRule::STARTED_RULE
   end

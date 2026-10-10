@@ -88,9 +88,13 @@ module FirefightAi
         - #{ContractRule::BRIEF_RULE}
         - #{FAILED_CHANGE_RULE}
         - #{PULL_REQUEST_CHANGE_RULE}
-        - #{TeammateRule::PLAN_RULE}
+        - #{PlanRule::PLAN_RULE}
+        - #{PlanRule::STEP_RULE}
+        - #{PlanRule::CHECK_RULE}
+        - #{PlanRule::FAILURE_RULE}
+        - #{PlanRule::REPORT_RULE}
+        - #{PlanRule::SCHEDULE_RULE}
         - #{TeammateRule::STARTED_RULE}
-        - #{TeammateRule::GOAL_RULE}
         - #{TeammateRule::EVIDENCE_FIX_RULE}
         - A parameter that says "one of" lists the only values that exist. Pick from it, never a name you assume. When several fit what the person said, ask which, naming them. A parameter that takes a person takes "me" for whoever asked you, so never ask them for their own email.
         - #{LookFirstRule::RULE}
