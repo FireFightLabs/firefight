@@ -46,7 +46,9 @@ class Investigation < ApplicationRecord
   TRIGGER_DASHBOARD = "dashboard"
   # Started to measure Halon, and seen by nobody in the workspace. See Investigation::Rehearsal.
   TRIGGER_REHEARSAL = "rehearsal"
-  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL ].freeze
+  # An alert opened the incident and nobody asked, so nobody may be watching (Investigation::AlertStart).
+  TRIGGER_ALERT = "alert"
+  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL, TRIGGER_ALERT ].freeze
 
   belongs_to :workspace
   # What the run is about. None for a question asked before anyone declared an incident, which is answered where it
@@ -119,6 +121,11 @@ class Investigation < ApplicationRecord
   def self.start_refusal(workspace, incident = nil)
     unavailable_reason(workspace) || incident&.investigation_blocked_reason
   end
+
+  def started_by_alert? = trigger_source == TRIGGER_ALERT
+
+  # Raised when a run names someone to page who cannot be paged, with words the agent can act on.
+  class PageRefused < StandardError; end
 
   def self.already_running_message(subject)
     "Already investigating #{subject.identifier}, I will post here when I have something."
@@ -389,7 +396,7 @@ class Investigation < ApplicationRecord
   # refused and nothing is written, so the agent fixes it before the run can end.
   # A run with no incident may say one is due, which its answer then offers to declare. A run on an incident has one.
   # A cause comes with how to fix it, whether or not anything here can apply it.
-  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false, fix: nil)
+  def conclude!(summary:, hypothesis_assertion: nil, evidence: [], gaps: nil, suggest_incident: false, fix: nil, page: nil)
     winner = hypotheses.find_by(assertion: hypothesis_assertion) if hypothesis_assertion.present?
     items = Array(evidence).map(&:to_h).map(&:symbolize_keys)
     raise Investigation::Evidence::Refused, "Naming a cause needs evidence behind it. Give each claim and the steps it rests on." if winner && items.empty?
@@ -398,11 +405,38 @@ class Investigation < ApplicationRecord
     cited = items.each_with_index.map { |item, index| [ item[:claim].to_s, cited_steps!(item[:steps], what: "Evidence #{index + 1}") ] }
 
     transaction do
-      finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps, suggests_incident: subject.nil? && suggest_incident == true)
+      finding = create_finding!(summary: summary, winning_hypothesis: winner, gaps: gaps, suggests_incident: subject.nil? && suggest_incident == true,
+                                page_member: page)
       cited.each_with_index { |(claim, sources), index| finding.add_evidence!(claim: claim, sources: sources, position: index + 1) }
       Investigation::RemediationPlan.propose!(finding, fix) if fix.present?
       finding
     end
+  end
+
+  # Who the run names as on call, checked before anything is recorded: only in a run an alert started on an incident,
+  # when the team lets Halon page, a member of this workspace, shown by steps the run took.
+  def page_to(page)
+    page = page.to_h.stringify_keys
+    raise PageRefused, "Leave page out. Halon pages only in a run an alert started, when the team turned paging on." unless pages_on_call?
+
+    cited_steps!(page["steps"], what: "Page")
+    workspace.workspace_memberships.resolve(page["person"].to_s.strip) ||
+      raise(PageRefused, "page names #{page['person'].inspect}, who is not a member of this workspace. Give the email of a member the " \
+                         "on-call tool named, or leave page out and say who in your answer.")
+  rescue Investigation::Evidence::Refused => refused
+    raise PageRefused, refused.message
+  end
+
+  def pages_on_call? = started_by_alert? && incident.present? && workspace.on_call_paging_enabled?
+
+  # Firefight paging someone on Halon's word is a call nobody asked for, so it is in the activity log as Halon's.
+  def record_paging!(member, &)
+    AbilityGateway.record_unattended!(
+      principal: acting_principal, workspace: workspace, params: { "escalated_to" => member.id },
+      action_key: Ability::Action.system_key(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_UPDATE),
+      context: { source: AbilityGateway::SOURCE_INVESTIGATION, incident_id: incident.id,
+                 triggered_by_label: "Paging whoever is on call for #{incident.identifier}" }, &
+    )
   end
 
   def finish!(status:, error_summary: nil)

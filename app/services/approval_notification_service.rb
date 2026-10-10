@@ -9,10 +9,14 @@ class ApprovalNotificationService
       deliver(approval) { adapter.post_approval_request(approval: approval, channel_id: workspace.incidents_channel_id) }
     end
 
-    if approval.notify_dm?
-      approval.human_approvers.select(&:platform_user_id).each do |approver|
-        deliver(approval) { adapter.post_approval_request_to_user(approval: approval, user_id: approver.platform_user_id) }
-      end
+    asked = approval.notify_dm? ? approval.human_approvers : []
+    asked.select(&:platform_user_id).each do |approver|
+      deliver(approval) { adapter.post_approval_request_to_user(approval: approval, user_id: approver.platform_user_id) }
+    end
+
+    # Nobody working the incident can decide, so whoever is on call for it is asked directly, once.
+    (approval.on_call_to_ask - asked).select(&:platform_user_id).each do |member|
+      deliver(approval) { adapter.post_approval_request_to_user(approval: approval, user_id: member.platform_user_id) }
     end
   end
 

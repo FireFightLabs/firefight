@@ -53,6 +53,11 @@ class ApprovalRuleSerializer < BaseSerializer
     requirement.fetch("agents_may_approve", false)
   end
 
+  type :boolean
+  def on_call
+    requirement.fetch(PolicyRule::ApprovalOutcome::ON_CALL, false)
+  end
+
   private
 
   def requirement

@@ -147,6 +147,8 @@ The settings screen edits the scope's *own* policy, never the inherited fallback
 
 **The advisory lock is what makes a storm produce one incident.** Two hundred same-signature alerts arriving simultaneously serialize through the lookup-then-create. `AlertGroup.signature_for` hashes the policy's `content_match_fields` (default `service`); the window defaults to `AlertGroup::DEFAULT_WINDOW_MINUTES` and is configurable from five minutes to seven days.
 
+An incident an alert opened can start Halon once its channel exists, when the workspace turned that on, within an hourly spending ceiling shared by every alert run. Grouping is what keeps it to one run per storm of the same signature. See docs/ai.md, On call.
+
 Incident creation goes through **`IncidentLifecycleService#create` with `source: Incident::SOURCE_ALERT` and `declared_by: nil`** — the same path `/ff declare` uses. Alerts are an entry point, not a second way to make an incident.
 
 Severity resolves as `outcome["severity_id"]` → `AlertSource#resolve_severity` (per-source static `severity_map`) → workspace default. A workspace with no default severity raises, which is correct: silently inventing one is worse.

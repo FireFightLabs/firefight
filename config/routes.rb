@@ -374,6 +374,9 @@ Rails.application.routes.draw do
     post "/code-agent-pauses/:id/continue", to: "code_agent_pauses#continue", as: :code_agent_pause_continue
     post "/code-agent-pauses/:id/stop", to: "code_agent_pauses#stop", as: :code_agent_pause_stop
     get "/halon/performance", to: "halon_performance#show", as: :halon_performance
+    get "/halon/on-call", to: "halon_on_call#show", as: :halon_on_call
+    patch "/halon/on-call", to: "halon_on_call#update"
+    resources :unattended_rules, only: [ :create, :update, :destroy ], path: "halon/on-call/rules"
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search

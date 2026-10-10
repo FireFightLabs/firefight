@@ -6,6 +6,7 @@ class Workspace < ApplicationRecord
   include Workspace::ChannelArchival
   include Workspace::Settings
   include Workspace::InvestigationLimits
+  include Workspace::OnCall
   include Workspace::CodeFixes
   include Workspace::SandboxPlacement
   include Workspace::IssueSync
@@ -20,6 +21,7 @@ class Workspace < ApplicationRecord
   # foreign keys to, memberships last because nearly every table names one.
   has_many :ability_invocations, class_name: "Ability::Invocation", dependent: :delete_all
   has_many :ability_approvals, class_name: "Ability::Approval", dependent: :destroy
+  has_many :unattended_rules, class_name: "Ability::UnattendedRule", dependent: :destroy
   has_many :ability_grants, class_name: "Ability::Grant", dependent: :destroy
   has_many :ai_model_overrides, dependent: :destroy
   # Its own model keys, tried in order before whatever the deployment pays with.

@@ -37,7 +37,7 @@ class AbilityApprovalSerializer < BaseSerializer
 
   type :string, optional: true
   def approver_name
-    approval.approver&.actor_display_name
+    approval.decider_name
   end
 
   # The connection a tool's action runs through, as a person tells it apart, such as "Production (Acme Cloud)".

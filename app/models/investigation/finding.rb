@@ -16,6 +16,8 @@ class Investigation::Finding < ApplicationRecord
   belongs_to :investigation
   belongs_to :winning_hypothesis, class_name: "Investigation::Hypothesis", optional: true
   belongs_to :outcome_by, polymorphic: true, optional: true
+  # Whoever a run an alert started found on call, whom Firefight pages with the answer (Investigation::Paging).
+  belongs_to :page_member, class_name: "WorkspaceMembership", optional: true
   scope :in_workspace, ->(workspace) {
     joins(:investigation).where(investigations: { workspace_id: workspace.id })
   }
@@ -64,6 +66,13 @@ class Investigation::Finding < ApplicationRecord
     return nil unless member.is_a?(WorkspaceMembership)
 
     verdicts.find { |verdict| verdict.member_id == member.id }&.outcome
+  end
+
+  # Claims the one page, so a retried job never pages twice.
+  def claim_page!
+    won = self.class.where(id: id, paged_at: nil).where.not(page_member_id: nil).update_all(paged_at: Time.current, updated_at: Time.current)
+    reload
+    won == 1
   end
 
   def add_evidence!(claim:, sources:, position:)

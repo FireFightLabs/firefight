@@ -111,7 +111,7 @@ class Investigation::Delivery
 
   def thread_id = @investigation.thread_id
 
-  def started_by = @investigation.triggered_by.try(:display_name)
+  def started_by = @investigation.started_by_alert? ? "the alert that opened this incident" : @investigation.triggered_by.try(:display_name)
 
   def platform_user_id = @investigation.triggered_by.try(:platform_user_id)
 end

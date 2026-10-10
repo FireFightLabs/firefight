@@ -38,12 +38,13 @@ module Slack
       end
 
       def self.approvers_line(approval)
-        return "*Requires:* workspace #{approval.required_role}" unless approval.named_approvers?
+        on_call = " or whoever is on call for #{approval.incident.identifier}" if approval.on_call_may_approve? && approval.incident
+        return "*Requires:* workspace #{approval.required_role}#{on_call}" unless approval.named_approvers?
 
         mentions = approval.approvers.map do |approver|
           approver.actor_kind == Ability::Principal::KIND_USER ? Slack::Mrkdwn.mention(approver) : "*#{Slack::Mrkdwn.escape(approver.actor_display_name)}* (agent)"
         end
-        "*Approvers:* #{mentions.join(', ')}"
+        "*Approvers:* #{mentions.join(', ')}#{on_call}"
       end
     end
   end

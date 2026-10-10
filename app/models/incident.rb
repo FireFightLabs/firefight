@@ -157,6 +157,17 @@ class Incident < ApplicationRecord
     terminal_blocked_reason("it can no longer be escalated") || channelless_blocked_reason("ask anyone")
   end
 
+  # Who is on call for this incident: the members it was escalated to, most recent first. Escalating is how a person is
+  # paged here, whether a responder, Halon or an outside agent did it.
+  def on_call_members
+    ids = incident_events.where(event_type: IncidentEvent::INCIDENT_ESCALATED).order(created_at: :desc)
+                         .filter_map { |event| event.metadata.to_h["escalated_to_member_id"] }.uniq
+    workspace.workspace_memberships.where(id: ids).index_by(&:id).values_at(*ids).compact
+  end
+
+  # Who is working the incident: whoever holds one of its roles, the lead included.
+  def participants = assigned_members.to_a.uniq
+
   def invite_blocked_reason
     terminal_blocked_reason("nobody else can be brought into it") || channelless_blocked_reason("bring people into")
   end

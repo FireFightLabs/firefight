@@ -21,6 +21,7 @@ module Mcp
             description: "Who may decide, as [{\"kind\": \"user\", \"id\": \"...\"}] with kind and id from list_principals"
           },
           agents_may_approve: { type: "boolean", description: "Let a named agent or service key decide this rule (default false)" },
+          on_call: { type: "boolean", description: "Let whoever is on call for the incident decide too, meaning the members it was escalated to, and ask them when none of the approvers is working the incident (default false)" },
           notify: { type: "string", description: "channel, dm or both" },
           self_approval: { type: "boolean", description: "Whether the requester may approve their own request (default true)" },
           enabled: { type: "boolean", description: "Switch the rule off without deleting it" },

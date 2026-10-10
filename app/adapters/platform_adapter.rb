@@ -490,6 +490,21 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # What Halon did about a fix an unattended rule covers: that it applied it on its own, under which rule, what it read
+  # and how to undo it, or why it did not act. In the thread when one is given, else in the channel.
+  # @param note [Investigation::Unattended::Note]
+  # @return [Hash] { message_id:, channel_id: }
+  def post_unattended_note(channel_id:, thread_id:, note:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Says in an incident's channel that Halon did not start on the alert that opened it, and why. rerun offers a way to
+  # start it by hand, for a reason that a person starting it gets past, such as the hour's spending ceiling.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_alert_run_held(channel_id:, incident:, reason:, rerun:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # Asks an incident's channel to decide on memories, each with the actions its state allows, in a thread when given.
   # post is a MemoryPostService::Shown.
   # @return [Hash] { message_id:, channel_id: }

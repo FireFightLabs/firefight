@@ -21,8 +21,9 @@ module Mcp
                   "how many days they are kept, how long after an incident ends its channel is " \
                   "archived, whether Halon may search and read the public web, whether Firefight may test Halon on answers the team rated, " \
                   "how many days an unconfirmed memory is used before it expires, " \
-                  "which connected coding agent writes a fix's code changes, and which issue tracker incident items are kept in step " \
-                  "with and when a new item gets an issue there. Give only the settings to change. Read the current values with " \
+                  "which connected coding agent writes a fix's code changes, which issue tracker incident items are kept in step " \
+                  "with and when a new item gets an issue there, whether an alert that opens an incident starts Halon and how much " \
+                  "those runs may spend in an hour, and whether Halon pages whoever is on call with what it found. Give only the settings to change. Read the current values with " \
                   "get_workspace_config. Only a workspace admin may call this. Docs: #{Docs::MCP_SERVER}"
       # Workspace wide and made rarely, so a chat asks before any of them.
       annotations(**DESTRUCTIVE)
@@ -38,7 +39,11 @@ module Mcp
           issue_tracker: { type: [ "string", "null" ], description: "The connection slug of a connected issue tracker whose issues incident items are kept in step with: title, status and assignee, both ways. null for none" },
           issue_creation: { type: "string", enum: Workspace::IssueSync::ISSUE_CREATIONS, description: "When a new item gets an issue in that tracker. #{ISSUE_CREATION_CHOICES}" },
           issue_tracker_target: { type: "object", additionalProperties: { type: "string" }, description: "Where new issues go, by the chosen tracker's own fields. Replaces what was saved. #{ISSUE_TARGETS}" },
-          issue_webhook_secret: { type: "string", description: "The signing secret of the tracker's webhook that sends its changes to Firefight, as the tracker shows it. Never read back" }
+          issue_webhook_secret: { type: "string", description: "The signing secret of the tracker's webhook that sends its changes to Firefight, as the tracker shows it. Never read back" },
+          alert_investigations_enabled: { type: "boolean", description: "Whether an alert that opens an incident starts Halon on it, once per alert group. Off by default" },
+          alert_storm_ceiling_cents: { type: "integer", minimum: Workspace::OnCall::MIN_ALERT_RUN_CENTS, maximum: Workspace::OnCall::MAX_STORM_CEILING_CENTS,
+                                       description: "How much, in cents, the runs alerts start may spend together in any hour. Past it, an alert opens its incident without starting Halon" },
+          on_call_paging_enabled: { type: "boolean", description: "Whether Halon, in a run an alert started, escalates the incident to whoever it found on call, with what it found. Off by default" }
         }
       )
 

@@ -26,6 +26,7 @@ export interface ApprovalRuleFormData {
   approverChoice: ApproverChoice
   approvers: ApproverReference[]
   agentsMayApprove: boolean
+  onCall: boolean
   notify: ApprovalNotifyOption
   selfApproval: boolean
 }
@@ -73,6 +74,7 @@ export function approvalRuleFormData(rule: ApprovalRule | null): ApprovalRuleFor
     approverChoice: rule && rule.approvers.length > 0 ? "named" : role,
     approvers: rule?.approvers ?? [],
     agentsMayApprove: rule?.agentsMayApprove ?? false,
+    onCall: rule?.onCall ?? false,
     notify: rule?.notify ?? "channel",
     selfApproval: rule?.selfApproval ?? true,
   }
@@ -92,6 +94,7 @@ export function approvalRulePayload(data: ApprovalRuleFormData) {
       approver_role: named ? "admin" : data.approverChoice,
       approvers: named ? data.approvers : [],
       agents_may_approve: named && hasMachineApprover(data.approvers) ? data.agentsMayApprove : false,
+      on_call: data.onCall,
       notify: data.notify,
       self_approval: data.selfApproval,
     },
@@ -130,9 +133,13 @@ export function describeApprovers(rule: ApprovalRule, principals: Principal[]): 
     const names = rule.approvers.map(
       (approver) => principals.find((principal) => principal.kind === approver.kind && principal.id === approver.id)?.name ?? "a former member",
     )
-    return listOf(names)
+    return withOnCall(listOf(names), rule)
   }
-  return isApproverRole(rule.role) ? ROLE_LABELS[rule.role].toLowerCase() : rule.role
+  return withOnCall(isApproverRole(rule.role) ? ROLE_LABELS[rule.role].toLowerCase() : rule.role, rule)
+}
+
+function withOnCall(approvers: string, rule: ApprovalRule): string {
+  return rule.onCall ? `${approvers}, or whoever is on call for the incident` : approvers
 }
 
 // Environments are ignored on purpose. A rule scoped to production still marks

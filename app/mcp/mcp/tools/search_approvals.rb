@@ -42,8 +42,9 @@ module Mcp
           self_approvable: approval.self_approvable,
           approvers: Ability::Principal.references(approval.approver_ids),
           agents_may_approve: approval.agents_may_approve,
+          on_call_may_approve: approval.on_call_may_approve,
           status: approval.status,
-          approver: approval.approver&.actor_display_name,
+          approver: approval.decider_name,
           requested_at: approval.created_at.iso8601,
           resolved_at: approval.resolved_at&.iso8601
         }.compact
