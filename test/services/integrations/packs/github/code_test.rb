@@ -117,7 +117,8 @@ module Integrations
                          commands: [ "bin/rails db:prepare" ], source: ".github/workflows/ci.yml, job test")
           CodeReading.any_instance.expects(:prepare).with("acme/app", ref: nil, setup: setup.for_box).returns(
             "already" => false, "restored" => true, "prepared" => [ { "file" => "Gemfile.lock", "command" => "bundle install", "exit_code" => 0, "output" => "" } ],
-            "setup" => [ { "command" => "bin/rails db:prepare", "exit_code" => 0, "output" => "" } ], "left_out" => [ "mysql" ]
+            "setup" => [ { "command" => "bin/rails db:prepare", "exit_code" => 0, "output" => "" } ], "left_out" => [ "mysql", "postgres" ],
+            "left_out_why" => { "postgres" => "pulling postgres:16 failed: toomanyrequests." }
           )
           CodeReading.any_instance.expects(:exec).with(
             "acme/app", ref: nil, where: Sandboxes::Client::IN_COPY, argv: [ "sh", "-c", "bin/rails test" ], services: nil, setup: setup.for_box, timeout: Code::TESTS_TIMEOUT
@@ -128,6 +129,7 @@ module Integrations
           assert_match "Started from what an earlier copy with the same lockfiles and setup installed.", text
           assert_match "Set up as .github/workflows/ci.yml, job test says:\nbin/rails db:prepare exited 0", text
           assert_match "The sandbox cannot start mysql, so the setup ran without it.", text
+          assert_match "postgres could not start: pulling postgres:16 failed: toomanyrequests. The setup ran without it.", text
         end
 
         test "tests in a copy prepared before still say which Postgres extension the CI's image names that the sandbox lacks" do

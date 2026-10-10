@@ -100,7 +100,9 @@ class Conversation < ApplicationRecord
   def memory_brief = nil
 
   # One box for the whole conversation, so a follow up question reads code it already has.
-  def code_box_key = "conversation-#{id}"
+  CODE_BOX_PREFIX = "conversation-".freeze
+
+  def code_box_key = "#{CODE_BOX_PREFIX}#{id}"
 
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.

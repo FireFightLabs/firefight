@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_09_150400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -845,6 +845,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
     t.datetime "stopped_at"
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "size"
+    t.bigint "hourly_micros"
+    t.integer "running_seconds", default: 0, null: false
+    t.datetime "box_started_at"
+    t.string "failed_over_from"
+    t.text "failover_reason"
+    t.text "address_query"
+    t.index ["created_at"], name: "index_code_boxes_failovers", where: "(failed_over_from IS NOT NULL)"
     t.index ["key"], name: "index_code_boxes_on_open_key", unique: true, where: "(stopped_at IS NULL)"
     t.index ["last_used_at"], name: "index_code_boxes_on_open_last_used", where: "(stopped_at IS NULL)"
     t.index ["workspace_id"], name: "index_code_boxes_on_workspace_id"
@@ -1779,6 +1787,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
     t.index ["user_id"], name: "index_operator_credentials_on_user_id", unique: true
   end
 
+  create_table "operator_sandbox_actions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "action", null: false
+    t.string "provider", null: false
+    t.string "kind", null: false
+    t.string "ref", null: false
+    t.string "operator", null: false
+    t.text "outcome"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_operator_sandbox_actions_on_created_at"
+  end
+
   create_table "platform_call_failures", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "channel_id"
     t.datetime "created_at", null: false
@@ -1865,8 +1885,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
     t.string "repository", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
+    t.string "kept_in", default: "archive", null: false
+    t.string "kept_ref"
+    t.string "commit"
     t.index ["last_used_at"], name: "index_prepared_copies_on_last_used_at"
-    t.index ["workspace_id", "repository", "install_key"], name: "index_prepared_copies_on_workspace_repository_key", unique: true
+    t.index ["workspace_id", "repository", "install_key", "kept_in"], name: "index_prepared_copies_on_workspace_repository_key", unique: true
   end
 
   create_table "prompt_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -1927,6 +1950,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
     t.datetime "updated_at", null: false
     t.index ["key"], name: "index_provider_doc_sources_on_key", unique: true
     t.index ["provider"], name: "index_provider_doc_sources_on_provider"
+  end
+
+  create_table "provider_sandboxes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "kind", null: false
+    t.string "purpose"
+    t.string "ref", null: false
+    t.string "name"
+    t.string "state"
+    t.string "phase"
+    t.string "size"
+    t.datetime "started_at"
+    t.datetime "provider_updated_at"
+    t.bigint "byte_size"
+    t.bigint "monthly_micros"
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "gone_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gone_at"], name: "index_provider_sandboxes_on_gone_at"
+    t.index ["provider", "kind", "ref"], name: "index_provider_sandboxes_on_provider_and_kind_and_ref", unique: true
   end
 
   create_table "repository_setups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2223,6 +2268,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
     t.uuid "workspace_id", null: false
     t.index ["workspace_id", "slug"], name: "index_runbooks_on_workspace_id_and_slug_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["workspace_id"], name: "index_runbooks_on_workspace_id"
+  end
+
+  create_table "sandbox_provider_reads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "provider", null: false
+    t.datetime "read_at", null: false
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider"], name: "index_sandbox_provider_reads_on_provider", unique: true
   end
 
   create_table "search_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2522,6 +2576,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_143200) do
     t.string "issue_webhook_token"
     t.integer "memory_expiry_days"
     t.uuid "created_by_id"
+    t.string "sandbox_provider"
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true

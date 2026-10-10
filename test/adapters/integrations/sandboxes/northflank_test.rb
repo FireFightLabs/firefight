@@ -87,6 +87,17 @@ module Integrations
         assert_equal [ "halon-box-1" ], Northflank.new.running.map(&:ref)
       end
 
+      test "what Northflank holds is listed with its deployment state in one vocabulary" do
+        Http.stubs(:request).returns(response(200, { "data" => { "services" => [
+          { "id" => "halon-box-1", "name" => "halon-box-1", "createdAt" => "2026-09-24T10:00:00Z", "status" => { "deployment" => { "status" => "FAILED" } } },
+          { "id" => "web", "name" => "web", "createdAt" => "2026-09-01T10:00:00Z", "status" => { "deployment" => { "status" => "COMPLETED" } } }
+        ] } }))
+
+        held = Northflank.new.inventory
+
+        assert_equal [ [ "halon-box-1", "FAILED", ProviderSandbox::PHASE_FAILED ] ], held.map { |box| [ box.ref, box.state, box.phase ] }
+      end
+
       test "without a project to put boxes in it says which setting is missing" do
         ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_PROJECT").returns(nil)
 

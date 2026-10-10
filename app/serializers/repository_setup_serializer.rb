@@ -31,7 +31,8 @@ class RepositorySetupSerializer < BaseSerializer
   type :string, optional: true
   def edited_at = setup.edited_at&.utc&.iso8601
 
-  # The services the sandbox cannot start, which it leaves out when it prepares the repository.
+  # The services the sandbox cannot start, which it leaves out when it prepares the repository. Where the workspace's
+  # boxes run containers, a service with an image starts from it.
   type "string[]"
-  def unstartable_services = setup.unstartable_services
+  def unstartable_services = setup.unstartable_services(images: SandboxProviders.runs_images?(setup.workspace))
 end

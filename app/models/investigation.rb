@@ -263,8 +263,10 @@ class Investigation < ApplicationRecord
   # A run keeps its own chat with the model.
   def chat_owner = self
 
+  CODE_BOX_PREFIX = "investigation-".freeze
+
   # Every tool that reads code in this run reads it in the same box.
-  def code_box_key = "investigation-#{id}"
+  def code_box_key = "#{CODE_BOX_PREFIX}#{id}"
 
   # Where a run stands, from its own records, for a chat that is starting again with room to think.
   def memory_brief

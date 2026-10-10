@@ -7,6 +7,8 @@ class CodeAgentSession < ApplicationRecord
 
   # A coding agent asks the model many times on one change, so the budget covers the change, not a call.
   DEFAULT_BUDGET_MICROS = 2_000_000
+  # The key of a box opened for a session that no run holds.
+  CODE_BOX_PREFIX = "code-agent-".freeze
   LIFETIME = 30.minutes
   TOKEN_BYTES = 32
   FEATURE = "code_fix".freeze

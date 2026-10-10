@@ -54,6 +54,7 @@ class RepositorySetupTest < ActiveSupport::TestCase
     assert_equal ".github/workflows/ci.yml, job test", @setup.derived_from
     assert_equal [ "Left out 2 steps after the tests." ], @setup.notes
     assert_equal [ "mysql" ], @setup.unstartable_services
+    assert_empty @setup.unstartable_services(images: true), "a sandbox that runs containers starts every service from its image"
     refute_equal before, @setup.digest
     assert_equal @setup.digest, RepositorySetup.find(@setup.id).digest
   end

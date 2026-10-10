@@ -3,19 +3,19 @@ module Integrations
     # Boxes as Northflank services, each a microVM, reached over Northflank's private network. In the app's own project a
     # box is reached by its service id. In a project of their own, which allows ingress from the app's project, it is
     # reached by its service id and that project's namespace.
-    class Northflank
+    class Northflank < Provider
       API_ROOT = "https://api.northflank.com/v1".freeze
       PORT = 8080
       DEFAULT_PLAN = "nf-compute-100-2".freeze
       # Megabytes. Repositories, their dependencies and a database for their tests share it.
       DEFAULT_STORAGE = 16_384
 
-      def start(name:)
+      def start(name:, **)
         host_suffix = separate_project? ? ".#{ingress_namespace}" : ""
         key = SecureRandom.hex(32)
         created = request(Net::HTTP::Post, "/projects/#{project}/services/deployment", {
           name: name, description: "Firefight code sandbox",
-          billing: { deploymentPlan: ENV["NORTHFLANK_SANDBOX_PLAN"].presence || DEFAULT_PLAN },
+          billing: { deploymentPlan: size },
           deployment: {
             instances: 1, docker: { configType: "default" }, external: { imagePath: Sandboxes.image },
             storage: { ephemeralStorage: { storageSize: Integer(ENV["NORTHFLANK_SANDBOX_STORAGE"].presence || DEFAULT_STORAGE) } }
@@ -35,16 +35,39 @@ module Integrations
         raise unless error.message.include?("404")
       end
 
-      def running
-        services = request(Net::HTTP::Get, "/projects/#{project}/services?per_page=100").dig("data", "services").to_a
-        services.filter_map do |service|
-          next unless service["name"].to_s.start_with?(NAME_PREFIX)
+      def running = boxes.map { |service| Running.new(ref: service["id"], started_at: Time.zone.parse(service["createdAt"].to_s)) }
 
-          Running.new(ref: service["id"], started_at: Time.zone.parse(service["createdAt"].to_s))
+      PHASES = { "PENDING" => ProviderSandbox::PHASE_STARTING, "IN_PROGRESS" => ProviderSandbox::PHASE_STARTING,
+                 "COMPLETED" => ProviderSandbox::PHASE_RUNNING, "FAILED" => ProviderSandbox::PHASE_FAILED }.freeze
+
+      # Northflank lists a service's deployment state under status.deployment.status (docs/v1/api/services/list-services).
+      def inventory
+        boxes.map do |service|
+          state = service.dig("status", "deployment", "status")
+          Held.new(kind: ProviderSandbox::KIND_BOX, ref: service["id"], name: service["name"], state: state, phase: PHASES[state],
+                   size: size, started_at: (Time.zone.parse(service["createdAt"].to_s) if service["createdAt"]))
         end
       end
 
+      def size = ENV["NORTHFLANK_SANDBOX_PLAN"].presence || DEFAULT_PLAN
+
+      # The plan's amountPerHour from Northflank's GET /v1/plans. A price that cannot be read leaves the box unpriced
+      # rather than stopping it.
+      def hourly_micros
+        plan = request(Net::HTTP::Get, "/plans").dig("data", "plans").to_a.find { |each| each["id"] == size }
+        plan && (plan["amountPerHour"].to_f * 1_000_000).round
+      rescue Error => error
+        Rails.logger.warn({ event: "code_box.price_unread", provider: SandboxProviders::NORTHFLANK, error: error.message }.to_json)
+        nil
+      end
+
       private
+
+      # Only services named like a box, so the app's own services in a shared project are never listed.
+      def boxes
+        services = request(Net::HTTP::Get, "/projects/#{project}/services?per_page=100").dig("data", "services").to_a
+        services.select { |service| service["name"].to_s.start_with?(NAME_PREFIX) }
+      end
 
       def project = ENV["NORTHFLANK_SANDBOX_PROJECT"].presence || raise(Error, "NORTHFLANK_SANDBOX_PROJECT is not set.")
 

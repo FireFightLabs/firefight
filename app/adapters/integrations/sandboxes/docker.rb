@@ -4,19 +4,19 @@ module Integrations
     # Engine API over the daemon's socket, so the app image needs no docker command. A box joins SANDBOX_DOCKER_NETWORK
     # and is reached by name when the app runs in a container on that network, and is published on the host's
     # loopback otherwise.
-    class Docker
+    class Docker < Provider
       LABEL = "firefight.sandbox".freeze
       PORT = "8080/tcp".freeze
       API_VERSION = "v1.43".freeze
       DEFAULT_SOCKET = "/var/run/docker.sock".freeze
 
-      def start(name:)
+      def start(name:, **)
         key = SecureRandom.hex(32)
         created = request(Net::HTTP::Post, "/containers/create?#{{ name: name }.to_query}", {
           Image: Sandboxes.image, Env: [ "SANDBOX_KEY=#{key}" ], Labels: { LABEL => "1" }, ExposedPorts: { PORT => {} },
           HostConfig: {
             NetworkMode: network, PortBindings: network ? {} : { PORT => [ { HostIp: "127.0.0.1", HostPort: "" } ] },
-            NanoCpus: (Float(ENV["SANDBOX_CPUS"].presence || "2") * 1_000_000_000).to_i,
+            NanoCpus: (cpus * 1_000_000_000).to_i,
             Memory: memory_bytes, AutoRemove: false
           }.compact
         })
@@ -38,12 +38,33 @@ module Integrations
         end
       end
 
+      PHASES = {
+        "created" => ProviderSandbox::PHASE_STARTING, "restarting" => ProviderSandbox::PHASE_STARTING, "running" => ProviderSandbox::PHASE_RUNNING,
+        "removing" => ProviderSandbox::PHASE_STOPPING, "paused" => ProviderSandbox::PHASE_STOPPED, "exited" => ProviderSandbox::PHASE_STOPPED,
+        "dead" => ProviderSandbox::PHASE_FAILED
+      }.freeze
+
+      # Every container with Firefight's label, stopped ones too, which a box that crashed leaves behind.
+      def inventory
+        filters = { label: [ "#{LABEL}=1" ] }.to_json
+        request(Net::HTTP::Get, "/containers/json?#{{ all: true, filters: filters }.to_query}").map do |container|
+          Held.new(kind: ProviderSandbox::KIND_BOX, ref: container["Id"], name: Array(container["Names"]).first.to_s.delete_prefix("/"),
+                   state: container["State"], phase: PHASES[container["State"]], size: size, started_at: Time.zone.at(container["Created"].to_i))
+        end
+      end
+
+      def size = "#{cpus.to_s.delete_suffix('.0')} CPU, #{memory_text}"
+
       private
+
+      def cpus = Float(ENV["SANDBOX_CPUS"].presence || "2")
+
+      def memory_text = (ENV["SANDBOX_MEMORY"].presence || "4g").downcase
 
       def network = ENV["SANDBOX_DOCKER_NETWORK"].presence
 
       def memory_bytes
-        text = (ENV["SANDBOX_MEMORY"].presence || "4g").downcase
+        text = memory_text
         number = text.to_f
         multiplier = { "g" => 1024**3, "m" => 1024**2, "k" => 1024 }.fetch(text[-1], 1)
         (number * multiplier).to_i
@@ -76,7 +97,7 @@ module Integrations
         end
         parse(response)
       rescue Errno::ENOENT, Errno::EACCES, Errno::ECONNREFUSED => error
-        raise Error, "SANDBOX_PROVIDER is docker, but the Docker daemon at #{socket_path} cannot be reached (#{error.class.name.demodulize})."
+        raise Error, "The sandbox provider is docker, but the Docker daemon at #{socket_path} cannot be reached (#{error.class.name.demodulize})."
       end
 
       def parse(response)

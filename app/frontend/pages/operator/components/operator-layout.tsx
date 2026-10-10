@@ -1,6 +1,8 @@
 import { Head, Link, router, usePage } from "@inertiajs/react"
 import {
   IconArrowLeft,
+  IconBuildingCommunity,
+  IconBox,
   IconFlame,
   IconHierarchy2,
   IconLayoutDashboard,
@@ -26,6 +28,8 @@ import {
   operatorJobsPath,
   operatorRootPath,
   operatorWorkflowsPath,
+  operatorSandboxesPath,
+  operatorWorkspacesPath,
 } from "@/lib/routes"
 import { FindBox } from "@/pages/operator/components/find-box"
 import { NavLink, type NavItem } from "@/pages/operator/components/nav-link"
@@ -45,6 +49,13 @@ const SECTIONS: NavSection[] = [
       { title: "Incidents", href: operatorIncidentsPath(), icon: IconFlame },
       { title: "Workflows", href: operatorWorkflowsPath(), icon: IconHierarchy2 },
       { title: "Jobs", href: operatorJobsPath(), icon: IconStack2, external: true },
+    ],
+  },
+  {
+    title: "Deployment",
+    items: [
+      { title: "Workspaces", href: operatorWorkspacesPath(), icon: IconBuildingCommunity },
+      { title: "Sandboxes", href: operatorSandboxesPath(), icon: IconBox },
     ],
   },
   {

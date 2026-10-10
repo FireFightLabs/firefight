@@ -314,9 +314,11 @@ module Integrations
 
         # A copy prepared before says only what its tests cannot reach.
         def preparation(prepared, setup = nil)
-          left_out = Array(prepared["left_out"])
+          why = prepared["left_out_why"].to_h
+          left_out = Array(prepared["left_out"]) - why.keys
           lacking = [
             ("The sandbox cannot start #{left_out.to_sentence}, so the setup ran without #{left_out.one? ? 'it' : 'them'}." if left_out.any?),
+            *why.map { |name, reason| Sentence.join("#{name} could not start", reason, after: "The setup ran without it") },
             *Array(prepared["missing_extensions"]).map do |missing|
               "The sandbox's Postgres does not have the #{missing['extension']} extension #{CodeReading.extension_named_by(missing)} names, so tests that need it could not run here."
             end
