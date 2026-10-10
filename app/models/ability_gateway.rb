@@ -230,11 +230,11 @@ class AbilityGateway
     raise PendingApproval.new(approval)
   end
 
-  # A read never waits on an approval rule, so a call shown to read through a tool that can also change things is never
-  # held, whatever rule names the tool. Every change keeps every rule.
+  # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,
+  # or a call shown to read through a tool that can also change things. Every change keeps every rule.
   def self.approval_requirement(workspace, action, action_key, scope, context, params: nil)
     return nil if Ability::Action.approval_exempt?(action_key)
-    return nil if action.read_through_guard?(params)
+    return nil if action.risk_of(params) == Ability::Action::RISK_READ
 
     policy = workspace.approval_policy
     return nil unless policy&.enabled?

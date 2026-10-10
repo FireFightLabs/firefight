@@ -39,9 +39,11 @@ Block form wraps execution. Handle form returns an `Authorization` the caller fi
 A general tool, such as Northflank's `api_request` or Cloudflare's `execute`, both reads and changes. One action is minted for it, filed as a change. A call its provider's read guard proves reads (`Integrations::ReadGuards.read_call?`, `Integration::Tool#reads_call?`, `Ability::Action#read_through_guard?(params)`) is treated as a read everywhere, decided by the gateway from the call's own params so no caller can claim it:
 
 - **Permission.** `AbilityGateway.permitted?` lets it through when the principal may read the connection: a member by default (`WorkspaceMembership#implicitly_allowed?(action, resolved, reads: true)`), narrowed or taken away by a grant or No access on the connection's read pack, and a service key, an agent or the investigator by a grant of the read pack. The resolver lists a read pack grant under `Ability::Role.reads_key(integration_id)` beside the action keys it holds. `Integration::Tool#callable_by?` offers the tool to whoever may read through it. A change through it still needs a grant of the action, usually the changes pack.
-- **Approval rules.** `AbilityGateway.approval_requirement(..., params:)` returns nil for it, so no rule holds it, whatever the rule names. `Chat::ToolCall.held_by_rule?` takes the params for the same reason, so a watch reads through it too.
+- **Approval rules.** `AbilityGateway.approval_requirement(..., params:)` returns nil for every read (`Ability::Action#risk_of`), so no rule holds it, whatever the rule names. This covers a tool that only reads and Firefight's own reads too. `Chat::ToolCall.held_by_rule?` takes the params for the same reason, so a watch reads through it too.
 - **Confirmation.** `Chat::Tools::Connection#approval_resolver` runs it without asking. The tool still asks for an intent, since its changes are confirmed.
 - **Display and ledger.** `Chat::Tools.kind(name, workspace, arguments)` shows it as a read, and the activity log records it with risk `read` (`Ability::Action#risk_of`).
+
+An investigation reaches these reads by design: the investigator is granted each connection's read pack when it is made, so it reads through a general tool the way it reads any other tool, and the guard's `reading` keeps every call it makes a read.
 
 A provider whose tools mix the two plugs in by naming a read guard. Nothing else changes.
 
@@ -475,6 +477,7 @@ The agent never connects anything. `list_integrations` says what a category hold
 
 ## Approvals
 
+- **A read never waits.** No rule holds a read, whether a tool that only reads, Firefight's own read, or a call a read guard shows to read (Reads through a general tool). A rule that names the read risk level or an ability that only reads is refused on save with why (`PolicyRule::ApprovalConditions.errors_for`), the rule dialog offers only write and destructive and only abilities a rule can hold (`Ability::Action#never_held?`, shipped as `approvalExempt`), and nothing marks a read as waiting. A rule saved before this keeps saving and holds only the changes it names.
 - `Policy::DOMAIN_APPROVALS` on the existing rule engine, matched over `{action_key, risk_level, reversible, environment, severity}`. Nothing sets `severity` in the context yet, so a rule on it never matches.
 - One workspace-wide policy (`Workspace#approval_policy`), created by the first rule (`find_or_create_approval_policy!`). No policy means nothing waits, which is the default.
 - Rules are written from Gateway → Permissions (`ApprovalRulesController`). The dialog asks three questions (abilities, risk levels, environments) and `PolicyRule::ApprovalConditions` turns them into `is_one_of` conditions, so the engine stays generic. Environment values are catalog-entry ids, matching grant scopes.

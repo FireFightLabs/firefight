@@ -129,6 +129,8 @@ module Ability
     RISK_WRITE = "write"
     RISK_DESTRUCTIVE = "destructive"
     RISK_LEVELS = [ RISK_READ, RISK_WRITE, RISK_DESTRUCTIVE ].freeze
+    # The risks an approval rule can hold, since a read never waits.
+    HELD_RISK_LEVELS = (RISK_LEVELS - [ RISK_READ ]).freeze
 
     RISK_BY_CRUD_ACTION = {
       ACTION_READ => RISK_READ,
@@ -241,6 +243,9 @@ module Ability
 
     # The risk this one call carries, which is a read for a call shown to read.
     def risk_of(params) = read_through_guard?(params) ? RISK_READ : risk_level
+
+    # Whether no approval rule can ever hold it, since reads never wait and some resources are exempt.
+    def never_held? = read? || self.class.approval_exempt?(key)
 
     def admin_only?
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))

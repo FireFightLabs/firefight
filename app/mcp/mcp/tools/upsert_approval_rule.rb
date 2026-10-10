@@ -13,7 +13,7 @@ module Mcp
         properties: {
           id: { type: "string", description: "Rule id to update; omit to create" },
           abilities: { type: "array", items: { type: "string" }, description: "Ability keys the rule holds" },
-          risk_levels: { type: "array", items: { type: "string" }, description: "read, write or destructive" },
+          risk_levels: { type: "array", items: { type: "string" }, description: "write or destructive. Reads never wait, so read is refused" },
           environments: { type: "array", items: { type: "string" }, description: "Environment slugs" },
           approver_role: { type: "string", description: "admin or owner, asked when no approvers are named" },
           approvers: {

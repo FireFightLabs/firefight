@@ -53,6 +53,42 @@ class Ability::GuardedReadsTest < ActiveSupport::TestCase
     assert Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: @request.action_key, scope: scope, params: POST)
   end
 
+  test "a rule that matches everything holds no read, a tool that only reads or one of Firefight's own, and still holds changes" do
+    @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
+    services = @northflank.tools.create!(name: "list_services", read_only: true, enabled: true)
+    admin = workspace_memberships(:alice_workspace_one)
+
+    assert AbilityGateway.authorize!(principal: admin, action_key: services.action_key, workspace: @workspace, scope: scope) { true }
+    assert AbilityGateway.authorize!(principal: admin, action_key: Ability::Action::MAP_READ, workspace: @workspace) { true }
+    assert_not Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: services.action_key, scope: scope)
+    assert_raises(AbilityGateway::PendingApproval) { authorize(admin, POST) }
+  end
+
+  test "a rule cannot be saved to hold reads, and says why, while an older one that did keeps saving" do
+    policy = @workspace.find_or_create_approval_policy!
+    services = @northflank.tools.create!(name: "list_services", read_only: true, enabled: true)
+    outcome = { "require" => { "role" => "admin", "count" => 1 } }
+
+    by_risk = policy.policy_rules.build(priority: 1, conditions: PolicyRule::ApprovalConditions.build(risk_levels: [ Ability::Action::RISK_READ ]), outcome: outcome)
+    assert_not by_risk.valid?
+    assert_includes by_risk.errors[:conditions], "Reads never wait for approval, so a rule cannot hold the read risk level. Pick write or destructive."
+
+    by_ability = policy.policy_rules.build(priority: 2, conditions: PolicyRule::ApprovalConditions.build(action_keys: [ services.action_key, @request.action_key ]), outcome: outcome)
+    assert_not by_ability.valid?
+    assert_includes by_ability.errors[:conditions].join, "#{services.action_key} only reads"
+
+    older = policy.policy_rules.new(priority: 3, conditions: PolicyRule::ApprovalConditions.build(risk_levels: [ Ability::Action::RISK_READ ]), outcome: outcome)
+    older.save!(validate: false)
+    assert older.update(enabled: false)
+  end
+
+  test "a read is never marked as waiting where abilities are handed out" do
+    services = @northflank.tools.create!(name: "list_services", read_only: true, enabled: true)
+
+    assert services.ability_action.never_held?
+    assert_not @request.ability_action.never_held?
+  end
+
   test "the activity log records a read through the tool as a read" do
     authorize(@member, GET)
 

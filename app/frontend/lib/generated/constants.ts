@@ -680,6 +680,11 @@ export const ABILITY_RISK_LEVELS = [
 ] as const
 export type AbilityRiskLevel = (typeof ABILITY_RISK_LEVELS)[number]
 
+export const APPROVAL_HELD_RISK_LEVELS = [
+  "write",
+  "destructive"
+] as const
+
 export const AGENT_STREAM_EVENTS = {
   "THINKING": "thinking",
   "STEP": "step",
