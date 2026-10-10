@@ -4,6 +4,7 @@ module Integrations
     # endpoints are often called with it in the address, so it is replaced wherever an answer carries it.
     Tinybird = Provider.new(
       key: "tinybird", pack: "Integrations::Packs::Tinybird", adapter: "Integrations::Capabilities::Tinybird",
+      read_guard: "Integrations::ReadGuards::Tinybird",
       redacted_patterns: { "tinybird_token" => /\bp\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/ }
     )
   end

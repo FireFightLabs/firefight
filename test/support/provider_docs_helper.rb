@@ -12,7 +12,7 @@ module ProviderDocsHelper
 
     def page(url, revision: nil) = answer(url, revision)
 
-    def file(url, revision: nil, headers: {}) = answer(url, revision)
+    def file(url, revision: nil, headers: {}, max_bytes: nil) = answer(url, revision)
 
     def json(url, headers: {}) = JSON.parse(answer(url, nil).body)
 

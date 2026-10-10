@@ -36,6 +36,15 @@ module Integrations
 
     def get(path, query = {}) = json(api_uri(path, query))
 
+    # Any GET of the API, by its path after /2.0, for the general read (Integrations::ApiReads), which checks the path
+    # before it gets here. A list value is sent once per value.
+    def read(path, query)
+      uri = URI.parse("#{API_ROOT}#{path}")
+      pairs = query.flat_map { |name, value| Array(value).map { |each| [ name, each ] } }
+      uri.query = URI.encode_www_form(pairs) if pairs.any?
+      json(uri)
+    end
+
     # A change, such as running or stopping a pipeline. An answer with no body, as stopPipeline's 204, reads as {}.
     def post(path, body = nil) = changing(Net::HTTP::Post, path, body)
 

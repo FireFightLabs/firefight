@@ -56,6 +56,29 @@ gem "aws-sdk-ec2", require: false
 gem "aws-sdk-ecs", require: false
 gem "aws-sdk-lambda", require: false
 gem "aws-sdk-rds", require: false
+# The services AWS's general read reaches beside them (Integrations::ApiReads)
+gem "aws-sdk-acm", require: false
+gem "aws-sdk-apigateway", require: false
+gem "aws-sdk-apigatewayv2", require: false
+gem "aws-sdk-autoscaling", require: false
+gem "aws-sdk-cloudformation", require: false
+gem "aws-sdk-cloudfront", require: false
+gem "aws-sdk-codebuild", require: false
+gem "aws-sdk-codedeploy", require: false
+gem "aws-sdk-codepipeline", require: false
+gem "aws-sdk-dynamodb", require: false
+gem "aws-sdk-ecr", require: false
+gem "aws-sdk-eks", require: false
+gem "aws-sdk-elasticache", require: false
+gem "aws-sdk-elasticloadbalancingv2", require: false
+gem "aws-sdk-health", require: false
+gem "aws-sdk-iam", require: false
+gem "aws-sdk-kms", require: false
+gem "aws-sdk-route53", require: false
+gem "aws-sdk-secretsmanager", require: false
+gem "aws-sdk-sns", require: false
+gem "aws-sdk-sqs", require: false
+gem "aws-sdk-ssm", require: false
 
 # Authentication with OmniAuth
 gem "omniauth", "~> 2.1"

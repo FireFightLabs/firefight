@@ -10,7 +10,8 @@ module Integrations
     VERBS = { get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put }.freeze
 
     API_HOST = "api.digitalocean.com".freeze
-    API_ROOT = "https://#{API_HOST}/v2".freeze
+    API_PREFIX = "/v2".freeze
+    API_ROOT = "https://#{API_HOST}#{API_PREFIX}".freeze
     # The most per_page allows, and how many pages a list reads before it stops.
     PAGE_SIZE = 200
     MAX_PAGES = 10
@@ -64,6 +65,10 @@ module Integrations
 
     # A metric under /monitoring/metrics, such as apps/cpu_percentage, as the series DigitalOcean answers with.
     def metrics(path, query) = get("/monitoring/metrics/#{path}", query).dig("data", "result") || []
+
+    # Any GET of the API by its path as the specification writes it, /v2 included, for the general read
+    # (Integrations::ApiReads), which checks the path before it gets here.
+    def read(path, query) = send_request(:get, path.delete_prefix(API_PREFIX), nil, query)
 
     private
 

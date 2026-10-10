@@ -4,7 +4,8 @@ module Integrations
       key: "gitlab",
       pack: "Integrations::Packs::Gitlab",
       adapter: "Integrations::Capabilities::Gitlab",
-      map_events: "Integrations::MapEventSources::Gitlab"
+      map_events: "Integrations::MapEventSources::Gitlab",
+      read_guard: "Integrations::ReadGuards::Gitlab"
     )
   end
 end

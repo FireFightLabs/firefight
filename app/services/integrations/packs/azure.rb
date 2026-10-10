@@ -175,6 +175,18 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Azure Resource Manager reads that the other tools do not cover, such as a Web App's " \
+                        "deployment slots and deployments, a Container App's revisions and replicas, App Service plans, an AKS " \
+                        "cluster's node pools, load balancers, Front Door and Application Gateway, Key Vault's settings, activity " \
+                        "or a resource's health. A GET to a Resource Manager path inside this connection's subscription, as the " \
+                        "API reference writes it, such as /subscriptions/<subscription>/resourceGroups/<group>/providers/" \
+                        "Microsoft.Web/sites/<app>/slots, with api-version in query. A list answers one page, and its nextLink " \
+                        "names the next. Only reads, so it never changes anything. Environment variables, keys and connection " \
+                        "strings come back as their names. The azure_api skill says how to find a path",
+           params_schema: ApiReads.path_schema("/subscriptions/<subscription>/resourceGroups/<group>/providers/Microsoft.App/containerApps/<app>/revisions"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
@@ -370,6 +382,36 @@ module Integrations
         end
         Telemetry.result(text, link: portal_link(environment_row, target.id))
       end
+
+      # A GET the read guard let through (ReadGuards::Azure), in a subscription the connection reads, answering with the
+      # portal page of the resource the path reads in.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Azure.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        settings = ConnectionSettings.of(environment_row)
+        subscription = ReadGuards::Azure.subscription_in(path)
+        outside = ApiReads.outside_scopes(settings, [ subscription ], "subscriptions")
+        fail_policy!(outside) if outside
+
+        reading = scoped(subscription || @scope || settings.known_scopes.first)
+        answer = reading.send(:api, environment_row).get(path, query[ReadGuards::Azure::API_VERSION], query.except(ReadGuards::Azure::API_VERSION))
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), ReadGuards::Azure.hidden(answer))
+        Telemetry.result(text, link: (portal_link(environment_row, resource_of(path)) if subscription))
+      end
+
+      # The resource a Resource Manager path reads in, its subscription, resource group, or the resource a provider names
+      # under it, which is what the portal opens a page for.
+      def resource_of(path)
+        segments = path.delete_prefix("/").split("/")
+        provider = segments.index("providers")
+        kept = provider && segments.size >= provider + 4 ? provider + 4 : [ provider || segments.size, 4 ].min
+        "/#{segments.first(kept).join('/')}"
+      end
+      private :resource_of
 
       # Reads each subscription the connection reaches, so one the principal can no longer read is said on the connection.
       def check_health!(environment_row)

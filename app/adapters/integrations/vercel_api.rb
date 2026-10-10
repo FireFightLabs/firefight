@@ -154,6 +154,10 @@ module Integrations
       Http.json(uri, request, error_class: Error, provider_name: PROVIDER, refine: method(:refined), with_status: true)
     end
 
+    # Any GET of the REST API, by its path under API_ROOT, for the general read (Integrations::ApiReads), which checks the
+    # path before it gets here. The team is always the one this client was made for, whatever the query names.
+    def read(path, query) = get(path, query.except("teamId", "slug"))
+
     private
 
     def get(path, query = {})

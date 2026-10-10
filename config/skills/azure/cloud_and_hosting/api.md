@@ -1,0 +1,14 @@
+---
+name: azure_api
+when: A question about Azure that the other Azure tools do not answer, such as a Web App's deployment slots and past deployments, a Container App's revisions and replicas, App Service plans, an AKS cluster's node pools, load balancers, Application Gateway, Front Door, a Key Vault's settings, a resource's health, a resource group's deployments, or anything else Azure Resource Manager reads, and finding out whether Azure offers a read at all
+tools: [api_read, list_resources]
+references: [api/web/index.md, api/app/index.md, api/sql/index.md, api/dbforpostgresql/index.md, api/dbformysql/index.md, api/compute/index.md, api/containerservice/index.md, api/network/index.md, api/storage/index.md, api/insights/index.md, api/resources/index.md, api/resourcehealth/index.md, api/keyvault/index.md, api/cache/index.md, api/cdn/index.md, api/operationalinsights/index.md]
+---
+`api_read` sends a GET to Azure Resource Manager and answers what Azure said. It only reads, so it never needs the person's go ahead and works while investigating and watching. Changes go through the rollback, restart and scale tools, never through this.
+
+1. Use the named tools first where they answer the question, since their answers are shaped and linked: `list_resources` for what is on the map, with each resource's id. Reach for `api_read` for the rest.
+2. Find the path in the resource provider's API reference before the first call, not by guessing: read api/<provider>/index.md for the provider (use_skill with this skill and that reference), such as api/app/index.md for Container Apps or api/web/index.md for App Service, which lists every read it offers with its path, its api-version and what it answers. When no reference lists a read for the question, Azure does not offer one. Say so, and give the steps in the portal instead.
+3. Set `path` to the path the reference writes with its ids filled in, starting from a resource's id as `list_resources` shows it, such as /subscriptions/<subscription>/resourceGroups/<group>/providers/Microsoft.App/containerApps/<app>/revisions. Put api-version, the version the reference names, and every other parameter in `query`, never in the path. A path stays inside this connection's subscription, and another one is refused.
+4. A list answers one page, and its nextLink names the next. Read on by taking the path and the parameters nextLink gives, such as $skiptoken, into a new call.
+5. Keys, connection strings and links signed with a SAS come back as their names, and Resource Manager never hands a secret's value to a read. Say which setting to check in the portal when the question needs a value.
+6. A refusal for want of a permission is the workspace's to fix. Name the action Azure's refusal gives, such as Microsoft.App/containerApps/revisions/read, and the role that holds it, such as Reader.

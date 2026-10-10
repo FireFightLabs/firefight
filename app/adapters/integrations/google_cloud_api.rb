@@ -165,6 +165,10 @@ module Integrations
       send_request(uri, Net::HTTP::Get.new(uri))
     end
 
+    # Any GET of one of Google Cloud's APIs, by the first label of its googleapis.com host and a path under it, for the
+    # general read (Integrations::ApiReads), which checks the service and path before they get here.
+    def read(service, path, query) = get("https://#{service}.googleapis.com#{path}", query)
+
     def post(url, body = {}, query = {}) = write(Net::HTTP::Post, url, body, query)
 
     def patch(url, body, query = {}) = write(Net::HTTP::Patch, url, body, query)

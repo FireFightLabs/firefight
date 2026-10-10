@@ -52,6 +52,10 @@ module Integrations
 
     def get(path, query = {}) = call(api_uri(path, query))
 
+    # Any GET of the API, by its path after /api/v4, for the general read (Integrations::ApiReads), which checks the path
+    # before it gets here.
+    def read(path, query) = get(path, query)
+
     # A change, such as running or retrying a pipeline, with its attributes as a JSON body, which the API takes as it
     # takes them in the query (doc/api/rest, request payload).
     def post(path, body = {}) = changing(Net::HTTP::Post, path, body)

@@ -37,7 +37,8 @@ class DocsClient
   end
 
   # A file from a service such as GitHub or npm, whose own rate limits apply rather than a robots.txt.
-  def file(url, revision: nil, headers: {}) = get(URI.parse(url), revision: revision, headers: headers)
+  # max_bytes raises the ceiling for a file that is meant to be large, such as an API's whole description.
+  def file(url, revision: nil, headers: {}, max_bytes: MAX_BYTES) = get(URI.parse(url), revision: revision, headers: headers, max_bytes: max_bytes)
 
   def json(url, headers: {}) = JSON.parse(file(url, headers: headers.merge("Accept" => "application/json")).body)
 
@@ -47,7 +48,7 @@ class DocsClient
   private
 
   # robots is true for a documentation page, so a redirect to another page is read only where its site allows too.
-  def get(uri, revision: nil, headers: {}, delay: INTERVAL, binary: false, redirects: REDIRECTS, robots: false)
+  def get(uri, revision: nil, headers: {}, delay: INTERVAL, binary: false, redirects: REDIRECTS, robots: false, max_bytes: MAX_BYTES)
     raise Error, "#{uri} is not an https address" unless uri.is_a?(URI::HTTPS)
 
     wait_for(uri.host, delay)
@@ -56,7 +57,7 @@ class DocsClient
     headers.each { |name, value| request[name] = value }
     conditional(request, revision)
     response = transport(uri, request)
-    answer(uri, response, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects, robots: robots)
+    answer(uri, response, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects, robots: robots, max_bytes: max_bytes)
   rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => error
     raise Error, "could not reach #{uri.host} (#{error.class.name})"
   end
@@ -67,7 +68,7 @@ class DocsClient
     end
   end
 
-  def answer(uri, response, revision:, headers:, delay:, binary:, redirects:, robots:)
+  def answer(uri, response, revision:, headers:, delay:, binary:, redirects:, robots:, max_bytes:)
     code = response.code.to_i
     if response.is_a?(Net::HTTPRedirection) && redirects.positive?
       target = URI.join(uri.to_s, response["location"].to_s)
@@ -75,7 +76,7 @@ class DocsClient
         robots_for(target).check!(target)
         delay = robots_for(target).delay
       end
-      return get(target, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects - 1, robots: robots)
+      return get(target, revision: revision, headers: headers, delay: delay, binary: binary, redirects: redirects - 1, robots: robots, max_bytes: max_bytes)
     end
     return Answer.new(body: nil, revision: revision, url: uri.to_s) if code == NOT_MODIFIED
     raise NotFound, "#{uri} answered #{code}" if code == 404 || code == 410
@@ -83,7 +84,7 @@ class DocsClient
     raise Error, "#{uri} answered #{code}" unless code.between?(200, 299)
 
     body = response.body.to_s
-    raise TooLarge, "#{uri} is larger than #{MAX_BYTES / 1_000_000} MB" if body.bytesize > MAX_BYTES
+    raise TooLarge, "#{uri} is larger than #{max_bytes / 1_000_000} MB" if body.bytesize > max_bytes
 
     Answer.new(body: binary ? body.b : String.new(body, encoding: Encoding::UTF_8).scrub, revision: response["etag"].presence || response["last-modified"].presence, url: uri.to_s)
   end

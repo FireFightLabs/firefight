@@ -208,6 +208,16 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Render's API reads that the other tools do not cover, such as a service's jobs, disks, " \
+                        "custom domains, environment groups, blueprints, projects or a deploy by its id. A GET to a path of " \
+                        "Render's public API (#{RenderApi::API_ROOT}), as the API reference the render_api skill names writes " \
+                        "it. A list answers one page: pass limit, at most 100, and the last item's cursor as cursor for the next, " \
+                        "and pass ownerId to keep a list to this connection's workspace. Only reads, so it never changes anything. " \
+                        "Environment variables and secret files come back as their names",
+           params_schema: ApiReads.path_schema("/services/<service id>/jobs"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "API key", secret: true, placeholder: "rnd_...",
@@ -404,6 +414,70 @@ module Integrations
         before = service.dig("serviceDetails", "numInstances")
         Telemetry.result("Render is scaling #{resource[:name]} to #{count} instances#{" from #{before}" if before}.", link: link(resource))
       end
+
+      # Kept to the connection's workspaces, by the ownerId asked, the owner of what the path starts with and every owner
+      # the answer names.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Render.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        settings = ConnectionSettings.of(environment_row)
+        api = api(environment_row)
+        parent = parent_of(api, path)
+        outside = ApiReads.outside_scopes(settings, [ query["ownerId"], *owners_in(parent), *path_owner(path) ], "workspaces")
+        fail_policy!(outside) if outside
+
+        answer = api.read(path, query)
+        outside = ApiReads.outside_scopes(settings, owners_in(answer), "workspaces")
+        fail_policy!("#{outside} Pass ownerId in query to keep a list to one workspace.") if outside
+
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Render.secret?(path))
+        Telemetry.result(text, link: read_link(answer, parent))
+      end
+
+      # What Render names by an id of its own at the start of a path, whose answer says which workspace owns it.
+      OWNED = %w[services postgres key-value redis env-groups projects blueprints disks].freeze
+      OWNERS = "owners".freeze
+      OWNER = "owner".freeze
+
+      # The service, datastore or other owned thing a deeper path reads inside, such as the service of
+      # /services/<id>/deploys, read first for its workspace and its page. nil for a path that is the thing itself or a
+      # list, which the answer says the owner of.
+      def parent_of(api, path)
+        kind, id, deeper = path.delete_prefix("/").split("/", 3)
+        return nil unless OWNED.include?(kind) && id.present? && deeper.present?
+
+        api.read("/#{kind}/#{Http.segment(id)}", {})
+      rescue RenderApi::NotFound
+        nil
+      end
+      private :parent_of
+
+      def path_owner(path)
+        kind, id = path.delete_prefix("/").split("/", 3)
+        kind == OWNERS && id.present? ? [ id ] : []
+      end
+      private :path_owner
+
+      # Every workspace an answer names as an owner, a service's ownerId or a datastore's or project's owner.
+      def owners_in(value)
+        case value
+        when Hash then [ value["ownerId"], (value[OWNER]["id"] if value[OWNER].is_a?(Hash)) ].compact + value.values.flat_map { |inner| owners_in(inner) }
+        when Array then value.flat_map { |inner| owners_in(inner) }
+        else []
+        end
+      end
+      private :owners_in
+
+      # The page of what was read, which Render gives as dashboardUrl, or of the thing the path reads inside.
+      def read_link(answer, parent)
+        url = [ answer, parent ].find { |read| read.is_a?(Hash) && read["dashboardUrl"].present? }&.dig("dashboardUrl")
+        url && Telemetry::Link.new(provider: PROVIDER, url: url)
+      end
+      private :read_link
 
       # The workspace on the resource map: its services, sites, cron jobs and datastores, the repositories services build
       # from and the domains they serve. What could not be read for one service is a gap, not a failed sweep.

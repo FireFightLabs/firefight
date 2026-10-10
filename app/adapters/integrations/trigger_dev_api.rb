@@ -59,6 +59,10 @@ module Integrations
     # Makes an earlier deployed version the one new runs start on (promote_deployment_v1).
     def promote(version) = post("/api/v1/deployments/#{segment(version)}/promote", nil)
 
+    # Any GET of the API by its path, /api/v1 and the rest included, for the general read (Integrations::ApiReads),
+    # which checks the path before it gets here.
+    def read(path, query) = get(path, query)
+
     private
 
     # Every page up to limit, following pagination.next as page[after].

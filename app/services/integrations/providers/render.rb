@@ -7,6 +7,7 @@ module Integrations
       pack: "Integrations::Packs::Render",
       adapter: "Integrations::Capabilities::Render",
       map_events: "Integrations::MapEventSources::Render",
+      read_guard: "Integrations::ReadGuards::Render",
       status_words: {
         "live" => "running", "created" => "deploying", "build_in_progress" => "deploying", "update_in_progress" => "deploying",
         "pre_deploy_in_progress" => "deploying", "build_failed" => "failed", "update_failed" => "failed", "pre_deploy_failed" => "failed",

@@ -6,6 +6,7 @@ module Integrations
       pack: "Integrations::Packs::GoogleCloud",
       adapter: "Integrations::Capabilities::GoogleCloud",
       map_events: "Integrations::MapEventSources::GoogleCloud",
+      read_guard: "Integrations::ReadGuards::GoogleCloud",
       status_words: {
         "runnable" => "running", "provisioning" => "pending", "reconciling" => "pending", "repairing" => "pending",
         "pending_create" => "pending", "pending_delete" => "pending", "maintenance" => "pending", "online_maintenance" => "pending",

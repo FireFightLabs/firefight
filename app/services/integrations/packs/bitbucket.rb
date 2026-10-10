@@ -127,6 +127,16 @@ module Integrations
            }, %w[repo path start_line end_line]),
            read_only: true
 
+      tool :api_read,
+           description: "Anything else Bitbucket's REST API reads that the other Bitbucket tools do not cover, such as a repository's " \
+                        "deployment environments, branch restrictions, branching model, members and permissions, or a workspace's " \
+                        "projects. A GET to a path of Bitbucket Cloud's REST API (#{BitbucketApi::API_ROOT}), written after /2.0, " \
+                        "such as /repositories/<workspace>/<repo>/environments. A list answers one page: pass pagelen, at most 100, " \
+                        "and page 2, 3 and on while the answer names a next page. Only reads, so it never changes anything. " \
+                        "Pipeline and deployment variables and webhooks come back as their names",
+           params_schema: ApiReads.path_schema("/repositories/<workspace>/<repo>/environments"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Token", secret: true, placeholder: "ATATT...",
@@ -406,6 +416,36 @@ module Integrations
         ResourceMap::Snapshot.new(resources: found, gaps: [ *gaps, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
       end
       private :repositories_snapshot
+
+      # Paths that name a workspace in their second segment, which is how a read is kept to the ones the connection reads.
+      IN_WORKSPACE = %w[repositories workspaces snippets].freeze
+
+      # A path names a workspace the connection reads, unless the connection reads every workspace its token can.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Bitbucket.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        settings = ConnectionSettings.of(environment_row)
+        kind, workspace, slug = path.delete_prefix("/").split("/", 4)
+        named = workspace if IN_WORKSPACE.include?(kind)
+        if named.nil? && !settings.all_scopes?
+          fail_policy!("This connection reads the workspaces #{settings.chosen_scopes.to_sentence} only, so a read names one, such as " \
+                       "/repositories/#{settings.chosen_scopes.first}/<repo>.")
+        end
+        outside = ApiReads.outside_scopes(settings, [ named ], "workspaces")
+        fail_policy!(outside) if outside
+
+        answer = api(environment_row).read(path, query)
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Bitbucket.secret?(path))
+        page = (answer.dig("links", "html", "href") if answer.is_a?(Hash) && answer["links"].is_a?(Hash) && answer["links"]["html"].is_a?(Hash))
+        page ||= [ @site, named, slug ].join("/") if kind == IN_WORKSPACE.first && named && slug.present? && @site.present?
+        Telemetry.result(text, link: link(page))
+      rescue BitbucketApi::Refused => error
+        fail! Sentence.join("Bitbucket refused this read", error, after: "The token's scopes do not reach it")
+      end
 
       # Lists a repository of each workspace the connection reaches, so one the token can no longer read is said on the
       # connection.

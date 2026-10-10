@@ -31,5 +31,37 @@ module Integrations
 
     # Whether a call only reads, because its tool only reads or its guard shows the call does.
     def self.read_call?(tool, arguments) = tool.read_only? || reads?(tool, arguments)
+
+    # The guard of a general read through a path API (Integrations::ApiReads). Every call passes it before it is sent,
+    # so a chat, an investigation, a watch and an outside agent all read the same way. A guard lists REFUSED, the paths
+    # no read takes with the sentence saying why, and SECRET_PATHS, whose answers are read as names. It may answer
+    # refusal(path, query) itself for a rule that needs the query.
+    module PathReads
+      def guards?(tool_name) = tool_name == ApiReads::TOOL
+
+      # The tool's own schema serves, since it can only ever read.
+      def schema = nil
+
+      def reads?(_tool_name, arguments)
+        refusal(ApiReads.path!(arguments["path"]), ApiReads.query!(arguments["query"])).nil?
+      rescue Refused
+        false
+      end
+
+      # The call with its path and query in the shape it is sent, or PolicyRefusal with the reason, or Refused when the
+      # call is shaped wrong.
+      def reading(_tool_name, arguments)
+        path = ApiReads.path!(arguments["path"])
+        query = ApiReads.query!(arguments["query"])
+        reason = refusal(path, query)
+        raise PolicyRefusal, reason if reason
+
+        arguments.merge("path" => path, "query" => query)
+      end
+
+      def secret?(path) = path.match?(self::SECRET_PATHS)
+
+      def refusal(path, _query) = self::REFUSED.find { |pattern, _reason| path.match?(pattern) }&.last
+    end
   end
 end
