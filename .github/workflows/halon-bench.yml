@@ -72,17 +72,34 @@ jobs:
 
     steps:
       # A pull request from a fork gets no secrets, so it cannot call a model. It is benched once it is on a branch here.
-      - name: Check a model key is set
+      # Until the repository has the bench's variables and a key, the job passes with a warning naming what to add, so no
+      # other pull request is blocked. Once they exist it runs and compares with main.
+      - name: Check the bench is set up
         id: keys
         run: |
-          if [ -n "$ANTHROPIC_API_KEY$OPENAI_API_KEY$OPENROUTER_API_KEY" ]; then
+          missing=()
+          [ -n "$INVESTIGATION_AI_MODEL" ] || missing+=("the repository variable HALON_BENCH_MODEL (and HALON_BENCH_PROVIDER when the model needs one)")
+          [ -n "$CITATION_CHECK_AI_MODEL" ] || missing+=("the repository variable HALON_BENCH_JUDGE_MODEL (and HALON_BENCH_JUDGE_PROVIDER when the model needs one)")
+          [ -n "$ANTHROPIC_API_KEY$OPENAI_API_KEY$OPENROUTER_API_KEY" ] || missing+=("a repository secret HALON_BENCH_ANTHROPIC_API_KEY, HALON_BENCH_OPENAI_API_KEY or HALON_BENCH_OPENROUTER_API_KEY")
+          fork="${{ github.event.pull_request.head.repo.full_name }}"
+          if [ ${#missing[@]} -eq 0 ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.pull_request.head.repo.full_name }}" != "" ] && [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
-            echo "::notice::A pull request from a fork has no model key, so the bench did not run."
+          elif [ -n "$fork" ] && [ "$fork" != "${{ github.repository }}" ]; then
+            echo "::notice title=Halon bench did not run::A pull request from a fork has no model key, so the bench did not run."
+            echo "The Halon bench did not run, since a pull request from a fork has no model key." >> "$GITHUB_STEP_SUMMARY"
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::The bench needs a model key. Set HALON_BENCH_ANTHROPIC_API_KEY, HALON_BENCH_OPENAI_API_KEY or HALON_BENCH_OPENROUTER_API_KEY as a repository secret."
-            exit 1
+            joined=$(printf '%s, and ' "${missing[@]}")
+            echo "::notice title=Halon bench is not set up::The bench did not run. Add ${joined%, and }."
+            {
+              echo "## Halon bench did not run"
+              echo
+              echo "The repository is not set up for it yet. Add:"
+              for item in "${missing[@]}"; do echo "- $item"; done
+              echo
+              echo "Until then this job passes without benching. Once they exist it runs and compares with main."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout code
