@@ -2,7 +2,7 @@ require "test_helper"
 
 class AiProvidersTest < ActiveSupport::TestCase
   # Read from the catalog RubyLLM ships, which the nightly refresh fills the registry from. The test registry holds a
-  # few rows only.
+  # few rows only. A newer main model ahead of it is picked up once the registry holds it, and the last is always there.
   test "every recommended model is one the catalog holds for its provider, with tool calling and a known size" do
     catalog = JSON.parse(File.read(File.join(Gem.loaded_specs["ruby_llm"].full_gem_path, "lib/ruby_llm/models.json")))
                   .index_by { |model| [ model["provider"], model["id"] ] }
@@ -10,7 +10,7 @@ class AiProvidersTest < ActiveSupport::TestCase
       # A deployment's own models, such as an Azure deployment or a local Ollama, are named by whoever runs them.
       next if provider.assumes_models || provider.local
 
-      [ provider.main_model, provider.fast_model ].each do |model_id|
+      [ provider.main_models.last, provider.fast_model ].each do |model_id|
         model = catalog[[ provider.slug, model_id ]]
         assert model, "#{provider.slug} offers #{model_id}"
         assert_includes model["capabilities"], "function_calling", "#{provider.slug} #{model_id} calls tools"
@@ -53,5 +53,25 @@ class AiProvidersTest < ActiveSupport::TestCase
 
     ENV.stubs(:[]).with("CHATGPT_OAUTH_TOKEN_URL").returns(nil)
     assert_nil AiProviders.sign_in_for(workspace)
+  end
+
+  test "the main model is the strongest the registry can price and size, and the one the catalog ships otherwise" do
+    anthropic = AiProviders.find("anthropic")
+    assert_equal "claude-opus-5-5", anthropic.main_model
+
+    FirefightAi.stubs(:priced_for?).returns(false)
+    assert_equal anthropic.main_models.last, anthropic.main_model
+  end
+
+  test "the deployment's pick for a role needs a key, prefers the provider asked for and never the one to avoid" do
+    keyed = RubyLLM.config.dup
+    keyed.anthropic_api_key = "sk-ant-deployment"
+    keyed.openrouter_api_key = "sk-or-deployment"
+
+    assert_nil AiProviders.deployment_choice(WorkspaceAiAccount::MAIN), "no key, no pick"
+    assert_equal [ "claude-opus-5-5", "anthropic" ], AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, config: keyed).to_h.values_at(:model, :provider)
+    assert_equal "openrouter", AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, prefer: "openrouter", config: keyed).provider
+    assert_equal "openrouter", AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, avoid: "anthropic", config: keyed).provider
+    assert_equal [ "claude-haiku-4-5", "anthropic" ], AiProviders.deployment_choice(WorkspaceAiAccount::FAST, config: keyed).to_h.values_at(:model, :provider)
   end
 end

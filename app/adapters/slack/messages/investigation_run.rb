@@ -52,8 +52,10 @@ module Slack
       end
 
       # The button is offered only when running it again could end differently.
-      def self.stopped(reason:, rerun: nil, rerun_question: nil, investigation: nil)
+      # What the run did before it stopped follows the reason in its own section, so responders pick up from there.
+      def self.stopped(reason:, where_it_stopped: nil, rerun: nil, rerun_question: nil, investigation: nil)
         blocks = [ { type: "section", text: { type: "mrkdwn", text: ":warning: *Stopped without an answer.* #{reason}." } } ]
+        blocks << { type: "section", text: { type: "mrkdwn", text: Slack::Mrkdwn.escape(where_it_stopped) } } if where_it_stopped.present?
         blocks << rerun_block(rerun) if rerun
         blocks << rerun_question_block(rerun_question) if rerun_question
         link = investigation && open_block(investigation)

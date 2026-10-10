@@ -69,6 +69,20 @@ class InvestigationsTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-made-room.png"))
   end
 
+  test "the story says where the run carried on with a backup model, between the steps it came between" do
+    switch = @investigation.chat_record.model_switches.create!(failed_model: "claude-opus-5-5", failed_provider: "anthropic",
+                                                                backup_model: "gpt-5.6", backup_provider: "openai", created_at: 90.seconds.ago)
+
+    visit incident_path(@incident, Investigation::QUERY_PARAM => @investigation.id)
+
+    within("[role=dialog]") do
+      line = find("li", text: switch.shown_as)
+      assert_text(/Read app\/controllers\/billing_controller\.rb.*#{switch.shown_as}.*Find where require_admin! is defined/m)
+      execute_script("arguments[0].scrollIntoView({ block: 'center' })", line)
+    end
+    page.save_screenshot(Rails.root.join("tmp/screenshots/investigation-backup-model.png"))
+  end
+
   test "the run's own link, the one Slack carries, opens it over its incident" do
     visit investigation_path(@investigation)
 

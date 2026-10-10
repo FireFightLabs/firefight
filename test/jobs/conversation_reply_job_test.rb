@@ -31,6 +31,20 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
                  conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
   end
 
+  test "a turn the job gave up on says what Halon did before it stopped, so people carry on without it" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("restart checkout")
+    asking = conversation.chat.add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_restart", name: "restart", arguments: {})
+    Conversation::Runner.any_instance.stubs(:run).raises(FirefightAi::TerminalError, "no model")
+
+    ConversationReplyJob.perform_now(conversation.id)
+
+    said = conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).reorder(:created_at).last.content
+    assert said.start_with?(Conversation::Delivery::FAILED)
+    assert_includes said, "I stopped while this was still running: Restart."
+  end
+
   test "a turn the job gave up on no longer owes an answer, so the page stops waiting" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
     conversation.ask!("what changed today")

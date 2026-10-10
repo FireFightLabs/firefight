@@ -781,6 +781,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_140000) do
     t.index ["workspace_id"], name: "index_chat_owner_asks_on_workspace_id"
   end
 
+  create_table "chat_model_switches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.datetime "created_at", null: false
+    t.string "backup_model", null: false
+    t.string "backup_provider"
+    t.string "failed_model", null: false
+    t.string "failed_provider"
+    t.string "reason"
+    t.datetime "updated_at", null: false
+    t.index ["chat_id"], name: "index_chat_model_switches_on_chat_id"
+  end
+
   create_table "chat_pack_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "chat_id", null: false
     t.uuid "pack_request_id", null: false
@@ -3121,6 +3133,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_140000) do
   add_foreign_key "chat_mitigations", "chats", on_delete: :cascade
   add_foreign_key "chat_mitigations", "workspace_memberships", column: "ended_by_id", on_delete: :nullify
   add_foreign_key "chat_mitigations", "workspaces", on_delete: :cascade
+  add_foreign_key "chat_model_switches", "chats", on_delete: :cascade
   add_foreign_key "chat_owner_asks", "chat_plans", column: "plan_id", on_delete: :nullify
   add_foreign_key "chat_owner_asks", "chats", on_delete: :cascade
   add_foreign_key "chat_owner_asks", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify

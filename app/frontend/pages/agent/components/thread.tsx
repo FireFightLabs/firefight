@@ -20,7 +20,7 @@ import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types
 import type {
   AgentChatAttachment, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
   AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch,
-  AgentChatWatchUpdate, ChatCompaction, HandbookProposal,
+  AgentChatWatchUpdate, ChatCompaction, ChatModelSwitch, HandbookProposal,
 } from "@/types/serializers"
 
 interface ThreadProps {
@@ -28,6 +28,7 @@ interface ThreadProps {
   confirmations: AgentChatConfirmation[]
   messages: AgentChatMessage[]
   compactions: ChatCompaction[]
+  modelSwitches: ChatModelSwitch[]
   heldCalls: AgentChatHeldCall[]
   packRefusals: AgentChatPackRefusal[]
   secretEntries: AgentChatSecretEntry[]
@@ -45,12 +46,14 @@ interface ThreadProps {
 }
 
 export function Thread({
-  conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans,
-  dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
+  conversationId, confirmations, messages, compactions, modelSwitches, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices,
+  memoryQuestions, plans, dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
-  const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
-  const live = liveTurn(stream, messages, compactions)
+  // Making room and carrying on with a backup model are both quiet lines among the steps, placed by when they happened.
+  const quietLines = useMemo(() => [ ...compactions, ...modelSwitches ], [ compactions, modelSwitches ])
+  const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), quietLines), [ messages, quietLines, stream.owed ])
+  const live = liveTurn(stream, messages, quietLines)
   // A held call sits where it last had news, so an approval that came in later shows where the person will look.
   const held = useMemo(() => placeAfterTurns(turns, messages, heldCalls), [ turns, messages, heldCalls ])
   // A refusal sits after the turn it happened in.

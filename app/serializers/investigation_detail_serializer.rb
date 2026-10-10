@@ -100,6 +100,11 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.chat&.helpers || []
   end
 
+  # Each time the run carried on with a backup model, placed in the story the same way.
+  has_many :model_switches, serializer: ChatModelSwitchSerializer do
+    investigation.chat&.model_switches || []
+  end
+
   has_many :steps, serializer: InvestigationStepSerializer do
     investigation.steps.where.not(position: nil).includes(:invocation)
   end

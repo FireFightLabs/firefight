@@ -163,6 +163,17 @@ class InvestigationJobTest < ActiveSupport::TestCase
     InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
   end
 
+  test "a run that gave up says in its thread what it did before it stopped" do
+    @investigation.update!(thread_id: "1700000000.000100")
+    asking = @investigation.chat_record(FirefightAi::ModelChoice.new(model: "gpt-4o")).add_message(role: :assistant, content: "")
+    asking.ruby_llm_tool_calls.create!(tool_call_id: "call_search", name: "search_incidents", arguments: {})
+    Slack::WorkspaceAdapter.any_instance.expects(:post_investigation_stopped).with(
+      has_entries(reason: Investigation::GAVE_UP, where_it_stopped: includes("I stopped while this was still running: Search incidents."))
+    )
+
+    InvestigationJob.new(@investigation.id).mark_failed(RuntimeError.new("worker died"))
+  end
+
   test "a run whose AI account ran out of credit ends at once and says so in its thread, without naming the provider" do
     @investigation.update!(thread_id: "1700000000.000100")
     Investigation::Runner.any_instance.stubs(:run).raises(FirefightAi::OutOfCredit.new("OpenRouter: can only afford 60329"))

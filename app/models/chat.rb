@@ -33,6 +33,8 @@ class Chat < ApplicationRecord
   has_many :owner_asks, -> { order(:created_at) }, class_name: "Chat::OwnerAsk", dependent: :delete_all, inverse_of: :chat
   # Narrow checks Halon handed to helpers from this chat, each with a chat of its own.
   has_many :helpers, -> { in_order }, class_name: "Chat::Helper", dependent: :destroy, inverse_of: :chat
+  # Each time the loop carried on with a backup model.
+  has_many :model_switches, -> { in_order }, class_name: "Chat::ModelSwitch", dependent: :delete_all, inverse_of: :chat
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 

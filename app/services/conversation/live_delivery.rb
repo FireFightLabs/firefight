@@ -9,6 +9,8 @@ class Conversation::LiveDelivery
   EVENT_INVESTIGATION = "investigation"
   # The chat made room in the model's window, shown as a quiet line where it happened.
   EVENT_MADE_ROOM = "made_room"
+  # The loop carried on with a backup model, shown as a quiet line where it happened.
+  EVENT_SWITCHED_MODEL = "switched_model"
   # A call held for approval in this chat moved on, so its card looks again.
   EVENT_HELD_CALL = "held_call"
   # A change was refused for want of a pack, or the admins were asked for it, so its card looks again.
@@ -145,6 +147,11 @@ class Conversation::LiveDelivery
   def made_room(compaction)
     @text.flush!
     broadcast(type: EVENT_MADE_ROOM, key: compaction.step_key, title: Chat::Compaction::SHOWN_AS, at: compaction.created_at.utc.iso8601(3))
+  end
+
+  def switched_model(switch)
+    @text.flush!
+    broadcast(type: EVENT_SWITCHED_MODEL, key: switch.step_key, title: switch.shown_as, at: switch.created_at.utc.iso8601(3))
   end
 
   def chunk(text)

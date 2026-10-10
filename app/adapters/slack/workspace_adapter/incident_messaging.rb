@@ -507,11 +507,14 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     )
   end
 
-  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, rerun: nil, rerun_question: nil, investigation: nil)
+  def post_investigation_stopped(channel_id:, thread_id:, answer_id:, reason:, where_it_stopped: nil, rerun: nil, rerun_question: nil,
+                                 investigation: nil)
     finish_agent_answer(
       channel_id: channel_id, thread_id: thread_id, answer_id: answer_id,
-      text: "Stopped without an answer. #{reason}.",
-      blocks: Slack::Messages::InvestigationRun.stopped(reason: reason, rerun: rerun, rerun_question: rerun_question, investigation: investigation)
+      text: [ "Stopped without an answer. #{reason}.", where_it_stopped ].compact.join("\n\n"),
+      blocks: Slack::Messages::InvestigationRun.stopped(
+        reason: reason, where_it_stopped: where_it_stopped, rerun: rerun, rerun_question: rerun_question, investigation: investigation
+      )
     )
   end
 

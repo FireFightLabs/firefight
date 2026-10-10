@@ -24,7 +24,8 @@ module AiProviders
 
   Field = Data.define(:key, :option, :label, :secret, :required)
 
-  Provider = Data.define(:slug, :name, :main_model, :fast_model, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
+  # main_models are the strongest models the provider offers, strongest first. The last is always in RubyLLM's catalog.
+  Provider = Data.define(:slug, :name, :main_models, :fast_model, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
     def field(key) = fields.find { |field| field.key == key.to_s }
 
     def secret_fields = fields.select(&:secret)
@@ -32,6 +33,22 @@ module AiProviders
     def options = fields.map(&:option)
 
     def recommended(role) = role.to_s == WorkspaceAiAccount::FAST ? fast_model : main_model
+
+    # The strongest model the registry holds for this provider with a price and a size, so its cost shows and the loop can
+    # make room in it. Falls back to the last, which the catalog RubyLLM ships always holds.
+    def main_model
+      main_models.find { |model| FirefightAi.priced_for?(model, slug) && FirefightAi.context_window(model, provider: slug) } || main_models.last
+    end
+
+    # The recommended model for the role while the registry can price it for this provider, and size it for the main
+    # loop, or nil.
+    def ready(role)
+      model = recommended(role)
+      return nil unless model && FirefightAi.priced_for?(model, slug)
+      return model if role.to_s == WorkspaceAiAccount::FAST
+
+      model if FirefightAi.context_window(model, provider: slug)
+    end
 
     # The model this provider recommends for code fixes, while the registry holds it for this provider with a price, so
     # a code fix's budget can be counted. Nil otherwise, and a code fix runs on the next best model.
@@ -108,6 +125,20 @@ module AiProviders
     nil
   end
 
+  # The model the deployment's own keys run a role on when no env var names one. It is the recommended main or quick
+  # model of the first provider in the registry's order that holds a key here and whose model the registry prices. prefer is tried
+  # first, so quick work stays with the provider the main loop runs on. avoid is skipped, so a backup is never the
+  # provider that just failed. Nil when no provider qualifies.
+  def self.deployment_choice(role, prefer: nil, avoid: nil, config: RubyLLM.config)
+    candidates = all.reject { |provider| provider.slug == avoid.to_s }
+    candidates = candidates.partition { |provider| provider.slug == prefer.to_s }.flatten if prefer
+    candidates.each do |provider|
+      model = provider.ready(role)
+      return FirefightAi::ModelChoice.new(model: model, provider: provider.slug) if model && provider.configured?(config)
+    end
+    nil
+  end
+
   # The ChatGPT sign in seam, when the flag is on and every address it needs is set. Nil otherwise.
   def self.sign_in_for(workspace)
     return nil unless FeatureFlags.enabled?(workspace, FeatureFlags::CHATGPT_SIGN_IN)
@@ -126,7 +157,7 @@ module AiProviders
       Field.new(key: key, option: option, label: labels.fetch(key), secret: SECRET_SETTINGS.include?(key), required: required.include?(option.to_s))
     end
     Provider.new(
-      slug: slug, name: entry.fetch("name"), main_model: entry["main"], fast_model: entry["fast"], code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
+      slug: slug, name: entry.fetch("name"), main_models: Array(entry["main"]).freeze, fast_model: entry["fast"], code_fix_model: code_fix_model(slug, entry), fields: fields.freeze,
       local: klass.local?, code_fixes: FirefightAi::ModelProxy.supported?(slug), sign_in: sign_in(entry["sign_in"]),
       assumes_models: klass.assume_models_exist?
     )

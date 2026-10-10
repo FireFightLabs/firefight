@@ -12,6 +12,36 @@ module AiFunding
     payer ? own + [ house_model.with(payer: payer) ] : own
   end
 
+  # What Halon's loop carries on with when the provider behind failing stops answering, or nil when nothing can. That is
+  # the next choice in the order on another provider, the workspace's own accounts first, then the house's backup. A backup the
+  # deployment names (FIREFIGHT_AI_BACKUP_MODEL) is taken even on the same provider, since an outage can be one model's.
+  # tried holds the choices already given up on in this run, so the loop never goes back to one.
+  def self.backup_for(workspace, purpose, failing:, tried: [])
+    down = failing.provider_name
+    spent = tried + [ failing ]
+    named, other = house_backups(workspace, avoid: down)
+    candidates = (self.for(workspace, purpose) + [ named, other ]).compact.reject { |choice| spent.any? { |seen| same?(seen, choice) } }
+    candidates.find { |choice| choice.equal?(named) || choice.provider_name != down }
+  end
+
+  # The deployment's named backup and the one it picks on another provider, with the house paying, or nils when the
+  # house cannot pay for this workspace.
+  def self.house_backups(workspace, avoid:)
+    payer = workspace ? house_payer(workspace) : nil
+    return [ nil, nil ] if workspace && payer.nil?
+
+    config = FirefightAi.configuration
+    named = FirefightAi::ModelChoice.new(model: config.backup_model, provider: config.backup_provider, payer: payer) if config.backup_model.present?
+    other = AiProviders.deployment_choice(WorkspaceAiAccount::MAIN, avoid: avoid)&.with(payer: payer)
+    [ named, other ]
+  end
+  private_class_method :house_backups
+
+  def self.same?(one, other)
+    one.model == other.model && one.provider_name == other.provider_name && one.payer == other.payer
+  end
+  private_class_method :same?
+
   # What Halon falls back to once every account in the list has been tried, for the settings card.
   def self.fallback_note(workspace)
     case house_payer(workspace)&.paid_by

@@ -22,6 +22,7 @@ claude_haiku:
   name: Claude Haiku 4.5
   provider: anthropic
   capabilities: ["function_calling", "reasoning"]
+  pricing: {"text_tokens": {"standard": {"input_per_million": 1, "output_per_million": 5}}}
 
 gpt_4o:
   model_id: gpt-4o

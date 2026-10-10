@@ -10,6 +10,7 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     @workspace = workspaces(:slack_workspace_one)
     @original_default = FirefightAi.configuration.default_model
     @original_provider = FirefightAi.configuration.default_provider
+    @original_quick = [ FirefightAi.configuration.quick_model, FirefightAi.configuration.quick_provider ]
     @original_env = ENV.slice(*MODEL_ENV)
     MODEL_ENV.each { |name| ENV.delete(name) }
     FirefightAi.configuration.default_model = nil
@@ -19,6 +20,7 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
   teardown do
     FirefightAi.configuration.default_model = @original_default
     FirefightAi.configuration.default_provider = @original_provider
+    FirefightAi.configuration.quick_model, FirefightAi.configuration.quick_provider = @original_quick
     MODEL_ENV.each { |name| ENV.delete(name) }
     ENV.update(@original_env)
   end
@@ -145,5 +147,46 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     @workspace.ai_model_overrides.create!(purpose: AiPurpose::CITATION_CHECK, model: "z-ai/glm-4.7-flash", provider: "openrouter")
 
     assert_equal "z-ai/glm-4.7-flash", FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace).model
+  end
+
+  test "with a key and nothing named, Halon's loop runs on the provider's strongest model and side jobs on its quick one" do
+    RubyLLM.config.stubs(:anthropic_api_key).returns("sk-ant-test")
+
+    loop = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    side = FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
+
+    assert_equal [ "claude-opus-5-5", "anthropic" ], [ loop.model, loop.provider ]
+    assert_equal [ "claude-haiku-4-5", "anthropic" ], [ side.model, side.provider ]
+    assert_equal "claude-opus-5-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model, "what grows from the loop follows it"
+  end
+
+  test "the deployment default still leads Halon's loop, and side jobs move to its provider's quick model" do
+    RubyLLM.config.stubs(:anthropic_api_key).returns("sk-ant-test")
+    FirefightAi.configuration.default_model = "claude-sonnet-4-5"
+    FirefightAi.configuration.default_provider = "anthropic"
+
+    assert_equal "claude-sonnet-4-5", FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model
+    assert_equal "claude-haiku-4-5", FirefightAi.model_for(AiPurpose::MILESTONES, workspace: @workspace).model
+  end
+
+  test "FIREFIGHT_AI_QUICK_MODEL names the side jobs' model and leaves the loop alone" do
+    FirefightAi.configuration.default_model = "gpt-4o"
+    FirefightAi.configuration.quick_model = "gpt-3.5-turbo"
+
+    assert_equal "gpt-3.5-turbo", FirefightAi.model_for(AiPurpose::INCIDENT_RESPONSE, workspace: @workspace).model
+    assert_equal "gpt-4o", FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace).model
+  end
+
+  test "with no quick model to hand, side jobs stay on the deployment default as before" do
+    FirefightAi.configuration.default_model = "qwen3.6"
+    FirefightAi.configuration.default_provider = "bedrock"
+
+    assert_equal "qwen3.6", FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace).model
+  end
+
+  test "embeddings keep their own model whatever the loop runs on" do
+    RubyLLM.config.stubs(:anthropic_api_key).returns("sk-ant-test")
+
+    assert_equal "text-embedding-3-small", FirefightAi.embedding_model
   end
 end

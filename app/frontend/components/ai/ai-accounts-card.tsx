@@ -79,8 +79,9 @@ export function AiAccountsCard({
             <CardTitle>AI accounts</CardTitle>
             <CardDescription className="mt-1">
               Your own accounts with a model provider, which Halon uses for everything it writes. It tries them from
-              the top, and moves to the next when one runs out of credit or its key is refused. Drag to change the
-              order. {fallback}
+              the top, and moves to the next when one runs out of credit or its key is refused. When a provider stops
+              answering in the middle of a chat or investigation, Halon carries on with the next account on another
+              provider and says so. Drag to change the order. {fallback}
             </CardDescription>
           </div>
           {canManage && (

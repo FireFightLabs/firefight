@@ -24,8 +24,9 @@ module FirefightAi
       @ai_model = model
     end
 
+    # on_backup goes to the loop, see AgentLoop.
     def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, memory: nil,
-            take_messages: nil, purse: nil, &on_turn)
+            take_messages: nil, purse: nil, on_backup: nil, &on_turn)
       FirefightAi.translating_errors do
         FirefightAi.bind(chat, ai_model)
         chat.with_instructions(system_prompt)
@@ -37,7 +38,7 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
           on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages,
-          choice: ai_model, purpose: AiPurpose::INVESTIGATION, purse: purse
+          choice: ai_model, purpose: AiPurpose::INVESTIGATION, purse: purse, on_backup: on_backup
         ).run(&on_turn)
       end
     end

@@ -21,6 +21,8 @@ class AgentChatsController < InertiaController
   PROP_ATTACHMENT_RULES = "attachmentRules"
   # Each time the open chat made room in the model's window, placed among the steps by when it happened.
   PROP_COMPACTIONS = "compactions"
+  # Each time the open chat carried on with a backup model, placed among the steps the same way.
+  PROP_MODEL_SWITCHES = "modelSwitches"
   # Calls an approval rule held in the open chat, from waiting for an approver to how they ended.
   PROP_HELD_CALLS = "heldCalls"
   # Changes Halon was refused in the open chat for want of a pack, each with Ask an admin.
@@ -54,7 +56,7 @@ class AgentChatsController < InertiaController
     "CONFIRMATIONS" => PROP_CONFIRMATIONS, "INTEGRATION_CARDS" => PROP_INTEGRATION_CARDS,
     "ENVIRONMENTS" => PROP_ENVIRONMENTS, "INVESTIGATIONS" => PROP_INVESTIGATIONS,
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
-    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
+    "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "MODEL_SWITCHES" => PROP_MODEL_SWITCHES, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
@@ -85,7 +87,7 @@ class AgentChatsController < InertiaController
   def index
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
-      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
+      PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [], PROP_MODEL_SWITCHES => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
       PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => []
@@ -104,6 +106,7 @@ class AgentChatsController < InertiaController
       PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
       PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat),
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
+      PROP_MODEL_SWITCHES => ChatModelSwitchSerializer.many(conversation.chat&.model_switches || []),
       PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership),
       PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership),
       PROP_SECRET_ENTRIES => AgentChatSecretEntrySerializer.many(conversation.chat&.secret_entries&.includes(:requester, :done_by, tool: :integration) || [],
