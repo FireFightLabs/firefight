@@ -37,6 +37,9 @@ module Mcp
     REVOKE_GRANT = "revoke_grant".freeze
     UPSERT_APPROVAL_RULE = "upsert_approval_rule".freeze
     DELETE_APPROVAL_RULE = "delete_approval_rule".freeze
+    LIST_UNATTENDED_RULES = "list_unattended_rules".freeze
+    UPSERT_UNATTENDED_RULE = "upsert_unattended_rule".freeze
+    DELETE_UNATTENDED_RULE = "delete_unattended_rule".freeze
     SEARCH_ACTIVITY = "search_activity".freeze
     CREATE_ACTION_ITEM = "create_action_item".freeze
     ASSIGN_ACTION_ITEM = "assign_action_item".freeze
@@ -115,7 +118,7 @@ module Mcp
         SearchApprovals, ApproveApproval, DenyApproval,
         GetForm, UpsertCustomField, UpsertFormField,
         ListAbilities, ListPrincipals, UpsertPermissionSet, DeletePermissionSet, GrantAbility, RevokeGrant,
-        UpsertApprovalRule, DeleteApprovalRule, SearchActivity,
+        UpsertApprovalRule, DeleteApprovalRule, ListUnattendedRules, UpsertUnattendedRule, DeleteUnattendedRule, SearchActivity,
         CreateActionItem, AssignActionItem, CompleteActionItem, RenameActionItem, ReopenActionItem, UnassignActionItem,
         CreateActionItemIssue, ClaimRunbookStep,
         LinkIncident, GiveShoutout, EscalateIncident, InviteResponders,

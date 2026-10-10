@@ -23,7 +23,11 @@ class InvestigationRemediationPlanSerializer < BaseSerializer
   def apply_blocked_reason = plan.apply_blocked_reason
 
   type :string, optional: true
-  def applied_by = plan.approved_by&.display_name
+  def applied_by = plan.applier_name
+
+  # For a fix Halon applied on its own: each unattended rule it acted under and what it read just before, one per line.
+  type :string, optional: true
+  def unattended_reading = (plan.unattended_reading if plan.unattended?)
 
   type :string, optional: true
   def applied_at = plan.approved_at&.utc&.iso8601

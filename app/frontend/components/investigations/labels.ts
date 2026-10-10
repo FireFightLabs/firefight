@@ -49,6 +49,7 @@ export const TRIGGER_LABELS: Record<InvestigationTrigger, string> = {
   mcp: "Outside agent",
   dashboard: "Incident page",
   rehearsal: "Rehearsal",
+  alert: "Alert",
 }
 
 export const HYPOTHESIS_LABELS: Record<HypothesisStatus, string> = {

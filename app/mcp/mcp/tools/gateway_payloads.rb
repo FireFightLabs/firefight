@@ -32,6 +32,7 @@ module Mcp
           approver_role: requirement["role"],
           approvers: Ability::Principal.references(requirement["approvers"]),
           agents_may_approve: requirement.fetch("agents_may_approve", false),
+          on_call: requirement.fetch(PolicyRule::ApprovalOutcome::ON_CALL, false),
           notify: requirement["notify"] || PolicyRule::ApprovalOutcome::NOTIFY_CHANNEL,
           self_approval: requirement.fetch("self_approval", true)
         }

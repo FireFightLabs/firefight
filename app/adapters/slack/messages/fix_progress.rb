@@ -82,8 +82,8 @@ module Slack
       end
 
       def self.heading(plan, steps)
-        who = plan.last_moved_by
-        by = who ? " by #{Mrkdwn.escape(who.display_name)}" : ""
+        name = plan.cancelled? ? plan.cancelled_by&.display_name : plan.applier_name
+        by = name ? " by #{Mrkdwn.escape(name)}" : ""
         "*#{headings(plan).fetch(plan.status)}*#{by}. #{steps.count(&:done?)} of #{steps.size} steps done."
       end
 

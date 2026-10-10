@@ -20,6 +20,8 @@ module Investigation::Seeding
   KEY_INSTRUCTIONS = "instructions".freeze
   # Which changes to a starting memory the run was already told about, by memory id.
   KEY_TOLD = "told".freeze
+  # For a run an alert started: that nobody asked, what the team lets Halon change on its own, and whether it pages.
+  KEY_ON_CALL = "on_call".freeze
 
   included do
     # Memories and instructions are encrypted where they are kept, so the run's copy of them is too.

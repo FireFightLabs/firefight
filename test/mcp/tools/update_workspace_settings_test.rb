@@ -121,7 +121,8 @@ class Mcp::Tools::UpdateWorkspaceSettingsTest < ActiveSupport::TestCase
 
     assert_equal({ transcript_access_enabled: true, transcript_retention_days: 14, archive_channel_delay: @workspace.archive_channel_delay,
                    web_search_enabled: true, halon_regression_enabled: false, memory_expiry_days: nil, code_fix_agent: nil, issue_tracker: nil,
-                   issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER, issue_tracker_target: {}, issue_webhook_secret_set: false }, body[:settings])
+                   issue_creation: Workspace::IssueSync::ISSUE_CREATION_NEVER, issue_tracker_target: {}, issue_webhook_secret_set: false,
+                   alert_investigations_enabled: false, alert_storm_ceiling_cents: 2_000, on_call_paging_enabled: false }, body[:settings])
   end
 
   test "a secret given in a chat is ledgered as its digest, and a held call that gave one never runs from its approval" do

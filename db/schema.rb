@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_121100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -60,6 +60,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
     t.uuid "workspace_id", null: false
     t.boolean "held_for_run", default: false, null: false
     t.datetime "run_expires_at"
+    t.uuid "approved_under_rule_id"
+    t.boolean "on_call_may_approve", default: false, null: false
+    t.jsonb "asked_member_ids", default: [], null: false
+    t.index ["approved_under_rule_id"], name: "index_ability_approvals_on_approved_under_rule_id"
     t.index ["principal_type", "principal_id"], name: "index_ability_approvals_on_principal_type_and_principal_id"
     t.index ["workspace_id", "status", "created_at"], name: "idx_on_workspace_id_status_created_at_15ac906fa7"
   end
@@ -147,6 +151,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
     t.index ["integration_id", "pack"], name: "index_ability_roles_one_pack_per_connection", unique: true, where: "(integration_id IS NOT NULL)"
     t.index ["workspace_id", "pack"], name: "index_ability_roles_one_workspace_pack", unique: true, where: "((pack IS NOT NULL) AND (integration_id IS NULL))"
     t.index ["workspace_id", "slug"], name: "index_ability_roles_on_workspace_id_and_slug", unique: true
+  end
+
+  create_table "ability_unattended_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "resource_id", null: false
+    t.string "capability", null: false
+    t.string "metric", null: false
+    t.decimal "threshold", precision: 14, scale: 3, null: false
+    t.integer "minutes", default: 10, null: false
+    t.boolean "enabled", default: true, null: false
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_ability_unattended_rules_on_created_by_id"
+    t.index ["resource_id"], name: "index_ability_unattended_rules_on_resource_id"
+    t.index ["workspace_id"], name: "index_ability_unattended_rules_on_workspace_id"
   end
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -1715,8 +1735,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
     t.text "summary"
     t.datetime "updated_at", null: false
     t.uuid "winning_hypothesis_id"
+    t.uuid "page_member_id"
+    t.datetime "paged_at"
     t.index ["investigation_id"], name: "index_investigation_findings_on_investigation_id", unique: true
     t.index ["outcome_by_type", "outcome_by_id"], name: "index_investigation_findings_on_outcome_by"
+    t.index ["page_member_id"], name: "index_investigation_findings_on_page_member_id"
     t.index ["winning_hypothesis_id"], name: "index_investigation_findings_on_winning_hypothesis_id"
   end
 
@@ -1786,6 +1809,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
     t.uuid "undoes_id"
     t.datetime "updated_at", null: false
     t.text "verify"
+    t.text "unattended_reading"
+    t.datetime "unattended_checked_at"
     t.index ["approved_by_id"], name: "index_investigation_remediation_plans_on_approved_by_id"
     t.index ["cancelled_by_id"], name: "index_investigation_remediation_plans_on_cancelled_by_id"
     t.index ["finding_id"], name: "index_investigation_remediation_plans_on_finding_id"
@@ -1819,10 +1844,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
     t.string "state_change"
     t.datetime "state_checked_at"
     t.text "progress"
+    t.uuid "resource_id"
+    t.uuid "applied_under_rule_id"
+    t.index ["applied_under_rule_id"], name: "index_investigation_remediation_steps_on_applied_under_rule_id"
     t.index ["approval_id"], name: "index_investigation_remediation_steps_on_approval_id"
     t.index ["done_by_id"], name: "index_investigation_remediation_steps_on_done_by_id"
     t.index ["invocation_id"], name: "index_investigation_remediation_steps_on_invocation_id"
     t.index ["plan_id", "position"], name: "index_investigation_remediation_steps_on_plan_id_and_position", unique: true
+    t.index ["resource_id"], name: "index_investigation_remediation_steps_on_resource_id"
   end
 
   create_table "investigation_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2792,6 +2821,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
     t.integer "memory_expiry_days"
     t.uuid "created_by_id"
     t.string "sandbox_provider"
+    t.boolean "alert_investigations_enabled", default: false, null: false
+    t.integer "alert_storm_ceiling_cents", default: 2000, null: false
+    t.boolean "on_call_paging_enabled", default: false, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
@@ -2800,6 +2832,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
   end
 
   add_foreign_key "ability_actions", "workspaces"
+  add_foreign_key "ability_approvals", "ability_unattended_rules", column: "approved_under_rule_id", on_delete: :nullify
   add_foreign_key "ability_approvals", "workspaces"
   add_foreign_key "ability_grants", "ability_actions", column: "action_id"
   add_foreign_key "ability_grants", "ability_roles", column: "role_id"
@@ -2813,6 +2846,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
   add_foreign_key "ability_role_actions", "ability_roles", column: "role_id"
   add_foreign_key "ability_roles", "integrations", on_delete: :cascade
   add_foreign_key "ability_roles", "workspaces"
+  add_foreign_key "ability_unattended_rules", "resource_map_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "ability_unattended_rules", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "ability_unattended_rules", "workspaces"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "agents", "workspaces"
@@ -2979,6 +3015,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
   add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_findings", "investigation_hypotheses", column: "winning_hypothesis_id"
   add_foreign_key "investigation_findings", "investigations"
+  add_foreign_key "investigation_findings", "workspace_memberships", column: "page_member_id", on_delete: :nullify
   add_foreign_key "investigation_hypotheses", "catalog_entries"
   add_foreign_key "investigation_hypotheses", "investigations"
   add_foreign_key "investigation_regression_results", "investigation_findings", column: "finding_id", on_delete: :cascade
@@ -2992,7 +3029,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
   add_foreign_key "investigation_remediation_plans", "workspace_memberships", column: "undo_requested_by_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "ability_approvals", column: "approval_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "ability_invocations", column: "invocation_id", on_delete: :nullify
+  add_foreign_key "investigation_remediation_steps", "ability_unattended_rules", column: "applied_under_rule_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "investigation_remediation_plans", column: "plan_id", on_delete: :cascade
+  add_foreign_key "investigation_remediation_steps", "resource_map_resources", column: "resource_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "workspace_memberships", column: "done_by_id", on_delete: :nullify
   add_foreign_key "investigation_steps", "chat_helpers", on_delete: :nullify
   add_foreign_key "investigation_steps", "investigation_hypotheses", column: "hypothesis_id"

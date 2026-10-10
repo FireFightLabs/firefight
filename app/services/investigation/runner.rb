@@ -58,6 +58,7 @@ class Investigation::Runner
   def deliver(result)
     if @investigation.reload.finding
       delivery.answered!(@investigation.finding)
+      OnCallFollowUpJob.perform_later(@investigation.id) if @investigation.started_by_alert? && !@investigation.rehearsal?
     else
       delivery.stopped!(result.error_summary)
     end

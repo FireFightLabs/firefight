@@ -23,11 +23,24 @@ class Investigation::IncidentSeed
       "services" => service_facts,
       "resources" => resources.presence,
       "resources_held_back" => (map.held_back if resources.any?),
-      "brief" => @investigation.brief.presence
+      "brief" => @investigation.brief.presence,
+      Investigation::Seeding::KEY_ON_CALL => (on_call_facts if @investigation.started_by_alert?)
     }.compact
   end
 
   private
+
+  # An alert started the run and nobody asked, so the run is told what the team allowed ahead: the changes it may make
+  # on its own and when, and whether it pages whoever is on call.
+  def on_call_facts
+    workspace = @investigation.workspace
+    rules = workspace.unattended_rules.enabled.includes(:resource).select { |rule| rule.blocked_reason.nil? }
+    {
+      "started_from" => "An alert opened this incident and started this run. Nobody asked, and nobody may be watching yet.",
+      "unattended_rules" => rules.map { |rule| { "rule" => rule.sentence, "fix_step" => { "tool" => rule.spec.tool_name, "resource" => rule.resource.name } } },
+      "pages_on_call" => workspace.on_call_paging_enabled?
+    }
+  end
 
   def seed_alerts
     @incident.alerts.includes(:alert_source).order(received_at: :asc).first(ALERT_LIMIT)

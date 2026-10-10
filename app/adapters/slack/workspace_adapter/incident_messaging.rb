@@ -566,6 +566,18 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_unattended_note(channel_id:, thread_id:, note:)
+    text = Slack::Messages::OnCall.unattended_fallback(note)
+    blocks = Slack::Messages::OnCall.unattended(note)
+    return post_threaded_message(channel_id: channel_id, parent_message_id: thread_id, text: text, blocks: blocks) if thread_id
+
+    post_message(channel_id: channel_id, text: text, blocks: blocks)
+  end
+
+  def post_alert_run_held(channel_id:, incident:, reason:, rerun:)
+    post_message(channel_id: channel_id, text: reason, blocks: Slack::Messages::OnCall.held(incident: incident, reason: reason, rerun: rerun))
+  end
+
   def post_learned_memories(channel_id:, thread_id:, post:)
     translate_errors do
       result = Slack::Client.post_message(

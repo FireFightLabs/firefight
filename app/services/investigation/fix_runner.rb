@@ -1,4 +1,5 @@
-# Applies a run's fix as the person who applied it. Each step that runs a tool goes through the gateway as them, in the
+# Applies a run's fix as the person who applied it, or as Halon for a fix it applied under an unattended rule
+# (Investigation::Unattended). Each step that runs a tool goes through the gateway as them, in the
 # order the fix gives, once the steps it waits on are done. A step an approval rule holds waits for its approver, and once
 # approved for someone to run it, after Halon reads how things stand now. Approving a step never runs it.
 # A step that fails, or is declined, stops the steps that wait on it, and the rest stand. The run's thread carries one
@@ -91,7 +92,7 @@ class Investigation::FixRunner
     return unless step.checking?
 
     report = Chat::StateCheck.run(
-      owner: step, workspace: step.plan.finding.investigation.workspace, principal: step.plan.approved_by,
+      owner: step, workspace: step.plan.finding.investigation.workspace, principal: step.plan.acting_principal,
       source: AbilityGateway::SOURCE_INVESTIGATION,
       call: Chat::StateCheck::Call.new(named: "Step #{step.position} of a fix: #{step.description} (#{step.tool_name})",
                                        asked: Chat::Tools.shown_arguments(step.arguments), approved_by: approver_name(step.approval))
@@ -138,7 +139,7 @@ class Investigation::FixRunner
     new(step.plan).publish!
     nil
   rescue AbilityGateway::Denied
-    "#{step.plan.approved_by&.display_name || 'Whoever applied the fix'} may no longer run #{step.tool_name}, so it cannot be asked for again."
+    "#{step.plan.applier_name || 'Whoever applied the fix'} may no longer run #{step.tool_name}, so it cannot be asked for again."
   end
 
   # Nobody ran an approved step within its window. It stays, saying so, until someone asks again, dismisses it or cancels.
@@ -226,17 +227,15 @@ class Investigation::FixRunner
   end
 
   def call(step, approval_id: nil)
-    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: APPLIER_GONE) unless @plan.approved_by
+    return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: APPLIER_GONE) unless @plan.acting_principal
 
     tool = step.tool_to_run(workspace)
     return step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: "#{step.tool_name || 'The coding tool'} is no longer switched on.") unless tool
 
     integration = tool.integration
-    asked = step.arguments
-    environment_entry = integration.environment_entry_for(asked[Integration::Tool::ENVIRONMENT_ARG])
-    arguments = asked.except(Integration::Tool::ENVIRONMENT_ARG)
-    scope = environment_entry ? { "environment" => environment_entry.id } : {}
-    authorization = step.authorize_call!(tool, scope: scope, arguments: arguments, approval_id: approval_id)
+    environment_entry = step.environment_entry(tool)
+    arguments = step.call_arguments
+    authorization = step.authorize_call!(tool, scope: step.call_scope(tool), arguments: arguments, approval_id: approval_id)
     finish_call(step, authorization) do
       integration.executor.call(tool: tool, environment_row: integration.resolve_environment(environment_entry&.id), arguments: arguments,
                                 box_key: @plan.finding.investigation.code_box_key, progress: progress_of(step),
@@ -246,7 +245,7 @@ class Investigation::FixRunner
     step.finish!(Investigation::RemediationStep::STATUS_FAILED, result: error.message)
   rescue AbilityGateway::Denied
     step.finish!(Investigation::RemediationStep::STATUS_FAILED,
-                 result: "#{@plan.approved_by.display_name} may not run #{step.tool_name} here, or its connection is not set up for this environment.")
+                 result: "#{@plan.applier_name} may not run #{step.tool_name} here, or its connection is not set up for this environment.")
   rescue AbilityGateway::PendingApproval => pending
     step.move!(from: Investigation::RemediationStep::STATUS_RUNNING, to: Investigation::RemediationStep::STATUS_WAITING_APPROVAL, approval_id: pending.approval.id)
     ApprovalResumption.park_fix_step!(pending.approval, step)
@@ -306,7 +305,7 @@ class Investigation::FixRunner
   def publish!
     @plan.reload
     investigation = @plan.finding.investigation
-    return if investigation.thread_id.blank? || @plan.approved_by_id.nil?
+    return if investigation.thread_id.blank? || (@plan.approved_by_id.nil? && !@plan.unattended?)
 
     adapter = WorkspaceAdapter.for(workspace)
     if @plan.progress_message_id

@@ -32,6 +32,12 @@ export function FixPlan({ investigationId, fix }: { investigationId: string; fix
       </ol>
       {fix.verify && <p className="text-xs text-fg-secondary">How to tell it worked: {fix.verify}</p>}
       {applied && <p className="text-xs font-medium text-fg-body">{applied}</p>}
+      {fix.unattendedReading && (
+        <div className="text-xs text-fg-secondary">
+          <p>Halon applied it on its own, under the team&apos;s unattended rules:</p>
+          <p className="whitespace-pre-line">{fix.unattendedReading}</p>
+        </div>
+      )}
       {fix.appliable && <ApplyFix investigationId={investigationId} fix={fix} />}
       <CancelFix investigationId={investigationId} fix={fix} />
       <UndoFix investigationId={investigationId} fix={fix} />

@@ -198,6 +198,10 @@ class AbilityGateway
     requirement = approval_requirement(workspace, action, action_key, scope, context, params: params)
     return nil unless requirement
 
+    ahead = approved_ahead(principal: principal, action_key: action_key, workspace: workspace, scope: scope, params: params,
+                           context: context, requirement: requirement)
+    return ahead if ahead
+
     supplied = workspace.ability_approvals.find_by(id: context[:approval_id]) if context[:approval_id]
     if supplied && supplied.principal_type == principal.class.polymorphic_name && supplied.principal_id == principal.id &&
        supplied.matches_request?(action_key, params, scope)
@@ -228,6 +232,22 @@ class AbilityGateway
       AbilityApprovalNotificationJob.perform_later(approval_id: approval.id)
     end
     raise PendingApproval.new(approval)
+  end
+
+  # A team that set an unattended rule decided ahead, so a call the rule admits is approved by the rule rather than
+  # waiting for an approver. The approval is written like any other, naming the rule, so the Approvals page and the
+  # activity log show who decided.
+  def self.approved_ahead(principal:, action_key:, workspace:, scope:, params:, context:, requirement:)
+    rule = context[:unattended_rule_id] && workspace.unattended_rules.find_by(id: context[:unattended_rule_id])
+    return nil unless rule&.admits?(principal: principal, action_key: action_key, scope: scope, params: params)
+
+    now = Time.current
+    Ability::Approval.create!(
+      workspace: workspace, principal_type: principal.class.polymorphic_name, principal_id: principal.id,
+      principal_label: principal.principal_label, action_key: action_key, request_digest: Ability::Approval.digest(action_key, params, scope),
+      scope: scope, params: params, **Ability::Approval.requirement_attributes(requirement), status: Ability::Approval::STATUS_APPROVED,
+      approved_under_rule: rule, resolved_at: now, incident_id: context[:incident_id], source: context[:source]
+    )
   end
 
   # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,

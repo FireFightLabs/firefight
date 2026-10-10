@@ -212,6 +212,17 @@ module Integrations
       wired ? "#{row.integration.slug}/#{row.environment.slug}" : row.integration.slug
     end
 
+    # The resources on the map a connection that holds them can act on with a capability, such as every service some
+    # connection can roll back, by name. Only a resource's own holders count, as a person picking one expects.
+    def self.actionable(workspace, key)
+      adapters = IntegrationEnvironment.reachable.includes(:integration).where(integrations: { workspace_id: workspace.id })
+                                       .to_h { |row| [ row.id.to_s, adapter_for(row.integration.provider) ] }.compact
+      ResourceMap::Resource.present.where(workspace_id: workspace.id).order(:name)
+                           .select(:id, :name, :kind, :provider, :integration_environment_id, :sightings).select do |resource|
+        [ resource.integration_environment_id, *resource.sightings.to_h.keys ].compact.map(&:to_s).any? { |id| adapters[id]&.supports?(key, resource.kind) }
+      end
+    end
+
     # The provider's own tool a capability runs as, by the capability's tool name, or nil when it is not one.
     def self.provider_tool(provider, tool_name)
       spec = SPECS.values.find { |each| each.tool_name == tool_name.to_s }

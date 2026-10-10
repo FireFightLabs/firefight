@@ -26,7 +26,7 @@ class IncidentCreationWorkflowTest < ActiveSupport::TestCase
     workflow = IncidentCreationWorkflow.start_inline!(@incident)
 
     assert_equal "succeeded", workflow.state
-    assert_equal 10, workflow.steps.count
+    assert_equal 11, workflow.steps.count
     assert workflow.steps.all? { |s| s.succeeded? || s.skipped? }
   end
 

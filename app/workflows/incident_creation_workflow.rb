@@ -10,6 +10,7 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   step :invite_responders, depends_on: [ :create_slack_channel ]
   step :attach_runbooks, depends_on: [ :post_quick_actions_message ]
   step :post_carried_over_investigation, depends_on: [ :post_quick_actions_message ]
+  step :start_alert_investigation, depends_on: [ :post_quick_actions_message ]
   step :create_incident_event
 
   def create_slack_channel(workflow:, step:, input:)
@@ -45,6 +46,12 @@ class IncidentCreationWorkflow < SolidWorkflow::Base
   # Posted once, since a retried step would post the answer twice.
   def post_carried_over_investigation(workflow:, step:, input:)
     checkpointed(step) { service(workflow).post_carried_over_investigation(workflow.subject) }
+  end
+
+  # Once the channel is there for the run to speak in. Checkpointed, so a retried step never starts a second run after
+  # the first finished.
+  def start_alert_investigation(workflow:, step:, input:)
+    { "outcome" => checkpointed(step) { Investigation::AlertStart.start!(workflow.subject) } }
   end
 
   def attach_runbooks(workflow:, step:, input:)

@@ -44,7 +44,7 @@ class Api::V1::ApprovalRulesController < Api::V1::ApiController
 
   # Approvers arrive as { kind, id } objects or bare ids for people, which strong parameters cannot express.
   def rule_attributes
-    changes = params.permit(:enabled, :approver_role, :self_approval, :notify, :agents_may_approve, abilities: [], risk_levels: [], environments: []).to_h
+    changes = params.permit(:enabled, :approver_role, :self_approval, :notify, :agents_may_approve, :on_call, abilities: [], risk_levels: [], environments: []).to_h
     changes[:approvers] = Array(params[:approvers]).map { |value| value.respond_to?(:to_unsafe_h) ? value.to_unsafe_h : value } if params.key?(:approvers)
     PolicyRule::ApprovalRuleChanges.attributes(workspace: current_workspace, existing: @rule, changes: changes)
   end

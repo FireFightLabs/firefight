@@ -7,8 +7,10 @@ module PolicyRule::ApprovalOutcome
   NOTIFY_DM = "dm"
   NOTIFY_BOTH = "both"
   NOTIFY_OPTIONS = [ NOTIFY_CHANNEL, NOTIFY_DM, NOTIFY_BOTH ].freeze
+  # Whoever is on call for the incident may decide too, and is asked when nobody working it can.
+  ON_CALL = "on_call".freeze
 
-  def self.build(role:, self_approval: true, notify: nil, approvers: [], agents_may_approve: false)
+  def self.build(role:, self_approval: true, notify: nil, approvers: [], agents_may_approve: false, on_call: false)
     {
       REQUIRE_KEY => {
         "role" => role.to_s,
@@ -16,7 +18,8 @@ module PolicyRule::ApprovalOutcome
         "self_approval" => ActiveModel::Type::Boolean.new.cast(self_approval),
         "notify" => notify.presence || NOTIFY_CHANNEL,
         "approvers" => Ability::Principal.references(approvers),
-        "agents_may_approve" => ActiveModel::Type::Boolean.new.cast(agents_may_approve)
+        "agents_may_approve" => ActiveModel::Type::Boolean.new.cast(agents_may_approve),
+        ON_CALL => ActiveModel::Type::Boolean.new.cast(on_call) || false
       }
     }
   end
@@ -44,6 +47,7 @@ module PolicyRule::ApprovalOutcome
     unless requirement["agents_may_approve"].nil? || [ true, false ].include?(requirement["agents_may_approve"])
       errors << "agents_may_approve must be true or false"
     end
+    errors << "#{ON_CALL} must be true or false" unless requirement[ON_CALL].nil? || [ true, false ].include?(requirement[ON_CALL])
     errors.concat(approver_errors(requirement, workspace))
     errors
   end

@@ -490,6 +490,95 @@ export const ARCHIVE_CHANNEL_DELAY_CHOICES = [
 
 export const ARCHIVE_CHANNEL_DELAY_NEVER = "never" as const
 
+export const UNATTENDED_CAPABILITY_CHOICES = [
+  {
+    "value": "rollback",
+    "label": "Roll back"
+  },
+  {
+    "value": "restart",
+    "label": "Restart"
+  }
+] as const
+
+export const UNATTENDED_METRIC_CHOICES = [
+  {
+    "value": "cpu",
+    "label": "CPU"
+  },
+  {
+    "value": "memory",
+    "label": "memory"
+  },
+  {
+    "value": "requests",
+    "label": "requests"
+  },
+  {
+    "value": "errors",
+    "label": "errors"
+  },
+  {
+    "value": "http_4xx",
+    "label": "4xx responses"
+  },
+  {
+    "value": "http_5xx",
+    "label": "5xx responses"
+  },
+  {
+    "value": "cpu_time",
+    "label": "CPU time"
+  },
+  {
+    "value": "network_in",
+    "label": "network in"
+  },
+  {
+    "value": "network_out",
+    "label": "network out"
+  },
+  {
+    "value": "tcp_connections",
+    "label": "TCP connections"
+  },
+  {
+    "value": "disk",
+    "label": "disk"
+  },
+  {
+    "value": "bandwidth",
+    "label": "bandwidth"
+  },
+  {
+    "value": "latency_p95",
+    "label": "p95 latency"
+  },
+  {
+    "value": "invocations",
+    "label": "invocations"
+  },
+  {
+    "value": "duration",
+    "label": "duration"
+  },
+  {
+    "value": "throttles",
+    "label": "throttles"
+  }
+] as const
+
+export const UNATTENDED_DEFAULT_MINUTES = 10 as const
+
+export const UNATTENDED_DEFAULT_METRIC = "errors" as const
+
+export const UNATTENDED_MAX_MINUTES = 1440 as const
+
+export const STORM_CEILING_CENTS = {
+  "MIN": 50,
+  "MAX": 100000
+} as const
+
 export const CONDITION_FIELD_LABELS = {
   "incident_type": "Incident Type",
   "severity": "Severity",
@@ -972,7 +1061,8 @@ export const INVESTIGATION_TRIGGERS = [
   "conversation",
   "mcp",
   "dashboard",
-  "rehearsal"
+  "rehearsal",
+  "alert"
 ] as const
 export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]
 

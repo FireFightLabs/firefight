@@ -51,6 +51,11 @@ class Investigation::RemediationStep < ApplicationRecord
   belongs_to :invocation, class_name: "Ability::Invocation", optional: true
   belongs_to :approval, class_name: "Ability::Approval", optional: true
   belongs_to :done_by, class_name: "WorkspaceMembership", optional: true
+  # The resource on the map a step written as a capability (rollback, restart, scale) acts on, which an unattended rule
+  # is matched against. None for a step that names a provider's tool directly.
+  belongs_to :resource, class_name: "ResourceMap::Resource", optional: true
+  # The unattended rule that let Halon make this step's change on its own, in a fix nobody applied.
+  belongs_to :applied_under_rule, class_name: "Ability::UnattendedRule", optional: true
   # Halon's reading of how things stand now once the step was approved, on a chat of its own.
   has_one :check, class_name: "Chat", as: :owner, dependent: :destroy
 
@@ -76,8 +81,8 @@ class Investigation::RemediationStep < ApplicationRecord
       step.repository = asked["repository"].to_s.strip.presence || refuse(position, "names no repository. Give the repository the change goes in")
     when KIND_ACTION
       refuse(position, "has its arguments as something other than an object") unless asked["arguments"].nil? || asked["arguments"].is_a?(Hash)
-      tool, arguments = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position, principal)
-      step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments)
+      tool, arguments, resource = action_of(workspace, asked["tool"].to_s, asked["arguments"] || {}, position, principal)
+      step.assign_attributes(tool_name: asked["tool"], action_key: tool.action_key, arguments: arguments, resource: resource)
     when KIND_MANUAL
       step.missing = asked["missing"].presence
     end
@@ -185,17 +190,37 @@ class Investigation::RemediationStep < ApplicationRecord
   end
 
   # Asks the gateway whether whoever applied the fix may make this step's call, and ledgers it. The caller makes the call
-  # and finalizes what this returns, so the step keeps its ledger row.
+  # and finalizes what this returns, so the step keeps its ledger row. A fix Halon applied under an unattended rule names
+  # the rule, which the gateway asks before an approval rule would hold the call.
   def authorize_call!(tool, scope:, arguments:, approval_id: nil)
     investigation = plan.finding.investigation
     AbilityGateway.authorize!(
-      principal: plan.approved_by, action_key: tool.action_key, workspace: investigation.workspace, scope: scope, params: arguments,
+      principal: plan.acting_principal, action_key: tool.action_key, workspace: investigation.workspace, scope: scope, params: arguments,
       context: { source: plan.applied_from, approval_id: approval_id, incident_id: investigation.incident&.id,
-                 triggered_by_label: "Step #{position} of the fix from #{investigation.incident&.identifier || 'a Halon run'}" }.compact
+                 unattended_rule_id: applied_under_rule_id, triggered_by_label: triggered_by_label }.compact
     )
   end
 
+  # Who the activity log says the call was made for.
+  def triggered_by_label
+    from = plan.finding.investigation.incident&.identifier || "a Halon run"
+    return "Step #{position} of the fix from #{from}" unless plan.unattended?
+
+    "Step #{position} of the fix from #{from}, applied by Halon under the unattended rule: #{applied_under_rule&.sentence || 'since deleted'}"
+  end
+
   def workspace_id = plan.finding.investigation.workspace_id
+
+  # The environment the step's call runs in, by the slug its arguments name, or nil when they name none.
+  def environment_entry(tool) = tool.integration.environment_entry_for(arguments[Integration::Tool::ENVIRONMENT_ARG])
+
+  # What the step's call sends and where, which the gateway authorizes and an approval is bound to.
+  def call_arguments = arguments.except(Integration::Tool::ENVIRONMENT_ARG)
+
+  def call_scope(tool = tool_to_run)
+    entry = tool && environment_entry(tool)
+    entry ? { Ability::Scope::DIMENSION_ENVIRONMENT => entry.id } : {}
+  end
 
   def approved? = status == STATUS_APPROVED
 
@@ -242,21 +267,23 @@ class Investigation::RemediationStep < ApplicationRecord
     return "Step #{position} is #{STATUS_WORDS.fetch(status)}." unless approved?
     return "Halon is still checking how things stand now." if checking?
     return EXPIRED if lapsed?
-    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} or someone who may run #{tool_name} can run it." unless may_run?(member)
+    return "Only #{plan.applier_name || 'whoever applied the fix'} or someone who may run #{tool_name} can run it." unless may_run?(member)
 
     nil
   end
 
   def dismiss_blocked_reason(member)
     return "Step #{position} is #{STATUS_WORDS.fetch(status)}." unless approved?
-    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} or someone who may run #{tool_name} can dismiss it." unless may_run?(member)
+    return "Only #{plan.applier_name || 'whoever applied the fix'} or someone who may run #{tool_name} can dismiss it." unless may_run?(member)
 
     nil
   end
 
   def ask_again_blocked_reason(member)
     return "Only an approval that expired can be asked for again." unless lapsed?
-    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} can ask for this again." unless member && member == plan.approved_by
+    # Nobody applied a fix Halon applied under a rule, so anyone who may run the tool asks again.
+    return "Only someone who may run #{tool_name} can ask for this again." if plan.unattended? && !may_run?(member)
+    return "Only #{plan.approved_by&.display_name || 'whoever applied the fix'} can ask for this again." unless plan.unattended? || (member && member == plan.approved_by)
 
     nil
   end
@@ -274,7 +301,7 @@ class Investigation::RemediationStep < ApplicationRecord
   def request_approval_again!
     investigation = plan.finding.investigation
     AbilityGateway.request_approval!(
-      principal: plan.approved_by, action_key: approval.action_key, workspace: investigation.workspace, scope: approval.scope,
+      principal: plan.acting_principal, action_key: approval.action_key, workspace: investigation.workspace, scope: approval.scope,
       params: approval.params, context: { source: plan.applied_from, incident_id: investigation.incident&.id }.compact
     )
     nil
@@ -354,13 +381,13 @@ class Investigation::RemediationStep < ApplicationRecord
   # connection that holds the resource, so the step shows and runs exactly the provider call it will make.
   def self.action_of(workspace, name, arguments, position, principal)
     spec = Integrations::Capabilities::SPECS.values.find { |each| each.tool_name == name }
-    return [ runnable_tool(workspace, name, position), arguments ] unless spec
+    return [ runnable_tool(workspace, name, position), arguments, nil ] unless spec
     refuse(position, "names #{name}, which only reads. A fix has to change something") unless spec.writes
 
     call = Integrations::Capabilities.resolve(workspace, spec.key, arguments.transform_keys(&:to_s), principal: principal)
     environment = call.environment_entry&.slug
     [ runnable_tool(workspace, call.tool.model_facing_name, position),
-      environment ? call.arguments.merge(Integration::Tool::ENVIRONMENT_ARG => environment) : call.arguments ]
+      environment ? call.arguments.merge(Integration::Tool::ENVIRONMENT_ARG => environment) : call.arguments, call.resource ]
   rescue Integrations::Capabilities::Unroutable => error
     refuse(position, "names #{name}, which cannot run here: #{error.message.delete_suffix('.')}. Make it a manual step and say so")
   end

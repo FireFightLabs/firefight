@@ -17,5 +17,6 @@ module Mcp
     PERMISSIONS = "#{BASE}/gateway/permissions.md".freeze
     APPROVALS = "#{BASE}/gateway/approvals.md".freeze
     ACTIVITY = "#{BASE}/gateway/activity.md".freeze
+    ON_CALL = "#{BASE}/ai/on-call.md".freeze
   end
 end

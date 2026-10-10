@@ -21,6 +21,9 @@ module Ability
     belongs_to :workspace
     belongs_to :principal, polymorphic: true, optional: true
     belongs_to :approver, polymorphic: true, optional: true
+    # The unattended rule that approved the call ahead, in place of an approver.
+    belongs_to :approved_under_rule, class_name: "Ability::UnattendedRule", optional: true
+    belongs_to :incident, optional: true
 
     validates :principal_label, :action_key, :request_digest, presence: true
     validates :status, inclusion: { in: STATUSES }
@@ -37,7 +40,8 @@ module Ability
         self_approvable: requirement.fetch("self_approval", true),
         approver_ids: Ability::Principal.references(requirement["approvers"]),
         agents_may_approve: requirement.fetch("agents_may_approve", false),
-        notify: requirement["notify"]
+        notify: requirement["notify"],
+        on_call_may_approve: requirement.fetch(PolicyRule::ApprovalOutcome::ON_CALL, false)
       }
     end
 
@@ -139,6 +143,8 @@ module Ability
     end
 
     def approver?(principal)
+      return true if on_call_approver?(principal)
+
       reference = Ability::Principal.reference_for(principal)
       if named_approvers?
         return false unless approver_ids.map { |ref| Ability::Principal.reference(ref) }.include?(reference)
@@ -167,8 +173,41 @@ module Ability
       end
     end
 
+    # Who decided, as a person reads it: the approver, or the unattended rule that decided ahead.
+    def decider_name
+      return approver.actor_display_name if approver
+      return "Unattended rule: #{approved_under_rule.sentence}" if approved_under_rule
+
+      nil
+    end
+
     def human_approvers
       approvers.select { |approver| approver.is_a?(WorkspaceMembership) }
+    end
+
+    # Whoever is on call for the incident, when the rule lets them decide and none of its approvers is working the
+    # incident or asked for the call. Only then are they asked, so a request someone in the incident can decide never
+    # wakes anyone.
+    def on_call_to_ask
+      return [] unless on_call_may_approve? && incident
+
+      here = [ *incident.participants, principal ].compact
+      return [] if human_approvers.any? { |approver| here.include?(approver) }
+
+      incident.on_call_members
+    end
+
+    # Claims asking one member directly, in one statement, so a request is never sent to the same person twice.
+    def claim_ask!(member)
+      asked = [ member.id ].to_json
+      won = self.class.where(id: id).where.not("asked_member_ids @> ?::jsonb", asked)
+                      .update_all([ "asked_member_ids = asked_member_ids || ?::jsonb, updated_at = ?", asked, Time.current ])
+      reload
+      won == 1
+    end
+
+    def on_call_approver?(principal)
+      on_call_may_approve? && incident.present? && principal.is_a?(WorkspaceMembership) && incident.on_call_members.include?(principal)
     end
 
     def named_approver_records

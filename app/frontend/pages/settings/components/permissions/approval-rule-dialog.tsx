@@ -214,6 +214,19 @@ export function ApprovalRuleDialog({
                   />
                 </div>
               )}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="on-call-may-approve">Whoever is on call may approve too</Label>
+                  <p className="text-muted-foreground text-xs">
+                    The people the incident was escalated to. They get a direct message when nobody working the incident can approve.
+                  </p>
+                </div>
+                <Switch
+                  id="on-call-may-approve"
+                  checked={data.onCall}
+                  onCheckedChange={(checked) => patch({ onCall: checked })}
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">

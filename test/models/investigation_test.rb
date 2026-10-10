@@ -232,7 +232,7 @@ class InvestigationTest < ActiveSupport::TestCase
   end
 
   test "a trigger source names what happened, not which platform it happened on" do
-    assert_equal %w[command button conversation mcp dashboard rehearsal], Investigation::TRIGGER_SOURCES
+    assert_equal %w[command button conversation mcp dashboard rehearsal alert], Investigation::TRIGGER_SOURCES
   end
 
   test "an incident is one kind of subject, not the only kind the record allows" do

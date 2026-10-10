@@ -1,7 +1,8 @@
 # How to fix what a run found, written by the agent when it names a cause: ordered steps, how to tell it worked, and who
 # applied it. Every finding with a cause has one, whether or not anything can apply it, since a fix nobody can run is
 # still steps for a person. Applying it is a person's decision, never part of writing it, and its steps then run as that
-# person (approved_by), through their own permissions.
+# person (approved_by), through their own permissions. The one exception is a change a team allowed ahead with an
+# unattended rule, which Halon applies on its own in a run an alert started, and whose steps run as Halon.
 class Investigation::RemediationPlan < ApplicationRecord
   self.table_name = "investigation_remediation_plans"
 
@@ -14,7 +15,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   STATUSES = [ STATUS_PROPOSED, STATUS_APPLYING, STATUS_APPLIED, STATUS_PARTLY_APPLIED, STATUS_CANCELLED ].freeze
   ENDED_WITH_CHANGES = [ STATUS_APPLIED, STATUS_PARTLY_APPLIED, STATUS_CANCELLED ].freeze
   # Where a person applied it, which the ledger names as the source of each step.
-  APPLIED_FROM = AbilityGateway::HUMAN_SOURCES
+  APPLIED_FROM = [ *AbilityGateway::HUMAN_SOURCES, AbilityGateway::SOURCE_INVESTIGATION ].freeze
 
   # Raised when a proposal cannot be recorded, with a reason the agent can act on.
   class Refused < StandardError; end
@@ -80,7 +81,7 @@ class Investigation::RemediationPlan < ApplicationRecord
   # With one, also whether they may run every tool it needs, so nothing starts that would stop partway for want of access.
   def apply_blocked_reason(membership = nil)
     return "Nothing in this fix runs through a connection, so each step is marked done by hand." unless appliable?
-    return "#{approved_by&.display_name || 'Someone'} already applied this fix." unless status == STATUS_PROPOSED
+    return "#{applier_name || 'Someone'} already applied this fix." unless status == STATUS_PROPOSED
 
     workspace = finding.investigation.workspace
     resolved = membership && Ability::Resolver.resolve(membership, workspace)
@@ -95,6 +96,36 @@ class Investigation::RemediationPlan < ApplicationRecord
       end
     end
     nil
+  end
+
+  # Applied by Halon on its own, under an unattended rule, rather than by a person.
+  def unattended? = applied_from == AbilityGateway::SOURCE_INVESTIGATION
+
+  # Who its steps run as: whoever applied it, or Halon's own agent when Halon applied it under a rule.
+  def acting_principal = unattended? ? finding.investigation.acting_principal : approved_by
+
+  def applier_name = unattended? ? "Halon" : approved_by&.display_name
+
+  # Claims the one look at whether an unattended rule lets Halon apply the fix, so a retried job never looks twice.
+  def claim_unattended_check!
+    won = self.class.where(id: id, unattended_checked_at: nil).update_all(unattended_checked_at: Time.current, updated_at: Time.current)
+    reload
+    won == 1
+  end
+
+  # Claims the fix for Halon, the same way a person's click does, so a person applying it at the same moment wins or
+  # loses cleanly. Each step that changes something keeps the rule that allowed it. unattended_reading keeps what Halon
+  # read and each rule's words, so the record stands if a rule is deleted later.
+  def apply_unattended!(rules:, reading:)
+    won = transaction do
+      claimed = self.class.where(id: id, status: STATUS_PROPOSED)
+                          .update_all(status: STATUS_APPLYING, approved_at: Time.current, applied_from: AbilityGateway::SOURCE_INVESTIGATION,
+                                      unattended_reading: reading, updated_at: Time.current)
+      rules.each { |step, rule| step.update_columns(applied_under_rule_id: rule.id, updated_at: Time.current) } if claimed == 1
+      claimed
+    end
+    reload
+    won == 1
   end
 
   # Claims the fix for one person, so two clicks never apply it twice. False when someone else got there first.

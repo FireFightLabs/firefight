@@ -65,6 +65,16 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
         "suggest_incident" => {
           "type" => "boolean",
           "description" => "Only when there is no incident yet: true when what you found is hurting users now and the team should declare one"
+        },
+        "page" => {
+          "type" => "object",
+          "description" => "Only when the facts' on_call says pages_on_call: who is on call now for what broke, whom Firefight pages with " \
+                           "your answer. Leave it out otherwise",
+          "properties" => {
+            "person" => { "type" => "string", "description" => "Their email, as the on-call tool gave it" },
+            "steps" => { "type" => "array", "items" => { "type" => "integer" }, "description" => "The step numbers of the results that show they are on call" }
+          },
+          "required" => %w[person steps]
         }
       },
       "required" => [ "summary" ]
@@ -79,6 +89,7 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
 
     asked = arguments.symbolize_keys
     check_fix!(asked)
+    page = @investigation.page_to(asked[:page]) if asked[:page].present?
     evidence = Array(asked[:evidence])
     evidence.each_with_index { |item, index| @investigation.cited_steps!(item.to_h.stringify_keys["steps"], what: "Evidence #{index + 1}") }
     reread = Investigation::Rereading.new(@investigation).check(evidence)
@@ -86,10 +97,10 @@ class Investigation::Tools::Conclude < RubyLLM::Tool
 
     @investigation.conclude!(
       summary: asked[:summary], hypothesis_assertion: asked[:hypothesis], evidence: reread.kept, gaps: asked[:gaps],
-      suggest_incident: asked[:suggest_incident] == true, fix: asked[:fix]
+      suggest_incident: asked[:suggest_incident] == true, fix: asked[:fix], page: page
     )
     "Answer recorded. The run is over."
-  rescue Investigation::Evidence::Refused, Investigation::RemediationPlan::Refused => refused
+  rescue Investigation::Evidence::Refused, Investigation::RemediationPlan::Refused, Investigation::PageRefused => refused
     { error: refused.message }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error
     { error: error.message }

@@ -44,7 +44,7 @@ class ApprovalRulesController < InertiaController
     PolicyRule::ApprovalRuleChanges.attributes(
       workspace: current_workspace, existing: @rule,
       changes: params.require(:rule).permit(
-        :enabled, :approver_role, :self_approval, :notify, :agents_may_approve,
+        :enabled, :approver_role, :self_approval, :notify, :agents_may_approve, :on_call,
         abilities: [], risk_levels: [], environment_ids: [], approvers: [ :kind, :id ]
       )
     )
