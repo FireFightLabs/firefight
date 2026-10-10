@@ -39,7 +39,8 @@ class Investigation::Runner
       nudge: chat.method(:nudge!),
       memory: chat,
       take_messages: method(:take_notes),
-      purse: purse
+      purse: purse,
+      on_backup: (method(:switched_model) unless @investigation.rehearsal?)
     ) do |turn|
       unless @investigation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
         raise LeaseLost, "another worker holds this run"
@@ -81,6 +82,12 @@ class Investigation::Runner
   end
 
   def titles = @titles ||= {}
+
+  # A rehearsal measures one model, so only a real run carries on with a backup, and says so where its steps are.
+  def switched_model(failed, backup, error)
+    switch = Chat::ModelSwitch.record!(@investigation.chat, failed: failed, backup: backup, error: error)
+    delivery.step(key: switch.step_key, title: switch.shown_as, status: FirefightAi::AgentLoop::STEP_DONE)
+  end
 
   # Shown where the run's steps are, so whoever added a note sees the run read it. A starting memory a person set aside
   # since the run began is told to the agent as a note of its own, which nobody needs to see.

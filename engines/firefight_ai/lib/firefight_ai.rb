@@ -148,6 +148,11 @@ module FirefightAi
     following
   end
 
+  # What the loop carries on with when the provider behind choice stopped answering, or nil when nothing can.
+  def backup_for(choice, purpose:, workspace:, tried: [])
+    AiFunding.backup_for(workspace, purpose, failing: choice, tried: tried)
+  end
+
   # The model and payer a call for the purpose runs on now: the workspace's first account that can pay (AiFunding).
   # When nobody can, the deployment's model with nobody paying, so a caller can still read what the model is, and the
   # call itself is refused as out of credit.
@@ -160,7 +165,9 @@ module FirefightAi
 
   # The deployment's own model for the purpose, most specific first: workspace override for the purpose, for any
   # purpose, the purpose's env var, the model the providers recommend for it, then the parent purpose's model when it
-  # has one, the deployment default, the fallback.
+  # has one. After that it depends on the purpose's tier. Halon's own loop takes FIREFIGHT_AI_MODEL, then the strongest
+  # model of the first provider this deployment holds a key for. A side job takes FIREFIGHT_AI_QUICK_MODEL, then the
+  # quick model of the provider the loop runs on, then FIREFIGHT_AI_MODEL. Both end at the purpose's fallback.
   def deployment_model_for(purpose, workspace: nil)
     override = workspace && workspace.ai_model_overrides.for_purpose(purpose).min_by { |row| row.purpose == purpose ? 0 : 1 }
     return ModelChoice.new(model: override.model, provider: override.provider.presence) if override
@@ -175,12 +182,28 @@ module FirefightAi
 
     parent = AiPurpose::PARENTS[purpose]
     return deployment_model_for(parent, workspace: workspace) if parent
-    if configuration.default_model.present?
-      return ModelChoice.new(model: configuration.default_model, provider: configuration.default_provider.presence)
-    end
+    return quick_deployment_model(purpose, workspace) if AiPurpose.quick?(purpose)
 
-    ModelChoice.new(model: fallback_model(purpose), provider: nil)
+    default = default_choice
+    return default if default
+    return AiProviders.deployment_choice(WorkspaceAiAccount::MAIN) || fallback_choice(purpose) if purpose == AiPurpose::INVESTIGATION
+
+    fallback_choice(purpose)
   end
+
+  # A side job stays with the provider the loop runs on where it recommends a quick model, so one key covers both.
+  def quick_deployment_model(purpose, workspace)
+    return ModelChoice.new(model: configuration.quick_model, provider: configuration.quick_provider) if configuration.quick_model.present?
+
+    main = deployment_model_for(AiPurpose::INVESTIGATION, workspace: workspace)
+    AiProviders.deployment_choice(WorkspaceAiAccount::FAST, prefer: main.provider_name) || default_choice || fallback_choice(purpose)
+  end
+
+  def default_choice
+    ModelChoice.new(model: configuration.default_model, provider: configuration.default_provider.presence) if configuration.default_model.present?
+  end
+
+  def fallback_choice(purpose) = ModelChoice.new(model: fallback_model(purpose), provider: nil)
 
   # Code fixes run on the model the providers recommend for writing code, when nothing names one for them and this
   # deployment holds a key that reaches it. Every other purpose has none of its own.

@@ -200,7 +200,7 @@ export function AiAccountDialog({
             <AiAccountModelField
               id={fieldId("main")}
               label="Main model"
-              hint="Investigations, chats, postmortems and code fixes."
+              hint="Chats and investigations, and the postmortems and code fixes that grow from them. Use the strongest model the provider offers."
               provider={provider}
               value={draft.main}
               error={errorText(errors["models.main"])}
@@ -209,7 +209,7 @@ export function AiAccountDialog({
             <AiAccountModelField
               id={fieldId("fast")}
               label="Quick model"
-              hint="Summaries, timeline notes and replies to mentions."
+              hint="Side jobs: summaries, timeline notes, replies to mentions, and checking what Halon watches and remembers."
               provider={provider}
               value={draft.fast}
               error={errorText(errors["models.fast"])}

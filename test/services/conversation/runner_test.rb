@@ -446,6 +446,37 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal 1, @conversation.chat.compactions.count
   end
 
+  test "carrying on with a backup model is kept with the chat and said once, on the page and in the thread" do
+    switch = lambda do |arguments|
+      arguments[:on_backup].call(FirefightAi::ModelChoice.new(model: "claude-opus-5-5", provider: "anthropic"),
+                                 FirefightAi::ModelChoice.new(model: "gpt-5.6", provider: "openai"), RubyLLM::OverloadedError.new("Overloaded"))
+    end
+    personal = personal_chat
+    fake(reply: "ok", during: switch)
+
+    ask(personal, "what changed today")
+
+    kept = personal.chat.model_switches.sole
+    assert_equal [ "claude-opus-5-5", "anthropic", "gpt-5.6", "openai", "OverloadedError" ],
+                 kept.attributes.values_at("failed_model", "failed_provider", "backup_model", "backup_provider", "reason")
+    said = broadcasts(ConversationChannel.broadcasting_for(personal)).map { |message| JSON.parse(message) }
+                                                                     .select { |event| event["type"] == Conversation::LiveDelivery::EVENT_SWITCHED_MODEL }
+    assert_equal [ [ kept.step_key, "Carried on with gpt-5.6, since claude-opus-5-5 stopped answering" ] ], said.map { |event| event.values_at("key", "title") }
+
+    @conversation = @workspace.conversations.create!(
+      subject: @incident, kind: Conversation::KIND_CHANNEL, channel_id: @incident.channel_id, thread_id: "1700000000.000300",
+      started_by: workspace_memberships(:alice_workspace_one), max_turns: 40, max_spend_cents: 50
+    )
+    reported = []
+    Slack::Client.stubs(:append_stream).with { |arguments| reported.concat(arguments[:chunks]) }.returns({ ok: true })
+    fake(reply: "ok", during: switch)
+
+    ask(@conversation, "what changed today")
+
+    lines = reported.select { |chunk| chunk[:type] == "task_update" }
+    assert_equal [ [ "Carried on with gpt-5.6, since claude-opus-5-5 stopped answering", "complete" ] ], lines.map { |chunk| chunk.values_at(:title, :status) }
+  end
+
   test "a dashboard answer is asked for without Slack markup, because the page shows it as written" do
     personal = personal_chat
     responder = fake(reply: "ok")

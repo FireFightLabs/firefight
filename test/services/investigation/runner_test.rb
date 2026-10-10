@@ -88,6 +88,33 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_equal [ "gpt-4o", "gpt-4o" ], [ share.choose.call(true).model, share.choose.call(false).model ]
   end
 
+  test "a run carries on with a backup model and shows it where its steps are, and a rehearsal never takes one" do
+    investigator = fake(outcome: :answered, conclude: true)
+    shown = []
+    Investigation::Delivery.any_instance.stubs(:step).with { |**step| shown << step.values_at(:title, :status) }
+
+    Investigation::Runner.new(@investigation).run
+    investigator.calls.sole[:on_backup].call(
+      FirefightAi::ModelChoice.new(model: "claude-sonnet-4-5", provider: "anthropic"),
+      FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai"), Faraday::TimeoutError.new("timed out")
+    )
+
+    switch = @investigation.chat.model_switches.sole
+    assert_equal [ "claude-sonnet-4-5", "gpt-4o", "TimeoutError" ], switch.attributes.values_at("failed_model", "backup_model", "reason")
+    assert_equal [ [ "Carried on with gpt-4o, since claude-sonnet-4-5 stopped answering", FirefightAi::AgentLoop::STEP_DONE ] ], shown
+    assert_equal [ switch.step_key ], InvestigationDetailSerializer.one(@investigation.reload)[:modelSwitches].map { |line| line[:key] }
+
+    rehearsal = @workspace.investigations.create!(
+      subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true,
+      model_override: "gpt-5-mini", provider_override: "openai", max_turns: 10, max_spend_cents: 400
+    )
+    rehearsal.claim!
+    measured = FakeInvestigator.new(rehearsal, outcome: FirefightAi::AgentLoop::Outcome.new(status: :answered, turns_used: 0, spent_micros: 0), conclude: true)
+    FirefightAi::Investigator.stubs(:new).returns(measured)
+    Investigation::Runner.new(rehearsal).run
+    assert_nil measured.calls.sole[:on_backup], "a rehearsal measures one model"
+  end
+
   test "an answered run succeeds and keeps the chat that produced it" do
     investigator = fake(outcome: :answered, conclude: true)
 

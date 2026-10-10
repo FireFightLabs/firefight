@@ -1,13 +1,18 @@
 # The model providers a workspace can add as its own AI account, under Settings, Workspace. RubyLLM says what each one
 # needs (its configuration options and requirements), so this file only adds what RubyLLM cannot know: the name people
-# know the provider by, the models Firefight recommends for Halon's main work (investigations, chats, postmortems) and
-# its quick work (summaries, milestones, mention replies), and what each setting is called on the form. A provider that
-# is not listed here is not offered. A local provider (RubyLLM's local?) is offered only where Entitlements allows
-# private AI endpoints, which an install someone runs themselves does and Firefight's cloud does not.
+# know the provider by, the models Firefight recommends and what each setting is called on the form. A provider that is
+# not listed here is not offered. A local provider (RubyLLM's local?) is offered only where Entitlements allows private
+# AI endpoints, which an install someone runs themselves does and Firefight's cloud does not.
 #
-# A recommended model must be one RubyLLM's catalog holds for the provider, with tool calling and a known size, which
-# test/models/ai_providers_test.rb checks. Providers whose models are named by whoever runs them (an Azure deployment, a
-# local Ollama or GPUStack) recommend none.
+# main is the strongest model the provider offers, which Halon's own loop runs on: chats, investigations and what grows
+# from them. It may list several, strongest first. The first one the registry holds for the provider with a price and a
+# size is used, so a model newer than the catalog RubyLLM ships is picked up once the nightly refresh brings it in, and
+# its cost shows like any other. The last one must be one RubyLLM's catalog holds, with tool calling and a known size,
+# which test/models/ai_providers_test.rb checks, so there is always one to fall back to. fast is the quick model for side
+# jobs (summaries, milestones, mention replies, judging a watch or a memory). Providers whose models are named by whoever
+# runs them (an Azure deployment, a local Ollama or GPUStack) recommend none.
+#
+# The deployment's own keys follow the same picks when no env var names a model (FirefightAi.deployment_model_for).
 #
 # code_fix is the model a code fix's coding agent writes with, where the provider recommends one of its own for code.
 # It is used only while the registry holds it for the provider with a price, since a code fix's budget is counted in
@@ -15,7 +20,7 @@
 # RubyLLM ships, since the nightly refresh is what brings it into the registry.
 anthropic:
   name: Anthropic
-  main: claude-sonnet-5
+  main: [ claude-opus-5-5, claude-opus-5 ]
   fast: claude-haiku-4-5
   code_fix: claude-opus-5-5
 openai:
@@ -41,7 +46,7 @@ vertexai:
   fast: gemini-2.5-flash
 bedrock:
   name: Amazon Bedrock
-  main: anthropic.claude-sonnet-5
+  main: [ anthropic.claude-opus-5-5, anthropic.claude-opus-5 ]
   fast: anthropic.claude-haiku-4-5-20251001-v1:0
   labels:
     api_key: Access key ID
@@ -49,7 +54,7 @@ azure:
   name: Azure AI Foundry
 openrouter:
   name: OpenRouter
-  main: anthropic/claude-sonnet-5
+  main: [ anthropic/claude-opus-5.5, anthropic/claude-opus-5 ]
   fast: anthropic/claude-haiku-4.5
   code_fix: anthropic/claude-opus-5.5
 deepseek:

@@ -129,7 +129,64 @@ class FirefightAi::PayerTakeoverTest < ActiveSupport::TestCase
     assert_equal [ "anthropic", "openai" ], Inference.where(workspace: @workspace, feature: "takeover_loop").order(:created_at).pluck(:provider)
   end
 
+  test "a run whose provider stops answering carries on at the same step on a backup, says so once, and leaves the account in use" do
+    first = add_ai_account!(@workspace, key: "sk-ant-first", label: "First")
+    add_ai_account!(@workspace, provider: "openai", key: "sk-openai-second", label: "Second")
+    choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    chat = FakeChat.new([ overloaded, answer ], model_id: choice.model)
+    FirefightAi.bind(chat, choice)
+    switches = []
+
+    outcome = run_loop(chat, choice, on_backup: ->(from, to, error) { switches << [ from.model, to.model, error.class ] })
+
+    assert_equal FirefightAi::AgentLoop::STATUS_ANSWERED, outcome.status
+    assert_equal [ [ "claude-sonnet-4-5", "sk-ant-first" ], [ "gpt-4o", "sk-openai-second" ] ], chat.turns
+    assert_equal [ [ "claude-sonnet-4-5", "gpt-4o", RubyLLM::OverloadedError ] ], switches
+    assert_equal [ Inference::STATUS_ERROR, Inference::STATUS_SUCCESS ],
+                 Inference.where(workspace: @workspace, feature: "takeover_loop").order(:created_at).pluck(:status), "both calls show in the ledger"
+    assert_equal :unchecked, first.reload.state, "a provider being down says nothing about the account"
+  end
+
+  test "a provider that stops answering fails the run as before when no backup is set up or the caller wants none" do
+    add_ai_account!(@workspace)
+    choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+
+    assert_raises(RubyLLM::OverloadedError) { run_loop(FakeChat.new([ overloaded, answer ], model_id: choice.model), choice, on_backup: nil) }
+
+    on_firefights_cloud!
+    assert_raises(RubyLLM::OverloadedError) do
+      run_loop(FakeChat.new([ overloaded, answer ], model_id: choice.model), choice, on_backup: ->(*) { flunk "no backup to take" })
+    end
+  end
+
+  test "running out of credit is never taken for a provider being down" do
+    on_firefights_cloud!
+    add_ai_account!(@workspace)
+    choice = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+
+    assert_raises(FirefightAi::OutOfCredit) do
+      run_loop(FakeChat.new([ payment_required, answer ], model_id: choice.model), choice, on_backup: ->(*) { flunk "credit is not an outage" })
+    end
+  end
+
   private
+
+  def run_loop(chat, choice, on_backup:)
+    FirefightAi::AgentLoop.new(
+      chat: chat, answered: -> { false }, reply_is_answer: true, choice: choice, purpose: AiPurpose::INVESTIGATION,
+      budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 400, max_turns: 50),
+      inference: { workspace: @workspace, feature: "takeover_loop", inferable: @incident },
+      output: FirefightAi.output_cap(AiPurpose::INVESTIGATION, choice: choice), on_backup: on_backup
+    ).run
+  end
+
+  def answer
+    RubyLLM::Message.new(role: :assistant, content: "the answer", output_tokens: 10).tap { |message| message.stubs(:cost).returns(stub(total: 0.0)) }
+  end
+
+  def overloaded
+    RubyLLM::OverloadedError.new("Overloaded", response: Response.new(529, { "error" => { "type" => "overloaded_error" } }, {}))
+  end
 
   def payment_required
     body = { "error" => { "code" => 402, "message" => "Insufficient credits" } }

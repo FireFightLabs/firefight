@@ -41,7 +41,10 @@ class InvestigationJob < ApplicationJob
 
     Integrations::CodeReading.close(investigation.code_box_key)
     delivery = investigation.scheduled? ? Investigation::CheckDelivery : Investigation::Delivery
-    delivery.new(investigation).stopped!(investigation.stopped_because, rerunnable: true)
+    delivery.new(investigation).stopped!(
+      investigation.stopped_because, rerunnable: true,
+      where_it_stopped: Chat::StoppedNote.for(investigation.chat, since: investigation.chat&.created_at)
+    )
   rescue AdapterError => undelivered
     Rails.logger.warn({
       event: "investigation.failure_undelivered", investigation_id: investigation.id, error: undelivered.message
