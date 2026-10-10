@@ -1,0 +1,62 @@
+title: The general read when no tool covers it
+source: The first real bench run, October 2026, across every model
+shape: >-
+  On the first real bench run no model read a provider's API through its general read when no dedicated tool
+  answered, such as the Northflank audit log, and some said they had no tool for it. Here the answer is only in the
+  provider's API, behind a path its API reference gives.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: customers on shop.larkspur.app are getting certificate errors. Is the custom domain set up right on Render?
+tools:
+  - open_tools
+  - use_skill
+  - search_docs
+  - get_resource_map
+  - resource_status
+  - check_from_outside
+  - name: render_api_read
+    description: Anything else Render's API reads that the other tools do not cover, such as a service's jobs, disks, custom domains, environment groups, blueprints, projects or a deploy by its id. A GET to a path of Render's public API (https://api.render.com/v1), as the API reference the render_api skill names writes it. Only reads, so it never changes anything.
+    source: render
+    reads: true
+    parameters:
+      type: object
+      properties:
+        path: { type: string, description: "The API path to read, as the API reference writes it with its ids filled in, such as /services/<service id>/jobs" }
+        query: { type: object, description: "Query parameters by name, such as {\"limit\": 20}. Never put them in the path (optional)" }
+      required: [ path ]
+answers:
+  - tool: get_resource_map
+    result: |-
+      shop-web (Render web service, id srv-c2k9d1, region frankfurt) serves larkspur.app. https://app.firefight.app/map/shop-web
+  - tool: resource_status
+    result: |-
+      shop-web: live, 2 of 2 instances healthy, last deploy dep-77k1 succeeded October 9.
+  - tool: use_skill
+    result: |-
+      render_api: reads what Render's other tools do not cover through render_api_read. Its reference is api/index.md: GET /services/{serviceId}/custom-domains lists a service's custom domains with their verification status and the DNS record each needs.
+  - tool: search_docs
+    result: |-
+      Render, Custom domains: a domain is verified once its DNS points at the service, a CNAME to <service>.onrender.com for a subdomain. Render issues the certificate only after verification. GET /services/{serviceId}/custom-domains shows each domain's verificationStatus. https://render.com/docs/custom-domains
+  - tool: check_from_outside
+    result: |-
+      https://shop.larkspur.app did not complete TLS: the certificate served is for *.herokuapp.com, not shop.larkspur.app. DNS: CNAME shop.larkspur.app to larkspur-shop.herokuapp.com.
+  - tool: render_api_read
+    match: { path: /custom-domains/ }
+    result: |-
+      [{"name":"shop.larkspur.app","domainType":"subdomain","verificationStatus":"unverified","redirectForName":"","createdAt":"2026-10-08T09:12:00Z","expectedRecord":{"type":"CNAME","value":"shop-web-c2k9d1.onrender.com"}}]
+      https://dashboard.render.com/web/srv-c2k9d1/settings#custom-domains
+  - tool: render_api_read
+    result: |-
+      Render answered 404 Not Found for that path. Check the API reference for the call.
+expect:
+  outcome: >-
+    shop.larkspur.app is added to shop-web but unverified, because its DNS still points to the old Heroku app
+    (larkspur-shop.herokuapp.com), so Render has issued no certificate. The record it needs is a CNAME to
+    shop-web-c2k9d1.onrender.com.
+  next_step: >-
+    It finds the custom domain call in Render's API reference and reads it, then tells the person the exact DNS record
+    to change, since DNS is not something it holds, and offers to check again once they have.
+  evidence: [ "srv-c2k9d1", "shop-web-c2k9d1.onrender.com" ]
+  calls: [ render_api_read ]
+  reference_cents: 1.5

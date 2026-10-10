@@ -48,7 +48,11 @@ module Operator
       chosen = params[:model].presence && HalonRegression.model(params[:model], params[:provider])
       return redirect_to(operator_halon_benches_path, alert: "That model is not one Firefight can price, so choose another.") if params[:model].present? && !chosen
 
-      run = Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR, model: chosen&.id, provider: chosen&.provider, by: current_user)
+      run = begin
+        Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR, model: chosen&.id, provider: chosen&.provider, by: current_user)
+      rescue Conversation::BenchKeys::Missing, Conversation::Bench::Busy => refused
+        return redirect_to(operator_halon_benches_path, alert: refused.message)
+      end
       redirect_to operator_halon_bench_path(run), notice: "Replaying #{helpers.pluralize(run.results.size, 'scenario')} on #{chosen&.name || "Halon's model"}."
     end
   end

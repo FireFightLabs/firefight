@@ -1,0 +1,71 @@
+title: Reads without asking first
+source: The first real bench run, October 2026, across every model
+shape: >-
+  On the first real bench run every model ended answers with "Shall I read the logs?" or "should I check again?", a
+  read it could have made itself. Reads never ask. Here the cause is two reads away, so a run that offers the reads
+  instead of making them never reaches it.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: the nightly orders export failed again, can you see why?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - use_skill
+  - get_resource_map
+  - run_history
+  - search_logs
+  - what_changed
+  - name: aws_api_read
+    description: Anything else AWS's API reads that the other tools do not cover, such as an IAM role's policies or a bucket's policy. Name the service, an operation called Describe, List, Get or BatchGet, its input and the region. Only reads, so it never changes anything.
+    source: aws
+    reads: true
+    parameters:
+      type: object
+      properties:
+        service: { type: string, description: The AWS service, such as iam or s3 }
+        operation: { type: string, description: The operation, such as GetRolePolicy }
+        input: { type: object, description: The operation's input }
+        region: { type: string, description: The region (optional) }
+      required: [ service, operation ]
+  - name: aws_put_role_policy
+    description: Writes an inline policy on an IAM role. It changes who may do what, so the person confirms it first.
+    source: aws
+    confirms: true
+    parameters:
+      type: object
+      properties:
+        role: { type: string, description: The role's name }
+        policy_name: { type: string, description: The inline policy's name }
+        document: { type: object, description: The policy document }
+      required: [ role, policy_name, document ]
+answers:
+  - tool: get_resource_map
+    result: |-
+      orders-export (AWS ECS scheduled task, eu-west-1) runs as the IAM role orders-export-task and writes to the S3 bucket larkspur-exports. https://app.firefight.app/map/orders-export
+  - tool: run_history
+    result: |-
+      orders-export runs, newest first: 02:00 today failed at the upload step after 4 minutes, 02:00 yesterday succeeded. https://eu-west-1.console.aws.amazon.com/ecs/v2/clusters/shop/tasks/8f2c
+  - tool: search_logs
+    result: |-
+      orders-export 02:04: export written, 41,212 rows. 02:04 upload to s3://larkspur-exports/2026-10-10/orders.csv failed: AccessDenied, not authorized to perform s3:PutObject on arn:aws:s3:::larkspur-exports/*.
+  - tool: what_changed
+    result: |-
+      What changed for orders-export, the last 48 hours: yesterday 18:02 the IAM role orders-export-task had its inline policy exports-write replaced by Jo Park through the AWS console, reported between sweeps. https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/orders-export-task
+  - tool: aws_api_read
+    match: { operation: /policy/ }
+    result: |-
+      orders-export-task, inline policy exports-write: allows s3:GetObject and s3:ListBucket on larkspur-exports. No s3:PutObject. Before yesterday 18:02 it also allowed s3:PutObject.
+  - tool: aws_put_role_policy
+    result: Wrote exports-write on orders-export-task.
+expect:
+  outcome: >-
+    The export fails at the upload because the role orders-export-task may no longer write to larkspur-exports: Jo
+    Park replaced its exports-write policy yesterday at 18:02 and the new one has no s3:PutObject. The answer says this
+    from the reads it made, without asking leave to make them.
+  next_step: >-
+    It reads the logs, the change and the policy on its own, then proposes the one change, adding s3:PutObject back to
+    exports-write, and asks once, mentioning that Jo made the change.
+  evidence: [ "AccessDenied", "exports-write" ]
+  calls: [ search_logs ]
+  reference_cents: 1.5

@@ -59,6 +59,34 @@ class FirefightAi::CreditTest < ActiveSupport::TestCase
     end
   end
 
+  # OpenRouter's own answer when a key's spending limit is reached, which a live chat met after the bench drained the key.
+  test "OpenRouter's key limit and its spent credits are out of credit, whatever the status says" do
+    limit = { "error" => { "message" => "Key limit exceeded (total limit). Manage it using https://openrouter.ai/settings/keys", "code" => 403 } }
+    forbidden = RubyLLM::ForbiddenError.new(limit.dig("error", "message"), response: Response.new(403, limit, {}))
+    spent = { "error" => { "message" => "Insufficient credits. Add more using https://openrouter.ai/settings/credits", "code" => 402 } }
+
+    [ forbidden, payment_required(spent) ].each do |error|
+      raised = assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } }
+      assert_equal "OutOfCredit", raised.reason
+    end
+    assert AiPayer.out_of_credit?(forbidden)
+  end
+
+  test "the other providers' spend limits are out of credit too" do
+    anthropic = RubyLLM::BadRequestError.new("You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.",
+                                             response: Response.new(400, {}, {}))
+    deepseek = RubyLLM::PaymentRequiredError.new("Insufficient Balance", response: Response.new(402, { "error" => { "message" => "Insufficient Balance" } }, {}))
+
+    [ anthropic, deepseek ].each { |error| assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise error } } }
+  end
+
+  test "a 403 that is not about money is still the key refused, not out of credit" do
+    error = RubyLLM::ForbiddenError.new("This model is not available in your region", response: Response.new(403, {}, {}))
+
+    raised = assert_raises(FirefightAi::TerminalError) { FirefightAi.translating_errors { raise error } }
+    assert_not_kind_of FirefightAi::OutOfCredit, raised
+  end
+
   test "out of credit is terminal and logged for alerting under one event name" do
     logged = []
     Rails.logger.stubs(:error).with { |line| logged << line }

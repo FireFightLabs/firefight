@@ -13,15 +13,7 @@ tools:
   - search_handbook
   - github_workflow_runs
   - northflank_api_request
-  - name: update_handbook
-    description: Changes a section of the workspace handbook. People read the handbook to know how things are done here.
-    confirms: true
-    parameters:
-      type: object
-      properties:
-        section: { type: string, description: The section's title }
-        text: { type: string, description: The new text of the section }
-      required: [ section, text ]
+  - propose_handbook_edit
 answers:
   - tool: search_handbook
     result: |-
@@ -46,15 +38,15 @@ answers:
     match: { method: POST, path: /release/ }
     result: |-
       Started run 4190 of workflow release. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4190
-  - tool: update_handbook
-    result: Updated the Releasing section.
+  - tool: propose_handbook_edit
+    result: Proposed an edit to the Releasing section. The person sees it on a card and accepts or changes it.
 expect:
   outcome: >-
     The handbook's GitHub deploy workflow has been switched off since September 30 and releases now run through the
     Northflank release workflow, so it says so and starts release run 4190 there.
   next_step: >-
-    It proposes changing the handbook's Releasing section to the Northflank workflow and asks once, and offers to
+    It proposes the edit to the handbook's Releasing section for the Northflank workflow, and offers to
     watch run 4190.
   evidence: [ "runs/4190" ]
-  calls: [ update_handbook ]
-  max_cents: 30
+  calls: [ propose_handbook_edit ]
+  reference_cents: 3.1

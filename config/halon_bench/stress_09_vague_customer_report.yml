@@ -38,4 +38,4 @@ expect:
     It proposes rolling auth back or widening the window again and asks once, and offers to show the email providers
     to connect.
   evidence: [ "pull/2205" ]
-  max_cents: 25
+  reference_cents: 1.7

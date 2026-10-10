@@ -14,7 +14,15 @@ tools:
   - github_job_log
   - run_command
   - github_fix_code
+  - get_resource_map
+  - search_catalog
 answers:
+  - tool: get_resource_map
+    result: |-
+      web, checkout, api and worker (Northflank services, project shop) run code from the GitHub repository larkspur/shop. orders (PlanetScale database). larkspur.shop (Cloudflare zone).
+  - tool: search_catalog
+    result: |-
+      Shop (service): owner Payments team, repository larkspur/shop, runbooks Release to production and Roll back checkout. https://app.firefight.app/catalog/shop
   - tool: github_workflow_runs
     result: |-
       100 runs of ci.yml on main, 31 failed. The whole answer is too large to show (12 MB), so it is saved as result_4, which run_command can read as a file with results ["result_4"] and read_result can search. The latest 5:
@@ -47,4 +55,4 @@ expect:
     second flaky spec.
   evidence: [ "pull/2222" ]
   calls: [ run_command, github_fix_code ]
-  max_cents: 30
+  reference_cents: 0.6

@@ -58,6 +58,10 @@ answers:
     result: |-
       {"runs":[{"id":"4182","status":"failed","startedAt":"2026-10-09T14:19:40Z"},{"id":"4177","status":"succeeded","startedAt":"2026-10-08T10:02:11Z"}]}
   - tool: run_history
+    match: { resource: web }
+    result: |-
+      No runs of release on web. Runs on web are its deploys only, the latest d-112 on October 8.
+  - tool: run_history
     match: { run: "4182" }
     times: 1
     result: |-
@@ -69,9 +73,6 @@ answers:
   - tool: run_history
     result: |-
       Runs of release in project shop, newest first: 4182 failed at 14:26 (migrate failed), 4177 succeeded October 8. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
-  - tool: list_watches
-    result: |-
-      Watch "Production release", started 14:20: step 1 follows run_history for "release" on service web. Last read 14:31: no run found yet, waiting.
   - tool: query_metrics
     result: |-
       web error_rate over the last 60 minutes: 0.4% steady, the hour before 0.4%. Dashboard: https://app.northflank.com/t/larkspur/project/shop/services/web/metrics
@@ -88,4 +89,4 @@ expect:
     the lock and run the release again, and asks once before doing it.
   evidence: [ "https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182" ]
   calls: [ start_watch ]
-  max_cents: 40
+  reference_cents: 1.3

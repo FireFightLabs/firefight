@@ -1,15 +1,18 @@
 # A tool in a replayed chat. It is offered exactly as the case describes it and answers from the case's record, so
 # nothing outside Firefight is reached and only Halon's reasoning differs between two replays. A call that changes
-# something waits for the person as it would live, and a call that only reads never does.
+# something waits for the person as it would live, and a call that only reads never does. Firefight's own watch and plan
+# tools answer from the replay's state instead (Conversation::Rehearsal::State), so they show what Halon changed.
 class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
-  # used and ran are shared by every tool in the replay: how often each answer was given, and each call made so far.
-  def initialize(definition, bench_case:, chat:, used:, ran:)
+  # used, ran and state are shared by every tool in the replay: how often each answer was given, each call made so far,
+  # and the watches and plans made in it.
+  def initialize(definition, bench_case:, chat:, used:, ran:, state:)
     super()
     @definition = definition
     @bench_case = bench_case
     @chat = chat
     @used = used
     @ran = ran
+    @state = state
   end
 
   def name = @definition.name
@@ -35,6 +38,11 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = Conversation::Rehearsal.asked(arguments)
+    if @state.handles?(name)
+      @ran << [ name, asked ]
+      return @state.call(name, asked)
+    end
+
     found, index = @bench_case.answer_for(name, asked, @used, @ran)
     @ran << [ name, asked ]
     unless found

@@ -38,7 +38,11 @@ tools:
   - make_plan
   - update_plan
   - finish_plan
+  - get_resource_map
 answers:
+  - tool: get_resource_map
+    result: |-
+      orders (PlanetScale database, branch main) is written by api (Northflank service, project shop), which runs code from the GitHub repository larkspur/shop.
   - tool: planetscale_execute_read_query
     match: { query: /group by|count/ }
     result: |-
@@ -73,4 +77,4 @@ expect:
     It proposes a repair that copies shipping_quote_cents into shipping_cents for those orders, counts the rows first,
     keeps a copy of them, asks once, then checks the count afterwards, and proposes the code fix so new orders are right.
   evidence: [ "pull/2196" ]
-  max_cents: 35
+  reference_cents: 5.0

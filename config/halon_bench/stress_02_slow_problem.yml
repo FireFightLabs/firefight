@@ -45,4 +45,4 @@ expect:
     the disk or clean it up, renew the certificate and find why it did not renew), and offers to keep checking.
   evidence: [ "addons/orders-db" ]
   calls: [ check_from_outside ]
-  max_cents: 25
+  reference_cents: 2.3

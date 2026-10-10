@@ -46,7 +46,16 @@ class Conversation::BenchTranscript
 
   def cites_any?(texts) = texts.any? { |text| replies.any? { |reply| reply.downcase.include?(text.downcase) } }
 
-  def answer = replies.join("\n\n")
+  # The calls still waiting for the person when the chat ended, which is how a turn that stopped to ask ends.
+  def waiting = confirmations.select { |call| call.approval == Chat::APPROVAL_REQUESTED }
+
+  # What the person was left with: Halon's replies, or the confirmation it stopped on when it wrote none.
+  def answer
+    return replies.join("\n\n") if replies.any?
+    return "" if waiting.empty?
+
+    "Waiting for the person to confirm #{waiting.map(&:name).uniq.to_sentence}."
+  end
 
   def to_text
     entries.map do |entry|

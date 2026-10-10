@@ -21,6 +21,10 @@ module Operator
     type :string, optional: true
     def label = row.run.label
 
+    # Why the run stopped before its scenarios ran, such as its AI account refusing it.
+    type :string, optional: true
+    def stopped_reason = row.run.stopped_reason
+
     type :string, optional: true
     def started_by = row.run.started_by&.then { |user| user.name.presence || user.email }
 

@@ -29,7 +29,25 @@ class Conversation::BenchRun < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :of_scenarios, -> { where(kind: KIND_SCENARIOS) }
 
+  # Runs going at once, across the console, the terminal and CI. Each holds database connections on a server shared
+  # with everything else, so a further run waits.
+  AT_ONCE = 2
+  BUSY = "Two bench runs are already going. Start another once one finishes.".freeze
+
   def running? = status == STATUS_RUNNING
+
+  # A run whose worker died still reads as running until its scenarios are settled as lost, so only recent runs count.
+  def self.busy_reason
+    BUSY if where(status: STATUS_RUNNING, created_at: Conversation::BenchResult::STALE_AFTER.ago..).count >= AT_ONCE
+  end
+
+  def stopped? = stopped_reason.present?
+
+  # Stops the run once, in one statement, so the first scenario to see the account refused says why.
+  def stop!(reason)
+    self.class.where(id: id, stopped_reason: nil).update_all(stopped_reason: reason, updated_at: Time.current)
+    reload
+  end
 
   # Finishes once no scenario is left pending, in one statement, so the last two ending together finish it once.
   def finish_if_done!

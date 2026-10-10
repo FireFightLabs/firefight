@@ -14,7 +14,7 @@ class Conversation::Tools::FinishPlan < Conversation::Tools::PlanTool
       "properties" => {
         "plan" => PLAN,
         "outcome" => { "type" => "string", "description" => "What came of it against the goal, in a sentence or two, with the evidence" },
-        "next_step" => { "type" => "string", "description" => "The most useful next step, as an offer, such as Shall I watch the error rate for an hour?" },
+        "next_step" => { "type" => "string", "description" => "The most useful next step. A read is done, never offered, so this is a change or a choice to offer, such as Shall I roll back checkout?" },
         "links" => { "type" => "array", "items" => { "type" => "string" },
                      "description" => "Pages that show the outcome, such as the run, the deploy or the dashboard, as full addresses a result gave" }
       },

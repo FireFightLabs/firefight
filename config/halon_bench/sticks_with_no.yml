@@ -51,4 +51,4 @@ expect:
     offers the rollback again on its own, asking once. After the rollback it checks the error rate fell.
   evidence: [ "deployments/d-77" ]
   calls: [ rollback ]
-  max_cents: 30
+  reference_cents: 2.2

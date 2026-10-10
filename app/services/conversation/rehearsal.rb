@@ -40,10 +40,11 @@ class Conversation::Rehearsal
     ).tap(&:check!)
   end
 
-  # Each tool a chat could be offered today with whose it is, Firefight's own or a provider's.
+  # Each tool a chat could be offered today with whose it is, Firefight's own or a provider's, and whether a chat holds it
+  # from the start or opens it.
   def self.live_tools(turn)
-    own = Conversation::Tools.for(turn, offer: ->(_tools) { }).to_h { |tool| [ tool.name.to_s, [ tool, Chat::Skill::SOURCE_FIREFIGHT ] ] }
-    own.merge(Chat::Tools.catalog(turn).select(&:tool).to_h { |entry| [ entry.name.to_s, [ entry.tool, entry.source ] ] })
+    own = Conversation::Tools.for(turn, offer: ->(_tools) { }).to_h { |tool| [ tool.name.to_s, [ tool, Chat::Skill::SOURCE_FIREFIGHT, true ] ] }
+    own.merge(Chat::Tools.catalog(turn).select(&:tool).to_h { |entry| [ entry.name.to_s, [ entry.tool, entry.source, false ] ] })
   end
   private_class_method :live_tools
 
@@ -69,19 +70,19 @@ class Conversation::Rehearsal
   def self.captured_tool(name, live, calls, workspace)
     reads = Chat::Tools.kind(name, workspace) == Chat::Tools::KIND_READ
     if live
-      live, owner = live
+      live, owner, base = live
       schema = live.parameters_schema.deep_stringify_keys
       schema["properties"] = schema["properties"].to_h.except(Chat::Tools::INTENT_ARG)
       schema["required"] = Array(schema["required"]) - [ Chat::Tools::INTENT_ARG ]
       return Conversation::BenchCase::Tool.new(name: name, description: live.description.to_s, parameters: schema, source: owner.to_s,
-                                               reads: reads, reads_when: {}, confirms: live.requires_approval?, default: nil)
+                                               reads: reads, reads_when: {}, confirms: live.requires_approval?, default: nil, base: base, group: nil)
     end
 
     keys = calls.flat_map { |call| Conversation::Rehearsal.asked(call.arguments).keys }.uniq
     Conversation::BenchCase::Tool.new(
       name: name, description: "No longer offered. Described from how its calls looked.",
       parameters: { "type" => "object", "properties" => keys.index_with { {} } }, source: Chat::Skill::SOURCE_FIREFIGHT,
-      reads: reads, reads_when: {}, confirms: calls.any? { |call| call.approval.present? }, default: nil
+      reads: reads, reads_when: {}, confirms: calls.any? { |call| call.approval.present? }, default: nil, base: false, group: nil
     )
   end
   private_class_method :captured_tool
@@ -93,6 +94,8 @@ class Conversation::Rehearsal
     @turns_used = 0
     @used = Hash.new(0)
     @ran = []
+    @state = Conversation::Rehearsal::State.new(bench_case, @used, @ran)
+    @opened = Set.new
   end
 
   def run
@@ -142,8 +145,31 @@ class Conversation::Rehearsal
     @looked_outside ||= definition.present? && definition.outside? && definition.reads?(Conversation::Rehearsal.asked(step.arguments))
   end
 
+  # A chat starts with its own tools and open_tools, which makes the rest callable group by group, as it does live. A
+  # case that offers no open_tools hands every tool over from the start.
   def tools(chat)
-    @case.tools.map { |definition| Conversation::Rehearsal::RecordedTool.new(definition, bench_case: @case, chat: chat, used: @used, ran: @ran) }
+    return @case.tools.map { |definition| recorded(definition, chat) } unless @case.tool(Chat::Tools::Open.tool_name)
+
+    in_hand = @case.tools.select { |definition| definition.base || @opened.include?(definition.name) }
+    in_hand.reject { |definition| definition.name == Chat::Tools::Open.tool_name }.map { |definition| recorded(definition, chat) } +
+      [ Conversation::Rehearsal::OpenTools.new(groups: groups, open: ->(names) { open(chat, names) }) ]
+  end
+
+  def recorded(definition, chat)
+    Conversation::Rehearsal::RecordedTool.new(definition, bench_case: @case, chat: chat, used: @used, ran: @ran, state: @state)
+  end
+
+  def groups
+    @groups ||= @case.tools.reject { |definition| definition.base || definition.name == Chat::Tools::Open.tool_name }
+                           .group_by(&:group_key)
+  end
+
+  # Makes the named tools callable for the rest of the chat, from the next model call on, and returns them.
+  def open(chat, names)
+    definitions = @case.tools.select { |definition| names.include?(definition.name) }
+    @opened.merge(definitions.map(&:name))
+    chat.with_tools(*definitions.map { |definition| recorded(definition, chat) })
+    definitions
   end
 
   def responder

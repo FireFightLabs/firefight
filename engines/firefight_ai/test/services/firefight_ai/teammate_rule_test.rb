@@ -21,21 +21,41 @@ class FirefightAi::TeammateRuleTest < ActiveSupport::TestCase
     assert_not_includes prompt, FirefightAi::TeammateRule::NEXT_STEP_RULE
   end
 
-  test "every answer ends with the next step and an offer, and nothing changes without a yes" do
+  # Seen in every model on the chat bench, answers ended with "Shall I read the migrate step's logs?".
+  test "every answer ends with the next step, a read is taken rather than offered, and nothing changes without a yes" do
     rule = FirefightAi::TeammateRule::NEXT_STEP_RULE
 
-    assert_match "the most useful next step and an offer to take it", rule
+    assert_match "End every answer about a problem or a finished task with the most useful next step", rule
+    assert_match "When that step only reads, such as a log, a run, a setting or a page, take it now", rule
+    assert_match "never ask permission to read", rule
+    assert_match "Offer only a change, or a choice between real options", rule
     assert_match "Never change anything without the person's yes", rule
     assert_match "take a no or another suggestion as the plan", rule
     assert_match "\"The latest main\" means read the commit main is at", rule
   end
 
-  test "a fix is recommended only from a result, and an unknown cause leads to the check that reveals it" do
+  test "a fix is recommended only from a result, and an unknown cause is read rather than offered" do
     rule = FirefightAi::TeammateRule::EVIDENCE_FIX_RULE
 
     assert_match "Recommend a fix only when a result you read shows the cause", rule
-    assert_match "the check that would reveal it", rule
-    assert_match "never a fix to try", rule
+    assert_match "run the read that would reveal it", rule
+    assert_match "rather than offering it or a fix to try", rule
+  end
+
+  # Seen on the chat bench, models asked which repository to look in and said they had no tool while a general read
+  # reached what they needed.
+  test "a chat and a run resolve what a request means themselves and reach a provider's general read" do
+    chat = FirefightAi::Responder.new(nil, inferable: nil).send(:template_text)
+    run = FirefightAi::Investigator.system_prompt
+
+    [ FirefightAi::LookFirstRule::RESOLVE_RULE, FirefightAi::LookFirstRule::GENERAL_READ_RULE ].each do |rule|
+      assert_includes chat, rule
+      assert_includes run, rule
+      assert_no_match(/[—;]/, rule)
+    end
+    assert_match "Ask the person only when two or more remain plausible", FirefightAi::LookFirstRule::RESOLVE_RULE
+    assert_match "api_read, or api_request or execute with a read such as a GET", FirefightAi::LookFirstRule::GENERAL_READ_RULE
+    assert_match "provider's API reference", FirefightAi::LookFirstRule::GENERAL_READ_RULE
   end
 
   test "what Halon starts is watched and its failure told" do

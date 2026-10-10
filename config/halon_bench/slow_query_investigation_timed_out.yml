@@ -22,7 +22,7 @@ tools:
 answers:
   - tool: get_resource_map
     result: |-
-      checkout (Northflank service, project shop) depends on orders (PlanetScale database, branch main) and stripe (outside service).
+      checkout (Northflank service, project shop) runs code from the GitHub repository larkspur/shop and depends on orders (PlanetScale database, branch main) and stripe (outside service).
   - tool: query_metrics
     match: { resource: checkout }
     result: |-
@@ -62,4 +62,4 @@ expect:
     to check latency after it ships.
   evidence: [ "https://app.planetscale.com/larkspur/orders/main/insights", "pull/2210", "pull/2214" ]
   calls: [ planetscale_get_insights, github_fix_code ]
-  max_cents: 35
+  reference_cents: 0.6

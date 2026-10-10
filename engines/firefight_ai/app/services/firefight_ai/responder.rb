@@ -111,6 +111,8 @@ module FirefightAi
         - #{LookFirstRule::CAUSE_RULE}
         - #{LookFirstRule::API_GUIDE_RULE}
         - #{LookFirstRule::GUESSED_CALL_RULE}
+        - #{LookFirstRule::RESOLVE_RULE}
+        - #{LookFirstRule::GENERAL_READ_RULE}
         - #{DatabaseRule::SCHEMA_RULE}
         - #{DatabaseRule::REPLICA_RULE}
         - #{DatabaseRule::SLOW_RULE}

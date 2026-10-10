@@ -45,4 +45,4 @@ expect:
     putting the limit in the deployment's code so it is not undone again.
   evidence: [ "jo@larkspur.shop" ]
   calls: [ what_changed ]
-  max_cents: 25
+  reference_cents: 2.9

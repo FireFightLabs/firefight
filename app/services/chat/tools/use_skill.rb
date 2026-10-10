@@ -22,7 +22,7 @@ class Chat::Tools::UseSkill < RubyLLM::Tool
 
   def description
     @description ||= <<~TEXT.strip
-      Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. The skills, by what they cover:
+      Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. A provider's API skill lists its API reference, which gives the path for the connection's general read (api_read) whenever no other tool covers what you need. The skills, by what they cover:
       #{listing}
     TEXT
   end

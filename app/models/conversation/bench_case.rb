@@ -17,8 +17,9 @@ class Conversation::BenchCase
   # How much of a tool's description a default answer listing the tools gives, as a catalog line does.
   TOOL_LINE = 200
 
-  # A scenario with no ceiling of its own is held to what a short chat costs.
-  DEFAULT_MAX_CENTS = 25
+  # What a scenario's replay is expected to spend when it says nothing of its own, in cents. A scenario's reference
+  # is what the cheapest model that finished it spent on the first real run, so the cost score tells models apart.
+  DEFAULT_REFERENCE_CENTS = 2.0
 
   class Invalid < StandardError; end
 
@@ -27,8 +28,12 @@ class Conversation::BenchCase
   # names argument values that make a call a read, such as a GET through a general API tool. confirms says a call that
   # changes something waits for the person. A read never waits. default is what a call answers when the scenario
   # recorded nothing that matches, where %{tools} lists the tools the scenario offers.
-  Tool = Data.define(:name, :description, :parameters, :source, :reads, :reads_when, :confirms, :default) do
+  # base says the tool is in hand from the start of a chat, as a chat's own tools are live. The rest sit in a group
+  # that open_tools makes callable, named by group or, without one, by whose the tool is.
+  Tool = Data.define(:name, :description, :parameters, :source, :reads, :reads_when, :confirms, :default, :base, :group) do
     def outside? = source != Chat::Skill::SOURCE_FIREFIGHT
+
+    def group_key = group.presence || source
 
     def reads?(arguments)
       reads || (reads_when.any? && reads_when.all? { |key, values| Array(values).map { |value| value.to_s.downcase }.include?(arguments[key].to_s.downcase) })
@@ -59,9 +64,10 @@ class Conversation::BenchCase
   Turn = Data.define(:said, :decisions)
 
   # outcome and next_step are what the judge reads a good run against. evidence is texts a right answer cites, calls
-  # and never_calls are tools that taking the next step does and does not call.
-  Expect = Data.define(:outcome, :next_step, :evidence, :calls, :never_calls, :max_cents) do
-    def self.none = new(outcome: nil, next_step: nil, evidence: [], calls: [], never_calls: [], max_cents: DEFAULT_MAX_CENTS)
+  # and never_calls are tools that taking the next step does and does not call. reference_cents is what the replay is
+  # held to spend.
+  Expect = Data.define(:outcome, :next_step, :evidence, :calls, :never_calls, :reference_cents) do
+    def self.none = new(outcome: nil, next_step: nil, evidence: [], calls: [], never_calls: [], reference_cents: DEFAULT_REFERENCE_CENTS)
   end
 
   attr_reader :key, :title, :shape, :source, :context, :turns, :tools, :answers, :expect
@@ -110,7 +116,8 @@ class Conversation::BenchCase
     Tool.new(
       name: required(data, "name"), description: required(data, "description"), parameters: data["parameters"] || { "type" => "object", "properties" => {} },
       source: data["source"].presence || Chat::Skill::SOURCE_FIREFIGHT, reads: data["reads"] == true,
-      reads_when: data["reads_when"].to_h, confirms: data["confirms"] == true, default: data["default"]
+      reads_when: data["reads_when"].to_h, confirms: data["confirms"] == true, default: data["default"], base: data["base"] == true,
+      group: data["group"]
     )
   end
 
@@ -131,7 +138,7 @@ class Conversation::BenchCase
     Expect.new(
       outcome: data["outcome"], next_step: data["next_step"], evidence: Array(data["evidence"]).map(&:to_s),
       calls: Array(data["calls"]).map(&:to_s), never_calls: Array(data["never_calls"]).map(&:to_s),
-      max_cents: (data["max_cents"] || DEFAULT_MAX_CENTS).to_f
+      reference_cents: (data["reference_cents"] || DEFAULT_REFERENCE_CENTS).to_f
     )
   end
 
@@ -183,14 +190,15 @@ class Conversation::BenchCase
       "turns" => turns.map { |turn| { "said" => turn.said, "decisions" => turn.decisions.presence }.compact },
       "tools" => tools.map do |tool|
         { "name" => tool.name, "description" => tool.description, "parameters" => tool.parameters, "source" => tool.source,
-          "reads" => tool.reads || nil, "reads_when" => tool.reads_when.presence, "confirms" => tool.confirms || nil, "default" => tool.default }.compact
+          "reads" => tool.reads || nil, "reads_when" => tool.reads_when.presence, "confirms" => tool.confirms || nil, "default" => tool.default,
+          "base" => tool.base || nil, "group" => tool.group }.compact
       end,
       "answers" => answers.map do |answer|
         { "tool" => answer.tool, "match" => answer.match.presence, "result" => answer.result, "failed" => answer.failed || nil,
           "times" => answer.times, "reads" => answer.reads || nil, "after" => answer.after }.compact
       end,
       "expect" => { "outcome" => expect.outcome, "next_step" => expect.next_step, "evidence" => expect.evidence.presence,
-                    "calls" => expect.calls.presence, "max_cents" => expect.max_cents }.compact
+                    "calls" => expect.calls.presence, "reference_cents" => expect.reference_cents }.compact
     }.compact
   end
 end

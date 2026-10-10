@@ -48,4 +48,4 @@ expect:
     It proposes a fallback such as queueing payments to retry, drafts a customer update, asks once to post it, and
     offers to watch Stripe's status.
   evidence: [ "status.stripe.com/incidents/x7k2p9" ]
-  max_cents: 25
+  reference_cents: 1.4

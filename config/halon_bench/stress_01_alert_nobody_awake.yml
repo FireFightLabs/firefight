@@ -58,4 +58,4 @@ expect:
     waiting for a person rather than doing it alone.
   evidence: [ "d-91" ]
   calls: [ escalate_incident ]
-  max_cents: 30
+  reference_cents: 2.7

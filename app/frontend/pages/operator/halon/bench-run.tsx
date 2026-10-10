@@ -89,6 +89,8 @@ export default function OperatorHalonBenchRun() {
         )}
       </PageHeading>
 
+      {run.stoppedReason && <p className="text-warning mb-4 text-sm">{run.stoppedReason}</p>}
+
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Stat label="Total" value={score(run.total)} note={totalNote(run)} />
         {DIMENSIONS.map((dimension) => (

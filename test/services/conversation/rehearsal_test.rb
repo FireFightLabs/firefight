@@ -90,7 +90,70 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     refute replay.chat.messages.exists?(nudge: true)
   end
 
+  # On the first real bench run a replay handed every tool over up front and open_tools said groups had nothing
+  # connected, so models opened groups again and again and said tools they held were missing.
+  test "a chat holds only its own tools until open_tools opens the group a tool sits in, as it does live" do
+    bench_case = build("tools" => [
+      { "name" => "open_tools", "description" => "Opens groups", "base" => true },
+      { "name" => "read_run", "description" => "Reads a run", "reads" => true, "source" => "northflank" }
+    ], "answers" => [ { "tool" => "read_run", "result" => "Run 412 failed." } ])
+    script(call("read_run", {}), call("open_tools", "group" => "northflank"), call("read_run", {}), reply("Run 412 failed."))
+
+    replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
+    first, opened, second = replay.transcript.calls
+
+    assert_equal [ "open_tools" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
+    assert_match "read_run: Reads a run (ready to call)", opened.result
+    assert_equal "Run 412 failed.", second.result
+  end
+
+  test "open_tools lists the scenario's own groups as ready, never as not connected" do
+    tool = Conversation::Rehearsal::OpenTools.new(groups: { "northflank" => [ Conversation::BenchCase.tool_from({ "name" => "api_read", "description" => "Reads" }) ] },
+                                                  open: ->(_names) { [] })
+
+    assert_match "northflank: Northflank's own tools, such as api_read (ready)", tool.description
+    assert_no_match(/not granted|nothing connected/, tool.description)
+    assert_equal "There is no group called code. The groups are: northflank.", tool.call(group: "code")
+  end
+
+  # Seen on the first real bench run, a watch Halon repaired still listed its old step, so Halon told the person the watch
+  # was unreliable after fixing it.
+  test "a watch Halon starts and repairs reads what it follows now, through the scenario's own answers" do
+    bench_case = build("tools" => %w[start_watch repair_watch list_watches].map { |name| { "name" => name, "description" => name, "base" => true } } +
+                                  [ { "name" => "run_history", "description" => "Runs", "reads" => true } ],
+                       "answers" => [ { "tool" => "run_history", "match" => { "run" => "412" }, "result" => "Run 412 is running at migrate." } ])
+    script(
+      call("start_watch", "title" => "The release", "steps" => [ { "label" => "Release", "capability" => "run_history", "resource" => "web", "name" => "release" } ]),
+      call("list_watches", {}),
+      call("repair_watch", "watch" => "W1", "step" => "1", "run" => "412", "why" => "The run is in the shop project"),
+      call("list_watches", {}),
+      reply("Watching run 412.")
+    )
+
+    calls = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model).transcript.calls
+
+    assert_match Conversation::Rehearsal::State::NOTHING, calls[0].result
+    assert_match Conversation::Rehearsal::State::NOTHING, calls[1].result
+    assert_match "Repaired step 1 of watch W1. It now reads: Run 412 is running at migrate.", calls[2].result
+    assert_match "Run 412 is running at migrate.", calls[3].result
+  end
+
+  test "a plan Halon makes keeps the steps it marks" do
+    state = Conversation::Rehearsal::State.new(build, Hash.new(0), [])
+
+    state.call("make_plan", "goal" => "Release", "steps" => [ { "description" => "Start it", "kind" => "change" }, { "description" => "Check it", "kind" => "check" } ])
+    updated = state.call("update_plan", "step" => 1, "status" => "done", "note" => "Run 412 started.")
+
+    assert_equal "Plan P1:\n1. Start it (done) Run 412 started.\n2. Check it (waiting)", updated
+    assert_equal "Plan P1 finished: Released.", state.call("finish_plan", "outcome" => "Released.", "next_step" => "Shall I roll back?")
+  end
+
   private
+
+  def build(extra = {})
+    Conversation::BenchCase.from_hash({ "title" => "Test", "context" => "You are acting for Sam.", "turns" => [ "go" ],
+                                        "tools" => [ { "name" => "read_run", "description" => "Reads", "reads" => true } ] }.merge(extra), key: "test")
+  end
 
   def release_case(decisions:, turns: [ "release to production" ])
     Conversation::BenchCase.from_hash({

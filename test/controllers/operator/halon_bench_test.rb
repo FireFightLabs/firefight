@@ -3,16 +3,35 @@ require "test_helper"
 class Operator::HalonBenchTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
+  BENCH_KEYS = { "HALON_BENCH_OPENAI_API_KEY" => "sk-bench", "HALON_BENCH_ANTHROPIC_API_KEY" => "sk-bench" }.freeze
+
   setup do
     @operator = users(:alice)
     @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
     ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
+    @previous_keys = BENCH_KEYS.keys.index_with { |name| ENV[name] }
+    ENV.update(BENCH_KEYS)
     @workspace = workspaces(:slack_workspace_one)
     FirefightAi.stubs(:deployment_model_for).with(AiPurpose::INVESTIGATION).returns(FirefightAi::ModelChoice.new(model: "gpt-4o"))
   end
 
   teardown do
     ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
+    @previous_keys.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
+  end
+
+  test "without a key of the bench's own, Run is refused and says which variable to set" do
+    as_operator
+    BENCH_KEYS.each_key { |name| ENV.delete(name) }
+
+    get operator_halon_benches_path, headers: inertia_headers
+    assert_match "HALON_BENCH_<PROVIDER>_API_KEY", inertia_props["runBlockedReason"]
+
+    ENV["HALON_BENCH_ANTHROPIC_API_KEY"] = "sk-bench"
+    post operator_halon_benches_path
+    assert_redirected_to operator_halon_benches_path
+    assert_equal "The bench pays with its own key, never the app's. Set HALON_BENCH_OPENAI_API_KEY to run gpt-4o.", flash[:alert]
+    assert_not Conversation::BenchRun.exists?
   end
 
   test "only a verified operator reaches the bench" do

@@ -24,7 +24,7 @@ module Integrations
                            "_url, attribute readers and methods from define_method or method_missing. Search for how it " \
                            "could be generated before calling it missing.".freeze
 
-        REPO = { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" }.freeze
+        REPO = { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" }.freeze
         REPOS = { "type" => "array", "items" => { "type" => "string" }, "description" => "Repositories in owner/name form (optional, every repository this connection can see)" }.freeze
         REF = { "type" => "string", "description" => "Commit SHA, branch or tag, usually the running commit (optional, the default branch otherwise)" }.freeze
 

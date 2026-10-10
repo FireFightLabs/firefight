@@ -1,82 +1,24 @@
 # Tools many bench scenarios offer, described once. A scenario lists one by name under tools, or describes its own.
 # Each answers only from the scenario's record, so nothing here reaches a real system. A tool marked live is one a
-# chat is offered today: its description, parameters and whether it asks first are copied from its definition by
-# bin/rails halon:bench_tools, and a test fails when they drift. The rest are written here: connection tools such
-# as northflank_api_request, search_handbook, and open_tools, whose list of groups depends on the workspace and on
-# who asks. See Conversation::BenchCase for each field.
+# chat is offered today: its description, parameters, whether it asks first and whether a chat holds it from the
+# start (base) are copied from its definition by bin/rails halon:bench_tools, and a test fails when they drift. The
+# rest are written here: connection tools such as northflank_api_request, and open_tools, which a replay offers
+# with the scenario's own groups. See Conversation::BenchCase for each field.
 
 open_tools:
-  description: |-
-    Make a group of tools callable. You hold almost no tools until you open the group that fits what you need next. The groups:
-    Incidents and what happened before: search incidents, find ones that read like this, read one, what was said in its channel, past investigations, how accurate Halon has been (not granted to whoever you are acting as)
-    Running an incident: declare, post an update, resolve, cancel, reopen, escalate, invite people, assign roles, link incidents (not granted to whoever you are acting as)
-    Follow-ups and runbooks: action items, finding and reading runbooks, attaching one to an incident, claiming its steps (not granted to whoever you are acting as)
-    Postmortems: read one, start one, edit it, move it through review (not granted to whoever you are acting as)
-    Alerts and routing: search alerts, alert sources, routing rules and trying an alert against them (not granted to whoever you are acting as)
-    The resource map: read off the connections, for where something runs and which provider and account hold it, then find resources by filter, or search them with the catalog and confirmed memories by a name, an id or what a service does, read one, its links and neighbours, walk what it depends on or what depends on it, what fails with it, the map in numbers, what changed around a resource, a service or the whole workspace (deploys, runs, settings, hand edits and changes made through Firefight, in one list), and suggest a link (ready)
-    Outside providers and what is not connected: read an outside provider's public status page now, such as a payment, email, sign-in, CDN or cloud provider, when errors point at it, and find the systems the apps use that no connection reaches, with how to connect each (ready)
-    Monitoring and security: the problems Halon raised on its own from scheduled checks and security events, when it said each and whether it got worse, and how to check disks, certificates, error budgets, cost, a leaked secret, credential stuffing and suspicious access (not granted to whoever you are acting as)
-    Services, teams and ownership: search the catalog, who owns what, add or change entries and types (not granted to whoever you are acting as)
-    Workspace setup: what is configured, the workspace settings, severities, statuses, incident types, roles, forms and custom fields, what can be connected, and the paths Halon may not change in a code host's repositories (not granted to whoever you are acting as)
-    Permissions and approvals: who may do what, permission sets, grants, approval rules, unattended rules, pending approvals, the activity log (not granted to whoever you are acting as)
-    Agents, API keys and Firefight outbound webhooks: machine accounts and their tokens, API keys, and Firefight's own outbound webhooks, which post this workspace's incident events to a URL the team owns. Never a provider's webhooks, such as a deploy or workflow trigger at a hosting provider or a code host's webhooks, which that provider's own tools reach (not granted to whoever you are acting as)
-    Cloud and hosting: Where your apps run, and what you can change there (nothing connected)
-    Observability: Logs, metrics, traces and errors for investigations (nothing connected)
-    Alerting and on-call: Who is on call, and the alerts and incidents paging them (nothing connected)
-    Product analytics: Who an incident reaches, what they saw, and the feature flags behind it (nothing connected)
-    Databases: Your data and how it is set up (nothing connected)
-    Code: Commits, pull requests, deploys and CI of your repositories, and code changes, which Firefight's own coding agent writes here with fix_code and opens as a pull request, no coding agent needed (nothing connected)
-    CI: Builds, tests and their logs, and rerunning them (nothing connected)
-    Coding agents: Outside coding agents a workspace chose to write code changes instead of Firefight's own. Never needed for a code change or a pull request, which Firefight's own coding agent writes from the Code group (nothing connected)
-    Issues: Tickets and follow-up work tied to incidents (nothing connected)
-    Knowledge: Runbooks and documentation as context (nothing connected)
-    A group that is not granted, has nothing connected or has no tools switched on cannot be used, and that is worth saying in your answer.
+  description: Offered by a replay with the scenario's own groups, as Conversation::Rehearsal::OpenTools builds it.
   reads: true
   parameters:
     type: object
     properties:
       group:
         type: string
-        enum:
-        - incident_history
-        - incident_response
-        - follow_ups
-        - postmortems
-        - alerts
-        - resource_map
-        - outside_systems
-        - monitoring
-        - catalog
-        - workspace_setup
-        - permissions
-        - machine_access
-        - cloud_and_hosting
-        - observability
-        - alerting_and_on-call
-        - product_analytics
-        - databases
-        - code
-        - ci
-        - coding_agents
-        - issues
-        - knowledge
         description: The group to open
-      tools:
-        type: array
-        items:
-          type: string
-        description: >-
-          Tools to load by name. A large group that listed its tools first loads only these, and a name that sits in another group is loaded from
-          there (optional)
-    required:
-    - group
-  default: |
-    Every tool this person may use in this chat is already open:
-    %{tools}
+  base: true
 use_skill:
   live: true
   description: |-
-    Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. The skills, by what they cover:
+    Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. A provider's API skill lists its API reference, which gives the path for the connection's general read (api_read) whenever no other tool covers what you need. The skills, by what they cover:
     firefight alerts:
     on_call_alert: An alert started this run and nobody asked, as the facts' on_call says, such as a page at 3am with nobody awake yet
     firefight follow ups:
@@ -135,7 +77,8 @@ use_skill:
         description: One of the guides the skill lists, to read it (optional)
     required:
     - skill
-  default: No skill covers more than the tools already open here.
+  default: No skill fits this. Open the group that holds the tools you need with open_tools.
+  base: true
 search_docs:
   live: true
   description: >-
@@ -155,18 +98,23 @@ search_docs:
         type: string
         description: Only this provider, such as northflank. Leave out to search every connected provider (optional)
   default: No section of the connected providers' documentation matches that.
+  base: true
 search_handbook:
-  description: Reads the workspace handbook, the page people here wrote about how they work, such as how they release and who owns what.
-  reads: true
+  live: true
+  description: >-
+    Search this workspace's handbook, how the workspace works as its people wrote it, such as how a release runs, who owns a service or when changes
+    are frozen. Use it for the pages the start of the chat names as too long to give there, and whenever the handbook may say how to do what you
+    are about to do. Answers the best few sections whole, each with its page and link. Follow what they say, and cite the page by its link.
+  default: The handbook says nothing about that.
   parameters:
     type: object
+    required:
+    - query
     properties:
       query:
         type: string
-        description: What to look for
-    required:
-    - query
-  default: The handbook says nothing about that.
+        description: What to find, such as "release steps" or "who owns checkout"
+  base: true
 get_resource_map:
   live: true
   description: >-
@@ -534,6 +482,7 @@ check_from_outside:
         - GET
         - HEAD
         description: GET or HEAD (optional, GET)
+  base: true
 run_command:
   live: true
   description: >-
@@ -569,6 +518,7 @@ run_command:
         description: True when the command changes something through a connected tool, so the person confirms it first (optional, false)
     required:
     - command
+  base: true
 run_helpers:
   live: true
   description: >-
@@ -606,6 +556,7 @@ run_helpers:
     required:
     - checks
   default: No helper report was recorded for that check.
+  base: true
 make_plan:
   live: true
   description: >-
@@ -659,6 +610,7 @@ make_plan:
     - goal
     - steps
   default: Plan saved. The person sees it as a checklist.
+  base: true
 update_plan:
   live: true
   description: >-
@@ -730,6 +682,7 @@ update_plan:
           - kind
         description: Replaces every step not started yet, when the plan has to change (optional)
   default: Plan updated.
+  base: true
 finish_plan:
   live: true
   description: >-
@@ -747,7 +700,8 @@ finish_plan:
         description: What came of it against the goal, in a sentence or two, with the evidence
       next_step:
         type: string
-        description: The most useful next step, as an offer, such as Shall I watch the error rate for an hour?
+        description: The most useful next step. A read is done, never offered, so this is a change or a choice to offer, such as Shall I roll
+          back checkout?
       links:
         type: array
         items:
@@ -757,6 +711,7 @@ finish_plan:
     - outcome
     - next_step
   default: Plan finished.
+  base: true
 search_runbooks:
   live: true
   description: >-
@@ -794,6 +749,7 @@ run_runbook:
         description: 'A value for each of the runbook''s inputs by its key, such as {"bump": "patch"} (optional for one with a default)'
     required:
     - runbook
+  base: true
 start_watch:
   live: true
   description: >-
@@ -896,6 +852,7 @@ start_watch:
     - title
     - steps
   default: Watching. I will report each step as it passes and when it ends, for up to 40 minutes.
+  base: true
 repair_watch:
   live: true
   description: >-
@@ -974,6 +931,7 @@ repair_watch:
     - step
     - why
   default: Repaired. The watch now follows the read you gave.
+  base: true
 list_watches:
   live: true
   description: >-
@@ -986,6 +944,7 @@ list_watches:
     properties: {}
     required: []
   default: No watch is running in this chat.
+  base: true
 start_investigation:
   live: true
   description: >-
@@ -1011,6 +970,7 @@ start_investigation:
         description: An error message or name as it appeared, e.g. PoolExhausted (optional)
     required: []
   default: Started an investigation. Responders follow it in the incident's channel.
+  base: true
 search_alerts:
   live: true
   description: >-
@@ -1351,3 +1311,72 @@ cloudflare_execute:
         body):
     required:
     - code
+propose_handbook_edit:
+  live: true
+  description: >-
+    Propose an edit to a page of this workspace's handbook when a result you read now contradicts it, such as releases running through a different
+    tool than the page says, or propose a new page when asked to draft the handbook or when something the team relies on is written nowhere. Nothing
+    changes until a person accepts it. Write the whole page as it should read, keeping everything the result did not contradict, and say what
+    showed it.
+  default: Proposed. The person sees the edit on a card and accepts or changes it.
+  parameters:
+    type: object
+    properties:
+      page:
+        type: string
+        description: The title of the page to change, as the handbook names it. Leave it out to propose a new page
+      title:
+        type: string
+        description: The new page's title, at most 120 characters, only for a new page
+      text:
+        type: string
+        description: The whole page as it should read, in Markdown
+      evidence:
+        type: string
+        description: >-
+          What showed it and where, in one or two sentences, such as "The last five releases ran through the deploy workflow, not the release
+          pipeline."
+    required:
+    - text
+    - evidence
+  base: true
+get_form:
+  live: true
+  description: >-
+    Fetch one lifecycle form and every field on it, hidden ones included, with each field's key, type, whether it is visible, required, locked,
+    and any conditions gating it. A field with asked: false is not on the form right now and inactive_reason says why, so do not answer it. On
+    the update, resolve and cancel forms a required field left out keeps the incident's current value. Read this before changing a form so an
+    update replaces what is actually there. Docs: https://firefight.app/docs/customization/incident-forms.md
+  reads: true
+  parameters:
+    properties:
+      form:
+        type: string
+        description: 'Form slug, one of: declare, update, resolve, cancel'
+    required:
+    - form
+    type: object
+invite_responders:
+  live: true
+  description: >-
+    Pull people into the incident channel so they can see what is happening and join in, the same as a person running /ff invite. Inviting someone
+    does not ask them for anything: use escalate_incident when you need a named person to respond. If the call requires approval, retry the identical
+    call with approval_id once approved. Docs: https://firefight.app/docs/incidents/concepts.md
+  default: Invited them to the incident's channel.
+  parameters:
+    properties:
+      incident:
+        type: string
+        description: Incident UUID or identifier like INC-42
+      members:
+        type: array
+        items:
+          type: string
+        description: Emails or platform user ids of the people to bring in. Pass "me" for the person you are acting for
+      approval_id:
+        type: string
+        description: Approval id when retrying an approved call
+    required:
+    - incident
+    - members
+    type: object
