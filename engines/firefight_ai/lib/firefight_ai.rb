@@ -165,7 +165,7 @@ module FirefightAi
 
   # The deployment's own model for the purpose, most specific first: workspace override for the purpose, for any
   # purpose, the purpose's env var, the model the providers recommend for it, then the parent purpose's model when it
-  # has one. After that it depends on the purpose's tier. Halon's own loop takes FIREFIGHT_AI_MODEL, then the strongest
+  # has one. After that it depends on the purpose's tier. Halon's own loop takes FIREFIGHT_AI_MODEL, then the main
   # model of the first provider this deployment holds a key for. A side job takes FIREFIGHT_AI_QUICK_MODEL, then the
   # quick model of the provider the loop runs on, then FIREFIGHT_AI_MODEL. Both end at the purpose's fallback.
   def deployment_model_for(purpose, workspace: nil)

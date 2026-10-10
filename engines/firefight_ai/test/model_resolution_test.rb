@@ -149,15 +149,15 @@ class FirefightAi::ModelResolutionTest < ActiveSupport::TestCase
     assert_equal "z-ai/glm-4.7-flash", FirefightAi.model_for(AiPurpose::CITATION_CHECK, workspace: @workspace).model
   end
 
-  test "with a key and nothing named, Halon's loop runs on the provider's strongest model and side jobs on its quick one" do
+  test "with a key and nothing named, Halon's loop runs on the provider's main model and side jobs on its quick one" do
     RubyLLM.config.stubs(:anthropic_api_key).returns("sk-ant-test")
 
     loop = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
     side = FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace)
 
-    assert_equal [ "claude-opus-5-5", "anthropic" ], [ loop.model, loop.provider ]
+    assert_equal [ "claude-sonnet-5-5", "anthropic" ], [ loop.model, loop.provider ]
     assert_equal [ "claude-haiku-4-5", "anthropic" ], [ side.model, side.provider ]
-    assert_equal "claude-opus-5-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model, "what grows from the loop follows it"
+    assert_equal "claude-sonnet-5-5", FirefightAi.model_for(AiPurpose::POSTMORTEM, workspace: @workspace).model, "what grows from the loop follows it"
   end
 
   test "the deployment default still leads Halon's loop, and side jobs move to its provider's quick model" do

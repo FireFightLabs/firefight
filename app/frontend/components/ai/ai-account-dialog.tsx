@@ -200,7 +200,7 @@ export function AiAccountDialog({
             <AiAccountModelField
               id={fieldId("main")}
               label="Main model"
-              hint="Chats and investigations, and the postmortems and code fixes that grow from them. Use the strongest model the provider offers."
+              hint="Chats and investigations, and the postmortems and code fixes that grow from them."
               provider={provider}
               value={draft.main}
               error={errorText(errors["models.main"])}
