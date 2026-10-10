@@ -697,6 +697,32 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert onboarding.reload.halon_answered_at
   end
 
+  test "a dashboard chat answers on the model the person picked, and the checks it hands to helpers keep the workspace's" do
+    add_ai_account!(@workspace, provider: "openrouter", key: "sk-or-own")
+    personal_chat
+    @conversation.choose_model!("z-ai/glm-5.2")
+    @conversation.ask!("what changed today")
+    responder = fake(reply: "Nothing changed.")
+    share = nil
+    Conversation::Tools.expects(:for).with { |_turn, helpers:, **| share = helpers }.returns([])
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_equal [ "z-ai/glm-5.2", "openrouter" ], responder.options[:model].to_h.values_at(:model, :provider)
+    assert_equal "openai/shared-vision", share.choose.call(true).model
+    assert_equal "openai/shared-vision", share.choose.call(false).model
+  end
+
+  test "a chat with no pick answers on the workspace's model as before" do
+    personal_chat
+    @conversation.ask!("what changed today")
+    responder = fake(reply: "Nothing changed.")
+
+    Conversation::Runner.new(@conversation, asker: @conversation.started_by).run
+
+    assert_nil responder.options[:model]
+  end
+
   private
 
   def with_app_host

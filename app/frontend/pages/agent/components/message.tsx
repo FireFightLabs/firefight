@@ -10,6 +10,11 @@ interface MessageProps {
   onOpenImage: (attachmentId: string) => void
 }
 
+// Quiet, under the answer, so someone switching models can compare what each wrote.
+function AnsweredBy({ models }: { models: string[] }) {
+  return <p className="text-[11.5px] leading-4 text-ink-3">{models.join(", then ")}</p>
+}
+
 export function Message({ turn, live = false, onOpenImage }: MessageProps) {
   if (turn.kind === TURN_KINDS.PERSON) {
     return <PersonBubble body={turn.body} attachments={turn.attachments} onOpenImage={onOpenImage} />
@@ -25,6 +30,7 @@ export function Message({ turn, live = false, onOpenImage }: MessageProps) {
         <AnswerText key={body.id} text={body.text} />
       ))}
       {cards.map((step) => step.card && <AgentCard key={step.key} card={step.card} stepKey={step.key} />)}
+      {!live && turn.models.length > 0 && <AnsweredBy models={turn.models} />}
     </div>
   )
 }

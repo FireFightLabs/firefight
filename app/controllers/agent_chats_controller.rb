@@ -48,6 +48,8 @@ class AgentChatsController < InertiaController
   PROP_MITIGATIONS = "mitigations"
   # Owners asked before Halon stopped something they started.
   PROP_OWNER_ASKS = "ownerAsks"
+  # The models the open chat can switch to and the one it runs on, or nil when there is only one.
+  PROP_CHAT_MODELS = "chatModels"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
@@ -58,7 +60,7 @@ class AgentChatsController < InertiaController
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
     "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS,
-    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS
+    "HANDBOOK_PROPOSALS" => PROP_HANDBOOK_PROPOSALS, "CHAT_MODELS" => PROP_CHAT_MODELS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -88,21 +90,21 @@ class AgentChatsController < InertiaController
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
-      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => []
+      PROP_OWNER_ASKS => [], PROP_HELPERS => [], PROP_HANDBOOK_PROPOSALS => [], PROP_CHAT_MODELS => chat_models(nil)
     )
   end
 
   def show
     render inertia: "agent/index", props: base_props.merge(
       PROP_CONVERSATION => AgentChatSerializer.one(conversation),
-      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, ruby_llm_tool_calls: :result) || [],
+      PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result) || [],
                                                        member: current_membership),
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || []),
       PROP_INVESTIGATIONS => InvestigationCardSerializer.many(started_investigations),
       PROP_OPEN_INVESTIGATION => open_investigation,
       PROP_CHARTS => ChatChartSerializer.many(conversation.chat&.charts || []),
       PROP_WAITING_MESSAGES => AgentChatWaitingMessageSerializer.many(conversation.chat&.queued_messages&.waiting&.includes(:attached_files) || []),
-      PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat),
+      PROP_ATTACHMENT_RULES => attachment_rules(conversation.chat, picked: conversation.picked_model_choice),
       PROP_COMPACTIONS => ChatCompactionSerializer.many(conversation.chat&.compactions || []),
       PROP_HELD_CALLS => AgentChatHeldCallSerializer.many(held_calls_shown, member: current_membership),
       PROP_PACK_REFUSALS => AgentChatPackRefusalSerializer.many(pack_refusals_shown, member: current_membership),
@@ -117,7 +119,8 @@ class AgentChatsController < InertiaController
       PROP_MITIGATIONS => AgentChatMitigationSerializer.many(conversation.chat&.mitigations&.shown || [], member: current_membership),
       PROP_OWNER_ASKS => AgentChatOwnerAskSerializer.many(conversation.chat&.owner_asks&.shown || []),
       PROP_HELPERS => AgentChatHelperSerializer.many(conversation.chat&.helpers&.includes(:workspace, :own_chat) || []),
-      PROP_HANDBOOK_PROPOSALS => HandbookProposalSerializer.many(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at))
+      PROP_HANDBOOK_PROPOSALS => HandbookProposalSerializer.many(conversation.handbook_proposals.includes(:instruction, :result, :decided_by).order(:created_at)),
+      PROP_CHAT_MODELS => chat_models(conversation)
     )
   end
 
@@ -135,11 +138,16 @@ class AgentChatsController < InertiaController
     render json: AgentChatIncidentSerializer.many(mentionable_incidents.search(params[:q].to_s.strip))
   end
 
+  # A model picked before the first question goes with it.
   def create
     files = files_sent
     return redirect_to(agent_chats_path, alert: NOTHING_ASKED) if question.blank? && files.empty?
 
-    chat = Conversation::Asking.start_personal(workspace: current_workspace, member: current_membership, question: question, files: files)
+    blocked = picked_model && Conversation::ModelMenu.for(current_workspace).blocked_reason(picked_model)
+    return redirect_to(agent_chats_path, alert: blocked) if blocked
+
+    chat = Conversation::Asking.start_personal(workspace: current_workspace, member: current_membership, question: question, files: files,
+                                               model: picked_model)
     redirect_to agent_chat_path(chat)
   rescue Chat::Attachment::Refused => refused
     redirect_to agent_chats_path, alert: refused.message
@@ -288,6 +296,7 @@ class AgentChatsController < InertiaController
   end
 
   def update
+    return choose_model if params.key?(:model)
     return rename if params.key?(:title)
     return pin if params.key?(:pinned)
     return archive if params.key?(:archived)
@@ -382,9 +391,31 @@ class AgentChatsController < InertiaController
 
   def files_sent = Chat::Attachment.to_send!(workspace: current_workspace, member: current_membership, ids: params[:attachment_ids])
 
-  # An open chat keeps the model it was started on. A new one gets the workspace's.
-  def attachment_rules(chat)
-    AgentChatAttachmentRulesSerializer.one(Chat::Attachment.rules_for(current_workspace, model_id: chat&.model_id, provider: chat&.model&.provider))
+  # An open chat keeps the model it was started on, or the one the person picked. A new one gets the workspace's.
+  def attachment_rules(chat, picked: nil)
+    model_id, provider = picked ? [ picked.model, picked.provider ] : [ chat&.model_id, chat&.model&.provider ]
+    AgentChatAttachmentRulesSerializer.one(Chat::Attachment.rules_for(current_workspace, model_id: model_id, provider: provider))
+  end
+
+  def picked_model = params[:model].presence&.to_s
+
+  # A new chat starts on the workspace's main model until the person picks another.
+  def chat_models(conversation)
+    menu = conversation ? conversation.model_menu : Conversation::ModelMenu.for(current_workspace)
+    return nil unless menu.offers_choice?
+
+    ChatModelMenuSerializer.one(menu, selected: menu.current(conversation&.chosen_model))
+  end
+
+  # Takes effect from the next question. A turn already running finishes on the model it started with.
+  def choose_model
+    model = params[:model].to_s
+    menu = conversation.model_menu
+    blocked = conversation.model_blocked_reason(model, menu: menu)
+    return redirect_back_or_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    conversation.choose_model!(model, menu: menu)
+    redirect_back_or_to agent_chat_path(conversation), notice: "This chat now uses #{menu.label_for(model)}."
   end
 
   def came_from?(path)
