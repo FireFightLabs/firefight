@@ -16,6 +16,7 @@ class TeamWebhook
     uri = URI.parse(url)
     request = Net::HTTP::Post.new(uri, "Content-Type" => "application/json")
     request.body = payload.to_json
+    UserAgent.apply!(request)
 
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https",
                                open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|

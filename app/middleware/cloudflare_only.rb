@@ -49,7 +49,7 @@ class CloudflareOnly
 
   def fetch_cloudflare_ranges
     [ IPV4_URL, IPV6_URL ].flat_map do |url|
-      Net::HTTP.get(URI(url)).split("\n").map { |cidr| IPAddr.new(cidr) }
+      Net::HTTP.get(URI(url), "User-Agent" => UserAgent::VALUE).split("\n").map { |cidr| IPAddr.new(cidr) }
     end
   rescue => e
     raise "CloudflareOnly: failed to fetch IP list — #{e.message}"

@@ -8,6 +8,17 @@ module Integrations
       @uri = URI.parse("https://api.acme.example/v1/things")
     end
 
+    test "every request to a provider names Firefight, since some refuse one that only says Ruby" do
+      sent = nil
+      connection = Object.new
+      connection.define_singleton_method(:request) { |request, &| sent = request }
+      Net::HTTP.stubs(:start).yields(connection)
+
+      Http.request(@uri, Net::HTTP::Get.new(@uri), error_class: AcmeError)
+
+      assert_equal UserAgent::VALUE, sent["User-Agent"]
+    end
+
     test "an answer is read as JSON, a 2xx that is not JSON still counts as done, and a refusal says the provider's own reason" do
       Http.stubs(:request).returns(response(200, '{"things":[1]}'))
       assert_equal({ "things" => [ 1 ] }, json)

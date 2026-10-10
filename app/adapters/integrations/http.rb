@@ -37,6 +37,7 @@ module Integrations
     # the response as it arrives, for an answer read as a stream.
     def self.request(uri, request, error_class:, read_timeout: 15, ipaddr: nil, cert_store: nil, &)
       options = { use_ssl: uri.scheme == "https", open_timeout: OPEN_TIMEOUT, read_timeout: read_timeout, ipaddr: ipaddr, cert_store: cert_store }.compact
+      UserAgent.apply!(request)
       Net::HTTP.start(uri.hostname, uri.port, **options) do |connection|
         connection.request(request, &)
       end

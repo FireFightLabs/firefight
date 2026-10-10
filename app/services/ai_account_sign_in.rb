@@ -61,7 +61,8 @@ class AiAccountSignIn
   def token_request(sign_in, **params)
     uri = URI.parse(sign_in.token_url)
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
-      http.post(uri.request_uri, URI.encode_www_form(params.merge(client_id: sign_in.client_id)), "Content-Type" => "application/x-www-form-urlencoded")
+      http.post(uri.request_uri, URI.encode_www_form(params.merge(client_id: sign_in.client_id)),
+                "Content-Type" => "application/x-www-form-urlencoded", "User-Agent" => UserAgent::VALUE)
     end
     raise Unreachable, "The provider could not be reached to sign in." if response.is_a?(Net::HTTPServerError)
 
