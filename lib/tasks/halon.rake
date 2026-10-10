@@ -106,6 +106,13 @@ namespace :halon do
 
   # Prints the chat as a scenario file. It holds the customer's words and data, so it is only a start. Replace them
   # with made up ones before it goes into config/halon_bench, and write down what a right answer reaches.
+  # Nothing is left behind, since the tools are read as a member of a workspace made in a transaction rolled back.
+  desc "Copy the bench's shared tools from their live definitions: bin/rails halon:bench_tools"
+  task bench_tools: :environment do
+    changed = Conversation::BenchTools.refresh!
+    puts changed.any? ? "Refreshed #{changed.to_sentence} in #{Conversation::BenchCase::SHARED_TOOLS.relative_path_from(Rails.root)}." : "Every shared tool already matches."
+  end
+
   desc "Print a real chat as a bench scenario to edit: bin/rails 'halon:chat_capture[CONVERSATION_ID]'"
   task :chat_capture, %i[conversation] => :environment do |_task, args|
     puts Conversation::Rehearsal.capture(Conversation.find(args[:conversation])).to_h.to_yaml
