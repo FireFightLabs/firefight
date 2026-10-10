@@ -34,6 +34,8 @@ class AgentChatsController < InertiaController
   PROP_PULL_REQUEST_NOTICES = "pullRequestNotices"
   # Memories something contradicted in this chat, each asking the person which is right.
   PROP_MEMORY_QUESTIONS = "memoryQuestions"
+  # The checks Halon handed to helpers in this chat, each drawn under the step that started it with the steps it took.
+  PROP_HELPERS = "helpers"
   # Setup's Meet Halon step, while an admin is on it: the question to start with, and whether Halon has answered.
   PROP_SETUP_GUIDE = "setupGuide"
   # The plans Halon keeps in the open chat, each a checklist that moves as it works.
@@ -53,7 +55,7 @@ class AgentChatsController < InertiaController
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
     "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
-    "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS
+    "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS, "HELPERS" => PROP_HELPERS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -83,7 +85,7 @@ class AgentChatsController < InertiaController
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
       PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
-      PROP_OWNER_ASKS => []
+      PROP_OWNER_ASKS => [], PROP_HELPERS => []
     )
   end
 
@@ -110,7 +112,8 @@ class AgentChatsController < InertiaController
       PROP_PLANS => AgentChatPlanSerializer.many(plans_shown, member: current_membership),
       PROP_DATA_REPAIRS => AgentChatDataRepairSerializer.many(conversation.chat&.data_repairs&.where(status: Chat::DataRepair::STATUS_RAN) || []),
       PROP_MITIGATIONS => AgentChatMitigationSerializer.many(conversation.chat&.mitigations&.shown || [], member: current_membership),
-      PROP_OWNER_ASKS => AgentChatOwnerAskSerializer.many(conversation.chat&.owner_asks&.shown || [])
+      PROP_OWNER_ASKS => AgentChatOwnerAskSerializer.many(conversation.chat&.owner_asks&.shown || []),
+      PROP_HELPERS => AgentChatHelperSerializer.many(conversation.chat&.helpers&.includes(:workspace, :own_chat) || [])
     )
   end
 

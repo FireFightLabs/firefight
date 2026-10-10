@@ -38,9 +38,9 @@ module FirefightAi
     end
 
     # The app has already saved the question as the last message.
-    # check and hold go to the loop, see AgentLoop.
+    # check, hold and purse go to the loop, see AgentLoop.
     def run(chat:, tools:, context:, budget:, canceled: -> { false }, on_step: nil, on_chunk: nil, nudge: nil, memory: nil,
-            check: nil, hold: nil, take_messages: nil, &on_turn)
+            check: nil, hold: nil, take_messages: nil, purse: nil, &on_turn)
       FirefightAi.translating_errors do
         FirefightAi.bind(chat, ai_model)
         chat.with_instructions("#{template_text}\n#{context}")
@@ -51,7 +51,8 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: budget, answered: -> { false }, canceled: canceled,
           on_step: on_step, on_chunk: on_chunk, nudge: nudge, memory: memory, inference: inference_context, reply_is_answer: true,
-          check: check, hold: hold, take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION
+          check: check, hold: hold, take_messages: take_messages, output: output_cap, choice: ai_model, purpose: AiPurpose::INVESTIGATION,
+          purse: purse
         ).run(&on_turn)
       end
     end
@@ -108,6 +109,7 @@ module FirefightAi
         - #{DatabaseRule::REPLICA_RULE}
         - #{DatabaseRule::SLOW_RULE}
         - #{NormalRule::RULE}
+        - #{Helper::RULE}
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.
         - State nothing a tool result or the facts below do not support. Say what you do not know.
         - Never say you cannot check or do something without reading the groups and opening the one that fits first, including when asked what you are able to do. The groups also say when tools exist but this person may not use them, or when nothing is connected, and that is worth saying.

@@ -128,6 +128,29 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
     assert_equal 2, chat.model_calls, "the last turn is one more model call, not a whole run"
   end
 
+  test "what helpers spend beside the loop counts against its budget, and the caller hears it before the next turn" do
+    chat = FakeChat.new([ tool_reply("call_1", cost: 0.01), tool_reply("call_2"), tool_reply("call_3") ])
+    purse = FirefightAi::AgentLoop::Purse.new
+    turns = []
+    helpers_spend = ->(step) { purse.add(4_000_000) if step.status == FirefightAi::AgentLoop::STEP_RUNNING && step.key == "call_1" }
+
+    outcome = run_loop(chat, budget: budget(max_spend_cents: 400), on_step: helpers_spend, purse: purse) { |turn| turns << turn.spent_micros }
+
+    assert_equal FirefightAi::AgentLoop::STATUS_OUT_OF_BUDGET, outcome.status
+    assert_equal [ 10_000, 4_010_000 ], turns.first(2), "the helpers' spend is reported once the tool answers, before the next model call"
+    assert_equal 4_010_000, outcome.spent_micros
+    assert_equal 2, chat.model_calls
+  end
+
+  test "a purse is shared safely between threads" do
+    purse = FirefightAi::AgentLoop::Purse.new(100)
+
+    Array.new(8) { Thread.new { 1_000.times { purse.add(1) } } }.each(&:join)
+
+    assert_equal 8_100, purse.spent
+    assert_equal (400 * FirefightAi::AgentLoop::MICROS_PER_CENT) - 8_100, purse.left(400)
+  end
+
   # Seen in a real chat. OpenAI refuses a chat with a message between a tool call and its result, so the run died.
   test "the last turn waits for the tools already asked for, so nothing sits between a call and its result" do
     chat = FakeChat.new([ tool_reply("call_1", cost: 5.00), llm_reply(content: "It was the database") ])
@@ -334,10 +357,10 @@ class FirefightAi::AgentLoopTest < ActiveSupport::TestCase
   end
 
   def run_loop(chat, budget: budget(), answered: -> { false }, on_step: nil, on_chunk: nil, reply_is_answer: false,
-               nudge: nil, check: nil, hold: nil, take_messages: nil, &on_turn)
+               nudge: nil, check: nil, hold: nil, take_messages: nil, purse: nil, &on_turn)
     FirefightAi::AgentLoop.new(
       chat: chat, budget: budget, answered: answered, on_step: on_step, on_chunk: on_chunk,
-      reply_is_answer: reply_is_answer, nudge: nudge, check: check, hold: hold, take_messages: take_messages,
+      reply_is_answer: reply_is_answer, nudge: nudge, check: check, hold: hold, take_messages: take_messages, purse: purse,
       inference: { workspace: @workspace, feature: "investigation", provider: "openai", model: "gpt-4o", inferable: @incident }
     ).run(&on_turn)
   end

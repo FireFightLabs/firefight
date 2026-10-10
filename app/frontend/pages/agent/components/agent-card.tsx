@@ -18,7 +18,8 @@ export function AgentCard({ card, stepKey }: AgentCardProps) {
   if (card.kind === AGENT_CARD_KINDS.INVESTIGATION) {
     return <InvestigationRunCard toolCallKey={stepKey} />
   }
-  if (card.kind === AGENT_CARD_KINDS.CHART) {
+  // Helpers are drawn under their step, and the charts they read follow the answer like any other.
+  if (card.kind === AGENT_CARD_KINDS.CHART || card.kind === AGENT_CARD_KINDS.HELPERS) {
     return <ChartCard toolCallKey={stepKey} />
   }
 

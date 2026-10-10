@@ -32,13 +32,19 @@ module Chat::Tools
 
   # A result the page draws as something other than text. The step carries only what to draw, and the page
   # reads the rows from the workspace as they are now, so a card says the truth after the person acts on it.
-  Card = Data.define(:kind, :category)
+  Card = Data.define(:kind, :category) do
+    # Most cards draw what a step returned, so they wait for it. Helpers are drawn while they work.
+    def shown_while_running? = kind == CARD_HELPERS
+  end
   CARD_INTEGRATIONS = "integrations".freeze
   # The run a chat started. The page finds it by the step's tool call, since the run exists only once the tool has run.
   CARD_INVESTIGATION = "investigation".freeze
   # Charts a tool returned. The page finds them by the step's tool call, since a tool only returns them when it has data.
   CARD_CHART = "chart".freeze
-  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART ].freeze
+  # Helpers a run_helpers call started, drawn under its step while they work and after. The page finds them by the
+  # step's tool call, and draws them from the chat's helpers as they are now.
+  CARD_HELPERS = "helpers".freeze
+  CARD_KINDS = [ CARD_INTEGRATIONS, CARD_INVESTIGATION, CARD_CHART, CARD_HELPERS ].freeze
 
   def self.chart_card = Card.new(kind: CARD_CHART, category: nil)
 
@@ -58,7 +64,7 @@ module Chat::Tools
   # So is a call its guard shows to read through a tool that can also change things, when the call's arguments are known.
   def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
-    reading = name == ReadResult.tool_name || [ Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME ].include?(name) ||
+    reading = [ ReadResult.tool_name, Helpers::NAME, Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME ].include?(name) ||
               firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
   end
@@ -150,6 +156,7 @@ module Chat::Tools
   # does and the connection it runs through, as the confirmation names it.
   def self.step(tool_name, arguments, workspace: nil)
     return nil if tool_name.blank? || internal_names.include?(tool_name.to_s)
+    return Helpers.shown(arguments) if tool_name.to_s == Helpers::NAME
 
     asked = shown_arguments(arguments.to_h.stringify_keys.except(INTENT_ARG))
     Step.new(

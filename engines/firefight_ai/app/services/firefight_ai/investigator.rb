@@ -25,7 +25,7 @@ module FirefightAi
     end
 
     def run(chat:, tools:, seed_pack:, budget:, answered:, canceled: -> { false }, on_step: nil, nudge: nil, memory: nil,
-            take_messages: nil, &on_turn)
+            take_messages: nil, purse: nil, &on_turn)
       FirefightAi.translating_errors do
         FirefightAi.bind(chat, ai_model)
         chat.with_instructions(system_prompt)
@@ -37,7 +37,7 @@ module FirefightAi
         AgentLoop.new(
           chat: chat, budget: budget, answered: answered, canceled: canceled,
           on_step: on_step, nudge: nudge, memory: memory, inference: inference_context, output: output_cap, take_messages: take_messages,
-          choice: ai_model, purpose: AiPurpose::INVESTIGATION
+          choice: ai_model, purpose: AiPurpose::INVESTIGATION, purse: purse
         ).run(&on_turn)
       end
     end
@@ -66,6 +66,7 @@ module FirefightAi
         - #{DatabaseRule::REPLICA_RULE}
         - #{DatabaseRule::SLOW_RULE}
         - #{NormalRule::RULE}
+        - #{Helper::RULE}
         - #{MAP_START}
         - A responder may add something while you work. Their newest message decides what you check next.
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.

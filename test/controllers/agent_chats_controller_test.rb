@@ -79,6 +79,34 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "x", step["headline"]
   end
 
+  test "checks handed to helpers arrive under the step that started them, while they work, with each helper's own steps" do
+    conversation = start_chat
+    conversation.ask!("why is checkout slow")
+    reply = conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    reply.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Chat::Tools::Helpers::NAME,
+                                      arguments: { "checks" => [ { "title" => "Logs of web", "brief" => "Read web's errors" }, { "title" => "Deploys", "brief" => "List deploys" } ] })
+    logs, deploys = Chat::Helper.start!(chat: conversation.chat, tool_call_id: "call_1", since: 1.minute.ago, checks: [
+      Chat::Helpers::Check.new(title: "Logs of web", brief: "Read web's errors", deep: false), Chat::Helpers::Check.new(title: "Deploys", brief: "List deploys", deep: false)
+    ])
+    own = Chat.open!(owner: logs, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o-mini"))
+    read = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    read.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: { "query" => "checkout" })
+    own.add_message(role: :tool, content: "INC-7 checkout slow", tool_call_id: "h_1")
+    logs.finish!(Chat::Helper::STATUS_REPORTED, report: "web logs show 40 timeouts to the orders database since 14:02.")
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    step = inertia_props["messages"].flat_map { |message| message["tools"] }.sole
+    assert_equal [ Conversation::LiveDelivery::STATUS_RUNNING, { "kind" => Chat::Tools::CARD_HELPERS, "category" => nil } ], [ step["status"], step["card"] ]
+    shown = inertia_props[AgentChatsController::PROP_HELPERS]
+    assert_equal [ [ logs.id, "call_1", Chat::Helper::STATUS_REPORTED ], [ deploys.id, "call_1", Chat::Helper::STATUS_RUNNING ] ],
+                 shown.map { |helper| [ helper["id"], helper["toolCallId"], helper["status"] ] }
+    assert_equal "web logs show 40 timeouts to the orders database since 14:02.", shown.first["report"]
+    assert_equal [ [ "Search incidents", "checkout", Conversation::LiveDelivery::STATUS_DONE ] ],
+                 shown.first["steps"].map { |each| [ each["title"], each["headline"], each["status"] ] }
+    assert_empty shown.last["steps"]
+  end
+
   test "a category of integrations shown in a chat arrives as a card, with the rows it draws" do
     conversation = start_chat
     conversation.ask!("what can we connect for logs")

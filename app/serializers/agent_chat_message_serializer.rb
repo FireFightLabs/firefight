@@ -51,7 +51,7 @@ class AgentChatMessageSerializer < BaseSerializer
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
         status: status, kind: Chat::Tools.kind(call.name, workspace, call.arguments),
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
-        card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
+        card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE || step.card&.shown_while_running?),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),
         progress: works[call.tool_call_id]&.to_h,
         questionBlockedReason: works[call.tool_call_id]&.question_blocked_reason(chat.workspace_id, options[:member]),

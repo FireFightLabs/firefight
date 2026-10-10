@@ -102,6 +102,32 @@ class Chat::CompactingTest < ActiveSupport::TestCase
     assert chat.sent_messages.where(role: "tool").none?
   end
 
+  # A long incident thread hands checks to helpers many times, and their reports must outlive a rebuild.
+  test "a rebuilt chat keeps what its helpers reported, newest kept when there are many, and leaves out those still running" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
+    chat = @workspace.chats.create!(owner: conversation, model: "claude-sonnet-4-5", provider: :anthropic)
+    chat.add_message(role: :user, content: "Why is checkout slow?")
+    tool_turn(1, chat: chat, step: nil)
+    checks = Array.new(4) { |index| Chat::Helpers::Check.new(title: "Check #{index + 1}", brief: "Read #{index + 1}", deep: false) }
+    reported = 0
+    (1..4).each do |call|
+      Chat::Helper.start!(chat: chat, tool_call_id: "call_#{call}", checks: checks, since: 1.minute.from_now).each do |helper|
+        next if reported > Chat::Compacting::HELPERS_REMEMBERED
+
+        reported += 1
+        helper.finish!(Chat::Helper::STATUS_REPORTED, report: "Finding #{reported}.")
+      end
+    end
+
+    chat.rebuild!(note: "Checkout waits on the orders database.", tokens_before: 150_000)
+
+    fresh = chat.sent_messages.last.content
+    assert_match "What your helpers reported, oldest first:\n- Check 2: Finding 2.", fresh
+    assert_match "- Check 1: Finding #{Chat::Compacting::HELPERS_REMEMBERED + 1}.", fresh
+    assert_no_match "Finding 1.\n", fresh
+    assert_no_match "nothing reported", fresh
+  end
+
   test "the agent's note to itself is never shown to the person as something it said to them" do
     conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
     chat = @workspace.chats.create!(owner: conversation, model: "claude-sonnet-4-5", provider: :anthropic)

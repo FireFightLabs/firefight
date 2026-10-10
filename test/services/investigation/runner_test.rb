@@ -56,6 +56,38 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     assert_equal Investigation::STATUS_SUCCEEDED, Investigation::Runner.new(rehearsal).run.status
   end
 
+  test "a run lends its helpers a purse that starts from what it spent, and they read as the investigator on a copy of the run" do
+    @investigation.update_columns(spent_micros: 120_000)
+    investigator = fake(outcome: :answered, conclude: true)
+
+    Investigation::Runner.new(@investigation).run
+
+    call = investigator.calls.sole
+    share = call[:tools].find { |each| each.name == Chat::Tools::Helpers::NAME }.instance_variable_get(:@share)
+    assert_same call[:purse], share.purse
+    assert_equal 120_000, share.purse.spent
+    assert_equal [ 400, @investigation ], [ share.max_spend_cents, share.inferable ]
+    copy = share.fresh_parent.call
+    assert_equal [ @investigation, SystemAgent.investigator ], [ copy, copy.acting_principal ]
+    assert_not_same @investigation, copy
+  end
+
+  test "a rehearsal comparing models runs every helper on the model it compares" do
+    rehearsal = @workspace.investigations.create!(
+      subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_REHEARSAL, rehearsal: true,
+      model_override: "gpt-4o", provider_override: "openai", max_turns: 10, max_spend_cents: 400
+    )
+    rehearsal.claim!
+    investigator = FakeInvestigator.new(rehearsal, outcome: FirefightAi::AgentLoop::Outcome.new(status: :answered, turns_used: 0, spent_micros: 0), conclude: true)
+    investigator.define_singleton_method(:ai_model) { FirefightAi::ModelChoice.new(model: "gpt-4o", provider: "openai") }
+    FirefightAi::Investigator.stubs(:new).returns(investigator)
+
+    Investigation::Runner.new(rehearsal).run
+
+    share = investigator.calls.sole[:tools].find { |each| each.name == Chat::Tools::Helpers::NAME }.instance_variable_get(:@share)
+    assert_equal [ "gpt-4o", "gpt-4o" ], [ share.choose.call(true).model, share.choose.call(false).model ]
+  end
+
   test "an answered run succeeds and keeps the chat that produced it" do
     investigator = fake(outcome: :answered, conclude: true)
 

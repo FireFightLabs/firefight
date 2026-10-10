@@ -9,6 +9,8 @@ module Chat::Compacting
   # Every clear makes the provider read the chat again uncached, so a small one is not worth it.
   MIN_FREED_SHARE = 0.05
   RECENT_IN_FULL = 2
+  # A rebuilt chat no longer holds what its helpers reported, so the newest reports travel with it.
+  HELPERS_REMEMBERED = 12
 
   STUB = "[Shortened to save room. The full result is saved as %<handle>s. Read it again with read_result.]".freeze
   STUB_MARK = "[Shortened to save room.".freeze
@@ -90,11 +92,19 @@ module Chat::Compacting
     [
       "Your earlier working messages were put away to make room. Nothing is lost. This is where things stand.",
       owner.memory_brief,
+      helpers_brief,
       saved_results_brief,
       ("Your own note from just before:\n#{note}" if note.present?),
       ("The last results you were working from:\n#{recent.join("\n")}" if recent.any?),
       "Carry on from here."
     ].compact_blank.join("\n\n")
+  end
+
+  def helpers_brief
+    ended = helpers.where.not(status: Chat::Helper::STATUS_RUNNING).reorder(created_at: :desc, position: :desc).limit(HELPERS_REMEMBERED).to_a.reverse
+    return nil if ended.empty?
+
+    "What your helpers reported, oldest first:\n#{ended.map(&:line).join("\n")}"
   end
 
   def saved_results_brief

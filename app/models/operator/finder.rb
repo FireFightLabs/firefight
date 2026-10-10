@@ -59,7 +59,7 @@ module Operator
     # A saved chat has its own id, and model call errors show that id.
     def through_chats
       starting(Chat.includes(owner: :workspace)).filter_map do |chat|
-        owner = chat.owner
+        owner = owner_of(chat)
         via = "Saved chat #{chat.id}"
         case owner
         when Investigation then run_match(owner, via: via)
@@ -89,7 +89,7 @@ module Operator
       usages = starting(RubyLLM::ActiveRecord::Usage.where(chat_type: Chat.name)).to_a
       owners = Chat.includes(owner: :workspace).where(id: usages.map(&:chat_id)).index_by(&:id)
       chats = usages.filter_map do |usage|
-        conversation = owners[usage.chat_id]&.owner
+        conversation = owners[usage.chat_id]&.then { |chat| owner_of(chat) }
         chat_match(conversation, via: "Model call #{usage.id}", span: "#{Trace::KIND_MODEL}-#{usage.id}") if conversation.is_a?(Conversation)
       end
       runs + chats
@@ -97,7 +97,7 @@ module Operator
 
     def through_messages
       starting(Chat::Message.includes(chat: { owner: :workspace })).filter_map do |message|
-        owner = message.chat.owner
+        owner = owner_of(message.chat)
         via = "Chat message #{message.id}"
         owner.is_a?(Investigation) ? run_match(owner, via: via) : chat_match(owner, via: via)
       end
@@ -107,6 +107,12 @@ module Operator
       starting(Investigation::Step.includes(investigation: %i[workspace subject])).map do |step|
         run_match(step.investigation, via: "Tool call #{step.id}", span: "#{Trace::KIND_TOOL}-#{step.id}")
       end
+    end
+
+    # A helper's chat is part of the chat or run that handed it a check, so it leads there.
+    def owner_of(chat)
+      owner = chat.owner
+      owner.is_a?(Chat::Helper) ? owner.chat.owner : owner
     end
 
     def starting(scope)

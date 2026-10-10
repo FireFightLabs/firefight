@@ -133,7 +133,7 @@ module TypescriptConstants
         "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
         "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,
         "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY, "PLAN" => Conversation::LiveDelivery::EVENT_PLAN,
-        "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD
+        "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD, "HELPERS" => Conversation::LiveDelivery::EVENT_HELPERS
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,
@@ -170,7 +170,11 @@ module TypescriptConstants
       }, nil),
       Export.new("AGENT_CARD_KINDS", {
         "INTEGRATIONS" => Chat::Tools::CARD_INTEGRATIONS, "INVESTIGATION" => Chat::Tools::CARD_INVESTIGATION,
-        "CHART" => Chat::Tools::CARD_CHART
+        "CHART" => Chat::Tools::CARD_CHART, "HELPERS" => Chat::Tools::CARD_HELPERS
+      }, nil),
+      Export.new("HELPER_STATUSES", {
+        "RUNNING" => Chat::Helper::STATUS_RUNNING, "REPORTED" => Chat::Helper::STATUS_REPORTED, "FAILED" => Chat::Helper::STATUS_FAILED,
+        "STOPPED" => Chat::Helper::STATUS_STOPPED
       }, nil),
       Export.new("INTEGRATION_CARD_STATES", {
         "CONNECTED" => IntegrationProvider::STATE_CONNECTED, "NEEDS_ATTENTION" => IntegrationProvider::STATE_NEEDS_ATTENTION,

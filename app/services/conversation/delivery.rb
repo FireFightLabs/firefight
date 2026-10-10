@@ -57,7 +57,8 @@ class Conversation::Delivery
   def step(key:, step:, status:, kind: nil, seconds: nil, outcome: nil, progress: nil)
     answered = outcome.nil? || outcome.kind == Chat::StepOutcome::KIND_ANSWERED
     cards << step.card if step.card && status == FirefightAi::AgentLoop::STEP_DONE && answered
-    charted << key if step.card&.kind == Chat::Tools::CARD_CHART
+    # Helpers keep the charts they read under the step that started them.
+    charted << key if [ Chat::Tools::CARD_CHART, Chat::Tools::CARD_HELPERS ].include?(step.card&.kind)
     @text.flush!
     adapter.report_agent_step(
       channel_id: @conversation.channel_id, answer_id: @answer_id, key: key, title: step.title, status: status, outcome: outcome&.kind,

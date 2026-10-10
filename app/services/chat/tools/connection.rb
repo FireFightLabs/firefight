@@ -295,7 +295,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     charts = result&.dig(Integrations::Telemetry::STRUCTURED, Integrations::Telemetry::CHARTS)
     return if charts.blank? || tool_call_id.blank?
 
-    chat = @agent_run.chat
+    chat, tool_call_id = @agent_run.respond_to?(:charts_kept_on) ? @agent_run.charts_kept_on(tool_call_id) : [ @agent_run.chat, tool_call_id ]
     Chat::Chart.record!(chat, tool_call_id, charts, step_position: step_position) if chat
   end
 

@@ -25,10 +25,12 @@ class Investigation::Runner
     chat.close_unfinished_calls!
     @investigation.close_interrupted_steps!
     @changes = Chat::Tools::Changes.catch_up!(@investigation, chat).then { |caught| caught if caught.note }
+    purse = FirefightAi::AgentLoop::Purse.new(@investigation.spent_micros)
 
     outcome = investigator.run(
       chat: chat,
-      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat)) + Chat::Tools.known(@investigation, chat),
+      tools: Investigation::Tools.for(@investigation, offer: Chat::Tools.offer_to(chat), helpers: helper_share(purse)) +
+             Chat::Tools.known(@investigation, chat),
       seed_pack: @investigation.starting_facts,
       budget: budget,
       answered: -> { @investigation.reload.finding.present? },
@@ -36,7 +38,8 @@ class Investigation::Runner
       on_step: method(:report_step),
       nudge: chat.method(:nudge!),
       memory: chat,
-      take_messages: method(:take_notes)
+      take_messages: method(:take_notes),
+      purse: purse
     ) do |turn|
       unless @investigation.record_turn!(turns_used: turn.turns_used, spent_micros: turn.spent_micros)
         raise LeaseLost, "another worker holds this run"
@@ -113,6 +116,26 @@ class Investigation::Runner
   # Inference rows name a person only when a person asked.
   def member
     @investigation.triggered_by if @investigation.triggered_by.is_a?(WorkspaceMembership)
+  end
+
+  # What the run lends the helpers it hands checks to. Each reads as the investigator on a copy of the run of its own, so
+  # every read is a numbered step the answer can cite. Nobody watches a run's chat live, so nothing is told as they move.
+  def helper_share(purse)
+    id = @investigation.id
+    Chat::Helpers::Share.new(
+      purse: purse, max_spend_cents: @investigation.max_spend_cents, since: @investigation.created_at,
+      canceled: -> { Investigation.where(id: id).pick(:cancel_requested) == true }, moved: -> { },
+      fresh_parent: -> { Investigation.find(id) }, choose: ->(deep) { deep ? investigator.ai_model : helper_side_model },
+      inferable: @investigation, member: member
+    )
+  end
+
+  # A rehearsal measures Halon on the deployment's account, and one comparing models runs every check on the model it compares.
+  def helper_side_model
+    return investigator.ai_model if @investigation.model_choice
+    return Chat::Helpers.side_model(@investigation.workspace, main: investigator.ai_model, deployment: true) if @investigation.rehearsal?
+
+    Chat::Helpers.side_model(@investigation.workspace, main: investigator.ai_model)
   end
 
   def budget

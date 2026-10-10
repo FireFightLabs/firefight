@@ -28,6 +28,8 @@ class Conversation::LiveDelivery
   # A statement's rows were counted or copied, a temporary change started, was kept or undone, or an owner was asked or
   # answered, so those cards look again.
   EVENT_SAFEGUARD = "safeguard"
+  # A helper this chat handed a check to started, took a step or reported, so the step drawing it looks again.
+  EVENT_HELPERS = "helpers"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -77,6 +79,10 @@ class Conversation::LiveDelivery
     ConversationChannel.broadcast_to(conversation, type: EVENT_MEMORY)
   end
 
+  def self.helpers_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_HELPERS)
+  end
+
   def self.secret_entry_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_SECRET_ENTRY)
   end
@@ -103,7 +109,7 @@ class Conversation::LiveDelivery
     shown = self.class.status_of(status, outcome)
     broadcast(
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
-      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE), outcome: outcome&.to_h,
+      status: shown, kind: kind, seconds: seconds, card: (step.card&.to_h if shown == STATUS_DONE || step.card&.shown_while_running?), outcome: outcome&.to_h,
       progress: progress&.to_h
     )
   end
