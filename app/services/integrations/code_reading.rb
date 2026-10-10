@@ -37,6 +37,15 @@ module Integrations
 
       def extension_named_by(missing) = missing["image"].present? ? "the CI's #{missing['image']} image" : "a setup command"
 
+      # Held for the length of one transaction, so a second worker waits and then finds what the first one made. A box
+      # adopted for a run's key takes the same lock, so it and the run never both make that key's box.
+      def locked(name)
+        CodeBox.transaction do
+          CodeBox.connection.execute(CodeBox.sanitize_sql([ "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", "code_box:#{name}" ]))
+          yield
+        end
+      end
+
       def close(key)
         box = CodeBox.live.find_by(key: key)
         stop(box) if box
@@ -197,6 +206,8 @@ module Integrations
 
     def box_provider = Sandboxes.provider(box.provider)
 
+    def owner = Sandboxes::Owner.new(workspace_id: @workspace.id, key: @key)
+
     # Moves the run to a box started from what this workspace kept for the repository and key, when the box holds no
     # other repository, so nothing the run already pushed is lost. The box it leaves is stopped once calls still reading
     # in it are done. Anything that goes wrong before the move leaves the box as it was, to install from nothing.
@@ -206,7 +217,7 @@ module Integrations
       kept = PreparedCopy.kept_by(box.provider, @workspace, @remote.key(repository), key)
       return unless kept&.commit.present? && keeper.kept_ready?(kept.kept_ref)
 
-      started = keeper.start(name: Sandboxes.box_name, from: kept.kept_ref)
+      started = keeper.start(name: Sandboxes.box_name, owner: owner, from: kept.kept_ref)
       Sandboxes::Client.new(started).wait_until_ready!
       left = box.box_ref
       return keeper.stop(started.ref) unless box.moved_to!(started, hourly_micros: keeper.hourly_micros)
@@ -331,7 +342,7 @@ module Integrations
 
     def start_on(provider_key, fail_fast:, refused:)
       provider = Sandboxes.provider(provider_key)
-      started = provider.start(name: Sandboxes.box_name, fail_fast: fail_fast)
+      started = provider.start(name: Sandboxes.box_name, owner: owner, fail_fast: fail_fast)
       Sandboxes::Client.new(started).wait_until_ready!
       CodeBox.create!(
         workspace: @workspace, key: @key, provider: provider_key, box_ref: started.ref, **CodeBox.address_columns(started.address), secret: started.key,
@@ -378,12 +389,6 @@ module Integrations
     # git's own words with the credential and the token taken out, both as given and encoded.
     def redacted(text) = @credential ? text.gsub(@credential, "[redacted]").gsub(token, "[redacted]") : text
 
-    # Held for the length of one transaction, so a second worker waits and then finds what the first one made.
-    def locked(name)
-      CodeBox.transaction do
-        CodeBox.connection.execute(CodeBox.sanitize_sql([ "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", "code_box:#{name}" ]))
-        yield
-      end
-    end
+    def locked(name, &) = self.class.locked(name, &)
   end
 end

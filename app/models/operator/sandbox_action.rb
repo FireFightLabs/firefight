@@ -6,7 +6,8 @@ module Operator
     STOP = "stop".freeze
     DELETE = "delete".freeze
     CLEAN_UP = "clean_up".freeze
-    ACTIONS = [ STOP, DELETE, CLEAN_UP ].freeze
+    ADOPT = "adopt".freeze
+    ACTIONS = [ STOP, DELETE, CLEAN_UP, ADOPT ].freeze
 
     validates :action, inclusion: { in: ACTIONS }
   end

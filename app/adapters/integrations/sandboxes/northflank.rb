@@ -9,12 +9,13 @@ module Integrations
       DEFAULT_PLAN = "nf-compute-100-2".freeze
       # Megabytes. Repositories, their dependencies and a database for their tests share it.
       DEFAULT_STORAGE = 16_384
+      DESCRIPTION = "Firefight code sandbox".freeze
 
-      def start(name:, **)
-        host_suffix = separate_project? ? ".#{ingress_namespace}" : ""
+      def start(name:, owner: nil, **)
+        suffix = host_suffix
         key = SecureRandom.hex(32)
         created = request(Net::HTTP::Post, "/projects/#{project}/services/deployment", {
-          name: name, description: "Firefight code sandbox",
+          name: name, description: owner ? "#{DESCRIPTION} for #{owner.text}" : DESCRIPTION,
           billing: { deploymentPlan: size },
           deployment: {
             instances: 1, docker: { configType: "default" }, external: { imagePath: Sandboxes.image },
@@ -25,6 +26,15 @@ module Integrations
         })
         ref = created.dig("data", "id")
         raise Error, "Northflank created no service." if ref.blank?
+
+        Box.new(ref: ref, address: "http://#{ref}#{suffix}:#{PORT}", key: key)
+      end
+
+      # Northflank answers a service's variables only from its runtime environment
+      # (docs/v1/api/services/get-service-runtime-environment).
+      def reclaim(ref)
+        key = request(Net::HTTP::Get, "/projects/#{project}/services/#{ref}/runtime-environment").dig("data", "runtimeEnvironment", "SANDBOX_KEY")
+        raise Error, "Northflank holds no key for the code sandbox #{ref}." if key.blank?
 
         Box.new(ref: ref, address: "http://#{ref}#{host_suffix}:#{PORT}", key: key)
       end
@@ -45,7 +55,7 @@ module Integrations
         boxes.map do |service|
           state = service.dig("status", "deployment", "status")
           Held.new(kind: ProviderSandbox::KIND_BOX, ref: service["id"], name: service["name"], state: state, phase: PHASES[state],
-                   size: size, started_at: (Time.zone.parse(service["createdAt"].to_s) if service["createdAt"]))
+                   size: size, started_at: (Time.zone.parse(service["createdAt"].to_s) if service["createdAt"]), owner: Owner.in(service["description"]))
         end
       end
 
@@ -75,7 +85,10 @@ module Integrations
       # that is not on Northflank has no project of its own, and keeps the address inside the boxes' project.
       def app_project = ENV["NF_PROJECT_ID"].presence
 
-      def separate_project? = app_project.present? && app_project != project
+      # Read before a service is made, so a project that refuses the app's traffic refuses before anything starts.
+      def host_suffix = separate_project? ? ".#{ingress_namespace}" : ""
+
+      def separate_project? =app_project.present? && app_project != project
 
       # A port in a project that allows ingress from another gets an address for that traffic, shown as
       # <service id>.<namespace>:<port> (docs/v1/application/network/enable-multi-project-networking). The namespace is

@@ -32,8 +32,11 @@ module Operator
     PASSING = [ ProviderSandbox::PHASE_STARTING, ProviderSandbox::PHASE_STOPPING ].freeze
 
     Origin = Data.define(:kind, :label, :id)
+    # Who a box with no live record was started for, from what the box says or else the record it outlived, so it can be
+    # adopted. since is when it began running unbilled, and taken is true when its run holds another box now.
+    Claim = Data.define(:workspace_id, :workspace, :key, :since, :taken)
     Box = Data.define(:key, :provider, :ref, :name, :size, :phase, :state, :started_at, :ended_at, :last_used_at, :workspace, :origin,
-                      :seconds, :cost_micros, :flags, :recorded, :held)
+                      :seconds, :cost_micros, :flags, :recorded, :held, :claim)
     Copy = Data.define(:key, :provider, :ref, :purpose, :phase, :state, :workspace, :repository, :created_at, :last_used_at, :byte_size,
                        :monthly_micros, :flags)
     Read = Data.define(:provider, :read_at, :error)
@@ -46,9 +49,11 @@ module Operator
     def boxes
       @boxes ||= begin
         seen = ProviderSandbox.where(kind: ProviderSandbox::KIND_BOX).where("gone_at IS NULL OR gone_at >= ?", window_start).index_by { |row| [ row.provider, row.ref ] }
-        records = CodeBox.includes(:workspace).where("stopped_at IS NULL OR stopped_at >= ?", window_start).index_by { |row| [ row.provider, row.box_ref ] }
-        sessions = CodeAgentSession.where(box_key: records.values.map(&:key)).group_by(&:box_key)
-        (seen.keys | records.keys).map { |pair| box(pair, seen[pair], records[pair], sessions) }
+        # Newest last, so a box adopted after its first row was stopped is set against the row that holds it now.
+        records = CodeBox.includes(:workspace).where("stopped_at IS NULL OR stopped_at >= ?", window_start).order(:created_at).index_by { |row| [ row.provider, row.box_ref ] }
+        claims = claims(seen, records)
+        sessions = CodeAgentSession.where(box_key: records.values.map(&:key) + claims.values.map(&:key)).group_by(&:box_key)
+        (seen.keys | records.keys).map { |pair| box(pair, seen[pair], records[pair], claims[pair], sessions) }
                                   .sort_by { |each| [ each.flags.empty? ? 1 : 0, -(each.started_at || @now).to_f ] }
       end
     end
@@ -80,15 +85,29 @@ module Operator
 
     private
 
-    def box(pair, seen, record, sessions)
+    def box(pair, seen, record, claim, sessions)
       provider, ref = pair
       phase = seen ? (seen.gone_at ? ProviderSandbox::PHASE_STOPPED : seen.phase) : (record.stopped_at ? ProviderSandbox::PHASE_STOPPED : ProviderSandbox::PHASE_RUNNING)
       started = record&.box_started_at || record&.created_at || seen&.started_at || seen&.first_seen_at
       ended = record&.stopped_at || seen&.gone_at
       seconds = record ? seconds_run(record) : ((ended || @now) - (started || @now)).to_i.clamp(0..)
       Box.new("#{provider}:#{ref}", provider, ref, seen&.name, record&.size || seen&.size, phase, seen&.state, started, ended, record&.last_used_at,
-              record&.workspace, record && origin(record, sessions[record.key]), seconds, record&.hourly_micros && cost(record),
-              box_flags(seen, record, phase), record.present?, seen.present? && seen.gone_at.nil?)
+              record&.workspace || claim&.workspace, record ? origin(record.key, record.workspace_id, sessions) : claim && origin(claim.key, claim.workspace_id, sessions),
+              seconds, record&.hourly_micros && cost(record), box_flags(seen, record, phase), record.present?, seen.present? && seen.gone_at.nil?, claim)
+    end
+
+    # A claim for each box a provider holds with no live record, from the owner written on the box, or else from the
+    # stopped record it outlived, as when stopping it at the provider failed.
+    def claims(seen, records)
+      unrecorded = seen.select { |pair, row| row.gone_at.nil? && !(records[pair] && records[pair].stopped_at.nil?) }
+      found = unrecorded.to_h do |pair, row|
+        record = records[pair]
+        owner = row.owner_key.present? ? [ row.owner_workspace_id, row.owner_key ] : record && [ record.workspace_id, record.key ]
+        [ pair, owner && [ *owner, record&.stopped_at || row.started_at || row.first_seen_at ] ]
+      end.compact
+      workspaces = Workspace.where(id: found.values.map(&:first)).index_by(&:id)
+      taken = CodeBox.live.where(key: found.values.map(&:second)).pluck(:key).to_set
+      found.transform_values { |workspace_id, key, since| Claim.new(workspace_id, workspaces[workspace_id], key, since, taken.include?(key)) }
     end
 
     def box_flags(seen, record, phase)
@@ -119,13 +138,13 @@ module Operator
     end
 
     # The run, chat or code fix that holds the box, by the key each gives its box.
-    def origin(record, sessions)
-      session = Array(sessions).max_by(&:created_at)
-      return Origin.new(ORIGIN_CODE_FIX, "Code fix in #{session.repository}", record.workspace_id) if session
-      return Origin.new(ORIGIN_INVESTIGATION, "Investigation", record.key.delete_prefix(Investigation::CODE_BOX_PREFIX)) if record.key.start_with?(Investigation::CODE_BOX_PREFIX)
-      return Origin.new(ORIGIN_CHAT, "Chat", record.key.delete_prefix(Conversation::CODE_BOX_PREFIX)) if record.key.start_with?(Conversation::CODE_BOX_PREFIX)
+    def origin(key, workspace_id, sessions)
+      session = Array(sessions[key]).max_by(&:created_at)
+      return Origin.new(ORIGIN_CODE_FIX, "Code fix in #{session.repository}", workspace_id) if session
+      return Origin.new(ORIGIN_INVESTIGATION, "Investigation", key.delete_prefix(Investigation::CODE_BOX_PREFIX)) if key.start_with?(Investigation::CODE_BOX_PREFIX)
+      return Origin.new(ORIGIN_CHAT, "Chat", key.delete_prefix(Conversation::CODE_BOX_PREFIX)) if key.start_with?(Conversation::CODE_BOX_PREFIX)
 
-      Origin.new(ORIGIN_OTHER, record.key, nil)
+      Origin.new(ORIGIN_OTHER, key, nil)
     end
 
     def read_since?(provider, at) = SandboxProviderRead.where(provider: provider, error: nil).where(read_at: at..).exists?
