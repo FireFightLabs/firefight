@@ -361,7 +361,7 @@ module Integrations
         path = project ? "#{GitlabApi.project(project)}#{inside}" : inside
         gitlab = api(environment_row)
         answer = gitlab.read(path, query)
-        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Gitlab.secret?(inside))
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Gitlab.secret?(inside), webhooks: ReadGuards::Gitlab.webhooks?(inside))
         page = (answer["web_url"].presence if answer.is_a?(Hash)) || (gitlab.web_url(project) if project)
         Telemetry.result(text, link: page && Telemetry::Link.new(provider: PROVIDER, url: page))
       rescue GitlabApi::Refused => error

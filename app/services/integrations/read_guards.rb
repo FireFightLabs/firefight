@@ -61,6 +61,9 @@ module Integrations
 
       def secret?(path) = path.match?(self::SECRET_PATHS)
 
+      # A guard whose provider has webhooks lists them in WEBHOOK_PATHS, read with their addresses kept to the host.
+      def webhooks?(path) = const_defined?(:WEBHOOK_PATHS, false) && path.match?(self::WEBHOOK_PATHS)
+
       def refusal(path, _query) = self::REFUSED.find { |pattern, _reason| path.match?(pattern) }&.last
     end
   end

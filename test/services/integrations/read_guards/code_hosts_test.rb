@@ -13,15 +13,17 @@ module Integrations
         end
       end
 
-      test "GitHub's downloads are refused by Firefight's rule, and its secrets and webhooks are read as names" do
+      test "GitHub's downloads are refused by Firefight's rule, its secrets are read as names, and its webhooks keep their host" do
         %w[/repos/acme/web/zipball/main /repos/acme/web/actions/runs/1/logs /repos/acme/web/actions/runs/1/attempts/2/logs
            /repos/acme/web/actions/jobs/9/logs /repos/acme/web/actions/artifacts/3/zip].each do |path|
           assert_raises(PolicyRefusal, path) { Github.reading(ApiReads::TOOL, "path" => path) }
         end
-        %w[/repos/acme/web/actions/secrets /repos/acme/web/dependabot/secrets/X /repos/acme/web/environments/prod/secrets /repos/acme/web/hooks].each do |path|
+        %w[/repos/acme/web/actions/secrets /repos/acme/web/dependabot/secrets/X /repos/acme/web/environments/prod/secrets].each do |path|
           assert Github.secret?(path), path
         end
         assert_not Github.secret?("/repos/acme/web/actions/variables")
+        assert Github.webhooks?("/repos/acme/web/hooks")
+        assert_not Github.secret?("/repos/acme/web/hooks")
         assert Github.reads?(ApiReads::TOOL, "path" => "/repos/acme/web/actions/artifacts/3")
       end
 
@@ -30,22 +32,24 @@ module Integrations
            /projects/12/repository/files/app.rb/raw /projects/12/secure_files/4/download /projects/12/packages/generic/app/1.0/app.tgz].each do |path|
           assert_raises(PolicyRefusal, path) { Gitlab.reading(ApiReads::TOOL, "path" => path) }
         end
-        %w[/projects/12/variables /groups/3/variables/KEY /admin/ci/variables /projects/12/triggers /projects/12/integrations /projects/12/hooks].each do |path|
+        %w[/projects/12/variables /groups/3/variables/KEY /admin/ci/variables /projects/12/triggers /projects/12/integrations].each do |path|
           assert Gitlab.secret?(path), path
         end
         assert_not Gitlab.secret?("/projects/12/environments")
+        assert Gitlab.webhooks?("/projects/12/hooks")
       end
 
-      test "Bitbucket's downloads, sources, diffs and step logs are refused, and its variables and webhooks are read as names" do
+      test "Bitbucket's downloads, sources, diffs and step logs are refused, its variables are read as names, and its webhooks keep their host" do
         %w[/repositories/acme/web/downloads/app.zip /repositories/acme/web/src/main/app.rb /repositories/acme/web/diff/a..b
            /repositories/acme/web/pipelines/p1/steps/s1/log].each do |path|
           assert_raises(PolicyRefusal, path) { Bitbucket.reading(ApiReads::TOOL, "path" => path) }
         end
         %w[/repositories/acme/web/pipelines_config/variables /workspaces/acme/pipelines-config/variables
-           /repositories/acme/web/deployments_config/environments/e1/variables /repositories/acme/web/hooks].each do |path|
+           /repositories/acme/web/deployments_config/environments/e1/variables].each do |path|
           assert Bitbucket.secret?(path), path
         end
         assert Bitbucket.reads?(ApiReads::TOOL, "path" => "/repositories/acme/web/downloads")
+        assert Bitbucket.webhooks?("/repositories/acme/web/hooks")
       end
     end
   end

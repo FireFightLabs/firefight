@@ -15,6 +15,7 @@ module Integrations
     BRACES = { "{" => "%7B", "}" => "%7D" }.freeze
     CLIMB = %r{(\A|/)\.\.?(/|\z)}
     HIDDEN = "[hidden]".freeze
+    ADDRESS = %r{\A(?<scheme>[a-z][a-z0-9+.-]*)://(?:[^/?#@\s]*@)?(?<host>[^/?#\s]+)}i
     # Fields that hold a secret's value wherever they sit, kept to the names inside them.
     SECRET_FIELDS = /secret|passw|token|credential|private.?key|api.?key|access.?key|signing.?key|client.?key|ssh.?key|
                      connection.?(string|info|uri|url)|database.?url|\Adsn\z|\Aenv\z|\Aenvs\z|env.?vars?|environment.?variables?|
@@ -87,12 +88,24 @@ module Integrations
 
     # One field to a line, so a long answer saved in a chat can be searched. secret is true where the whole answer holds
     # secret values, such as a list of environment variables.
-    def self.answer(provider, asked, said, secret: false)
+    # webhooks is true for a list or read of webhooks, whose events, state and last delivery are worth reading while their
+    # address can carry the receiver's token, so every address keeps only its host.
+    def self.answer(provider, asked, said, secret: false, webhooks: false)
       shown = secret ? names_only(said) : without_secrets(said)
+      shown = hosts_only(shown) if webhooks
       text = Chat::SecretFree.redacted(shown.is_a?(String) ? shown : JSON.pretty_generate(shown))
       cut = text.length > RESULT_LIMIT
       text = "#{text[0, RESULT_LIMIT]}\n[Cut at #{RESULT_LIMIT} characters. Read less at once, such as one page with a smaller limit, or one item by its id.]" if cut
       "#{provider} answered #{asked}.\n#{text}"
+    end
+
+    def self.hosts_only(value)
+      case value
+      when Hash then value.transform_values { |inner| hosts_only(inner) }
+      when Array then value.map { |inner| hosts_only(inner) }
+      when ADDRESS then "#{Regexp.last_match(:scheme)}://#{Regexp.last_match(:host)}/#{HIDDEN}"
+      else value
+      end
     end
 
     def self.without_secrets(value)

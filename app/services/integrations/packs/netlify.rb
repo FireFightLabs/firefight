@@ -206,7 +206,7 @@ module Integrations
         end
         path, query = call.values_at("path", "query")
         answer = api(environment_row).read(path, query)
-        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Netlify.secret?(path))
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Netlify.secret?(path), webhooks: ReadGuards::Netlify.webhooks?(path))
         Telemetry.result(text, link: read_link(environment_row, path, answer))
       end
 

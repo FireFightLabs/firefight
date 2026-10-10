@@ -6,8 +6,8 @@ module Integrations
     # it is never read. A job's artifacts, a repository archive, a secure file and a package file are downloads, and a
     # raw file or a job's log answer plain text that fetch_file and job_log read instead. CI/CD variables answer their
     # values (doc/api/project_level_variables.md, group_level_variables.md, instance_level_ci_variables.md), a pipeline
-    # trigger answers its token (doc/api/pipeline_triggers.md), and an integration's settings and a webhook's address can
-    # carry a token, so all of them are read as names.
+    # trigger answers its token (doc/api/pipeline_triggers.md), and an integration's settings can carry a token, so all of
+    # them are read as names. A webhook's address can carry one too, so it keeps only its host.
     module Gitlab
       extend PathReads
 
@@ -19,7 +19,8 @@ module Integrations
         %r{/secure_files/[^/]+/download|/packages/.+/(download|files/[^/]+)\z|/packages/generic/} =>
           "A secure file or a package's file is a download, so a read never fetches it. Its details are listed without /download."
       }.freeze
-      SECRET_PATHS = %r{/variables(/|\z)|/triggers(/|\z)|/integrations(/|\z)|/services(/|\z)|/hooks(/|\z)}
+      SECRET_PATHS = %r{/variables(/|\z)|/triggers(/|\z)|/integrations(/|\z)|/services(/|\z)}
+      WEBHOOK_PATHS = %r{/hooks(/|\z)}
     end
   end
 end

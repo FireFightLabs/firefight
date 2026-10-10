@@ -38,6 +38,16 @@ module Integrations
       %w[hunter2 sk_live_abc abc123 whsec xyz].each { |hidden| assert_not_includes text, hidden }
     end
 
+    test "a webhook keeps its events, state and last delivery, with every address kept to its host and its secret hidden" do
+      said = [ { "events" => %w[push], "active" => true, "url" => "https://user:pw@hooks.example.com/t0ken?k=v", "secret" => "s3cret",
+                 "last_response" => { "status" => "failed" } } ]
+
+      text = ApiReads.answer("GitHub", "GET /repos/acme/web/hooks", said, webhooks: true)
+
+      [ "https://hooks.example.com/[hidden]", "push", "failed", "\"active\": true" ].each { |kept| assert_includes text, kept }
+      %w[t0ken s3cret pw k=v].each { |hidden| assert_not_includes text, hidden }
+    end
+
     test "an answer the guard says is all secrets keeps only names, and a long answer is cut with a line saying so" do
       text = ApiReads.answer("Render", "GET /services/srv-1/env-vars", [ { "envVar" => { "key" => "PORT", "value" => "8080" } } ], secret: true)
 

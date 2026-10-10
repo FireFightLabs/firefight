@@ -439,7 +439,7 @@ module Integrations
         fail_policy!(outside) if outside
 
         answer = api(environment_row).read(path, query)
-        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Bitbucket.secret?(path))
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Bitbucket.secret?(path), webhooks: ReadGuards::Bitbucket.webhooks?(path))
         page = (answer.dig("links", "html", "href") if answer.is_a?(Hash) && answer["links"].is_a?(Hash) && answer["links"]["html"].is_a?(Hash))
         page ||= [ @site, named, slug ].join("/") if kind == IN_WORKSPACE.first && named && slug.present? && @site.present?
         Telemetry.result(text, link: link(page))

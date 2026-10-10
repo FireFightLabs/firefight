@@ -5,8 +5,8 @@ module Integrations
     # use. An archive, a run's or a job's logs and an artifact answer a redirect to a short-lived address that downloads
     # them for anyone who has it (REST API, Download a repository archive, Download workflow run logs, Download job logs
     # for a workflow run, Download an artifact), so none is read here, and a job's log has job_log. Actions, Dependabot and
-    # Codespaces secrets answer only their names (REST API, GitHub Actions Secrets), and a webhook's address can carry a
-    # token of the receiver's, so both are read as names.
+    # Codespaces secrets answer only their names (REST API, GitHub Actions Secrets), so they are read as names. A webhook's
+    # address can carry a token of the receiver's, so it keeps only its host.
     module Github
       extend PathReads
 
@@ -16,7 +16,8 @@ module Integrations
         %r{\A/repos/[^/]+/[^/]+/actions/(runs/[^/]+(/attempts/[^/]+)?|jobs/[^/]+)/logs\z} => "A run's or a job's logs #{DOWNLOADS}. Read a job's log with job_log.",
         %r{\A/repos/[^/]+/[^/]+/actions/artifacts/[^/]+/[^/]+\z} => "An artifact #{DOWNLOADS}. Its name, size and run are at /repos/<owner>/<repo>/actions/artifacts/<id>."
       }.freeze
-      SECRET_PATHS = %r{/(actions|dependabot|codespaces)/secrets(/|\z)|/environments/[^/]+/secrets(/|\z)|/hooks(/|\z)}
+      SECRET_PATHS = %r{/(actions|dependabot|codespaces)/secrets(/|\z)|/environments/[^/]+/secrets(/|\z)}
+      WEBHOOK_PATHS = %r{/hooks(/|\z)}
     end
   end
 end

@@ -5,7 +5,7 @@ module Integrations
     # downloads and a pipeline step's log answer a redirect to where they are kept, a file's source, a diff and a patch
     # answer plain text, and fetch_file, compare_commits and job_log read those instead. Pipeline and deployment
     # variables answer the value of every one not marked secured (REST API, Pipelines, List variables for a repository),
-    # and a webhook's address can carry a token of the receiver's, so both are read as names.
+    # so they are read as names. A webhook's address can carry a token of the receiver's, so it keeps only its host.
     module Bitbucket
       extend PathReads
 
@@ -15,7 +15,8 @@ module Integrations
         %r{\A/repositories/[^/]+/[^/]+/src/} => "A file's source is plain text, not read here. Read a file with fetch_file.",
         %r{\A/repositories/[^/]+/[^/]+/(diff|patch)/} => "A diff or a patch is plain text, not read here. Compare two commits with compare_commits."
       }.freeze
-      SECRET_PATHS = %r{/variables(/|\z)|/hooks(/|\z)}
+      SECRET_PATHS = %r{/variables(/|\z)}
+      WEBHOOK_PATHS = %r{/hooks(/|\z)}
     end
   end
 end

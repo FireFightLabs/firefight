@@ -28,9 +28,16 @@ module Integrations
         assert_match "required_reviewers", text(result)
         assert_includes text(result), "https://github.com/acme/web"
 
-        GithubApp.expects(:get).with("/repos/acme/web/hooks", token: "ghs_token").returns([ { "id" => 1, "config" => { "url" => "https://hooks.example.com/t0ken" } } ])
+        GithubApp.expects(:get).with("/repos/acme/web/hooks", token: "ghs_token").returns([ {
+          "id" => 1, "active" => true, "events" => %w[push deployment_status],
+          "config" => { "url" => "https://hooks.example.com/t0ken", "content_type" => "json", "secret" => "s3cret" },
+          "last_response" => { "code" => 502, "status" => "failed", "message" => "Bad gateway" }
+        } ])
         hooks = text(Github.new(row.integration).call(ApiReads::TOOL, environment_row: row, arguments: { "path" => "/repos/acme/web/hooks" }))
-        assert_not_includes hooks, "t0ken"
+        %w[t0ken s3cret].each { |hidden| assert_not_includes hooks, hidden }
+        [ "https://hooks.example.com/[hidden]", "deployment_status", "\"active\": true", "\"content_type\": \"json\"", "Bad gateway", "502" ].each do |kept|
+          assert_includes hooks, kept
+        end
       end
 
       test "GitHub's refusal for a permission the App lacks says how to grant it, and a download is refused by rule" do

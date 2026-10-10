@@ -28,7 +28,8 @@ module Integrations
           token = GithubApp.installation_token(environment_row)
           asking(ApiReads::TOOL, "GitHub found nothing at #{path}") do
             answer = GithubApp.read(path, query, token: token)
-            text = ApiReads.answer(GithubApp::PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Github.secret?(path))
+            text = ApiReads.answer(GithubApp::PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Github.secret?(path),
+                                                                                   webhooks: ReadGuards::Github.webhooks?(path))
             linked(text, (answer["html_url"].presence if answer.is_a?(Hash)) || (repo_page(repo) if repo))
           end
         end
