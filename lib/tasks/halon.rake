@@ -58,7 +58,7 @@ namespace :halon do
     trigger = ENV["CI"].present? ? Conversation::BenchRun::TRIGGER_CI : Conversation::BenchRun::TRIGGER_TERMINAL
     keys = ENV["SCENARIOS"].to_s.split(",").map(&:strip).presence
     # A small pool of its own, one connection per replay and one for the run, on a server others share.
-    ActiveRecord::Base.establish_connection(ActiveRecord::Base.connection_db_config.configuration_hash.merge(pool: Conversation::Bench::AT_ONCE + 1))
+    ActiveRecord::Base.establish_connection(ActiveRecord::Base.connection_db_config.configuration_hash.except(:pool).merge(max_connections: Conversation::Bench::AT_ONCE + 1))
     run = Conversation::Bench.run!(trigger: trigger, model: args[:model], provider: args[:provider], label: ENV["LABEL"], keys: keys) do |result|
       puts bench_line.call(result)
       result.notes.each { |note| puts "  - #{note}" }

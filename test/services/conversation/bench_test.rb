@@ -124,8 +124,8 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     assert_equal Conversation::BenchRun::STATUS_FINISHED, first.bench_run.reload.status
   end
 
-  test "a further run waits while two are going, so the shared database is never run out of connections" do
-    2.times { Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: Conversation::BenchRun::TRIGGER_CI, prompt_version: "v", model: "gpt-4o") }
+  test "a further run waits while three are going, so the shared database is never run out of connections" do
+    3.times { Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: Conversation::BenchRun::TRIGGER_CI, prompt_version: "v", model: "gpt-4o") }
 
     error = assert_raises(Conversation::Bench::Busy) { Conversation::Bench.run!(trigger: Conversation::BenchRun::TRIGGER_TERMINAL) }
 

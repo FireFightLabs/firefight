@@ -31,8 +31,8 @@ class Conversation::BenchRun < ApplicationRecord
 
   # Runs going at once, across the console, the terminal and CI. Each holds database connections on a server shared
   # with everything else, so a further run waits.
-  AT_ONCE = 2
-  BUSY = "Two bench runs are already going. Start another once one finishes.".freeze
+  AT_ONCE = 3
+  BUSY = "Three bench runs are already going. Start another once one finishes.".freeze
 
   def running? = status == STATUS_RUNNING
 
