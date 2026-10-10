@@ -126,7 +126,16 @@ Never call `RubyLLM` outside an `Inference.track` block — the ledger is the co
 
 ## Transcript store + secret scrubbing
 
-AI features read incident channel history from `IncidentTranscriptMessage`, not live Slack calls. Messages are scrubbed on the way in by `IncidentTranscriptMessage::Scrubbing`, which redacts secrets (AWS/GitHub/Slack/Anthropic/OpenAI/Stripe/etc. token patterns) **before persistence and before any prompt**. New secret formats belong in `SECRET_PATTERNS` there.
+AI features read incident channel history from `IncidentTranscriptMessage`, not live Slack calls. Messages are scrubbed on the way in by `IncidentTranscriptMessage::Scrubbing`, which redacts secrets (AWS/GitHub/Slack/Anthropic/OpenAI/Stripe/etc. token patterns) **before persistence and before any prompt**. New secret formats belong in `SECRET_PATTERNS` there. The same patterns, through `Chat::SecretFree`, take credentials out of every provider's answer (docs/integrations.md, Secrets in answers).
+
+## Where a proposed change came from
+
+Text Halon reads from outside (an issue, a pull request, a log line, a web page, any provider's answer, a file a person attached) can be written to steer it. `Chat::Tools::Provenance` decides on what was read, never on what it says:
+
+- Every tool answer counts as outside except Halon's bookkeeping (`Chat::Tools.internal_names`), its memory tools, the watch list tools, and Firefight's tools that declare `own_words` (`Mcp::Tools::Base`), which return only what the workspace wrote in Firefight, such as its settings and runbooks. A new tool counts as outside unless it declares otherwise.
+- Once a chat has read anything outside, Allow for the rest of this chat no longer stops a tool asking (`Provenance.allowed?`, passed to `Conversation::Turn#confirms?` as `allowed:`).
+- Each call then put to the person keeps what was read before it on its row (`provenance` on `ruby_llm_tool_calls`, written by `Provenance.record!` when the turn stops to ask). The reads holding one of the call's own values come first, a value the person wrote themselves counting as theirs. The confirmation (`Chat::Tools::Confirmation#read_lead`, `read_rows`) shows them in the dashboard and in Slack, and offers no Allow for the rest of this chat.
+- `Chat#decide!` never allows a tool for the chat from such a call, and `Conversation::Confirming` never approves one alongside an allowed tool, so an old Slack button cannot either.
 
 ## Transcript access and retention
 

@@ -38,8 +38,8 @@ class Conversation::Recovery
     chat = conversation.chat
     return false unless chat
 
-    chat.tool_calls.where(created_at: owed..).distinct.pluck(:name)
-      .any? { |name| Chat::Tools.kind(name, conversation.workspace) == Chat::Tools::KIND_ACT }
+    chat.tool_calls.where(created_at: owed..).pluck(:name, :arguments)
+      .any? { |name, arguments| Chat::Tools.kind(name, conversation.workspace, arguments) == Chat::Tools::KIND_ACT }
   end
   private_class_method :changed_anything?
 end

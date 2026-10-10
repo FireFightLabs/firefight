@@ -197,7 +197,7 @@ module Integrations
           sha = ref_argument(arguments, "sha", required: true)
           result = code(environment_row).exec(repo, ref: sha, where: Sandboxes::Client::IN_GIT,
                                                     argv: [ "show", "--format=fuller", "--stat", "--patch", Sandboxes::Client::COMMIT, "--", *optional_path(arguments, "path") ])
-          output(result)
+          output(result.merge("stdout" => without_sensitive_patches(result["stdout"])))
         end
 
         def diff_refs(environment_row:, arguments:)
@@ -206,7 +206,9 @@ module Integrations
           head = ref_argument(arguments, "head", required: true)
           result = code(environment_row).exec(repo, ref: head, where: Sandboxes::Client::IN_GIT,
                                                     argv: [ "diff", "--stat", "--patch", base, Sandboxes::Client::COMMIT, "--", *optional_path(arguments, "path") ])
-          result["stdout"].strip.empty? ? "No difference between #{base} and #{head} in #{repo}." : output(result)
+          return "No difference between #{base} and #{head} in #{repo}." if result["stdout"].strip.empty?
+
+          output(result.merge("stdout" => without_sensitive_patches(result["stdout"])))
         end
 
         def ask_language_server(environment_row:, arguments:)
@@ -222,10 +224,18 @@ module Integrations
           language_answer(repo, question, answer)
         end
 
+        # A command naming a file that may hold secrets is refused before it runs. A command can reach such a file without
+        # naming it, so this backs up the redaction every answer passes through rather than replacing it.
         def run_shell(environment_row:, arguments:)
           repo = repo_argument(arguments)
+          command = required_text(arguments, "command")
+          if command.match?(SENSITIVE_PATHS)
+            fail_policy! "Firefight does not run a command that names a file that may hold secrets, such as a .env file, a key or " \
+                         "credentials, so it did not run. Read the code that uses the setting instead, which names it without its value."
+          end
+
           result = code(environment_row).exec(repo, ref: ref_argument(arguments), where: Sandboxes::Client::IN_CHECKOUT,
-                                                    argv: [ "sh", "-c", required_text(arguments, "command") ],
+                                                    argv: [ "sh", "-c", command ],
                                                     timeout: seconds(arguments, SHELL_TIMEOUT, MAX_SHELL_TIMEOUT))
           "#{at(repo, result)}\n#{output(result)}"
         end

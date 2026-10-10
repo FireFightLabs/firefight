@@ -198,6 +198,7 @@ class Conversation::Runner
   def ask_to_confirm(chat, outcome)
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
     Chat::Tools::Target.record!(@turn, chat.awaiting_decision.where(target: nil).to_a)
+    Chat::Tools::Provenance.record!(@turn, chat.awaiting_decision.where(provenance: nil).to_a)
     @conversation.reply_delivered!
     chat.clear_stop!
     delivery.confirm!(chat.awaiting_decision.to_a)
@@ -209,8 +210,9 @@ class Conversation::Runner
   def report_step(step)
     if step.tool.present?
       seen[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @conversation.workspace)
-      kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace)
-      @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s)
+      kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace, step.arguments)
+      @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s) ||
+                          Chat::Tools.guarded_read?(@conversation.workspace, step.tool.to_s, step.arguments)
     end
     shown = seen[step.key]
     return unless shown

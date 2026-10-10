@@ -45,7 +45,7 @@ module Principal
   end
 
   # None by default, so credential principals act only on granted abilities.
-  def implicitly_allowed?(_action, _resolved = nil)
+  def implicitly_allowed?(_action, _resolved = nil, reads: false)
     false
   end
 

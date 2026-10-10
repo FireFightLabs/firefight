@@ -12,6 +12,7 @@ module Mcp
                   "retires something without breaking the incidents pointing at it. " \
                   "Docs: #{Docs::INCIDENTS}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(properties: {}, required: [])
 
       def self.perform_with_principal(workspace:, principal:, args:)

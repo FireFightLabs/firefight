@@ -7,6 +7,7 @@ module Mcp
                   "them, not to the workspace. Authorizes as api_keys, which is admin-only and " \
                   "cannot be granted to a machine. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(properties: {}, required: [])
       authorize_as Ability::Action::RESOURCE_API_KEYS
 

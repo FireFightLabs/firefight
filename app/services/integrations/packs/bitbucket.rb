@@ -632,7 +632,7 @@ module Integrations
       def diffs_text(repo, head, files)
         ordered = files.sort_by { |file| CodeChange::KINDS.index(CodeChange.kind_for(file["filename"])) }
         diffs = ordered.map do |file|
-          body = file["patch"].presence || "(no text diff, binary or too large for Bitbucket to show)"
+          body = shown_patch(file["filename"], file["patch"].presence || "(no text diff, binary or too large for Bitbucket to show)")
           "#{file['filename']}\n#{body}"
         end
         "Diffs, at #{commit_link(repo, head).url}:\n\n#{diffs.join("\n\n")}"

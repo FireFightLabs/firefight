@@ -7,6 +7,7 @@ module Mcp
                   "approval rule can hold it. Use the key with grant_ability and upsert_approval_rule. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**READ_ONLY)
+      own_words
       authorize_as Ability::Action::RESOURCE_PERMISSIONS
       input_schema(
         properties: {

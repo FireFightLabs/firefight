@@ -110,6 +110,19 @@ class Chat::Tools::ConnectionTargetingTest < ActiveSupport::TestCase
     assert_match "Faylee (Northflank)'s api_request tool is switched off", refused
   end
 
+  # A real release chat waited 38 minutes for the person to confirm a GET.
+  test "a GET through api_request runs without asking, is shown as a read, and a change through it still asks" do
+    tool = connection_tool("northflank_api_request")
+    read = { "method" => "GET", "path" => "services/web", "intent" => "Read web's state" }
+    change = { "method" => "POST", "path" => "services/web/restart", "intent" => "Restart web" }
+
+    assert tool.requires_approval?
+    assert_equal true, tool.approval_resolver.call(RubyLLM::ToolCall.new(id: "call_read", name: tool.name, arguments: read))
+    assert_nil tool.approval_resolver.call(RubyLLM::ToolCall.new(id: "call_change", name: tool.name, arguments: change))
+    assert_equal Chat::Tools::KIND_READ, Chat::Tools.kind(tool.name, @workspace, read)
+    assert_equal Chat::Tools::KIND_ACT, Chat::Tools.kind(tool.name, @workspace, change)
+  end
+
   test "words that name this connection's own project, or none, are put to the person as usual" do
     tool = connection_tool("northflank_api_request")
     call = RubyLLM::ToolCall.new(id: "call_2", name: tool.name, arguments: { "intent" => "Restore Firefight's web, which was scaled instead of Faylee's" })

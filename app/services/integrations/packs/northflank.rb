@@ -44,6 +44,15 @@ module Integrations
       API_METHODS = NorthflankApi::VERBS.keys.freeze
       # Where Northflank answers with values that are secrets, so only their names come back.
       SECRET_PATHS = /environment|argument|secret|credential|registr|key|token|password|connection/i
+      # A port's headers, which hold the shared secret it checks requests by, keep each header's name.
+      SECRET_FIELDS = /\Aheaders\z/i
+      # What an external addon was set up with and gives back, which may be credentials. Only their names come back.
+      EXTERNAL_ADDON = %r{\Aexternal-addons(/|\z)}
+      EXTERNAL_ADDON_FIELDS = %w[outputs config].freeze
+      # A field whose value is a map of variables, any of which may be called name or id, so none keeps its value.
+      VARIABLE_MAPS = /environment|argument|secret|credential|registr|key|token|password|connection|variables|envs|files|headers/i
+      # A pre-signed address that downloads a whole database for anyone who has it.
+      DOWNLOAD_LINK = %r{(\A|/)backups/[^/]+/download-link\z}
       API_RESULT_LIMIT = 6_000
       PROJECT_PATH = %r{\A[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\z}
       QUERY_NAME = /\A[A-Za-z0-9_.]{1,64}\z/
@@ -342,6 +351,10 @@ module Integrations
         fail!("method must be one of #{API_METHODS.join(', ')}.") unless API_METHODS.include?(verb)
         path = arguments["path"].to_s.strip.delete_prefix("/")
         fail!("path must be inside the project, such as services/web/restart.") unless path.match?(PROJECT_PATH)
+        if path.match?(DOWNLOAD_LINK)
+          fail_policy!("Firefight does not fetch a backup's download link, since anyone holding it can download the whole " \
+                       "database. Read the backup itself, the same path without download-link, for its state and size.")
+        end
         query = query_of(verb, path, arguments["query"])
         body = arguments["body"]
         fail!("body must be an object.") unless body.nil? || body.is_a?(Hash)
@@ -408,7 +421,7 @@ module Integrations
       # first, since a long answer is cut short at its end.
       def answer_text(path, answer)
         answer = answer.slice("pagination").merge(answer.except("pagination")) if answer.is_a?(Hash)
-        shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer)
+        shown = path.match?(SECRET_PATHS) ? names_only(answer) : hide_secret_fields(answer, external_addon: path.match?(EXTERNAL_ADDON))
         Chat::SecretFree.redacted(shown.to_json)
                                          .truncate(API_RESULT_LIMIT)
       end
@@ -416,24 +429,36 @@ module Integrations
       # What describes a secret rather than holding it stays readable.
       DESCRIBING = %w[id name description type secretType priority tags createdAt updatedAt].freeze
 
-      # A field anywhere in an answer whose name says it holds secrets, such as a service's runtimeEnvironment, keeps only
-      # its names.
-      def hide_secret_fields(value)
+      # A field anywhere in an answer whose name says it holds secrets, such as a service's runtimeEnvironment or a port's
+      # headers, keeps only its names, as do an external addon's outputs and config.
+      def hide_secret_fields(value, external_addon: false)
         case value
-        when Hash then value.to_h { |key, inner| [ key, key.to_s.match?(SECRET_PATHS) ? names_only(inner) : hide_secret_fields(inner) ] }
-        when Array then value.map { |inner| hide_secret_fields(inner) }
+        when Hash
+          value.to_h do |key, inner|
+            next [ key, names_only(inner) ] if key.to_s.match?(SECRET_FIELDS)
+
+            hidden = key.to_s.match?(SECRET_PATHS) || (external_addon && EXTERNAL_ADDON_FIELDS.include?(key.to_s))
+            [ key, hidden ? names_only(inner, describing: false) : hide_secret_fields(inner, external_addon: external_addon) ]
+          end
+        when Array then value.map { |inner| hide_secret_fields(inner, external_addon: external_addon) }
         else value
         end
       end
 
-      def names_only(value)
+      # describing is whether this is still an object's own description, whose id, name and the like stay readable. Inside
+      # a map of variables it is not, since a variable may be called name. A list holds objects, so it keeps describing,
+      # and only the outermost data is the answer's envelope rather than a map of values.
+      def names_only(value, describing: true, outermost: true)
         case value
         when Hash
           value.to_h do |key, inner|
-            kept = DESCRIBING.include?(key) && !inner.is_a?(Hash) && !inner.is_a?(Array)
-            [ key, kept ? inner : (inner.is_a?(Hash) || inner.is_a?(Array) ? names_only(inner) : "[hidden]") ]
+            next [ key, inner ] if describing && DESCRIBING.include?(key) && !inner.is_a?(Hash) && !inner.is_a?(Array)
+            next [ key, "[hidden]" ] unless inner.is_a?(Hash) || inner.is_a?(Array)
+
+            variables = inner.is_a?(Hash) && (key.to_s.match?(VARIABLE_MAPS) || (key.to_s == "data" && !outermost))
+            [ key, names_only(inner, describing: describing && !variables, outermost: false) ]
           end
-        when Array then value.map { |inner| names_only(inner) }
+        when Array then value.map { |inner| names_only(inner, describing: describing, outermost: false) }
         else "[hidden]"
         end
       end

@@ -17,6 +17,13 @@ module IncidentTranscriptMessage::Scrubbing
     new_relic_key:      /\bNRAK-[A-Z0-9]{27}\b/,
     npm_token:          /\bnpm_[A-Za-z0-9]{36}\b/,
     huggingface_token:  /\bhf_[A-Za-z0-9]{32,}\b/,
+    github_pat:         /\bgithub_pat_[A-Za-z0-9_]{22,}\b/,
+    supabase_secret:    /\bsb_secret_[A-Za-z0-9_-]{16,}/,
+    slack_webhook:      %r{\bhooks\.slack\.com/services/[A-Za-z0-9/]+},
+    bearer_token:       %r{\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*},
+    password_setting:   /\bpassword=[^\s&;'"]+/i,
+    bcrypt_hash:        %r{\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}},
+    scram_hash:         %r{SCRAM-SHA-256\$\d+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+},
     jwt:                /\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/,
     private_key:        /-----BEGIN[ A-Z]*PRIVATE KEY-----.*?-----END[ A-Z]*PRIVATE KEY-----/m
   }.freeze

@@ -7,7 +7,7 @@ module CodeAgent::ChatEvidence
     calls = chat.tool_calls.includes(:result).where.not(result_id: nil).order(:created_at, :id).to_a
     calls = calls.take_while { |call| call.tool_call_id != before } if before
     calls.filter_map do |call|
-      next unless Chat::Tools.kind(call.name, workspace) == Chat::Tools::KIND_READ
+      next unless Chat::Tools.kind(call.name, workspace, call.arguments) == Chat::Tools::KIND_READ
       next if Chat::Tools.internal_names.include?(call.name.to_s) || call.failed
 
       CodeAgent::Request::Evidence.new(label: Chat::Tools.label(call.name, call.arguments, workspace: workspace).presence || call.name.to_s,

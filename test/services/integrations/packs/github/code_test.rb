@@ -72,6 +72,28 @@ module Integrations
           assert_equal "1 commits in acme/cloud at c4e4267d46e6, newest first\nc4e4267d46e6  2026-08-10T07:40:54+02:00  Uros  Polar billing", text
         end
 
+        test "a commit or a diff shows a file that may hold secrets by name, never its patch" do
+          diff = "commit #{COMMIT}\n\n .env | 1 +\n app.rb | 1 +\n" \
+                 "diff --git a/.env b/.env\n--- a/.env\n+++ b/.env\n@@ -0,0 +1 @@\n+STRIPE_KEY=hunter2\n" \
+                 "diff --git a/app.rb b/app.rb\n--- a/app.rb\n+++ b/app.rb\n@@ -0,0 +1 @@\n+puts 1\n"
+          CodeReading.any_instance.stubs(:exec).returns(result(stdout: diff))
+
+          [ @pack.show_commit(environment_row: @row, arguments: { "repo" => "acme/cloud", "sha" => COMMIT }),
+            @pack.diff_refs(environment_row: @row, arguments: { "repo" => "acme/cloud", "base" => "main", "head" => COMMIT }) ].each do |text|
+            assert_includes text, "diff --git a/.env b/.env\n#{CodeHost::WITHHELD_PATCH}\ndiff --git a/app.rb b/app.rb"
+            assert_includes text, "+puts 1"
+            assert_no_match "hunter2", text
+          end
+        end
+
+        test "a shell command naming a file that may hold secrets is refused before it runs" do
+          CodeReading.any_instance.expects(:exec).never
+
+          [ "cat .env", "cat config/credentials.yml.enc", "head -1 deploy/id_rsa" ].each do |command|
+            assert_raises(PolicyRefusal) { @pack.run_shell(environment_row: @row, arguments: { "repo" => "acme/cloud", "command" => command }) }
+          end
+        end
+
         test "a ref that looks like an option never reaches git" do
           CodeReading.any_instance.expects(:exec).never
 

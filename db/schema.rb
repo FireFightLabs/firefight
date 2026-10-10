@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_09_150400) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -2197,6 +2197,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_09_150400) do
     t.uuid "message_id", null: false
     t.string "message_type", null: false
     t.string "name", null: false
+    t.jsonb "provenance"
     t.boolean "remote", default: false, null: false
     t.uuid "result_id"
     t.string "result_type"

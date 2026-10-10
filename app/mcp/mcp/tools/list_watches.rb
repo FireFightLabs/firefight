@@ -8,6 +8,7 @@ module Mcp
                   "stands, everything it said, and how it ended. Ask Halon (ask_halon) to be told when something finishes " \
                   "to start one. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(
         properties: {
           active: { type: "boolean", description: "Only the ones still going (optional)" }

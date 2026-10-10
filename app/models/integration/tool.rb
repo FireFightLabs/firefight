@@ -65,12 +65,23 @@ class Integration::Tool < ApplicationRecord
     integration.environment_choices.any? ? named : "#{named} Leave it out for the connection's default."
   end
 
-  # Whether it is worth offering. Each call is still authorized on its own.
-  def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace))
+  # Whether it is worth offering. Each call is still authorized on its own. A tool that can also read through its guard
+  # is worth offering to whoever may read its connection, and each change through it still needs its own grant. With
+  # arguments, whether this one call may be made, so a change through such a tool needs the grant a change does.
+  def callable_by?(principal, resolved = Ability::Resolver.resolve(principal, integration.workspace), arguments: nil)
     return true if resolved.action_keys.include?(action_key)
+    return false unless ability_action.present?
+    return true if principal.implicitly_allowed?(ability_action, resolved)
+    return false unless reads_through_guard? && (arguments.nil? || reads_call?(arguments))
 
-    ability_action.present? && principal.implicitly_allowed?(ability_action, resolved)
+    principal.implicitly_allowed?(ability_action, resolved, reads: true) || resolved.action_keys.include?(Ability::Role.reads_key(integration_id))
   end
+
+  # Whether this call only reads, because the tool only reads or its provider's read guard shows the call does.
+  def reads_call?(arguments) = Integrations::ReadGuards.read_call?(self, arguments)
+
+  # Whether a guard can tell this tool's reads from its changes.
+  def reads_through_guard? = Integrations::ReadGuards.for(self).present?
 
   def available?
     removed_at.nil?

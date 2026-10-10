@@ -55,11 +55,17 @@ module Chat::Tools
   end
 
   # A tool that only reads is the agent looking something up, which the page shows as thinking rather than as a change.
-  def self.kind(tool_name, workspace)
+  # So is a call its guard shows to read through a tool that can also change things, when the call's arguments are known.
+  def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
     reading = name == ReadResult.tool_name || [ Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ ].include?(name) || firefight_reading_names.include?(name) ||
-              workspace.reading_tool_names.include?(name)
+              workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
+  end
+
+  def self.guarded_read?(workspace, name, arguments)
+    tool = arguments && Target.connection_tool(workspace, name)
+    tool.present? && Integrations::ReadGuards.reads?(tool, arguments)
   end
 
   def self.firefight_reading_names
@@ -68,10 +74,33 @@ module Chat::Tools
 
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
   # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
-  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call) do
+  # read is what was read from outside before the call was asked (Chat::Tools::Provenance), nil when nothing was, in which
+  # case it may be allowed for the rest of the chat.
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read) do
+    def initialize(read: nil, **) = super
+
     # The question as a label, which the dashboard shows above the agent's own sentence about the call.
     def tool_label = question.delete_suffix("?")
+
+    def allowable? = read.nil?
+
+    # One sentence leading what was read, in the words both the dashboard and Slack show.
+    def read_lead
+      return unless read
+
+      "Halon read text from outside Firefight before asking, and text like that can be written to steer it. Check where " \
+        "this came from. Allow for the rest of this chat does not cover it."
+    end
+
+    # Each read as a label and what it shows: the change's own values it holds, or that it was read earlier.
+    def read_rows
+      return [] unless read
+
+      rows = read.sources.map { |source| [ source.label, source.found.any? ? "Holds #{source.found.join(', ')}" : READ_EARLIER ] }
+      read.others.positive? ? rows + [ [ "#{read.others} more #{read.others == 1 ? 'read' : 'reads'}", READ_EARLIER ] ] : rows
+    end
   end
+  READ_EARLIER = "Read earlier in this chat".freeze
 
   # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
   # whoever approves it. It is taken off before the call is made, so the tool never sees it.
@@ -184,7 +213,7 @@ module Chat::Tools
     Confirmation.new(
       tool_call_id: tool_call.tool_call_id, question: target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?",
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
-      target: target, call: call
+      target: target, call: call, read: Provenance.stored(tool_call)
     )
   end
 

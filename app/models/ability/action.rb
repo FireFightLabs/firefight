@@ -233,6 +233,15 @@ module Ability
 
     def read? = risk_level == RISK_READ
 
+    # A call to a tool that both reads and changes, which its source shows only reads, such as a GET through an API
+    # request tool. The gateway treats it as a read of its connection rather than as the change the tool could make.
+    def read_through_guard?(params)
+      tool? && !read? && params.present? && source.respond_to?(:reads_call?) && source.reads_call?(params)
+    end
+
+    # The risk this one call carries, which is a read for a call shown to read.
+    def risk_of(params) = read_through_guard?(params) ? RISK_READ : risk_level
+
     def admin_only?
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))
     end

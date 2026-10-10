@@ -58,12 +58,13 @@ class Conversation::Turn
   def mark_step_failed!(_position, _kind) = nil
 
   # Only destructive or irreversible changes wait, plus those an approval rule lets the asker approve themselves, and a
-  # tool that declares itself destructive. A tool the person allowed for the rest of the chat stops asking, except where
-  # an approval rule applies, since that rule wants each call signed off.
-  def confirms?(action, tool_name: nil, declared_destructive: false)
+  # tool that declares itself destructive. allowed is whether the person allowed the tool for the rest of the chat and
+  # nothing read from outside has reached it since (Chat::Tools::Provenance), which stops it asking, except where an
+  # approval rule applies, since that rule wants each call signed off.
+  def confirms?(action, allowed: false, declared_destructive: false, **)
     return false unless asker
     return true if action && self_approvable?(action)
-    return false if chat&.allows_tool?(tool_name)
+    return false if allowed
 
     declared_destructive || (action.present? && (action.risk_level == Ability::Action::RISK_DESTRUCTIVE || !action.reversible))
   end

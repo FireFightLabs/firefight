@@ -156,13 +156,20 @@ class Chat < ApplicationRecord
   end
 
   # One guarded update, so a second click on the same question loses rather than deciding it twice.
-  # Allowing a call for the rest of the chat approves it and stops later calls to the same tool from asking.
+  # Allowing a call for the rest of the chat approves it and stops later calls to the same tool from asking. A call
+  # asked after something was read from outside (Chat::Tools::Provenance) is only ever confirmed one at a time, so
+  # allowing it approves just that call, as an old Slack button could still ask.
   def decide!(tool_call_id, approved:, for_chat: false)
     decision = approved ? APPROVAL_APPROVED : APPROVAL_DENIED
     decided = tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: decision, updated_at: Time.current) > 0
-    allow_tool!(tool_calls.where(tool_call_id: tool_call_id).pick(:name)) if decided && approved && for_chat
+    name, provenance = tool_calls.where(tool_call_id: tool_call_id).pick(:name, :provenance)
+    allow_tool!(name) if decided && approved && for_chat && provenance.nil?
     decided
   end
+
+  # The calls waiting for the person that Allow for the rest of this chat may answer, those asked before anything was
+  # read from outside.
+  def awaiting_decision_allowable = awaiting_decision.where(provenance: nil)
 
   # Kept in one statement, so two answers allowing tools at once both land.
   def allow_tool!(tool_name)

@@ -9,6 +9,7 @@ module Mcp
                   "Use get_runbook for the full step-by-step content. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(
         properties: {
           query: { type: "string", description: "Matches runbook name, summary or another name it goes by" },

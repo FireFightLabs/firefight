@@ -49,7 +49,7 @@ class AgentChatMessageSerializer < BaseSerializer
 
       status = self.class.step_status(call, calls)
       { key: call.tool_call_id, title: step.title, headline: step.headline, asked: step.asked,
-        status: status, kind: Chat::Tools.kind(call.name, workspace),
+        status: status, kind: Chat::Tools.kind(call.name, workspace, call.arguments),
         seconds: self.class.step_seconds(call, message, last: call == calls.last),
         card: (card_for(step, call, charted)&.to_h if status == Conversation::LiveDelivery::STATUS_DONE),
         outcome: (Chat::StepOutcome.for_call(call, chat)&.to_h if FINISHED.include?(status)),

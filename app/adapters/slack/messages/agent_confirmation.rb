@@ -32,7 +32,17 @@ module Slack
         end
         blocks = [ { type: "section", text: { type: "mrkdwn", text: text } } ]
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: details.join("  ·  ") } ] } if details.any?
+        blocks.concat(read_blocks(confirmation))
         blocks << answer_block(conversation_id, confirmation)
+      end
+
+      # What Halon read from outside before asking, so the person can tell where the change came from. Labels and values
+      # came from the model and other systems, so they are escaped.
+      def self.read_blocks(confirmation)
+        return [] unless confirmation.read_lead
+
+        rows = confirmation.read_rows.map { |label, said| "• #{Slack::Mrkdwn.escape(label)}: #{Slack::Mrkdwn.escape(said)}" }
+        [ { type: "context", elements: [ { type: "mrkdwn", text: ":warning: #{confirmation.read_lead}\n#{rows.join("\n")}" } ] } ]
       end
 
       def self.answer_block(conversation_id, confirmation)
@@ -40,14 +50,14 @@ module Slack
         return { type: "context", elements: [ { type: "mrkdwn", text: status_line } ] } if status_line
 
         value = "#{conversation_id}:#{confirmation.tool_call_id}"
+        allow = { type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT, text: { type: "plain_text", text: "Allow for this chat" }, value: value }
         { type: "actions", elements: [
           { type: "button", style: "primary", action_id: Identifiers::AGENT_CONFIRM,
             text: { type: "plain_text", text: "Confirm" }, value: value },
-          { type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT,
-            text: { type: "plain_text", text: "Allow for this chat" }, value: value },
+          (allow if confirmation.allowable?),
           { type: "button", action_id: Identifiers::AGENT_CANCEL,
             text: { type: "plain_text", text: "Cancel" }, value: value }
-        ] }
+        ].compact }
       end
     end
   end

@@ -8,6 +8,7 @@ module Mcp
                   "built in agents, with the grants each holds. Use the kind and id with grant_ability, " \
                   "and a person's id as an approver in upsert_approval_rule. Docs: #{Docs::PERMISSIONS}"
       annotations(**READ_ONLY)
+      own_words
       authorize_as Ability::Action::RESOURCE_PERMISSIONS
       input_schema(
         properties: {

@@ -10,6 +10,7 @@ module Mcp
                   "Read this before changing a form so an update replaces " \
                   "what is actually there. Docs: #{Docs::INCIDENT_FORMS}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(
         properties: {
           form: { type: "string", description: "Form slug, one of: #{IncidentForm::SLUGS.join(', ')}" }
