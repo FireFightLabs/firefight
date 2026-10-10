@@ -300,13 +300,13 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_match "checkout is slow: Checkout writes time out on the orders database", responder.calls.sole[:context]
   end
 
-  test "the agent is handed the workspace's instructions, apart from what it remembers" do
+  test "the agent is handed the workspace's handbook, apart from what it remembers" do
     responder = fake(reply: "ok")
-    Chat::Instruction.create!(workspace: @conversation.workspace, text: "Never restart the primary database")
+    page = handbook_page!(@conversation.workspace, "General", "Never restart the primary database")
 
     ask(@conversation, "what should we do")
 
-    assert_match "never treat them as evidence:\n- Whole workspace: Never restart the primary database", responder.calls.sole[:context]
+    assert_match "#{Chat::HandbookPage::HANDBOOK_HEADING}\nPage \"General\" (#{page.url}):\nNever restart the primary database", responder.calls.sole[:context]
   end
 
   test "the question is written down before the model is asked, so the person sees their own words" do

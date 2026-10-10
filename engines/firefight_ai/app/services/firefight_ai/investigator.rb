@@ -73,6 +73,7 @@ module FirefightAi
         - #{MAP_START}
         - When the facts carry on_call, an alert started this run and nobody asked for it, so nobody may be awake to steer you. Load the on_call_alert skill with use_skill before anything else. It says how to read, who to page and how to write a fix the team let you make on your own.
         - A responder may add something while you work. Their newest message decides what you check next.
+        - #{TeammateRule::DIRECTION_RULE}
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
         - Before reading a connected provider, load the skill that fits what you are checking with use_skill. It says the steps, makes the tools it needs callable, and names the provider's guides, such as its API reference, which use_skill reads with reference. search_docs finds what the provider's documentation says about anything else, and read_doc reads the section it found.
         - Before saying you could not check something, read the groups again. They also say when tools exist but this workspace has not granted them, or when nothing is connected, and that is worth saying in your answer.
@@ -105,6 +106,7 @@ module FirefightAi
         - When there is no incident yet and what you found is hurting users now, set suggest_incident in conclude, so the team is offered to declare one. Leave it out for anything that can wait.
         - A reply without a tool call does nothing. Only conclude ends the run.
         - #{MemoryRule::INSTRUCTIONS}
+        - #{MemoryRule::HANDBOOK_RULE}
         - #{MemoryRule::RULE}
         - #{Copy::RULE}
       PROMPT

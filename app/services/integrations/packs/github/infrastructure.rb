@@ -15,8 +15,7 @@ module Integrations
           @token = token
         end
 
-        private
-
+        # What CodeHost::Documents reads a repository's pages through as well.
         def listing(repository)
           tree = GithubApp.get("/repos/#{repository['full_name']}/git/trees/#{Http.segment(repository['default_branch'])}?recursive=1", token: @token)
           entries = Array(tree["tree"]).select { |entry| entry["type"] == BLOB }.map { |entry| Entry.new(path: entry["path"], size: entry["size"], id: entry["sha"]) }

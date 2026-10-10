@@ -45,6 +45,12 @@ class Integration::Tool < ApplicationRecord
     recorded!(SystemAgent.health_check, AbilityGateway::SOURCE_HEALTH_CHECK, arguments, reads, &)
   end
 
+  # A call the handbook sync makes to read a page it keeps in step. Like the sweep it calls only tools that are switched
+  # on, and each call is recorded under the handbook sync.
+  def synced!(arguments, reads = nil, &)
+    recorded!(SystemAgent.handbook_sync, AbilityGateway::SOURCE_HANDBOOK_SYNC, arguments, reads, &)
+  end
+
   # A tool name cannot carry the dot an action key separates on.
   def model_facing_name
     action_key.tr(".", "_")

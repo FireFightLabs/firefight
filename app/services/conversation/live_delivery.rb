@@ -30,6 +30,8 @@ class Conversation::LiveDelivery
   EVENT_SAFEGUARD = "safeguard"
   # A helper this chat handed a check to started, took a step or reported, so the step drawing it looks again.
   EVENT_HELPERS = "helpers"
+  # Halon proposed a handbook edit, or someone decided on one, so its card looks again.
+  EVENT_HANDBOOK = "handbook"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -77,6 +79,10 @@ class Conversation::LiveDelivery
 
   def self.memory_asked(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_MEMORY)
+  end
+
+  def self.handbook_proposed(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_HANDBOOK)
   end
 
   def self.secret_entry_moved(conversation)

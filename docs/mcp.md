@@ -75,6 +75,10 @@ Results are workspace-scoped to the token, capped at 50 items with explicit `tru
 | `delete_routing_rule` | Delete a rule by priority |
 | `update_routing_config` | Grouping window + content match fields on the routing policy |
 | `upsert_runbook` | Create or update a runbook (steps and attach conditions replace the existing set) |
+| `list_handbook_pages` | The workspace's handbook pages in order, each with its kind, link, length and, for the page saying who directs Halon, the role's slug |
+| `get_handbook_page` | One handbook page whole by id or title, with `wording_id` |
+| `upsert_handbook_page` | Add a page (title required) or change one by id or title, only what is sent. `freeze_windows` replaces the page's freeze windows, which plans keep out of. `wording_id` refuses an edit made over someone else's. A synced page refuses with why |
+| `delete_handbook_page` | Delete a page and its history. A synced page refuses with why |
 
 Ids never leave the read tools, so every reference here resolves by slug too. `Mcp::ConditionValues` turns a condition into the row it needs: severity and incident type by slug, the custom field by its key, and values by option label or catalog entry slug. Anything matching no record raises rather than storing a condition that saves cleanly and then never fires. `CatalogEntry::ReferenceManagement` resolves reference attributes the same way, guarding the id lookup so a slug reaching a uuid column cannot raise out of the driver.
 

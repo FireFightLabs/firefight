@@ -137,11 +137,12 @@ module Chat::Tools
     Chat::APPROVAL_WITHDRAWN => :withdrawn, Chat::APPROVAL_OWNER_ASKED => :owner_asked
   }.freeze
 
-  # A run that only measures Halon reads memory and never changes it, so nothing it does reaches the Memory page.
+  # What the workspace knows, its memory and its handbook. A run that only measures Halon reads both and never changes
+  # either, so nothing it does reaches the Memory page or the handbook.
   def self.memory(agent_run)
-    return [ Recall.new(agent_run) ] unless agent_run.changes_memory?
+    return [ Recall.new(agent_run), SearchHandbook.new(agent_run) ] unless agent_run.changes_memory?
 
-    [ Remember.new(agent_run), Recall.new(agent_run), DisputeMemory.new(agent_run) ]
+    [ Remember.new(agent_run), Recall.new(agent_run), DisputeMemory.new(agent_run), SearchHandbook.new(agent_run), ProposeHandbookEdit.new(agent_run) ]
   end
 
   # How the agent writes and finds its way, not what it looked at, so a reader is never shown them.

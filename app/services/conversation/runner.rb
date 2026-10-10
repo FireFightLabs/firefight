@@ -160,6 +160,8 @@ class Conversation::Runner
     chat.nudge!(noticed) if noticed
     stale = Chat::StaleRefusals.note(chat)
     chat.nudge!(stale) if stale
+    decided = Chat::HandbookProposal.untold_for!(@conversation).map(&:outcome_note)
+    chat.nudge!(decided.join("\n")) if decided.any?
     Chat::Watch::Step.hand_back_untold(chat).each do |step|
       chat.nudge!(Conversation::Watches.hand_back_note(step)) if step.hand_back_noted!
     end
@@ -310,7 +312,7 @@ class Conversation::Runner
 
   # Who the agent acts for, so it can answer what they may do and say who else can.
   def context
-    [ asker_line, today_line, incident_line, investigations_line, instructions_line, memories_line, plans_line ].compact.join("\n")
+    [ asker_line, today_line, incident_line, directing_line, investigations_line, handbook_line, instructions_line, memories_line, plans_line ].compact.join("\n")
   end
 
   def asker_line
@@ -335,6 +337,28 @@ class Conversation::Runner
     return nil unless incident
 
     "You are in the channel for #{incident.identifier} #{incident.name}, status #{incident.incident_status.name}."
+  end
+
+  # Anyone in an incident's channel can ask in the same thread, so Halon is told whose direction it follows when they
+  # disagree. It is whoever holds the role the handbook names, the Incident Lead unless it names another.
+  def directing_line
+    incident = @conversation.incident
+    return nil unless incident && @conversation.chat_record.speakers_named?
+
+    role = Chat::HandbookPage.directing_role(@conversation.workspace)
+    return nil unless role
+
+    holder = incident.role_holder(role)
+    who = holder ? "#{holder.display_name}, who holds #{role.name}" : "whoever holds #{role.name}, which nobody holds yet, so ask the people here to assign it before acting on directions that conflict"
+    "Several people can write to you in this thread, and each message starts with who wrote it. In #{incident.identifier} you take direction from #{who}."
+  end
+
+  # How the workspace works, read first on every turn. Short pages come whole and long ones are named for search_handbook.
+  def handbook_line
+    lines = Chat::HandbookPage.halon_lines(@conversation.workspace)
+    return nil if lines.empty?
+
+    "#{Chat::HandbookPage::HANDBOOK_HEADING}\n#{lines.join("\n\n")}"
   end
 
   # How people here want Halon to work on what this chat touches, most specific last.

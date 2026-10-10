@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_132000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -475,6 +475,92 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
     t.index ["workspace_id"], name: "index_chat_data_repairs_on_workspace_id"
   end
 
+  create_table "chat_handbook_chunks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "handbook_page_id", null: false
+    t.integer "position", null: false
+    t.text "heading_path", null: false
+    t.text "text", null: false
+    t.string "content_digest", null: false
+    t.tsvector "document", null: false
+    t.vector "embedding", limit: 1536
+    t.string "embedding_model"
+    t.string "embedded_digest"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document"], name: "index_chat_handbook_chunks_on_document", using: :gin
+    t.index ["embedding"], name: "index_chat_handbook_chunks_on_embedding", opclass: :vector_cosine_ops, using: :hnsw
+    t.index ["handbook_page_id", "position"], name: "index_chat_handbook_chunks_on_handbook_page_id_and_position", unique: true
+    t.index ["workspace_id"], name: "index_chat_handbook_chunks_on_workspace_id"
+  end
+
+  create_table "chat_handbook_pages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.text "title", null: false
+    t.string "kind", null: false
+    t.integer "position", null: false
+    t.uuid "source_id"
+    t.string "source_path"
+    t.string "source_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source_id"], name: "index_chat_handbook_pages_on_source_id"
+    t.index ["workspace_id", "position"], name: "index_chat_handbook_pages_on_workspace_id_and_position", unique: true
+    t.index ["workspace_id"], name: "index_chat_handbook_pages_one_directing", unique: true, where: "((kind)::text = 'directing'::text)"
+  end
+
+  create_table "chat_handbook_proposals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "handbook_page_id"
+    t.text "title"
+    t.uuid "instruction_id"
+    t.text "text", null: false
+    t.text "evidence", null: false
+    t.uuid "conversation_id"
+    t.uuid "investigation_id"
+    t.uuid "incident_id"
+    t.string "channel_id"
+    t.string "thread_id"
+    t.string "message_id"
+    t.string "status", default: "pending", null: false
+    t.boolean "edited", default: false, null: false
+    t.uuid "decided_by_id"
+    t.datetime "decided_at"
+    t.uuid "result_id"
+    t.datetime "told_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_chat_handbook_proposals_on_conversation_id"
+    t.index ["decided_by_id"], name: "index_chat_handbook_proposals_on_decided_by_id"
+    t.index ["handbook_page_id"], name: "index_chat_handbook_proposals_on_handbook_page_id"
+    t.index ["incident_id"], name: "index_chat_handbook_proposals_on_incident_id"
+    t.index ["instruction_id"], name: "index_chat_handbook_proposals_on_instruction_id"
+    t.index ["investigation_id"], name: "index_chat_handbook_proposals_on_investigation_id"
+    t.index ["result_id"], name: "index_chat_handbook_proposals_on_result_id"
+    t.index ["workspace_id", "status"], name: "index_chat_handbook_proposals_on_workspace_id_and_status"
+    t.index ["workspace_id"], name: "index_chat_handbook_proposals_on_workspace_id"
+  end
+
+  create_table "chat_handbook_sources", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "integration_id"
+    t.string "kind", null: false
+    t.string "repository"
+    t.string "path"
+    t.string "reference"
+    t.string "url"
+    t.string "branch"
+    t.string "digest"
+    t.datetime "synced_at"
+    t.text "sync_error"
+    t.uuid "added_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["added_by_id"], name: "index_chat_handbook_sources_on_added_by_id"
+    t.index ["integration_id"], name: "index_chat_handbook_sources_on_integration_id"
+    t.index ["workspace_id"], name: "index_chat_handbook_sources_on_workspace_id"
+  end
+
   create_table "chat_held_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "chat_id", null: false
     t.uuid "approval_id", null: false
@@ -531,11 +617,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
     t.text "text", null: false
     t.datetime "updated_at", null: false
     t.uuid "workspace_id", null: false
-    t.index "workspace_id, COALESCE(scope_type, ''::character varying), COALESCE(scope_id, '00000000-0000-0000-0000-000000000000'::uuid)", name: "index_chat_instructions_one_current_per_place", unique: true, where: "(superseded_at IS NULL)"
+    t.uuid "handbook_page_id"
+    t.uuid "incident_role_id"
+    t.jsonb "freeze_windows", default: [], null: false
+    t.index "workspace_id, COALESCE(scope_type, ''::character varying), COALESCE(scope_id, '00000000-0000-0000-0000-000000000000'::uuid)", name: "index_chat_instructions_one_current_per_place", unique: true, where: "((superseded_at IS NULL) AND (handbook_page_id IS NULL))"
     t.index ["added_by_id"], name: "index_chat_instructions_on_added_by_id"
+    t.index ["handbook_page_id"], name: "index_chat_instructions_on_handbook_page_id"
+    t.index ["handbook_page_id"], name: "index_chat_instructions_one_current_per_page", unique: true, where: "(superseded_at IS NULL)"
+    t.index ["incident_role_id"], name: "index_chat_instructions_on_incident_role_id"
     t.index ["scope_type", "scope_id"], name: "index_chat_instructions_on_scope"
     t.index ["superseded_by_id"], name: "index_chat_instructions_on_superseded_by_id"
     t.index ["workspace_id", "superseded_at"], name: "index_chat_instructions_on_workspace_id_and_superseded_at"
+    t.check_constraint "(scope_type IS NULL) = (handbook_page_id IS NOT NULL)", name: "chat_instructions_page_only_in_the_handbook"
   end
 
   create_table "chat_memories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -616,7 +709,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
     t.text "thinking_signature"
     t.text "thinking_text"
     t.datetime "updated_at", null: false
+    t.uuid "sender_id"
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
+    t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
   end
 
   create_table "chat_mitigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2982,12 +3077,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
   add_foreign_key "chat_compactions", "chats"
   add_foreign_key "chat_data_repairs", "chats", on_delete: :cascade
   add_foreign_key "chat_data_repairs", "workspaces", on_delete: :cascade
+  add_foreign_key "chat_handbook_chunks", "chat_handbook_pages", column: "handbook_page_id", on_delete: :cascade
+  add_foreign_key "chat_handbook_chunks", "workspaces"
+  add_foreign_key "chat_handbook_pages", "chat_handbook_sources", column: "source_id", on_delete: :cascade
+  add_foreign_key "chat_handbook_pages", "workspaces"
+  add_foreign_key "chat_handbook_proposals", "chat_handbook_pages", column: "handbook_page_id", on_delete: :cascade
+  add_foreign_key "chat_handbook_proposals", "chat_instructions", column: "instruction_id", on_delete: :nullify
+  add_foreign_key "chat_handbook_proposals", "chat_instructions", column: "result_id", on_delete: :nullify
+  add_foreign_key "chat_handbook_proposals", "conversations", on_delete: :nullify
+  add_foreign_key "chat_handbook_proposals", "incidents", on_delete: :nullify
+  add_foreign_key "chat_handbook_proposals", "investigations", on_delete: :nullify
+  add_foreign_key "chat_handbook_proposals", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "chat_handbook_proposals", "workspaces"
+  add_foreign_key "chat_handbook_sources", "integrations", on_delete: :nullify
+  add_foreign_key "chat_handbook_sources", "workspace_memberships", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "chat_handbook_sources", "workspaces"
   add_foreign_key "chat_held_calls", "ability_approvals", column: "approval_id"
   add_foreign_key "chat_held_calls", "chats"
   add_foreign_key "chat_held_calls", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
   add_foreign_key "chat_helpers", "chats", on_delete: :cascade
   add_foreign_key "chat_helpers", "workspaces", on_delete: :cascade
+  add_foreign_key "chat_instructions", "chat_handbook_pages", column: "handbook_page_id", on_delete: :cascade
   add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify
+  add_foreign_key "chat_instructions", "incident_roles", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspaces"
   add_foreign_key "chat_memories", "chat_memories", column: "contradicted_by_id", on_delete: :nullify
@@ -3003,6 +3115,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
   add_foreign_key "chat_memory_posts", "workspaces"
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chat_messages", "workspace_memberships", column: "sender_id", on_delete: :nullify
   add_foreign_key "chat_mitigations", "chat_plan_steps", column: "plan_step_id", on_delete: :nullify
   add_foreign_key "chat_mitigations", "chats", on_delete: :cascade
   add_foreign_key "chat_mitigations", "workspace_memberships", column: "ended_by_id", on_delete: :nullify

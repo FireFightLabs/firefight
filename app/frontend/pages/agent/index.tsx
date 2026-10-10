@@ -24,7 +24,7 @@ export default function AgentPage() {
   const {
     conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
     compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs,
-    mitigations, ownerAsks, setupGuide,
+    mitigations, ownerAsks, handbookProposals, setupGuide,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
@@ -110,6 +110,7 @@ export default function AgentPage() {
                   dataRepairs={dataRepairs}
                   mitigations={mitigations}
                   ownerAsks={ownerAsks}
+                  handbookProposals={handbookProposals}
                   waiting={waitingMessages}
                   stream={stream}
                 />

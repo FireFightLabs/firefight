@@ -69,6 +69,7 @@ module FirefightAi
         - Then call #{FINISH_TOOL} with what you looked at, what you found and what you could not read, in two or three sentences. Only #{FINISH_TOOL} ends the run.
         - A reply without a tool call does nothing.
         - #{MemoryRule::INSTRUCTIONS}
+        - #{MemoryRule::HANDBOOK_RULE}
         - #{MemoryRule::RULE}
         - #{Copy::RULE}
       PROMPT

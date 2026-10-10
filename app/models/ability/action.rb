@@ -41,6 +41,8 @@ module Ability
     RESOURCE_MONITORING = "monitoring"
     # The workspace's own model keys Halon runs on. Admins only, and only from the dashboard.
     RESOURCE_AI_ACCOUNTS = "ai_accounts"
+    # The workspace's handbook, which Halon reads first. Members read it, and writing it needs a grant.
+    RESOURCE_HANDBOOK = "handbook"
 
     # Nobody can be granted these, so a member or an agent can never mint keys
     # or rewrite who has what.
@@ -53,7 +55,7 @@ module Ability
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
       RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
-      RESOURCE_MONITORING
+      RESOURCE_MONITORING, RESOURCE_HANDBOOK
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -84,6 +86,7 @@ module Ability
       RESOURCE_MEMORY => "Memory",
       RESOURCE_MAP => "Resource Map",
       RESOURCE_MONITORING => "Monitoring",
+      RESOURCE_HANDBOOK => "Handbook",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",
@@ -102,6 +105,7 @@ module Ability
     RESOURCE_ACTIONS = { RESOURCE_MAP => [ ACTION_READ ].freeze }.freeze
 
     MAP_READ = "#{RESOURCE_MAP}.#{ACTION_READ}".freeze
+    HANDBOOK_READ = "#{RESOURCE_HANDBOOK}.#{ACTION_READ}".freeze
     # Asking Halon and starting, steering or stopping an investigation.
     INVESTIGATIONS_CREATE = "#{RESOURCE_INVESTIGATIONS}.#{ACTION_CREATE}".freeze
     # Reads whose environment scope narrows what comes back rather than whether the call runs. A call that names no

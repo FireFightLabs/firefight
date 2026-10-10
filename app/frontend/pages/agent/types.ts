@@ -5,7 +5,7 @@ import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from 
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
   AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, EnvironmentOption,
-  IntegrationCard, InvestigationCard, InvestigationDetail,
+  HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
 // Setup's Meet Halon step, sent only while an admin is on it.
@@ -43,6 +43,7 @@ export interface AgentPageProps extends SharedProps {
   mitigations: AgentChatMitigation[]
   ownerAsks: AgentChatOwnerAsk[]
   helpers: AgentChatHelper[]
+  handbookProposals: HandbookProposal[]
   setupGuide: SetupGuide | null
 }
 

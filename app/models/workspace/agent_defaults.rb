@@ -5,8 +5,10 @@ module Workspace::AgentDefaults
 
   # A run locates what it investigates on the map before anything else, so it reads the map in every environment. It
   # saves what it learns to memory, unconfirmed until a person confirms it, and disputes a memory a result contradicted.
+  # It searches the handbook's long pages.
   INVESTIGATOR_DEFAULTS = [
     Ability::Action::MAP_READ,
+    Ability::Action::HANDBOOK_READ,
     Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_CREATE),
     Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_UPDATE),
     # A scheduled check reads what Halon raised before, so it says a problem again only when it got worse.

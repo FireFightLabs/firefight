@@ -76,6 +76,19 @@ module TypescriptConstants
       Export.new("CHAT_MEMORY_TEXT_LIMIT", Chat::Memory::TEXT_LIMIT, nil),
       Export.new("MEMORY_EXPIRY_DAY_CHOICES", Chat::Memory::EXPIRY_CHOICES, nil),
       Export.new("CHAT_INSTRUCTION_TEXT_LIMIT", Chat::Instruction::TEXT_LIMIT, nil),
+      Export.new("HANDBOOK_PAGE_KINDS", {
+        "WRITTEN" => Chat::HandbookPage::KIND_WRITTEN, "DIRECTING" => Chat::HandbookPage::KIND_DIRECTING, "SYNCED" => Chat::HandbookPage::KIND_SYNCED
+      }, nil),
+      Export.new("HANDBOOK_SOURCE_KINDS", { "REPOSITORY" => Chat::HandbookSource::KIND_REPOSITORY, "DOCUMENT" => Chat::HandbookSource::KIND_DOCUMENT }, nil),
+      Export.new("HANDBOOK_HALON_READS", { "WHOLE" => HandbookPageSerializer::HALON_WHOLE, "SEARCHED" => HandbookPageSerializer::HALON_SEARCHED }, nil),
+      Export.new("HANDBOOK_PAGE_QUERY", Chat::HandbookPage::PAGE_QUERY, nil),
+      Export.new("HANDBOOK_PROPOSAL_QUERY", HandbookController::PROPOSAL_QUERY, nil),
+      Export.new("HANDBOOK_TITLE_LIMIT", Chat::HandbookPage::TITLE_LIMIT, nil),
+      Export.new("HANDBOOK_TEXT_LIMIT", Chat::HandbookPage::TEXT_LIMIT, nil),
+      Export.new("HANDBOOK_FREEZE_REPEATS", { "WEEKLY" => Workspace::FreezeWindows::REPEAT_WEEKLY, "ONCE" => Workspace::FreezeWindows::REPEAT_ONCE }, nil),
+      Export.new("HANDBOOK_FREEZE_WINDOWS_PER_PAGE", Workspace::FreezeWindows::PER_PAGE, nil),
+      Export.new("HANDBOOK_FREEZE_NAME_LIMIT", Workspace::FreezeWindows::NAME_LIMIT, nil),
+      Export.new("HANDBOOK_FREEZE_LIFTED_BY_LIMIT", Workspace::FreezeWindows::LIFTED_BY_LIMIT, nil),
       Export.new("MEMORY_PAGE_TABS", { "MEMORIES" => MemoryController::TAB_MEMORIES, "INSTRUCTIONS" => MemoryController::TAB_INSTRUCTIONS }, nil),
       Export.new("MEMORY_PAGE_TAB_QUERY", MemoryController::TAB_QUERY, nil),
       Export.new("MEMORY_QUERY_PARAM", Chat::Memory::QUERY_PARAM, nil),
@@ -144,7 +157,8 @@ module TypescriptConstants
         "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
         "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,
         "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY, "PLAN" => Conversation::LiveDelivery::EVENT_PLAN,
-        "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD, "HELPERS" => Conversation::LiveDelivery::EVENT_HELPERS
+        "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD, "HELPERS" => Conversation::LiveDelivery::EVENT_HELPERS,
+        "HANDBOOK" => Conversation::LiveDelivery::EVENT_HANDBOOK
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,

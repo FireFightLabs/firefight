@@ -20,8 +20,7 @@ module Integrations
           @commits = {}
         end
 
-        private
-
+        # What CodeHost::Documents reads a repository's pages through as well.
         def listing(repository)
           name = repository["full_name"]
           head = Array(@api.get("#{BitbucketApi.repository(name)}/commits/#{Http.segment(repository['default_branch'])}", "pagelen" => 1)["values"]).first

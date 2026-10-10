@@ -543,6 +543,37 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A handbook edit Halon proposed, with Accept, Edit and Dismiss, in a thread when given. proposal is a
+  # HandbookProposalService::Shown.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_handbook_proposal(channel_id:, thread_id:, proposal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws that message once someone decides on it.
+  # @return [Hash] { success: true }
+  def update_handbook_proposal(channel_id:, message_id:, proposal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Opens the form for editing a proposed handbook edit before accepting it.
+  # @return [Hash] { success: true }
+  def open_handbook_proposal_modal(trigger_id:, proposal:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The wording an edit form was submitted with.
+  # @return [String]
+  def handbook_proposal_text(values:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Keeps an edit form open with why it was refused.
+  # @return [Hash] the platform's answer to the form
+  def handbook_proposal_error(message)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A coding agent's question, in the thread of the chat or fix its change was asked in, with Answer while it waits.
   # question is a CodeAgentQuestion.
   # @return [Hash] { message_id:, channel_id: }

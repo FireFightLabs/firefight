@@ -26,6 +26,8 @@ class Conversation < ApplicationRecord
   has_many :investigations, dependent: :nullify
   # Cards asking the person about a memory something contradicted in this chat.
   has_many :memory_posts, class_name: "Chat::MemoryPost", dependent: :delete_all
+  # Handbook edits Halon proposed in this chat. They outlive it on the Handbook page.
+  has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
   # Pull request news for this chat. The notice belongs to its session and outlives the chat.
   has_many :pull_request_notices, class_name: "CodeAgentSession::Notice", dependent: :nullify, inverse_of: :conversation
 
@@ -110,7 +112,7 @@ class Conversation < ApplicationRecord
   def ask!(question, asker: nil, files: [])
     return chat_record.queue_message!(question, sender: asker, files: files) if asker.is_a?(WorkspaceMembership) && answer_owed?
 
-    message = chat_record.add_message(role: Chat::Message::ROLE_USER, content: question)
+    message = chat_record.add_person_message!(question, sender: asker)
     chat_record.attach_files!(message, files)
     named = question.presence || files.map(&:filename).to_sentence
     update!(title: named.truncate(TITLE_LIMIT)) if title.blank?

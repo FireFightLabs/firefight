@@ -3,6 +3,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import LoadingState from "@/components/agent-ui/loading-state"
 import { whenClosed } from "@/lib/handlers"
 import { ConfirmCard } from "@/pages/agent/components/confirm-card"
+import { HandbookProposals } from "@/pages/agent/components/handbook-proposal-card"
 import { HeldCalls } from "@/pages/agent/components/held-calls"
 import { MemoryQuestions } from "@/pages/agent/components/memory-questions"
 import { PackRefusals } from "@/pages/agent/components/pack-refusals"
@@ -19,7 +20,7 @@ import { type AgentStream, type ChatTurn, TURN_KINDS } from "@/pages/agent/types
 import type {
   AgentChatAttachment, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation,
   AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch,
-  AgentChatWatchUpdate, ChatCompaction,
+  AgentChatWatchUpdate, ChatCompaction, HandbookProposal,
 } from "@/types/serializers"
 
 interface ThreadProps {
@@ -38,13 +39,14 @@ interface ThreadProps {
   dataRepairs: AgentChatDataRepair[]
   mitigations: AgentChatMitigation[]
   ownerAsks: AgentChatOwnerAsk[]
+  handbookProposals: HandbookProposal[]
   waiting: AgentChatWaitingMessage[]
   stream: AgentStream
 }
 
 export function Thread({
   conversationId, confirmations, messages, compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans,
-  dataRepairs, mitigations, ownerAsks, waiting, stream,
+  dataRepairs, mitigations, ownerAsks, handbookProposals, waiting, stream,
 }: ThreadProps) {
   const foot = useRef<HTMLDivElement>(null)
   const turns = useMemo(() => groupedTurns(settledMessages(messages, stream.owed), compactions), [ messages, compactions, stream.owed ])
@@ -68,6 +70,8 @@ export function Thread({
   const repaired = useMemo(() => placeAfterTurns(turns, messages, dataRepairs), [ turns, messages, dataRepairs ])
   const mitigated = useMemo(() => placeAfterTurns(turns, messages, mitigations), [ turns, messages, mitigations ])
   const owned = useMemo(() => placeAfterTurns(turns, messages, ownerAsks), [ turns, messages, ownerAsks ])
+  // A handbook edit sits after the turn whose reading contradicted the handbook.
+  const proposed = useMemo(() => placeAfterTurns(turns, messages, handbookProposals), [ turns, messages, handbookProposals ])
   // Held by id rather than by the message, which the server's copy replaces once it answers.
   const [ openImageId, setOpenImageId ] = useState<string | null>(null)
   const openImage = sentAttachments(turns, waiting).find((attachment) => attachment.id === openImageId) ?? null
@@ -80,7 +84,7 @@ export function Thread({
     foot.current?.scrollIntoView({ block: "end" })
   }, [
     messages.length, waiting.length, stream.text, stream.steps.length, heldCalls.length, packRefusals.length, secretEntries.length, watchUpdates.length, pullRequestNotices.length,
-    memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length,
+    memoryQuestions.length, plans.length, dataRepairs.length, mitigations.length, ownerAsks.length, handbookProposals.length,
   ])
 
   return (
@@ -101,6 +105,7 @@ export function Thread({
             ownerAsks={owned.get(BEFORE_ALL_TURNS)}
           />
         )}
+        <HandbookProposals proposals={proposed.get(BEFORE_ALL_TURNS)} />
         {turns.map((turn) => (
           <Fragment key={turn.id}>
             <Message turn={turn} onOpenImage={setOpenImageId} />
@@ -114,6 +119,7 @@ export function Thread({
             {conversationId && (
               <Safeguards conversationId={conversationId} repairs={repaired.get(turn.id)} mitigations={mitigated.get(turn.id)} ownerAsks={owned.get(turn.id)} />
             )}
+            <HandbookProposals proposals={proposed.get(turn.id)} />
           </Fragment>
         ))}
         {live && <Message turn={live} live onOpenImage={setOpenImageId} />}

@@ -1,8 +1,9 @@
-# How people want Halon to work here. They write them for the whole workspace, a team, a service, or one resource on
-# the map. A chat or run that touches that place loads them, and never counts them as evidence of what happened. An
-# edit keeps the old wording as history rather than overwriting it.
+# How people want Halon to work here. The whole workspace's are the handbook, one wording per page, and a team, a
+# service or one resource on the map has its own. A chat or run that touches that place loads them, and never counts them as
+# evidence of what happened. An edit keeps the old wording as history rather than overwriting it.
 class Chat::Instruction < ApplicationRecord
   include Chat::SecretFree
+  include Chat::Instruction::Handbook
 
   self.table_name = "chat_instructions"
 
@@ -16,7 +17,10 @@ class Chat::Instruction < ApplicationRecord
   belongs_to :added_by, class_name: "WorkspaceMembership", optional: true
   belongs_to :superseded_by, class_name: "Chat::Instruction", optional: true
 
-  validates :text, presence: true, length: { maximum: TEXT_LIMIT }
+  # Who directs Halon may say only the role, and a page of freeze windows only its windows.
+  validates :text, presence: true, unless: -> { directs? || freeze_windows.present? }
+  validates :text, length: { maximum: TEXT_LIMIT }, unless: :handbook?
+  validates :text, length: { maximum: Chat::HandbookPage::TEXT_LIMIT }, if: :handbook?
   validates :scope_type, inclusion: { in: SCOPE_TYPES }, allow_nil: true
   validate :one_current_per_scope, on: :create
 
@@ -28,17 +32,15 @@ class Chat::Instruction < ApplicationRecord
                 scope_id: ResourceMap::Resource.visible_to(principal, workspace).select(:id)))
   }
 
-  # The instructions a chat or run follows: the workspace's, then the teams that own what it touches, then those
-  # things themselves, so the most specific reads last. Only those principal may see, as for memories.
+  # The instructions a chat or run follows for what it touches. The teams that own it come first and the things
+  # themselves after, so the most specific reads last. Only those principal may see, as for memories. The handbook is read before these.
   def self.for_subjects(workspace, subjects, principal:)
     entries = subjects.grep(CatalogEntry)
     teams = CatalogEntry.where(id: CatalogEntryRelationship.where(source_entry_id: entries.map(&:id)).select(:target_entry_id))
                         .joins(:catalog_type).where(catalog_types: { system_key: CatalogType::SYSTEM_KEY_TEAM }).to_a
     places = (teams + subjects.compact).uniq
-    found = visible_to(principal, workspace).current.includes(:scope).to_a
-                   .select { |note| note.scope_id.nil? || places.include?(note.scope) }
-    order = [ nil ] + places
-    preload_labels(found.sort_by { |note| order.index(note.scope) })
+    found = visible_to(principal, workspace).for_places.current.includes(:scope).to_a.select { |note| places.include?(note.scope) }
+    preload_labels(found.sort_by { |note| places.index(note.scope) })
   end
 
   # A label names a catalog entry's type, so the types load once for all of them.
@@ -47,10 +49,10 @@ class Chat::Instruction < ApplicationRecord
     notes
   end
 
-  # Every current set of instructions in a workspace that principal may see, paired with its earlier wordings, newest
-  # first, found by following which note replaced which, in one query.
+  # Every current set of instructions for a place in a workspace that principal may see, paired with its earlier wordings,
+  # newest first, found by following which note replaced which, in one query. The handbook is listed on its own page.
   def self.with_history(workspace, principal:)
-    all = preload_labels(visible_to(principal, workspace).includes(:scope, :added_by).order(:created_at).to_a)
+    all = preload_labels(visible_to(principal, workspace).for_places.includes(:scope, :added_by).order(:created_at).to_a)
     by_replacement = all.index_by(&:superseded_by_id)
     all.select { |note| note.superseded_at.nil? }.map do |note|
       earlier = []
@@ -68,9 +70,9 @@ class Chat::Instruction < ApplicationRecord
   # How Halon reads it, headed by where it applies.
   def line = "#{label}: #{text}"
 
-  # Where they apply, as Halon and people read it, such as "Auth Service (service)".
+  # Where they apply, as Halon and people read it, such as "Auth Service (service)", or a handbook page's title.
   def label
-    return "Whole workspace" unless scope
+    return handbook_page&.title.to_s unless scope
 
     kind = if scope.is_a?(ResourceMap::Resource) then "resource"
     elsif scope.catalog_type&.system_key == CatalogType::SYSTEM_KEY_TEAM then "team"
@@ -79,15 +81,16 @@ class Chat::Instruction < ApplicationRecord
     "#{scope.name} (#{kind})"
   end
 
-  # The label inside a sentence, as in "Saved the instructions for the whole workspace."
-  def place = scope ? label : "the whole workspace"
+  # The label inside a sentence, as in "Saved instructions for Auth Service (service)."
+  def place = label
 
   # An edit writes new instructions and keeps these as history. Nil when someone else edited or removed it first.
-  def revise!(text:, by:)
+  def revise!(text:, by:, incident_role: self.incident_role, freeze_windows: self.freeze_windows)
     transaction do
       next unless supersede!
 
-      replacement = self.class.create!(workspace: workspace, scope: scope, text: text, added_by: by)
+      replacement = self.class.create!(workspace: workspace, scope: scope, handbook_page: handbook_page, text: text, incident_role: incident_role,
+                                       freeze_windows: freeze_windows, added_by: by)
       update_columns(superseded_by_id: replacement.id)
       replacement
     end
@@ -113,7 +116,11 @@ class Chat::Instruction < ApplicationRecord
 
   private
 
-  def taken_message = "#{label} already has instructions. Edit them instead."
+  def taken_message
+    return "Someone changed #{label} first. Read it again before saving." if handbook?
+
+    "#{label} already has instructions. Edit them instead."
+  end
 
   def supersede!
     now = Time.current
@@ -124,7 +131,7 @@ class Chat::Instruction < ApplicationRecord
   end
 
   def one_current_per_scope
-    taken = self.class.current.where(workspace_id: workspace_id, scope_type: scope_type, scope_id: scope_id).where.not(id: id).exists?
+    taken = self.class.current.where(workspace_id: workspace_id, scope_type: scope_type, scope_id: scope_id, handbook_page_id: handbook_page_id).where.not(id: id).exists?
     errors.add(:base, taken_message) if taken
   end
 end

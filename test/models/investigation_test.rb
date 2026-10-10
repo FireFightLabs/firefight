@@ -329,10 +329,10 @@ class InvestigationTest < ActiveSupport::TestCase
     assert_includes lines, kept.line
   end
 
-  test "a run starts with the instructions for the workspace and the incident's services" do
+  test "a run starts with the workspace's handbook and the instructions for the incident's services" do
     entry = catalog_entries(:auth_service)
     IncidentFieldValue.create!(incident: @incident, incident_field_definition: incident_field_definitions(:affected_services_ws1), catalog_entry: entry)
-    workspace_wide = Chat::Instruction.create!(workspace: @workspace, text: "Never restart the primary database")
+    page = handbook_page!(@workspace, "General", "Never restart the primary database")
     own = Chat::Instruction.create!(workspace: @workspace, scope: entry, text: "Check the session store first")
     Investigation::IncidentSeed.any_instance.stubs(:gather).returns({})
     Investigation::Clues.any_instance.stubs(:gather).returns({})
@@ -340,7 +340,8 @@ class InvestigationTest < ActiveSupport::TestCase
     run = build_investigation
     run.build_seed_pack!
 
-    assert_equal [ workspace_wide.line, own.line ], run.reload.starting_facts[Investigation::Seeding::KEY_INSTRUCTIONS]
+    assert_equal [ own.line ], run.reload.starting_facts[Investigation::Seeding::KEY_INSTRUCTIONS]
+    assert_equal [ page.halon_line ], run.starting_facts[Investigation::Seeding::KEY_HANDBOOK]
     assert_not run.seed_pack.key?(Investigation::Seeding::KEY_INSTRUCTIONS)
   end
 

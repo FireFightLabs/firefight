@@ -83,6 +83,15 @@ module Integrations
           registrations(webhook_id, ConnectionSettings.of(row)).each { |workspace, hook| forget(api, workspace, hook) }
         end
 
+        # The branches a push moved, for the handbook pages synced from them (Integrations::RepositoryDocuments).
+        def branch_pushes(payload, headers:)
+          name = payload.dig("repository", "full_name").to_s
+          return [] unless headers[EVENT_HEADER].to_s == PUSH && name.include?("/")
+
+          Array(payload.dig("push", "changes")).filter_map { |change| change.dig("new", "name") if change.dig("new", "type") == BRANCH }.uniq
+                                               .map { |branch| RepositoryDocuments::Push.new(repository: name, branch: branch) }
+        end
+
         private
 
         # A push does not say which branch is the repository's main one, so each branch it moved is read as a branch,

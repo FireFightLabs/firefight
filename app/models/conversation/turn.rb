@@ -96,6 +96,11 @@ class Conversation::Turn
               tool_name: tool_name, label: nil, holdable: false, &).value
   end
 
+  # A search of the handbook's long pages, as the asker, so it is in the activity log like any read.
+  def handbook_read(params:, tool_name:, &)
+    tool_call(action_key: Ability::Action::HANDBOOK_READ, params: params, tool_name: tool_name, label: nil, holdable: false, &).value
+  end
+
   # Where what the agent remembers came from, and who taught it.
   def memory_source = conversation
 

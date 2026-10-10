@@ -20,6 +20,7 @@ import {
   IconKey,
   IconListDetails,
   IconMessageChatbot,
+  IconNotebook,
   IconPlug,
   IconTopologyStar3,
   IconUrgent,
@@ -50,6 +51,7 @@ import {
   agentChatsPath,
   memoryPath,
   halonOnCallPath,
+  settingsHandbookPath,
   halonPerformancePath,
   halonMonitoringPath,
   cataloguePath,
@@ -165,6 +167,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     label: "Halon",
     items: [
       { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot },
+      { title: "Handbook", url: settingsHandbookPath(), icon: IconNotebook },
       { title: "Memory", url: memoryPath(), icon: IconBrain },
       { title: "Monitoring", url: halonMonitoringPath(), icon: IconRadar },
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },

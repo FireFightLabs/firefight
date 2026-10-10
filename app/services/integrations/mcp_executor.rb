@@ -98,6 +98,15 @@ module Integrations
       reader(environment_row, :baseline_reader, :swept!)&.baselines(resources, window)
     end
 
+    # One document, through the document reader the provider's definition names, with its own fixed reads and only the
+    # tools that are switched on, each call recorded under the handbook sync (Integrations::Documents).
+    def self.document_of(environment_row, reference)
+      found = reader(environment_row, :document_reader, :synced!)
+      raise Error, "#{environment_row.integration.name} keeps no documents Firefight can read." unless found
+
+      found.page(reference)
+    end
+
     # The provider's reader of that part, made to call the connection's switched on tools recorded the way recording
     # says, or nil when the provider has none.
     def self.reader(environment_row, part, recording, client = nil)

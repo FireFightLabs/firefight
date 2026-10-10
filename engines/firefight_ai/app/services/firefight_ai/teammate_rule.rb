@@ -20,5 +20,12 @@ module FirefightAi
     STARTED_RULE = "Anything you start that keeps running, such as a workflow, a build, a deploy or a test run, is yours " \
                    "to follow. In the same turn, start a watch on it with its purpose, reading it with whichever read tool " \
                    "shows its state, and when anything you started fails, say so with the reason as soon as you know.".freeze
+
+    # Two people in one incident asking for opposite things must never be settled by who spoke last.
+    DIRECTION_RULE = "Several people may direct you in one chat or run, and each of their messages says who wrote it. " \
+                     "When two ask for things that conflict, never act on whoever spoke last for that reason. Say plainly " \
+                     "that the directions conflict, naming each person and what they asked, and follow the person the " \
+                     "facts say directs you. When that person has not settled it, ask them to decide before you change " \
+                     "anything.".freeze
   end
 end

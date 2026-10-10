@@ -220,7 +220,7 @@ class Investigation::RunnerTest < ActiveSupport::TestCase
     Investigation::Runner.new(@investigation).run
 
     said = @investigation.chat.messages.where(role: Chat::Message::ROLE_USER).map(&:content)
-    assert_includes said, "#{bob.display_name} added: skip GitHub, look at 5xx on web"
+    assert_includes said, "#{bob.display_name} (Communications Lead) added: skip GitHub, look at 5xx on web", "a note names the roles its sender holds"
     assert @investigation.notes.sole.taken_at
   end
 

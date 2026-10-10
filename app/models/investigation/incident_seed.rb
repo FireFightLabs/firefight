@@ -57,8 +57,17 @@ class Investigation::IncidentSeed
       "declared_at" => @incident.declared_at&.iso8601,
       "detected_at" => @incident.detected_at&.iso8601,
       "lead" => person_facts(@incident.lead),
-      "roles" => role_facts
+      "roles" => role_facts,
+      "directs_halon" => directing_facts
     }
+  end
+
+  # Whose direction the run follows when responders' notes conflict, as the handbook names it.
+  def directing_facts
+    role = Chat::HandbookPage.directing_role(@incident.workspace)
+    return nil unless role
+
+    { "role" => role.name, "member" => person_facts(@incident.role_holder(role)) }
   end
 
   # Sorted by role position so the order matches the dashboard.

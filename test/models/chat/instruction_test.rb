@@ -8,15 +8,15 @@ class Chat::InstructionTest < ActiveSupport::TestCase
     @team = catalog_entries(:platform_team)
   end
 
-  test "a chat or run follows the workspace's instructions, then its owning team's, then the thing's own, most specific last" do
+  test "a chat or run follows its owning team's instructions, then the thing's own, most specific last, and the handbook apart" do
     own = write("Check the session store first", scope: @auth)
-    workspace_wide = write("Never restart the primary database")
     team = write("Page the platform team before any rollback", scope: @team)
     write("Unrelated service rules", scope: catalog_entries(:production_env))
+    handbook = handbook_page!(@workspace, "General", "Never restart the primary database").current_wording
 
-    assert_equal [ workspace_wide, team, own ], Chat::Instruction.for_subjects(@workspace, [ @auth ], principal: @member)
+    assert_equal [ team, own ], Chat::Instruction.for_subjects(@workspace, [ @auth ], principal: @member)
     assert_equal "Platform Team (team): Page the platform team before any rollback", team.line
-    assert_equal "Whole workspace", workspace_wide.label
+    assert_equal "General", handbook.label
   end
 
   test "a place holds one set of instructions, and an edit keeps the old wording as history" do
@@ -50,7 +50,7 @@ class Chat::InstructionTest < ActiveSupport::TestCase
   end
 
   test "instructions that look like they hold a secret are refused, since they reach every prompt" do
-    note = Chat::Instruction.new(workspace: @workspace, text: "Connect with postgres://app:hunter2@db.internal/prod")
+    note = Chat::Instruction.new(workspace: @workspace, scope: @auth, text: "Connect with postgres://app:hunter2@db.internal/prod")
 
     assert_not note.valid?
     assert_match "looks like it holds a secret", note.errors.full_messages.sole
@@ -67,5 +67,9 @@ class Chat::InstructionTest < ActiveSupport::TestCase
 
   private
 
-  def write(text, scope: nil) = Chat::Instruction.create!(workspace: @workspace, scope: scope, text: text, added_by: @member)
+  def write(text, scope: nil)
+    return handbook_page!(@workspace, "General", text, by: @member).current_wording unless scope
+
+    Chat::Instruction.create!(workspace: @workspace, scope: scope, text: text, added_by: @member)
+  end
 end
