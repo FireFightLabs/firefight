@@ -594,7 +594,7 @@ module Integrations
           elsif lines.size > PATCH_LINES then "#{lines.first(PATCH_LINES).join.rstrip}\n... #{lines.size - PATCH_LINES} more lines, see the page"
           else lines.join.rstrip
           end
-          "#{file['filename']} (#{file['status']}, +#{file['additions']} -#{file['deletions']})\n#{patch}"
+          "#{file['filename']} (#{file['status']}, +#{file['additions']} -#{file['deletions']})\n#{shown_patch(file['filename'], patch)}"
         end
 
         def review_comments_argument(arguments)

@@ -280,6 +280,21 @@ module Integrations
         assert_includes text, "+  pool: 5"
       end
 
+      test "compare_commits names a file that may hold secrets and leaves its patch out" do
+        GithubApp.stubs(:get).with("/repos/acme/checkout/compare/base1...head1", token: "ghs_token").returns(
+          "base_commit" => { "sha" => "base1" }, "commits" => [ comparison_commit("head1", "Rotate keys") ],
+          "files" => [ { "filename" => "config/secrets.yml", "status" => "modified", "additions" => 1, "deletions" => 1, "patch" => "@@\n-key: old\n+key: hunter2" } ]
+        )
+        GithubApp.stubs(:get).with("/repos/acme/checkout/commits/head1/pulls", token: "ghs_token").returns([])
+        GithubApp.stubs(:get).with { |path, **| path.include?("CODEOWNERS") }.raises(GithubApp::NotFound)
+
+        text = @pack.compare_commits(environment_row: @row, arguments: { "repo" => "acme/checkout", "base" => "base1", "head" => "head1" })
+
+        assert_includes text, "config/secrets.yml"
+        assert_includes text, CodeHost::WITHHELD_PATCH
+        assert_no_match "hunter2", text
+      end
+
       test "the new tools are declared read only" do
         definitions = Github.tool_definitions.index_by(&:name)
 

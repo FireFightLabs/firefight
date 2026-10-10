@@ -75,17 +75,16 @@ module Mcp
 
       def response(principal, **args) = SearchMap.perform_with_principal(workspace: @workspace, principal: principal, args: args)
 
-      test "an approval rule never holds it, over MCP or in a chat, and other map tools still wait" do
+      test "an approval rule never holds it, or any other map read, since reads never wait" do
         @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
 
         searched = ToolDispatcher.call(tool: SearchMap, server_context: { workspace: @workspace, principal: @member }, args: { query: "web" })
         assert_not searched.error?
         assert_not @workspace.ability_approvals.exists?(action_key: Ability::Action::MAP_READ)
 
-        held = ToolDispatcher.call(tool: GetResourceMap, server_context: { workspace: @workspace, principal: @member }, args: {})
-        assert_match "Approval required", held.content.first[:text]
-        assert_not SearchMap.holdable?
-        assert GetResourceMap.holdable?
+        read = ToolDispatcher.call(tool: GetResourceMap, server_context: { workspace: @workspace, principal: @member }, args: {})
+        assert_not read.error?
+        assert_empty @workspace.ability_approvals
       end
 
       def call(principal, **args) = response(principal, **args).structured_content

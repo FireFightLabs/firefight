@@ -43,7 +43,33 @@ module Integrations
       HIDDEN_KEY = /[\[\]\\]|\.\.\./
       REQUEST = /cloudflare\.request\(/
 
+      # Paths whose whole answer is a secret, or whatever a person stored, such as a key's value in KV or an object in R2,
+      # with what to read instead. A script naming one anywhere is refused, so it cannot hide among other requests.
+      WITHHELD = {
+        %r{/cfd_tunnel/[^/\s"'`]+/token} => "A tunnel's token connects anyone who has it to the tunnel, so Firefight never reads " \
+                                              "it. Read the tunnel itself, /accounts/<account id>/cfd_tunnel/<tunnel id>, or its connections.",
+        %r{/warp_connector/[^/\s"'`]+/token} => "A WARP connector's token connects anyone who has it, so Firefight never reads it. Read " \
+                                                  "the connector itself, /accounts/<account id>/warp_connector/<connector id>.",
+        %r{/pages/projects/[^/\s"'`]+/upload-token} => "A Pages upload token deploys to the project, so Firefight never reads it. Read the " \
+                                                         "project or its deployments instead.",
+        %r{/workflows/[^/\s"'`]+/instances/[^/\s"'`]+/subscribe/token} => "Reading this mints a token for the instance, so Firefight never " \
+                                                                            "reads it. Read the instance's status instead.",
+        %r{/devices/registrations/[^/\s"'`]+/override_codes} => "Override codes turn off a device's protection, so Firefight never " \
+                                                                  "reads them. Read the registration itself instead.",
+        %r{/storage/kv/namespaces/[^/\s"'`]+/values/} => "A KV value is whatever was stored, often a secret, so Firefight never reads " \
+                                                           "one. List the namespace's keys and their metadata instead.",
+        %r{/r2/buckets/[^/\s"'`]+/objects/} => "An R2 object is whatever was stored, so Firefight never reads one. Read the bucket or " \
+                                                 "list its objects' names instead."
+      }.freeze
+
       def self.guards?(tool_name) = tool_name == TOOL
+
+      # Why a call reaching a path whose answer is a secret is refused, or nil. Firefight's own written request and a
+      # script someone wrote are both read for the path as text.
+      def self.withheld(_tool_name, arguments)
+        text = [ arguments[CODE], arguments["path"] ].compact.join("\n")
+        WITHHELD.find { |path, _reason| text.match?(path) }&.last
+      end
 
       # Whether a call to execute only reads. Firefight's own script is data, so it reads when its request is one reading
       # accepts. A script someone wrote reads only when it is one request whose one method is a GET, with no key it could

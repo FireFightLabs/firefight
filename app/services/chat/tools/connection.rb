@@ -7,10 +7,11 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   # RubyLLM pauses the turn before a call that needs the person's decision.
-  def requires_approval? = @agent_run.confirms?(@tool.ability_action, tool_name: name)
+  def requires_approval? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name))
 
-  # A call whose words name another connection is refused rather than put to the person (Chat::Tools::Target).
-  def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| misdirection(given).present? }
+  # A call shown to read runs without asking, since reads never wait. A call whose words name another connection is
+  # refused rather than put to the person (Chat::Tools::Target).
+  def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| reads?(given) || misdirection(given).present? }
 
   def name = @tool.model_facing_name
 
@@ -48,6 +49,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
     "#{name} was switched off since you were given it, so it was not run. An admin can switch it on in Integrations. " \
       "Tell the person, and open the tools again once they say it is on."
   end
+
+  def reads?(given) = Integrations::ReadGuards.reads?(@tool, given.except(Chat::Tools::INTENT_ARG, Integration::Tool::ENVIRONMENT_ARG))
 
   def misdirection(given)
     Chat::Tools::Target.misdirection(@tool.integration, Chat::Tools.intent_of(given), called: name) do |other|

@@ -11,6 +11,7 @@ module Mcp
                   "they connect from, so do not list the providers again in your reply. Connecting happens there, " \
                   "never in the chat: never ask for or accept a key, token or password. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
+      own_words
       choice :category, from: ->(_workspace) { IntegrationProvider.category_list }
       input_schema(
         properties: {

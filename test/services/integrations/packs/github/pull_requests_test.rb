@@ -110,6 +110,18 @@ module Integrations
           assert text.end_with?("https://github.com/acme/checkout/pull/412/files")
         end
 
+        test "a diff names a file that may hold secrets and leaves its patch out" do
+          stub_pull(412)
+          GithubApp.stubs(:get).with("/repos/acme/checkout/pulls/412/files?per_page=100&page=1", token: "ghs_token").returns([
+            { "filename" => ".env.production", "status" => "modified", "additions" => 1, "deletions" => 1, "patch" => "@@\n-KEY=old\n+KEY=hunter2" }
+          ])
+
+          text = text_of(@pack.pull_request_diff(environment_row: @row, arguments: { "repo" => "acme/checkout", "number" => 412 }))
+
+          assert_includes text, ".env.production (modified, +1 -1)\n#{CodeHost::WITHHELD_PATCH}"
+          assert_not_includes text, "hunter2"
+        end
+
         test "a comment goes on the pull request's conversation, with anything like a credential taken out" do
           stub_pull(412)
           GithubApp.expects(:write).with do |verb, path, body, token:|

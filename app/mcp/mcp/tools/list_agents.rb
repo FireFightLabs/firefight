@@ -8,6 +8,7 @@ module Mcp
                   "and do nothing. Authorizes as permissions, which is admin-only. " \
                   "Docs: #{Docs::PERMISSIONS}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(properties: {}, required: [])
       authorize_as Ability::Action::RESOURCE_PERMISSIONS
 

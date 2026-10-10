@@ -39,9 +39,9 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
   end
 
   # A run changes things in several places at once, so the person confirms it first, unless they allowed runbooks for
-  # the rest of this chat. A request that would be refused anyway is let through at once, so the refusal reaches Halon
+  # the rest of this chat and nothing read from outside has reached it since. A request that would be refused anyway is let through at once, so the refusal reaches Halon
   # and nobody is asked about a run that cannot start.
-  def requires_approval? = @turn.asker.present? && !@turn.chat&.allows_tool?(NAME)
+  def requires_approval? = @turn.asker.present? && !Chat::Tools::Provenance.allowed?(@turn, NAME)
 
   def approval_resolver = Chat::Tools::Target.resolver(@turn) { |given| refusal_before_running(given).present? }
 

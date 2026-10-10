@@ -19,8 +19,14 @@ module Integrations
       # statement timeout, or reach another connection or a file. A quoted name counts, and so does an escaped one.
       ACTS = /\b(pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile|pg_switch_wal|pg_create_restore_point|pg_promote|
               pg_wal_replay_\w+|pg_log_backend_memory_contexts|pg_advisory\w*lock\w*|pg_stat_reset\w*|dblink\w*|lo_import|lo_export|lo_unlink|
-              set_config)"?\s*\(/ix
+              set_config|pg_read_file|pg_read_binary_file|pg_ls_dir)"?\s*\(/ix
       ESCAPED_NAME = /\bU&"/i
+      # Catalogs that hold passwords, as role hashes or as the options of a connection to another server, which a query
+      # never reads whatever the user in the URL may see.
+      SECRET_CATALOGS = /\b(pg_authid|pg_shadow|pg_user_mappings?|user_mapping_options|pg_subscription|pg_stat_subscription|pg_foreign_server|
+                         foreign_server_options)\b/ix
+      # A statement setting a password, as the activity view shows it, possibly cut short before its closing quote.
+      PASSWORD_SET = /(\bPASSWORD\s+)'[^']*(?:'|\z)/i
 
       tool :list_tables,
            description: "List the tables in the database, by schema, with roughly how many rows each holds and its size on disk",
@@ -299,6 +305,11 @@ module Integrations
 
         acting = sql[ACTS, 1]
         fail_policy! "Firefight only reads this database, and #{acting.downcase} acts on it." if acting
+        holding = sql[SECRET_CATALOGS, 1]
+        if holding
+          fail_policy! "Firefight does not read #{holding.downcase}, since it holds passwords. Read pg_roles for roles and " \
+                       "pg_stat_activity for sessions instead."
+        end
         sql
       end
 
@@ -322,7 +333,7 @@ module Integrations
       def cell(value)
         return "null" if value.nil?
 
-        value.to_s.gsub(/\s+/, " ").truncate(CELL_LIMIT)
+        value.to_s.gsub(/\s+/, " ").gsub(PASSWORD_SET, "\\1'[hidden]'").truncate(CELL_LIMIT)
       end
     end
   end

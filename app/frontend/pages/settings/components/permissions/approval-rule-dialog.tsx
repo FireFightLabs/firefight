@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { whenClosed } from "@/lib/handlers"
-import { ABILITY_RISK_LEVELS, APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES, PRINCIPAL_KINDS } from "@/lib/generated/constants"
+import { APPROVAL_HELD_RISK_LEVELS, APPROVAL_NOTIFY_OPTIONS, APPROVER_ROLES, PRINCIPAL_KINDS } from "@/lib/generated/constants"
 import { approvalRulePath, approvalRulesPath } from "@/lib/routes"
 import { BadgeMultiSelect } from "@/pages/settings/components/alert-routing/badge-multi-select"
 import { FormErrors } from "@/components/form-errors"
@@ -34,6 +34,8 @@ import {
   type ApproverChoice,
 } from "@/pages/settings/components/permissions/approval-rule-form"
 import type { AbilityActionOption, ApprovalRule, EnvironmentOption, Principal } from "@/types/serializers"
+
+const HELD_RISK_LEVELS: readonly string[] = APPROVAL_HELD_RISK_LEVELS
 
 const KIND_SUFFIX: Record<string, string> = {
   [PRINCIPAL_KINDS.USER]: "",
@@ -110,7 +112,12 @@ export function ApprovalRuleDialog({
     }
   }
 
-  const abilityOptions = actions.map((action) => ({ value: action.key, label: action.key }))
+  // A read never waits for approval, so only abilities a rule can hold are offered. One a rule saved earlier still names
+  // stays listed, so it can be taken out.
+  const abilityOptions = actions
+    .filter((action) => !action.approvalExempt || data.actionKeys.includes(action.key))
+    .map((action) => ({ value: action.key, label: action.key }))
+  const riskChoices = [ ...HELD_RISK_LEVELS, ...data.riskLevels.filter((level) => !HELD_RISK_LEVELS.includes(level)) ]
   const approverOptions = principals.map((principal) => ({
     value: referenceKey({ kind: principal.kind, id: principal.id }),
     label: `${principal.name}${KIND_SUFFIX[principal.kind] ?? ""}`,
@@ -124,7 +131,8 @@ export function ApprovalRuleDialog({
           <DialogHeader>
             <DialogTitle>{rule ? "Edit approval rule" : "Add approval rule"}</DialogTitle>
             <DialogDescription>
-              A matching call waits until an approver says yes. Leave a question blank to match everything on it.
+              A matching call waits until an approver says yes. Reads never wait, so a rule only holds changes. Leave a
+              question blank to match everything on it.
             </DialogDescription>
           </DialogHeader>
 
@@ -144,7 +152,7 @@ export function ApprovalRuleDialog({
             <div className="flex flex-col gap-2">
               <Label>Which risk levels</Label>
               <div className="flex flex-wrap gap-4">
-                {ABILITY_RISK_LEVELS.map((level) => (
+                {riskChoices.map((level) => (
                   <label key={level} className="flex cursor-pointer items-center gap-2 text-sm">
                     <Checkbox checked={data.riskLevels.includes(level)} onCheckedChange={() => toggleRisk(level)} />
                     {level}

@@ -9,6 +9,7 @@ module Mcp
                   "nothing is created or sent. Pass source to test that source's routing; " \
                   "omit it for the workspace default. Docs: #{Docs::ROUTING_RULES}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(
         properties: {
           source: { type: "string", description: "Alert source name; omit for workspace default routing" },

@@ -116,6 +116,15 @@ module Mcp
 
         def holdable? = !@never_held
 
+        # A tool whose answer holds only words the workspace wrote in Firefight, such as its settings, and never what an
+        # alert, a channel or another system said. Halon reading only such answers has read nothing from outside
+        # (Chat::Tools::Provenance). Every other tool counts as outside content.
+        def own_words
+          @own_words = true
+        end
+
+        def own_words? = @own_words == true
+
         def authorization(_workspace, _args)
           @authorization || raise(NotImplementedError, "#{name} declares no authorization")
         end

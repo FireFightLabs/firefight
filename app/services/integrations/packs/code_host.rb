@@ -7,6 +7,9 @@ module Integrations
       PATH_FORMAT = /\A[^\/\0][^\0]*\z/
       # Refused in the executor, not the prompt. Prompts can be talked around.
       SENSITIVE_PATHS = /\.env|credential|secret|\.pem\z|\.key\z|id_rsa|id_ed25519|\.p12\z|\.pfx\z/i
+      # A diff shows a file that may hold secrets by name only.
+      WITHHELD_PATCH = "(not shown, since the file may hold secrets)".freeze
+      GIT_FILE = /\Adiff --git /
       REF_FORMAT = %r{\A[\w.\-/]+\z}
       LINE_LIMIT = 200
       CONTEXT_LINES = 10
@@ -41,6 +44,21 @@ module Integrations
         fail_policy! "Firefight does not read files that may hold secrets, such as .env files, keys and credentials, so #{path} is not read." if path.match?(SENSITIVE_PATHS)
 
         path
+      end
+
+      # A host's own diff of one file, left out when the file may hold secrets.
+      def shown_patch(path, patch) = path.to_s.match?(SENSITIVE_PATHS) ? WITHHELD_PATCH : patch
+
+      # git's own diff output, with each file that may hold secrets kept by its header line and its patch left out.
+      def without_sensitive_patches(text)
+        withheld = false
+        text.to_s.each_line.filter_map do |line|
+          if line.match?(GIT_FILE)
+            withheld = line.match?(SENSITIVE_PATHS)
+            next withheld ? "#{line.chomp}\n#{WITHHELD_PATCH}\n" : line
+          end
+          line unless withheld
+        end.join
       end
 
       def ref_argument(arguments, key = "ref", required: false)

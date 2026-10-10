@@ -68,6 +68,26 @@ module Integrations
         assert_match "1 rows.", call(:run_query, "sql" => "SELECT count(*) FROM pg_stat_activity WHERE query NOT LIKE 'x'")
       end
 
+      test "a catalog holding passwords, or a function reading a file, is refused by name, in a query and in a plan" do
+        [ "SELECT rolpassword FROM pg_authid", "SELECT * FROM pg_catalog.pg_shadow", "SELECT umoptions FROM pg_user_mappings",
+          "SELECT subconninfo FROM \"pg_subscription\"", "SELECT srvoptions FROM pg_foreign_server",
+          "SELECT * FROM information_schema.user_mapping_options" ].each do |sql|
+          assert_match "since it holds passwords", assert_raises(PolicyRefusal) { call(:run_query, "sql" => sql) }.message
+        end
+        [ "SELECT pg_read_file('/etc/passwd')", "SELECT pg_read_binary_file('x')", "SELECT pg_ls_dir('.')" ].each do |sql|
+          assert_match "acts on it", assert_raises(PolicyRefusal) { call(:run_query, "sql" => sql) }.message
+        end
+        assert_raises(PolicyRefusal) { call(:explain_query, "sql" => "SELECT rolpassword FROM pg_authid") }
+      end
+
+      test "a statement setting a password never shows the password, even cut short" do
+        text = call(:run_query, "sql" => "SELECT 'ALTER ROLE app WITH PASSWORD ''hunter2''' AS whole, 'CREATE ROLE x PASSWORD ''s3cr' AS cut")
+
+        assert_match "PASSWORD '[hidden]'", text
+        assert_no_match "hunter2", text
+        assert_no_match "s3cr", text
+      end
+
       test "a plan can be read, and run for real timings" do
         assert_match "Result", call(:explain_query, "sql" => "SELECT 1")
         assert_match "actual time", call(:explain_query, "sql" => "SELECT 1", "analyze" => true)

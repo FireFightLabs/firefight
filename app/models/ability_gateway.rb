@@ -101,7 +101,7 @@ class AbilityGateway
   def self.authorize!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {}, holdable: true)
     action = Ability::Action.lookup(action_key, workspace)
 
-    unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
+    unless permitted?(principal, action, action_key, workspace, scope, params: params) && action&.configured_for?(scope)
       record!(decision: Ability::Invocation::DECISION_DENY, completed_at: Time.current,
               principal: principal, action: action, action_key: action_key,
               workspace: workspace, scope: scope, params: params, context: context)
@@ -155,23 +155,32 @@ class AbilityGateway
   # when no rule holds the call any more, so the caller says so rather than running it.
   def self.request_approval!(principal:, action_key:, workspace:, scope: {}, params: {}, context: {})
     action = Ability::Action.lookup(action_key, workspace)
-    raise Denied.new(action_key) unless permitted?(principal, action, action_key, workspace, scope) && action&.configured_for?(scope)
-    return nil unless approval_requirement(workspace, action, action_key, scope, context)
+    raise Denied.new(action_key) unless permitted?(principal, action, action_key, workspace, scope, params: params) && action&.configured_for?(scope)
+    return nil unless approval_requirement(workspace, action, action_key, scope, context, params: params)
 
     approval_gate!(principal: principal, action: action, action_key: action_key, workspace: workspace, scope: scope, params: params,
                    context: context.except(:approval_id))
   end
 
-  def self.permitted?(principal, action, action_key, workspace, scope)
+  # params is the call itself, which matters only for a tool that both reads and changes. A call it shows to read is a
+  # read of its connection, held by default like any read and granted with the connection's read pack.
+  def self.permitted?(principal, action, action_key, workspace, scope, params: nil)
     return false unless action
     return true if Ability::Action.open?(action_key)
     return true if principal.implicitly_allowed?(action)
 
     resolved = Ability::Resolver.resolve(principal, workspace)
     return !resolved.reach(action_key).nil? if Ability::Action.filtered?(action_key) && scope.blank?
+    return true if resolved.covers?(action_key, scope)
 
-    resolved.covers?(action_key, scope)
+    action.read_through_guard?(params) && reads_connection?(principal, action, resolved, scope)
   end
+
+  def self.reads_connection?(principal, action, resolved, scope)
+    principal.implicitly_allowed?(action, resolved, reads: true) ||
+      resolved.covers?(Ability::Role.reads_key(action.source.integration_id), scope)
+  end
+  private_class_method :reads_connection?
 
   # Where a principal may read something filtered by environment (Ability::Action::FILTERED_KEYS), as a scope: {} for
   # every environment, { "environment" => catalog entry ids } for those alone, or nil for none. A reader filters its rows
@@ -186,7 +195,7 @@ class AbilityGateway
 
   # The caller claims the returned approval together with the allow ledger row.
   def self.approval_gate!(principal:, action:, action_key:, workspace:, scope:, params:, context:)
-    requirement = approval_requirement(workspace, action, action_key, scope, context)
+    requirement = approval_requirement(workspace, action, action_key, scope, context, params: params)
     return nil unless requirement
 
     supplied = workspace.ability_approvals.find_by(id: context[:approval_id]) if context[:approval_id]
@@ -221,8 +230,11 @@ class AbilityGateway
     raise PendingApproval.new(approval)
   end
 
-  def self.approval_requirement(workspace, action, action_key, scope, context)
+  # A read never waits on an approval rule, whatever rule names it: a tool that only reads, one of Firefight's own reads,
+  # or a call shown to read through a tool that can also change things. Every change keeps every rule.
+  def self.approval_requirement(workspace, action, action_key, scope, context, params: nil)
     return nil if Ability::Action.approval_exempt?(action_key)
+    return nil if action.risk_of(params) == Ability::Action::RISK_READ
 
     policy = workspace.approval_policy
     return nil unless policy&.enabled?
@@ -277,7 +289,7 @@ class AbilityGateway
       principal_label: principal.principal_label,
       triggered_by_label: context[:triggered_by_label],
       action_key: action_key,
-      risk_level: action&.risk_level,
+      risk_level: action&.risk_of(params),
       source: context[:source],
       scope: scope,
       params: params,

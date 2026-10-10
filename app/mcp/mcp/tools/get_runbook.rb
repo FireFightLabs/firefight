@@ -8,6 +8,7 @@ module Mcp
                   "has each step's tool and arguments, its inputs, its other names and what it watches after. " \
                   "Docs: #{Docs::RUNBOOKS}"
       annotations(**READ_ONLY)
+      own_words
       input_schema(
         properties: {
           slug: { type: "string", description: "Runbook slug" }

@@ -13,6 +13,7 @@ module Ability::Role::Packs
   CONNECTION_PACKS = [ PACK_READ, PACK_CHANGES, PACK_EVERYTHING ].freeze
   PACKS = [ *CONNECTION_PACKS, PACK_CHANGES_EVERYWHERE ].freeze
   CHANGES_EVERYWHERE_NAME = "Changes everywhere".freeze
+  READS_KEY_PREFIX = "reads:".freeze
 
   included do
     belongs_to :integration, optional: true
@@ -43,6 +44,11 @@ module Ability::Role::Packs
 
       transaction { file(action, packs_for!(integration)) }
     end
+
+    # What a grant of a connection's read pack holds beyond the tools in it: every read through a tool of that connection
+    # that can also change things (Integrations::ReadGuards). The resolver lists it beside action keys, and no action
+    # key has this shape.
+    def reads_key(integration_id) = "#{READS_KEY_PREFIX}#{integration_id}"
 
     # The pack a member is told to ask for when a tool that changes something is refused, or nil.
     def to_ask_for(action)

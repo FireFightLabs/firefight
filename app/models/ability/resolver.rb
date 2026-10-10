@@ -2,7 +2,7 @@ module Ability
   # Cached per principal and busted on any grant or role write, so a revoke
   # takes effect on the next call. The TTL is only a safety net.
   class Resolver
-    CACHE_PREFIX = "ability/resolved/v2/"
+    CACHE_PREFIX = "ability/resolved/v3/"
     CACHE_TTL = 1.hour
 
     # by_key holds live grants only. ever_granted also names the keys of expired ones, since a grant that narrows a
@@ -68,6 +68,7 @@ module Ability
       end
     end
 
+    # A connection's read pack also holds the reads through its tools that can change things too (Role.reads_key).
     def self.compute(principal, workspace_id)
       by_key = {}
       grants = Grant.where(principal: principal, workspace_id: workspace_id)
@@ -77,12 +78,14 @@ module Ability
       grants.each do |grant|
         if grant.no_access?
           withheld.concat(grant.action ? [ grant.action.key ] : grant.role.role_actions.map { |role_action| role_action.action.key })
+          withheld << Role.reads_key(grant.role.integration_id) if grant.role&.read_pack?
         elsif grant.action
           (by_key[grant.action.key] ||= []) << grant.scope
         else
           grant.role.role_actions.each do |role_action|
             (by_key[role_action.action.key] ||= []) << (grant.scope.presence || role_action.default_scope)
           end
+          (by_key[Role.reads_key(grant.role.integration_id)] ||= []) << grant.scope if grant.role.read_pack?
         end
       end
 
@@ -95,7 +98,8 @@ module Ability
       grants = Grant.where(principal: principal, workspace_id: workspace_id)
       direct = Action.where(id: grants.select(:action_id)).pluck(:key)
       through_sets = Action.joins(:role_actions).where(ability_role_actions: { role_id: grants.select(:role_id) }).pluck(:key)
-      (direct + through_sets).uniq
+      read_packs = grants.joins(:role).where(ability_roles: { pack: Role::PACK_READ }).pluck("ability_roles.integration_id").map { |id| Role.reads_key(id) }
+      (direct + through_sets + read_packs).uniq
     end
 
     def self.cache_key(principal_type, principal_id, workspace_id)

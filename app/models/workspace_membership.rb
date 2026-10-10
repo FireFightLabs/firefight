@@ -73,10 +73,11 @@ class WorkspaceMembership < ApplicationRecord
   end
 
   # Admins hold every catalogued ability including integration tools. A member reads every connected tool that only
-  # reads, the way they read Firefight's own data, while a tool that changes something stays an explicit grant.
-  def implicitly_allowed?(action, resolved = nil)
+  # reads, the way they read Firefight's own data, while a tool that changes something stays an explicit grant. reads
+  # says the call is shown to read through a tool that can also change things, which a member holds as a read.
+  def implicitly_allowed?(action, resolved = nil, reads: false)
     return true if admin_access?
-    return default_read?(action, resolved) if action.tool?
+    return default_read?(action, resolved, reads: reads) if action.tool?
 
     implicitly_permits?(*action.key.split("."), resolved)
   end
@@ -95,11 +96,13 @@ class WorkspaceMembership < ApplicationRecord
   end
 
   # A connected tool that only reads, held until a grant of it, alone or in a set such as its connection's read pack,
-  # narrows it.
-  def default_read?(action, resolved = nil)
-    return false unless action.tool? && action.read? && action.workspace_id == workspace_id
+  # narrows it. A read through a tool that can also change things is held the same way, narrowed by a grant of its
+  # connection's read pack.
+  def default_read?(action, resolved = nil, reads: false)
+    return false unless action.tool? && action.workspace_id == workspace_id
 
-    !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(action.key)
+    narrowed_by = if action.read? then action.key elsif reads then Ability::Role.reads_key(action.source.integration_id) end
+    narrowed_by.present? && !(resolved || Ability::Resolver.resolve(self, workspace_id)).granted_ever?(narrowed_by)
   end
 
   # Whether an admin may take this away from a member with No access: a default above, or a connection's read pack.
@@ -120,6 +123,7 @@ class WorkspaceMembership < ApplicationRecord
       "the risky ones.",
     Principal::IMPLICIT_MEMBER =>
       "Members read Firefight's own data, including the resource map in every environment, read every connected tool, " \
+      "including a read through a tool that can also change things, such as a GET through an API request tool, " \
       "take part in incidents, and ask Halon or start investigations without a grant, whether from Slack, the dashboard, " \
       "the API, or MCP. A grant of map.read limits the map to the environments it names, a grant of investigations.create " \
       "decides who may ask, and a grant of a connection's reads, alone or in a pack, decides where they read it. No access " \

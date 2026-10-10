@@ -23,7 +23,10 @@ class Chat::Tools::Capability < RubyLLM::Tool
   # A read is written by Firefight and only ever reads, so it never waits for the person. A change asks whenever the
   # tool it could run as would.
   def requires_approval?
-    @spec.writes && @tools.any? { |tool| @agent_run.confirms?(tool.ability_action, tool_name: name) }
+    return false unless @spec.writes
+
+    allowed = Chat::Tools::Provenance.allowed?(@agent_run, name)
+    @tools.any? { |tool| @agent_run.confirms?(tool.ability_action, allowed: allowed) }
   end
 
   # A change whose words name another connection than the one it would run through is refused rather than put to the

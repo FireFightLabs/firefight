@@ -5,15 +5,13 @@ module Integrations
   # call that reads counts, since a change that found nothing to change still did not do what it was asked.
   module Outcomes
     def self.not_found?(tool, arguments, error: nil, said: nil)
-      return false unless reads?(tool, arguments)
+      return false unless ReadGuards.read_call?(tool, arguments)
 
       error ? not_found_error?(error) : said_not_found?(tool, said)
     end
 
     # For a run, where every call only reads, so the error alone settles it.
     def self.not_found_error?(error) = error.is_a?(NotFound)
-
-    def self.reads?(tool, arguments) = tool.read_only? || ReadGuards.reads?(tool, arguments)
 
     def self.said_not_found?(tool, said)
       reader = Provider.for(tool.integration.provider).error_reader

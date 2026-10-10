@@ -266,7 +266,7 @@ class Investigation::RemediationStep < ApplicationRecord
     return true if member == plan.approved_by
 
     tool = tool_to_run
-    tool.present? && tool.callable_by?(member, Ability::Resolver.resolve(member, plan.finding.investigation.workspace))
+    tool.present? && tool.callable_by?(member, Ability::Resolver.resolve(member, plan.finding.investigation.workspace), arguments: arguments)
   end
 
   # Asks the approvers again for exactly what was approved, as whoever applied the fix. Never runs it. Returns the new

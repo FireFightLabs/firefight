@@ -47,6 +47,23 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.call
   end
 
+  # Whether Allow for the rest of this chat is offered, which it is not once something was read from outside.
+  type :boolean
+  def allowable
+    confirmation.allowable?
+  end
+
+  # What was read from outside before the call was asked, led by one sentence. Absent when nothing was.
+  type :string, optional: true
+  def read_lead
+    confirmation.read_lead
+  end
+
+  type "string[][]"
+  def read_rows
+    confirmation.read_rows
+  end
+
   private
 
   def confirmation = memo.fetch(:confirmation) { Chat::Tools.confirmation(tool_call) }

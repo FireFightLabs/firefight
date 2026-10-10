@@ -44,7 +44,7 @@ class Conversation::Watches::Agent
   # A tool no approval rule holds, such as the map search, is read whatever the rules say.
   def tool_call(action_key:, params: {}, scope: {}, approval_id: nil, holdable: true, **, &block)
     raise Conversation::Watches::Reader::Refused, "An approval rule covers #{action_key}, and nobody is there to approve each read." if
-      holdable && Chat::ToolCall.held_by_rule?(workspace: workspace, action_key: action_key, scope: scope)
+      holdable && Chat::ToolCall.held_by_rule?(workspace: workspace, action_key: action_key, scope: scope, params: params)
 
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: acting_principal, action_key: action_key, params: params, scope: scope,

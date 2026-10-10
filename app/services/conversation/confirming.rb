@@ -1,7 +1,8 @@
 # A person's answer to the calls the agent paused on, from the dashboard or a Slack button.
 class Conversation::Confirming
   # The row lock orders two answers given at once, so exactly one of them, the one deciding the last question, resumes the turn.
-  # Allowing a tool for the rest of the chat also approves the other open calls to it, since they are asked about the same thing.
+  # Allowing a tool for the rest of the chat also approves the other open calls to it, since they are asked about the same
+  # thing, except a call asked after something was read from outside, which is answered on its own.
   def self.decide(conversation, decisions, by:)
     chat = conversation.chat
     return false unless chat
@@ -21,7 +22,7 @@ class Conversation::Confirming
   end
 
   def self.approve_allowed(chat)
-    chat.reload.awaiting_decision.select { |tool_call| chat.allows_tool?(tool_call.name) }
+    chat.reload.awaiting_decision_allowable.select { |tool_call| chat.allows_tool?(tool_call.name) }
       .count { |tool_call| chat.decide!(tool_call.tool_call_id, approved: true) }
   end
   private_class_method :approve_allowed

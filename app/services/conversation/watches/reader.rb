@@ -62,11 +62,13 @@ class Conversation::Watches::Reader
   def read_log(environment_row, log)
     handle = log[Integrations::Capabilities::History::LOG_TOOL].to_s
     tool = environment_row.integration.tools.enabled.available.find_by(name: handle)
-    raise Refused, "#{handle} is not switched on, so the log could not be read." unless tool&.read_only?
+    raise Refused, "#{handle} is not switched on, so the log could not be read." unless tool
 
     arguments = log[Integrations::Capabilities::History::LOG_ARGUMENTS].to_h
+    raise Refused, "#{handle} changes things, so a watch does not read a log with it." unless tool.reads_call?(arguments)
+
     scope = environment_row.ability_scope
-    raise Refused, held_tool_words(tool) if Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: tool.action_key, scope: scope)
+    raise Refused, held_tool_words(tool) if Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: tool.action_key, scope: scope, params: arguments)
 
     result = authorized(tool, scope, arguments) do
       tool.integration.executor.call(tool: tool, environment_row: environment_row, arguments: arguments, box_key: @conversation.code_box_key)
@@ -101,7 +103,7 @@ class Conversation::Watches::Reader
     raise Unanswered, "#{tool.integration.name} did not answer: #{error.message.truncate(200)}"
   end
 
-  def held?(call) = Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: call.tool.action_key, scope: call.scope)
+  def held?(call) = Chat::ToolCall.held_by_rule?(workspace: @workspace, action_key: call.tool.action_key, scope: call.scope, params: call.arguments)
 
   def held_words(call) = held_tool_words(call.tool)
 

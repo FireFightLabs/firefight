@@ -528,7 +528,7 @@ module Integrations
       def diffs_text(gitlab, repo, head, files)
         ordered = files.sort_by { |file| CodeChange::KINDS.index(CodeChange.kind_for(file["filename"])) }
         diffs = ordered.map do |file|
-          body = file["patch"].presence || "(no text diff, binary or too large for GitLab to show)"
+          body = shown_patch(file["filename"], file["patch"].presence || "(no text diff, binary or too large for GitLab to show)")
           "#{file['filename']} #{blob_link(gitlab, repo, head, file['filename'])&.url}\n#{body}"
         end
         "Diffs:\n\n#{diffs.join("\n\n")}"

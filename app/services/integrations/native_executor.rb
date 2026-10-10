@@ -9,6 +9,7 @@ module Integrations
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
       refused = Installations.refusal(environment_row, tool)
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
+      SecretReads.refuse!(tool, arguments)
 
       pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress, request: request)
       arguments = Scopes.resolved(environment_row, arguments.to_h)

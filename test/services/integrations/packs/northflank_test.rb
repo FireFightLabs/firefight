@@ -575,6 +575,47 @@ module Integrations
         assert_nil @pack.map_refresh(@row, ResourceMap::Scope.new(kind: ResourceMap::KIND_DOMAIN, external_id: "app.acme.dev"))
       end
 
+      test "a backup's download link is never fetched, since anyone holding it can download the whole database" do
+        NorthflankApi.any_instance.expects(:request).never
+
+        refused = assert_raises(PolicyRefusal) { call(:api_request, "method" => "GET", "path" => "addons/db/backups/b1/download-link") }
+        assert_match "Read the backup itself", refused.message
+      end
+
+      test "a variable called name or id keeps no value, while what describes a secret group stays readable" do
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "secrets/app-env", nil, {})
+                     .returns("data" => { "id" => "app-env", "name" => "App env",
+                                          "secrets" => { "variables" => { "name" => "hunter2", "id" => "s3cret", "type" => "t0ken" } } })
+
+        text = call(:api_request, "method" => "GET", "path" => "secrets/app-env")
+
+        assert_match "\"id\":\"app-env\",\"name\":\"App env\"", text
+        %w[hunter2 s3cret t0ken].each { |value| assert_no_match value, text }
+      end
+
+      test "a port's headers keep their names and never their values" do
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services/web/ports", nil, {})
+                     .returns("data" => { "ports" => [ { "name" => "http", "internalPort" => 8080,
+                                                         "security" => { "headers" => [ { "name" => "X-Auth", "value" => "shared-s3cret" } ] } } ] })
+
+        text = call(:api_request, "method" => "GET", "path" => "services/web/ports")
+
+        assert_match "\"name\":\"X-Auth\",\"value\":\"[hidden]\"", text
+        assert_match "\"internalPort\":8080", text
+        assert_no_match "shared-s3cret", text
+      end
+
+      test "an external addon's outputs and config come back as names only" do
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "external-addons/cache", nil, {})
+                     .returns("data" => { "id" => "cache", "spec" => { "outputs" => { "url" => "rediss://cache" }, "config" => { "apiKey" => "k3y" } } })
+
+        text = call(:api_request, "method" => "GET", "path" => "external-addons/cache")
+
+        assert_match "\"id\":\"cache\"", text
+        assert_no_match "rediss://cache", text
+        assert_no_match "k3y", text
+      end
+
       private
 
       def listed(items, complete: true) = Pages::Read.new(items: items, complete: complete)

@@ -17,6 +17,23 @@ module PolicyRule::ApprovalConditions
     end
   end
 
+  # A read never waits for approval, so a rule naming the read risk level or an ability that only reads would hold
+  # nothing, and is refused with why rather than saved to look as if it did. A rule saved before this keeps working for
+  # the changes it names.
+  def self.errors_for(conditions, workspace:)
+    return [] unless conditions.is_a?(Array) && conditions.all?(Hash)
+
+    errors = []
+    if values_for(conditions, FIELD_RISK_LEVEL).include?(Ability::Action::RISK_READ)
+      errors << "Reads never wait for approval, so a rule cannot hold the read risk level. Pick write or destructive."
+    end
+    reads = Ability::Action.where(workspace_id: [ nil, workspace&.id ], key: values_for(conditions, FIELD_ACTION_KEY)).select(&:read?).map(&:key)
+    if reads.any?
+      errors << "#{reads.sort.to_sentence} only #{reads.one? ? 'reads' : 'read'}, and reads never wait for approval. Leave #{reads.one? ? 'it' : 'them'} out of the rule."
+    end
+    errors
+  end
+
   def self.values_for(conditions, field)
     Array(conditions).filter_map do |condition|
       condition = condition.with_indifferent_access

@@ -26,6 +26,10 @@ export type ApprovalQuestion = {
   options: string[];
   /** what the question is about, shown under it as a list rather than run into the sentence */
   details?: Detail[];
+  /** a warning the person should read before answering, such as what was read from outside before a change was asked */
+  caution?: string;
+  /** rows under the warning, such as each thing that was read */
+  cautionDetails?: Detail[];
 };
 
 const QUESTIONS: ApprovalQuestion[] = [
@@ -217,6 +221,16 @@ export default function ApprovalCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qi]);
 
+  // A question whose text wraps again once the web font loads grows after it was measured, so the card follows it.
+  useEffect(() => {
+    const item = questionRefs.current[qi];
+    if (!item || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => sync(measured.current));
+    observer.observe(item);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qi]);
+
   useEffect(() => () => { if (advanceTimer.current) clearTimeout(advanceTimer.current); }, []);
 
   const goTo = (next: number) => {
@@ -373,6 +387,14 @@ export default function ApprovalCard({
                     {question.subtitle && <div className="mt-0.5 pr-7 text-[13px] font-medium text-ink-2">{question.subtitle}</div>}
                     {question.note && <div className="mt-1.5 pr-7 text-[13px] text-ink-3">{question.note}</div>}
                     {question.details && question.details.length > 0 && <DetailList details={question.details} className="mt-2.5" />}
+                    {question.caution && (
+                      <div className="mt-2.5 mr-7 rounded-control border border-warning-border bg-warning-tint px-2.5 py-2">
+                        <div className="text-[12.5px] leading-5 text-warning">{question.caution}</div>
+                        {question.cautionDetails && question.cautionDetails.length > 0 && (
+                          <DetailList details={question.cautionDetails} className="mt-1.5" />
+                        )}
+                      </div>
+                    )}
                     <GlideMenu className="mt-2.5 flex flex-col gap-1" highlightClassName="inset-x-0 rounded-control bg-hover">
                       {question.options.map((option, i) => {
                         const on = picked.includes(i);

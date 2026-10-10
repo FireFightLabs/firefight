@@ -2199,6 +2199,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120000) do
     t.uuid "message_id", null: false
     t.string "message_type", null: false
     t.string "name", null: false
+    t.jsonb "provenance"
     t.boolean "remote", default: false, null: false
     t.uuid "result_id"
     t.string "result_type"

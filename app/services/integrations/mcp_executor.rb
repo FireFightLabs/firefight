@@ -4,6 +4,7 @@ module Integrations
     # A remote server keeps its own state, so the run's box key means nothing to it, and it says nothing until it
     # answers, so nobody hears progress from it. Nor does it write code in Firefight's sandbox, so it takes no request.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
+      SecretReads.refuse!(tool, arguments)
       result = client_for(tool.integration, environment_row)
                .call_tool(name: tool.remote_name, arguments: arguments)
       kept = Redactions.apply(ToolResult.normalize(result), **Redactions.rules(tool.integration.provider))

@@ -24,6 +24,7 @@ class PolicyRule < ApplicationRecord
   validates :priority, presence: true, uniqueness: { scope: :policy_id }
   validate :conditions_are_well_formed
   validate :outcome_matches_domain_contract
+  validate :approval_conditions_hold_changes, if: -> { policy&.domain == Policy::DOMAIN_APPROVALS && conditions_changed? }
 
   # Two steps through a temporary priority to satisfy the unique index. A
   # nil neighbour means the rule is already at that end.
@@ -45,6 +46,10 @@ class PolicyRule < ApplicationRecord
     return unless validator
 
     validator.errors_for(outcome, workspace: policy.workspace).each { |message| errors.add(:outcome, message) }
+  end
+
+  def approval_conditions_hold_changes
+    PolicyRule::ApprovalConditions.errors_for(conditions, workspace: policy.workspace).each { |message| errors.add(:conditions, message) }
   end
 
   def conditions_are_well_formed

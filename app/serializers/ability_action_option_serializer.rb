@@ -15,7 +15,7 @@ class AbilityActionOptionSerializer < BaseSerializer
 
   type :boolean
   def approval_exempt
-    Ability::Action.approval_exempt?(action.key)
+    action.never_held?
   end
 
   # Words for an action whose key does not say enough, nil for the rest.
