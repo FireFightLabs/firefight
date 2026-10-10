@@ -3,7 +3,9 @@
 class WorkspaceSettingsController < InertiaController
   include AiAccountProps
 
-  authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: :update
+  authorizes Ability::Action::RESOURCE_WORKSPACE, read: :show, update: %i[update reinstall_slack]
+
+  NOT_CONNECTED_MESSAGE = "Slack is not connected to this workspace yet. Connect it first.".freeze
 
   def show
     render inertia: "settings/workspace", props: {
@@ -20,5 +22,18 @@ class WorkspaceSettingsController < InertiaController
     redirect_to settings_workspace_path, notice: "Workspace settings were updated."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to settings_workspace_path, inertia: { errors: e.record.errors.to_hash }
+  end
+
+  # Runs the Slack install again for the team already connected, so new scopes are granted without disconnecting. The
+  # install callback reads reinstalling_workspace_id and refreshes this workspace, never creating one.
+  def reinstall_slack
+    return redirect_to(settings_workspace_path, alert: NOT_CONNECTED_MESSAGE) unless current_workspace.chat_connected?
+
+    session.delete(:connecting_workspace_id)
+    session[:reinstalling_workspace_id] = current_workspace.id
+    session[:pending_user_id] = current_user.id
+    session[:pending_team_id] = current_workspace.platform_id
+    session[:pending_team_name] = current_workspace.chat_team_name
+    request.inertia? ? inertia_location(install_slack_app_path) : redirect_to(install_slack_app_path)
   end
 end

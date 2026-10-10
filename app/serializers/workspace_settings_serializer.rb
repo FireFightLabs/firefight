@@ -5,6 +5,12 @@ class WorkspaceSettingsSerializer < BaseSerializer
 
   attributes(transcript_access_enabled: { type: :boolean }, web_search_enabled: { type: :boolean }, halon_regression_enabled: { type: :boolean })
 
+  # The connected team's own name in Slack, or null while the workspace has no Slack.
+  type :string, optional: true
+  def chat_team_name
+    workspace.chat_team_name
+  end
+
   type :number, optional: true
   def transcript_retention_days
     workspace.transcript_retention_days

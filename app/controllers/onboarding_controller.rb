@@ -34,6 +34,7 @@ class OnboardingController < InertiaController
     return redirect_to(dashboard_path, alert: ALREADY_CONNECTED_MESSAGE) if current_workspace.chat_connected?
 
     team_id = session[:pending_team_id] if session[:connecting_workspace_id] == current_workspace.id
+    session.delete(:reinstalling_workspace_id)
     session[:connecting_workspace_id] = current_workspace.id
     session[:pending_user_id] = current_user.id
     session[:pending_team_id] = team_id
@@ -47,6 +48,7 @@ class OnboardingController < InertiaController
     return redirect_to(dashboard_path, alert: "You need admin access to reconnect Slack.") unless current_membership&.admin_access?
 
     session.delete(:connecting_workspace_id)
+    session.delete(:reinstalling_workspace_id)
     session[:pending_user_id] = current_user.id
     session[:pending_team_id] = current_workspace.platform_id
     session[:pending_team_name] = current_workspace.name

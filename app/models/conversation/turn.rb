@@ -78,11 +78,12 @@ class Conversation::Turn
     true
   end
 
-  # A change to memory in a chat is the asker's, so it goes through the gateway and the ledger like any tool call.
-  # Returns what the block returns.
+  # A change to memory in a chat is the asker's, so it goes through the gateway and the ledger like any tool call. No
+  # approval rule holds it, since a broad rule would stop Halon remembering what it was just told. Returns what the block
+  # returns.
   def memory_change(crud_action, params:, tool_name:, &)
     tool_call(action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), params: params,
-              tool_name: tool_name, label: nil, &).value
+              tool_name: tool_name, label: nil, holdable: false, &).value
   end
 
   # Where what the agent remembers came from, and who taught it.

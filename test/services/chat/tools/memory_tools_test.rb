@@ -93,6 +93,23 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
     assert_not_includes invocation.params.to_json, "Deploys happen from main"
   end
 
+  test "an approval rule never holds Halon saving, correcting or disputing a memory, and each change is still ledgered" do
+    @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
+    investigation = @workspace.investigations.create!(subject: incidents(:active_critical_ws1), trigger_source: Investigation::TRIGGER_COMMAND, max_turns: 4, max_spend_cents: 400)
+
+    assert_equal "Remembered, unconfirmed until a person confirms it.", Chat::Tools::Remember.new(@turn).call("fact" => "Deploys happen from main")
+    corrected = memory("Deploys happen from main")
+    assert_match "Corrected", Chat::Tools::CorrectMemory.new(@turn).call("memory" => corrected.id, "reason" => "Deploys go from release", "correction" => "Deploys happen from release")
+    assert_equal "Remembered, unconfirmed until a person confirms it.", Chat::Tools::Remember.new(investigation).call("fact" => "Checkout runs in Frankfurt")
+    assert_match "Disputed", Chat::Tools::DisputeMemory.new(investigation).call("memory" => memory("Checkout runs in Frankfurt").id, "reason" => "The deploy log shows Dublin")
+
+    assert_equal Chat::Memory::STATE_REJECTED, corrected.reload.state
+    assert_not @workspace.ability_approvals.exists?
+    assert_equal [ Ability::Invocation::DECISION_ALLOW ],
+                 @workspace.ability_invocations.where(action_key: %w[memory.create memory.update]).distinct.pluck(:decision)
+    assert_equal 4, @workspace.ability_invocations.where(action_key: %w[memory.create memory.update]).count
+  end
+
   test "a chat whose asker the gateway refuses changes no memory and is told why" do
     memory = Chat::Memory.create!(workspace: @workspace, text: "Checkout uses MySQL", state: Chat::Memory::STATE_UNCONFIRMED)
     AbilityGateway.stubs(:authorize!).raises(AbilityGateway::Denied.new("memory.update"))
