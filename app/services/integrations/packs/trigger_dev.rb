@@ -177,6 +177,15 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Trigger.dev's API reads that the other tools do not cover, such as one deployment or batch, " \
+                        "a run's result or attempts, schedules, waitpoints, bulk actions or concurrency limits. A GET to a path of " \
+                        "the API (#{TriggerDevApi::API_ROOT}), written as the API reference the trigger_dev_api skill names writes " \
+                        "it, starting /api. A list answers one page: pass page[size] and, for the next, page[after] set to the " \
+                        "answer's pagination next. Only reads, so it never changes anything. Environment variables come back as their names",
+           params_schema: ApiReads.path_schema("/api/v1/schedules"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_KEY, label: "Secret API key", secret: true, placeholder: "tr_prod_sk_...",
@@ -398,6 +407,24 @@ module Integrations
             ResourceMap::Baseline::Found.new(key: resource.key, metric: metric, label: METRIC_TITLES.fetch(metric), unit: METRIC_UNITS.fetch(metric), points: points)
           end
         end
+      end
+
+      # A GET the read guard let through (ReadGuards::TriggerDev). The key reaches one project environment, which is all
+      # the connection reads, so nothing else keeps it in. A run's page is the one address Trigger.dev documents, so an
+      # answer that is one run links it.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::TriggerDev.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        fail!("path starts with /api, as the API reference writes it, such as /api/v1/schedules.") unless path.start_with?("/api/")
+
+        answer = api(environment_row).read(path, query.transform_values { |value| Array(value).join(",") })
+        run = path.match(%r{/runs/(run_[A-Za-z0-9]+)})&.[](1)
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::TriggerDev.secret?(path))
+        Telemetry.result(text, link: run_link(environment_row, run))
       end
 
       def check_health!(environment_row)

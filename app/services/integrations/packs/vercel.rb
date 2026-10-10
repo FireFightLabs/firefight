@@ -126,6 +126,17 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Vercel's API reads that the other tools do not cover, such as a project's settings, " \
+                        "domains and their configuration, aliases, a deployment by its id and its files, checks, firewall " \
+                        "settings, Edge Config or the team's members. A GET to a path of Vercel's REST API " \
+                        "(#{VercelApi::API_ROOT}), written with its version as the API reference the vercel_api skill names " \
+                        "writes it, such as /v9/projects/<project>/domains. Always in this connection's team. A list answers one " \
+                        "page: pass limit, and the pagination's next as until for the next page. Only reads, so it never " \
+                        "changes anything. Environment variables, drains and tokens come back as their names",
+           params_schema: ApiReads.path_schema("/v9/projects/<project id or name>/domains"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "Access token", secret: true, placeholder: "",
@@ -283,6 +294,73 @@ module Integrations
         end
         Telemetry.result("#{done} describe_resource shows how the promotion went.", link: project_link(environment_row, project))
       end
+
+      # A GET the read guard let through (ReadGuards::Vercel), always in the team the call reaches, since the client names
+      # that team on every request whatever the query says, and never on another team the path or answer names.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Vercel.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        api = api(environment_row)
+        outside_team!(environment_row, path_teams(path))
+
+        answer = api.read(path, query)
+        outside_team!(environment_row, path.match?(TEAMS_LIST) && answer.is_a?(Hash) ? Array(answer["teams"]).filter_map { |team| team["id"] if team.is_a?(Hash) } : [])
+
+        shown = hide_bypass(answer)
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), shown, secret: ReadGuards::Vercel.secret?(path))
+        Telemetry.result(text, link: read_link(environment_row, path, answer))
+      end
+
+      # A path naming a team by its id, and the list of the token's teams.
+      TEAM_PATH = %r{\A/v\d+/teams/([^/]+)}
+      TEAMS_LIST = %r{\A/v\d+/teams\z}
+      PROJECT_PATH = %r{\A/v\d+/projects/([^/]+)}
+      # A project's protection bypass is keyed by its secret, which lets anyone past Deployment Protection (spec, getProject
+      # protectionBypass), so it is hidden whole.
+      BYPASS = "protectionBypass".freeze
+
+      def path_teams(path) = path.match(TEAM_PATH)&.captures.to_a
+
+      # A team the connection does not read, named by the path or answered by the list of teams, refused by Firefight's
+      # rule. A connection that names no team reads the token's own account only.
+      def outside_team!(environment_row, named)
+        return if named.empty?
+
+        settings = ConnectionSettings.of(environment_row)
+        reason = if settings.chosen_scopes.empty?
+          "This connection reads the token's own account only, and the read reaches team #{named.to_sentence}. Connect that team to read it."
+        else
+          ApiReads.outside_scopes(settings, named, "teams")
+        end
+        fail_policy!(reason) if reason
+      end
+      private :path_teams, :outside_team!
+
+      def hide_bypass(value)
+        case value
+        when Hash then value.to_h { |key, inner| [ key, key == BYPASS ? ApiReads::HIDDEN : hide_bypass(inner) ] }
+        when Array then value.map { |inner| hide_bypass(inner) }
+        else value
+        end
+      end
+      private :hide_bypass
+
+      # A deployment's own page when the answer is one (inspectorUrl), the project's page when the path reads inside one,
+      # and the team's page otherwise.
+      def read_link(environment_row, path, answer)
+        return inspector_link(answer) if answer.is_a?(Hash) && answer["inspectorUrl"].present?
+
+        named = path.match(PROJECT_PATH)&.captures&.first
+        project = named && (answer.is_a?(Hash) && [ answer["id"], answer["name"] ].include?(named) ? answer : projects(environment_row).find { |each| [ each["id"], each["name"] ].include?(named) })
+        project ? project_link(environment_row, project) : team_link(environment_row)
+      rescue VercelApi::Error
+        team_link(environment_row)
+      end
+      private :read_link
 
       # The team's projects on the resource map, each with the repository it builds from and the verified domains it
       # serves. What could not be read for one project is a gap, not a failed sweep.

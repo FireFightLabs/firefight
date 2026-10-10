@@ -230,6 +230,20 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
+  test "every provider with a general read has a skill for it, which names its API reference or where the provider publishes it" do
+    readers = Integrations::Provider.all.select { |provider| provider.pack&.tool_definitions&.any? { |each| each.name == Integrations::ApiReads::TOOL } }.map(&:key)
+    assert_includes readers, "render"
+
+    readers.each do |provider|
+      skills = Chat::Skill.all.select { |skill| skill.source == provider && skill.tools.include?(Integrations::ApiReads::TOOL) }
+      assert skills.any?, "#{provider} has api_read and no skill naming it"
+      skills.each do |skill|
+        reference = skill.references.any? { |path| path.match?(%r{\Aapi/(.+/)?index\.md\z}) }
+        assert reference || skill.steps.match?(%r{https://\S+}), "#{skill.name} names api_read without the API reference or where it is published"
+      end
+    end
+  end
+
   test "a guide is read from the docs store with where it came from, and nothing the store does not hold can be named" do
     store_doc_page(provider: "planetscale", path: "postgres/ps-connections.md", content: "# Connections\n\nUse PgBouncer.",
                    url: "https://github.com/planetscale/database-skills/blob/HEAD/skills/postgres/references/ps-connections.md")

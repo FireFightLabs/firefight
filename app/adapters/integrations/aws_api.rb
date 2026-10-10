@@ -16,7 +16,8 @@ module Integrations
       include Integrations::NotFound
     end
 
-    # Each service the integration reads, with the gem and client class AWS publishes for it.
+    # Each service the integration reads, by the name botocore keeps its description under, with the gem and client class
+    # AWS publishes for it. Those after logs are reached only by the general read (Integrations::ApiReads).
     CLIENTS = {
       sts: [ "aws-sdk-core", "Aws::STS::Client" ],
       ecs: [ "aws-sdk-ecs", "Aws::ECS::Client" ],
@@ -25,8 +26,32 @@ module Integrations
       rds: [ "aws-sdk-rds", "Aws::RDS::Client" ],
       cloudtrail: [ "aws-sdk-cloudtrail", "Aws::CloudTrail::Client" ],
       cloudwatch: [ "aws-sdk-cloudwatch", "Aws::CloudWatch::Client" ],
-      logs: [ "aws-sdk-cloudwatchlogs", "Aws::CloudWatchLogs::Client" ]
+      logs: [ "aws-sdk-cloudwatchlogs", "Aws::CloudWatchLogs::Client" ],
+      acm: [ "aws-sdk-acm", "Aws::ACM::Client" ],
+      apigateway: [ "aws-sdk-apigateway", "Aws::APIGateway::Client" ],
+      apigatewayv2: [ "aws-sdk-apigatewayv2", "Aws::ApiGatewayV2::Client" ],
+      autoscaling: [ "aws-sdk-autoscaling", "Aws::AutoScaling::Client" ],
+      cloudformation: [ "aws-sdk-cloudformation", "Aws::CloudFormation::Client" ],
+      cloudfront: [ "aws-sdk-cloudfront", "Aws::CloudFront::Client" ],
+      codebuild: [ "aws-sdk-codebuild", "Aws::CodeBuild::Client" ],
+      codedeploy: [ "aws-sdk-codedeploy", "Aws::CodeDeploy::Client" ],
+      codepipeline: [ "aws-sdk-codepipeline", "Aws::CodePipeline::Client" ],
+      dynamodb: [ "aws-sdk-dynamodb", "Aws::DynamoDB::Client" ],
+      ecr: [ "aws-sdk-ecr", "Aws::ECR::Client" ],
+      eks: [ "aws-sdk-eks", "Aws::EKS::Client" ],
+      elasticache: [ "aws-sdk-elasticache", "Aws::ElastiCache::Client" ],
+      elbv2: [ "aws-sdk-elasticloadbalancingv2", "Aws::ElasticLoadBalancingV2::Client" ],
+      health: [ "aws-sdk-health", "Aws::Health::Client" ],
+      iam: [ "aws-sdk-iam", "Aws::IAM::Client" ],
+      kms: [ "aws-sdk-kms", "Aws::KMS::Client" ],
+      route53: [ "aws-sdk-route53", "Aws::Route53::Client" ],
+      s3: [ "aws-sdk-s3", "Aws::S3::Client" ],
+      secretsmanager: [ "aws-sdk-secretsmanager", "Aws::SecretsManager::Client" ],
+      sns: [ "aws-sdk-sns", "Aws::SNS::Client" ],
+      sqs: [ "aws-sdk-sqs", "Aws::SQS::Client" ],
+      ssm: [ "aws-sdk-ssm", "Aws::SSM::Client" ]
     }.freeze
+    SERVICES = CLIENTS.keys.map(&:to_s).freeze
     # The error codes AWS's services answer when the keys or their policy refuse a call, and when what was named is not
     # there, from each service's API reference.
     DENIED = %w[
@@ -56,6 +81,16 @@ module Integrations
 
     # Whose keys these are: the account, the user or role, and its ARN.
     def identity(region) = call(:sts, region, :get_caller_identity)
+
+    # The description of a service's API its client is built from (Seahorse::Model::Api), with every operation it defines
+    # and each one's input, or nil for a service the integration does not reach.
+    def self.api_of(service)
+      gem_name, class_name = CLIENTS[service.to_s.to_sym]
+      return nil unless class_name
+
+      require gem_name
+      class_name.constantize.api
+    end
 
     def call(service, region, operation, params = {})
       answering { client(service, region).public_send(operation, params).to_h }

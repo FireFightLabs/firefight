@@ -12,7 +12,8 @@ module Integrations
       include Integrations::NotFound
     end
 
-    MACHINES_ROOT = "https://api.machines.dev/v1".freeze
+    MACHINES_HOST = "https://api.machines.dev".freeze
+    MACHINES_ROOT = "#{MACHINES_HOST}/v1".freeze
     API_ROOT = "https://api.fly.io".freeze
     PROVIDER = "Fly".freeze
     CONFLICT = 409
@@ -114,6 +115,10 @@ module Integrations
 
       Array(answer.dig("data", "result"))
     end
+
+    # Any GET of the Machines API, by its path under MACHINES_HOST as the spec writes it (/v1/...), for the general read
+    # (Integrations::ApiReads), which checks the path before it gets here.
+    def read(path, query) = get(URI.parse("#{MACHINES_HOST}#{path}"), query)
 
     private
 

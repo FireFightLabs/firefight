@@ -236,6 +236,9 @@ module Integrations
 
     def patch_commit(environment_id, patch, message) = query(PATCH_COMMIT, "environmentId" => environment_id, "patch" => patch, "commitMessage" => message)
 
+    # Any GraphQL query, for the general read (Integrations::ApiReads), whose guard refuses a mutation before it gets here.
+    def read(text, variables) = query(text, variables)
+
     private
 
     def webhook_channel(url, headers) = { "type" => WEBHOOK_CHANNEL, "url" => url, "headers" => headers }

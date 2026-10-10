@@ -7,6 +7,7 @@ module Integrations
       pack: "Integrations::Packs::Fly",
       adapter: "Integrations::Capabilities::Fly",
       map_events: "Integrations::MapEventSources::Fly",
+      read_guard: "Integrations::ReadGuards::Fly",
       status_words: {
         "suspended" => "stopped",
         "creating" => "pending", "initializing" => "starting", "deleting" => "pending", "deleted" => "stopped"

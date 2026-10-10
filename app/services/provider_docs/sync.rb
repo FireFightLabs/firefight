@@ -7,7 +7,8 @@ module ProviderDocs
       ProviderDocSource::Definition::KIND_REPOSITORY => Repository,
       ProviderDocSource::Definition::KIND_SITE => Site,
       ProviderDocSource::Definition::KIND_INDEX => Index,
-      ProviderDocSource::Definition::KIND_PACKAGE => Package
+      ProviderDocSource::Definition::KIND_PACKAGE => Package,
+      ProviderDocSource::Definition::KIND_API => ApiDescription
     }.freeze
     FAILED_SHOWN = 5
     # What reading a source can fail with. The job rescues the same list, since a source that failed is already recorded.

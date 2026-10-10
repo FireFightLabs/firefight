@@ -182,6 +182,17 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else the cluster's API server reads that the other tools do not cover, such as config maps, " \
+                        "persistent volume claims, network policies, horizontal pod autoscalers, pod disruption budgets, nodes, " \
+                        "custom resources or one object in full. A GET to a path under /api or /apis, as kubectl get --raw takes " \
+                        "it and the API reference the kubernetes_api skill names writes it, such as " \
+                        "/apis/apps/v1/namespaces/<namespace>/deployments/<name>. A list answers one page: pass limit, and " \
+                        "continue set to the answer's metadata.continue for the next. Only reads, so it never changes anything. " \
+                        "Secrets come back as their names",
+           params_schema: ApiReads.path_schema("/api/v1/namespaces/<namespace>/configmaps"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Service account token", secret: true, placeholder: "eyJhbGciOi...",
@@ -418,6 +429,48 @@ module Integrations
         note = autoscaler ? " The autoscaler #{autoscaler} also sets its replicas, and will move them back within its own bounds." : ""
         answer("#{label(workload)} now asks for #{replicas} pods, it asked for #{was}.#{note}", status_command(workload))
       end
+
+      # Kept to the connection's namespaces, by the one the path names and every object the answer holds, so a list
+      # across the cluster that holds another namespace is refused rather than shown. Kubernetes has no page to link to.
+      NAMESPACED = %r{\A/(?:api/v1|apis/[^/]+/[^/]+)/namespaces/(?<namespace>[^/]+)}
+
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Kubernetes.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        reached = connected(environment_row)
+        named = path.match(NAMESPACED)&.[](:namespace)
+        fail_policy!(outside_namespaces([ named ], reached)) if named && outside_namespaces([ named ], reached)
+
+        answer = begin
+          api(environment_row).get(path, query.transform_values { |value| Array(value).join(",") })
+        rescue KubernetesApi::Forbidden => error
+          fail!(Sentence.all(error, "The service account's role cannot read this. Give it get or list on what the path names, then read it again."))
+        end
+        outside = outside_namespaces(namespaces_in(answer), reached) unless named
+        fail_policy!("#{outside} Name a namespace in the path, such as /api/v1/namespaces/<namespace>/pods.") if outside
+
+        Telemetry.result(ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Kubernetes.secret?(path)), link: nil)
+      end
+
+      def outside_namespaces(named, reached)
+        return nil if reached.include?(ALL_NAMESPACES)
+
+        outside = named.compact.uniq - reached
+        "This connection reads #{reached.to_sentence} only, and the read reaches #{outside.to_sentence}." if outside.any?
+      end
+      private :outside_namespaces
+
+      # The namespace of the object read, or of each object a list holds.
+      def namespaces_in(answer)
+        return [] unless answer.is_a?(Hash)
+
+        [ answer.dig("metadata", "namespace"), *Array(answer["items"]).filter_map { |item| item.dig("metadata", "namespace") if item.is_a?(Hash) } ]
+      end
+      private :namespaces_in
 
       # Puts each connected namespace's workloads, services and ingresses on the map, with what serves what. A list the
       # token may not read is a gap, and the sweep takes nothing of that kind as gone. Any other failure, such as an

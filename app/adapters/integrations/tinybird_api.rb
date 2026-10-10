@@ -63,6 +63,10 @@ module Integrations
       get("/v0/pipes/#{Http.segment(name)}.json", params.to_h.transform_values(&:to_s), read_timeout: QUERY_TIMEOUT)
     end
 
+    # Any GET of the API by its path, for the general read (Integrations::ApiReads), which checks the path before it gets
+    # here. A query read through it can take as long as one through the Query API.
+    def read(path, query) = get(path, query, read_timeout: QUERY_TIMEOUT)
+
     private
 
     def get(path, query = {}, read_timeout: 30)

@@ -75,6 +75,16 @@ module Integrations
            params_schema: { "type" => "object", "properties" => { "site" => SITE, "deploy" => DEPLOY }, "required" => %w[site deploy] },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Netlify's API reads that the other tools do not cover, such as a site's forms and " \
+                        "submissions, functions, DNS zones and records, SSL certificate, snippets, files of a deploy, or the " \
+                        "team's members and audit log. A GET to a path of Netlify's API (#{NetlifyApi::API_ROOT}), as the API " \
+                        "reference the netlify_api skill names writes it, such as /sites/<site id>/forms. A list answers one " \
+                        "page: pass per_page, at most 100, and page for the next. Only reads, so it never changes anything. " \
+                        "Environment variables, build hooks, notification hooks and add-on settings come back as their names",
+           params_schema: ApiReads.path_schema("/sites/<site id>/forms"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "nfp_...",
@@ -185,6 +195,36 @@ module Integrations
         text = "#{site['name']} now serves deploy #{id}.#{undo} A later production deploy from Git publishes over it while auto publishing is on."
         Telemetry.result(text, link: deploy_link(restored) || site_link(site))
       end
+
+      # A GET the read guard let through (ReadGuards::Netlify). The connection is the token's, which reaches every site its
+      # user can, so a read reaches what the token does and nothing narrows it further.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Netlify.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        answer = api(environment_row).read(path, query)
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Netlify.secret?(path), webhooks: ReadGuards::Netlify.webhooks?(path))
+        Telemetry.result(text, link: read_link(environment_row, path, answer))
+      end
+
+      SITE_PATH = %r{\A/sites/([^/]+)}
+
+      # The page Netlify gives what was read (admin_url, a deploy's or a site's), or the page of the site the path reads
+      # inside.
+      def read_link(environment_row, path, answer)
+        own = answer.is_a?(Hash) && answer["admin_url"].present? ? Telemetry::Link.new(provider: PROVIDER, url: answer["admin_url"]) : nil
+        return own if own
+
+        named = path.match(SITE_PATH)&.captures&.first
+        site = named && all_sites(environment_row).items.find { |each| [ each["id"], each["name"], each["custom_domain"] ].include?(named) }
+        site && site_link(site)
+      rescue NetlifyApi::Error
+        nil
+      end
+      private :read_link
 
       # Every site on the resource map, with the domains it serves and the repository it builds from. Past the pages the
       # client reads, the rest is a gap rather than taken as gone.

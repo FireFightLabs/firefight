@@ -263,6 +263,38 @@ module Integrations
            },
            read_only: false
 
+      # Each service's page in the AWS console, at the path AWS's own guides link to, for what the general read answers.
+      CONSOLE_PATHS = {
+        "ecs" => "ecs/v2", "lambda" => "lambda/home", "ec2" => "ec2/home", "rds" => "rds/home", "cloudwatch" => "cloudwatch/home",
+        "logs" => "cloudwatch/home", "cloudtrail" => "cloudtrail/home", "acm" => "acm/home", "apigateway" => "apigateway/main",
+        "apigatewayv2" => "apigateway/main", "autoscaling" => "ec2/home", "cloudformation" => "cloudformation/home",
+        "cloudfront" => "cloudfront/v4/home", "codebuild" => "codesuite/codebuild/projects", "codedeploy" => "codesuite/codedeploy/applications",
+        "codepipeline" => "codesuite/codepipeline/pipelines", "dynamodb" => "dynamodbv2/home", "ecr" => "ecr/private-registry/repositories",
+        "eks" => "eks/home", "elasticache" => "elasticache/home", "elbv2" => "ec2/home", "health" => "health/home", "iam" => "iam/home",
+        "kms" => "kms/home", "route53" => "route53/v2/home", "s3" => "s3/home", "secretsmanager" => "secretsmanager/listsecrets",
+        "sns" => "sns/v3/home", "sqs" => "sqs/v3/home", "ssm" => "systems-manager/home"
+      }.freeze
+
+      tool :api_read,
+           description: "Anything else AWS's API reads that the other tools do not cover, such as CodePipeline executions, CodeBuild " \
+                        "builds, load balancers and their target health, Auto Scaling groups, CloudFormation stacks and events, " \
+                        "SQS queues, DynamoDB tables, EKS clusters, Route 53 records or certificates. One operation of one " \
+                        "service, named Describe, List, Get or BatchGet, with its input as the operation's API reference gives it, " \
+                        "in one of this connection's regions. A list answers one page, and its next token goes in params for the " \
+                        "next. Only reads, so it never changes anything. Environment variables, user data and secret values " \
+                        "come back as names or not at all. The aws_api skill says how to find an operation",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "service" => { "type" => "string", "enum" => AwsApi::SERVICES, "description" => "The AWS service, as its API reference's name for it" },
+               "operation" => { "type" => "string", "description" => "The operation, such as DescribeTargetHealth or describe_target_health" },
+               "params" => { "type" => "object", "description" => "The operation's input by its member names, such as {\"target_group_arn\": \"arn:...\"} (optional)" },
+               "region" => { "type" => "string", "description" => "One of this connection's regions (optional when it reads one)" }
+             },
+             "required" => %w[service operation]
+           },
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
@@ -457,6 +489,33 @@ module Integrations
         Telemetry.result("#{entry.name} now wants #{count} tasks, #{count > before ? 'up' : 'down'} from #{before}. Undo by scaling it back " \
                          "to #{before}. An auto scaling policy on the service can change the count again.", link: resource_link(entry))
       end
+
+      # An operation the read guard let through (ReadGuards::Aws), in one of the connection's regions, answering with the
+      # service's page in that region's console.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Aws.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        service, operation, params = call.values_at(ReadGuards::Aws::SERVICE, ReadGuards::Aws::OPERATION, ReadGuards::Aws::PARAMS)
+        region = read_region(environment_row, arguments[ReadGuards::Aws::REGION])
+        answer = ReadGuards::Aws.hidden(api(environment_row).call(service.to_sym, region, operation.to_sym, params))
+        name = AwsApi.api_of(service).operation(operation.to_sym).name
+        text = ApiReads.answer(PROVIDER, "#{service} #{name} in #{region}", answer, secret: ReadGuards::Aws.secret?(service, name))
+        Telemetry.result(text, link: console_link(region, CONSOLE_PATHS.fetch(service, "#{service}/home")))
+      end
+
+      # The region asked, when the connection reads it, or the connection's only one.
+      def read_region(environment_row, asked)
+        reached = regions(environment_row)
+        return reached.first if asked.blank? && reached.one?
+        fail!("Name the region to read, one of #{reached.join(', ')}.") if asked.blank?
+        fail_policy!("This connection reads #{reached.join(', ')} only, so #{asked} is not read. Connect that region to read it.") unless reached.include?(asked.to_s)
+
+        asked.to_s
+      end
+      private :read_region
 
       # The account on the resource map, per region: its ECS services, Lambda functions, EC2 instances and RDS databases,
       # each with its page in the console. A list AWS refuses, or one cut short, is a gap, and its kind is not taken as gone.

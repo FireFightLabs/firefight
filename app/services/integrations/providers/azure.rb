@@ -7,6 +7,7 @@ module Integrations
       pack: "Integrations::Packs::Azure",
       adapter: "Integrations::Capabilities::Azure",
       map_events: "Integrations::MapEventSources::Azure",
+      read_guard: "Integrations::ReadGuards::Azure",
       status_words: {
         "online" => "running", "succeeded" => "ready", "progressing" => "deploying", "inprogress" => "in_progress",
         "suspended" => "stopped", "canceled" => "stopped", "deleting" => "stopped", "dropping" => "stopped", "disabled" => "stopped",

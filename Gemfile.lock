@@ -103,6 +103,24 @@ GEM
       version_gem (~> 1.1, >= 1.1.10)
     aws-eventstream (1.4.0)
     aws-partitions (1.1292.0)
+    aws-sdk-acm (1.111.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-apigateway (1.140.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-apigatewayv2 (1.98.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-autoscaling (1.168.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-cloudformation (1.160.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-cloudfront (1.156.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
     aws-sdk-cloudtrail (1.128.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
@@ -110,6 +128,15 @@ GEM
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
     aws-sdk-cloudwatchlogs (1.165.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-codebuild (1.179.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-codedeploy (1.106.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-codepipeline (1.120.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
     aws-sdk-core (3.257.0)
@@ -121,10 +148,31 @@ GEM
       jmespath (~> 1, >= 1.6.1)
       logger
       rexml (~> 3.4, >= 3.4.2)
+    aws-sdk-dynamodb (1.175.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
     aws-sdk-ec2 (1.655.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
+    aws-sdk-ecr (1.134.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
     aws-sdk-ecs (1.248.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-eks (1.180.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-elasticache (1.152.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-elasticloadbalancingv2 (1.159.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-health (1.106.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-iam (1.154.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
     aws-sdk-kms (1.132.0)
@@ -136,9 +184,24 @@ GEM
     aws-sdk-rds (1.324.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
+    aws-sdk-route53 (1.139.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
     aws-sdk-s3 (1.233.1)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sdk-kms (~> 1)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-secretsmanager (1.136.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-sns (1.121.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-sqs (1.119.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-ssm (1.223.0)
+      aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
     aws-sigv4 (1.12.1)
       aws-eventstream (~> 1, >= 1.0.2)
@@ -906,14 +969,36 @@ PLATFORMS
 
 DEPENDENCIES
   archspec
+  aws-sdk-acm
+  aws-sdk-apigateway
+  aws-sdk-apigatewayv2
+  aws-sdk-autoscaling
+  aws-sdk-cloudformation
+  aws-sdk-cloudfront
   aws-sdk-cloudtrail
   aws-sdk-cloudwatch
   aws-sdk-cloudwatchlogs
+  aws-sdk-codebuild
+  aws-sdk-codedeploy
+  aws-sdk-codepipeline
+  aws-sdk-dynamodb
   aws-sdk-ec2
+  aws-sdk-ecr
   aws-sdk-ecs
+  aws-sdk-eks
+  aws-sdk-elasticache
+  aws-sdk-elasticloadbalancingv2
+  aws-sdk-health
+  aws-sdk-iam
+  aws-sdk-kms
   aws-sdk-lambda
   aws-sdk-rds
+  aws-sdk-route53
   aws-sdk-s3
+  aws-sdk-secretsmanager
+  aws-sdk-sns
+  aws-sdk-sqs
+  aws-sdk-ssm
   benchmark (~> 0.5.0)
   bootsnap
   brakeman

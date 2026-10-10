@@ -18,6 +18,7 @@ module Integrations
       include Security
       include ActionsSecrets
       include Workflows
+      include GeneralRead
 
       REPO_FORMAT = /\A[\w.\-]+\/[\w.\-]+\z/
       FILE_LIMIT = 30
@@ -194,7 +195,8 @@ module Integrations
       # rules (rules/branches/{branch}) and tags are Metadata, which every App holds. pr_lookup, branch_protection and
       # ref_checks read checks, statuses, Dependabot alerts and branch protection only to add to their answer. A
       # repository's Actions secrets are Secrets, and an environment's are Environments, which the secrets tools name
-      # themselves when GitHub refuses one.
+      # themselves when GitHub refuses one. api_read reads whatever path it is given, so it needs nothing of its own, and
+      # GitHub's refusal names what the path needed.
       NEEDS = {
         "pr_lookup" => { "pull_requests" => READ },
         "commit_lookup" => { "contents" => READ },
@@ -266,7 +268,8 @@ module Integrations
         "run_shell" => { "contents" => READ },
         "run_tests" => { "contents" => READ },
         "list_actions_secrets" => { "secrets" => READ },
-        "set_actions_secret" => { "secrets" => WRITE }
+        "set_actions_secret" => { "secrets" => WRITE },
+        "api_read" => {}
       }.freeze
 
       # The installation a connection was made through, as Integrations::Installations reads it. One that is suspended

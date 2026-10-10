@@ -171,6 +171,17 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Fly.io's Machines API reads that the other tools do not cover, such as one machine " \
+                        "and its events, processes and versions, an app's volumes and their snapshots, IP assignments and " \
+                        "certificates, or a Managed Postgres cluster's databases, backups and active or slow queries. A GET to " \
+                        "a path of the Machines API (#{FlyApi::MACHINES_HOST}), written with /v1 as the API reference the fly_api " \
+                        "skill names writes it, such as /v1/apps/<app>/machines/<machine id>/events. Always in this " \
+                        "connection's organization. A list answers one page: pass limit, and the next_cursor it answered as " \
+                        "cursor. Only reads, so it never changes anything. Secrets and machine environments come back as their names",
+           params_schema: ApiReads.path_schema("/v1/apps/<app>/machines/<machine id>/events"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "FlyV1 fm2_...",
@@ -316,6 +327,77 @@ module Integrations
         Telemetry.result("Putting #{resource[:name]} back on release v#{wanted}, image #{image}.\n#{said.join("\n")}\n" \
                          "Fly's release list does not show this, and the next deploy replaces it.", link: link(environment_row, resource, MACHINES_PAGE))
       end
+
+      # Kept to the connection's organization. A list asks for it, an org path is it, and an app or Managed Postgres
+      # cluster is one of its own.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Fly.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        api = api(environment_row)
+        organization = organization_of(environment_row)
+        query = in_organization!(api, organization, path, query)
+
+        answer = hide_files(api.read(path, query))
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Fly.secret?(path))
+        Telemetry.result(text, link: read_link(environment_row, organization, path))
+      end
+
+      ORG_LISTS = %r{\A/v1/(apps|postgres)\z}
+      ORG_PATH = %r{\A/v1/orgs/([^/]+)}
+      APP_PATH = %r{\A/v1/apps/([^/]+)}
+      CLUSTER_PATH = %r{\A/v1/postgres/([^/]+)}
+      ORG_SLUG = "org_slug".freeze
+      # A file written into a machine is its content in base64 (spec, File raw_value), which can be a secret.
+      FILE_CONTENT = "raw_value".freeze
+
+      # The query to send, with the organization filled in for a list that takes it. Refused by Firefight's rule when the
+      # path or the query reaches another organization.
+      def in_organization!(api, organization, path, query)
+        given = query[ORG_SLUG]
+        fail_policy!(outside_organization(organization, given)) if given.present? && given != organization
+        return query.merge(ORG_SLUG => organization) if path.match?(ORG_LISTS)
+
+        if (slug = path.match(ORG_PATH)&.captures&.first)
+          fail_policy!(outside_organization(organization, slug)) unless slug == organization
+        elsif (app = path.match(APP_PATH)&.captures&.first)
+          owner = api.app(app).dig("organization", "slug")
+          fail_policy!(outside_organization(organization, "the one #{app} is in")) unless owner == organization
+        elsif (cluster = path.match(CLUSTER_PATH)&.captures&.first)
+          unless api.postgres_clusters(organization).any? { |each| each["id"].to_s == cluster }
+            fail_policy!("Managed Postgres cluster #{cluster} is not one of organization #{organization}'s, which is all this connection reads.")
+          end
+        end
+        query
+      end
+      private :in_organization!
+
+      def outside_organization(organization, other) = "This connection reads organization #{organization} only, and the read reaches #{other}. Connect that organization to read it."
+      private :outside_organization
+
+      def hide_files(value)
+        case value
+        when Hash then value.to_h { |key, inner| [ key, key == FILE_CONTENT ? ApiReads::HIDDEN : hide_files(inner) ] }
+        when Array then value.map { |inner| hide_files(inner) }
+        else value
+        end
+      end
+      private :hide_files
+
+      # The app's page, its machines page for a machine, or the cluster's page, as flyctl prints them, and nil for a read of
+      # the platform itself.
+      def read_link(environment_row, organization, path)
+        if (app = path.match(APP_PATH)&.captures&.first)
+          rest = path.include?("/machines") ? [ MACHINES_PAGE ] : []
+          Telemetry::Link.new(provider: PROVIDER, url: page(environment_row, app, *rest))
+        elsif (cluster = path.match(CLUSTER_PATH)&.captures&.first)
+          Telemetry::Link.new(provider: PROVIDER, url: cluster_page(environment_row, organization, cluster))
+        end
+      end
+      private :read_link
 
       # The organization on the resource map: its apps with their machines and the hostnames their certificates cover,
       # and its Managed Postgres clusters with the apps attached to them. What could not be read for one app is a gap.

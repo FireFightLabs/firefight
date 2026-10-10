@@ -210,6 +210,16 @@ module Integrations
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else DigitalOcean's API reads that the other tools do not cover, such as an app's alerts, " \
+                        "domains or one deployment's progress, load balancers, volumes, Kubernetes clusters, firewalls, VPCs, " \
+                        "a database's configuration, replicas or backups, or the account's projects. A GET to a path of the API " \
+                        "(https://#{DigitaloceanApi::API_HOST}), written as the API reference the digitalocean_api skill names " \
+                        "writes it, starting /v2. A list answers one page: pass per_page, at most 200, and page for the next. " \
+                        "Only reads, so it never changes anything. Passwords, keys and secret values come back hidden",
+           params_schema: ApiReads.path_schema("/v2/apps/<app id>/deployments"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "dop_v1_...",
@@ -421,6 +431,34 @@ module Integrations
           []
         end
       end
+
+      # A GET the read guard let through (ReadGuards::Digitalocean). The token reaches one team, which is all the
+      # connection reads, so nothing else keeps it in.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Digitalocean.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        fail!("path starts with #{DigitaloceanApi::API_PREFIX}, as the API reference writes it, such as /v2/apps.") unless path.start_with?("#{DigitaloceanApi::API_PREFIX}/")
+
+        answer = api(environment_row).read(path, query.transform_values { |value| Array(value).join(",") })
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Digitalocean.secret?(path))
+        Telemetry.result(text, link: read_link(environment_row, path))
+      end
+
+      # An app's own page for a path inside one, and the section of the control panel for a Droplet or database.
+      READ_PAGES = { "apps" => KIND_APP, "droplets" => KIND_DROPLET, "databases" => KIND_DATABASE }.freeze
+
+      def read_link(environment_row, path)
+        _version, section, id = path.delete_prefix("/").split("/", 4)
+        kind = READ_PAGES[section]
+        return panel_link(environment_row) unless kind && id.present?
+
+        Telemetry::Link.new(provider: PROVIDER, url: page(environment_row, kind, id))
+      end
+      private :read_link
 
       def check_health!(environment_row)
         api(environment_row).account

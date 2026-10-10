@@ -117,6 +117,27 @@ module Integrations
            }, %w[repo path start_line end_line]),
            read_only: true
 
+      # A path written as GitLab's reference writes it may start with the API's own prefix, which the client adds.
+      API_PREFIX = %r{\A/?api/v4(?=/|\z)}
+      READ_SCHEMA = ApiReads.path_schema("/projects/<project id>/environments").deep_merge(
+        "properties" => {
+          "project" => { "type" => "string", "description" => "A project by its path with its groups, such as acme/platform/checkout, when the " \
+                                                               "read is inside one. path is then what comes after /projects/<project>, such as " \
+                                                               "/environments (optional)" }
+        }
+      ).freeze
+
+      tool :api_read,
+           description: "Anything else GitLab's REST API reads that the other GitLab tools do not cover, such as a project's environments " \
+                        "and their protections, protected branches, releases, members, container registry, issues, or a group's " \
+                        "settings. A GET to a path of GitLab's REST API (the instance's /api/v4), written after /api/v4 as the API " \
+                        "reference the gitlab_api skill names writes it, such as /projects/<project id>/environments, or with " \
+                        "project set and the path inside it. A list answers one page: pass per_page, at most 100, and page 2, 3 " \
+                        "and on while a page comes back full. Only reads, so it never changes anything. CI/CD variables, pipeline " \
+                        "triggers, integrations and webhooks come back as their names",
+           params_schema: READ_SCHEMA,
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Access token", secret: true, placeholder: "glpat-...",
@@ -322,6 +343,30 @@ module Integrations
         ResourceMap::Snapshot.new(resources: found, gaps: [ *gaps, *unread_files ], code_files: files, code_read: infrastructure.read_in_full)
       end
       private :projects_snapshot
+
+      # A GET the read guard let through (ReadGuards::Gitlab). The token reaches only what its owner can read, which is
+      # what the connection reads. A project named by its path is encoded into one segment here, since the guard takes
+      # plain segments only.
+      def api_read(environment_row:, arguments:)
+        given = arguments.merge("path" => arguments["path"].to_s.strip.sub(API_PREFIX, ""))
+        call = begin
+          ReadGuards::Gitlab.reading(ApiReads::TOOL, given)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        project = arguments["project"].to_s.strip.delete_prefix("/").delete_suffix("/").presence
+        fail! "project must be a project's path with its groups, such as acme/platform/checkout." if project && (!project.match?(REPO_FORMAT) || project.split("/").any? { |part| part.match?(/\A\.+\z/) })
+
+        inside, query = call.values_at("path", "query")
+        path = project ? "#{GitlabApi.project(project)}#{inside}" : inside
+        gitlab = api(environment_row)
+        answer = gitlab.read(path, query)
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Gitlab.secret?(inside), webhooks: ReadGuards::Gitlab.webhooks?(inside))
+        page = (answer["web_url"].presence if answer.is_a?(Hash)) || (gitlab.web_url(project) if project)
+        Telemetry.result(text, link: page && Telemetry::Link.new(provider: PROVIDER, url: page))
+      rescue GitlabApi::Refused => error
+        fail! Sentence.join("GitLab refused this read", error, after: "The token's role or scopes do not reach it")
+      end
 
       def check_health!(environment_row)
         api(environment_row).get("/projects", "membership" => true, "simple" => true, "per_page" => 1)

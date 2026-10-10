@@ -173,6 +173,24 @@ module Integrations
            },
            read_only: false
 
+      tool :api_read,
+           description: "Anything else Railway's API reads that the other tools do not cover, such as a project's environments " \
+                        "and services, a deployment by its id, volumes and their backups, domains, TCP proxies, deployment " \
+                        "triggers or the workspace's members. One GraphQL query to Railway's public API " \
+                        "(#{RailwayApi::ENDPOINT}), written with the fields and arguments the API reference the railway_api " \
+                        "skill names lists. A list is a connection: pass first, and the pageInfo's endCursor as after for the " \
+                        "next page. Only reads, so a mutation or a subscription is refused. A query that reads variables, " \
+                        "an environment's config or tokens comes back as names only",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "query" => { "type" => "string", "description" => "The GraphQL query, such as query($id: String!) { project(id: $id) { name environments { edges { node { id name } } } } }" },
+               "variables" => { "type" => "object", "description" => "The query's variables by name, such as {\"id\": \"<project id>\"} (optional)" }
+             },
+             "required" => %w[query]
+           },
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: API_TOKEN, label: "API token", secret: true, placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
@@ -377,6 +395,62 @@ module Integrations
         api(environment_row).patch_commit(environment(environment_row)["id"], patch, "Scale service #{resource[:name]} to #{count} replicas from Firefight")
         Telemetry.result("Railway is scaling #{resource[:name]} to #{count} replicas in #{region}#{" from #{before}" if before}.", link: link(environment_row, resource))
       end
+
+      # Kept to the connection's projects, by every project the query's words, its variables and its answer name.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Railway.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        text, variables = call.values_at(ReadGuards::Railway::QUERY, ReadGuards::Railway::VARIABLES)
+        settings = ConnectionSettings.of(environment_row)
+        named = projects_named(text, variables).uniq
+        outside = ApiReads.outside_scopes(settings, named, "projects")
+        fail_policy!(outside) if outside
+
+        answer = api(environment_row).read(text, variables)
+        outside = ApiReads.outside_scopes(settings, projects_in(answer), "projects")
+        fail_policy!(outside) if outside
+
+        shown = ApiReads.answer(PROVIDER, "the query #{text.squish.truncate(200)}", answer, secret: ReadGuards::Railway.secret?(text))
+        Telemetry.result(shown, link: read_link(environment_row, named))
+      end
+
+      PROJECT_ID = /\Aproject_?ids?\z/i
+      # A project a query names by projectId or as project(id: ...), written in or passed as a variable.
+      LITERAL_PROJECTS = [ /projectIds?\s*:\s*"([^"]+)"/, /\bproject\s*\(\s*id\s*:\s*"([^"]+)"/ ].freeze
+      VARIABLE_PROJECTS = [ /projectIds?\s*:\s*\$(\w+)/, /\bproject\s*\(\s*id\s*:\s*\$(\w+)/ ].freeze
+
+      def projects_named(text, variables)
+        names = variables.keys.map(&:to_s).select { |name| name.match?(PROJECT_ID) } + VARIABLE_PROJECTS.flat_map { |pattern| text.scan(pattern).flatten }
+        from_variables = names.uniq.flat_map { |name| Array(variables[name]) }
+        from_variables.map(&:to_s) + LITERAL_PROJECTS.flat_map { |pattern| text.scan(pattern).flatten }
+      end
+      private :projects_named
+
+      # Every project an answer names, by a projectId, a project's id or a projects list.
+      def projects_in(value)
+        case value
+        when Hash
+          own = [ value["projectId"], (value["project"]["id"] if value["project"].is_a?(Hash)) ]
+          listed = value["projects"]
+          listed = listed["edges"] if listed.is_a?(Hash)
+          own += Array(listed).filter_map { |edge| edge.is_a?(Hash) ? (edge["node"] || edge)["id"] : nil }
+          own.compact.map(&:to_s) + value.values.flat_map { |inner| projects_in(inner) }
+        when Array then value.flat_map { |inner| projects_in(inner) }
+        else []
+        end
+      end
+      private :projects_in
+
+      # The page of the one project the query named, as railway open prints it without an environment, or nil.
+      def read_link(environment_row, named)
+        return nil unless named.one?
+
+        Telemetry::Link.new(provider: PROVIDER, url: "#{site(environment_row)}/project/#{ERB::Util.url_encode(named.first)}")
+      end
+      private :read_link
 
       # The environment on the resource map: its services, databases and cron jobs, the repositories they build from and
       # the domains they serve.

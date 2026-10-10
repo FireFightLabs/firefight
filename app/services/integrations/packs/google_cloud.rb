@@ -176,6 +176,31 @@ module Integrations
            params_schema: { "type" => "object", "properties" => { "resource" => RESOURCE }, "required" => [ "resource" ] },
            read_only: false
 
+      # Each API's page in the console, for what the general read answers. Another API links the project's dashboard.
+      READ_PAGES = {
+        "run" => "run", "compute" => "compute/instances", "sqladmin" => "sql/instances", "container" => "kubernetes/list/overview",
+        "cloudbuild" => "cloud-build/builds", "clouddeploy" => "deploy/delivery-pipelines", "logging" => "logs/query",
+        "monitoring" => "monitoring", "iam" => "iam-admin/iam", "secretmanager" => "security/secret-manager",
+        "pubsub" => "cloudpubsub/topic/list", "storage" => "storage/browser", "artifactregistry" => "artifacts",
+        "cloudfunctions" => "functions/list", "redis" => "memorystore/redis/instances", "dns" => "net-services/dns/zones"
+      }.freeze
+      DASHBOARD = "home/dashboard".freeze
+
+      tool :api_read,
+           description: "Anything else Google Cloud's APIs read that the other tools do not cover, such as Cloud Build builds, " \
+                        "Cloud Deploy releases and rollouts, a Cloud Run revision's conditions, GKE node pools, Cloud SQL " \
+                        "operations and backups, Pub/Sub subscriptions or IAM policies. A GET to one API, named by its host's first " \
+                        "part (run for run.googleapis.com), at a path as its API reference writes it, such as " \
+                        "/v1/projects/<project>/locations/<region>/builds, inside a project this connection reads. A list answers " \
+                        "one page: pass pageSize, and nextPageToken as pageToken for the next. Only reads, so it never changes " \
+                        "anything. Environment variables and an instance's metadata come back as their names, and a secret's " \
+                        "value is never read. The google_cloud_api skill says how to find a path",
+           params_schema: ApiReads.path_schema("/v1/projects/<project>/locations/<region>/builds").deep_merge(
+             "properties" => { ReadGuards::GoogleCloud::SERVICE => { "type" => "string", "description" => "The API, as the first part of its googleapis.com host, such as run, cloudbuild or compute" } },
+             "required" => [ ReadGuards::GoogleCloud::SERVICE, "path" ]
+           ),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: KEY, label: "Service account key", secret: true, multiline: true, placeholder: "{\"type\": \"service_account\", ...}",
@@ -407,6 +432,34 @@ module Integrations
         end
         Telemetry.result("#{text} There is nothing to undo.", link: page_link(environment_row, target.project, target.type))
       end
+
+      # A GET the read guard let through (ReadGuards::GoogleCloud), only inside the projects the connection reads, answering
+      # with the API's page in the console for the project read.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::GoogleCloud.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        service, path, query = call.values_at(ReadGuards::GoogleCloud::SERVICE, "path", "query")
+        projects = [ *ReadGuards::GoogleCloud.projects_in(path), *query[PROJECT] ].uniq
+        settings = ConnectionSettings.of(environment_row)
+        outside = ApiReads.outside_scopes(settings, projects, "projects")
+        fail_policy!(outside) if outside
+        # A read naming no project, such as a search across every project, could reach one this connection does not.
+        if projects.empty? && !settings.all_scopes?
+          fail_policy!("This connection reads only some projects, so a read names its project in the path, such as " \
+                       "/v2/projects/<project>/locations/<region>/services, or in query as project.")
+        end
+
+        answer = api(environment_row).read(service, path, query)
+        text = ApiReads.answer(PROVIDER, "#{service} #{ApiReads.asked(path, query)}", ReadGuards::GoogleCloud.hidden(answer))
+        project = projects.first || arguments[PROJECT].presence
+        Telemetry.result(text, link: (Telemetry::Link.new(provider: PROVIDER, url: read_page(environment_row, service, project)) if project))
+      end
+
+      def read_page(environment_row, service, project) = console(environment_row, project, READ_PAGES.fetch(service, DASHBOARD))
+      private :read_page
 
       # Reads each project the connection reaches, so one the key can no longer read is said on the connection.
       def check_health!(environment_row)

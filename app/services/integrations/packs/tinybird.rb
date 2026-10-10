@@ -190,6 +190,15 @@ module Integrations
            },
            read_only: true
 
+      tool :api_read,
+           description: "Anything else Tinybird's API reads that the other tools do not cover, such as one job by its id, a data " \
+                        "source's details, a pipe's nodes, or what the Analyze API makes of a file. A GET to a path of the API " \
+                        "for this workspace's region, starting /v0 or /v1, as Tinybird's API reference writes it, such as " \
+                        "/v0/jobs/<job id>. Only reads, so it never changes anything. Tokens, variables and connection " \
+                        "credentials come back as their names",
+           params_schema: ApiReads.path_schema("/v0/jobs/<job id>"),
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: TOKEN, label: "Token", secret: true, placeholder: "p.eyJ...",
@@ -408,6 +417,21 @@ module Integrations
         by_pipe = rows.group_by { |row| row["pipe_id"].to_s }
         readings = endpoints.flat_map { |resource| hourly_baselines(resource, by_pipe.fetch(resource.external_id, []), hours) }
         readings + workspaces.flat_map { |resource| hourly_baselines(resource, rows, hours) }
+      end
+
+      # A GET the read guard let through (ReadGuards::Tinybird). The token reaches one workspace, which is all the
+      # connection reads, so nothing else keeps it in. Tinybird documents no page for one data source or pipe, so the
+      # answer links the workspace's.
+      def api_read(environment_row:, arguments:)
+        call = begin
+          ReadGuards::Tinybird.reading(ApiReads::TOOL, arguments)
+        rescue ReadGuards::Refused => error
+          fail!(error.message)
+        end
+        path, query = call.values_at("path", "query")
+        answer = read { api(environment_row).read(path, query.transform_values { |value| Array(value).join(",") }) }
+        text = ApiReads.answer(PROVIDER, ApiReads.asked(path, query), answer, secret: ReadGuards::Tinybird.secret?(path))
+        Telemetry.result(text, link: workspace_link(environment_row))
       end
 
       # Reads the workspace and one service data source, so a token that lost its scope is said here before the map

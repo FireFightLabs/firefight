@@ -578,7 +578,7 @@ module Integrations
       test "AWS's skills cover triage and each kind, and the guides behind them carry AWS's license and notice" do
         skills = Chat::Skill.all.select { |skill| skill.source == Aws::PROVIDER_KEY }
 
-        assert_equal %w[aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_triage], skills.map(&:name).sort
+        assert_equal %w[aws_api aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_triage], skills.map(&:name).sort
         skills.each { |skill| assert skill.references.any?, "#{skill.name} lists the guides behind it" }
         source = ProviderDocSource::Definition.find(Aws::PROVIDER_KEY)
         assert_equal %w[LICENSE NOTICE], [ source["license"], source["notice"] ]

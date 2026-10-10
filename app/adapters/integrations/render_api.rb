@@ -89,6 +89,10 @@ module Integrations
 
     def delete_webhook(webhook_id) = delete("/webhooks/#{segment(webhook_id)}")
 
+    # Any GET of the public API, by its path under API_ROOT, for the general read (Integrations::ApiReads), which checks
+    # the path before it gets here.
+    def read(path, query) = get(path, query)
+
     private
 
     # Every page of a list, which Render answers as an array of { cursor, <key> } pairs, up to MAX_PAGES.

@@ -36,6 +36,20 @@
 #   leave_out    path parameters whose variant of each path is left out, such as a team scoped copy (optional)
 # The client is loaded by script/provider_docs/api_client_endpoints.mjs under Node's permission model, reading only the
 # folder it is installed in and writing only the pages, with no environment.
+#
+# An API's machine-readable description, whose reads are written out as the API reference a provider's general read
+# (api_read) is used with, since that tool only reads (ProviderDocs::ApiDescription):
+#   api          the description's address, or a list of them for one split over several files, read whole each time
+#   format       openapi (OpenAPI 3 or Swagger 2, JSON or YAML), discovery (a Google API Discovery document), botocore
+#                (an AWS service's service-2.json) or graphql (a GraphQL schema as introspection writes it)
+#   license      the license, in words
+#   endpoints    the folder the pages go to, where index.md lists every read by area and a page for each area the detail
+#   relative_to  a prefix every path is written after, as the provider's tool takes it, such as /api/v4 (optional)
+#   include      only the paths starting with one of these (optional)
+#   leave_out    leave out paths holding one of these, such as /watch/ (optional)
+#   service      the service's name for an AWS description, as the AWS general read takes it (optional)
+# Only an openly licensed description is read. A provider whose description states no open license, such as Render's,
+# Bitbucket's or Convex's, has none here, and its API skill sends Halon to the reference on the provider's own site.
 planetscale:
   repository: https://github.com/planetscale/database-skills
   license: LICENSE
@@ -555,3 +569,547 @@ github:
     releases/managing-releases.md: repositories/releasing-projects-on-github/managing-releases-in-a-repository
     actions/secrets.md: actions/concepts/security/secrets
     actions/use-secrets.md: actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
+
+# The API references each provider's general read (api_read) is used with, written from the provider's own description
+# of its API, which states an open license. Each writes api/index.md and a page for each area.
+
+# GitHub's REST API description is MIT licensed.
+github_api:
+  provider: github
+  api: https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json
+  format: openapi
+  license: |
+    Written from GitHub's REST API description (https://github.com/github/rest-api-description), which is licensed under
+    the MIT License. Copyright GitHub, Inc.
+  endpoints: api
+
+# GitLab's API description sits under doc/ in its repository, which is CC BY-SA 4.0, so the pages written from it are
+# shared under the same license. Its paths start /api/v4, which the GitLab tool takes them after.
+gitlab_api:
+  provider: gitlab
+  api: https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/api/openapi/openapi_v2.yaml
+  format: openapi
+  license: |
+    Written from GitLab's API description (doc/api/openapi/openapi_v2.yaml in https://gitlab.com/gitlab-org/gitlab), which is
+    licensed under the Creative Commons Attribution-ShareAlike 4.0 International license,
+    https://creativecommons.org/licenses/by-sa/4.0/, and these pages are shared under the same license. Copyright GitLab B.V.
+  endpoints: api
+  relative_to: /api/v4
+
+# Netlify's API description is MIT licensed, in netlify/open-api.
+netlify_api:
+  provider: netlify
+  api: https://raw.githubusercontent.com/netlify/open-api/master/swagger.yml
+  format: openapi
+  license: |
+    Written from Netlify's API description (https://github.com/netlify/open-api), which is licensed under the MIT License.
+    Copyright Netlify.
+  endpoints: api
+
+# Fly.io's Machines API description says it is Apache 2.0, as Fly.io's documentation is.
+fly_api:
+  provider: fly
+  api: https://docs.machines.dev/openapi.json
+  format: openapi
+  license: |
+    Written from Fly.io's Machines API description (https://docs.machines.dev), which is licensed under the Apache
+    License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Fly.io, Inc.
+  endpoints: api
+
+# Vercel publishes its API description in vercel/sdk, which is Apache 2.0.
+vercel_api:
+  provider: vercel
+  api: https://raw.githubusercontent.com/vercel/sdk/main/vercel-spec.json
+  format: openapi
+  license: |
+    Written from Vercel's API description as published in https://github.com/vercel/sdk, which is licensed under the
+    Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Vercel, Inc.
+  endpoints: api
+
+# DigitalOcean's API description is Apache 2.0, in digitalocean/openapi, read as the one file DigitalOcean bundles from it.
+digitalocean_api:
+  provider: digitalocean
+  api: https://api-engineering.nyc3.cdn.digitaloceanspaces.com/spec-ci/DigitalOcean-public.v2.yaml
+  format: openapi
+  license: |
+    Written from DigitalOcean's API description (https://github.com/digitalocean/openapi), which is licensed under the
+    Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright DigitalOcean, LLC.
+  endpoints: api
+
+# Trigger.dev's API description is in its Apache 2.0 repository.
+trigger_dev_api:
+  provider: trigger_dev
+  api: https://raw.githubusercontent.com/triggerdotdev/trigger.dev/main/docs/v3-openapi.yaml
+  format: openapi
+  license: |
+    Written from Trigger.dev's API description (docs/v3-openapi.yaml in https://github.com/triggerdotdev/trigger.dev), which
+    is licensed under the Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright Trigger.dev.
+  endpoints: api
+
+# Kubernetes' API description is Apache 2.0. Watch paths are kept only for old clients, so they are left out.
+kubernetes_api:
+  provider: kubernetes
+  api: https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json
+  format: openapi
+  license: |
+    Written from the Kubernetes API description (api/openapi-spec/swagger.json in https://github.com/kubernetes/kubernetes),
+    which is licensed under the Apache License, Version 2.0, https://www.apache.org/licenses/LICENSE-2.0. Copyright The
+    Kubernetes Authors.
+  endpoints: api
+  leave_out: [ /watch/ ]
+
+# Railway's API is GraphQL only. Its schema is MIT licensed, kept in Railway's CLI.
+railway_api:
+  provider: railway
+  api: https://raw.githubusercontent.com/railwayapp/cli/master/src/gql/schema.json
+  format: graphql
+  license: |
+    Written from Railway's GraphQL schema as kept in https://github.com/railwayapp/cli, which is licensed under the MIT
+    License. Copyright Railway Corporation.
+  endpoints: api
+
+# AWS's reads, one source a service the AWS general read reaches, written from botocore's description of each service,
+# which AWS's SDKs are built from and which is Apache 2.0. Each writes api/<service>/index.md and its page.
+aws_api_acm:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/acm/2015-12-08/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/acm
+  service: acm
+aws_api_apigateway:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/apigateway/2015-07-09/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/apigateway
+  service: apigateway
+aws_api_apigatewayv2:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/apigatewayv2/2018-11-29/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/apigatewayv2
+  service: apigatewayv2
+aws_api_autoscaling:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/autoscaling/2011-01-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/autoscaling
+  service: autoscaling
+aws_api_cloudformation:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/cloudformation/2010-05-15/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/cloudformation
+  service: cloudformation
+aws_api_cloudfront:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/cloudfront/2020-05-31/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/cloudfront
+  service: cloudfront
+aws_api_cloudtrail:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/cloudtrail/2013-11-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/cloudtrail
+  service: cloudtrail
+aws_api_cloudwatch:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/cloudwatch/2010-08-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/cloudwatch
+  service: cloudwatch
+aws_api_codebuild:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/codebuild/2016-10-06/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/codebuild
+  service: codebuild
+aws_api_codedeploy:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/codedeploy/2014-10-06/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/codedeploy
+  service: codedeploy
+aws_api_codepipeline:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/codepipeline/2015-07-09/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/codepipeline
+  service: codepipeline
+aws_api_dynamodb:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/dynamodb/2012-08-10/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/dynamodb
+  service: dynamodb
+aws_api_ec2:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/ec2/2016-11-15/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/ec2
+  service: ec2
+aws_api_ecr:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/ecr/2015-09-21/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/ecr
+  service: ecr
+aws_api_ecs:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/ecs/2014-11-13/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/ecs
+  service: ecs
+aws_api_eks:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/eks/2017-11-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/eks
+  service: eks
+aws_api_elasticache:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/elasticache/2015-02-02/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/elasticache
+  service: elasticache
+aws_api_elbv2:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/elbv2/2015-12-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/elbv2
+  service: elbv2
+aws_api_health:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/health/2016-08-04/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/health
+  service: health
+aws_api_iam:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/iam/2010-05-08/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/iam
+  service: iam
+aws_api_kms:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/kms/2014-11-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/kms
+  service: kms
+aws_api_lambda:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/lambda/2015-03-31/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/lambda
+  service: lambda
+aws_api_logs:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/logs/2014-03-28/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/logs
+  service: logs
+aws_api_rds:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/rds/2014-10-31/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/rds
+  service: rds
+aws_api_route53:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/route53/2013-04-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/route53
+  service: route53
+aws_api_s3:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/s3/2006-03-01/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/s3
+  service: s3
+aws_api_secretsmanager:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/secretsmanager/2017-10-17/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/secretsmanager
+  service: secretsmanager
+aws_api_sns:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/sns/2010-03-31/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/sns
+  service: sns
+aws_api_sqs:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/sqs/2012-11-05/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/sqs
+  service: sqs
+aws_api_ssm:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/ssm/2014-11-06/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/ssm
+  service: ssm
+aws_api_sts:
+  provider: aws
+  api: https://raw.githubusercontent.com/boto/botocore/develop/botocore/data/sts/2011-06-15/service-2.json
+  format: botocore
+  license: Written from botocore's description of the service (https://github.com/boto/botocore), licensed under the Apache License, Version 2.0. Copyright Amazon.com, Inc. or its affiliates.
+  endpoints: api/sts
+  service: sts
+
+# Google Cloud's reads, one source an API the Google Cloud general read reaches, written from its Discovery document as
+# kept in googleapis/discovery-artifact-manager, which is Apache 2.0.
+google_cloud_api_run:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/run.v2.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/run
+google_cloud_api_compute:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/compute.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/compute
+google_cloud_api_sqladmin:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/sqladmin.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/sqladmin
+google_cloud_api_container:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/container.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/container
+google_cloud_api_cloudbuild:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/cloudbuild.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/cloudbuild
+google_cloud_api_clouddeploy:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/clouddeploy.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/clouddeploy
+google_cloud_api_logging:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/logging.v2.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/logging
+google_cloud_api_monitoring:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/monitoring.v3.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/monitoring
+google_cloud_api_cloudresourcemanager:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/cloudresourcemanager.v3.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/cloudresourcemanager
+google_cloud_api_secretmanager:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/secretmanager.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/secretmanager
+google_cloud_api_pubsub:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/pubsub.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/pubsub
+google_cloud_api_artifactregistry:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/artifactregistry.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/artifactregistry
+google_cloud_api_cloudfunctions:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/cloudfunctions.v2.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/cloudfunctions
+google_cloud_api_redis:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/redis.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/redis
+google_cloud_api_dns:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/dns.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/dns
+google_cloud_api_storage:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/storage.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/storage
+google_cloud_api_iam:
+  provider: google_cloud
+  api: https://raw.githubusercontent.com/googleapis/discovery-artifact-manager/master/discoveries/iam.v1.json
+  format: discovery
+  license: Written from the API's Discovery document as kept in https://github.com/googleapis/discovery-artifact-manager, licensed under the Apache License, Version 2.0. Copyright Google LLC.
+  endpoints: api/iam
+
+# Azure Resource Manager's reads, one source a resource provider, written from its description in
+# Azure/azure-rest-api-specs, which is MIT. A provider described over several files reads them all.
+azure_api_web:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/web
+azure_api_app:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/app/resource-manager/Microsoft.App/ContainerApps/stable/2026-07-01/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/app
+azure_api_sql:
+  provider: azure
+  api:
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/servers.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/databases.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/elasticPools.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/failoverGroups.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/replicationLinks.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/databaseUsages.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/sql/resource-manager/Microsoft.Sql/SQL/stable/2025-01-01/managedInstances.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/sql
+azure_api_dbforpostgresql:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/postgresql/resource-manager/Microsoft.DBforPostgreSQL/stable/2025-08-01/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/dbforpostgresql
+azure_api_dbformysql:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/mysql/resource-manager/Microsoft.DBforMySQL/FlexibleServers/stable/2024-12-30/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/dbformysql
+azure_api_compute:
+  provider: azure
+  api:
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/compute/resource-manager/Microsoft.Compute/Compute/stable/2026-04-01/ComputeRP.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/compute/resource-manager/Microsoft.Compute/Compute/stable/2026-03-02/DiskRP.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/compute
+azure_api_containerservice:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/containerservice
+azure_api_network:
+  provider: azure
+  api:
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/loadBalancer.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/applicationGateway.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/frontdoor/resource-manager/Microsoft.Network/FrontDoor/stable/2026-04-01/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/network
+azure_api_storage:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-09-01/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/storage
+azure_api_insights:
+  provider: azure
+  api:
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-02-01/metrics.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2015-04-01/activityLogs.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-01-01/metricAlert.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-03-01/scheduledQueryRule_API.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2022-10-01/autoScale.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-01-01/activityLogAlerts_API.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2016-09-01/serviceDiagnosticsSettings.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/insights
+azure_api_resources:
+  provider: azure
+  api:
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json
+    - https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/resources/resource-manager/Microsoft.Resources/deployments/stable/2026-06-01/deployments.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/resources
+azure_api_resourcehealth:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/resourcehealth/resource-manager/Microsoft.ResourceHealth/ResourceHealth/stable/2025-05-01/ResourceHealth.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/resourcehealth
+azure_api_keyvault:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-05-15/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/keyvault
+azure_api_cache:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/redis/resource-manager/Microsoft.Cache/Redis/stable/2024-11-01/redis.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/cache
+azure_api_cdn:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/cdn/resource-manager/Microsoft.Cdn/Cdn/stable/2026-07-01/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/cdn
+azure_api_operationalinsights:
+  provider: azure
+  api: https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json
+  format: openapi
+  license: Written from the resource provider's description in https://github.com/Azure/azure-rest-api-specs, licensed under the MIT License. Copyright Microsoft Corporation.
+  endpoints: api/operationalinsights

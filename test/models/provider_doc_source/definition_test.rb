@@ -19,7 +19,7 @@ class ProviderDocSource::DefinitionTest < ActiveSupport::TestCase
     Definition.all.each do |source|
       assert IntegrationProvider.find(source.provider), "#{source.key} names #{source.provider}, which is not a provider"
       address = source.kind == Definition::KIND_PACKAGE ? "https://registry.npmjs.org/#{source.address}" : source.address
-      assert address.start_with?("https://"), "#{source.key} is read over https"
+      Array(address).each { |each| assert each.start_with?("https://"), "#{source.key} is read over https" }
       assert source.repository, "#{source.key} is a GitHub repository" if source.kind == Definition::KIND_REPOSITORY
     end
   end

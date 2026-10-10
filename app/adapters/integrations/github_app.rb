@@ -164,6 +164,13 @@ module Integrations
         end
       end
 
+      # Any GET of the REST API, by its path and query, for the general read (Integrations::ApiReads), which checks the
+      # path before it gets here. A list value is sent once per value.
+      def read(path, query, token:)
+        pairs = query.flat_map { |name, value| Array(value).map { |each| [ name, each ] } }
+        get(pairs.any? ? "#{path}?#{URI.encode_www_form(pairs)}" : path, token: token)
+      end
+
       def post(path, body, token:)
         uri = URI.parse("#{API_ROOT}#{path}")
         refreshing(token) do |value|

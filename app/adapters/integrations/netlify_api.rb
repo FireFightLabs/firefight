@@ -76,6 +76,10 @@ module Integrations
       send_request(uri, Net::HTTP::Delete.new(uri))
     end
 
+    # Any GET of the API, by its path under API_ROOT, for the general read (Integrations::ApiReads), which checks the path
+    # before it gets here.
+    def read(path, query) = get(path, query)
+
     private
 
     def write(verb, path, body = nil, query = {})

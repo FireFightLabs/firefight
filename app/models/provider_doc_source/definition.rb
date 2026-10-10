@@ -8,17 +8,20 @@ class ProviderDocSource
     KIND_SITE = "site".freeze
     KIND_INDEX = "index".freeze
     KIND_PACKAGE = "package".freeze
+    KIND_API = "api".freeze
     KINDS = {
       KIND_REPOSITORY => %w[paths],
       KIND_SITE => %w[license pages],
       KIND_INDEX => %w[under suffix to],
-      KIND_PACKAGE => %w[license endpoints relative_to]
+      KIND_PACKAGE => %w[license endpoints relative_to],
+      KIND_API => %w[format license endpoints]
     }.freeze
     OPTIONAL = {
       KIND_REPOSITORY => %w[license notice extensions exclude recursive],
       KIND_SITE => %w[page_url],
       KIND_INDEX => %w[license],
-      KIND_PACKAGE => %w[leave_out]
+      KIND_PACKAGE => %w[leave_out],
+      KIND_API => %w[relative_to include leave_out service]
     }.freeze
     SHARED = %w[provider to].freeze
     DEFAULT_PAGE_URL = "%<site>s/%<page>s/index.md".freeze
@@ -53,7 +56,7 @@ class ProviderDocSource
       case kind
       when KIND_SITE then settings.fetch("pages").keys.map { |path| "#{prefix}#{path}" }
       when KIND_INDEX then [ prefix ]
-      when KIND_PACKAGE then [ "#{prefix}#{settings.fetch('endpoints')}/" ]
+      when KIND_PACKAGE, KIND_API then [ "#{prefix}#{settings.fetch('endpoints')}/" ]
       when KIND_REPOSITORY then settings.fetch("paths").values.uniq.map { |to| to.end_with?(".md") ? "#{prefix}#{to}" : "#{prefix}#{to}/" }
       end
     end
@@ -68,7 +71,7 @@ class ProviderDocSource
       case kind
       when KIND_SITE then settings.fetch("pages").key?(inside)
       when KIND_INDEX then true
-      when KIND_PACKAGE then inside.start_with?("#{settings.fetch('endpoints')}/")
+      when KIND_PACKAGE, KIND_API then inside.start_with?("#{settings.fetch('endpoints')}/")
       when KIND_REPOSITORY
         settings.fetch("paths").values.any? { |to| to.end_with?(".md") ? inside == to : inside.start_with?("#{to}/") && (settings["recursive"] || !inside.delete_prefix("#{to}/").include?("/")) }
       end
