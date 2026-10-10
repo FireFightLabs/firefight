@@ -85,6 +85,41 @@ class AgentConfirmCardTest < ApplicationSystemTestCase
     assert_decided [ Chat::APPROVAL_APPROVED ]
   end
 
+  test "a change customers feel is confirmed with when it is undone, and a statement that writes rows is never allowed for the chat" do
+    posthog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "posthog", name: "PostHog", slug: "posthog",
+                                              settings: { "server_url" => "https://mcp.posthog.com/mcp?mode=tools" })
+    posthog.integration_environments.create!
+    tool = posthog.tools.create!(name: "feature_flag_disable", description: "Disable", enabled: true, read_only: false, params_schema: { "type" => "object" })
+    pause_on(tool.model_facing_name)
+    Chat::Mitigation.create!(chat: @chat, workspace: @workspace, tool_call_id: "call_1", tool_name: tool.model_facing_name, action_key: tool.action_key,
+                             duration_minutes: Chat::Mitigation::DEFAULT_MINUTES)
+
+    visit agent_chat_path(@conversation)
+
+    assert_button "Confirm, undo after 1 hour"
+    assert_button "Confirm, keep it"
+    click_button "Confirm, undo after 4 hours"
+
+    assert_decided [ Chat::APPROVAL_APPROVED ]
+    assert_equal 240, Chat::Mitigation.find_by!(chat: @chat, tool_call_id: "call_1").duration_minutes
+  end
+
+  test "the rows a statement would change are shown before it is confirmed, with no way to allow it for the chat" do
+    pause_on("planetscale_execute_write_query")
+    Chat::DataRepair.create!(chat: @chat, workspace: @workspace, tool_call_id: "call_1", tool_name: "planetscale_execute_write_query",
+                             action_key: "planetscale.execute_write_query", statement_kind: Integrations::DataWrites::Statement::KIND_UPDATE,
+                             table_name: "orders", rows_counted: 42, wrong_before: 42, sample: "id | currency\n1 | null")
+
+    visit agent_chat_path(@conversation)
+
+    assert_text "Rows it changes"
+    assert_text "42 rows of orders"
+    assert_text "id | currency"
+    assert_no_button "Allow for the rest of this chat"
+    click_button "Confirm"
+    assert_decided [ Chat::APPROVAL_APPROVED ]
+  end
+
   private
 
   def pause_on(*tool_names)

@@ -229,6 +229,21 @@ module Integrations
                            "#{canceled['status'] || 'canceling'}. #{FOLLOW}.", link: link(canceled["web_url"] || pipeline["web_url"]))
         end
 
+        # Whoever started the pipeline, matched to a member by the public address their GitLab profile shows.
+        def owner_of(tool_name, environment_row:, arguments:)
+          return super unless tool_name == "cancel_pipeline"
+
+          repo = repo_argument(arguments)
+          gitlab = api(environment_row)
+          pipeline = gitlab.get("#{GitlabApi.project(repo)}/pipelines/#{positive_id(arguments, 'pipeline_id')}")
+          user = pipeline["user"].to_h
+          return if user["username"].blank?
+
+          profile = user["id"] ? gitlab.get("/users/#{Integer(user['id'])}") : {}
+          Owner.new(name: user["name"].presence || user["username"], email: profile.to_h["public_email"].presence, role: Owner::ROLE_STARTED,
+                    what: "pipeline #{pipeline['id']} in #{repo}")
+        end
+
         private
 
         # A change GitLab refused is said with what it needs, so a person knows which token or role to give.

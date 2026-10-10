@@ -38,6 +38,12 @@ class AgentChatsController < InertiaController
   PROP_SETUP_GUIDE = "setupGuide"
   # The plans Halon keeps in the open chat, each a checklist that moves as it works.
   PROP_PLANS = "plans"
+  # Statements Halon ran that changed rows, with their counts, check and the copy kept of the rows.
+  PROP_DATA_REPAIRS = "dataRepairs"
+  # Changes customers feel that Halon made, undone when their time is up unless someone keeps them.
+  PROP_MITIGATIONS = "mitigations"
+  # Owners asked before Halon stopped something they started.
+  PROP_OWNER_ASKS = "ownerAsks"
   PROPS = {
     "CONVERSATIONS" => PROP_CONVERSATIONS, "ARCHIVED_COUNT" => PROP_ARCHIVED_COUNT,
     "CONVERSATION" => PROP_CONVERSATION, "MESSAGES" => PROP_MESSAGES, "INCIDENTS" => PROP_INCIDENTS,
@@ -46,7 +52,8 @@ class AgentChatsController < InertiaController
     "OPEN_INVESTIGATION" => PROP_OPEN_INVESTIGATION, "CHARTS" => PROP_CHARTS, "WAITING_MESSAGES" => PROP_WAITING_MESSAGES,
     "ATTACHMENT_RULES" => PROP_ATTACHMENT_RULES, "COMPACTIONS" => PROP_COMPACTIONS, "HELD_CALLS" => PROP_HELD_CALLS,
     "PACK_REFUSALS" => PROP_PACK_REFUSALS, "SECRET_ENTRIES" => PROP_SECRET_ENTRIES, "SETUP_GUIDE" => PROP_SETUP_GUIDE, "WATCHES" => PROP_WATCHES, "WATCH_UPDATES" => PROP_WATCH_UPDATES,
-    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS
+    "PULL_REQUEST_NOTICES" => PROP_PULL_REQUEST_NOTICES, "MEMORY_QUESTIONS" => PROP_MEMORY_QUESTIONS, "PLANS" => PROP_PLANS,
+    "DATA_REPAIRS" => PROP_DATA_REPAIRS, "MITIGATIONS" => PROP_MITIGATIONS, "OWNER_ASKS" => PROP_OWNER_ASKS
   }.freeze
   # The newest active incidents, the ones people ask about.
   MENTIONABLE = 20
@@ -57,10 +64,11 @@ class AgentChatsController < InertiaController
   include ServesChatAttachment
 
   # Asking spends money, so it needs the same permission as starting an investigation.
-  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file],
+  authorizes Ability::Action::RESOURCE_CHATS, read: %i[index show search investigation_file data_repair_copy],
                                              update: %i[update ask_pack fill_secret reveal_secret], delete: %i[destroy]
   authorizes Ability::Action::RESOURCE_INVESTIGATIONS, create: %i[create ask confirm stop run_held_call dismiss_held_call ask_held_call_again stop_watch fix_pull_request
-                                                                schedule_plan cancel_plan retry_plan undo_plan]
+                                                                schedule_plan cancel_plan retry_plan undo_plan keep_mitigation extend_mitigation
+                                                                undo_mitigation]
   authorizes Ability::Action::RESOURCE_INCIDENTS, read: %i[incidents]
 
   include RequiresAgent
@@ -74,7 +82,8 @@ class AgentChatsController < InertiaController
       PROP_CONVERSATION => nil, PROP_MESSAGES => [], PROP_CONFIRMATIONS => [], PROP_INVESTIGATIONS => [], PROP_OPEN_INVESTIGATION => nil,
       PROP_CHARTS => [], PROP_WAITING_MESSAGES => [], PROP_ATTACHMENT_RULES => attachment_rules(nil), PROP_COMPACTIONS => [],
       PROP_HELD_CALLS => [], PROP_PACK_REFUSALS => [], PROP_SECRET_ENTRIES => [], PROP_WATCHES => [], PROP_WATCH_UPDATES => [],
-      PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => []
+      PROP_PULL_REQUEST_NOTICES => [], PROP_MEMORY_QUESTIONS => [], PROP_PLANS => [], PROP_DATA_REPAIRS => [], PROP_MITIGATIONS => [],
+      PROP_OWNER_ASKS => []
     )
   end
 
@@ -98,7 +107,10 @@ class AgentChatsController < InertiaController
       PROP_WATCH_UPDATES => AgentChatWatchUpdateSerializer.many(watch_updates_shown),
       PROP_PULL_REQUEST_NOTICES => AgentChatPullRequestNoticeSerializer.many(pull_request_notices_shown, member: current_membership),
       PROP_MEMORY_QUESTIONS => AgentChatMemoryQuestionSerializer.many(conversation.memory_posts.order(:created_at), member: current_membership),
-      PROP_PLANS => AgentChatPlanSerializer.many(plans_shown, member: current_membership)
+      PROP_PLANS => AgentChatPlanSerializer.many(plans_shown, member: current_membership),
+      PROP_DATA_REPAIRS => AgentChatDataRepairSerializer.many(conversation.chat&.data_repairs&.where(status: Chat::DataRepair::STATUS_RAN) || []),
+      PROP_MITIGATIONS => AgentChatMitigationSerializer.many(conversation.chat&.mitigations&.shown || [], member: current_membership),
+      PROP_OWNER_ASKS => AgentChatOwnerAskSerializer.many(conversation.chat&.owner_asks&.shown || [])
     )
   end
 
@@ -145,11 +157,11 @@ class AgentChatsController < InertiaController
     redirect_to agent_chat_path(conversation)
   end
 
-  # The turn carries on as whoever answered, not whoever asked.
+  # The turn carries on as whoever answered, not whoever asked. expires is when a change customers feel is undone.
   def confirm
     decisions = Array(params[:decisions]).map do |decision|
       { tool_call_id: decision[:tool_call_id].to_s, approved: ActiveModel::Type::Boolean.new.cast(decision[:approved]),
-        for_chat: ActiveModel::Type::Boolean.new.cast(decision[:for_chat]) }
+        for_chat: ActiveModel::Type::Boolean.new.cast(decision[:for_chat]), expires: decision[:expires].presence&.to_s }
     end
     Conversation::Confirming.decide(conversation, decisions, by: current_membership)
     redirect_to agent_chat_path(conversation)
@@ -196,6 +208,33 @@ class AgentChatsController < InertiaController
   # Undo has Halon put back what the plan changed, from the undo each change was written with. Each change still asks.
   def undo_plan
     decide_plan { |plan| [ Conversation::Plans.undo!(plan, by: current_membership), "Halon is undoing the plan." ] }
+  end
+
+  def keep_mitigation
+    decide_mitigation { |mitigation| [ Conversation::Mitigations.keep!(mitigation, by: current_membership), "#{mitigation.label} is kept." ] }
+  end
+
+  def extend_mitigation
+    decide_mitigation do |mitigation|
+      [ Conversation::Mitigations.extend!(mitigation, by: current_membership),
+        "#{mitigation.label} has #{Chat::Mitigation.duration_words(Chat::Mitigation::EXTEND_BY.in_minutes.to_i)} more." ]
+    end
+  end
+
+  def undo_mitigation
+    decide_mitigation { |mitigation| [ Conversation::Mitigations.undo_now!(mitigation, by: current_membership), "Undoing #{mitigation.label}." ] }
+  end
+
+  # The rows a statement touched, as they were right before it ran, for whoever may read that database.
+  def data_repair_copy
+    repair = conversation.chat&.data_repairs&.find_by(id: params[:data_repair_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That copy is no longer in this chat.") unless repair
+
+    copy = repair.copy_for(current_membership)
+    return redirect_to(agent_chat_path(conversation), alert: copy.refusal) if copy.refusal
+
+    response.headers["Cache-Control"] = "no-store"
+    send_data copy.text, filename: copy.filename, type: "text/plain", disposition: "attachment"
   end
 
   # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.
@@ -299,6 +338,16 @@ class AgentChatsController < InertiaController
   def pack_refusals_shown
     chat = conversation.chat
     chat ? chat.pack_refusals.includes(pack_request: [ { requester: :user }, :role ]).order(:created_at) : []
+  end
+
+  def decide_mitigation
+    mitigation = conversation.chat&.mitigations&.find_by(id: params[:mitigation_id])
+    return redirect_to(agent_chat_path(conversation), alert: "That change is no longer in this chat.") unless mitigation
+
+    blocked, done = yield mitigation
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
+    redirect_to agent_chat_path(conversation), notice: done
   end
 
   def decide_held_call(done)

@@ -50,6 +50,8 @@ class Chat::Tools::Capability < RubyLLM::Tool
     if @spec.writes
       refusal = misdirection(asked, found) || Chat::Tools::Target.drift(@agent_run, tool_call&.id, Chat::Tools::Target.describe(@agent_run, name, given))
       return refused(tool_call, refusal) if refusal
+
+      Chat::Safeguards.capability_call!(@agent_run, found, tool_call&.id, given)
     end
     return ask(found, tool_call) unless found.fallback
 

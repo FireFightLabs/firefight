@@ -176,8 +176,8 @@ class IntegrationProvider
   # regions has a site per region instead.
   Entry = Data.define(:key, :name, :category, :mark, :color, :description, :server_url, :kind, :connect_with, :read_only_tools,
                       :source_links, :source_links_note, :map, :map_note, :history, :history_note, :code_fix_tool, :regions, :connect_fields, :site, :code_agent,
-                      :app, :setting_words, :holds_code) do
-    def initialize(connect_with: nil, read_only_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
+                      :app, :setting_words, :holds_code, :mitigation_tools, :stopping_tools) do
+    def initialize(connect_with: nil, read_only_tools: [], mitigation_tools: [], stopping_tools: [], source_links_note: nil, map_note: nil, history: HISTORY_NONE, history_note: nil, code_fix_tool: nil, regions: [],
                    connect_fields: [], site: nil, code_agent: false, app: nil, setting_words: [], holds_code: false, **) = super
 
     # A provider reached through its MCP server that Firefight's own app also connects, once this install registered it.
@@ -281,6 +281,10 @@ class IntegrationProvider
         # read_only_tools names tools a provider's server does not mark read only although they only read, so they are
         # treated as reads rather than as writes that each ask to be confirmed.
         connect_with: raw["connect_with"], read_only_tools: Array(raw["read_only_tools"]),
+        # mitigation_tools change what customers get for a while, such as turning a feature flag off, so a change through
+        # one is undone after a time the person sees unless someone keeps it. stopping_tools end or remove something
+        # someone started, such as cancelling a run, so whoever started it is asked first (Ability::Action::EFFECTS).
+        mitigation_tools: Array(raw["mitigation_tools"]), stopping_tools: Array(raw["stopping_tools"]),
         source_links: declared(raw, "source_links", SOURCE_LINKS, SOURCE_LINKS_EXPLAINED), source_links_note: raw["source_links_note"],
         map: declared(raw, "map", MAPS, MAP_EXPLAINED), map_note: raw["map_note"],
         history: declared(raw, "history", HISTORIES, HISTORY_EXPLAINED), history_note: raw["history_note"],

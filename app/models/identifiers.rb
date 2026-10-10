@@ -158,6 +158,15 @@ module Identifiers
   APPROVE_ABILITY = "approve_ability"
   DENY_ABILITY = "deny_ability"
   AGENT_CONFIRM = "agent_confirm"
+  # When a change customers feel is undone, picked on its confirmation before Confirm.
+  AGENT_EXPIRY = "agent_expiry"
+  # On a temporary change's reminder, to keep it, give it more time, or undo it now.
+  MITIGATION_KEEP = "mitigation_keep"
+  MITIGATION_EXTEND = "mitigation_extend"
+  MITIGATION_UNDO = "mitigation_undo"
+  # The owner's answer to Halon stopping something they started.
+  OWNER_AGREE = "owner_agree"
+  OWNER_DECLINE = "owner_decline"
   AGENT_CANCEL = "agent_cancel"
   # A call held for approval in a chat, once approved: run it, dismiss it, or ask again once the approval expired.
   HELD_CALL_RUN = "held_call_run"

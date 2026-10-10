@@ -34,6 +34,10 @@
 # setting_words are words in a service's setting names that point at this provider's stores, such as NEON in
 # NEON_DATABASE_URL. The map's matcher reads them as a clue when a setting's value is hidden or names no address a store
 # reported.
+# mitigation_tools are tools whose change customers feel for a while, such as turning a feature flag off, so a change Halon
+# makes through one is undone after a time the person sees and can change, unless someone keeps it. stopping_tools end
+# or remove something someone started, such as cancelling a run, so its pack asks whoever started it first. Neither
+# lists a general tool that reaches a whole API, since which call it makes is only known when it is called.
 # holds_code marks a code host, whose repositories a code change can be written to. Each of its connections keeps the
 # paths Halon may not change (Integration::CodeChanges), which its page shows under Code changes.
 # Section headings on the gallery, listed in the order the gallery shows them. A provider naming a category that is
@@ -99,6 +103,7 @@ providers:
     history: firefight
     code_fix_tool: fix_code
     holds_code: true
+    stopping_tools: [cancel_workflow]
   - key: gitlab
     name: GitLab
     category: Code
@@ -122,6 +127,7 @@ providers:
     map: firefight
     history: firefight
     holds_code: true
+    stopping_tools: [cancel_pipeline]
   - key: bitbucket
     name: Bitbucket
     category: Code
@@ -143,6 +149,7 @@ providers:
     map: firefight
     history: firefight
     holds_code: true
+    stopping_tools: [cancel_pipeline]
   - key: circleci
     name: CircleCI
     category: CI
@@ -600,6 +607,8 @@ providers:
     history: none
     history_note: "It holds what people do in your product, not builds or deploys."
     map_note: "It holds what people do in your product, not infrastructure."
+    # Turning a flag on or off, or changing who gets it, changes what customers see, so it is undone after a while unless kept.
+    mitigation_tools: [feature_flag_disable, feature_flag_enable, update_feature_flag, feature_flag_set_release_condition_rollout]
   - key: mixpanel
     name: Mixpanel
     category: Product analytics
@@ -625,6 +634,7 @@ providers:
     history: none
     history_note: "It holds what people do in your product, not builds or deploys."
     map_note: "It holds what people do in your product, not infrastructure."
+    mitigation_tools: [update_feature_flag]
   - key: honeycomb
     name: Honeycomb
     category: Observability

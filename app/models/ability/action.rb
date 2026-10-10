@@ -139,6 +139,15 @@ module Ability
       ACTION_DELETE => RISK_DESTRUCTIVE
     }.freeze
 
+    # What a change does beyond its risk, which decides the safeguards a call through it gets in a chat. A data write
+    # changes rows with a statement, so its rows are counted, copied and checked. A mitigation changes what customers
+    # get, such as a block or a flag, so it is undone after a while unless someone keeps it. A stop ends or removes
+    # something, so whoever started it is asked first. Declared per tool (Integrations::Effects), never by provider.
+    EFFECT_DATA_WRITE = "data_write"
+    EFFECT_MITIGATION = "mitigation"
+    EFFECT_STOPS = "stops"
+    EFFECTS = [ EFFECT_DATA_WRITE, EFFECT_MITIGATION, EFFECT_STOPS ].freeze
+
     KEY_FORMAT = /\A[a-z0-9_]+(\.[a-z0-9_]+)+\z/
 
     belongs_to :workspace, optional: true
@@ -246,6 +255,11 @@ module Ability
 
     # Whether no approval rule can ever hold it, since reads never wait and some resources are exempt.
     def never_held? = read? || self.class.approval_exempt?(key)
+    # Firefight's own actions have none. A tool's are read from its declaration each time, so a change to the registry or
+    # a pack applies without saving anything.
+    def effects = tool? && source.respond_to?(:effects) ? source.effects : []
+
+    def effect?(effect) = effects.include?(effect)
 
     def admin_only?
       system? && ADMIN_ONLY_RESOURCES.include?(self.class.resource_of(key))

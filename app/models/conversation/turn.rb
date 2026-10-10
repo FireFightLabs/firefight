@@ -11,10 +11,17 @@ class Conversation::Turn
     @conversation = conversation
     @asker = asker
     @reads_only = reads_only
+    @approved_plan = approved_plan
     @approved_tools = approved_plan&.approved_tools.to_a
   end
 
+  # The scheduled plan this turn carries out with its approved-ahead tools, or nil.
+  attr_reader :approved_plan
+
   def acting_principal = asker
+
+  # A tool of a scheduled plan whose changes the person approved ahead, run without asking since nobody may be there.
+  def approved_ahead?(tool_name) = @approved_tools.include?(tool_name.to_s)
 
   # A chat may change things, each one confirmed by the person who asked.
   def reads_only? = @reads_only

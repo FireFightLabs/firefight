@@ -57,6 +57,14 @@ development:
     class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
     queue: background
     schedule: every minute
+  mitigation_sweep:
+    class: MitigationSweepJob # reminds before a temporary change Halon made runs out, and undoes it when it does unless someone kept it
+    queue: background
+    schedule: every minute
+  data_repair_copy_cleanup:
+    class: DataRepairCopyCleanupJob # drops the copies of rows kept before Halon changed them, once kept for 30 days
+    queue: background
+    schedule: at 3:45am every day
   pull_request_sweep:
     class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
     queue: background
@@ -173,6 +181,14 @@ staging:
     class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
     queue: background
     schedule: every minute
+  mitigation_sweep:
+    class: MitigationSweepJob # reminds before a temporary change Halon made runs out, and undoes it when it does unless someone kept it
+    queue: background
+    schedule: every minute
+  data_repair_copy_cleanup:
+    class: DataRepairCopyCleanupJob # drops the copies of rows kept before Halon changed them, once kept for 30 days
+    queue: background
+    schedule: at 3:45am every day
   pull_request_sweep:
     class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
     queue: background
@@ -315,6 +331,14 @@ production:
     class: ChatPlanSweepJob # starts each plan Halon scheduled once its approved time comes
     queue: background
     schedule: every minute
+  mitigation_sweep:
+    class: MitigationSweepJob # reminds before a temporary change Halon made runs out, and undoes it when it does unless someone kept it
+    queue: background
+    schedule: every minute
+  data_repair_copy_cleanup:
+    class: DataRepairCopyCleanupJob # drops the copies of rows kept before Halon changed them, once kept for 30 days
+    queue: background
+    schedule: at 3:45am every day
   pull_request_sweep:
     class: PullRequestSweepJob # reads each pull request Halon opened and still follows, until it is merged or closed
     queue: background

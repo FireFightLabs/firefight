@@ -25,6 +25,12 @@ class Chat < ApplicationRecord
   has_many :watch_updates, through: :watches, source: :updates
   # The plans Halon keeps for requests that take more than one step, made, scheduled, going and ended.
   has_many :plans, -> { order(:created_at) }, class_name: "Chat::Plan", dependent: :destroy, inverse_of: :chat
+  # Statements that change rows, counted, copied and checked around the call (Chat::DataRepairs).
+  has_many :data_repairs, -> { order(:created_at) }, class_name: "Chat::DataRepair", dependent: :delete_all, inverse_of: :chat
+  # Changes customers feel for a while, undone when their time is up unless someone keeps them.
+  has_many :mitigations, -> { order(:created_at) }, class_name: "Chat::Mitigation", dependent: :delete_all, inverse_of: :chat
+  # Whoever started what a call would stop, asked before it runs.
+  has_many :owner_asks, -> { order(:created_at) }, class_name: "Chat::OwnerAsk", dependent: :delete_all, inverse_of: :chat
   # Destroyed one by one, since each lets go of its bytes in the object store.
   has_many :attached_files, -> { in_order }, class_name: "Chat::Attachment", dependent: :destroy, inverse_of: :chat
 
@@ -141,6 +147,9 @@ class Chat < ApplicationRecord
   # Ours too, for a call put to the person that they moved past by asking something else. It has a result, so RubyLLM
   # never asks about it again.
   APPROVAL_WITHDRAWN = "withdrawn"
+  # Ours too, for a call the person confirmed that waits for whoever started what it stops to agree (Chat::OwnerAsk).
+  # RubyLLM reads it as undecided, so the turn stays paused on it.
+  APPROVAL_OWNER_ASKED = "owner_asked"
 
   def tool_calls
     RubyLLM::ActiveRecord::ToolCall.where(message_type: Chat::Message.polymorphic_name, message_id: messages.select(:id))
@@ -152,6 +161,19 @@ class Chat < ApplicationRecord
   end
 
   def awaiting_decision = tool_calls.where(approval: APPROVAL_REQUESTED).order(:created_at)
+
+  # Calls the turn still waits on, the person's answer or an owner's.
+  def undecided = tool_calls.where(approval: [ APPROVAL_REQUESTED, APPROVAL_OWNER_ASKED ])
+
+  # Confirmed, and now waiting for its owner. One guarded update, so a second click loses.
+  def await_owner!(tool_call_id)
+    tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_REQUESTED).update_all(approval: APPROVAL_OWNER_ASKED, updated_at: Time.current) > 0
+  end
+
+  # The owner answered, so the call goes on. A no is the call's own refusal when it runs (Chat::Safeguards).
+  def owner_answered!(tool_call_id)
+    tool_calls.where(tool_call_id: tool_call_id, approval: APPROVAL_OWNER_ASKED).update_all(approval: APPROVAL_APPROVED, updated_at: Time.current) > 0
+  end
 
   def request_decisions!(tool_call_ids)
     tool_calls.where(tool_call_id: tool_call_ids, approval: nil).update_all(approval: APPROVAL_REQUESTED)

@@ -123,7 +123,7 @@ module Chat::Tools::Target
   # RubyLLM reads it when a tool has no resolver of its own.
   def self.resolver(agent_run)
     lambda do |tool_call|
-      next true if yield(tool_call.arguments.to_h.stringify_keys)
+      next true if yield(tool_call.arguments.to_h.stringify_keys, tool_call)
 
       case agent_run.chat&.tool_calls&.where(tool_call_id: tool_call.id)&.pick(:approval)
       when Chat::APPROVAL_APPROVED then true

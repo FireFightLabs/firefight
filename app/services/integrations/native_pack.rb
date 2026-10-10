@@ -228,6 +228,10 @@ module Integrations
       fail!("#{self.class.name.demodulize} keeps no secrets Firefight can read.")
     end
 
+    # Who started what a tool that stops something would stop (the registry's stopping_tools), as an Integrations::Owner,
+    # or nil when the provider does not say. Read as the call's arguments name it, before anyone is asked.
+    def owner_of(_tool_name, environment_row:, arguments:) = nil
+
     # Packs override with a real probe and raise Error with a readable reason.
     # The default accepts so a pack without a probe still connects.
     def check_health!(environment_row)
