@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -774,6 +774,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_id", "tool_call_id"], name: "index_chat_step_progresses_on_chat_id_and_tool_call_id", unique: true
+  end
+
+  create_table "chat_terminal_sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "owner_type", null: false
+    t.uuid "owner_id", null: false
+    t.string "principal_type"
+    t.uuid "principal_id"
+    t.boolean "changes_allowed", default: false, null: false
+    t.string "token_digest", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "closed_at"
+    t.integer "calls", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_type", "owner_id"], name: "index_chat_terminal_sessions_on_owner"
+    t.index ["principal_type", "principal_id"], name: "index_chat_terminal_sessions_on_principal"
+    t.index ["token_digest"], name: "index_chat_terminal_sessions_on_token_digest", unique: true
+    t.index ["workspace_id"], name: "index_chat_terminal_sessions_on_workspace_id"
   end
 
   create_table "chat_watch_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2847,6 +2866,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
   add_foreign_key "chat_secret_entries", "workspace_memberships", column: "done_by_id", on_delete: :nullify
   add_foreign_key "chat_secret_entries", "workspace_memberships", column: "requester_id", on_delete: :cascade
   add_foreign_key "chat_step_progresses", "chats", on_delete: :cascade
+  add_foreign_key "chat_terminal_sessions", "workspaces"
   add_foreign_key "chat_watch_steps", "chat_watches", column: "watch_id", on_delete: :cascade
   add_foreign_key "chat_watch_steps", "integration_environments", on_delete: :nullify
   add_foreign_key "chat_watch_updates", "chat_watches", column: "watch_id", on_delete: :cascade

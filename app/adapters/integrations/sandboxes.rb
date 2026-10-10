@@ -51,6 +51,14 @@ module Integrations
       end
     end
 
+    # Where a provider's boxes run, as a check from one is described, such as "europe-west", or nil when it does not say.
+    # A provider that cannot be asked leaves it unnamed.
+    def self.region(key)
+      provider(key)&.region.presence
+    rescue Error
+      nil
+    end
+
     def self.image = ENV["SANDBOX_IMAGE"].presence || "#{IMAGE_REPOSITORY}:#{ENV['FIREFIGHT_RELEASE'].presence || EDGE_TAG}"
 
     def self.box_name = "#{NAME_PREFIX}#{SecureRandom.hex(6)}"
@@ -73,6 +81,10 @@ module Integrations
       def hourly_micros_for(size) = size == self.size ? hourly_micros : nil
 
       def keeps_copies? = false
+
+      # Where its boxes run. A provider that cannot tell, such as the Docker daemon on whatever machine runs Firefight,
+      # takes the region the deployment names in SANDBOX_REGION.
+      def region = ENV["SANDBOX_REGION"].presence
 
       # Every box and kept copy the provider holds for Firefight, found by Firefight's name or label, running or not.
       def inventory

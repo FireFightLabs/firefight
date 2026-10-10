@@ -5,13 +5,14 @@ module Integrations
     # Chat::CodeFixProgress (NativePack#report).
     # request, for a tool that writes code, is who asked and what they said (CodeAgent::Request).
     # A tool on a connection whose app installation stopped, or lacks what the tool needs, answers why instead of calling
-    # the provider (Installations.refusal).
-    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
+    # the provider (Installations.refusal). relayed is a call a provider's command line tool made in Halon's terminal
+    # (NativePack#relayed?).
+    def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil, relayed: false)
       refused = Installations.refusal(environment_row, tool)
       return { "content" => [ { "type" => "text", "text" => refused } ], "isError" => true } if refused
       SecretReads.refuse!(tool, arguments)
 
-      pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress, request: request)
+      pack = NativePack.fetch!(tool.integration, box_key: box_key, progress: progress, request: request, **(relayed ? { relayed: true } : {}))
       arguments = Scopes.resolved(environment_row, arguments.to_h)
       rules = Redactions.rules(tool.integration.provider)
       result = begin

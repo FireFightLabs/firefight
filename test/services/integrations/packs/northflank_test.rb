@@ -58,6 +58,20 @@ module Integrations
         assert_match %r{link with what you found: https://app\.northflank\.com/t/firefight-labs/project/firefight/services/web\z}, environment
       end
 
+      test "a call Northflank's own command line tool made keeps the API's answer whole beside the text, with secrets still hidden" do
+        long = Array.new(400) { |index| { "id" => "svc-#{index}", "runtimeEnvironment" => { "API_KEY" => "abc123" } } }
+        NorthflankApi.any_instance.stubs(:request).with("GET", "firefight", "services", nil, {}).returns("data" => { "services" => long })
+        tool = @integration.tools.create!(name: "api_request", description: "Calls the API", params_schema: {}, enabled: true, read_only: false)
+
+        relayed = NativeExecutor.call(tool: tool, environment_row: @row, arguments: { "method" => "GET", "path" => "services" }, relayed: true)
+        plain = NativeExecutor.call(tool: tool, environment_row: @row, arguments: { "method" => "GET", "path" => "services" })
+
+        answer = relayed.dig(Telemetry::STRUCTURED, Telemetry::RELAYED)
+        assert_equal 400, answer.dig("data", "services").size, "the whole answer, where the text is cut short"
+        assert_equal({ "API_KEY" => "[hidden]" }, answer.dig("data", "services", 0, "runtimeEnvironment"))
+        assert_nil plain[Telemetry::STRUCTURED], "nothing beside the text unless a command line tool asked"
+      end
+
       test "a change outside the project, or not shaped as asked, is refused before anything is sent" do
         NorthflankApi.any_instance.expects(:request).never
 

@@ -38,6 +38,24 @@ module Integrations
       end
     end
 
+    test "a provider's command line tool names its command and the tool it runs as, and points at Firefight with a token, never a key" do
+      Provider.all.filter_map(&:cli).each do |cli|
+        assert cli::COMMAND.present? && cli::TOOL.present?, "#{cli} names its command and tool"
+        assert_equal [ "https://ff.example/x", "tok" ].sort, cli.env("https://ff.example/x", "tok").values.sort, "#{cli} is handed only the relay and the token"
+        %i[arguments answer].each { |method| assert cli.respond_to?(method), "#{cli} answers #{method}" }
+      end
+    end
+
+    test "Northflank's command line tool reaches what is inside a project and nothing else" do
+      cli = Provider.for("northflank").cli
+
+      assert_equal({ "method" => "POST", "path" => "services/web/restart", "project" => "shop", "body" => { "a" => 1 } },
+                   cli.arguments("post", "/v1/projects/shop/services/web/restart", {}, { "a" => 1 }))
+      [ "v1/projects", "v1/teams/t/projects/shop/services", "v1/projects/shop", "v1/projects/../x/services" ].each do |path|
+        assert_raises(Clis::Refused, path) { cli.arguments("GET", path, {}, nil) }
+      end
+    end
+
     test "every status word a provider maps is one of Firefight's own" do
       firefight = ResourceMap::Resource::STATUS_HEALTH.keys
       assert_includes firefight, "stopped", "Firefight's own status words are what providers map onto"

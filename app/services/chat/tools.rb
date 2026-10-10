@@ -58,8 +58,8 @@ module Chat::Tools
   # So is a call its guard shows to read through a tool that can also change things, when the call's arguments are known.
   def self.kind(tool_name, workspace, arguments = nil)
     name = tool_name.to_s
-    reading = name == ReadResult.tool_name || [ Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ ].include?(name) || firefight_reading_names.include?(name) ||
-              workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
+    reading = name == ReadResult.tool_name || [ Web::SEARCH, Web::READ, Docs::SEARCH, Docs::READ, OutsideCheck::NAME ].include?(name) ||
+              firefight_reading_names.include?(name) || workspace.reading_tool_names.include?(name) || guarded_read?(workspace, name, arguments)
     reading ? KIND_READ : KIND_ACT
   end
 
@@ -203,11 +203,14 @@ module Chat::Tools
     false
   end
 
+  # How every answer to a call held for an approval starts, so a caller that only has the words can tell it waits.
+  WAITING = "Needs an approval and was not run".freeze
+
   # held is whether the person is asked to run it once approved, which only a chat does.
   def self.waiting_for_approval(action_key, held: false)
-    return "Needs an approval and was not run: #{action_key}. Carry on with what you can reach and say what you could not check." unless held
+    return "#{WAITING}: #{action_key}. Carry on with what you can reach and say what you could not check." unless held
 
-    "Needs an approval and was not run: #{action_key}. Whoever can approve it has been asked. Once someone approves it, the " \
+    "#{WAITING}: #{action_key}. Whoever can approve it has been asked. Once someone approves it, the " \
       "person is asked in this chat whether to run it, so never call it again yourself. Tell them it is waiting for approval, " \
       "and carry on with what you can reach."
   end

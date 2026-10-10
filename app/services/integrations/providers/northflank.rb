@@ -11,6 +11,7 @@ module Integrations
       map_events: "Integrations::MapEventSources::Northflank",
       read_guard: "Integrations::ReadGuards::Northflank",
       mitigation_reader: "Integrations::MitigationReaders::Northflank",
+      cli: "Integrations::Clis::Northflank",
       redacted_patterns: { "northflank_webhook" => %r{webhooks\.northflank\.com/[^\s"'<>)\]]+}i },
       status_words: {
         "predeployment" => "pending", "triggerallocation" => "pending", "allocating" => "starting", "postdeployment" => "starting",

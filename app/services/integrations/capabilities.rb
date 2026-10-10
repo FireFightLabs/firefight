@@ -184,6 +184,13 @@ module Integrations
       end
     end
 
+    # The connections whose provider checks addresses from outside, an uptime monitor that answers status for a hostname
+    # it checks, region by region. A check from Halon's sandbox sees from one region and names these for the rest.
+    def self.outside_checkers(workspace, tools: Integration::Tool.in_workspace(workspace).to_a)
+      status = offered(workspace, tools: tools).find { |spec, _able| spec.key == STATUS }
+      Array(status&.last).map(&:integration).uniq.select { |integration| adapter_for(integration.provider).observes?(STATUS, ResourceMap::KIND_DOMAIN) }
+    end
+
     # The connections that could answer a capability, as an agent names them: the slug, then the environment's slug
     # when one connection is wired to several.
     def self.connections(tools)

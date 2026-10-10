@@ -160,7 +160,11 @@ module Integrations
       end
     end
 
-    def initialize(key:, workspace:, remote:)
+    OLD_IMAGE = "The sandbox runs an image from before Halon's terminal, so it cannot run commands. Whoever runs Firefight " \
+                "updates SANDBOX_IMAGE.".freeze
+
+    # remote is nil for a run that only uses the terminal, which reads no repository.
+    def initialize(key:, workspace:, remote: nil)
       raise Error, "A code tool was called outside a run, so there is no box to read in." if key.blank?
 
       @key = key
@@ -201,6 +205,19 @@ module Integrations
     def lsp(repository, **options)
       with_repository(repository) { |name| client.lsp(repository: name, **options) }
     end
+
+    # A command in the box's terminal, which reads no repository. The box starts here the first time a run needs it.
+    def terminal(argv:, env: {}, timeout: 60, on_output: nil)
+      with_box { terminal_client.terminal(argv: argv, env: env, timeout: timeout, on_output: on_output) }
+    end
+
+    # A file a terminal command reads, such as a saved tool result.
+    def place_file(name, content)
+      with_box { terminal_client.place_file(name, content) }
+    end
+
+    # Which provider the run's box is on, starting the box when it has none, for where a check from it was seen from.
+    def box_provider_key = box.provider
 
     private
 
@@ -248,6 +265,23 @@ module Integrations
       end
     rescue Sandboxes::Error => error
       Rails.logger.warn({ event: "prepared_copy.keep_failed", repository: @remote.key(repository), error: error.message }.to_json)
+    end
+
+    def terminal_client
+      raise Sandboxes::Error, OLD_IMAGE unless client.terminal?
+
+      client
+    end
+
+    # As with_repository, for a call that needs no repository. A box that is gone is replaced once.
+    def with_box(replaced: false, &)
+      box.used!
+      yield
+    rescue Sandboxes::Error => error
+      raise if replaced || error.message == OLD_IMAGE || client.alive?
+
+      replace_lost_box!
+      with_box(replaced: true, &)
     end
 
     def prepared_from_nothing?(prepared)

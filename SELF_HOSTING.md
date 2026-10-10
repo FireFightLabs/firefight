@@ -109,6 +109,8 @@ With the compose file, uncomment the three lines under the Halon comment and the
 
 Boxes can reach the internet, so a repository's own tests can too. Running commands and tests is only offered to workspaces with Halon switched on.
 
+The same box is Halon's terminal: it runs commands of its own there, such as a script over a large result or a check of an address from outside. A command reaches your connected tools only through Firefight, at the app's own address (`APP_HOST`, or `CODE_AGENT_PROXY_URL` when the boxes reach Firefight elsewhere), with a token that lasts as long as the command. Set `SANDBOX_REGION` to say where the boxes run, so a check from one says where it was seen from.
+
 Every setting is described in [`.env.example`](.env.example).
 
 ### On Northflank

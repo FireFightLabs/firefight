@@ -71,6 +71,14 @@ module Integrations
         nil
       end
 
+      # The boxes' project's region, which every box in it runs in (docs/v1/api/team/projects/get-project). A project
+      # never moves, so it is read once a day.
+      def region
+        Rails.cache.fetch([ "sandbox-region", SandboxProviders::NORTHFLANK, project ], expires_in: 1.day) do
+          request(Net::HTTP::Get, "/projects/#{project}")["data"].to_h["region"].presence
+        end
+      end
+
       private
 
       # Only services named like a box, so the app's own services in a shared project are never listed.

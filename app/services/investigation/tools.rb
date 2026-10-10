@@ -3,6 +3,7 @@ module Investigation::Tools
   def self.for(investigation, offer:)
     [ Chat::Tools::Open.new(investigation, offer: offer), Chat::Tools::UseSkill.new(investigation, offer: offer), *Chat::Tools::Docs.all(investigation),
       Chat::Tools::ReadResult.new(investigation),
-      RecordHypothesis.new(investigation), Conclude.new(investigation), *Chat::Tools.memory(investigation), *Chat::Tools::Web.all(investigation) ]
+      RecordHypothesis.new(investigation), Conclude.new(investigation), *Chat::Tools.memory(investigation), *Chat::Tools::Web.all(investigation),
+      *Chat::Tools::Terminal.all(investigation), *Chat::Tools::OutsideCheck.all(investigation) ]
   end
 end

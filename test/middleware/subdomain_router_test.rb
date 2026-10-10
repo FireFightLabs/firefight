@@ -64,6 +64,7 @@ class SubdomainRouterTest < ActiveSupport::TestCase
     assert_allowed "app.firefight.app", "/operator"
     assert_allowed "app.firefight.app", "/operator/jobs"
     assert_allowed "app.firefight.app", "/code_agent/anthropic/messages"
+    assert_allowed "app.firefight.app", "/sandbox_relay/tools"
   end
 
   # A page added outside the listed prefixes works everywhere but production, where this router runs.

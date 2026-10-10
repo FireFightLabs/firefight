@@ -153,8 +153,9 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # refusal is the reason one of Firefight's own rules already refused the call for, so it is ledgered without running.
   # call_id is the call the person confirmed, when it differs from tool_call_id, as for a held call run once approved,
   # which has no tool call of its own. Its safeguards (Chat::Safeguards) run around the call.
+  # relayed is a call a provider's command line tool made in Halon's terminal, whose answer keeps the API's own shape too.
   def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil,
-          call_id: tool_call_id)
+          call_id: tool_call_id, relayed: false)
     @alone = alone
     @failed = false
     @waiting = false
@@ -180,7 +181,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
       environment_row = integration.resolve_environment(environment_entry&.id)
       result = begin
         integration.executor.call(tool: @tool, environment_row: environment_row, arguments: arguments, box_key: @agent_run.code_box_key,
-                                  progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id), request: code_request(tool_call_id))
+                                  progress: (@agent_run.progress_listener(tool_call_id) if tool_call_id), request: code_request(tool_call_id),
+                                  **(relayed ? { relayed: true } : {}))
       rescue Integrations::PolicyRefusal => policy
         next refused_by_rule!(tool_call_id, authorization, policy.message)
       end
@@ -208,7 +210,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   rescue AbilityGateway::PendingApproval => pending
     if approval_id.nil? && approved_by_asker?(pending.approval)
       return run(arguments, environment_entry: environment_entry, tool_call_id: tool_call_id, shown_as: shown_as, present: present,
-                            approval_id: pending.approval.id, alone: alone, target: target)
+                            approval_id: pending.approval.id, alone: alone, target: target, relayed: relayed)
     end
 
     @waiting = true
