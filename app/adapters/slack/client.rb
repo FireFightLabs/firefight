@@ -38,6 +38,7 @@ module Slack
       request = Net::HTTP::Post.new(uri)
       request["Content-Type"] = "application/octet-stream"
       request.body = content
+      UserAgent.apply!(request)
       response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true, open_timeout: 5, read_timeout: 30) { |http| http.request(request) }
       raise AdapterError::ServerError, "Slack refused the file upload with #{response.code}" unless response.code.to_i.between?(200, 299)
     rescue Timeout::Error, SystemCallError, SocketError, OpenSSL::SSL::SSLError => error
