@@ -8,7 +8,7 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.id
   end
 
-  # What is watched, as the person put it, such as release run #46.
+  # What it waits on, such as Deploy finished.
   type :string
   def title
     watch.title
@@ -25,16 +25,20 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.status
   end
 
-  # Such as "Watching: release run #46, up to 40 min".
+  # Such as Watch "Deploy finished" while it runs, and Watch "Deploy finished": done once it ended.
   type :string
   def headline = Chat::Watch::Shown.headline(watch)
+
+  # Its ceiling on reads and how many it made, such as "Reads at most 120 times an hour. 14 reads so far."
+  type :string
+  def reads = Chat::Watch::Shown.reads(watch)
 
   type :string, optional: true
   def outcome
     watch.outcome
   end
 
-  # Where the limit came from, such as "It usually takes about 18 minutes."
+  # How long it watches and where that came from, such as "Up to 40 min. It usually takes about 18 minutes."
   type :string, optional: true
   def basis
     Chat::Watch::Shown.basis(watch)
@@ -51,9 +55,12 @@ class AgentChatWatchSerializer < BaseSerializer
     watch.created_at.utc.iso8601(3)
   end
 
-  type "{ id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(" | ")}; state: string | null }[]"
+  # url is the page of the run or what the step follows, when the provider gave one.
+  type "{ id: string; label: string; status: #{Chat::Watch::Step::STATUSES.map(&:inspect).join(" | ")}; state: string | null; url: string | null }[]"
   def steps
-    watch.steps.map { |step| { id: step.id, label: step.label, status: Chat::Watch::Shown.step_status(step), state: Chat::Watch::Shown.step_state(step) } }
+    watch.steps.map do |step|
+      { id: step.id, label: step.label, status: Chat::Watch::Shown.step_status(step), state: Chat::Watch::Shown.step_state(step), url: step.run_url }
+    end
   end
 
   type :string, optional: true

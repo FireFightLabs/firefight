@@ -14,9 +14,11 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     @conversation.chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT,
                                         content: "I am watching it. This usually takes about 18 minutes, I will watch for up to 40.")
     @conversation.reply_delivered!
-    @watch = Chat::Watch.create!(chat: @conversation.chat, workspace: @workspace, asker: @alice, title: "release run #46 and the web deploy",
-                                 expires_at: 40.minutes.from_now, usual_seconds: 18.minutes.to_i, limit_basis: Chat::Watch::BASIS_HISTORY)
-    release = @watch.steps.create!(position: 0, label: "Release run #46", capability: Integrations::Capabilities::HISTORY, arguments: {})
+    @watch = Chat::Watch.create!(chat: @conversation.chat, workspace: @workspace, asker: @alice, title: "Deploy finished",
+                                 expires_at: 40.minutes.from_now, usual_seconds: 18.minutes.to_i, limit_basis: Chat::Watch::BASIS_HISTORY,
+                                 reads_total: 23)
+    release = @watch.steps.create!(position: 0, label: "Release run #46", capability: Integrations::Capabilities::HISTORY, arguments: {},
+                                   run_url: "https://github.com/acme/firefight/actions/runs/46")
     @watch.steps.create!(position: 1, label: "Web deploy", capability: Integrations::Capabilities::HISTORY, arguments: {}, report_start: true,
                          status: Chat::Watch::Step::STATUS_RUNNING, started_at: 2.minutes.ago)
     release.finished!(Chat::Watch::Step::STATUS_SUCCEEDED, at: 3.minutes.ago, started: 20.minutes.ago)
@@ -27,19 +29,22 @@ class AgentWatchCardTest < ApplicationSystemTestCase
   test "the card shows the watch going with Stop, and Stop asks first then ends it with a toast" do
     visit agent_chat_path(@conversation)
 
-    assert_text "Watching: release run #46 and the web deploy, up to 40 min"
-    assert_text "It usually takes about 18 minutes."
+    assert_text 'Watch "Deploy finished"'
+    assert_text "Up to 40 min. It usually takes about 18 minutes."
+    assert_text "Reads at most 120 times an hour. 23 reads so far."
     assert_text "Release run #46. Succeeded after 17 minutes."
+    assert_link "Open the run", href: "https://github.com/acme/firefight/actions/runs/46"
     assert_text "Web deploy started."
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-active.png"))
 
     click_button "Stop"
     assert_text "Stop watching?"
+    assert_text 'Halon stops watching "Deploy finished" and says so here.'
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-confirm.png"))
     click_button "Stop watching"
 
-    assert_text "Stopped watching release run #46 and the web deploy."
-    assert_text "Stopped watching: release run #46 and the web deploy"
+    assert_text 'Stopped watching "Deploy finished".'
+    assert_text 'Watch "Deploy finished": stopped'
     assert_no_button "Stop"
     assert_text "Web deploy. Still running when the watch ended."
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-stopped.png"))
@@ -72,6 +77,34 @@ class AgentWatchCardTest < ApplicationSystemTestCase
     assert_text "Web deploy. Running. Passed so far: tag, trigger-northflank."
     assert_text "Web deploy: tag passed, trigger-northflank passed, build-images running."
     page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-progress.png"))
+  end
+
+  test "a step being repaired says why, and what the watch changed or corrected sits in the chat" do
+    @watch.steps.find_by!(label: "Web deploy").update!(status: Chat::Watch::Step::STATUS_REPAIRING,
+                                                       repair_reason: "I could not find a run of Web deploy in its history after 3 minutes.")
+    travel_to(3.seconds.from_now) do
+      @watch.updates.create!(kind: Chat::Watch::Update::KIND_REPAIRED,
+                             text: "Changed how I follow Web deploy: I now read northflank_api_request GET workflows/release/runs/46 instead of " \
+                                   "Run history of web. Run history only lists builds, not workflow runs.")
+    end
+    travel_to(4.seconds.from_now) do
+      @watch.updates.create!(kind: Chat::Watch::Update::KIND_CORRECTED,
+                             text: 'A fresh reading in the chat shows Web deploy failed, where the watch "Deploy finished" still had it running. ' \
+                                   "It now goes by the fresh reading.")
+    end
+
+    visit agent_chat_path(@conversation)
+
+    assert_text "Web deploy. Finding a better way to follow it. I could not find a run of Web deploy in its history after 3 minutes."
+    assert_text "Changed how I follow Web deploy"
+    assert_text "It now goes by the fresh reading."
+    assert_text 'Watch "Deploy finished" ·'
+    page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-repairing.png"))
+
+    page.current_window.resize_to(390, 844)
+    visit agent_chat_path(@conversation)
+    assert_text 'Watch "Deploy finished"'
+    page.save_screenshot(Rails.root.join("tmp/screenshots/watch-card-phone.png"))
   end
 
   test "the header's search button is wider from small screens up and an icon on a phone" do

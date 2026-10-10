@@ -167,6 +167,7 @@ export const RUNBOOK_FIELD_KINDS = {
 export const WATCH_STEP_STATUSES = {
   "WAITING": "waiting",
   "RUNNING": "running",
+  "REPAIRING": "repairing",
   "SUCCEEDED": "succeeded",
   "FAILED": "failed",
   "UNFOLLOWABLE": "unfollowable"
@@ -185,6 +186,9 @@ export const WATCH_TONES = {
   "MILESTONE": "milestone",
   "PART_FAILED": "part_failed",
   "HANDED_BACK": "handed_back",
+  "REPAIRED": "repaired",
+  "CORRECTED": "corrected",
+  "CEILING": "ceiling",
   "SLOW": "slow",
   "PROGRESS": "progress",
   "DONE": "done",

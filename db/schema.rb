@@ -652,6 +652,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120200) do
     t.datetime "updated_at", null: false
     t.jsonb "parts_told", default: {}, null: false
     t.datetime "hand_back_noted_at"
+    t.integer "repairs", default: 0, null: false
+    t.text "repair_reason"
+    t.datetime "repaired_at"
+    t.datetime "read_at"
+    t.datetime "judged_at"
+    t.datetime "steady_since"
     t.index ["integration_environment_id"], name: "index_chat_watch_steps_on_integration_environment_id"
     t.index ["watch_id", "position"], name: "index_chat_watch_steps_on_watch_id_and_position", unique: true
     t.index ["watch_id"], name: "index_chat_watch_steps_on_watch_id"
@@ -685,6 +691,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120200) do
     t.text "purpose"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "reads_per_hour", default: 120, null: false
+    t.integer "reads_total", default: 0, null: false
+    t.integer "reads_this_hour", default: 0, null: false
+    t.datetime "hour_began_at"
+    t.datetime "next_check_at"
+    t.datetime "ceiling_told_at"
     t.index ["asker_type", "asker_id"], name: "index_chat_watches_on_asker"
     t.index ["chat_id"], name: "index_chat_watches_on_chat_id"
     t.index ["stopped_by_id"], name: "index_chat_watches_on_stopped_by_id"

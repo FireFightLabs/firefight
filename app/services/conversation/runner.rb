@@ -59,7 +59,7 @@ class Conversation::Runner
       memory: chat,
       check: -> { FirefightAi::Responder::CHECK if @looked_outside },
       hold: chat.method(:hold_last_reply!),
-      take_messages: -> { [ take_queued(chat), tell_changes(chat) ].any? },
+      take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
       canceled: chat.method(:stop_requested?)
     ) do |turn|
       record(turn)
@@ -186,6 +186,35 @@ class Conversation::Runner
     true
   end
 
+  # A reading this turn took disagreed with what a watch had, so Halon is told before its next model call, the one place
+  # a note keeps the chat valid.
+  def tell_watch_corrections(chat)
+    notes = watch_notes.slice!(0..)
+    return false if notes.empty?
+
+    chat.nudge!(notes.join("\n"))
+    true
+  end
+
+  def watch_notes = @watch_notes ||= []
+
+  # Fresh beats remembered. A call this turn made with the very read a watch in this chat makes is handed to the watch.
+  # A watch's reads only read, so a call that matches one read too.
+  def hand_reading_to_watches(key)
+    tool, arguments = asked.delete(key)
+    return unless tool && Chat::Watch.active.exists?(chat_id: @conversation.chat.id)
+
+    text = @conversation.chat.outcome_call(key)&.result&.content
+    return if text.blank?
+
+    note = Conversation::Watches.observe!(@conversation.chat, tool, arguments, FirefightAi::Evidence.unframe(text).body)
+    watch_notes << note if note
+  rescue StandardError => error
+    Rails.logger.warn({ event: "conversation.watch_reading_not_taken", conversation_id: @conversation.id, error: error.class.name }.to_json)
+  end
+
+  def asked = @asked ||= {}
+
   # The last word is a finished reply, so nothing is waiting for one. A turn paused on a confirmation ends on a tool call.
   def answered_already?(chat)
     last = chat.sent_messages.reload.last
@@ -211,13 +240,15 @@ class Conversation::Runner
     if step.tool.present?
       seen[step.key] = Chat::Tools.step(step.tool, step.arguments, workspace: @conversation.workspace)
       kinds[step.key] = Chat::Tools.kind(step.tool, @conversation.workspace, step.arguments)
+      asked[step.key] = [ step.tool, step.arguments ]
       @looked_outside ||= @conversation.workspace.reading_tool_names.include?(step.tool.to_s) ||
                           Chat::Tools.guarded_read?(@conversation.workspace, step.tool.to_s, step.arguments)
     end
+    done = step.status == FirefightAi::AgentLoop::STEP_DONE
+    hand_reading_to_watches(step.key) if done
     shown = seen[step.key]
     return unless shown
 
-    done = step.status == FirefightAi::AgentLoop::STEP_DONE
     shown = shown.with(card: Chat::Tools.chart_card) if done && shown.card.nil? && charted?(step.key)
     delivery.step(
       key: step.key, step: shown, status: step.status, kind: kinds[step.key],

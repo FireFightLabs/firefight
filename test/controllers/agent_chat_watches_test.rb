@@ -15,13 +15,16 @@ class AgentChatWatchesTest < ActionDispatch::IntegrationTest
     @watch.steps.create!(position: 0, label: "Release run #46", capability: Integrations::Capabilities::HISTORY, arguments: { "resource" => "firefight" })
   end
 
-  test "the chat shows the watch going, with what it follows, how long and why, and that its asker may stop it" do
+  test "the chat shows the watch going, named for what it waits on, how long and why, its ceiling on reads, the run's page, and that its asker may stop it" do
+    @watch.update!(title: "Release run #46 passed", reads_total: 14)
+    @watch.steps.sole.update!(run_url: "https://github.com/acme/firefight/actions/runs/46")
     get agent_chat_url(@conversation), headers: inertia_headers
 
     shown = inertia_props[AgentChatsController::PROP_WATCHES].sole
-    assert_equal "Watching: release run #46, up to 40 min", shown["headline"]
-    assert_equal "It usually takes about 18 minutes.", shown["basis"]
-    assert_equal [ "Release run #46" ], shown["steps"].map { |step| step["label"] }
+    assert_equal 'Watch "Release run #46 passed"', shown["headline"]
+    assert_equal "Up to 40 min. It usually takes about 18 minutes.", shown["basis"]
+    assert_equal "Reads at most 120 times an hour. 14 reads so far.", shown["reads"]
+    assert_equal [ [ "Release run #46", "https://github.com/acme/firefight/actions/runs/46" ] ], shown["steps"].map { |step| step.values_at("label", "url") }
     assert_nil shown["stopBlockedReason"]
   end
 
@@ -29,13 +32,14 @@ class AgentChatWatchesTest < ActionDispatch::IntegrationTest
     post agent_chat_watch_stop_url(@conversation, @watch)
 
     assert_redirected_to agent_chat_url(@conversation)
-    assert_equal "Stopped watching release run #46.", flash[:notice]
+    assert_equal 'Stopped watching "release run #46".', flash[:notice]
     assert_equal Chat::Watch::STATUS_STOPPED, @watch.reload.status
 
     get agent_chat_url(@conversation), headers: inertia_headers
-    assert_equal "Stopped watching: release run #46", inertia_props[AgentChatsController::PROP_WATCHES].sole["headline"]
-    assert_equal [ "#{@member.display_name} stopped the watch on release run #46." ],
+    assert_equal 'Watch "release run #46": stopped', inertia_props[AgentChatsController::PROP_WATCHES].sole["headline"]
+    assert_equal [ "#{@member.display_name} stopped the watch \"release run #46\"." ],
                  inertia_props[AgentChatsController::PROP_WATCH_UPDATES].map { |update| update["text"] }
+    assert_equal [ 'Watch "release run #46"' ], inertia_props[AgentChatsController::PROP_WATCH_UPDATES].map { |update| update["name"] }
   end
 
   test "a watch that already ended says so rather than stopping twice" do

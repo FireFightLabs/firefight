@@ -3,10 +3,12 @@
 # something is never handed over, and one that can do both, such as a provider's API request, only reads through its
 # guard. Nothing waits for a confirmation, and a read an approval rule covers is never made.
 class Conversation::Watches::Agent
-  def initialize(workspace:, asker:, conversation:)
+  # meter counts each call, the same one the watch's Reader counts on.
+  def initialize(workspace:, asker:, conversation:, meter: Chat::Watch::Meter.new(nil))
     @workspace = workspace
     @asker = asker
     @conversation = conversation
+    @meter = meter
   end
 
   # Ready for the asker and reading only, by the name Halon calls each.
@@ -46,6 +48,7 @@ class Conversation::Watches::Agent
     raise Conversation::Watches::Reader::Refused, "An approval rule covers #{action_key}, and nobody is there to approve each read." if
       holdable && Chat::ToolCall.held_by_rule?(workspace: workspace, action_key: action_key, scope: scope, params: params)
 
+    @meter.spend!
     value = Chat::ToolCall.run!(
       workspace: workspace, principal: acting_principal, action_key: action_key, params: params, scope: scope,
       context: { source: Chat::Watch::SOURCE, incident_id: @conversation.try(:incident_id), approval_id: approval_id }.compact,

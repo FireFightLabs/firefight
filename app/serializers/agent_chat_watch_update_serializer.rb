@@ -17,6 +17,12 @@ class AgentChatWatchUpdateSerializer < BaseSerializer
     update.watch.title
   end
 
+  # The watch named for what it waits on, such as Watch "Deploy finished".
+  type :string
+  def name
+    Chat::Watch::Shown.name(update.watch)
+  end
+
   type Chat::Watch::Update::KINDS.map(&:inspect).join(" | ")
   def kind
     update.kind

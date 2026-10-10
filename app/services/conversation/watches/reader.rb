@@ -1,7 +1,7 @@
 # One read a watch makes: a capability routed to the connection that holds the resource, run as the person who asked
 # through the gateway, so their grants, the connection's setup and the ledger all apply exactly as in their chat. Only
 # capabilities that read are ever asked. A read an approval rule covers is never made, since nobody is there to approve
-# it each minute.
+# it each minute. Every call is counted on the meter, which refuses one past the watch's ceiling.
 class Conversation::Watches::Reader
   # Why a read cannot be made, in words the person reads.
   class Refused < StandardError; end
@@ -13,10 +13,13 @@ class Conversation::Watches::Reader
     def failed? = result["isError"] == true
   end
 
-  def initialize(workspace:, principal:, conversation:)
+  attr_reader :meter
+
+  def initialize(workspace:, principal:, conversation:, meter: Chat::Watch::Meter.new(nil))
     @workspace = workspace
     @principal = principal
     @conversation = conversation
+    @meter = meter
   end
 
   # The routed call alone, raising Refused with words when there is none the person may make.
@@ -89,6 +92,7 @@ class Conversation::Watches::Reader
   end
 
   def authorized(tool, scope, arguments)
+    @meter.spend!
     Chat::ToolCall.run!(
       workspace: @workspace, principal: @principal, action_key: tool.action_key, scope: scope, params: arguments,
       context: { source: Chat::Watch::SOURCE, incident_id: @conversation.incident_id }.compact

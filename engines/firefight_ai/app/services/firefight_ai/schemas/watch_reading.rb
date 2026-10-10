@@ -5,7 +5,9 @@ module FirefightAi
       RUNNING = "running".freeze
       DONE = "done".freeze
       FAILED = "failed".freeze
-      STATES = [ NOT_STARTED, RUNNING, DONE, FAILED ].freeze
+      # The reading cannot show the thing at all, such as an empty list, another run or a page that is not it.
+      NOTHING = "nothing".freeze
+      STATES = [ NOT_STARTED, RUNNING, DONE, FAILED, NOTHING ].freeze
 
       PART_WAITING = "waiting".freeze
       PART_RUNNING = "running".freeze
@@ -13,11 +15,14 @@ module FirefightAi
       PART_FAILED = "failed".freeze
       PART_STATES = [ PART_WAITING, PART_RUNNING, PART_PASSED, PART_FAILED ].freeze
 
-      description "Where a reading of a production system shows the thing being watched: not started, running, done or failed, and each job or step it lists"
+      description "Where a reading of a production system shows the thing being watched: not started, running, done, failed or not in it at all, " \
+                  "and each job or step it lists"
 
       string :state, enum: STATES, description: "not_started when the reading shows it has not begun, running once it shows it has begun and is not over, " \
-                                                "done when it shows the goal reached, failed when it shows it went wrong"
+                                                "done when it shows the condition met, failed when it shows it went wrong, nothing when the reading " \
+                                                "does not show the thing at all, such as an empty list, another run or something else entirely"
       string :said, description: "One short plain sentence saying what the reading shows, such as \"web is running the new version on 2 of 2 instances\""
+      string :link, description: "The address of the page of the thing watched, such as its run page, copied exactly from the reading. Empty when the reading holds none"
       array :parts, description: "Each job or step inside it the reading lists, in its order. Empty when it lists none" do
         object do
           string :name, description: "The job's or step's name exactly as the reading gives it"

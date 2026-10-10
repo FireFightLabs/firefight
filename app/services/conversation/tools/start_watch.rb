@@ -22,20 +22,24 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
       "report_start" => { "type" => "boolean", "description" => "run_history only: also say when the run starts, when the person asked to hear that (optional)" },
       "done_when" => { "type" => "string", "description" => "Text in the read's answer that means it is done, such as running (optional)" },
       "failed_when" => { "type" => "string", "description" => "Text in the read's answer that means it failed, such as crashed (optional)" },
-      "goal" => { "type" => "string", "description" => "What done looks like in a sentence, judged only when the answer changed and no text above decides (optional)" },
+      "goal" => { "type" => "string", "description" => "Keep checking until this holds: the condition in plain words, such as every instance of web runs " \
+                                                       "the new version, or the error rate stays under 1% for ten minutes. Judged on each reading that " \
+                                                       "changed and every few minutes on one that did not, when no text above decides (optional)" },
       "arguments" => { "type" => "object", "description" => "Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)" }
     },
     "required" => %w[label]
   }.freeze
 
-  description "Watch something after you answer and report back on your own, when the person asks to be told when it finishes " \
-              "or reaches a step: a CI run, a build, a deploy, a resource coming back. It only reads, as the person, through " \
-              "the capabilities, about every minute and at once when a connection reports a change. Each milestone the person " \
-              "asked about, each job or step as it starts or passes, and the end are posted in this chat, its thread and their direct messages, with the " \
+  description "Write a watch: keep checking something after you answer, with any read you hold, until a condition in plain words " \
+              "holds, and report back on your own. Use it when the person asks to be told when something finishes or reaches a step: " \
+              "a CI run, a build, a deploy, a resource coming back. It only reads, as the person, about every minute and at once when " \
+              "a connection reports a change, within a ceiling on reads an hour. Each milestone the person asked about, each job or " \
+              "step as it starts or passes, and the end are posted in this chat, its thread and their direct messages, with the " \
               "reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order. " \
-              "A run that never shows up in its history is handed back to you within minutes to find another read. The time limit is learned from " \
-              "run history (twice the usual, at most 24 hours). Pass minutes only when the person asked for a limit, and " \
-              "expected_minutes only from memory when run history has none. Say what it answers about the limit."
+              "A read that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with " \
+              "repair_watch. The time limit is learned from run history (twice the usual, at most 24 hours). Pass minutes only " \
+              "when the person asked for a limit, and expected_minutes only from memory when run history has none. Say what it " \
+              "answers about the limit."
 
   def self.tool_name = "start_watch"
 
@@ -48,13 +52,18 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
     {
       "type" => "object",
       "properties" => {
-        "title" => { "type" => "string", "description" => "What is watched, as the person would say it, such as release run #46 and the deploy" },
+        "title" => { "type" => "string", "description" => "What the watch waits on, a few words naming the end it waits for, such as Deploy finished or " \
+                                                          "Release run #46 passed. It is shown as Watch \"Deploy finished\"" },
         "purpose" => { "type" => "string",
                        "description" => "Why the person wants this, the goal in their own words, such as get releases deploying through " \
                                         "the webhook again. Every report says where things stand against it" },
         "steps" => { "type" => "array", "items" => STEP, "description" => "What to follow, in order, at most #{Chat::Watch::MAX_STEPS}" },
         "minutes" => { "type" => "integer", "description" => "Only when the person asked: how long to watch, at most #{Chat::Watch::LONGEST.in_minutes.to_i} (optional)" },
-        "expected_minutes" => { "type" => "integer", "description" => "Only from memory, when run history cannot show it: how long this usually takes (optional)" }
+        "expected_minutes" => { "type" => "integer", "description" => "Only from memory, when run history cannot show it: how long this usually takes (optional)" },
+        "reads_per_hour" => { "type" => "integer",
+                              "description" => "Only when a provider's documented rate limit or cost is tighter than the default of " \
+                                               "#{Chat::Watch::READS_PER_STEP} reads an hour for each step: the most reads an hour this watch may " \
+                                               "make, between #{Chat::Watch::FEWEST_READS} and #{Chat::Watch::MOST_READS} (optional)" }
       },
       "required" => %w[title steps]
     }
