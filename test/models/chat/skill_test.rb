@@ -35,10 +35,16 @@ class Chat::SkillTest < ActiveSupport::TestCase
   end
 
   # A skill that names a tool or field that no longer exists would send the agent after something that is not there.
-  # A skill can also name the capabilities, which answer for anything on the map whichever provider holds it.
+  # A skill can also name the capabilities, which answer for anything on the map whichever provider holds it, what
+  # changed across them, and the check from outside a run holds once the workspace has a terminal.
+  OWN_READS = {
+    Chat::Tools::WhatChanged::NAME => ResourceMap::Timeline::SCHEMA,
+    Chat::Tools::OutsideCheck::NAME => { "properties" => { Chat::Tools::OutsideCheck::URL_ARG => {}, Chat::Tools::OutsideCheck::METHOD_ARG => {} } }
+  }.freeze
+
   test "every tool one of Firefight's skills names exists and is offered to Halon" do
     offered = Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON +
-              Integrations::Capabilities::SPECS.values.map(&:tool_name)
+              Integrations::Capabilities::SPECS.values.map(&:tool_name) + OWN_READS.keys
 
     Chat::Skill.all.select(&:firefight?).each do |skill|
       skill.tools.each { |tool| assert_includes offered, tool, "#{skill.name} names #{tool}" }
@@ -53,6 +59,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
     Chat::Skill.all.select(&:firefight?).each do |skill|
       parameters = skill.tools.flat_map do |tool|
         next Integrations::Capabilities.schema(capabilities[tool], []).fetch("properties").keys if capabilities[tool]
+        next OWN_READS[tool].fetch("properties").keys if OWN_READS[tool]
 
         tool_classes.fetch(tool).input_schema_value.to_h.fetch(:properties, {}).keys.map(&:to_s)
       end

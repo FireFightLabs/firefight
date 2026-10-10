@@ -282,7 +282,7 @@ module Integrations
         "codepipeline" => "codesuite/codepipeline/pipelines", "dynamodb" => "dynamodbv2/home", "ecr" => "ecr/private-registry/repositories",
         "eks" => "eks/home", "elasticache" => "elasticache/home", "elbv2" => "ec2/home", "health" => "health/home", "iam" => "iam/home",
         "kms" => "kms/home", "route53" => "route53/v2/home", "s3" => "s3/home", "secretsmanager" => "secretsmanager/listsecrets",
-        "sns" => "sns/v3/home", "sqs" => "sqs/v3/home", "ssm" => "systems-manager/home"
+        "sns" => "sns/v3/home", "sqs" => "sqs/v3/home", "ssm" => "systems-manager/home", "costexplorer" => "costmanagement/home"
       }.freeze
 
       tool :api_read,

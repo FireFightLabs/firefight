@@ -49,6 +49,11 @@ module FirefightAi
         - #{LookFirstRule::GUESSED_CALL_RULE}
         - #{LookFirstRule::CAUSE_RULE}
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
+        - #{OutsideRule::CHANGED_RULE}
+        - #{OutsideRule::STATUS_RULE}
+        - #{OutsideRule::BLIND_SPOT_RULE}
+        - #{Helper::RULE}
+        - When you hold check_from_outside, a certificate, a page or an address is checked as a user reaches it, which beats what a provider says it serves. It runs from one region, which its answer names.
         - A trend needs more than one reading. Read the same measure over days or weeks, work out its rate, and from the rate the day it crosses the line that matters. Say how sure the date is when the rate is uneven.
         - Look at everything the check covers, not only the first thing you find. A check of disks reads every disk it can reach.
         - #{CannotRule::VERIFY_RULE}
