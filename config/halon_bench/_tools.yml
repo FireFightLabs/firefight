@@ -1,0 +1,1353 @@
+# Tools many bench scenarios offer, described once. A scenario lists one by name under tools, or describes its own.
+# Each answers only from the scenario's record, so nothing here reaches a real system. A tool marked live is one a
+# chat is offered today: its description, parameters and whether it asks first are copied from its definition by
+# bin/rails halon:bench_tools, and a test fails when they drift. The rest are written here: connection tools such
+# as northflank_api_request, search_handbook, and open_tools, whose list of groups depends on the workspace and on
+# who asks. See Conversation::BenchCase for each field.
+
+open_tools:
+  description: |-
+    Make a group of tools callable. You hold almost no tools until you open the group that fits what you need next. The groups:
+    Incidents and what happened before: search incidents, find ones that read like this, read one, what was said in its channel, past investigations, how accurate Halon has been (not granted to whoever you are acting as)
+    Running an incident: declare, post an update, resolve, cancel, reopen, escalate, invite people, assign roles, link incidents (not granted to whoever you are acting as)
+    Follow-ups and runbooks: action items, finding and reading runbooks, attaching one to an incident, claiming its steps (not granted to whoever you are acting as)
+    Postmortems: read one, start one, edit it, move it through review (not granted to whoever you are acting as)
+    Alerts and routing: search alerts, alert sources, routing rules and trying an alert against them (not granted to whoever you are acting as)
+    The resource map: read off the connections, for where something runs and which provider and account hold it, then find resources by filter, or search them with the catalog and confirmed memories by a name, an id or what a service does, read one, its links and neighbours, walk what it depends on or what depends on it, what fails with it, the map in numbers, what changed around a resource, a service or the whole workspace (deploys, runs, settings, hand edits and changes made through Firefight, in one list), and suggest a link (ready)
+    Outside providers and what is not connected: read an outside provider's public status page now, such as a payment, email, sign-in, CDN or cloud provider, when errors point at it, and find the systems the apps use that no connection reaches, with how to connect each (ready)
+    Monitoring and security: the problems Halon raised on its own from scheduled checks and security events, when it said each and whether it got worse, and how to check disks, certificates, error budgets, cost, a leaked secret, credential stuffing and suspicious access (not granted to whoever you are acting as)
+    Services, teams and ownership: search the catalog, who owns what, add or change entries and types (not granted to whoever you are acting as)
+    Workspace setup: what is configured, the workspace settings, severities, statuses, incident types, roles, forms and custom fields, what can be connected, and the paths Halon may not change in a code host's repositories (not granted to whoever you are acting as)
+    Permissions and approvals: who may do what, permission sets, grants, approval rules, unattended rules, pending approvals, the activity log (not granted to whoever you are acting as)
+    Agents, API keys and Firefight outbound webhooks: machine accounts and their tokens, API keys, and Firefight's own outbound webhooks, which post this workspace's incident events to a URL the team owns. Never a provider's webhooks, such as a deploy or workflow trigger at a hosting provider or a code host's webhooks, which that provider's own tools reach (not granted to whoever you are acting as)
+    Cloud and hosting: Where your apps run, and what you can change there (nothing connected)
+    Observability: Logs, metrics, traces and errors for investigations (nothing connected)
+    Alerting and on-call: Who is on call, and the alerts and incidents paging them (nothing connected)
+    Product analytics: Who an incident reaches, what they saw, and the feature flags behind it (nothing connected)
+    Databases: Your data and how it is set up (nothing connected)
+    Code: Commits, pull requests, deploys and CI of your repositories, and code changes, which Firefight's own coding agent writes here with fix_code and opens as a pull request, no coding agent needed (nothing connected)
+    CI: Builds, tests and their logs, and rerunning them (nothing connected)
+    Coding agents: Outside coding agents a workspace chose to write code changes instead of Firefight's own. Never needed for a code change or a pull request, which Firefight's own coding agent writes from the Code group (nothing connected)
+    Issues: Tickets and follow-up work tied to incidents (nothing connected)
+    Knowledge: Runbooks and documentation as context (nothing connected)
+    A group that is not granted, has nothing connected or has no tools switched on cannot be used, and that is worth saying in your answer.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      group:
+        type: string
+        enum:
+        - incident_history
+        - incident_response
+        - follow_ups
+        - postmortems
+        - alerts
+        - resource_map
+        - outside_systems
+        - monitoring
+        - catalog
+        - workspace_setup
+        - permissions
+        - machine_access
+        - cloud_and_hosting
+        - observability
+        - alerting_and_on-call
+        - product_analytics
+        - databases
+        - code
+        - ci
+        - coding_agents
+        - issues
+        - knowledge
+        description: The group to open
+      tools:
+        type: array
+        items:
+          type: string
+        description: >-
+          Tools to load by name. A large group that listed its tools first loads only these, and a name that sits in another group is loaded from
+          there (optional)
+    required:
+    - group
+  default: |
+    Every tool this person may use in this chat is already open:
+    %{tools}
+use_skill:
+  live: true
+  description: |-
+    Load the steps for a common task and make the tools it needs callable, without opening their groups. Use one whenever it fits what the person asked. The skills, by what they cover:
+    firefight alerts:
+    on_call_alert: An alert started this run and nobody asked, as the facts' on_call says, such as a page at 3am with nobody awake yet
+    firefight follow ups:
+    runbooks: Attaching a runbook to an incident, or finding which runbook fits one
+    running_runbooks: The person asks for something a saved runbook does, by its name or in their own words, such as release Firefight
+    saving_runbooks: The person asks to remember a multi-step task as a runbook, such as remember this as Release Firefight, or agrees when offered
+    watching: The person asks to be told later, such as when a run finishes, a build or deploy starts or succeeds, or a resource comes back, or they just started something that takes a while
+    firefight incident response:
+    declaring: Declaring a new incident, including one for something already found in this chat
+    ending: Closing, resolving or cancelling one or more incidents
+    inviting: Bringing people into an incident channel
+    paging_on_call: The person asks to page or wake whoever is on call, or a change waits for an approval nobody working the incident can give
+    roles: Making someone the lead of an incident, or giving or clearing any incident role
+    updating: Posting an update on an incident, or changing its status, severity or type while it is live
+    firefight monitoring:
+    certificate_expiry: A scheduled check of TLS certificates, or anyone asking when a domain's certificate expires or whether it renews
+    cost_trends: A scheduled check of cost, or anyone asking whether the cloud bill is growing, what grew and what the month will end at
+    credential_stuffing: Many failed logins, a spike of sign in attempts from many addresses, accounts being taken over, or an alert about brute force or credential stuffing
+    disk_trends: A scheduled check of disk space, or anyone asking whether a disk, volume or database is filling up and when it will be full
+    error_budget_burn: A scheduled check of error budgets, or anyone asking whether a service is failing more than its objective allows and when its budget runs out
+    leaked_secret: A key, token, password or other secret was leaked, such as a secret scanning alert, a key posted in a public place, or someone asking what a leaked key could do
+    suspicious_access: A login, key or token used from somewhere unusual, access nobody recognises, a new admin or permission nobody granted, or an alert about suspicious access to an account or system
+    firefight workspace setup:
+    protected_paths: Someone asks to stop Halon or a coding agent changing a file or folder, to allow it again, what Halon may change in their code, or why a code change was refused for a path
+    setup: Setting up Firefight, or changing its severities, statuses, types, roles or workspace settings
+  reads: true
+  parameters:
+    type: object
+    properties:
+      skill:
+        type: string
+        enum:
+        - on_call_alert
+        - runbooks
+        - running_runbooks
+        - saving_runbooks
+        - watching
+        - declaring
+        - ending
+        - inviting
+        - paging_on_call
+        - roles
+        - updating
+        - certificate_expiry
+        - cost_trends
+        - credential_stuffing
+        - disk_trends
+        - error_budget_burn
+        - leaked_secret
+        - suspicious_access
+        - protected_paths
+        - setup
+        description: The skill to load
+      reference:
+        type: string
+        description: One of the guides the skill lists, to read it (optional)
+    required:
+    - skill
+  default: No skill covers more than the tools already open here.
+search_docs:
+  live: true
+  description: >-
+    Search the documentation of the providers this workspace connected, such as how a webhook trigger takes its parameters, an endpoint's path
+    or what an error means. Exact names, paths and error text match as well as a question in plain words. Answers the best few sections, each
+    with its page and address. Read more of one with read_doc.
+  reads: true
+  parameters:
+    type: object
+    required:
+    - query
+    properties:
+      query:
+        type: string
+        description: What to find, such as "webhook trigger query parameters sha"
+      provider:
+        type: string
+        description: Only this provider, such as northflank. Leave out to search every connected provider (optional)
+  default: No section of the connected providers' documentation matches that.
+search_handbook:
+  description: Reads the workspace handbook, the page people here wrote about how they work, such as how they release and who owns what.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      query:
+        type: string
+        description: What to look for
+    required:
+    - query
+  default: The handbook says nothing about that.
+get_resource_map:
+  live: true
+  description: >-
+    The first place to find which provider and account hold a named domain, zone, service or database. It only reads, so look here before asking
+    a person or using a provider's own tools. What runs where, read off the workspace's connections, every kind the map holds (services, build
+    services, jobs, databases, branches, repositories, domains, zones, workers, sites, buckets, kv namespaces, queues, database proxies, tunnels,
+    load balancers, origin pools, access apps, virtual machines, functions, clusters, and computes), by provider and account, with how they depend
+    on each other and which repository each is managed in as code, such as Terraform or Helm, so a fix to one goes to that code. A zone's details
+    carry its SSL mode, certificates and rule counts, and a change to them is recorded. Without a resource, the whole map one line per resource,
+    or from 300 resources its numbers by provider, kind, environment and health with the most depended on. With a resource, its fact sheet: where
+    it runs, its page, the catalog services it runs with what each is for and who owns it, what people confirmed about it, how its recent incidents
+    ended, what normal looks like for its metrics over the last week, its key checks with their normal (run_key_query runs one), the log lines
+    it usually prints (new_log_patterns finds the ones it does not), and every link within two hops, each saying how it was found. A status is
+    what the last sweep saw, so check live state with the provider's own tools. A link marked not confirmed is a suggestion. Never state it as
+    fact, and say it is unconfirmed if you rely on it. It holds only what runs in the environments the caller may read, and a sheet counts the
+    links it leaves out for that reason. On a large map, find_resources searches by name, provider, kind, environment, owner or tag, traverse_resource_map
+    and blast_radius walk the links, and get_resource_links lists one resource's. Docs: https://firefight.app/docs/api/mcp-server.md
+  reads: true
+  parameters:
+    properties:
+      resource:
+        type: string
+        description: >-
+          A resource's name, its provider's id or its id on the map, such as web, firefight-prod/main or an id search_map gave. Leave it out for
+          the whole map
+    type: object
+what_changed:
+  live: true
+  description: >-
+    What changed, everywhere, over a window, newest first in one list: deploys and builds, CI and release runs read live from the provider that
+    runs each resource, settings and status the map saw change, changes a provider reported between sweeps (an edit made by hand shows here),
+    and changes made through Firefight, with who made them and links to each page. Name a resource on the map, a service from the catalog, or
+    neither for the whole workspace. Use it first when asked what changed before something broke
+  reads: true
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: A resource on the map, by its name, its provider's id or its id on the map (optional)
+      service:
+        type: string
+        description: A service from the catalog, by its name, for every resource that runs it (optional)
+      minutes:
+        type: integer
+        description: How far back from now, in minutes (optional, 1440, at most 43200)
+      start:
+        type: string
+        description: Start of the window as an ISO 8601 time, instead of minutes (optional)
+      end:
+        type: string
+        description: End of the window as an ISO 8601 time (optional, now)
+    required: []
+resource_status:
+  live: true
+  description: >-
+    How one resource on the map is set up and how it stands now, read live from whichever connection runs it: its state, size, what it runs and
+    its health checks
+  reads: true
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+    required:
+    - resource
+recent_deploys:
+  live: true
+  description: >-
+    What went out to one resource on the map, newest first: when, which commit or version, by whom and why, with the id rollback takes. Use it
+    to see what changed before something broke
+  reads: true
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      limit:
+        type: integer
+        description: At most this many (optional)
+    required:
+    - resource
+run_history:
+  live: true
+  description: >-
+    Recent runs of one resource on the map, newest first, from whichever connection runs it: a repository's CI runs, or a service's builds and
+    deploys, each with its status, when it started and finished and how long it took, and how long finished ones usually take. Use it to learn
+    how long something usually takes or to follow one run
+  reads: true
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      name:
+        type: string
+        description: Only runs whose workflow, pipeline or kind contains this, such as release or build (optional)
+      run:
+        type: string
+        description: Only this run, by its id, with its jobs or steps where the provider breaks a run down (optional)
+      limit:
+        type: integer
+        description: At most this many (optional)
+    required:
+    - resource
+search_logs:
+  live: true
+  description: >-
+    Log lines of one resource on the map, newest first, from whichever connection runs or watches it. Filter by text or a regular expression.
+    stream picks what the app prints (app, the default), its builds, or the requests reaching it, where the provider keeps them
+  reads: true
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      text:
+        type: string
+        description: Only lines containing this text (optional)
+      regex:
+        type: string
+        description: Only lines matching this regular expression (optional)
+      exclude:
+        type: string
+        description: Leave out lines containing this text (optional)
+      stream:
+        type: string
+        enum:
+        - app
+        - build
+        - requests
+        - internal
+        - cdn
+        - backup
+        - restore
+        description: >-
+          Which logs: app (what the code prints), build, requests (traffic reaching it), internal (calls between services), cdn, backup or restore
+          (optional, app)
+      limit:
+        type: integer
+        description: At most this many (optional)
+      minutes:
+        type: integer
+        description: How far back from now, in minutes (optional, 60)
+      start:
+        type: string
+        description: Start of the range as an ISO 8601 time, instead of minutes (optional)
+      end:
+        type: string
+        description: End of the range as an ISO 8601 time (optional, now)
+    required:
+    - resource
+query_metrics:
+  live: true
+  description: >-
+    Metrics of one resource on the map over time, from whichever connection runs or watches it, with min, average, max and latest for each. The
+    person sees each metric as a chart. A metric the provider does not keep for that resource is named as missing
+  reads: true
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      metrics:
+        type: array
+        items:
+          type: string
+          enum:
+          - cpu
+          - memory
+          - requests
+          - errors
+          - http_4xx
+          - http_5xx
+          - cpu_time
+          - network_in
+          - network_out
+          - tcp_connections
+          - disk
+          - bandwidth
+          - latency_p95
+          - invocations
+          - duration
+          - throttles
+        description: Which metrics (optional, the resource's usual ones)
+      minutes:
+        type: integer
+        description: How far back from now, in minutes (optional, 60)
+      start:
+        type: string
+        description: Start of the range as an ISO 8601 time, instead of minutes (optional)
+      end:
+        type: string
+        description: End of the range as an ISO 8601 time (optional, now)
+    required:
+    - resource
+check_status_page:
+  live: true
+  description: >-
+    Read an outside provider's public status page now: whether it reports an outage or degraded service, its open incidents with their latest
+    update, and what is not fully working, with the page's address. Use it whenever errors point outside, such as timeouts, refused connections
+    or 5xx answers from a third party's host, before blaming the team's own code. Name the provider, or give the host the errors name and the
+    provider is found from it. Docs: https://firefight.app/docs/ai/what-changed.md
+  reads: true
+  parameters:
+    properties:
+      provider:
+        type: string
+        enum:
+        - GitHub
+        - GitLab
+        - Bitbucket
+        - CircleCI
+        - New Relic
+        - Datadog
+        - Northflank
+        - Grafana
+        - Cloudflare
+        - Modal
+        - DigitalOcean
+        - Netlify
+        - Convex
+        - Trigger.dev
+        - AWS
+        - Google Cloud
+        - Azure
+        - Vercel
+        - Render
+        - Railway
+        - Fly.io
+        - Sentry
+        - PagerDuty
+        - Opsgenie
+        - PostHog
+        - Mixpanel
+        - Honeycomb
+        - Axiom
+        - Better Stack
+        - OpenStatus
+        - Honeybadger
+        - SigNoz
+        - Linear
+        - Jira
+        - Notion
+        - Neon
+        - Supabase
+        - PlanetScale
+        - ClickHouse
+        - Tinybird
+        - Turso
+        - Upstash
+        - Devin
+        - Cursor
+        - Factory
+        - Stripe
+        - PayPal and Braintree
+        - Adyen
+        - Paddle
+        - Plaid
+        - Twilio
+        - SendGrid
+        - Mailgun
+        - Postmark
+        - Resend
+        - Mailchimp and Mandrill
+        - Auth0
+        - Okta
+        - Clerk
+        - WorkOS
+        - Firebase
+        - Fastly
+        - Akamai
+        - Bunny
+        - Cloudinary
+        - Mapbox
+        - Heroku
+        - MongoDB Atlas
+        - Redis Cloud
+        - Docker Hub
+        - OpenAI
+        - Anthropic
+        - Algolia
+        - Segment
+        - LaunchDarkly
+        - Shopify
+        - HubSpot
+        - npm
+        - PyPI
+        - RubyGems
+        - Let's Encrypt
+        - DigiCert
+        - Slack
+        - Discord
+        - Zoom
+        - Zendesk
+        description: The provider whose status page to read (optional when host is given)
+      host:
+        type: string
+        description: A host the errors name, such as api.stripe.com, to find the provider by (optional when provider is given)
+    required: []
+    type: object
+blind_spots:
+  live: true
+  description: >-
+    The outside systems this workspace's apps use that Firefight has no connection for, such as a sign-in, payment or email provider, each with
+    where it was seen (a service's setting named for it or pointing at its host, or the catalog) and how to connect it or read its status. Call
+    it when a question may need a system you hold no tool for, such as failed logins when sign-in runs through an outside provider, and say which
+    system it is rather than guessing what it did. Docs: https://firefight.app/docs/ai/what-changed.md
+  reads: true
+  parameters:
+    properties:
+      category:
+        type: string
+        enum:
+        - AI models
+        - Alerting and on-call
+        - CDN and media
+        - CI
+        - Chat and support
+        - Cloud and hosting
+        - Code
+        - Coding agents
+        - Databases
+        - Email and messaging
+        - Hosting and data
+        - Issues
+        - Knowledge
+        - Observability
+        - Packages and certificates
+        - Payments
+        - Product analytics
+        - Search and product data
+        - Sign-in
+        description: Only systems of this kind (optional)
+    required: []
+    type: object
+check_from_outside:
+  live: true
+  description: >-
+    Check an address from outside, as a user reaches it: DNS records, the HTTP status, redirects and timing (DNS, connect, TLS, first byte, total),
+    and the TLS certificate (issuer, expiry, days left, whether it is trusted and covers the host). Runs from the sandbox and says which region
+    that is. Use it to tell an outage from a problem on one path, a slow phase, or a certificate or DNS fault.
+  reads: true
+  parameters:
+    type: object
+    required:
+    - url
+    properties:
+      url:
+        type: string
+        description: The address, such as https://shop.example.com/health, or a hostname
+      method:
+        type: string
+        enum:
+        - GET
+        - HEAD
+        description: GET or HEAD (optional, GET)
+run_command:
+  live: true
+  description: >-
+    Run one shell command (bash) in a Linux sandbox of this chat, in a folder of its own. Use it to filter, count, group or compare data with
+    a script (python3, ruby, jq, awk, sqlite3 are there), for a check only a command can make, and to call connected tools in a loop. Pass saved
+    results such as result_2 in results and each is placed as a file, results/result_2.txt, so a script reads it whole and you read only the answer.
+    In a script, ff calls any connected tool you can call, through Firefight, which adds the keys and records each call: ff tools lists them,
+    ff help <tool> shows a tool's arguments, ff <tool> key=value calls one and prints its answer. A command that changes something through a connected
+    tool needs changes true and an intent, and the person confirms it first. Without it, every call it makes that changes something is refused.
+    No key or password is in the sandbox, so never put one in a command. The sandbox starts the first time it is needed and stays for the rest
+    of this chat while it is used.
+  confirms: true
+  reads_when:
+    changes:
+    - 'false'
+    - ''
+  parameters:
+    type: object
+    properties:
+      command:
+        type: string
+        description: The command, such as jq '.[] | .status' results/result_2.txt | sort | uniq -c
+      results:
+        type: array
+        items:
+          type: string
+        description: Saved results to place as files first, by name, such as ["result_2"] (optional)
+      timeout_seconds:
+        type: integer
+        description: At most this many seconds (optional, 120, at most 900)
+      changes:
+        type: boolean
+        description: True when the command changes something through a connected tool, so the person confirms it first (optional, false)
+    required:
+    - command
+run_helpers:
+  live: true
+  description: >-
+    Hand reads that do not depend on each other to helpers that run at the same time, each with its own narrow brief, and get back a short report
+    from each. Helpers only read, with the same reach as whoever you act for, and spend from this question's budget. Use it when two to 4 reads
+    would otherwise run one after another. At most 8 for one question.
+  reads: true
+  parameters:
+    type: object
+    properties:
+      checks:
+        type: array
+        items:
+          type: object
+          properties:
+            title:
+              type: string
+              description: A few words a person reads as the check's name, such as Logs of checkout
+            brief:
+              type: string
+              description: >-
+                What to read and what to look for, in a sentence or two, naming the resource, the connection and the time window when you know
+                them, such as Read checkout's error logs from 14:00 to 14:20 UTC and say which errors are new and how often each appears
+            deep:
+              type: boolean
+              description: >-
+                Run it on the main model, only for a check that reasons across several results, such as reading code or comparing a failing run
+                with one that passed (optional)
+          required:
+          - title
+          - brief
+        minItems: 1
+        maxItems: 4
+        description: The checks, each one read on its own
+    required:
+    - checks
+  default: No helper report was recorded for that check.
+make_plan:
+  live: true
+  description: >-
+    Make a plan for a request that takes more than one step, before the first one, such as a release, a migration or a fix across systems. The
+    person sees it as a checklist that moves as you update it. Each change carries its undo, written now. A plan that changes anything ends with
+    a check step that reads health, error rate and latency against normal. Give run_at only when the person asked for it to happen at a later
+    time: the plan then waits for them to approve it, and at that time Halon reads how things stand and runs it as them.
+  parameters:
+    type: object
+    properties:
+      goal:
+        type: string
+        description: What the person wants done, in their own words, such as release main to production
+      steps:
+        type: array
+        items:
+          type: object
+          properties:
+            description:
+              type: string
+              description: What the step does, in a few plain words, such as Start the release workflow
+            kind:
+              type: string
+              enum:
+              - read
+              - change
+              - check
+              description: read looks something up, change changes something, check reads whether the changes worked
+            place:
+              type: string
+              description: The system it happens in, such as GitHub or the checkout service (optional)
+            tool:
+              type: string
+              description: The tool a change calls, by the name you call it. Required for every change in a scheduled plan (optional)
+            undo:
+              type: string
+              description: For a change, how to put it back, written now before it runs, such as Roll back checkout to the deploy before
+          required:
+          - description
+          - kind
+        description: The steps in order, 2 to 12
+      run_at:
+        type: string
+        description: >-
+          Only when the person asked for a later time: when to run it, as a local date and time such as 2026-10-11T06:00, worked out from today's
+          date (optional)
+      time_zone:
+        type: string
+        description: The time zone run_at is in, such as Europe/Berlin, when the person named one. Left out, it is their own time zone (optional)
+    required:
+    - goal
+    - steps
+  default: Plan saved. The person sees it as a checklist.
+update_plan:
+  live: true
+  description: >-
+    Update a plan as you work: mark a step running before you start it, and done, failed or skipped once it ends, with what happened. A failed
+    step says why, quoting the provider. A done check says what you read against normal and whether the changes worked as verdict. A change that
+    fails, or a check that finds the changes did not work, stops the plan, and the person is offered Retry and Undo. Give revise to replace every
+    step not started yet when the plan has to change.
+  parameters:
+    type: object
+    properties:
+      plan:
+        type: string
+        description: The plan's id. Needed only when the chat has more than one plan going
+      step:
+        type: integer
+        description: The step's number
+      status:
+        type: string
+        enum:
+        - running
+        - done
+        - failed
+        - skipped
+      note:
+        type: string
+        description: 'What happened, in a sentence: the result, why it failed quoting the provider, or for a check what you read against normal
+          (optional)'
+      links:
+        type: array
+        items:
+          type: string
+        description: Pages that show it, such as the run or the deploy, as full addresses a result gave (optional)
+      verdict:
+        type: string
+        enum:
+        - held
+        - not_held
+        - could_not_check
+        description: 'A check only: whether the changes worked, or that nothing you can read could tell'
+      undo:
+        type: string
+        description: 'A change only: its undo made exact from what it returned, such as the previous value or an id (optional)'
+      revise:
+        type: array
+        items:
+          type: object
+          properties:
+            description:
+              type: string
+              description: What the step does, in a few plain words, such as Start the release workflow
+            kind:
+              type: string
+              enum:
+              - read
+              - change
+              - check
+              description: read looks something up, change changes something, check reads whether the changes worked
+            place:
+              type: string
+              description: The system it happens in, such as GitHub or the checkout service (optional)
+            tool:
+              type: string
+              description: The tool a change calls, by the name you call it. Required for every change in a scheduled plan (optional)
+            undo:
+              type: string
+              description: For a change, how to put it back, written now before it runs, such as Roll back checkout to the deploy before
+          required:
+          - description
+          - kind
+        description: Replaces every step not started yet, when the plan has to change (optional)
+  default: Plan updated.
+finish_plan:
+  live: true
+  description: >-
+    Finish a plan once every step has ended. A plan that changed something finishes only after its check read that it worked. Give what came of
+    it against the goal, the pages that show it, and the most useful next step, then report the same to the person with those links and offer
+    to take that step.
+  parameters:
+    type: object
+    properties:
+      plan:
+        type: string
+        description: The plan's id. Needed only when the chat has more than one plan going
+      outcome:
+        type: string
+        description: What came of it against the goal, in a sentence or two, with the evidence
+      next_step:
+        type: string
+        description: The most useful next step, as an offer, such as Shall I watch the error rate for an hour?
+      links:
+        type: array
+        items:
+          type: string
+        description: Pages that show the outcome, such as the run, the deploy or the dashboard, as full addresses a result gave
+    required:
+    - outcome
+    - next_step
+  default: Plan finished.
+search_runbooks:
+  live: true
+  description: >-
+    Search this workspace's incident response runbooks: documented procedures for handling incidents (e.g. how to fail over a database, roll back
+    a deploy). Matches name, summary and other names. runnable says Halon can run it with run_runbook. Use get_runbook for the full step-by-step
+    content. Docs: https://firefight.app/docs/incidents/runbooks.md
+  reads: true
+  parameters:
+    properties:
+      query:
+        type: string
+        description: Matches runbook name, summary or another name it goes by
+      limit:
+        type: integer
+        description: Max results, up to 50 (default 25)
+    required: []
+    type: object
+  default: No runbook matches that.
+run_runbook:
+  live: true
+  description: >-
+    Run a saved runbook that has tool steps, such as Release Firefight, by its name, slug or another name it goes by (search_runbooks says which
+    are runnable). First tell the person what it will do and which inputs it uses, and ask for any input it has no default for. The person confirms
+    the whole run before anything happens. Each step runs as them with their permissions, the run stops at the first step that is refused, waits
+    for an approval or fails, and once every step went through its watch starts and reports back here.
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      runbook:
+        type: string
+        description: The runbook's name, slug or another name it goes by
+      inputs:
+        type: object
+        description: 'A value for each of the runbook''s inputs by its key, such as {"bump": "patch"} (optional for one with a default)'
+    required:
+    - runbook
+start_watch:
+  live: true
+  description: >-
+    Write a watch: keep checking something after you answer, with any read you hold, until a condition in plain words holds, and report back on
+    your own. Use it when the person asks to be told when something finishes or reaches a step: a CI run, a build, a deploy, a resource coming
+    back. It only reads, as the person, about every minute and at once when a connection reports a change, within a ceiling on reads an hour.
+    Each milestone the person asked about, each job or step as it starts or passes, and the end are posted in this chat, its thread and their
+    direct messages, with the reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order.
+    A read that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with repair_watch. The time limit
+    is learned from run history (twice the usual, at most 24 hours). Pass minutes only when the person asked for a limit, and expected_minutes
+    only from memory when run history has none. Say what it answers about the limit.
+  parameters:
+    type: object
+    properties:
+      title:
+        type: string
+        description: >-
+          What the watch waits on, a few words naming the end it waits for, such as Deploy finished or Release run #46 passed. It is shown as
+          Watch "Deploy finished"
+      purpose:
+        type: string
+        description: >-
+          Why the person wants this, the goal in their own words, such as get releases deploying through the webhook again. Every report says
+          where things stand against it
+      steps:
+        type: array
+        items:
+          type: object
+          properties:
+            label:
+              type: string
+              description: 'What this step is, as the person would say it, such as Release run #46 or Hosting build'
+            capability:
+              type: string
+              enum:
+              - search_logs
+              - query_metrics
+              - recent_deploys
+              - resource_status
+              - run_history
+              - search_errors
+              - search_traces
+              description: >-
+                The read that checks it. run_history follows a run, build or deploy by its status, and says at once when a job or step inside
+                it fails. Any other read needs done_when, failed_when or goal. Give this or tool
+            tool:
+              type: string
+              description: >-
+                Instead of a capability, any read tool you hold, by the name you call it, with its arguments, such as a provider's API request
+                with method GET for one workflow run by its id (workflows/release/runs/<id>), never a list of recent runs. For a code host's CI,
+                prefer run_history with run, which brings its jobs. A tool that can also change things only reads here. Needs done_when, failed_when
+                or goal. Find the right read in the provider's skill, search_docs or the web (optional)
+            resource:
+              type: string
+              description: The resource on the map, by name or map id, as for the capability itself (a capability only)
+            connection:
+              type: string
+              description: The connection to ask, when the capability needs one named (optional)
+            name:
+              type: string
+              description: 'run_history only: follow runs whose workflow, pipeline or kind contains this, such as release, build or deploy (optional)'
+            run:
+              type: string
+              description: >-
+                run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it,
+                so the watch follows that exact run. Without it, the first run of that name that starts around now (optional)
+            report_start:
+              type: boolean
+              description: 'run_history only: also say when the run starts, when the person asked to hear that (optional)'
+            done_when:
+              type: string
+              description: Text in the read's answer that means it is done, such as running (optional)
+            failed_when:
+              type: string
+              description: Text in the read's answer that means it failed, such as crashed (optional)
+            goal:
+              type: string
+              description: >-
+                Keep checking until this holds: the condition in plain words, such as every instance of web runs the new version, or the error
+                rate stays under 1% for ten minutes. Judged on each reading that changed and every few minutes on one that did not, when no text
+                above decides (optional)
+            arguments:
+              type: object
+              description: Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)
+          required:
+          - label
+        description: What to follow, in order, at most 6
+      minutes:
+        type: integer
+        description: 'Only when the person asked: how long to watch, at most 1440 (optional)'
+      expected_minutes:
+        type: integer
+        description: 'Only from memory, when run history cannot show it: how long this usually takes (optional)'
+      reads_per_hour:
+        type: integer
+        description: >-
+          Only when a provider's documented rate limit or cost is tighter than the default of 120 reads an hour for each step: the most reads
+          an hour this watch may make, between 6 and 720 (optional)
+    required:
+    - title
+    - steps
+  default: Watching. I will report each step as it passes and when it ends, for up to 40 minutes.
+repair_watch:
+  live: true
+  description: >-
+    Repair a watch this chat keeps: give one of its steps a better read when its read found nothing to follow, when a reading you took shows it
+    follows the wrong thing, or when you are handed a step back. The same watch follows it from here and says what changed. Try the new read once
+    yourself first. Pass give_up when no read can show it. list_watches names the watches and their steps.
+  parameters:
+    type: object
+    properties:
+      capability:
+        type: string
+        enum:
+        - search_logs
+        - query_metrics
+        - recent_deploys
+        - resource_status
+        - run_history
+        - search_errors
+        - search_traces
+        description: >-
+          The read that checks it. run_history follows a run, build or deploy by its status, and says at once when a job or step inside it fails.
+          Any other read needs done_when, failed_when or goal. Give this or tool
+      tool:
+        type: string
+        description: >-
+          Instead of a capability, any read tool you hold, by the name you call it, with its arguments, such as a provider's API request with
+          method GET for one workflow run by its id (workflows/release/runs/<id>), never a list of recent runs. For a code host's CI, prefer run_history
+          with run, which brings its jobs. A tool that can also change things only reads here. Needs done_when, failed_when or goal. Find the
+          right read in the provider's skill, search_docs or the web (optional)
+      resource:
+        type: string
+        description: The resource on the map, by name or map id, as for the capability itself (a capability only)
+      connection:
+        type: string
+        description: The connection to ask, when the capability needs one named (optional)
+      name:
+        type: string
+        description: 'run_history only: follow runs whose workflow, pipeline or kind contains this, such as release, build or deploy (optional)'
+      run:
+        type: string
+        description: >-
+          run_history only: the run to follow by its id or number, such as 46. Always give it when you started the run or can identify it, so
+          the watch follows that exact run. Without it, the first run of that name that starts around now (optional)
+      report_start:
+        type: boolean
+        description: 'run_history only: also say when the run starts, when the person asked to hear that (optional)'
+      done_when:
+        type: string
+        description: Text in the read's answer that means it is done, such as running (optional)
+      failed_when:
+        type: string
+        description: Text in the read's answer that means it failed, such as crashed (optional)
+      goal:
+        type: string
+        description: >-
+          Keep checking until this holds: the condition in plain words, such as every instance of web runs the new version, or the error rate
+          stays under 1% for ten minutes. Judged on each reading that changed and every few minutes on one that did not, when no text above decides
+          (optional)
+      arguments:
+        type: object
+        description: Other arguments the capability takes, such as stream for search_logs, or all of the tool's arguments (optional)
+      watch:
+        type: string
+        description: The watch's id, as start_watch, list_watches or the hand back gave it
+      step:
+        type: string
+        description: The step to repair, by its label
+      why:
+        type: string
+        description: One short sentence on what was wrong with the old read, such as Run history only lists builds, not workflow runs
+      give_up:
+        type: boolean
+        description: Stop following this step, when no read you can make shows it (optional)
+    required:
+    - watch
+    - step
+    - why
+  default: Repaired. The watch now follows the read you gave.
+list_watches:
+  live: true
+  description: >-
+    The watches this chat keeps, going and ended, with each step as it stands, when it was last read, and what they said. Each one still going
+    reads what it follows again first, so read it when the person asks how a watch is going, and say so when it disagrees with what you or the
+    watch said before.
+  reads: true
+  parameters:
+    type: object
+    properties: {}
+    required: []
+  default: No watch is running in this chat.
+start_investigation:
+  live: true
+  description: >-
+    Start an investigation, only when the person asks for one. It needs no incident. It runs on its own, posts what it finds here, and on an incident
+    its steps are followed in the incident's channel. Hand over what the person told you: what is failing, roughly when it started, any names
+    and any error text. Ask once when it started if nobody has said, and accept not knowing as an answer.
+  parameters:
+    type: object
+    properties:
+      symptom:
+        type: string
+        description: What is failing, in the words of whoever reported it (optional)
+      started_around:
+        type: string
+        description: Roughly when it started, as ISO 8601, when someone said so (optional)
+      names:
+        type: array
+        items:
+          type: string
+        description: Services, apps or repositories mentioned (optional)
+      error_text:
+        type: string
+        description: An error message or name as it appeared, e.g. PoolExhausted (optional)
+    required: []
+  default: Started an investigation. Responders follow it in the incident's channel.
+search_alerts:
+  live: true
+  description: >-
+    Search this workspace's ingested alerts: what fired, how each routed (routed/unmatched/pending/failed), which rule matched, and the incident
+    it attached to. Newest first. Docs: https://firefight.app/docs/alerts/how-alerts-work.md
+  reads: true
+  parameters:
+    properties:
+      source:
+        type: string
+        description: Alert source name to filter by
+      routing_state:
+        type: string
+        description: pending, routed, unmatched or failed
+      status:
+        type: string
+        description: firing or resolved
+      since:
+        type: string
+        description: 'ISO8601: only alerts last seen after this time'
+      limit:
+        type: integer
+        description: Max results, up to 50 (default 25)
+    required: []
+    type: object
+get_incident:
+  live: true
+  description: >-
+    Fetch one incident in full by id or identifier (e.g. INC-42): details, timeline events, postmortem status, and the alerts attached to it.
+    Docs: https://firefight.app/docs/incidents/concepts.md
+  reads: true
+  parameters:
+    properties:
+      incident:
+        type: string
+        description: Incident UUID or identifier like INC-42
+    required:
+    - incident
+    type: object
+search_incidents:
+  live: true
+  description: >-
+    Search this workspace's incidents. Filter by status slug, severity slug, lifecycle stage (triage/active/closed/canceled), free-text query
+    (name or identifier), and declared-at time range. Returns newest first. Docs: https://firefight.app/docs/incidents/concepts.md
+  reads: true
+  parameters:
+    properties:
+      status:
+        type: string
+        description: Incident status slug. None is configured yet
+      severity:
+        type: string
+        description: Severity slug. None is configured yet
+      stage:
+        type: string
+        description: 'Lifecycle stage key: triage, active, closed or canceled'
+      query:
+        type: string
+        description: Matches incident name or identifier
+      since:
+        type: string
+        description: 'ISO8601: only incidents declared after this time'
+      until:
+        type: string
+        description: 'ISO8601: only incidents declared before this time'
+      limit:
+        type: integer
+        description: Max results, up to 50 (default 25)
+    required: []
+    type: object
+  default: No past incident matches.
+post_incident_update:
+  live: true
+  description: >-
+    Post an update on an incident: what you have found, what you are doing, and where the incident stands now. This is how you tell the responders
+    in the channel what is happening, so use it whenever you learn something or change something. It can also move status, severity and type in
+    the same call. Call get_form with form: "update" first, since this workspace decides what is asked and what is required. A required answer
+    left out keeps what the incident already has, so send only what changes. Write message as markdown with real line breaks: a lead sentence,
+    then a blank line and one "- " bullet per point when there is more than one, with links as plain URLs or [text](url). Never run several points
+    together on one line and never type bullet characters such as •, because the dashboard and the incident channel draw the list from the line
+    breaks. If the call requires approval, retry the identical call with approval_id once approved. Docs: https://firefight.app/docs/incidents/concepts.md
+  parameters:
+    properties:
+      incident:
+        type: string
+        description: Incident UUID or identifier like INC-42
+      answers:
+        type: object
+        description: >-
+          The update form's answers, keyed by the field keys get_form returned, e.g. { "message": "Rolled back the 14:02 deploy.\n\n- Errors are
+          back to baseline\n- Watching for 30 minutes", "status": "monitoring" }
+      approval_id:
+        type: string
+        description: Approval id when retrying an approved call
+    required:
+    - incident
+    - answers
+    type: object
+  default: Posted.
+escalate_incident:
+  live: true
+  description: >-
+    Ask a specific person to pick this incident up. Firefight posts the ask in the incident channel, messages them directly with an acknowledge
+    button, and chases them if they do not answer. This is how you pull a human in rather than carrying on alone. An incident that is over cannot
+    be escalated. If the call requires approval, retry the identical call with approval_id once approved. Docs: https://firefight.app/docs/incidents/concepts.md
+  parameters:
+    properties:
+      incident:
+        type: string
+        description: Incident UUID or identifier like INC-42
+      member:
+        type: string
+        description: Email or platform user id of the person to pull in. Pass "me" for the person you are acting for
+      reason:
+        type: string
+        description: Why you need them, shown in the ask
+      approval_id:
+        type: string
+        description: Approval id when retrying an approved call
+    required:
+    - incident
+    - member
+    - reason
+    type: object
+  default: Paged them with the reason.
+rollback:
+  live: true
+  description: Put one resource on the map back on an earlier build or version, through whichever connection runs it
+  confirms: true
+  source: connected
+  parameters:
+    type: object
+    properties:
+      resource:
+        type: string
+        description: The resource, by its name, its provider's id or its id on the resource map, as search_map or get_resource gave it
+      to:
+        type: string
+        description: The build, version or deployment to go back to, by the id the provider gives it in recent_deploys or its build list
+    required:
+    - resource
+    - to
+search_activity:
+  live: true
+  description: >-
+    The gateway's audit log: every call to a connected tool, every configuration change and every refused or waiting request, with who made it
+    and from where. Newest first. Docs: https://firefight.app/docs/gateway/activity.md
+  reads: true
+  parameters:
+    properties:
+      decision:
+        type: string
+        description: allow, deny or pending; omit for all
+      ability:
+        type: string
+        description: Exact ability key to filter on
+      limit:
+        type: integer
+        description: Max results, up to 50 (default 25)
+    required: []
+    type: object
+search_catalog:
+  live: true
+  description: >-
+    Search the service catalog: services, teams and other entries with their attributes and relationships (e.g. which team owns a service, its
+    Slack channel). Use type=service or type=team plus a name query or exact slug. Docs: https://firefight.app/docs/catalog/overview.md
+  reads: true
+  parameters:
+    properties:
+      type:
+        type: string
+        description: Catalog type slug or system key, e.g. service, team
+      query:
+        type: string
+        description: Matches entry names
+      slug:
+        type: string
+        description: Exact entry slug
+      limit:
+        type: integer
+        description: Max results, up to 50 (default 25)
+    required: []
+    type: object
+list_integrations:
+  live: true
+  description: >-
+    What can be connected to Firefight and what already is, by category. Without a category, one line per category saying what is connected in
+    it, so you can ask the person which they want. With a category, every provider in it and where it stands. The person is shown that as a table
+    they connect from, so do not list the providers again in your reply. Connecting happens there, never in the chat: never ask for or accept
+    a key, token or password. Docs: https://firefight.app/docs/api/mcp-server.md
+  reads: true
+  parameters:
+    properties:
+      category:
+        type: string
+        description: >-
+          The category to show. Leave it out for the overview. One of: cloud_and_hosting (Cloud and hosting), observability (Observability), alerting_and_on-call
+          (Alerting and on-call), product_analytics (Product analytics), databases (Databases), code (Code), ci (CI), coding_agents (Coding agents),
+          issues (Issues), knowledge (Knowledge), custom (Custom)
+    type: object
+  default: Shown to the person as a table they can connect from.
+northflank_api_request:
+  description: >-
+    Calls the Northflank API of the shop connection with a method and a path. GET reads anything. Read the API reference skill before a path you
+    do not know.
+  source: northflank
+  confirms: true
+  reads_when:
+    method:
+    - GET
+  parameters:
+    type: object
+    properties:
+      method:
+        type: string
+        enum:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        description: The HTTP method
+      path:
+        type: string
+        description: The path
+        such as /v1/projects/shop/services:
+      body:
+        type: object
+        description: The request body (optional)
+    required:
+    - method
+    - path
+github_workflow_runs:
+  description: Lists recent runs of the repository's GitHub Actions workflows, with their status, branch and a link to each.
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repository:
+        type: string
+        description: owner/name
+      workflow:
+        type: string
+        description: A workflow file or name (optional)
+      limit:
+        type: integer
+        description: How many runs
+        at most 100 (optional):
+    required:
+    - repository
+github_job_log:
+  description: Reads one GitHub Actions job's log.
+  source: github
+  reads: true
+  parameters:
+    type: object
+    properties:
+      repository:
+        type: string
+        description: owner/name
+      job:
+        type: string
+        description: The job's id
+    required:
+    - repository
+    - job
+github_fix_code:
+  description: Has Firefight's coding agent write a code change on a branch and open a pull request a person reviews.
+  source: github
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      repository:
+        type: string
+        description: owner/name
+      task:
+        type: string
+        description: What to change and why
+        with the evidence:
+    required:
+    - repository
+    - task
+planetscale_execute_read_query:
+  description: Runs a read only SQL query on a PlanetScale database branch.
+  source: planetscale
+  reads: true
+  parameters:
+    type: object
+    properties:
+      database:
+        type: string
+        description: The database
+      branch:
+        type: string
+        description: The branch
+        usually main:
+      query:
+        type: string
+        description: A SELECT
+        SHOW or EXPLAIN:
+    required:
+    - database
+    - query
+planetscale_get_insights:
+  description: PlanetScale's query insights for a database branch, the slowest and most frequent queries over a window.
+  source: planetscale
+  reads: true
+  parameters:
+    type: object
+    properties:
+      database:
+        type: string
+        description: The database
+      branch:
+        type: string
+        description: The branch (optional)
+      hours:
+        type: integer
+        description: How far back (optional)
+    required:
+    - database
+cloudflare_execute:
+  description: >-
+    Runs a short script against the Cloudflare API of the shop account. Use it for what no other tool reads. It can change things, so the person
+    confirms each call.
+  source: cloudflare
+  confirms: true
+  parameters:
+    type: object
+    properties:
+      code:
+        type: string
+        description: The script
+        which calls cloudflare.request(method:
+        path:
+        body):
+    required:
+    - code

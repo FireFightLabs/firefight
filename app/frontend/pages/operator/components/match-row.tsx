@@ -1,5 +1,5 @@
 import { Link } from "@inertiajs/react"
-import { IconFlame, IconHierarchy2, IconMessages, IconSparkles, type Icon } from "@tabler/icons-react"
+import { IconFlame, IconHierarchy2, IconMessages, IconScale, IconSparkles, type Icon } from "@tabler/icons-react"
 
 import { OPERATOR_FIND_KINDS } from "@/pages/operator/generated/constants"
 import type { OperatorFindMatch } from "@/types/serializers"
@@ -9,6 +9,7 @@ const KINDS: Record<OperatorFindMatch["kind"], { label: string; icon: Icon }> = 
   [OPERATOR_FIND_KINDS.RUN]: { label: "Halon run", icon: IconSparkles },
   [OPERATOR_FIND_KINDS.CHAT]: { label: "Halon chat", icon: IconMessages },
   [OPERATOR_FIND_KINDS.WORKFLOW]: { label: "Workflow", icon: IconHierarchy2 },
+  [OPERATOR_FIND_KINDS.BENCH]: { label: "Bench run", icon: IconScale },
 }
 
 export function MatchRow({ match }: { match: OperatorFindMatch }) {

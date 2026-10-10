@@ -1,0 +1,41 @@
+title: A vague customer report
+source: Stress test scenario 09, support
+shape: >-
+  A customer cannot log in. Halon finds her in the logs and data, read only, sees the failed logins and a recent auth
+  change, and names the system it cannot see because it is not connected.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: "support says a customer, dana@example.com, can't log in since this morning. Any idea?"
+tools:
+  - open_tools
+  - search_logs
+  - recent_deploys
+  - planetscale_execute_read_query
+  - list_integrations
+  - blind_spots
+answers:
+  - tool: search_logs
+    result: |-
+      auth, since 06:00: 14 failed logins for dana@example.com between 09:04 and 09:41, each "invalid one time code". 2,180 failed logins with "invalid one time code" across all users since 08:57, up from about 40 a day.
+  - tool: recent_deploys
+    result: |-
+      auth v2.9.0 at 08:55 by Sam Rivera, "Tighten one time code window to 30 seconds" https://github.com/larkspur/shop/pull/2205
+  - tool: planetscale_execute_read_query
+    result: |-
+      users: email dana@example.com, otp_enabled true, otp_channel email, locked false, last_login 2026-10-08 18:20
+  - tool: blind_spots
+    result: |-
+      Not connected, by kind: Email and messaging (no email delivery provider, such as Resend, Postmark or SendGrid, so whether a message was sent or delivered cannot be read). Observability: connected through Northflank logs only. Connect one from Settings, Integrations.
+  - tool: list_integrations
+    result: Shown to the person as a table they can connect from.
+expect:
+  outcome: >-
+    Dana's 14 logins since 09:04 failed with an invalid one time code, like 2,180 others since 08:57, right after auth
+    v2.9.0 at 08:55 cut the code window to 30 seconds while codes go out by email. Whether her codes arrived late
+    cannot be checked, since no email delivery provider is connected, and it says which kind to connect.
+  next_step: >-
+    It proposes rolling auth back or widening the window again and asks once, and offers to show the email providers
+    to connect.
+  evidence: [ "pull/2205" ]
+  max_cents: 25

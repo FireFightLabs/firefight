@@ -1,0 +1,60 @@
+title: A handbook out of date
+source: Stress test scenario 07, knowledge
+shape: >-
+  The handbook says releases go through a GitHub Actions workflow, but a fresh reading shows that workflow switched off
+  and releases moved to Northflank. Halon says so, uses the path that works, and proposes the handbook edit.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: ship the latest main to production please
+    decisions: [ approve, approve ]
+tools:
+  - open_tools
+  - search_handbook
+  - github_workflow_runs
+  - northflank_api_request
+  - name: update_handbook
+    description: Changes a section of the workspace handbook. People read the handbook to know how things are done here.
+    confirms: true
+    parameters:
+      type: object
+      properties:
+        section: { type: string, description: The section's title }
+        text: { type: string, description: The new text of the section }
+      required: [ section, text ]
+answers:
+  - tool: search_handbook
+    result: |-
+      Releasing: run the "Deploy" GitHub Actions workflow (deploy.yml) on main in larkspur/shop. It builds and deploys web and worker.
+  - tool: github_workflow_runs
+    result: |-
+      deploy.yml: disabled on 2026-09-30 by Priya Shah. Last run 2026-09-29, succeeded. https://github.com/larkspur/shop/actions/workflows/deploy.yml
+      ci.yml: last run 2026-10-10 on main, succeeded.
+  - tool: northflank_api_request
+    match: { method: GET, path: /workflows$/ }
+    result: |-
+      {"workflows":[{"name":"release","lastRun":{"id":"4177","status":"succeeded","at":"2026-10-08T10:02:11Z"},"trigger":"manual"}]}
+  - tool: northflank_api_request
+    match: { method: GET, path: /runs\/4190/ }
+    result: |-
+      {"id":"4190","status":"running","steps":[{"name":"build","status":"running"}],"url":"https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4190"}
+  - tool: northflank_api_request
+    match: { method: GET }
+    result: |-
+      {"runs":[{"id":"4177","status":"succeeded"},{"id":"4170","status":"succeeded"},{"id":"4163","status":"succeeded"}],"note":"release has run every release since 2026-10-01"}
+  - tool: northflank_api_request
+    match: { method: POST, path: /release/ }
+    result: |-
+      Started run 4190 of workflow release. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4190
+  - tool: update_handbook
+    result: Updated the Releasing section.
+expect:
+  outcome: >-
+    The handbook's GitHub deploy workflow has been switched off since September 30 and releases now run through the
+    Northflank release workflow, so it says so and starts release run 4190 there.
+  next_step: >-
+    It proposes changing the handbook's Releasing section to the Northflank workflow and asks once, and offers to
+    watch run 4190.
+  evidence: [ "runs/4190" ]
+  calls: [ update_handbook ]
+  max_cents: 30

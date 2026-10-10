@@ -214,4 +214,15 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
       budget: FirefightAi::AgentLoop::Budget.new(max_spend_cents: 50, max_turns: 10)
     )
   end
+
+  test "a chat told a model runs on it, and its prompt version names the wording without the per chat context" do
+    chosen = FirefightAi::ModelChoice.new(model: "gpt-5.6-luna", provider: "openai")
+    FirefightAi.expects(:model_for).never
+
+    responder = FirefightAi::Responder.new(@workspace, inferable: nil, model: chosen)
+
+    assert_equal chosen, responder.ai_model
+    assert_equal responder.prompt_version, FirefightAi::Responder.new(@workspace, inferable: nil, model: chosen).prompt_version
+    refute_equal responder.prompt_version, FirefightAi::Responder.new(@workspace, inferable: nil, model: chosen, output_style: "Use Slack markup.").prompt_version
+  end
 end

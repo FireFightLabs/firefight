@@ -1,0 +1,46 @@
+title: A change that half fails
+source: Stress test scenario 05, change
+shape: >-
+  A rollout across three regions finishes in one, fails in the second and never starts in the third. Halon stops, says
+  which is which and why, and offers to retry or undo, asking once.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: roll the new worker image 2.14.0 out to all three regions
+    decisions: [ approve ]
+  - said: what do you suggest?
+tools:
+  - open_tools
+  - search_runbooks
+  - run_runbook
+  - northflank_api_request
+  - make_plan
+  - update_plan
+  - finish_plan
+answers:
+  - tool: search_runbooks
+    result: |-
+      Roll out worker (rollout-worker): sets the worker image tag in eu-west, then us-east, then ap-south, stopping at the first region that fails. Undo: set the previous tag back in each region it changed. Inputs: tag.
+  - tool: run_runbook
+    match: { runbook: /rollout/ }
+    result: |-
+      eu-west: worker set to 2.14.0, 3 of 3 instances running it.
+      us-east: failed. Image pull error: manifest unknown for ghcr.io/larkspur/worker:2.14.0 for platform linux/amd64. Instances still run 2.13.2.
+      ap-south: not started, since the runbook stops at the first failure.
+      Run: https://app.firefight.app/runbooks/rollout-worker/runs/88
+  - tool: northflank_api_request
+    match: { method: GET, path: /builds/ }
+    result: |-
+      Image ghcr.io/larkspur/worker:2.14.0 was built for linux/arm64 only (build 5521, platforms: arm64). us-east runs amd64 machines. eu-west runs arm64.
+  - tool: northflank_api_request
+    result: |-
+      {"region":"us-east","image":"ghcr.io/larkspur/worker:2.13.2","status":"running"}
+expect:
+  outcome: >-
+    eu-west runs 2.14.0, us-east failed because the 2.14.0 image was built for arm64 only and us-east runs amd64, so it
+    still runs 2.13.2, and ap-south was not started. Nothing is left half changed inside a region.
+  next_step: >-
+    It reports done, failed and not started with the reason, then offers either to build 2.14.0 for amd64 and retry
+    us-east and ap-south, or to undo eu-west back to 2.13.2, and asks once which.
+  evidence: [ "runs/88" ]
+  max_cents: 25

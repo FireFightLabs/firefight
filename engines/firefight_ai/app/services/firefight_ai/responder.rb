@@ -30,11 +30,13 @@ module FirefightAi
                                "answer in this chat read it back from the code host showing that, and say only what it shows. " \
                                "Never say you changed one because you meant to, asked for it, or a coding agent's summary says so.".freeze
 
-    def initialize(workspace, inferable:, member: nil, output_style: nil)
+    # model is a ModelChoice for a chat told to use one, such as a bench replay comparing models. nil means the workspace's.
+    def initialize(workspace, inferable:, member: nil, output_style: nil, model: nil)
       @workspace = workspace
       @inferable = inferable
       @member = member
       @output_style = output_style
+      @ai_model = model
     end
 
     # The app has already saved the question as the last message.
@@ -60,6 +62,9 @@ module FirefightAi
     def ai_model
       @ai_model ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
     end
+
+    # The wording as this responder sends it, which names the version of Halon a bench run tested.
+    def prompt_version = Prompt.version(template_text)
 
     private
 

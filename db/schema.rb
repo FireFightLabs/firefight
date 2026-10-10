@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_121400) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_131000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1086,6 +1086,53 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121400) do
     t.index ["key"], name: "index_code_boxes_on_open_key", unique: true, where: "(stopped_at IS NULL)"
     t.index ["last_used_at"], name: "index_code_boxes_on_open_last_used", where: "(stopped_at IS NULL)"
     t.index ["workspace_id"], name: "index_code_boxes_on_workspace_id"
+  end
+
+  create_table "conversation_bench_results", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "bench_run_id", null: false
+    t.uuid "workspace_id", null: false
+    t.uuid "replay_of_id"
+    t.string "scenario", null: false
+    t.string "title", null: false
+    t.string "status", default: "pending", null: false
+    t.float "right"
+    t.float "moved_forward"
+    t.float "asked_when_needed"
+    t.float "cost"
+    t.float "total"
+    t.bigint "spent_micros", default: 0, null: false
+    t.integer "turns", default: 0, null: false
+    t.integer "calls", default: 0, null: false
+    t.integer "not_recorded", default: 0, null: false
+    t.integer "confirmations", default: 0, null: false
+    t.integer "unneeded_asks", default: 0, null: false
+    t.text "answer"
+    t.text "reason"
+    t.jsonb "notes", default: [], null: false
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bench_run_id", "scenario"], name: "index_conversation_bench_results_on_bench_run_id_and_scenario", unique: true
+    t.index ["bench_run_id"], name: "index_conversation_bench_results_on_bench_run_id"
+    t.index ["replay_of_id"], name: "index_conversation_bench_results_on_replay_of_id"
+    t.index ["workspace_id"], name: "index_conversation_bench_results_on_workspace_id"
+  end
+
+  create_table "conversation_bench_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "kind", null: false
+    t.string "trigger", null: false
+    t.string "status", default: "running", null: false
+    t.string "prompt_version", null: false
+    t.string "model", null: false
+    t.string "provider"
+    t.string "label"
+    t.uuid "started_by_id"
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["kind", "created_at"], name: "index_conversation_bench_runs_on_kind_and_created_at"
+    t.index ["started_by_id"], name: "index_conversation_bench_runs_on_started_by_id"
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3001,6 +3048,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121400) do
   add_foreign_key "code_agent_sessions", "workspace_ai_accounts", on_delete: :nullify
   add_foreign_key "code_agent_sessions", "workspaces", on_delete: :cascade
   add_foreign_key "code_boxes", "workspaces"
+  add_foreign_key "conversation_bench_results", "conversation_bench_runs", column: "bench_run_id", on_delete: :cascade
+  add_foreign_key "conversation_bench_results", "conversations", column: "replay_of_id", on_delete: :nullify
+  add_foreign_key "conversation_bench_results", "workspaces", on_delete: :cascade
+  add_foreign_key "conversation_bench_runs", "users", column: "started_by_id", on_delete: :nullify
   add_foreign_key "conversations", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"
