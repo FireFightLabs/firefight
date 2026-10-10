@@ -70,6 +70,10 @@ module Operator
     type :boolean
     def held = box.held
 
+    # Why a box with no record cannot be adopted, nil when it can.
+    type :string, optional: true
+    def adopt_blocked_reason = Operator::Actions.sandbox_adopt_blocked_reason(box)
+
     private
 
     def origin_href(origin)

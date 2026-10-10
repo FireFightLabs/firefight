@@ -7,12 +7,12 @@ import { TONE_CLASSES } from "@/components/investigations/tone"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDateTime } from "@/lib/formatters"
-import { cleanUpOperatorSandboxesPath, deleteOperatorSandboxesPath, stopOperatorSandboxesPath } from "@/lib/routes"
+import { adoptOperatorSandboxesPath, cleanUpOperatorSandboxesPath, deleteOperatorSandboxesPath, stopOperatorSandboxesPath } from "@/lib/routes"
 import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"
 import { SectionCard } from "@/pages/operator/components/section-card"
 import { Stat } from "@/pages/operator/components/stat"
-import { OPERATOR_SANDBOX_KINDS, OPERATOR_SANDBOX_PURPOSES } from "@/pages/operator/generated/constants"
+import { OPERATOR_SANDBOX_FLAGS, OPERATOR_SANDBOX_KINDS, OPERATOR_SANDBOX_PURPOSES } from "@/pages/operator/generated/constants"
 import { useAction } from "@/pages/operator/hooks/use-action"
 import { dollars, since } from "@/pages/operator/lib/format"
 import { FLAG_LABELS, FLAG_TONES, PHASE_LABELS, bytes, duration, isActive } from "@/pages/operator/lib/sandboxes"
@@ -36,6 +36,8 @@ interface Asking {
   title: string
   description: string
   confirmLabel: string
+  // Adopting keeps the box, so it is not drawn as destructive.
+  confirmVariant: "destructive" | "default"
   url: string
   data: Record<string, string>
 }
@@ -44,6 +46,7 @@ const ACTION_WORDS: Record<OperatorSandboxAction["actionName"], string> = {
   stop: "stopped",
   delete: "deleted",
   clean_up: "cleaned up",
+  adopt: "adopted",
 }
 
 function Flags({ flags }: { flags: OperatorSandboxBox["flags"] }) {
@@ -99,6 +102,7 @@ export default function OperatorSandboxes() {
         ? `The run using it starts a new box the next time it reads code. ${box.providerName} stops billing for it.`
         : `Firefight has no record of this box, so nothing is using it. ${box.providerName} stops billing for it.`,
       confirmLabel: "Stop box",
+      confirmVariant: "destructive",
       url: stopOperatorSandboxesPath(),
       data: { provider: box.provider, ref: box.ref },
     })
@@ -111,8 +115,22 @@ export default function OperatorSandboxes() {
         ? `${box.providerName} deletes the box and everything on its disk for good. The run using it starts a new box the next time it reads code.`
         : `${box.providerName} deletes the box and everything on its disk for good. Firefight has no record of it, so nothing is using it.`,
       confirmLabel: "Delete box",
+      confirmVariant: "destructive",
       url: deleteOperatorSandboxesPath(),
       data: { provider: box.provider, ref: box.ref, kind: OPERATOR_SANDBOX_KINDS.BOX },
+    })
+  }
+
+  function askToAdopt(box: OperatorSandboxBox) {
+    const owner = box.workspaceName ?? "its workspace"
+    const run = box.origin ? ` (${box.origin.label})` : ""
+    setAsking({
+      title: `Adopt ${box.name ?? box.ref}?`,
+      description: `Firefight records it for ${owner}${run}, billed from when it started, and stops it once nothing uses it, like any other box. Its run picks it up again the next time it reads code.`,
+      confirmLabel: "Adopt box",
+      confirmVariant: "default",
+      url: adoptOperatorSandboxesPath(),
+      data: { provider: box.provider, ref: box.ref },
     })
   }
 
@@ -122,6 +140,7 @@ export default function OperatorSandboxes() {
       title: `Delete ${copy.ref}?`,
       description: `${copy.providerName} lets go of ${what} for good. The next box that needs it installs from nothing and keeps a new one.`,
       confirmLabel: "Delete copy",
+      confirmVariant: "destructive",
       url: deleteOperatorSandboxesPath(),
       data: { provider: copy.provider, ref: copy.ref, kind: OPERATOR_SANDBOX_KINDS.SNAPSHOT },
     })
@@ -132,6 +151,7 @@ export default function OperatorSandboxes() {
       title: `Delete ${totals.rogue} rogue ${totals.rogue === 1 ? "sandbox" : "sandboxes and copies"}?`,
       description: "Every box and kept copy a provider holds that Firefight has no record of is deleted for good. Nothing uses them, so no run is affected.",
       confirmLabel: "Delete all rogue",
+      confirmVariant: "destructive",
       url: cleanUpOperatorSandboxesPath(),
       data: {},
     })
@@ -194,8 +214,10 @@ export default function OperatorSandboxes() {
                 {boxes.map((box) => (
                   <TableRow key={box.key}>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-mono text-[12px]">{box.name ?? box.ref}</span>
+                      <div className="flex max-w-[22rem] flex-col">
+                        <span className="truncate font-mono text-[12px]" title={box.name ?? box.ref}>
+                          {box.name ?? box.ref}
+                        </span>
                         <span className="text-muted-foreground text-xs">
                           {box.providerName}
                           {box.size ? ` · ${box.size}` : ""}
@@ -223,6 +245,13 @@ export default function OperatorSandboxes() {
                     <TableCell className="text-right">
                       {box.held && (
                         <div className="flex justify-end gap-1">
+                          {box.flags.includes(OPERATOR_SANDBOX_FLAGS.ROGUE) && (
+                            <span title={box.adoptBlockedReason ?? undefined}>
+                              <Button type="button" size="sm" variant="outline" onClick={() => askToAdopt(box)} disabled={busy || Boolean(box.adoptBlockedReason)}>
+                                Adopt
+                              </Button>
+                            </span>
+                          )}
                           {isActive(box.phase) && (
                             <Button type="button" size="sm" variant="outline" onClick={() => askToStop(box)} disabled={busy}>
                               Stop
@@ -316,6 +345,7 @@ export default function OperatorSandboxes() {
         title={asking?.title ?? ""}
         description={asking?.description ?? ""}
         confirmLabel={asking?.confirmLabel}
+        confirmVariant={asking?.confirmVariant}
         onConfirm={confirm}
         onCancel={stopAsking}
       />

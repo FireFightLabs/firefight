@@ -107,6 +107,91 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     assert_equal "boat.dev answered 403: Not allowed. (forbidden)", Operator::SandboxAction.find_by!(ref: "bx_running").outcome
   end
 
+  test "an operator adopts a box with no record that says whose it is, and it is billed from when it started and used by its run" do
+    as_operator
+    key = "investigation-#{SecureRandom.uuid}"
+    started = 50.minutes.ago
+    seen("bx_lost", first_seen_at: started, owner: [ @workspace.id, key ])
+    provider = Integrations::Sandboxes::Boat.new(api: Integrations::BoatApi.new)
+    provider.expects(:reclaim).with("bx_lost").returns(Integrations::Sandboxes::Box.new(ref: "bx_lost", address: "https://lost.on.boat.dev?_token=gate", key: "k-new"))
+    Integrations::Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(provider)
+
+    get operator_sandboxes_path, headers: inertia_headers
+    box = inertia_props["boxes"].find { |each| each["ref"] == "bx_lost" }
+    assert_equal [ [ "rogue" ], @workspace.name, nil ], box.values_at("flags", "workspaceName", "adoptBlockedReason")
+    assert_equal "Investigation", box.dig("origin", "label")
+
+    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_lost" }
+
+    assert_equal "Adopted halon-box-bx_lost for #{@workspace.name}. It stops once nothing uses it for 1 hour.", flash[:notice]
+    adopted = CodeBox.live.find_by!(key: key)
+    assert_equal [ @workspace, SandboxProviders::BOAT, "bx_lost", "k-new", "https://lost.on.boat.dev?_token=gate", "default", 36_000 ],
+                 [ adopted.workspace, adopted.provider, adopted.box_ref, adopted.secret, adopted.reach_address, adopted.size, adopted.hourly_micros ]
+    assert_in_delta started, adopted.box_started_at, 1
+    assert_equal [ "adopt", "bx_lost", "#{@operator.email} (operator)" ], Operator::SandboxAction.find_by!(ref: "bx_lost").then { |action| [ action.action, action.ref, action.operator ] }
+
+    get operator_sandboxes_path, headers: inertia_headers
+    box = inertia_props["boxes"].find { |each| each["ref"] == "bx_lost" }
+    assert_equal [ [], true ], box.values_at("flags", "recorded")
+    assert_operator box["costMicros"], :>=, 29_000, "the time it ran with no record is billed too"
+  end
+
+  test "a box whose stop failed at the provider is adopted for the run its stopped record names, billed from when that record stopped" do
+    as_operator
+    stopped = record("bx_unstopped", created_at: 2.hours.ago).tap { |row| row.update!(stopped_at: 40.minutes.ago) }
+    seen("bx_unstopped", first_seen_at: 2.hours.ago)
+    provider = Integrations::Sandboxes::Boat.new(api: Integrations::BoatApi.new)
+    provider.stubs(:reclaim).returns(Integrations::Sandboxes::Box.new(ref: "bx_unstopped", address: "https://b", key: "k-new"))
+    Integrations::Sandboxes.stubs(:provider).returns(provider)
+
+    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_unstopped" }
+
+    adopted = CodeBox.live.find_by!(key: stopped.key)
+    assert_not_equal stopped.id, adopted.id
+    assert_in_delta stopped.stopped_at, adopted.box_started_at, 1
+    get operator_sandboxes_path, headers: inertia_headers
+    assert_equal [], inertia_props["boxes"].find { |each| each["ref"] == "bx_unstopped" }["flags"]
+  end
+
+  test "a box that cannot be matched, whose workspace is gone or whose run has another box is refused with why, and only stop or delete are left" do
+    as_operator
+    taken = "conversation-#{SecureRandom.uuid}"
+    record("bx_current", key: taken)
+    seen("bx_current")
+    seen("bx_nameless", first_seen_at: 1.hour.ago)
+    seen("bx_orphan", first_seen_at: 1.hour.ago, owner: [ SecureRandom.uuid, "investigation-#{SecureRandom.uuid}" ])
+    seen("bx_second", first_seen_at: 1.hour.ago, owner: [ @workspace.id, taken ])
+    Integrations::SandboxInventory.expects(:adopt!).never
+
+    get operator_sandboxes_path, headers: inertia_headers
+    reasons = inertia_props["boxes"].to_h { |box| [ box["ref"], box["adoptBlockedReason"] ] }
+    assert_equal "Nothing on this box says which workspace or run started it, so it can only be stopped or deleted.", reasons["bx_nameless"]
+    assert_equal "The workspace this box was started for no longer exists, so it can only be stopped or deleted.", reasons["bx_orphan"]
+    assert_equal "The run this box was started for has another box now, so this one can only be stopped or deleted.", reasons["bx_second"]
+    assert_equal "Firefight already has a record of this box.", reasons["bx_current"]
+
+    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_nameless" }
+    assert_equal reasons["bx_nameless"], flash[:alert]
+    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_second" }
+    assert_equal reasons["bx_second"], flash[:alert]
+    assert_not Operator::SandboxAction.exists?(action: Operator::SandboxAction::ADOPT)
+  end
+
+  test "a provider that cannot hand a box back is said, and nothing is recorded for the run" do
+    as_operator
+    key = "investigation-#{SecureRandom.uuid}"
+    seen("bx_lost", first_seen_at: 1.hour.ago, owner: [ @workspace.id, key ])
+    provider = Integrations::Sandboxes::Boat.new(api: Integrations::BoatApi.new)
+    provider.stubs(:reclaim).raises(Integrations::BoatApi::NotFound, "boat.dev answered 404: Sandbox not found. (not_found)")
+    Integrations::Sandboxes.stubs(:provider).returns(provider)
+
+    post adopt_operator_sandboxes_path, params: { provider: SandboxProviders::BOAT, ref: "bx_lost" }
+
+    assert_equal "boat.dev answered 404: Sandbox not found. (not_found)", flash[:alert]
+    assert_not CodeBox.exists?(key: key)
+    assert_equal "boat.dev answered 404: Sandbox not found. (not_found)", Operator::SandboxAction.find_by!(ref: "bx_lost", action: Operator::SandboxAction::ADOPT).outcome
+  end
+
   private
 
   def as_operator
@@ -114,10 +199,10 @@ class Operator::SandboxesTest < ActionDispatch::IntegrationTest
     Operator::BaseController.any_instance.stubs(:operator_verified?).returns(true)
   end
 
-  def seen(ref, phase: ProviderSandbox::PHASE_RUNNING, state: "idle", first_seen_at: 30.minutes.ago)
+  def seen(ref, phase: ProviderSandbox::PHASE_RUNNING, state: "idle", first_seen_at: 30.minutes.ago, owner: nil)
     ProviderSandbox.create!(provider: SandboxProviders::BOAT, kind: ProviderSandbox::KIND_BOX, ref: ref, name: "halon-box-#{ref}", purpose: ProviderSandbox::PURPOSE_RUN,
                             phase: phase, state: state, size: "default", started_at: first_seen_at, provider_updated_at: first_seen_at,
-                            first_seen_at: first_seen_at, last_seen_at: Time.current)
+                            first_seen_at: first_seen_at, last_seen_at: Time.current, owner_workspace_id: owner&.first, owner_key: owner&.last)
   end
 
   def record(ref, key: "conversation-#{SecureRandom.uuid}", last_used_at: Time.current, created_at: 30.minutes.ago)

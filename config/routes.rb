@@ -493,6 +493,7 @@ Rails.application.routes.draw do
     resources :sandboxes, only: :index do
       collection do
         post :stop
+        post :adopt
         post :destroy, path: "delete", as: :delete
         post :clean_up
       end

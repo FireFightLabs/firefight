@@ -41,6 +41,17 @@ module Operator
       "#{SandboxProviders.name_of(box.provider)} no longer holds this box." unless box.held
     end
 
+    # Adopting records a box the app has no record of for the run it was started for, so it can only be done once the
+    # box says which workspace and run that was, and while the run holds no other box.
+    def self.sandbox_adopt_blocked_reason(box)
+      return "No such box." unless box
+      return "Firefight already has a record of this box." unless box.flags.include?(Sandboxes::FLAG_ROGUE)
+      return "Nothing on this box says which workspace or run started it, so it can only be stopped or deleted." unless box.claim
+      return "The workspace this box was started for no longer exists, so it can only be stopped or deleted." unless box.claim.workspace
+
+      "The run this box was started for has another box now, so this one can only be stopped or deleted." if box.claim.taken
+    end
+
     def self.copy_delete_blocked_reason(copy)
       "No such copy." unless copy
     end

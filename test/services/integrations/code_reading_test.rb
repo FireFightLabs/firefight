@@ -86,6 +86,13 @@ module Integrations
       assert_equal "k1", box.secret
     end
 
+    test "a box is started for its workspace and run, so a box the app loses its row for can still be told whose it is" do
+      @provider.expects(:start).with { |owner:, **| owner == Sandboxes::Owner.new(workspace_id: @workspace.id, key: "investigation-owned") }
+               .returns(Sandboxes::Box.new(ref: "box-1", address: "http://127.0.0.1:9", key: "k1"))
+
+      reading("investigation-owned").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
@@ -286,6 +293,26 @@ module Integrations
       assert_equal SandboxProviders::BOAT, box.failed_over_from
       assert_equal "boat.dev answered 503: No machine of this type is ready. (no_ready_machine)", box.failover_reason
       assert_equal 1, backup.started.size
+    end
+
+    test "a workspace held to a provider that is down never fails over to the deployment's backup, and the run is told why" do
+      SandboxProviders.unstub(:order_for)
+      ENV.stubs(:[]).with(anything).returns(nil)
+      ENV.stubs(:[]).with("SANDBOX_PROVIDER").returns(SandboxProviders::BOAT)
+      ENV.stubs(:[]).with("SANDBOX_BACKUP_PROVIDER").returns(SandboxProviders::NORTHFLANK)
+      @workspace.update!(sandbox_provider: SandboxProviders::BOAT)
+      backup = FakeProvider.new
+      Sandboxes.stubs(:provider).with(SandboxProviders::BOAT).returns(@provider)
+      Sandboxes.stubs(:provider).with(SandboxProviders::NORTHFLANK).returns(backup)
+      @provider.expects(:start).once.with { |fail_fast:, **| !fail_fast }.raises(Sandboxes::Error, "boat.dev answered 502: Bad gateway.")
+
+      first = assert_raises(Unavailable) { reading("investigation-held").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+      again = assert_raises(Unavailable) { reading("investigation-held").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT) }
+
+      assert_match "Code reading cannot run right now: boat.dev answered 502: Bad gateway.", first.message
+      assert_equal first.message, again.message, "later reads in the run fail at once, without asking boat.dev again"
+      assert_empty backup.started, "the backup is never tried for a held workspace"
+      assert_not CodeBox.exists?(key: "investigation-held")
     end
 
     test "when every provider refuses, the run is told each one's reason once" do

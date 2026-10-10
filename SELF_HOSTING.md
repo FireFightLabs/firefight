@@ -118,7 +118,7 @@ When Firefight itself runs on Northflank, each box can be a private service ther
 1. Create a project for the boxes in the same team and on the same cluster as the app's project. Northflank only lets projects talk to each other within one team and cluster.
 2. Give that project no secret groups. A secret group reaches every service in its project, and a box must hold no credential.
 3. In the boxes' project settings, under networking, allow ingress from the app's project. This is one-way, so the app reaches the boxes and the boxes cannot reach the app.
-4. Create a Northflank API token whose role can read the boxes' project and create, read and delete its services.
+4. Create a Northflank API token whose role can read the boxes' project, create, read and delete its services, and read their runtime environment. The operator console needs that last one to adopt a box Firefight lost track of.
 5. On the app, set `SANDBOX_PROVIDER=northflank`, `NORTHFLANK_API_TOKEN` to that token and `NORTHFLANK_SANDBOX_PROJECT` to the boxes' project id, then redeploy.
 
 Firefight reads its own project from Northflank, so it knows the boxes are elsewhere and reaches them at the address Northflank gives other projects. If the boxes' project does not allow ingress from the app's project, code reading says the sandbox did not come up, or names the ingress setting when Northflank reports it, so check step 3 first. `NORTHFLANK_SANDBOX_PROJECT` can also be the app's own project, and then boxes are reached inside it.

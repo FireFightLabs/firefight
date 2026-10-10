@@ -15,9 +15,23 @@ module Integrations
     # words for its state and size, with the state in ProviderSandbox::PHASES too. monthly_micros is what keeping a copy
     # costs a month, when it costs anything.
     # purpose is ProviderSandbox's, a run's box, the image's own copy or a prepared repository.
-    Held = Data.define(:kind, :ref, :purpose, :name, :state, :phase, :size, :started_at, :updated_at, :byte_size, :monthly_micros) do
+    # owner is who a box was started for, read back from what Firefight wrote on it, nil when it carries nothing.
+    Held = Data.define(:kind, :ref, :purpose, :name, :state, :phase, :size, :started_at, :updated_at, :byte_size, :monthly_micros, :owner) do
       def initialize(purpose: ProviderSandbox::PURPOSE_RUN, name: nil, state: nil, phase: nil, size: nil, started_at: nil, updated_at: nil, byte_size: nil,
-                     monthly_micros: nil, **) = super
+                     monthly_micros: nil, owner: nil, **) = super
+    end
+
+    # The workspace and the run's box key a box was started for, written on the box where its provider keeps such
+    # things, so a box the app lost its row for can still be told apart and adopted. Neither is a secret.
+    OWNER_PATTERN = /(?<workspace>\h{8}-\h{4}-\h{4}-\h{4}-\h{12})-(?<key>[a-z0-9][a-z0-9-]*)\z/
+    Owner = Data.define(:workspace_id, :key) do
+      # The owner at the end of text, written there by #text.
+      def self.in(text)
+        found = OWNER_PATTERN.match(text.to_s)
+        found && new(workspace_id: found[:workspace], key: found[:key])
+      end
+
+      def text = "#{workspace_id}-#{key}"
     end
 
     # Every box's name starts with this, so a provider lists only the boxes it started for Firefight.
@@ -42,8 +56,9 @@ module Integrations
     def self.box_name = "#{NAME_PREFIX}#{SecureRandom.hex(6)}"
 
     # What every provider answers, and what a provider that does not keep a box's disk itself answers for the rest.
-    # start(name:, from:, fail_fast:) starts a box, from a copy the provider keeps when from names one, and fail_fast
-    # asks a provider that can to refuse at once rather than wait for capacity, when there is another to try.
+    # start(name:, owner:, from:, fail_fast:) starts a box for owner, from a copy the provider keeps when from names one,
+    # and fail_fast asks a provider that can to refuse at once rather than wait for capacity, when there is another to try.
+    # reclaim(ref) hands back a box the provider holds with a key the app knows, for a box adopted after its row was lost.
     class Provider
       def relayed? = false
 
@@ -53,6 +68,9 @@ module Integrations
       # What the provider charges for a box of this size by the hour, in millionths of a dollar, or nil when it puts no
       # price on it.
       def hourly_micros = nil
+
+      # The price by the hour of a box of size, which may not be the size the provider starts now.
+      def hourly_micros_for(size) = size == self.size ? hourly_micros : nil
 
       def keeps_copies? = false
 

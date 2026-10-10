@@ -1,6 +1,7 @@
 # What a sandbox provider reported it holds for Firefight when the sweep last asked, a box or a kept copy, so what runs
 # and costs at a provider can be set against the app's own rows (CodeBox, PreparedCopy). One the provider stopped
-# reporting has gone_at.
+# reporting has gone_at. owner_workspace_id and owner_key are who the box says it was started for, read from what the app
+# wrote on it.
 class ProviderSandbox < ApplicationRecord
   KIND_BOX = "box".freeze
   KIND_SNAPSHOT = "snapshot".freeze
@@ -27,7 +28,8 @@ class ProviderSandbox < ApplicationRecord
         row = find_or_initialize_by(provider: provider, kind: each.kind, ref: each.ref)
         row.first_seen_at ||= at
         row.update!(name: each.name, purpose: each.purpose, state: each.state, phase: each.phase, size: each.size, started_at: each.started_at, provider_updated_at: each.updated_at,
-                    byte_size: each.byte_size, monthly_micros: each.monthly_micros, last_seen_at: at, gone_at: nil)
+                    byte_size: each.byte_size, monthly_micros: each.monthly_micros, owner_workspace_id: each.owner&.workspace_id, owner_key: each.owner&.key,
+                    last_seen_at: at, gone_at: nil)
       end
       where(provider: provider, gone_at: nil).where.not(id: where(provider: provider, last_seen_at: at).select(:id)).update_all(gone_at: at, updated_at: at)
     end
