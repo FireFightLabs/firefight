@@ -37,6 +37,8 @@ module Ability
     RESOURCE_MEMORY = "memory"
     # Reading the resource map. Only read, since curating it is catalog: update and syncing it integrations: update.
     RESOURCE_MAP = "map"
+    # The checks Halon runs on a schedule, the problems it raised on its own and the security events that start it.
+    RESOURCE_MONITORING = "monitoring"
     # The workspace's own model keys Halon runs on. Admins only, and only from the dashboard.
     RESOURCE_AI_ACCOUNTS = "ai_accounts"
 
@@ -50,7 +52,8 @@ module Ability
       RESOURCE_INCIDENTS, RESOURCE_SEVERITIES, RESOURCE_STATUSES, RESOURCE_INCIDENT_TYPES,
       RESOURCE_CUSTOM_FIELDS, RESOURCE_FORMS, RESOURCE_CATALOG, RESOURCE_ALERTS, RESOURCE_POLICIES,
       RESOURCE_RUNBOOKS, RESOURCE_APPROVALS, RESOURCE_INCIDENT_ROLES, RESOURCE_WEBHOOKS,
-      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP
+      RESOURCE_INCIDENT_TRANSCRIPTS, RESOURCE_INVESTIGATIONS, RESOURCE_CHATS, RESOURCE_MEMORY, RESOURCE_MAP,
+      RESOURCE_MONITORING
     ].freeze
 
     RESOURCES = (GRANTABLE_RESOURCES + ADMIN_ONLY_RESOURCES).freeze
@@ -80,6 +83,7 @@ module Ability
       RESOURCE_CHATS => "Chats",
       RESOURCE_MEMORY => "Memory",
       RESOURCE_MAP => "Resource Map",
+      RESOURCE_MONITORING => "Monitoring",
       RESOURCE_WEBHOOKS => "Webhooks",
       RESOURCE_INTEGRATIONS => "Integrations",
       RESOURCE_API_KEYS => "API Keys",

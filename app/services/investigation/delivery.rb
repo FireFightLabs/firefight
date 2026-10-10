@@ -6,6 +6,14 @@ class Investigation::Delivery
     @investigation = investigation
   end
 
+  # A rehearsal says nothing, and a scheduled check says only the problems it found that are news.
+  def self.for(investigation)
+    return Investigation::QuietDelivery.new(investigation) if investigation.rehearsal?
+    return Investigation::CheckDelivery.new(investigation) if investigation.scheduled?
+
+    new(investigation)
+  end
+
   # A resumed run already said it started, and picks its thread back up rather than opening a second.
   def start!
     @investigation.note_started!

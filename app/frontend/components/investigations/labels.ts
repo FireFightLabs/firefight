@@ -50,6 +50,8 @@ export const TRIGGER_LABELS: Record<InvestigationTrigger, string> = {
   dashboard: "Incident page",
   rehearsal: "Rehearsal",
   alert: "Alert",
+  schedule: "Scheduled check",
+  security_event: "Security event",
 }
 
 export const HYPOTHESIS_LABELS: Record<HypothesisStatus, string> = {

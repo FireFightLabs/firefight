@@ -81,6 +81,10 @@ module Integrations
       UNITS = { CPU => PERCENT, MEMORY => PERCENT, RESTARTS => "count", DISK => PERCENT, NETWORK_IN => "Mbps", NETWORK_OUT => "Mbps" }.freeze
       IDLE = "idle".freeze
       LOG_LIMIT = 200
+      BILLING_MONTHS = 3
+      BILLING_MONTHS_MAX = 12
+      # The billing page of the control panel, which DigitalOcean's billing guides link to.
+      PANEL_BILLING = "account/billing".freeze
       DEPLOYMENT_LIMIT = 20
       # A log line starts with the component and an RFC 3339 time, as App Platform writes it.
       LOG_LINE = /\A(?<source>\S+)\s+(?<at>\d{4}-\d{2}-\d{2}T\S+)\s?(?<text>.*)\z/
@@ -204,6 +208,15 @@ module Integrations
            },
            read_only: false
 
+      tool :billing,
+           description: "What the DigitalOcean account spends: used this month so far, its balance, the month so far by product, and " \
+                        "the total of each month before, newest first. Use it to watch spend and find what grew. Needs the billing:read scope",
+           params_schema: {
+             "type" => "object",
+             "properties" => { "months" => { "type" => "integer", "description" => "How many months before this one (optional, #{BILLING_MONTHS})" } }
+           },
+           read_only: true
+
       tool :reboot_droplet,
            description: "Reboot a Droplet gracefully, as the reboot command on it would, for one that hangs or misbehaves while " \
                         "its disk and setup are fine",
@@ -224,7 +237,7 @@ module Integrations
         [
           CredentialField.new(key: API_TOKEN, label: "Personal access token", secret: true, placeholder: "dop_v1_...",
                               hint: "A DigitalOcean personal access token with the account:read, app:read, droplet:read, database:read and " \
-                                    "monitoring:read scopes. For Halon to roll back, restart or scale apps and reboot Droplets, add app:update and droplet:update.")
+                                    "monitoring:read scopes, and billing:read for Halon to watch spend. For Halon to roll back, restart or scale apps and reboot Droplets, add app:update and droplet:update.")
         ]
       end
 
@@ -332,6 +345,22 @@ module Integrations
                                from: started, to: ended, link: link_of(environment_row, resource).url)
         end
         Telemetry.result("#{resource[:name]}\n#{Telemetry.charts_text(charts)}", charts: charts, link: link_of(environment_row, resource))
+      end
+
+      def billing(environment_row:, arguments:)
+        api = api(environment_row)
+        months = arguments["months"].to_i.positive? ? [ arguments["months"].to_i, BILLING_MONTHS_MAX ].min : BILLING_MONTHS
+        balance = api.balance
+        invoices = api.invoices(limit: months)
+        preview = invoices["invoice_preview"].to_h
+        lines = [ "Used this month so far: $#{balance['month_to_date_usage']}, as of #{balance['generated_at']}. Balance: $#{balance['account_balance']}." ]
+        lines << "This month (#{preview['invoice_period']}) so far: $#{preview['amount']}." if preview["amount"].present?
+        lines += product_lines(api, preview["invoice_uuid"]) if preview["invoice_uuid"].present?
+        past = Array(invoices["invoices"]).first(months).map { |invoice| "- #{invoice['invoice_period']}: $#{invoice['amount']}" }
+        lines += [ "Months before, newest first:", *past ] if past.any?
+        Telemetry.result(lines.join("\n"), link: Telemetry::Link.new(provider: PROVIDER, url: "#{panel(environment_row)}/#{PANEL_BILLING}"))
+      rescue DigitaloceanApi::Error => error
+        fail! Sentence.join("DigitalOcean did not answer with the account's billing. The token needs the billing:read scope", error)
       end
 
       def rollback_app(environment_row:, arguments:)
@@ -459,6 +488,14 @@ module Integrations
         Telemetry::Link.new(provider: PROVIDER, url: page(environment_row, kind, id))
       end
       private :read_link
+
+      # The month so far by product, most first, from the preview's summary.
+      def product_lines(api, invoice_uuid)
+        items = Array(api.invoice_summary(invoice_uuid).dig("product_charges", "items"))
+        return [] if items.empty?
+
+        [ "By product this month:", *items.sort_by { |item| -item["amount"].to_f }.map { |item| "- #{item['name']}: $#{item['amount']}" } ]
+      end
 
       def check_health!(environment_row)
         api(environment_row).account

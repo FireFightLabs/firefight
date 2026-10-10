@@ -10,7 +10,8 @@ module Investigation::Finding::Searchable
   def workspace = investigation.workspace
 
   # A rehearsal's answer is a measurement, never something to find again as a past answer.
-  def search_embeddable? = !investigation.rehearsal?
+  # A scheduled check's answer says what it looked at, which reads like no incident and would only crowd the search.
+  def search_embeddable? = !investigation.rehearsal? && !investigation.scheduled?
 
   def search_facts
     {

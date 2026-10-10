@@ -52,6 +52,7 @@ gem "pdf-reader", "~> 2.14", require: false
 gem "aws-sdk-cloudtrail", require: false
 gem "aws-sdk-cloudwatch", require: false
 gem "aws-sdk-cloudwatchlogs", require: false
+gem "aws-sdk-costexplorer", require: false
 gem "aws-sdk-ec2", require: false
 gem "aws-sdk-ecs", require: false
 gem "aws-sdk-lambda", require: false

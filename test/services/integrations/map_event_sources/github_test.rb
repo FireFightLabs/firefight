@@ -79,6 +79,18 @@ module Integrations
         assert_empty Github.pull_request_nudges(repository.merge("action" => "opened"), headers: headers_for("issues"))
       end
 
+      test "a new secret scanning alert, or one found public, is a leaked secret for the security module, and nothing else is" do
+        payload = { "action" => "created", "repository" => { "full_name" => "acme/web" },
+                    "alert" => { "number" => 12, "secret_type_display_name" => "AWS Access Key ID", "html_url" => "https://github.com/acme/web/security/secret-scanning/12" } }
+
+        event = Github.security_events(payload, headers: headers_for("secret_scanning_alert")).sole
+        assert_equal [ SecurityEvents::KIND_LEAKED_SECRET, "acme/web#12", "acme/web", "AWS Access Key ID", false ],
+                     [ event.kind, event.reference, event.place, event.what, event.public ]
+        assert Github.security_events(payload.merge("action" => "publicly_leaked"), headers: headers_for("secret_scanning_alert")).sole.public
+        assert_empty Github.security_events(payload.merge("action" => "resolved"), headers: headers_for("secret_scanning_alert"))
+        assert_empty Github.security_events(payload, headers: headers_for("push"))
+      end
+
       private
 
       def signed(body) = { "x-hub-signature-256" => "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', SECRET, body)}" }

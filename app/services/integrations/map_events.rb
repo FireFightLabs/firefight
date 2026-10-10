@@ -62,6 +62,18 @@ module Integrations
       rows.each { |row| PullRequestFollowing.nudged!(row, nudges) } if nudges.any?
     end
 
+    # What a delivery says leaked reaches the security module of each workspace these connections belong to, once each.
+    def report_security_events!(rows, payload, headers:)
+      return if rows.empty?
+
+      events = SecurityEvents.of(rows.first.integration.provider, payload, headers: headers)
+      return if events.empty?
+
+      rows.map { |row| row.integration.workspace_id }.uniq.each do |workspace_id|
+        events.each { |event| SecurityEventJob.perform_later(workspace_id, event.to_h.stringify_keys) }
+      end
+    end
+
     # Reads again what the events waiting on one scope name, and writes it onto the map. A scope the provider cannot read
     # on its own, or a change to what the connection reaches, sweeps the connection in full instead.
     def reread!(environment_row, scope_key)

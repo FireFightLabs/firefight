@@ -578,8 +578,9 @@ module Integrations
       test "AWS's skills cover triage and each kind, and the guides behind them carry AWS's license and notice" do
         skills = Chat::Skill.all.select { |skill| skill.source == Aws::PROVIDER_KEY }
 
-        assert_equal %w[aws_api aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_triage], skills.map(&:name).sort
-        skills.each { |skill| assert skill.references.any?, "#{skill.name} lists the guides behind it" }
+        assert_equal %w[aws_api aws_cost aws_ec2 aws_ecs aws_lambda aws_logs_insights aws_rds aws_triage], skills.map(&:name).sort
+        # The agent toolkit has no guide on spend, so the cost skill is in our own words from Cost Explorer's API reference.
+        skills.reject { |skill| skill.name == "aws_cost" }.each { |skill| assert skill.references.any?, "#{skill.name} lists the guides behind it" }
         source = ProviderDocSource::Definition.find(Aws::PROVIDER_KEY)
         assert_equal %w[LICENSE NOTICE], [ source["license"], source["notice"] ]
         assert source.could_hold?("compute/troubleshooting.md")
@@ -607,6 +608,39 @@ module Integrations
         end
         assert_equal "ok", ResourceMap::Resource.new(status: provider.status_of("available")).health
         assert_equal "failing", ResourceMap::Resource.new(status: provider.status_of("storage-full")).health
+      end
+
+      test "cost and usage reads Cost Explorer for the partition, each period's total and what cost most, newest first" do
+        travel_to Time.utc(2026, 10, 10, 12) do
+          periods = [
+            { time_period: { start: "2026-10-08", end: "2026-10-09" }, estimated: false,
+              groups: [ { keys: [ "Amazon Elastic Compute Cloud - Compute" ], metrics: { UnblendedCost: { amount: "40.5", unit: "USD" } } },
+                        { keys: [ "Amazon Relational Database Service" ], metrics: { UnblendedCost: { amount: "12.25", unit: "USD" } } } ] },
+            { time_period: { start: "2026-10-09", end: "2026-10-10" }, estimated: true,
+              groups: [ { keys: [ "Amazon Elastic Compute Cloud - Compute" ], metrics: { UnblendedCost: { amount: "81", unit: "USD" } } } ] }
+          ]
+          AwsApi.any_instance.expects(:all).with do |service, region, operation, params, key|
+            [ service, region, operation, key ] == [ :costexplorer, "us-east-1", :get_cost_and_usage, :results_by_time ] &&
+              params[:time_period] == { start: "2026-09-10", end: "2026-10-11" } && params[:granularity] == "DAILY"
+          end.returns([ periods, false ])
+
+          result = @pack.call("cost_and_usage", environment_row: @row, arguments: {})
+          text = result["content"].map { |part| part["text"] }.join("\n")
+
+          assert_match "- 2026-10-09: 81.00 (estimate), Amazon Elastic Compute Cloud - Compute 81.00\n- 2026-10-08: 52.75", text
+          assert_match "By service over the whole range:\n- Amazon Elastic Compute Cloud - Compute: 121.50\n- Amazon Relational Database Service: 12.25", text
+          assert_match "costmanagement/home", text
+        end
+      end
+
+      test "cost and usage refused for want of the permission names it, and a GovCloud account says where its spend is" do
+        AwsApi.any_instance.stubs(:all).raises(AwsApi::Denied, "AWS answered AccessDeniedException: not authorized")
+        refused = assert_raises(Integrations::NativePack::Error) { @pack.call("cost_and_usage", environment_row: @row, arguments: {}) }
+        assert_match "ce:GetCostAndUsage", refused.message
+
+        @row.store_fields!(Aws::REGIONS => %w[us-gov-west-1])
+        refused = assert_raises(Integrations::NativePack::Error) { Aws.new(@integration).call("cost_and_usage", environment_row: @row.reload, arguments: {}) }
+        assert_match "GovCloud", refused.message
       end
 
       private

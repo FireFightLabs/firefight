@@ -48,7 +48,14 @@ class Investigation < ApplicationRecord
   TRIGGER_REHEARSAL = "rehearsal"
   # An alert opened the incident and nobody asked, so nobody may be watching (Investigation::AlertStart).
   TRIGGER_ALERT = "alert"
-  TRIGGER_SOURCES = [ TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL, TRIGGER_ALERT ].freeze
+  # A check the workspace set to run on a schedule (Investigation::Check), which nobody asked for this time.
+  TRIGGER_SCHEDULE = "schedule"
+  # Something a connected provider reported that the security module looks into, such as a leaked secret.
+  TRIGGER_SECURITY_EVENT = "security_event"
+  TRIGGER_SOURCES = [
+    TRIGGER_COMMAND, TRIGGER_BUTTON, TRIGGER_CONVERSATION, TRIGGER_MCP, TRIGGER_DASHBOARD, TRIGGER_REHEARSAL, TRIGGER_ALERT, TRIGGER_SCHEDULE,
+    TRIGGER_SECURITY_EVENT
+  ].freeze
 
   belongs_to :workspace
   # What the run is about. None for a question asked before anyone declared an incident, which is answered where it
@@ -142,6 +149,14 @@ class Investigation < ApplicationRecord
     subject_id if subject_type == Incident.name
   end
 
+  # The scheduled check a run is, when it is one.
+  def check
+    subject if subject.is_a?(Investigation::Check)
+  end
+
+  # A scheduled check looks for problems and says each through Investigation::Notice, rather than answering a question.
+  def scheduled? = subject_type == Investigation::Check.name
+
   # A run on an incident speaks in the incident's channel. A question asked in a channel is answered there.
   def channel_id
     incident ? incident.channel_id : super
@@ -153,7 +168,12 @@ class Investigation < ApplicationRecord
   end
 
   # Named by its incident, or by its question when it has no incident.
-  def label = incident ? "#{incident.identifier} #{incident.name}" : question.to_s
+  def label
+    return "#{incident.identifier} #{incident.name}" if incident
+    return check.name if check
+
+    question.to_s
+  end
 
   # Ties a run asked without an incident to the one declared from its answer. Only once, and only from no incident.
   def attach_to!(incident)

@@ -12,6 +12,8 @@ module Chat::Tools::Groups
   SETUP = "workspace_setup".freeze
   PERMISSIONS = "permissions".freeze
   ACCESS = "machine_access".freeze
+  # What Halon raised on its own, and the module skills that say how it checks and what it does about a security event.
+  MONITORING = "monitoring".freeze
   # The capabilities, which answer for anything on the resource map whichever provider holds it.
   RESOURCES = "resources".freeze
   # Systems outside the workspace's own: a provider's public status page, and the systems its apps use that nothing connects.
@@ -93,6 +95,12 @@ module Chat::Tools::Groups
       covers: "read an outside provider's public status page now, such as a payment, email, sign-in, CDN or cloud provider, " \
               "when errors point at it, and find the systems the apps use that no connection reaches, with how to connect each",
       tools: [ Mcp::Tools::CHECK_STATUS_PAGE, Mcp::Tools::BLIND_SPOTS ]
+    ),
+    Firefight.new(
+      key: MONITORING, title: "Monitoring and security",
+      covers: "the problems Halon raised on its own from scheduled checks and security events, when it said each and whether it got " \
+              "worse, and how to check disks, certificates, error budgets, cost, a leaked secret, credential stuffing and suspicious access",
+      tools: [ Mcp::Tools::LIST_NOTICES ]
     ),
     Firefight.new(
       key: CATALOG, title: "Services, teams and ownership",

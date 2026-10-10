@@ -11,7 +11,12 @@ class Chat::Skill
   # A provider's skill names its tools as the provider does, and its domain is the provider's category. references are
   # pages of the provider's documentation in the docs store (ProviderDocPage), by their path within the provider. A skill
   # lists the ones that help it, and the agent reads one when it needs the detail.
-  Definition = Data.define(:name, :source, :domain, :used_when, :tools, :steps, :references) do
+  # signals are what a provider's skill reads for the monitoring module, such as cost, so a scheduled check knows which
+  # connected provider can answer it and which cannot.
+  SIGNAL_COST = "cost".freeze
+  SIGNALS = [ SIGNAL_COST ].freeze
+
+  Definition = Data.define(:name, :source, :domain, :used_when, :tools, :steps, :references, :signals) do
     def firefight? = source == SOURCE_FIREFIGHT
   end
 
@@ -43,6 +48,21 @@ class Chat::Skill
 
     def find(name) = all.find { |skill| skill.name == name.to_s }
 
+    # The skills that read a signal, and the providers that have one.
+    def reading(signal) = all.select { |skill| skill.signals.include?(signal) }
+
+    def providers_reading(signal) = reading(signal).map(&:source).uniq
+
+    # The workspace's connected providers that have a skill reading a signal, with those skills, and those that have
+    # none, by provider key, so a check and the page say the same about what Halon cannot see.
+    Coverage = Data.define(:skills, :read, :unread)
+
+    def coverage(workspace, signal)
+      connected = workspace.integrations.active.distinct.pluck(:provider)
+      skills = reading(signal).select { |skill| connected.include?(skill.source) }
+      Coverage.new(skills: skills, read: skills.map(&:source).uniq, unread: connected - providers_reading(signal))
+    end
+
     # Firefight's own, and each provider's once the workspace has connected it.
     def available_to(workspace)
       connected = workspace.integrations.active.distinct.pluck(:provider)
@@ -57,7 +77,7 @@ class Chat::Skill
       source, domain = Pathname(path).relative_path_from(DIRECTORY).each_filename.first(2)
       Definition.new(
         name: meta.fetch("name"), source: source, domain: domain, used_when: meta.fetch("when"),
-        tools: Array(meta.fetch("tools")), steps: steps.strip, references: Array(meta["references"])
+        tools: Array(meta.fetch("tools")), steps: steps.strip, references: Array(meta["references"]), signals: Array(meta["signals"])
       )
     end
   end

@@ -70,6 +70,17 @@ module Integrations
     # (Integrations::ApiReads), which checks the path before it gets here.
     def read(path, query) = send_request(:get, path.delete_prefix(API_PREFIX), nil, query)
 
+    # What the account owes and has used this month (customers/my/balance): month_to_date_usage, month_to_date_balance,
+    # account_balance and generated_at, each amount a string of dollars.
+    def balance = get("/customers/my/balance")
+
+    # The monthly invoices, newest first, and invoice_preview, the month so far (customers/my/invoices), each with
+    # invoice_uuid, amount and invoice_period as YYYY-MM.
+    def invoices(limit:) = get("/customers/my/invoices", "per_page" => limit)
+
+    # One invoice's charges by product (customers/my/invoices/{uuid}/summary, product_charges.items), each with name and amount.
+    def invoice_summary(invoice_uuid) = get("/customers/my/invoices/#{Http.segment(invoice_uuid)}/summary")
+
     private
 
     # Every page of a list, following DigitalOcean's links.pages.next, up to MAX_PAGES.

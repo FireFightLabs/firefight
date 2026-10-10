@@ -49,6 +49,10 @@ development:
     class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
     schedule: every minute
+  halon_check_sweep:
+    class: HalonCheckSweepJob # starts each check Halon runs on a schedule the workspace set, once it is due
+    queue: background
+    schedule: every 5 minutes
   watch_sweep:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
@@ -173,6 +177,10 @@ staging:
     class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
     schedule: every minute
+  halon_check_sweep:
+    class: HalonCheckSweepJob # starts each check Halon runs on a schedule the workspace set, once it is due
+    queue: background
+    schedule: every 5 minutes
   watch_sweep:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background
@@ -323,6 +331,10 @@ production:
     class: Integrations::MapEventPollJob # reads the change log of each connection whose provider keeps one when it is due, so the map follows it between sweeps
     queue: background
     schedule: every minute
+  halon_check_sweep:
+    class: HalonCheckSweepJob # starts each check Halon runs on a schedule the workspace set, once it is due
+    queue: background
+    schedule: every 5 minutes
   watch_sweep:
     class: WatchSweepJob # checks each watch Halon keeps about once a minute, until what it follows is done or its time runs out
     queue: background

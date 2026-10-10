@@ -68,6 +68,12 @@ module Integrations
       MISSING_TABLE = /resolve (?:table|scalar|column)/i
 
       LOG_LIMIT = 200
+      # Cost Management's query (Query - Usage): the cost a bill shows, per day or per month, by the service that charged it.
+      COST_GRANULARITIES = { Spend::BY_DAY => "Daily", Spend::BY_MONTH => "Monthly" }.freeze
+      COST_DAYS = 30
+      COST_DAYS_MAX = 365
+      COST_MONTHS = 3
+      COST_MONTHS_MAX = 12
       DEPLOY_LIMIT = 20
       LOG_TEXT_LIMIT = 2_000
 
@@ -187,11 +193,24 @@ module Integrations
            params_schema: ApiReads.path_schema("/subscriptions/<subscription>/resourceGroups/<group>/providers/Microsoft.App/containerApps/<app>/revisions"),
            read_only: true
 
+      tool :cost_query,
+           description: "What the Azure subscription spent, from Cost Management, by day or by month, with each period's total and the " \
+                        "services that cost most. Use it to watch spend and find what grew and since when. Needs the Cost Management Reader role",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "by" => { "type" => "string", "enum" => COST_GRANULARITIES.keys, "description" => "day or month (optional, day)" },
+               "days" => { "type" => "integer", "description" => "For by day, how many days back from today (optional, #{COST_DAYS}, at most #{COST_DAYS_MAX})" },
+               "months" => { "type" => "integer", "description" => "For by month, how many months before this one (optional, #{COST_MONTHS}, at most #{COST_MONTHS_MAX})" }
+             }
+           },
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: SECRET, label: "Client secret", secret: true, placeholder: "",
                               hint: "A client secret of the service principal's app registration. Give it Reader, Monitoring Reader and Log Analytics Reader " \
-                                    "on each subscription it reads. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
+                                    "on each subscription it reads, and Cost Management Reader for Halon to watch spend. For Halon to apply fixes, add Website Contributor and Contributor on the apps it may change. " \
                                     "Optionally, to link App Service and Function apps to the databases their settings name, also give it a custom role " \
                                     "holding only Microsoft.Web/sites/config/list/action.")
         ]
@@ -267,6 +286,26 @@ module Integrations
         subscription = subscription_of(environment_row)
         text = rows.empty? ? "Subscription #{subscription} has nothing Firefight reads." : "Subscription #{subscription}, #{rows.size} resources.\n#{rows.join("\n")}"
         Telemetry.result([ text, *gaps ].join("\n"), link: portal_link(environment_row, "/subscriptions/#{subscription}"))
+      end
+
+      def cost_query(environment_row:, arguments:)
+        return every_subscription(environment_row) { |pack| pack.cost_query(environment_row: environment_row, arguments: arguments) } if every_scope?(environment_row)
+
+        by = Spend.by(arguments)
+        today = Time.current.utc.to_date
+        started = Spend.since(arguments, days: COST_DAYS, days_most: COST_DAYS_MAX, months: COST_MONTHS, months_most: COST_MONTHS_MAX, today: today)
+        body = {
+          "type" => "ActualCost", "timeframe" => "Custom",
+          "timePeriod" => { "from" => "#{started.iso8601}T00:00:00Z", "to" => "#{today.iso8601}T23:59:59Z" },
+          "dataset" => { "granularity" => COST_GRANULARITIES.fetch(by), "aggregation" => { "totalCost" => { "name" => "Cost", "function" => "Sum" } },
+                         "grouping" => [ { "type" => "Dimension", "name" => "ServiceName" } ] }
+        }
+        answer = api(environment_row).cost_query(body)
+        subscription = subscription_of(environment_row)
+        Telemetry.result("Subscription #{subscription}. #{cost_text(answer['properties'].to_h, by: by, started: started)}",
+                         link: portal_link(environment_row, "/subscriptions/#{subscription}"))
+      rescue AzureApi::Error => error
+        fail! Sentence.join("Azure did not answer with the subscription's cost. The service principal needs the Cost Management Reader role", error)
       end
 
       def search_logs(environment_row:, arguments:)
@@ -1012,6 +1051,24 @@ module Integrations
 
       # A resource's page in the portal, in the form Microsoft's own docs print it, with the tenant so the right
       # directory opens.
+      # Cost Management answers columns and rows, so each row is read by its column's name: the cost, the day as a number
+      # such as 20261009 or the month as a date, the service and the currency.
+      def cost_text(properties, by:, started:)
+        names = Array(properties["columns"]).map { |column| column["name"].to_s }
+        found = Array(properties["rows"]).map { |row| names.zip(row).to_h }
+        rows = found.map do |row|
+          Spend::Row.new(period: cost_period((row["UsageDate"] || row["BillingMonth"]).to_s, by), service: row["ServiceName"].to_s, amount: row["Cost"].to_f)
+        end
+        cut = "Cost Management had more than one page, so this is the first." if properties["nextLink"].present?
+        Spend.text(rows, by: by, since: started.iso8601, currency: found.first&.dig("Currency") || "USD", cut: cut)
+      end
+
+      # A day as Cost Management writes it, 20261009, as 2026-10-09, and a month as 2026-10.
+      def cost_period(period, by)
+        day = period.match?(/\A\d{8}\z/) ? "#{period[0, 4]}-#{period[4, 2]}-#{period[6, 2]}" : period.first(10)
+        by == Spend::BY_MONTH ? day.first(7) : day
+      end
+
       def portal_link(environment_row, resource_id)
         tenant = ConnectionSettings.of(environment_row).field(TENANT)
         portal = ConnectionSettings.of(environment_row).site

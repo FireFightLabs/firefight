@@ -40,7 +40,8 @@ class InvestigationJob < ApplicationJob
     return unless investigation.finish!(status: Investigation::STATUS_FAILED, error_summary: cause)
 
     Integrations::CodeReading.close(investigation.code_box_key)
-    Investigation::Delivery.new(investigation).stopped!(investigation.stopped_because, rerunnable: true)
+    delivery = investigation.scheduled? ? Investigation::CheckDelivery : Investigation::Delivery
+    delivery.new(investigation).stopped!(investigation.stopped_because, rerunnable: true)
   rescue AdapterError => undelivered
     Rails.logger.warn({
       event: "investigation.failure_undelivered", investigation_id: investigation.id, error: undelivered.message

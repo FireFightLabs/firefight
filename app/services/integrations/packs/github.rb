@@ -17,6 +17,7 @@ module Integrations
       include Branches
       include Security
       include ActionsSecrets
+      include Billing
       include Workflows
       include GeneralRead
 
@@ -181,7 +182,7 @@ module Integrations
         "actions" => "Actions", "administration" => "Administration", "checks" => "Checks", "contents" => "Contents", "deployments" => "Deployments",
         "issues" => "Issues", "pull_requests" => "Pull requests", "statuses" => "Commit statuses", "vulnerability_alerts" => "Dependabot alerts",
         "security_events" => "Code scanning alerts", "secret_scanning_alerts" => "Secret scanning alerts", "workflows" => "Workflows",
-        "secrets" => "Secrets", "environments" => "Environments"
+        "secrets" => "Secrets", "environments" => "Environments", "organization_administration" => "Organization administration"
       }.freeze
       # The permissions each tool cannot answer without, from GitHub's list of the permission every REST endpoint needs
       # (docs.github.com, REST API, Permissions required for GitHub Apps). A tool that reads a further endpoint only to
@@ -256,6 +257,7 @@ module Integrations
         "code_scanning_alert" => { "security_events" => READ },
         "secret_scanning_alerts" => { "secret_scanning_alerts" => READ },
         "secret_scanning_alert" => { "secret_scanning_alerts" => READ },
+        "billing_usage" => { "organization_administration" => READ },
         "library_source" => {},
         "list_files" => { "contents" => READ },
         "code_search" => { "contents" => READ },

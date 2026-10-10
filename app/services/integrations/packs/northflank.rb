@@ -88,6 +88,16 @@ module Integrations
       }.freeze
       RESOURCE = { "type" => "string", "description" => "A service or database (addon) in the project, by name or id, as list_resources shows it" }.freeze
 
+      COST_DAYS = 30
+      COST_DAYS_MAX = 365
+      COST_MONTHS = 3
+      COST_MONTHS_MAX = 12
+      # Where each kind of charge sits in a usage entry (billing, get-usage), and what a bill calls it.
+      SPEND_CATEGORIES = {
+        %w[paas price cpu] => "CPU", %w[paas price memory] => "Memory", %w[paas price storage] => "Storage", %w[paas price gpu] => "GPU",
+        %w[byoc price total] => "Bring your own cloud", %w[egressIp price total] => "Egress IPs", %w[loadBalancer price total] => "Load balancers"
+      }.freeze
+
       tool :list_resources,
            description: "The services and databases (addons) in the Northflank project for this environment, with their type and " \
                         "whether each is running, deploying or failed, every project's when the connection reaches several and " \
@@ -250,6 +260,20 @@ module Integrations
                **RANGE
              },
              "required" => [ "resource" ]
+           },
+           read_only: true
+
+      tool :billing_usage,
+           description: "What the Northflank account or team was charged, by day or by month, with each period's total and what cost " \
+                        "most: CPU, memory, storage and GPU, bring your own cloud, egress IPs and load balancers. Use it to watch spend " \
+                        "and find what grew and since when. The token's role needs Billing read",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "by" => { "type" => "string", "enum" => Spend::GRANULARITIES, "description" => "day or month (optional, day)" },
+               "days" => { "type" => "integer", "description" => "For by day, how many days back from today (optional, #{COST_DAYS}, at most #{COST_DAYS_MAX})" },
+               "months" => { "type" => "integer", "description" => "For by month, how many months before this one (optional, #{COST_MONTHS}, at most #{COST_MONTHS_MAX})" }
+             }
            },
            read_only: true
 
@@ -878,6 +902,20 @@ module Integrations
       end
 
       # Reads each project the connection reaches, so one the token can no longer read is said on the connection.
+      def billing_usage(environment_row:, arguments:)
+        by = Spend.by(arguments)
+        started = Spend.since(arguments, days: COST_DAYS, days_most: COST_DAYS_MAX, months: COST_MONTHS, months_most: COST_MONTHS_MAX)
+        read = api(environment_row).billing_usage(start: started.to_time(:utc), finish: Time.current.utc, granularity: by)
+        rows = read.items.flat_map { |entry| spend_rows(entry, by) }
+        cut = "Northflank had more than Firefight read, so the oldest periods are missing." if read.incomplete?
+        currency = read.items.first&.dig("currency")&.upcase || "USD"
+        site = ConnectionSettings.of(environment_row).site
+        Telemetry.result(Spend.text(rows, by: by, since: started.iso8601, currency: currency, cut: cut),
+                         link: (Telemetry::Link.new(provider: PROVIDER, url: site) if site.present?))
+      rescue NorthflankApi::Forbidden => error
+        fail! Sentence.join("Northflank refused to read billing. The token's role needs Billing read", error)
+      end
+
       def check_health!(environment_row)
         ConnectionSettings.of(environment_row).scopes.each { |project| api(environment_row).project(project) }
       rescue NorthflankApi::Error => error
@@ -1093,6 +1131,15 @@ module Integrations
         url = "#{site.chomp('/')}/#{segments.join('/')}"
         url = "#{url}?#{query.compact.to_query}" if query.compact.any?
         Telemetry::Link.new(provider: PROVIDER, url: url)
+      end
+
+      # One usage entry as a row per category that charged something, in the words a bill uses.
+      def spend_rows(entry, by)
+        period = Spend.period_of(Time.zone.at(entry["timestamp"].to_i), by)
+        SPEND_CATEGORIES.filter_map do |path, name|
+          amount = entry.dig(*path).to_f
+          Spend::Row.new(period: period, service: name, amount: amount) if amount.nonzero?
+        end
       end
 
       def team_of(app_id) = app_id.to_s.split("/").reject(&:empty?).first

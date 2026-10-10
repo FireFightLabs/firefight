@@ -8,7 +8,9 @@ module Workspace::AgentDefaults
   INVESTIGATOR_DEFAULTS = [
     Ability::Action::MAP_READ,
     Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_CREATE),
-    Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_UPDATE)
+    Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, Ability::Action::ACTION_UPDATE),
+    # A scheduled check reads what Halon raised before, so it says a problem again only when it got worse.
+    Ability::Action.system_key(Ability::Action::RESOURCE_MONITORING, Ability::Action::ACTION_READ)
   ].freeze
 
   def grant_agent_defaults!

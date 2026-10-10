@@ -13,6 +13,19 @@ class Chat::SkillTest < ActiveSupport::TestCase
     end
   end
 
+  test "every signal a skill reads is one the monitoring module knows, and each provider that reports spend has a skill reading it" do
+    Chat::Skill.all.each do |skill|
+      skill.signals.each { |signal| assert_includes Chat::Skill::SIGNALS, signal, "#{skill.name} reads #{signal}" }
+    end
+    assert_equal %w[aws azure cloudflare digitalocean github northflank planetscale trigger_dev vercel], Chat::Skill.providers_reading(Chat::Skill::SIGNAL_COST).sort
+  end
+
+  test "every kind of scheduled check names a skill that exists" do
+    Investigation::Check::KIND_DETAILS.values.filter_map(&:skill).each do |name|
+      assert Chat::Skill.find(name)&.firefight?, "#{name} is one of Firefight's skills"
+    end
+  end
+
   test "Firefight's own skills sit under the tool group they belong to" do
     groups = Chat::Tools::Groups::FIREFIGHT.map(&:key)
 
@@ -22,8 +35,16 @@ class Chat::SkillTest < ActiveSupport::TestCase
   end
 
   # A skill that names a tool or field that no longer exists would send the agent after something that is not there.
+  # A skill can also name the capabilities, which answer for anything on the map whichever provider holds it, what
+  # changed across them, and the check from outside a run holds once the workspace has a terminal.
+  OWN_READS = {
+    Chat::Tools::WhatChanged::NAME => ResourceMap::Timeline::SCHEMA,
+    Chat::Tools::OutsideCheck::NAME => { "properties" => { Chat::Tools::OutsideCheck::URL_ARG => {}, Chat::Tools::OutsideCheck::METHOD_ARG => {} } }
+  }.freeze
+
   test "every tool one of Firefight's skills names exists and is offered to Halon" do
-    offered = Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON
+    offered = Mcp::Tools.all.map { |tool_class| tool_class.name_value.to_s } - Chat::Tools::Groups::NOT_FOR_HALON +
+              Integrations::Capabilities::SPECS.values.map(&:tool_name) + OWN_READS.keys
 
     Chat::Skill.all.select(&:firefight?).each do |skill|
       skill.tools.each { |tool| assert_includes offered, tool, "#{skill.name} names #{tool}" }
@@ -32,10 +53,16 @@ class Chat::SkillTest < ActiveSupport::TestCase
 
   test "every name one of Firefight's skills sets in code is one of its tools, their parameters, a form or a form field" do
     tool_classes = Mcp::Tools.all.index_by { |tool_class| tool_class.name_value.to_s }
+    capabilities = Integrations::Capabilities::SPECS.values.index_by(&:tool_name)
     known_everywhere = IncidentForm::SLUGS + IncidentSystemField.constants.grep(/\AKEY_/).map { |key| IncidentSystemField.const_get(key) }
 
     Chat::Skill.all.select(&:firefight?).each do |skill|
-      parameters = skill.tools.flat_map { |tool| tool_classes.fetch(tool).input_schema_value.to_h.fetch(:properties, {}).keys.map(&:to_s) }
+      parameters = skill.tools.flat_map do |tool|
+        next Integrations::Capabilities.schema(capabilities[tool], []).fetch("properties").keys if capabilities[tool]
+        next OWN_READS[tool].fetch("properties").keys if OWN_READS[tool]
+
+        tool_classes.fetch(tool).input_schema_value.to_h.fetch(:properties, {}).keys.map(&:to_s)
+      end
       known = skill.tools + parameters + known_everywhere
       skill.steps.scan(/`([^`]+)`/).flatten.each do |name|
         assert_includes known, name, "#{skill.name} sets #{name} in code, which none of its tools, parameters or forms has"
@@ -167,7 +194,7 @@ class Chat::SkillTest < ActiveSupport::TestCase
   test "every Cloudflare skill starts from the zone on the map, and lists zones with execute only when the map lacks it" do
     skills = Chat::Skill.all.select { |skill| skill.source == "cloudflare" }
 
-    assert_equal 6, skills.size
+    assert_equal 7, skills.size
     skills.each do |skill|
       assert_includes skill.tools, Chat::Tools::UseSkill::MAP, "#{skill.name} names the map"
       assert_includes skill.tools, "resource_status", "#{skill.name} reads the zone where the map is not the person's to read"

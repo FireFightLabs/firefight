@@ -50,6 +50,13 @@ module Integrations
       VERSION = /\A[A-Za-z0-9_.-]+\z/
 
       RUN_LIMIT = 50
+      # Every run carries costInCents and baseCostInCents (list_runs_v1), which is the only cost Trigger.dev reports, so the
+      # most a cost read takes is every page the API client reads.
+      COST_RUNS = TriggerDevApi::PAGE_SIZE * TriggerDevApi::MAX_PAGES
+      COST_DAYS = 30
+      COST_DAYS_MAX = 365
+      COST_MONTHS = 3
+      COST_MONTHS_MAX = 12
       LOG_LIMIT = 200
       LOG_RUNS = 10
       DEPLOYMENT_LIMIT = 20
@@ -184,6 +191,20 @@ module Integrations
                         "it, starting /api. A list answers one page: pass page[size] and, for the next, page[after] set to the " \
                         "answer's pagination next. Only reads, so it never changes anything. Environment variables come back as their names",
            params_schema: ApiReads.path_schema("/api/v1/schedules"),
+           read_only: true
+
+      tool :run_costs,
+           description: "What the environment's runs cost, from each run's compute and base cost, by day or by month and by task, " \
+                        "newest first. Use it to watch spend and find the task that grew. Trigger.dev reports cost per run, so a busy " \
+                        "environment is read for its newest #{COST_RUNS} runs and says when it was cut",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "by" => { "type" => "string", "enum" => Spend::GRANULARITIES, "description" => "day or month (optional, day)" },
+               "days" => { "type" => "integer", "description" => "For by day, how many days back from today (optional, #{COST_DAYS}, at most #{COST_DAYS_MAX})" },
+               "months" => { "type" => "integer", "description" => "For by month, how many months before this one (optional, #{COST_MONTHS}, at most #{COST_MONTHS_MAX})" }
+             }
+           },
            read_only: true
 
       def self.credential_fields
@@ -432,6 +453,21 @@ module Integrations
         api(environment_row).runs(limit: TriggerDevApi::MIN_RUN_PAGE)
       rescue TriggerDevApi::Error => error
         fail! error.message
+      end
+
+      def run_costs(environment_row:, arguments:)
+        by = Spend.by(arguments)
+        since = Spend.since(arguments, days: COST_DAYS, days_most: COST_DAYS_MAX, months: COST_MONTHS, months_most: COST_MONTHS_MAX)
+        runs = api(environment_row).runs(filter: { "createdAt" => { "from" => since.to_time(:utc).iso8601, "to" => Time.current.utc.iso8601 } }, limit: COST_RUNS)
+        rows = runs.filter_map do |run|
+          at = Telemetry.parse_time(run["createdAt"])
+          next unless at
+
+          Spend::Row.new(period: Spend.period_of(at, by), service: run["taskIdentifier"].to_s,
+                         amount: (run["costInCents"].to_f + run["baseCostInCents"].to_f) / 100)
+        end
+        cut = "Only the newest #{COST_RUNS} runs were read, so the oldest periods are missing." if runs.size >= COST_RUNS
+        Telemetry.result("By task. #{Spend.text(rows, by: by, since: since.iso8601, currency: 'USD', cut: cut)}\n#{no_page}", link: nil)
       end
 
       private

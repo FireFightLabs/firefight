@@ -5,6 +5,7 @@ import {
   IconBrain,
   IconChartBar,
   IconPhoneCall,
+  IconRadar,
   IconBook2,
   IconCategory,
   IconCreditCard,
@@ -50,6 +51,7 @@ import {
   memoryPath,
   halonOnCallPath,
   halonPerformancePath,
+  halonMonitoringPath,
   cataloguePath,
   dashboardPath,
   integrationsPath,
@@ -164,6 +166,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
     items: [
       { title: "Chat", url: agentChatsPath(), icon: IconMessageChatbot },
       { title: "Memory", url: memoryPath(), icon: IconBrain },
+      { title: "Monitoring", url: halonMonitoringPath(), icon: IconRadar },
       { title: "Performance", url: halonPerformancePath(), icon: IconChartBar },
       { title: "On-call", url: halonOnCallPath(), icon: IconPhoneCall, adminOnly: true },
     ],
