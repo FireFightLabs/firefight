@@ -320,6 +320,41 @@ export const MEMORY_EXPIRY_DAY_CHOICES = [
 
 export const CHAT_INSTRUCTION_TEXT_LIMIT = 2000 as const
 
+export const HANDBOOK_PAGE_KINDS = {
+  "WRITTEN": "written",
+  "DIRECTING": "directing",
+  "SYNCED": "synced"
+} as const
+
+export const HANDBOOK_SOURCE_KINDS = {
+  "REPOSITORY": "repository",
+  "DOCUMENT": "document"
+} as const
+
+export const HANDBOOK_HALON_READS = {
+  "WHOLE": "whole",
+  "SEARCHED": "searched"
+} as const
+
+export const HANDBOOK_PAGE_QUERY = "page" as const
+
+export const HANDBOOK_PROPOSAL_QUERY = "proposal" as const
+
+export const HANDBOOK_TITLE_LIMIT = 120 as const
+
+export const HANDBOOK_TEXT_LIMIT = 200000 as const
+
+export const HANDBOOK_FREEZE_REPEATS = {
+  "WEEKLY": "weekly",
+  "ONCE": "once"
+} as const
+
+export const HANDBOOK_FREEZE_WINDOWS_PER_PAGE = 20 as const
+
+export const HANDBOOK_FREEZE_NAME_LIMIT = 80 as const
+
+export const HANDBOOK_FREEZE_LIFTED_BY_LIMIT = 120 as const
+
 export const MEMORY_PAGE_TABS = {
   "MEMORIES": "memories",
   "INSTRUCTIONS": "instructions"
@@ -675,6 +710,7 @@ export const ABILITY_RESOURCES = [
   "memory",
   "map",
   "monitoring",
+  "handbook",
   "integrations",
   "api_keys",
   "permissions",
@@ -702,7 +738,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "chats",
   "memory",
   "map",
-  "monitoring"
+  "monitoring",
+  "handbook"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -725,6 +762,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "memory": "Memory",
   "map": "Resource Map",
   "monitoring": "Monitoring",
+  "handbook": "Handbook",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -852,6 +890,12 @@ export const ABILITY_RESOURCE_ACTIONS = {
     "create",
     "update",
     "delete"
+  ],
+  "handbook": [
+    "read",
+    "create",
+    "update",
+    "delete"
   ]
 } as const
 
@@ -911,7 +955,8 @@ export const AGENT_STREAM_EVENTS = {
   "MEMORY": "memory",
   "PLAN": "plan",
   "SAFEGUARD": "safeguard",
-  "HELPERS": "helpers"
+  "HELPERS": "helpers",
+  "HANDBOOK": "handbook"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -1020,7 +1065,8 @@ export const AGENT_CHAT_PROPS = {
   "DATA_REPAIRS": "dataRepairs",
   "MITIGATIONS": "mitigations",
   "OWNER_ASKS": "ownerAsks",
-  "HELPERS": "helpers"
+  "HELPERS": "helpers",
+  "HANDBOOK_PROPOSALS": "handbookProposals"
 } as const
 
 export const SETUP_STEPS = {
@@ -1149,7 +1195,8 @@ export const LEDGER_SOURCES = [
   "health_check",
   "code_agent",
   "issue_sync",
-  "watch"
+  "watch",
+  "handbook_sync"
 ] as const
 export type LedgerSource = (typeof LEDGER_SOURCES)[number]
 

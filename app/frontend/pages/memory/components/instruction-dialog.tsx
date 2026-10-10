@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label"
 import { CHAT_INSTRUCTION_TEXT_LIMIT } from "@/lib/generated/constants"
 import { memoryInstructionPath, memoryInstructionsPath } from "@/lib/routes"
 import { TextField } from "@/components/memory/text-field"
-import { type SubjectOption, subjectParam, WHOLE_WORKSPACE } from "@/pages/memory/types"
+import type { SubjectOption } from "@/pages/memory/types"
 import type { ChatInstruction } from "@/types/serializers"
 
 interface InstructionDialogProps {
@@ -28,14 +28,12 @@ interface InstructionDialogProps {
 
 // Owns both adding and editing instructions. Where they apply is fixed once written.
 export function InstructionDialog({ open, onOpenChange, instruction, scopes }: InstructionDialogProps) {
-  const { data, setData, transform, post, patch, processing, reset } = useForm({
+  const { data, setData, post, patch, processing, reset } = useForm({
     text: instruction?.text ?? "",
-    subject: scopes.some((option) => option.value === WHOLE_WORKSPACE) ? WHOLE_WORKSPACE : "",
+    subject: "",
   })
   const text = data.text.trim()
   const unchanged = instruction !== null && text === instruction.text.trim()
-
-  transform((values) => ({ ...values, subject: subjectParam(values.subject) }))
 
   function submit(event: FormEvent) {
     event.preventDefault()

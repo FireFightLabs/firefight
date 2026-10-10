@@ -15,6 +15,7 @@ export function ConfirmDeleteDialog({
   title,
   description,
   confirmLabel = "Delete",
+  cancelLabel = "Cancel",
   confirmVariant = "destructive",
   onConfirm,
   onCancel,
@@ -24,6 +25,8 @@ export function ConfirmDeleteDialog({
   title: string
   description: string
   confirmLabel?: string
+  // What going back says, when Cancel would be unclear, such as Keep editing.
+  cancelLabel?: string
   // A confirmation that adds rather than removes, such as turning something on, is not drawn as destructive.
   confirmVariant?: "destructive" | "default"
   onConfirm: () => void
@@ -40,7 +43,7 @@ export function ConfirmDeleteDialog({
         </DialogHeader>
         {children}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={onCancel}>{cancelLabel}</Button>
           <Button type="button" variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>

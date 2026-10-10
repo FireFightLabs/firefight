@@ -40,6 +40,7 @@ module ActiveSupport
     include HalonAccessHelper
     include AiAccountTestHelper
     include ProviderDocsHelper
+    include HandbookTestHelper
 
     # The investigator is given each connection's read pack when the connection is made. A test of what it reaches without
     # a grant takes them back first.

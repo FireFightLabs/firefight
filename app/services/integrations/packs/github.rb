@@ -484,6 +484,15 @@ module Integrations
         [ listed, total ]
       end
 
+      # The text files a handbook page is synced from, at path on repository's default branch
+      # (Integrations::RepositoryDocuments).
+      def repository_documents(environment_row, repository:, path:)
+        fail! "repository must be owner/name" unless repository.to_s.match?(REPO_FORMAT)
+
+        token = GithubApp.installation_token(environment_row)
+        CodeHost::Documents.new(Infrastructure.new(token)).read(GithubApp.get("/repos/#{repository}", token: token), path)
+      end
+
       def check_health!(environment_row)
         GithubApp.installation_token(environment_row)
       end

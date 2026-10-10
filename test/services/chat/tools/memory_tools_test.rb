@@ -183,10 +183,10 @@ class Chat::Tools::MemoryToolsTest < ActiveSupport::TestCase
                                                   max_turns: 10, max_spend_cents: 400)
     memory = Chat::Memory.create!(workspace: @workspace, text: "Deploys happen from main", state: Chat::Memory::STATE_UNCONFIRMED)
 
-    assert_equal [ Chat::Tools::Recall ], Chat::Tools.memory(rehearsal).map(&:class)
+    assert_equal [ Chat::Tools::Recall, Chat::Tools::SearchHandbook ], Chat::Tools.memory(rehearsal).map(&:class)
     assert_match "Deploys happen from main", Chat::Tools::Recall.new(rehearsal).call("words" => "deploys")
     assert_equal 0, memory.reload.use_count
-    assert_equal [ Chat::Tools::Remember, Chat::Tools::Recall, Chat::Tools::DisputeMemory ], Chat::Tools.memory(@turn).map(&:class)
+    assert_equal [ Chat::Tools::Remember, Chat::Tools::Recall, Chat::Tools::DisputeMemory, Chat::Tools::SearchHandbook, Chat::Tools::ProposeHandbookEdit ], Chat::Tools.memory(@turn).map(&:class)
   end
 
   test "anything that looks like a secret is never remembered" do

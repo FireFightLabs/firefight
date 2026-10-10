@@ -112,6 +112,14 @@ module Slack::WorkspaceAdapter::IncidentModals
 
   def memory_correction_error(message) = { response_action: "errors", errors: { Slack::Modals::CorrectMemory::CORRECTION_BLOCK => message } }
 
+  def open_handbook_proposal_modal(trigger_id:, proposal:)
+    open_modal(trigger_id: trigger_id, view: Slack::Modals::EditHandbookProposal.build(proposal))
+  end
+
+  def handbook_proposal_text(values:) = Slack::Modals::EditHandbookProposal.text(values)
+
+  def handbook_proposal_error(message) = { response_action: "errors", errors: { Slack::Modals::EditHandbookProposal::TEXT_BLOCK => message } }
+
   def open_code_question_modal(trigger_id:, question:)
     open_modal(trigger_id: trigger_id, view: Slack::Modals::CodeQuestionAnswer.build(question))
   end

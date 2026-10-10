@@ -247,6 +247,16 @@ channel or by direct message. A reminder opens with one line saying how many wai
 memory with Confirm, Not right and Correct, and a footer linking the Memory page. See docs/ai.md, Reminders reach the
 person who should know.
 
+## Proposing a handbook edit or page
+
+`HandbookProposal` (`:ledger:`) is posted in the thread a chat or run speaks in when something Halon read contradicted
+a handbook page, or when it drafts a new page. The body is the page's title and the wording Halon would write, quoted,
+then what the page says now for an edit, a context line with why, Accept, Edit and Dismiss, and a footer saying nothing
+changes until someone accepts. A page longer than a section holds is cut with a line saying the Handbook page shows it
+whole, and one longer than a form takes has no Edit, since it is edited on the Handbook page. Edit opens
+`EditHandbookProposal`, which accepts with the person's wording. Once decided it is redrawn without the buttons or the
+old wording, with who decided in a context line. See docs/ai.md, Halon proposes handbook pages and edits.
+
 ## Adding a message
 
 1. New module in `app/adapters/slack/messages/`, one per concept, class methods

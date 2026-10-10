@@ -96,8 +96,9 @@ class MemoryController < InertiaController
   # A memory about a resource outside the person's map reach is not on their page, and deciding on one finds nothing.
   def memories = Chat::Memory.visible_to(current_membership, current_workspace)
 
-  # Instructions follow the same reach, so editing or removing one about a hidden resource finds nothing.
-  def instructions = Chat::Instruction.visible_to(current_membership, current_workspace)
+  # Instructions follow the same reach, so editing or removing one about a hidden resource finds nothing. The handbook is
+  # edited on its own page.
+  def instructions = Chat::Instruction.visible_to(current_membership, current_workspace).for_places
 
   def subject_param = Chat::Memory.subject_for_key(current_workspace, params[:subject], principal: current_membership)
 end

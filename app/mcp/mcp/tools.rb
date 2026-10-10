@@ -104,6 +104,10 @@ module Mcp
     LIST_NOTICES = "list_notices".freeze
     UPSERT_CATALOG_TYPE = "upsert_catalog_type".freeze
     DELETE_CATALOG_TYPE = "delete_catalog_type".freeze
+    LIST_HANDBOOK_PAGES = "list_handbook_pages".freeze
+    GET_HANDBOOK_PAGE = "get_handbook_page".freeze
+    UPSERT_HANDBOOK_PAGE = "upsert_handbook_page".freeze
+    DELETE_HANDBOOK_PAGE = "delete_handbook_page".freeze
 
     # Each tool listed with this workspace's own choices in its parameters. Calls still go to the class.
     def self.for_workspace(workspace)
@@ -133,7 +137,8 @@ module Mcp
         ListApiKeys, UpsertApiKey, DeleteApiKey,
         GetPostmortem, StartPostmortem, UpdatePostmortem, SetPostmortemStatus,
         GetIncidentTranscript, UpsertCatalogType, DeleteCatalogType,
-        StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon, ListWatches, StopWatch, ListNotices ]
+        StartInvestigation, GetInvestigation, GetHalonPerformance, AskHalon, ListWatches, StopWatch, ListNotices,
+        ListHandbookPages, GetHandbookPage, UpsertHandbookPage, DeleteHandbookPage ]
     end
   end
 end

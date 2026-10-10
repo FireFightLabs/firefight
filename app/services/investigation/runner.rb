@@ -89,7 +89,7 @@ class Investigation::Runner
       name = note.sender&.display_name || Investigation::Noting::UNNAMED_RESPONDER
       delivery.step(key: "note-#{note.id}", title: "Read what #{name} added", status: FirefightAi::AgentLoop::STEP_DONE)
     end.any?
-    changed = @investigation.untold_memory_changes!
+    changed = @investigation.untold_memory_changes! + Chat::HandbookProposal.untold_for!(@investigation).map(&:outcome_note)
     @investigation.chat.nudge!(changed.join("\n")) if changed.any?
     connections = tell_changes
     added || changed.any? || connections

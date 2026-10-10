@@ -74,6 +74,14 @@ module Integrations
       end
     end
 
+    # A push to a branch handbook pages are synced from reads them again at once, through each of these connections.
+    def nudge_handbook!(rows, payload, headers:)
+      return if rows.empty?
+
+      pushes = RepositoryDocuments.pushes(rows.first.integration.provider, payload, headers: headers)
+      HandbookSync.pushed!(rows.map(&:integration).uniq, pushes) if pushes.any?
+    end
+
     # Reads again what the events waiting on one scope name, and writes it onto the map. A scope the provider cannot read
     # on its own, or a change to what the connection reaches, sweeps the connection in full instead.
     def reread!(environment_row, scope_key)

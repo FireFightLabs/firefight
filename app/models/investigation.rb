@@ -74,6 +74,8 @@ class Investigation < ApplicationRecord
            dependent: :destroy, inverse_of: :investigation
   has_many :hypotheses, -> { ordered }, class_name: "Investigation::Hypothesis",
            dependent: :destroy, inverse_of: :investigation
+  # Handbook edits Halon proposed while running. They outlive the run on the Handbook page.
+  has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
   has_one :chat, as: :owner, dependent: :destroy
 
   validates :status, inclusion: { in: STATUSES }
@@ -220,6 +222,13 @@ class Investigation < ApplicationRecord
   def memory_change(crud_action, params:, tool_name:, &)
     Chat::ToolCall.run!(workspace: workspace, principal: acting_principal, params: params, context: ledger_context,
                         action_key: Ability::Action.system_key(Ability::Action::RESOURCE_MEMORY, crud_action), holdable: false, &)
+  end
+
+  # A search of the handbook's long pages, as the agent through the gateway, so it is in the activity log and an admin who
+  # revokes the investigator's handbook grant stops it. A read is never held.
+  def handbook_read(params:, tool_name:, &)
+    Chat::ToolCall.run!(workspace: workspace, principal: acting_principal, params: params, context: ledger_context,
+                        action_key: Ability::Action::HANDBOOK_READ, holdable: false, &)
   end
 
   # Where what the agent remembers came from. Nobody taught it, since a run acts as the agent.

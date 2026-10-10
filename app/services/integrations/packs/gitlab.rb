@@ -368,6 +368,15 @@ module Integrations
         fail! Sentence.join("GitLab refused this read", error, after: "The token's role or scopes do not reach it")
       end
 
+      # The text files a handbook page is synced from, at path on the project's default branch
+      # (Integrations::RepositoryDocuments).
+      def repository_documents(environment_row, repository:, path:)
+        fail! "repository must be the project's path, such as group/project" unless repository.to_s.match?(REPO_FORMAT)
+
+        gitlab = api(environment_row)
+        CodeHost::Documents.new(Infrastructure.new(gitlab)).read(repository_of(gitlab.get(GitlabApi.project(repository))), path)
+      end
+
       def check_health!(environment_row)
         api(environment_row).get("/projects", "membership" => true, "simple" => true, "per_page" => 1)
       rescue GitlabApi::Error => error

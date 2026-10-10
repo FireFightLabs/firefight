@@ -11,8 +11,9 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
 
   test "the page lists what is remembered, the instructions with their history, and what they can be about" do
     remember("Auth Service keeps sessions in Redis", subject: @auth)
-    note = Chat::Instruction.create!(workspace: @workspace, text: "Check logs first", added_by: @member)
+    note = Chat::Instruction.create!(workspace: @workspace, scope: @auth, text: "Check logs first", added_by: @member)
     note.revise!(text: "Check metrics first", by: @member)
+    handbook_page!(@workspace, "General", "In the handbook, so not listed here", by: @member)
 
     get memory_path, headers: inertia_headers
 
@@ -116,11 +117,24 @@ class MemoryControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a second set of instructions for the same place is refused with a reason" do
-    Chat::Instruction.create!(workspace: @workspace, text: "Check logs first", added_by: @member)
+    Chat::Instruction.create!(workspace: @workspace, scope: @auth, text: "Check logs first", added_by: @member)
 
-    post memory_instructions_path, params: { text: "Another", subject: "" }
+    post memory_instructions_path, params: { text: "Another", subject: "CatalogEntry:#{@auth.id}" }
 
-    assert_equal "Whole workspace already has instructions. Edit them instead.", flash[:alert]
+    assert_equal "Auth Service (service) already has instructions. Edit them instead.", flash[:alert]
+  end
+
+  test "instructions for the whole workspace are written in the handbook, and a handbook page is not edited from here" do
+    post memory_instructions_path, params: { text: "Never restart the primary database", subject: "" }
+
+    assert_equal "Instructions for the whole workspace are written in the handbook.", flash[:alert]
+    assert_empty Chat::Instruction.where(workspace: @workspace)
+
+    page = handbook_page!(@workspace, "General", "Check logs first", by: @member)
+    patch memory_instruction_path(page.current_wording), params: { text: "Changed from the Memory page" }
+
+    assert_response :not_found
+    assert_equal "Check logs first", page.reload.text
   end
 
   test "a member decides on memories without a grant, and writing instructions still needs the catalog" do

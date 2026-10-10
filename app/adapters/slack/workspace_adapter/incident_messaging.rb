@@ -598,6 +598,22 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_handbook_proposal(channel_id:, thread_id:, proposal:)
+    translate_errors do
+      result = Slack::Client.post_message(
+        workspace: @workspace, channel: channel_id, thread_ts: thread_id,
+        text: Slack::Messages::HandbookProposal.fallback(proposal), blocks: Slack::Messages::HandbookProposal.build(proposal)
+      )
+      { message_id: result[:ts], channel_id: result[:channel] || channel_id }
+    end
+  end
+
+  def update_handbook_proposal(channel_id:, message_id:, proposal:)
+    update_message(channel_id: channel_id, message_id: message_id,
+                   text: Slack::Messages::HandbookProposal.fallback(proposal), blocks: Slack::Messages::HandbookProposal.build(proposal))
+    { success: true }
+  end
+
   def post_held_call(channel_id:, thread_id:, held_call:)
     post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
                           text: Slack::Messages::HeldCall.fallback(held_call), blocks: Slack::Messages::HeldCall.build(held_call))

@@ -19,6 +19,8 @@ module Investigation::Seeding
   KEY_MEMORIES = "memories".freeze
   # How people here want the agent to work on what the incident touches, never evidence.
   KEY_INSTRUCTIONS = "instructions".freeze
+  # How the workspace works, its handbook's short pages whole and its long ones named for search.
+  KEY_HANDBOOK = "handbook".freeze
   # Which changes to a starting memory the run was already told about, by memory id.
   KEY_TOLD = "told".freeze
   # For a run an alert started: that nobody asked, what the team lets Halon change on its own, and whether it pages.
@@ -30,8 +32,8 @@ module Investigation::Seeding
     encrypts :seed_notes
   end
 
-  # The notes hold each starting memory's id and the line the run read, and the instructions.
-  def self.notes(memories, instructions) = { KEY_MEMORIES => memories, KEY_INSTRUCTIONS => instructions }
+  # The notes hold each starting memory's id and the line the run read, the instructions and the handbook.
+  def self.notes(memories, instructions, handbook = []) = { KEY_MEMORIES => memories, KEY_INSTRUCTIONS => instructions, KEY_HANDBOOK => handbook }
 
   # Gathered once, so every turn and a resumed run read the same facts.
   def build_seed_pack!
@@ -43,7 +45,8 @@ module Investigation::Seeding
     # A scheduled check has no symptom, start time or alert to take clues from.
     clues = scheduled? ? {} : { KEY_CLUES => Investigation::Clues.new(self).gather }
     update!(seed_pack: seeder.gather.merge(clues),
-            seed_notes: Investigation::Seeding.notes(memories.map { |memory| { "id" => memory.id, "line" => memory.line } }, instructions))
+            seed_notes: Investigation::Seeding.notes(memories.map { |memory| { "id" => memory.id, "line" => memory.line } }, instructions,
+                                                     Chat::HandbookPage.halon_lines(workspace)))
     Chat::Memory.handed_to!(memories, self) if changes_memory?
     seed_pack
   end
@@ -56,7 +59,7 @@ module Investigation::Seeding
     # A rehearsal reads what its original read, never what changed since.
     changes = rehearsal? ? {} : starting_memory_changes
     lines = starting_memories.map { |memory| [ memory["line"], changes[memory["id"]]&.mark ].compact.join(" ") }
-    seed_pack.merge(KEY_MEMORIES => lines, KEY_INSTRUCTIONS => Array(seed_notes[KEY_INSTRUCTIONS]))
+    seed_pack.merge(KEY_HANDBOOK => Array(seed_notes[KEY_HANDBOOK]), KEY_MEMORIES => lines, KEY_INSTRUCTIONS => Array(seed_notes[KEY_INSTRUCTIONS]))
   end
 
   # What changed in a starting memory since the run began that it has not been told yet, each as a short note, and

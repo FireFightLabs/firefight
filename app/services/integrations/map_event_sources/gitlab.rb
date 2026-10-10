@@ -72,6 +72,15 @@ module Integrations
           nil
         end
 
+        # The branch a push moved, for the handbook pages synced from it (Integrations::RepositoryDocuments).
+        def branch_pushes(payload, headers:)
+          return [] unless headers[EVENT_HEADER].to_s == PUSH_HOOK
+
+          name = payload.dig("project", "path_with_namespace")
+          ref = payload["ref"].to_s
+          name.present? && ref.start_with?("refs/heads/") ? [ RepositoryDocuments::Push.new(repository: name, branch: ref.delete_prefix("refs/heads/")) ] : []
+        end
+
         private
 
         def push_events(payload, id)

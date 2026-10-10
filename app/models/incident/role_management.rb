@@ -19,6 +19,13 @@ module Incident::RoleManagement
     role_assignment_for(role)&.workspace_membership
   end
 
+  # The names of the roles member holds here, in the order the roles are listed, such as ["Incident Lead"].
+  def roles_held_by(member)
+    return [] unless member
+
+    incident_role_assignments.joins(:incident_role).where(workspace_membership: member).order("incident_roles.position").pluck("incident_roles.name")
+  end
+
   # Refused on an incident that is over because every role change announces
   # itself in a channel that may already be archived.
   def assign_role!(role, workspace_membership, assigned_by: nil)

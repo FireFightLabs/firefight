@@ -119,6 +119,16 @@ module Integrations
           ) ]
         end
 
+        # The branch a push moved, for the handbook pages synced from it (Integrations::RepositoryDocuments). A deleted
+        # branch moved nothing.
+        def branch_pushes(payload, headers:)
+          return [] unless headers[EVENT_HEADER].to_s == PUSH && !payload["deleted"]
+
+          name = payload.dig("repository", "full_name")
+          branch = payload["ref"].to_s.delete_prefix("refs/heads/")
+          name.present? && payload["ref"].to_s.start_with?("refs/heads/") ? [ RepositoryDocuments::Push.new(repository: name, branch: branch) ] : []
+        end
+
         private
 
         # A push to the default branch changes nothing the map shows of the repository itself, so it is read again only

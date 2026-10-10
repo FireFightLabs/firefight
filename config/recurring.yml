@@ -10,6 +10,10 @@
 #     schedule: at 5am every day
 
 development:
+  handbook_sync_sweep:
+    class: HandbookSyncSweepJob # reads again the repository files and documents synced handbook pages come from, when nothing said they changed
+    queue: background
+    schedule: every hour
   entitlements_sweep:
     class: EntitlementsSweepJob # lets a hosted build's billing run its daily upkeep, such as retention warnings
     queue: background
@@ -142,6 +146,10 @@ development:
     schedule: at 4am every day
 
 staging:
+  handbook_sync_sweep:
+    class: HandbookSyncSweepJob # reads again the repository files and documents synced handbook pages come from, when nothing said they changed
+    queue: background
+    schedule: every hour
   entitlements_sweep:
     class: EntitlementsSweepJob # lets a hosted build's billing run its daily upkeep, such as retention warnings
     queue: background
@@ -300,6 +308,10 @@ staging:
     schedule: at 4am every day
 
 production:
+  handbook_sync_sweep:
+    class: HandbookSyncSweepJob # reads again the repository files and documents synced handbook pages come from, when nothing said they changed
+    queue: background
+    schedule: every hour
   entitlements_sweep:
     class: EntitlementsSweepJob # lets a hosted build's billing run its daily upkeep, such as retention warnings
     queue: background

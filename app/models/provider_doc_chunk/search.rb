@@ -3,6 +3,8 @@
 # or an error message, and nearest by meaning over the chunks' embeddings, which finds a question asked in other words.
 # Only the providers named are searched. meaning is called for the query's vector only when some chunk of those
 # providers has one from the current model, so a store not embedded yet costs no model call and still answers by words.
+# The handbook's search is the same search over a workspace's pages (Chat::HandbookChunk::Search), which names its own
+# chunks and how they are ranked by their words.
 class ProviderDocChunk::Search
   DEFAULT_LIMIT = 5
   MAX_LIMIT = 10
@@ -22,7 +24,7 @@ class ProviderDocChunk::Search
   end
 
   def hits(limit: DEFAULT_LIMIT)
-    return [] if @query.blank? || @providers.empty?
+    return [] if @query.blank? || !searchable?
 
     size = limit.to_i.positive? ? [ limit.to_i, MAX_LIMIT ].min : DEFAULT_LIMIT
     lists = { words: word_matches, meaning: meaning_matches }
@@ -35,7 +37,7 @@ class ProviderDocChunk::Search
       end
     end
     best = scores.keys.sort_by { |id| [ -scores[id], id ] }.first(size)
-    chunks = ProviderDocChunk.where(id: best).includes(:page).index_by(&:id)
+    chunks = chunk_class.where(id: best).includes(:page).index_by(&:id)
     best.filter_map { |id| chunks[id] && Hit.new(chunk: chunks[id], matched_by: matched_by[id]) }
   end
 
@@ -52,7 +54,14 @@ class ProviderDocChunk::Search
 
   private
 
+  def searchable? = @providers.any?
+
+  def chunk_class = ProviderDocChunk
+
   def scope = ProviderDocChunk.where(provider: @providers)
+
+  # Cover density, which reads how close the words sit, since a provider's chunk keeps where each word is.
+  def rank_sql = "ts_rank_cd(document, to_tsquery('simple', ?), 32) DESC"
 
   # Every word as its own alternative, ranked by how densely they sit in a section, so a section holding all of them
   # comes before one holding a single common word.
@@ -61,7 +70,7 @@ class ProviderDocChunk::Search
 
     tsquery = words.map { |word| "'#{word.delete("'\\")}'" }.join(" | ")
     scope.where("document @@ to_tsquery('simple', ?)", tsquery)
-         .order(Arel.sql(ProviderDocChunk.sanitize_sql_array([ "ts_rank_cd(document, to_tsquery('simple', ?), 32) DESC", tsquery ])))
+         .order(Arel.sql(ProviderDocChunk.sanitize_sql_array([ rank_sql, tsquery ])))
          .order(:id).limit(CANDIDATES).pluck(:id)
   end
 

@@ -14,7 +14,7 @@ class Chat::InstructionReachTest < ActiveSupport::TestCase
     @hidden = write("Rotate the card tokens before touching it", map_resource(@workspace, "secret-db"))
     @shown = write("Check the session store first", map_resource(@workspace, "web"))
     @about_entry = write("Page the auth team before a rollback", @entry)
-    @everywhere = write("Never restart the primary database", nil)
+    @everywhere = handbook_page!(@workspace, "General", "Never restart the primary database").current_wording
   end
 
   test "a limited member's instructions leave out the hidden resource's, with its history, and keep the catalog and workspace ones" do
@@ -22,7 +22,7 @@ class Chat::InstructionReachTest < ActiveSupport::TestCase
 
     assert_equal [ @shown, @about_entry, @everywhere ].map(&:id).sort, Chat::Instruction.visible_to(@member, @workspace).pluck(:id).sort
     listed = Chat::Instruction.with_history(@workspace, principal: @member)
-    assert_equal [ @shown, @about_entry, @everywhere ].map(&:id).sort, listed.map { |note, _history| note.id }.sort
+    assert_equal [ @shown, @about_entry ].map(&:id).sort, listed.map { |note, _history| note.id }.sort
     assert_no_hidden(listed.flatten.map(&:line).join("\n"))
     assert_equal 2, Chat::Instruction.visible_to(SystemAgent.investigator, @workspace).where(scope: map_resource(@workspace, "secret-db")).count
   end
@@ -34,7 +34,6 @@ class Chat::InstructionReachTest < ActiveSupport::TestCase
 
     assert_includes line, @shown.line
     assert_includes line, @about_entry.line
-    assert_includes line, @everywhere.line
     assert_no_hidden(line)
   end
 

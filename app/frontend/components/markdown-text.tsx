@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react"
+import { Children, type ComponentProps, isValidElement, type ReactNode } from "react"
 import Markdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -29,16 +29,19 @@ const COMPONENTS: Components = { a: ExternalLink }
 interface MarkdownTextProps {
   text: string
   className?: string
+  // Each heading's anchor as the server gives it, so a link to a section opens at that heading.
+  headingIds?: Record<string, string>
 }
 
 // What a person wrote in markdown, as the dashboard shows it. react-markdown never renders raw HTML and drops
 // javascript: links, so the text cannot inject markup.
-export function MarkdownText({ text, className }: MarkdownTextProps) {
+export function MarkdownText({ text, className, headingIds }: MarkdownTextProps) {
+  const components = headingIds ? withHeadingIds(headingIds) : COMPONENTS
   return (
     <div className={className ? `${MARKDOWN} ${className}` : MARKDOWN}>
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
-        components={COMPONENTS}
+        components={components}
         disallowedElements={DISALLOWED_ELEMENTS}
         unwrapDisallowed
       >
@@ -46,6 +49,26 @@ export function MarkdownText({ text, className }: MarkdownTextProps) {
       </Markdown>
     </div>
   )
+}
+
+function plainText(children: ReactNode): string {
+  return Children.toArray(children).map((child) => {
+    if (typeof child === "string" || typeof child === "number") {
+      return String(child)
+    }
+    return isValidElement<{ children?: ReactNode }>(child) ? plainText(child.props.children) : ""
+  }).join("")
+}
+
+type HeadingProps = ComponentProps<"h2"> & { node?: unknown }
+
+function withHeadingIds(headingIds: Record<string, string>): Components {
+  function heading(Tag: "h1" | "h2" | "h3" | "h4") {
+    return function Heading({ node: _node, children, ...props }: HeadingProps) {
+      return <Tag {...props} id={headingIds[plainText(children).trim()]} className="scroll-mt-20">{children}</Tag>
+    }
+  }
+  return { ...COMPONENTS, h1: heading("h1"), h2: heading("h2"), h3: heading("h3"), h4: heading("h4") }
 }
 
 function ExternalLink({ node: _node, ...props }: ComponentProps<"a"> & { node?: unknown }) {

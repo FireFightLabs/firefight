@@ -18,8 +18,7 @@ module Integrations
           @api = api
         end
 
-        private
-
+        # What CodeHost::Documents reads a repository's pages through as well.
         def listing(repository)
           entries, more = @api.list("#{GitlabApi.project(repository['full_name'])}/repository/tree",
                                     { "recursive" => true, "ref" => repository["default_branch"] }, pages: TREE_PAGES)

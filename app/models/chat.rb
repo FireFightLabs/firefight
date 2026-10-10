@@ -75,10 +75,31 @@ class Chat < ApplicationRecord
     waiting = waiting.where(sender: from) if from
     taken = waiting.to_a.select(&:take!)
     taken.each do |queued|
-      message = add_message(role: Chat::Message::ROLE_USER, content: block_given? ? yield(queued) : queued.content)
+      message = add_person_message!(block_given? ? yield(queued) : queued.content, sender: queued.sender)
       attach_files!(message, queued.attached_files.to_a)
     end
     taken
+  end
+
+  # A person's message, kept with who sent it. Where several people speak, the model reads each message headed with its
+  # sender's name, so the chat the library already holds in memory is read again to carry the name.
+  def add_person_message!(content, sender:)
+    message = add_message(role: Chat::Message::ROLE_USER, content: content)
+    return message unless sender.is_a?(WorkspaceMembership)
+
+    message.update_columns(sender_id: sender.id)
+    reload if speakers_named?
+    message
+  end
+
+  # Anyone in an incident's channel can ask Halon in the same thread, so it has to tell them apart.
+  def speakers_named? = owner.is_a?(Conversation) && owner.kind == Conversation::KIND_CHANNEL
+
+  # Loaded once for the whole chat, since every message asks while the history is built.
+  def sender_name(message)
+    @sender_names ||= WorkspaceMembership.where(id: messages.where.not(sender_id: nil).select(:sender_id)).includes(:user)
+                                         .to_h { |member| [ member.id, member.display_name ] }
+    @sender_names[message.sender_id]
   end
 
   # The library added the message to the chat in memory without its files, so the chat is read again once they joined.
@@ -276,6 +297,7 @@ class Chat < ApplicationRecord
   def forget_files!
     @files_by_message = nil
     @shown_whole = nil
+    @sender_names = nil
   end
 
   def owner_in_same_workspace

@@ -18,8 +18,10 @@ class AbilityGateway
   SOURCE_ISSUE_SYNC = "issue_sync"
   # A watch Halon was asked to keep, reading as the person who asked until what it follows is done.
   SOURCE_WATCH = "watch"
+  # Reading the documents synced handbook pages come from, through a connection's tools with Firefight's own fixed reads.
+  SOURCE_HANDBOOK_SYNC = "handbook_sync"
   SOURCES = [ SOURCE_API, SOURCE_MCP, SOURCE_SLACK, SOURCE_WEB, SOURCE_INVESTIGATION, SOURCE_CONVERSATION, SOURCE_MAP_SWEEP,
-              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH ].freeze
+              SOURCE_HEALTH_CHECK, SOURCE_CODE_AGENT, SOURCE_ISSUE_SYNC, SOURCE_WATCH, SOURCE_HANDBOOK_SYNC ].freeze
   # Where a human acts directly rather than through a key or an agent.
   HUMAN_SOURCES = [ SOURCE_SLACK, SOURCE_WEB ].freeze
 

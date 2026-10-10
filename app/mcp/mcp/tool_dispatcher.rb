@@ -7,7 +7,7 @@ module Mcp
     # Rescued outside the authorized block, so the ledger still records these calls as failed.
     TOOL_ERRORS = [
       Incident::NotActive, Incident::CreationBlocked, Postmortem::StaleContent, ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid,
-      ArgumentError, ActionController::ParameterMissing
+      ArgumentError, ActionController::ParameterMissing, HandbookService::Blocked
     ].freeze
 
     def self.call(tool:, server_context:, args:)

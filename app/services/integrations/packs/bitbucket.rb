@@ -449,6 +449,15 @@ module Integrations
 
       # Lists a repository of each workspace the connection reaches, so one the token can no longer read is said on the
       # connection.
+      # The text files a handbook page is synced from, at path on the repository's main branch
+      # (Integrations::RepositoryDocuments).
+      def repository_documents(environment_row, repository:, path:)
+        fail! "repository must be workspace/name" unless repository.to_s.match?(REPO_FORMAT)
+
+        bitbucket = api(environment_row)
+        CodeHost::Documents.new(Infrastructure.new(bitbucket)).read(repository_of(bitbucket.get(BitbucketApi.repository(repository))), path)
+      end
+
       def check_health!(environment_row)
         ConnectionSettings.of(environment_row).scopes.each { |workspace| api(environment_row).get("/repositories/#{Http.segment(workspace)}", "pagelen" => 1) }
       rescue BitbucketApi::Error => error

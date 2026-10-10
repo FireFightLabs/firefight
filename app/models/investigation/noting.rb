@@ -42,12 +42,13 @@ module Investigation::Noting
     not_allowed(member)
   end
 
-  # A run acts as the agent, and a note can come from any responder, so each says who added it.
+  # A run acts as the agent, and a note can come from any responder, so each says who added it and the roles they hold in
+  # the incident then, which is how the run knows whose direction wins when notes conflict.
   def take_notes!
     return [] unless chat
 
     chat.take_queued! do |note|
-      name = note.sender&.display_name || UNNAMED_RESPONDER
+      name = noted_by(note.sender)
       note.content.present? ? "#{name} added: #{note.content}" : "#{name} added #{note.attached_files.size == 1 ? 'a file' : 'files'}."
     end
   end
@@ -77,6 +78,13 @@ module Investigation::Noting
   end
 
   private
+
+  def noted_by(member)
+    return UNNAMED_RESPONDER unless member
+
+    roles = incident&.roles_held_by(member) || []
+    roles.any? ? "#{member.display_name} (#{roles.to_sentence})" : member.display_name
+  end
 
   def not_allowed(member) = "#{member&.display_name || "You"} may not add to an investigation."
 end

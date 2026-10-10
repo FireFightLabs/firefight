@@ -24,6 +24,7 @@ module Identifiers
   SHOUTOUT_MODAL = "shoutout_modal"
   TIMELINE_MODAL = "timeline_modal"
   MEMORY_CORRECT_MODAL = "memory_correct_modal"
+  HANDBOOK_PROPOSAL_EDIT_MODAL = "handbook_proposal_edit_modal"
   CODE_QUESTION_MODAL = "code_question_modal"
   CODE_QUESTION_CHANGE_MODAL = "code_question_change_modal"
 
@@ -187,6 +188,10 @@ module Identifiers
   MEMORY_REJECT = "memory_reject"
   # Opens a form for what is right instead, which replaces the memory.
   MEMORY_CORRECT = "memory_correct"
+  # A handbook edit Halon proposed. Edit opens a form to change it before accepting.
+  HANDBOOK_PROPOSAL_ACCEPT = "handbook_proposal_accept"
+  HANDBOOK_PROPOSAL_EDIT = "handbook_proposal_edit"
+  HANDBOOK_PROPOSAL_DISMISS = "handbook_proposal_dismiss"
   # Opens a form to answer a coding agent's question.
   CODE_QUESTION_ANSWER = "code_question_answer"
   # Picks one of a coding agent's options. Each button adds its place, since Slack wants a block's action ids unique.

@@ -60,6 +60,7 @@ Rails.application.routes.draw do
       resources :routing_rules, only: [ :index, :create, :update, :destroy ]
       post "routing/evaluate", to: "routing#evaluate", as: :evaluate_routing
       resources :runbooks, only: [ :index, :show, :create, :update, :destroy ]
+      resources :handbook_pages, path: "handbook/pages", only: [ :index, :show, :create, :update, :destroy ]
 
       resources :abilities, only: [ :index ]
       resources :principals, only: [ :index ]
@@ -437,6 +438,17 @@ Rails.application.routes.draw do
     post "/memory/instructions", to: "memory#create_instruction", as: :memory_instructions
     patch "/memory/instructions/:id", to: "memory#update_instruction", as: :memory_instruction
     delete "/memory/instructions/:id", to: "memory#destroy_instruction"
+    get "/settings/handbook", to: "handbook#index", as: :settings_handbook
+    post "/settings/handbook/pages", to: "handbook#create_page", as: :handbook_pages
+    patch "/settings/handbook/pages/reorder", to: "handbook#reorder", as: :reorder_handbook_pages
+    patch "/settings/handbook/pages/:id", to: "handbook#update_page", as: :handbook_page
+    delete "/settings/handbook/pages/:id", to: "handbook#destroy_page"
+    post "/settings/handbook/sources", to: "handbook#create_source", as: :handbook_sources
+    post "/settings/handbook/sources/:id/sync", to: "handbook#sync_source", as: :sync_handbook_source
+    delete "/settings/handbook/sources/:id", to: "handbook#destroy_source", as: :handbook_source
+    post "/settings/handbook/draft", to: "handbook#draft", as: :draft_handbook
+    post "/settings/handbook/proposals/:id/accept", to: "handbook#accept_proposal", as: :accept_handbook_proposal
+    post "/settings/handbook/proposals/:id/dismiss", to: "handbook#dismiss_proposal", as: :dismiss_handbook_proposal
 
     get "/map", to: "resource_map#index", as: :resource_map
     get "/search", to: "map_search#index", as: :map_search

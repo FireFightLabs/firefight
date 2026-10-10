@@ -19,6 +19,7 @@ class InteractionDispatcher
     Identifiers::INVITE_RESPONDERS_MODAL => Interactions::InviteRespondersHandler,
     Identifiers::SHOUTOUT_MODAL => Interactions::ShoutoutHandler,
     Identifiers::MEMORY_CORRECT_MODAL => Interactions::CorrectMemoryHandler,
+    Identifiers::HANDBOOK_PROPOSAL_EDIT_MODAL => Interactions::EditHandbookProposalHandler,
     Identifiers::CODE_QUESTION_MODAL => Interactions::AnswerCodeQuestionHandler,
     Identifiers::CODE_QUESTION_CHANGE_MODAL => Interactions::ChangeCodeQuestionAnswerHandler
   }.freeze
@@ -99,6 +100,9 @@ class InteractionDispatcher
     Identifiers::MEMORY_CONFIRM => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_REJECT => Interactions::MemoryDecisionHandler,
     Identifiers::MEMORY_CORRECT => Interactions::OpenMemoryCorrectionHandler,
+    Identifiers::HANDBOOK_PROPOSAL_ACCEPT => Interactions::HandbookProposalDecisionHandler,
+    Identifiers::HANDBOOK_PROPOSAL_DISMISS => Interactions::HandbookProposalDecisionHandler,
+    Identifiers::HANDBOOK_PROPOSAL_EDIT => Interactions::OpenHandbookProposalEditHandler,
     Identifiers::CODE_QUESTION_ANSWER => Interactions::OpenCodeQuestionHandler,
     Identifiers::CODE_QUESTION_CHANGE => Interactions::OpenCodeQuestionChangeHandler,
     Identifiers::CODE_PAUSE_CONTINUE => Interactions::CodePauseDecisionHandler,

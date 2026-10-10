@@ -72,7 +72,7 @@ class Chat::ToolsTest < ActiveSupport::TestCase
 
     names = Investigation::Tools.for(@investigation, offer: ->(_tools) { }).map(&:name)
 
-    assert_equal [ "open_tools", "use_skill", "search_docs", "read_doc", "read_result", "record_hypothesis", "conclude", "remember", "recall", "dispute_memory", "search_web",
+    assert_equal [ "open_tools", "use_skill", "search_docs", "read_doc", "read_result", "record_hypothesis", "conclude", "remember", "recall", "dispute_memory", "search_handbook", "propose_handbook_edit", "search_web",
                    "read_web_page" ], names
   end
 
