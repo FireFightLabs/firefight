@@ -22,6 +22,12 @@ module AiProviders
   # A setting whose value is an address the server will call.
   ADDRESS_SETTING = "api_base".freeze
 
+  # The registry's sections that are not providers.
+  SECTIONS = %w[settings chat_models].freeze
+
+  # A model a person can switch a dashboard chat to, with the name and the few words the picker shows.
+  ChatModel = Data.define(:model, :label, :note)
+
   Field = Data.define(:key, :option, :label, :secret, :required)
 
   Provider = Data.define(:slug, :name, :main_model, :fast_model, :code_fix_model, :fields, :local, :code_fixes, :sign_in, :assumes_models) do
@@ -68,7 +74,7 @@ module AiProviders
   def self.all = offered.values
 
   def self.offered
-    @offered ||= registry.except("settings").to_h do |slug, entry|
+    @offered ||= registry.except(*SECTIONS).to_h do |slug, entry|
       [ slug, build(slug, entry) ]
     end.freeze
   end
@@ -96,6 +102,25 @@ module AiProviders
   end
 
   def self.local_slugs = RubyLLM::Provider.local_providers.keys.map(&:to_s)
+
+  # The models a dashboard chat on this provider can switch to, in the registry's order, each only while the registry holds
+  # it for the provider with a price and a size, so a chat on it is billed and can make room in its window.
+  def self.chat_models(slug)
+    listed_chat_models(slug).select do |entry|
+      FirefightAi.priced_for?(entry.model, slug) && FirefightAi.context_window(entry.model, provider: slug)
+    end
+  end
+
+  # The name the picker gives a model this provider serves, or nil for a model it does not list.
+  def self.chat_model_label(slug, model) = listed_chat_models(slug).find { |entry| entry.model == model.to_s }&.label
+
+  def self.listed_chat_models(slug)
+    @listed_chat_models ||= registry.fetch("chat_models", {}).to_h do |provider, entries|
+      [ provider, entries.map { |entry| ChatModel.new(model: entry.fetch("model"), label: entry.fetch("label"), note: entry.fetch("note")) }.freeze ]
+    end.freeze
+    @listed_chat_models.fetch(slug.to_s, [])
+  end
+  private_class_method :listed_chat_models
 
   # The model the deployment's own keys write code fixes with when nothing names one. It is the first provider in the
   # registry's order that recommends one for code, holds a key here and can price it. Nil leaves code fixes on the

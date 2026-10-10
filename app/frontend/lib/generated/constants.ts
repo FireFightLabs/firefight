@@ -1066,7 +1066,8 @@ export const AGENT_CHAT_PROPS = {
   "MITIGATIONS": "mitigations",
   "OWNER_ASKS": "ownerAsks",
   "HELPERS": "helpers",
-  "HANDBOOK_PROPOSALS": "handbookProposals"
+  "HANDBOOK_PROPOSALS": "handbookProposals",
+  "CHAT_MODELS": "chatModels"
 } as const
 
 export const SETUP_STEPS = {

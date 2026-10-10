@@ -34,11 +34,16 @@ type Source = {
   connect?: boolean;
 };
 
-const MODELS = [
-  { key: "sprinkles-5", name: "Sprinkles 5", tag: "Flagship" },
-  { key: "vanilla-1", name: "Vanilla 1", tag: "Basic" },
-  { key: "freezer-burn", name: "Freezer Burn 0.4", tag: "Stale" },
-];
+/* A model the caller offers, with the few words under its name and an optional tag beside it. */
+export type PromptModel = {
+  key: string;
+  name: string;
+  note: string;
+  tag: string | null;
+};
+
+/* The menu is this wide, and the trigger keeps it inside the composer. */
+const MODEL_MENU_WIDTH = 288;
 
 /* The row the + menu leads with when the caller takes files. */
 const ATTACH_ROW: Source = { key: "attach-files", name: "Attach files", desc: "Images, PDFs and text files", glyph: "clip", attach: true };
@@ -75,7 +80,7 @@ export default function PromptBar({
   onSend,
   sources,
   commands,
-  modelPicker = true,
+  models,
   dictation = true,
   onStop,
   onSourceSearch,
@@ -92,8 +97,13 @@ export default function PromptBar({
   sources: Source[];
   /** what / offers */
   commands: { key: string; name: string; desc: string }[];
+  /** the models the caller offers and the one in use. Off when not given, since a picker with nothing behind it is dead */
+  models?: {
+    options: PromptModel[];
+    selected: string;
+    onSelect: (key: string) => void;
+  };
   /** controls with nothing behind them yet are off rather than shown and dead */
-  modelPicker?: boolean;
   dictation?: boolean;
   /** while something is running and nothing is typed, the send button stops it instead */
   onStop?: () => void;
@@ -121,7 +131,7 @@ export default function PromptBar({
   const [dismissed, setDismissed] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
-  const [model, setModel] = useState(MODELS[1]);
+  const model = models?.options.find((option) => option.key === models.selected) ?? models?.options[0];
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attached = attachments?.items ?? [];
@@ -173,7 +183,7 @@ export default function PromptBar({
 
   /* same gliding highlight in the model menu, floating to the hovered
    * row, falling back to the currently-selected model */
-  const modelIndex = MODELS.findIndex((m) => m.key === model.key);
+  const modelIndex = models?.options.findIndex((m) => m.key === model?.key) ?? -1;
   useLayoutEffect(() => {
     if (!modelOpen) return;
     const target = modelRowRefs.current[modelHovered ?? modelIndex];
@@ -186,9 +196,9 @@ export default function PromptBar({
     if (!modelOpen || !composerAnchorRef.current || !modelRef.current) return;
     const anchorRect = composerAnchorRef.current.getBoundingClientRect();
     const triggerRect = modelRef.current.getBoundingClientRect();
-    setModelMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - 176)));
+    setModelMenuLeft(Math.max(0, Math.min(triggerRect.left - anchorRect.left, anchorRect.width - MODEL_MENU_WIDTH)));
     setModelMenuBottom(anchorRect.bottom - triggerRect.top + 8);
-  }, [modelOpen, wide, model.name]);
+  }, [modelOpen, wide, model?.name]);
 
   useEffect(() => {
     if (!modelOpen) setModelHovered(null);
@@ -202,14 +212,9 @@ export default function PromptBar({
     input.setSelectionRange(input.value.length, input.value.length);
   }, [autoFocus]);
 
-  /* Their rainbow sweep played on model change through a WebGL dependency. Neither the sweep nor
-     the model picker is vendored, so this is where it was. */
-  const celebrate = () => {};
-
-  const selectModel = (next: (typeof MODELS)[number]) => {
-    setModel(next);
+  const selectModel = (next: PromptModel) => {
     setModelOpen(false);
-    if (next.key === "sprinkles-5") celebrate();
+    if (next.key !== model?.key) models?.onSelect(next.key);
   };
 
   /* dictation resolves after a beat, like a real transcript landing */
@@ -404,11 +409,13 @@ export default function PromptBar({
       )}
 
       {/* ── model menu ─────────────────────────────────── */}
-      {modelOpen && (
+      {modelOpen && models && (
         <div
+          role="menu"
+          aria-label="Models"
           onMouseLeave={() => setModelHovered(null)}
-          className="absolute z-10 w-44 rounded-[10px] bg-surface p-1 shadow-raised"
-          style={{ left: modelMenuLeft, bottom: modelMenuBottom, animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom left" }}
+          className="absolute z-10 max-w-full rounded-[10px] bg-surface p-1 shadow-raised"
+          style={{ width: MODEL_MENU_WIDTH, left: modelMenuLeft, bottom: modelMenuBottom, animation: "pop-in 180ms cubic-bezier(0.23,1,0.32,1) both", transformOrigin: "bottom left" }}
         >
           {/* single gliding highlight that floats to the hovered or selected row */}
           <span
@@ -422,10 +429,12 @@ export default function PromptBar({
                 "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease",
             }}
           />
-          {MODELS.map((m, i) => (
+          {models.options.map((m, i) => (
             <button
               key={m.key}
               type="button"
+              role="menuitemradio"
+              aria-checked={m.key === model?.key}
               ref={(el) => {
                 modelRowRefs.current[i] = el;
               }}
@@ -435,11 +444,16 @@ export default function PromptBar({
                 selectModel(m);
                 inputRef.current?.focus();
               }}
-              className="relative z-10 flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left"
+              className="relative z-10 flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left"
             >
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{m.name}</span>
-              <span className="shrink-0 text-[11px] text-ink-3">{m.tag}</span>
-              <span className={`shrink-0 text-ink ${m.key === model.key ? "" : "invisible"}`}>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[12.5px] font-medium text-ink">{m.name}</span>
+                  {m.tag && <span className="shrink-0 text-[11px] text-ink-3">{m.tag}</span>}
+                </span>
+                <span className="truncate text-[11.5px] leading-4 text-ink-3">{m.note}</span>
+              </span>
+              <span className={`shrink-0 text-ink ${m.key === model?.key ? "" : "invisible"}`}>
                 <Icon size={13} strokeWidth={2.5}><path d="M20 6L9 17l-5-5" /></Icon>
               </span>
             </button>
@@ -602,20 +616,21 @@ export default function PromptBar({
           />
 
           {/* model picker */}
-          {modelPicker && (
+          {model && (
           <button
             ref={modelRef}
             type="button"
+            aria-haspopup="menu"
             aria-expanded={modelOpen}
-            aria-label="Choose model"
+            aria-label={`Model: ${model.name}. Choose another`}
             onClick={() => {
               setPlusOpen(false);
               setModelOpen((current) => !current);
             }}
-            className={`flex h-7 shrink-0 items-center gap-1 px-1.5 text-[12px] font-medium text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink rounded-[8px] ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
+            className={`flex h-7 min-w-0 max-w-40 shrink-0 items-center gap-1 px-1.5 text-[12px] font-medium text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink rounded-[8px] ${modelOpen ? "bg-hover text-ink" : ""} ${wide ? "col-start-2 row-start-2 justify-self-start" : "col-start-3 row-start-1"}`}
           >
-            {model.name}
-            <span className="text-ink-3">
+            <span className="truncate">{model.name}</span>
+            <span className="shrink-0 text-ink-3">
               <Icon size={11} strokeWidth={2.4}><path d="M6 9l6 6 6-6" /></Icon>
             </span>
           </button>

@@ -30,6 +30,16 @@ class AgentChatMessageSerializer < BaseSerializer
   type :string
   def created_at = message.created_at.utc.iso8601(3)
 
+  # The model that wrote Halon's message, by its last call that answered, so people comparing models can tell them apart.
+  # Nil for a person's message and for one saved before calls were kept.
+  type "string | null"
+  def model
+    return nil unless message.role == Chat::Message::ROLE_ASSISTANT
+
+    answered = message.ruby_llm_usages.sort_by(&:created_at).map(&:to_entry).reverse.find(&:succeeded?)
+    answered && Conversation::ModelMenu.label(answered.model, provider: answered.provider)
+  end
+
   # Only a person's message carries files.
   has_many :attached_files, as: :attachments, serializer: AgentChatAttachmentSerializer
 

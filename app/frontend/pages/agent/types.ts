@@ -4,7 +4,7 @@ import type { SharedProps } from "@/types"
 import type { AGENT_STEP_KINDS, AGENT_STEP_STATUSES, AGENT_STREAM_EVENTS } from "@/lib/generated/constants"
 import type {
   AgentChat, AgentChatAttachment, AgentChatAttachmentRules, AgentChatConfirmation, AgentChatDataRepair, AgentChatHeldCall, AgentChatHelper, AgentChatIncident,
-  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, EnvironmentOption,
+  AgentChatMemoryQuestion, AgentChatMessage, AgentChatMitigation, AgentChatOwnerAsk, AgentChatPackRefusal, AgentChatPlan, AgentChatPullRequestNotice, AgentChatSecretEntry, AgentChatWaitingMessage, AgentChatWatch, AgentChatWatchUpdate, ChatChart, ChatCompaction, ChatModelMenu, EnvironmentOption,
   HandbookProposal, IntegrationCard, InvestigationCard, InvestigationDetail,
 } from "@/types/serializers"
 
@@ -45,6 +45,7 @@ export interface AgentPageProps extends SharedProps {
   helpers: AgentChatHelper[]
   handbookProposals: HandbookProposal[]
   setupGuide: SetupGuide | null
+  chatModels: ChatModelMenu | null
 }
 
 export type AgentStep = AgentChatMessage["tools"][number]
@@ -68,7 +69,7 @@ export interface TurnBody {
 
 export type ChatTurn =
   | { kind: typeof TURN_KINDS.PERSON; id: string; body: string; attachments: AgentChatAttachment[] }
-  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[] }
+  | { kind: typeof TURN_KINDS.AGENT; id: string; steps: AgentStep[]; bodies: TurnBody[]; models: string[] }
 
 export interface AgentStream {
   // The agent is working on an answer and has not said it is done.

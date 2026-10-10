@@ -24,7 +24,7 @@ export default function AgentPage() {
   const {
     conversations, archivedCount, conversation, incidents, messages, confirmations, openInvestigation, waitingMessages, attachmentRules,
     compactions, heldCalls, packRefusals, secretEntries, watches, watchUpdates, pullRequestNotices, memoryQuestions, plans, dataRepairs,
-    mitigations, ownerAsks, handbookProposals, setupGuide,
+    mitigations, ownerAsks, handbookProposals, setupGuide, chatModels,
   } = usePage<AgentPageProps>().props
   const conversationId = conversation?.id ?? null
   const stream = useAgentStream(conversationId, conversation?.busy ?? false)
@@ -34,6 +34,14 @@ export default function AgentPage() {
   // first chat opens on the start page, where its question waits.
   const [ composing, setComposing ] = useState(Boolean(setupGuide && !setupGuide.answered))
   const [ declaring, setDeclaring ] = useState(false)
+  // A new chat starts on the workspace's main model until someone picks another. The pick belongs to the chat it started,
+  // so opening any chat clears it and the next new chat starts on the main model again.
+  const [ newChatModel, setNewChatModel ] = useState<string | null>(null)
+  const [ shownConversationId, setShownConversationId ] = useState(conversationId)
+  if (conversationId !== shownConversationId) {
+    setShownConversationId(conversationId)
+    setNewChatModel(null)
+  }
   const chatList = useChatListCollapsed()
 
   function fillComposer(draft: string) {
@@ -132,6 +140,9 @@ export default function AgentPage() {
               busy={stream.busy}
               fill={fill}
               attachmentRules={attachmentRules}
+              chatModels={chatModels}
+              newChatModel={newChatModel}
+              onPickNewChatModel={setNewChatModel}
             />
           </div>
           <div className="min-h-0 overflow-hidden">
