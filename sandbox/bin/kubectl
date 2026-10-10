@@ -1,0 +1,7 @@
+#!/bin/sh
+# kubectl in Halon's terminal, pointed at the cluster through Firefight with the command's own token when the box was
+# handed one, and as it is otherwise.
+if [ -n "$FIREFIGHT_KUBE_SERVER" ]; then
+  exec /opt/clis/kubectl --server "$FIREFIGHT_KUBE_SERVER" --token "$FIREFIGHT_KUBE_TOKEN" "$@"
+fi
+exec /opt/clis/kubectl "$@"

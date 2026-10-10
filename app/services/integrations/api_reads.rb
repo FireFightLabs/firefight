@@ -91,12 +91,18 @@ module Integrations
     # webhooks is true for a list or read of webhooks, whose events, state and last delivery are worth reading while their
     # address can carry the receiver's token, so every address keeps only its host.
     def self.answer(provider, asked, said, secret: false, webhooks: false)
-      shown = secret ? names_only(said) : without_secrets(said)
-      shown = hosts_only(shown) if webhooks
+      shown = shown(said, secret: secret, webhooks: webhooks)
       text = Chat::SecretFree.redacted(shown.is_a?(String) ? shown : JSON.pretty_generate(shown))
       cut = text.length > RESULT_LIMIT
       text = "#{text[0, RESULT_LIMIT]}\n[Cut at #{RESULT_LIMIT} characters. Read less at once, such as one page with a smaller limit, or one item by its id.]" if cut
       "#{provider} answered #{asked}.\n#{text}"
+    end
+
+    # The answer as the API gave it with secrets kept to their names, whole, as answer writes it for the model and as a
+    # provider's own command line tool reads it back through Halon's terminal (Telemetry::RELAYED).
+    def self.shown(said, secret: false, webhooks: false)
+      shown = secret ? names_only(said) : without_secrets(said)
+      webhooks ? hosts_only(shown) : shown
     end
 
     def self.hosts_only(value)

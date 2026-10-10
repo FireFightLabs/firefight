@@ -58,9 +58,10 @@ class Chat::Tools::Terminal < RubyLLM::Tool
     { "type" => "object", "properties" => properties, "required" => [ COMMAND_ARG ] }
   end
 
-  # A command that changes something is confirmed like any change, unless the person allowed commands for this chat. One
-  # that only reads is let through at once, and so is one that would be refused anyway.
-  def requires_approval? = !@agent_run.reads_only? && @agent_run.acting_principal.present? && !@agent_run.chat&.allows_tool?(NAME)
+  # A command that changes something is confirmed like any change, unless the person allowed commands for this chat and
+  # nothing read from outside has reached it since (Chat::Tools::Provenance). One that only reads is let through at once,
+  # and so is one that would be refused anyway.
+  def requires_approval? = !@agent_run.reads_only? && @agent_run.acting_principal.present? && !Chat::Tools::Provenance.allowed?(@agent_run, NAME)
 
   def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| !changes?(given) || refusal(given).present? }
 

@@ -37,6 +37,35 @@ class Chat::Terminal::RelayTest < ActiveSupport::TestCase
     assert_equal [ Chat::Terminal::Relay::OUTCOME_OK, "written" ], [ allowed.outcome, allowed.text ]
   end
 
+  test "a confirmed command still never makes a change with a safeguard of its own, which Halon calls itself" do
+    Integrations::Effects.stubs(:of).returns([])
+    Integrations::Effects.stubs(:of).with(@writes).returns([ Ability::Action::EFFECT_STOPS ])
+
+    said = relay(changes: true).call(@writes.model_facing_name, {})
+
+    assert_equal Chat::Terminal::Relay::OUTCOME_REFUSED, said.outcome
+    assert_match "Call it yourself", said.text
+    assert_match "whoever started it is asked first", said.text
+    assert_not Ability::Invocation.exists?(workspace: @workspace, action_key: @writes.action_key)
+  end
+
+  test "kubectl reads a cluster through the general read, with the API's own answer" do
+    kubernetes = @workspace.integrations.create!(kind: Integration::KIND_NATIVE, provider: "kubernetes", name: "Kubernetes")
+    kubernetes.integration_environments.create!(credentials: { token: "x" }.to_json)
+    read = kubernetes.tools.create!(name: Integrations::ApiReads::TOOL, description: "Reads the API", enabled: true, read_only: true,
+                                    params_schema: { "type" => "object" })
+    Integrations::NativeExecutor.expects(:call).with { |tool:, arguments:, relayed:, **| tool == read && relayed && arguments == { "path" => "/api/v1/namespaces/default/pods", "query" => { "limit" => "500" } } }
+                                .returns("content" => [ { "type" => "text", "text" => "Kubernetes answered." } ],
+                                         Integrations::Telemetry::STRUCTURED => { Integrations::Telemetry::RELAYED => { "kind" => "PodList", "items" => [] } })
+
+    answered = relay(changes: false).api(kubernetes.slug, "GET", "api/v1/namespaces/default/pods", { "limit" => "500" }, nil)
+    refused = relay(changes: false).api(kubernetes.slug, "DELETE", "api/v1/namespaces/default/pods/web-1", {}, nil)
+
+    assert_equal [ 200, { "kind" => "PodList", "items" => [] } ], [ answered.status, answered.body ]
+    assert_equal 403, refused.status
+    assert_match "only reads", refused.body.dig("error", "message")
+  end
+
   test "a change an approval rule holds waits, and the chat keeps it for the person to run once approved" do
     @workspace.find_or_create_approval_policy!.policy_rules.create!(priority: 1, conditions: [], outcome: { "require" => { "role" => "admin", "count" => 1 } })
 

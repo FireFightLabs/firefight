@@ -2,29 +2,39 @@ require "test_helper"
 
 module Integrations
   class TerminalTest < ActiveSupport::TestCase
-    class FakeProvider
+    class FakeProvider < Sandboxes::Provider
       attr_reader :started, :stopped
 
-      def initialize
+      def initialize(region: nil)
         @started = []
         @stopped = []
+        @region = region
       end
 
-      def start(name:)
+      def start(name:, **)
         @started << name
         Sandboxes::Box.new(ref: "box-#{@started.size}", address: "http://127.0.0.1:9", key: "k#{@started.size}")
       end
 
       def stop(ref) = @stopped << ref
+
+      def region = @region
     end
 
     setup do
       @workspace = workspaces(:slack_workspace_one)
-      @provider = FakeProvider.new
+      @provider = FakeProvider.new(region: "europe-west")
       Sandboxes.stubs(:provider).returns(@provider)
-      Sandboxes.stubs(:provider_key).returns(Sandboxes::PROVIDER_DOCKER)
+      SandboxProviders.stubs(:order_for).returns([ SandboxProviders::DOCKER ])
       Sandboxes::Client.any_instance.stubs(:wait_until_ready!)
       Sandboxes::Client.any_instance.stubs(:terminal?).returns(true)
+    end
+
+    test "the terminal is offered where the workspace has a sandbox provider to try, and not otherwise" do
+      assert Terminal.available?(@workspace)
+
+      SandboxProviders.stubs(:order_for).with(@workspace).returns([])
+      assert_not Terminal.available?(@workspace)
     end
 
     test "a run's first command starts its box, and later commands and files use the same one" do
@@ -68,8 +78,7 @@ module Integrations
       assert_empty @provider.stopped
     end
 
-    test "an address is checked by an argument list, never a shell, and the region the box runs in is named" do
-      Sandboxes.stubs(:region).returns("europe-west")
+    test "an address is checked by an argument list, never a shell, from the region of the box it ran in" do
       Sandboxes::Client.any_instance.expects(:terminal).with(argv: [ "ruby", Terminal::OUTSIDE_CHECK, "https://x.dev/;rm -rf /", "GET" ], env: {},
                                                              timeout: Terminal::OUTSIDE_CHECK_TIMEOUT, on_output: nil)
                        .returns("stdout" => { "host" => "x.dev" }.to_json, "exit_code" => 0)
@@ -79,18 +88,17 @@ module Integrations
       assert_equal [ { "host" => "x.dev" }, "europe-west" ], [ checked.answer, checked.region ]
     end
 
-    test "the region is SANDBOX_REGION, or what the provider says, or unnamed" do
+    test "each provider says where its boxes run, boat in the EU, Docker where the deployment says, and none unnamed" do
       Sandboxes.unstub(:provider)
-      Sandboxes.stubs(:provider).returns(stub(region: "us-central"))
-      assert_equal "us-central", Sandboxes.region
+      assert_equal Sandboxes::Boat::REGION, Sandboxes::Boat.new(api: stub).region
 
       given = ENV.fetch("SANDBOX_REGION", nil)
-      ENV["SANDBOX_REGION"] = "eu, Frankfurt"
-      assert_equal "eu, Frankfurt", Sandboxes.region
+      ENV["SANDBOX_REGION"] = "eu-west (Frankfurt)"
+      assert_equal "eu-west (Frankfurt)", Sandboxes.region(SandboxProviders::DOCKER)
 
       ENV.delete("SANDBOX_REGION")
-      Sandboxes.stubs(:provider).returns(@provider)
-      assert_nil Sandboxes.region
+      assert_nil Sandboxes.region(SandboxProviders::DOCKER)
+      assert_nil Sandboxes.region(nil)
     ensure
       ENV["SANDBOX_REGION"] = given
     end

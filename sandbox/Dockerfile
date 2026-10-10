@@ -78,7 +78,14 @@ RUN useradd --create-home --shell /bin/bash halon \
     && chmod 755 /usr/local/bin/northflank \
     && rm -rf /root/.npm
 
+# kubectl reads its server and token only from flags or a kubeconfig, so a wrapper hands it the ones the box was given.
+ARG KUBECTL_VERSION=v1.34.1
+RUN arch="$(dpkg --print-architecture)" \
+    && curl -fsSL -o /opt/clis/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" \
+    && chmod 755 /opt/clis/kubectl
+
 COPY bin/ff /usr/local/bin/ff
+COPY bin/kubectl /usr/local/bin/kubectl
 COPY outside_check.rb /opt/sandbox/outside_check.rb
 COPY server.rb /opt/sandbox/server.rb
 

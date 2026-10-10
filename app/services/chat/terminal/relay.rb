@@ -109,7 +109,8 @@ class Chat::Terminal::Relay
   def refusal(entry, given)
     return Chat::TerminalSession::ENDED unless @session
     return Chat::TerminalSession::TOO_MANY unless @session.count_call!
-    return if @session.changes_allowed || !change?(entry, given)
+    return unless change?(entry, given)
+    return safeguarded(entry, given) if @session.changes_allowed
 
     why = if @session.owner.is_a?(Conversation)
       "The person did not confirm this command as a change. Run it again with changes true, so they are asked first."
@@ -117,6 +118,24 @@ class Chat::Terminal::Relay
       "An investigation only reads, and a change belongs in its fix."
     end
     "#{entry.name} changes something, so it was not run. #{why}"
+  end
+
+  # A change with a safeguard of its own (Chat::Safeguards) is asked about call by call, with what it touches, so a command
+  # never makes it. Halon calls the tool itself instead, and the person sees that call on its own.
+  def safeguarded(entry, given)
+    called = "#{entry.name} was not run from the command. Call it yourself, so the person is asked about this call on its own"
+    return "#{called}, since a capability that changes something is confirmed with what it reaches." if capability?(entry)
+
+    tool = connection_tool(entry)
+    run = @session.agent_run
+    environment_entry = tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
+    arguments = Chat::DataRepairs.provider_arguments(tool, environment_entry, given)
+    return "#{called}, since it writes rows, which are counted and copied first and checked after." if Chat::DataRepairs.applies?(run, tool)
+    return "#{called}, since it stops something, and whoever started it is asked first." if tool.ability_action&.effect?(Ability::Action::EFFECT_STOPS)
+
+    "#{called}, since customers feel it for a while and it is undone unless kept." if Integrations::Mitigations.call?(tool, arguments)
+  rescue Integration::UnknownEnvironment => error
+    error.message
   end
 
   def change?(entry, given)
