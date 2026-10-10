@@ -52,6 +52,7 @@ module FirefightAi
       AiPurpose::CITATION_CHECK => "CITATION_CHECK_AI",
       AiPurpose::LESSONS => "LESSONS_AI",
       AiPurpose::CODE_FIX => "CODE_FIX_AI",
+      AiPurpose::HELPER => "HELPER_AI",
       AiPurpose::EMBEDDING => "EMBEDDING_AI"
     }.fetch(purpose)
   end
@@ -80,6 +81,7 @@ module FirefightAi
       AiPurpose::CITATION_CHECK => 8_000,
       AiPurpose::LESSONS => 8_000,
       AiPurpose::CODE_FIX => 8_000,
+      AiPurpose::HELPER => 8_000,
       AiPurpose::INCIDENT_RESPONSE => 4_000,
       AiPurpose::SUMMARY => 4_000,
       AiPurpose::MILESTONES => 4_000

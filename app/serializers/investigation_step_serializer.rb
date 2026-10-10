@@ -27,6 +27,10 @@ class InvestigationStepSerializer < BaseSerializer
     step.compacted_result
   end
 
+  # The helper that made this call, when the run handed a check to one.
+  type :string, optional: true
+  def helper_id = step.chat_helper_id
+
   type :string, optional: true
   def started_at
     step.started_at&.utc&.iso8601

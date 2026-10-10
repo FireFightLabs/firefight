@@ -349,12 +349,13 @@ class Investigation < ApplicationRecord
 
   # The shared tools call this, so what a tool call leaves behind is the run's business. The step's
   # number travels back with the value, since it is what the agent cites the result by.
-  def tool_call(action_key:, params: {}, scope: {}, tool_name: nil, label: nil, holdable: true, **, &block)
+  # helper is the Chat::Helper making the call, when the run handed a check to one, which its step keeps.
+  def tool_call(action_key:, params: {}, scope: {}, tool_name: nil, label: nil, holdable: true, helper: nil, **, &block)
     result = if replay_of_id
-      Investigation::ToolCall.replay!(self, action_key: action_key, params: params, tool_name: tool_name, label: label)
+      Investigation::ToolCall.replay!(self, action_key: action_key, params: params, tool_name: tool_name, label: label, helper: helper)
     else
       Investigation::ToolCall.run!(self, action_key: action_key, params: params, scope: scope, tool_name: tool_name, label: label, holdable: holdable,
-                                         &block)
+                                         helper: helper, &block)
     end
     Chat::ToolCall::Outcome.new(value: result.value, step: result.step.position)
   end

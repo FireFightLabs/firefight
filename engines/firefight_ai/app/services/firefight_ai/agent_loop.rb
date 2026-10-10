@@ -40,9 +40,11 @@ module FirefightAi
     # output is the FirefightAi::OutputCap a turn may write, nil to leave the provider's own.
     # choice is the ModelChoice the chat runs on and purpose what it is for. When the workspace's own account runs dry or
     # refuses its key, the next account in its order takes the run over at the same step.
+    # purse is what the run has spent (Purse), shared with helpers a tool starts beside the loop, so what they spend counts
+    # against this budget too. A fresh one starts from the budget's spend.
     def initialize(chat:, budget:, answered:, inference:, canceled: -> { false }, on_step: nil, on_chunk: nil,
                    reply_is_answer: false, nudge: nil, memory: nil, check: nil, hold: nil, take_messages: nil, output: nil,
-                   choice: nil, purpose: AiPurpose::INVESTIGATION)
+                   choice: nil, purpose: AiPurpose::INVESTIGATION, purse: nil)
       @chat = chat
       @choice = choice || ModelChoice.new(model: inference[:model], provider: inference[:provider])
       @purpose = purpose
@@ -56,7 +58,8 @@ module FirefightAi
       @canceled = canceled
       @inference = inference.merge(@choice.ledger)
       @turns = budget.turns_used
-      @spend_micros = budget.spent_micros
+      @purse = purse || Purse.new(budget.spent_micros)
+      @reported_micros = @purse.spent
       @reminders = 0
       @reply_is_answer = reply_is_answer
       @check = check
@@ -93,7 +96,10 @@ module FirefightAi
 
         message = advance
         return outcome(STATUS_STALLED) if message.nil?
-        next unless message.role == :assistant
+        unless message.role == :assistant
+          report_spent_beside
+          next
+        end
 
         record_turn(message)
 
@@ -114,7 +120,7 @@ module FirefightAi
       # result, including the next question in a chat that stopped before the result was saved.
       return nil if tools_pending?
       return STATUS_OUT_OF_TURNS if @turns >= @budget.max_turns
-      return nil if @spend_micros < @budget.max_spend_cents * MICROS_PER_CENT
+      return nil if @purse.spent < @budget.max_spend_cents * MICROS_PER_CENT
       return STATUS_OUT_OF_BUDGET if @last_turn_offered
 
       # One last turn, which may go over the cap.
@@ -200,9 +206,19 @@ module FirefightAi
 
     def record_turn(message)
       @turns += 1
-      @spend_micros += (message.cost&.total.to_f * 1_000_000).round
+      @purse.add((message.cost&.total.to_f * 1_000_000).round)
       @room.saw(message)
-      @on_turn&.call(Turn.new(turns_used: @turns, spent_micros: @spend_micros))
+      report_turn
+    end
+
+    # A tool that ran helpers spent from the purse without a turn of the loop's own, so the caller hears it at once.
+    def report_spent_beside
+      report_turn if @purse.spent != @reported_micros
+    end
+
+    def report_turn
+      @reported_micros = @purse.spent
+      @on_turn&.call(Turn.new(turns_used: @turns, spent_micros: @reported_micros))
     end
 
     # RubyLLM skips a call whose id already has a result, so a repeat pays for turns that run nothing.
@@ -253,6 +269,6 @@ module FirefightAi
     # The record's messages are rows. These are the ones the model sees.
     def messages = @chat.to_llm.messages
 
-    def outcome(status) = Outcome.new(status: status, turns_used: @turns, spent_micros: @spend_micros)
+    def outcome(status) = Outcome.new(status: status, turns_used: @turns, spent_micros: @purse.spent)
   end
 end

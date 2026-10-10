@@ -27,6 +27,7 @@ module Chat::UnfinishedCalls
       end
     end
     reload if closed.any?
+    Chat::Helper.interrupted!(self, closed.map(&:tool_call_id))
     closed
   end
 

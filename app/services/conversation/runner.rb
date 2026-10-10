@@ -52,10 +52,11 @@ class Conversation::Runner
     tell_held_outcomes(chat)
     chat.on_making_room { |compaction| delivery.made_room(compaction) }
     @changes = Chat::Tools::Changes.catch_up!(@turn, chat).then { |caught| caught if caught.note }
+    purse = FirefightAi::AgentLoop::Purse.new
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat)) + Chat::Tools.known(@turn, chat),
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse)) + Chat::Tools.known(@turn, chat),
       context: context,
       budget: budget,
       on_step: method(:report_step),
@@ -65,7 +66,8 @@ class Conversation::Runner
       check: -> { FirefightAi::Responder::CHECK if @looked_outside },
       hold: chat.method(:hold_last_reply!),
       take_messages: -> { [ take_queued(chat), tell_changes(chat), tell_watch_corrections(chat) ].any? },
-      canceled: chat.method(:stop_requested?)
+      canceled: chat.method(:stop_requested?),
+      purse: purse
     ) do |turn|
       record(turn)
     end
@@ -377,6 +379,20 @@ class Conversation::Runner
   end
 
   def counted = @counted ||= FirefightAi::AgentLoop::Turn.new(turns_used: 0, spent_micros: 0)
+
+  # What this question lends the helpers Halon hands checks to: its purse and cap, its stop, and the person it acts for,
+  # whom each helper reads as on a copy of the turn of its own.
+  def helper_share(chat, purse)
+    conversation = @conversation
+    asker = @turn.asker
+    Chat::Helpers::Share.new(
+      purse: purse, max_spend_cents: conversation.max_spend_cents, since: @marked, canceled: chat.method(:stop_requested?),
+      moved: Chat::Helpers.teller(delivery, chat),
+      fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
+      choose: ->(deep) { deep ? responder.ai_model : Chat::Helpers.side_model(conversation.workspace, main: responder.ai_model) },
+      inferable: conversation.subject, member: asker
+    )
+  end
 
   # A question gets its own budget, so a long chat does not run dry for good. What every question
   # spent still adds up on the conversation.

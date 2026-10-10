@@ -209,6 +209,19 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal 50, budget.max_spend_cents
   end
 
+  test "a question lends its helpers the purse its loop stops on, its budget and the person it acts for" do
+    responder = fake(reply: "ok")
+
+    ask(@conversation, "what is going on")
+
+    call = responder.calls.sole
+    tool = call[:tools].find { |each| each.name == Chat::Tools::Helpers::NAME }
+    share = tool.instance_variable_get(:@share)
+    assert_same call[:purse], share.purse
+    assert_equal [ 50, @incident ], [ share.max_spend_cents, share.inferable ]
+    assert_equal workspace_memberships(:alice_workspace_one), share.fresh_parent.call.acting_principal
+  end
+
   test "what each question spent adds up on the conversation" do
     @conversation.update!(turns_used: 4, spent_micros: 200_000)
     fake(reply: "ok", turns: [

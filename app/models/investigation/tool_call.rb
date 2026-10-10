@@ -9,9 +9,10 @@ class Investigation::ToolCall
 
   NOT_RECORDED = "This call was not made in the run being replayed, so it has no recorded result.".freeze
 
-  def self.run!(investigation, action_key:, params: {}, scope: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil, holdable: true)
+  def self.run!(investigation, action_key:, params: {}, scope: {}, hypothesis: nil, reasoning: nil, tool_name: nil, label: nil, holdable: true,
+                helper: nil)
     step = numbered_step(
-      investigation,
+      investigation, helper: helper,
       tool_name: tool_name, label: label, hypothesis: hypothesis, action_key: action_key, params: params,
       reasoning: reasoning, status: Investigation::Step::STATUS_RUNNING, started_at: Time.current
     )
@@ -43,13 +44,13 @@ class Investigation::ToolCall
 
   # The same call made in the same order gets what the replayed run got, failure included, so only the reasoning
   # differs. A call that run never made is answered with NOT_RECORDED and counts as where the two runs parted.
-  def self.replay!(investigation, action_key:, params: {}, tool_name: nil, label: nil)
+  def self.replay!(investigation, action_key:, params: {}, tool_name: nil, label: nil, helper: nil)
     asked = params.to_h.deep_stringify_keys
     same = ->(step) { step.action_key == action_key && step.params == asked }
     already = investigation.steps.count(&same)
     recorded = investigation.replay_of.steps.select(&same)[already]
     step = numbered_step(
-      investigation, tool_name: tool_name, label: label, action_key: action_key, params: asked,
+      investigation, helper: helper, tool_name: tool_name, label: label, action_key: action_key, params: asked,
       status: Investigation::Step::STATUS_RUNNING, started_at: Time.current
     )
     Result.new(step: step, value: replayed(step, recorded, action_key))

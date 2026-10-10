@@ -772,7 +772,8 @@ export const AGENT_STREAM_EVENTS = {
   "CODE_FIX": "code_fix",
   "MEMORY": "memory",
   "PLAN": "plan",
-  "SAFEGUARD": "safeguard"
+  "SAFEGUARD": "safeguard",
+  "HELPERS": "helpers"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -834,7 +835,15 @@ export const AGENT_STEP_KINDS = {
 export const AGENT_CARD_KINDS = {
   "INTEGRATIONS": "integrations",
   "INVESTIGATION": "investigation",
-  "CHART": "chart"
+  "CHART": "chart",
+  "HELPERS": "helpers"
+} as const
+
+export const HELPER_STATUSES = {
+  "RUNNING": "running",
+  "REPORTED": "reported",
+  "FAILED": "failed",
+  "STOPPED": "stopped"
 } as const
 
 export const INTEGRATION_CARD_STATES = {
@@ -872,7 +881,8 @@ export const AGENT_CHAT_PROPS = {
   "PLANS": "plans",
   "DATA_REPAIRS": "dataRepairs",
   "MITIGATIONS": "mitigations",
-  "OWNER_ASKS": "ownerAsks"
+  "OWNER_ASKS": "ownerAsks",
+  "HELPERS": "helpers"
 } as const
 
 export const SETUP_STEPS = {
