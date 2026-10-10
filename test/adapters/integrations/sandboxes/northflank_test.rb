@@ -98,6 +98,33 @@ module Integrations
         assert_equal [ [ "halon-box-1", "FAILED", ProviderSandbox::PHASE_FAILED ] ], held.map { |box| [ box.ref, box.state, box.phase ] }
       end
 
+      test "a box says in its description which workspace and run it was started for, and it is read back" do
+        owner = Owner.new(workspace_id: "0b6f6c1e-58d4-4a8e-9a43-1f1f2b0c9d11", key: "conversation-5d1e2f30-9c4b-4d0e-8f7a-2b3c4d5e6f70")
+        sent = nil
+        Http.expects(:request).with { |_uri, request, **| request.body.nil? || (sent = JSON.parse(request.body)) }
+            .returns(response(201, { "data" => { "id" => "halon-box-1" } }))
+
+        Northflank.new.start(name: "halon-box-1", owner: owner)
+
+        assert_equal "Firefight code sandbox for #{owner.text}", sent["description"]
+        Http.stubs(:request).returns(response(200, { "data" => { "services" => [
+          { "id" => "halon-box-1", "name" => "halon-box-1", "description" => sent["description"], "status" => { "deployment" => { "status" => "COMPLETED" } } },
+          { "id" => "halon-box-2", "name" => "halon-box-2", "description" => "Firefight code sandbox", "status" => { "deployment" => { "status" => "COMPLETED" } } }
+        ] } }))
+        assert_equal [ owner, nil ], Northflank.new.inventory.map(&:owner)
+      end
+
+      test "a box is handed back with the key in its runtime environment" do
+        asked = nil
+        Http.expects(:request).with { |uri, *| asked = uri.path }
+            .returns(response(200, { "data" => { "runtimeEnvironment" => { "SANDBOX_KEY" => "k-lost" }, "runtimeFiles" => {} } }))
+
+        box = Northflank.new.reclaim("halon-box-1")
+
+        assert_equal "/v1/projects/firefight/services/halon-box-1/runtime-environment", asked
+        assert_equal [ "k-lost", "http://halon-box-1:8080" ], [ box.key, box.address ]
+      end
+
       test "without a project to put boxes in it says which setting is missing" do
         ENV.stubs(:[]).with("NORTHFLANK_SANDBOX_PROJECT").returns(nil)
 

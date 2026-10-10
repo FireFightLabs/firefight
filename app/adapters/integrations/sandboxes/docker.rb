@@ -6,14 +6,17 @@ module Integrations
     # loopback otherwise.
     class Docker < Provider
       LABEL = "firefight.sandbox".freeze
+      WORKSPACE_LABEL = "firefight.workspace".freeze
+      BOX_KEY_LABEL = "firefight.box-key".freeze
       PORT = "8080/tcp".freeze
       API_VERSION = "v1.43".freeze
       DEFAULT_SOCKET = "/var/run/docker.sock".freeze
 
-      def start(name:, **)
+      def start(name:, owner: nil, **)
         key = SecureRandom.hex(32)
+        labels = { LABEL => "1", WORKSPACE_LABEL => owner&.workspace_id, BOX_KEY_LABEL => owner&.key }.compact
         created = request(Net::HTTP::Post, "/containers/create?#{{ name: name }.to_query}", {
-          Image: Sandboxes.image, Env: [ "SANDBOX_KEY=#{key}" ], Labels: { LABEL => "1" }, ExposedPorts: { PORT => {} },
+          Image: Sandboxes.image, Env: [ "SANDBOX_KEY=#{key}" ], Labels: labels, ExposedPorts: { PORT => {} },
           HostConfig: {
             NetworkMode: network, PortBindings: network ? {} : { PORT => [ { HostIp: "127.0.0.1", HostPort: "" } ] },
             NanoCpus: (cpus * 1_000_000_000).to_i,
@@ -29,6 +32,15 @@ module Integrations
         request(Net::HTTP::Delete, "/containers/#{ref}?force=true")
       rescue Error => error
         raise unless error.message.include?("404")
+      end
+
+      # The key a container was started with is in its own configuration on the deployment's daemon.
+      def reclaim(ref)
+        container = request(Net::HTTP::Get, "/containers/#{ref}/json")
+        key = Array(container.dig("Config", "Env")).find { |each| each.start_with?("SANDBOX_KEY=") }.to_s.delete_prefix("SANDBOX_KEY=")
+        raise Error, "Docker holds no key for the code sandbox #{ref}." if key.blank?
+
+        Box.new(ref: ref, address: address(ref, container["Name"].to_s.delete_prefix("/")), key: key)
       end
 
       def running
@@ -49,13 +61,20 @@ module Integrations
         filters = { label: [ "#{LABEL}=1" ] }.to_json
         request(Net::HTTP::Get, "/containers/json?#{{ all: true, filters: filters }.to_query}").map do |container|
           Held.new(kind: ProviderSandbox::KIND_BOX, ref: container["Id"], name: Array(container["Names"]).first.to_s.delete_prefix("/"),
-                   state: container["State"], phase: PHASES[container["State"]], size: size, started_at: Time.zone.at(container["Created"].to_i))
+                   state: container["State"], phase: PHASES[container["State"]], size: size, started_at: Time.zone.at(container["Created"].to_i),
+                   owner: owner_of(container["Labels"].to_h))
         end
       end
 
       def size = "#{cpus.to_s.delete_suffix('.0')} CPU, #{memory_text}"
 
       private
+
+      def owner_of(labels)
+        return unless labels[WORKSPACE_LABEL].present? && labels[BOX_KEY_LABEL].present?
+
+        Owner.new(workspace_id: labels[WORKSPACE_LABEL], key: labels[BOX_KEY_LABEL])
+      end
 
       def cpus = Float(ENV["SANDBOX_CPUS"].presence || "2")
 

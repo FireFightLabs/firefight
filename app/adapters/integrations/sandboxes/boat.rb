@@ -43,6 +43,8 @@ module Integrations
       }.freeze
       # While a sandbox is still mounting its disk after a fork, a command answers that it did not run.
       NOT_YET = /sandbox_restoring|sandbox_starting/
+      # boat cuts a sandbox's name at this length, and its name is the only place a sandbox carries who it is for.
+      NAME_LIMIT = 120
 
       def initialize(api: BoatApi.new)
         @api = api
@@ -58,7 +60,7 @@ module Integrations
 
       # A box from from, a prepared copy's named snapshot, or from the image's own copy when there is one ready, so the
       # image is pulled only by the first box of each version.
-      def start(name:, from: nil, fail_fast: false)
+      def start(name:, owner: nil, from: nil, fail_fast: false)
         image_copy = from ? nil : ready_image_copy
         created = @api.create({ type: size, ttlSeconds: TTL.to_i, noEnv: true, failFast: fail_fast, from: from || image_copy }.compact,
                               idempotency_key: SecureRandom.uuid)
@@ -66,20 +68,20 @@ module Integrations
         raise Error, "boat.dev created no sandbox." if ref.blank?
 
         begin
-          @api.rename(ref, name)
+          @api.rename(ref, owned_name(name, owner))
           wait_until_up(ref)
-          key = SecureRandom.hex(32)
-          run!(ref, start_script(key))
-          address = @api.host(ref, PORT, title: "Firefight sandbox")
-          raise Error, "boat.dev gave no address for the sandbox's port." if address.blank?
-
+          box = run_image(ref)
           @api.save_snapshot(ref, image_copy_name) unless from || image_copy
-          Box.new(ref: ref, address: address, key: key, relayed: true)
+          box
         rescue StandardError
           forget(ref)
           raise
         end
       end
+
+      # boat keeps no variable the app could read the box's key back from, so the container is started again with a new
+      # one, keeping everything on the box's volumes.
+      def reclaim(ref) = run_image(ref)
 
       # Archived, so it costs nothing from now on. tidy deletes it for good once nothing can be saving a copy from it.
       def stop(ref)
@@ -102,8 +104,7 @@ module Integrations
       def inventory
         boxes = @api.sandboxes.select { |sandbox| sandbox["name"].to_s.start_with?(NAME_PREFIX) }.map do |sandbox|
           Held.new(kind: ProviderSandbox::KIND_BOX, ref: sandbox["id"], name: sandbox["name"], state: sandbox["state"], phase: PHASES[sandbox["state"]],
-                   size: sandbox["type"],
-                   started_at: stamp(sandbox["createdAt"]), updated_at: stamp(sandbox["updatedAt"]))
+                   size: sandbox["type"], started_at: stamp(sandbox["createdAt"]), updated_at: stamp(sandbox["updatedAt"]), owner: Owner.in(sandbox["name"]))
         end
         newest_first = @api.snapshots.sort_by { |snapshot| stamp(snapshot["createdAt"]) || Time.zone.at(0) }.reverse
         copies = newest_first.each_with_index.filter_map do |snapshot, index|
@@ -158,7 +159,25 @@ module Integrations
         end
       end
 
+      def hourly_micros_for(size) = HOURLY_MICROS[size]
+
       private
+
+      # The box's name with who it is for, unless that would not fit, when the box goes without.
+      def owned_name(name, owner)
+        owned = owner && "#{NAME_PREFIX}#{owner.text}"
+        owned && owned.length <= NAME_LIMIT ? owned : name
+      end
+
+      # Starts the sandbox image in the box with a key of its own, answering how to reach it.
+      def run_image(ref)
+        key = SecureRandom.hex(32)
+        run!(ref, start_script(key))
+        address = @api.host(ref, PORT, title: "Firefight sandbox")
+        raise Error, "boat.dev gave no address for the sandbox's port." if address.blank?
+
+        Box.new(ref: ref, address: address, key: key, relayed: true)
+      end
 
       # One named snapshot per image, named by a digest of it, since a snapshot name takes only lower case letters,
       # digits and dashes.

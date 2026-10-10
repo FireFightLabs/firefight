@@ -130,6 +130,47 @@ module Integrations
 
         assert_equal "large", @boat.size
         assert_equal 72_000, @boat.hourly_micros
+        assert_equal 200_000, @boat.hourly_micros_for("xlarge")
+      end
+
+      test "a box is named for the workspace and run it was started for, and the name is read back" do
+        owner = Owner.new(workspace_id: "0b6f6c1e-58d4-4a8e-9a43-1f1f2b0c9d11", key: "investigation-5d1e2f30-9c4b-4d0e-8f7a-2b3c4d5e6f70")
+        @api.stubs(:snapshot).returns({ "status" => "ready" })
+        @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })
+        @api.expects(:rename).with("bx_23456789", "halon-box-#{owner.workspace_id}-#{owner.key}")
+
+        @boat.start(name: "halon-box-1", owner: owner)
+
+        @api.stubs(:snapshots).returns([])
+        @api.stubs(:sandboxes).returns([
+          { "id" => "bx_owned", "name" => "halon-box-#{owner.workspace_id}-#{owner.key}", "state" => "idle" },
+          { "id" => "bx_older", "name" => "halon-box-1", "state" => "idle" }
+        ])
+        held = @boat.inventory.index_by(&:ref)
+        assert_equal owner, held["bx_owned"].owner
+        assert_nil held["bx_older"].owner, "a box from before boxes carried their owner says nothing"
+      end
+
+      test "a name that would not fit goes without its owner rather than being cut" do
+        owner = Owner.new(workspace_id: "0b6f6c1e-58d4-4a8e-9a43-1f1f2b0c9d11", key: "mcp-#{'x' * 80}")
+        @api.stubs(:snapshot).returns({ "status" => "ready" })
+        @api.stubs(:create).returns({ "sandbox" => { "id" => "bx_23456789" } })
+        @api.expects(:rename).with("bx_23456789", "halon-box-1")
+
+        @boat.start(name: "halon-box-1", owner: owner)
+      end
+
+      test "a box is handed back by starting its image again with a key the app knows, keeping its volumes" do
+        script = nil
+        @api.stubs(:command_status).returns({ "status" => "exited", "exitCode" => 0 })
+        @api.expects(:run_detached).with { |ref, command| ref == "bx_lost" && (script = command) }.returns(41)
+        @api.expects(:create).never
+
+        box = @boat.reclaim("bx_lost")
+
+        assert_equal [ "bx_lost", "https://swift-otter-9021-8080.on.boat.dev?_token=gate", true ], [ box.ref, box.address, box.relayed ]
+        assert_includes script, "-e SANDBOX_KEY=#{box.key}"
+        assert_includes script, "-v halon-code:/code"
       end
     end
   end

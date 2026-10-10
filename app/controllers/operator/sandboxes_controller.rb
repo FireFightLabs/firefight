@@ -1,6 +1,6 @@
 module Operator
-  # Every code sandbox and kept copy across providers against the app's records, and the operator's stop, delete and
-  # clean up, each asked first on the page, said in a toast and recorded with who did it.
+  # Every code sandbox and kept copy across providers against the app's records, and the operator's stop, delete, adopt
+  # and clean up, each asked first on the page, said in a toast and recorded with who did it.
   class SandboxesController < BaseController
     def index
       sandboxes = Sandboxes.new
@@ -20,6 +20,15 @@ module Operator
       box = Sandboxes.new.box_at(params[:provider], params[:ref])
       act(SandboxAction::STOP, ProviderSandbox::KIND_BOX, Actions.sandbox_stop_blocked_reason(box), "Stopping #{box&.name || params[:ref]}.") do
         Integrations::SandboxInventory.stop!(box.provider, box.ref)
+      end
+    end
+
+    def adopt
+      box = Sandboxes.new.box_at(params[:provider], params[:ref])
+      blocked = Actions.sandbox_adopt_blocked_reason(box)
+      said = blocked ? nil : "Adopted #{box.name || box.ref} for #{box.claim.workspace.name}. It stops once nothing uses it for #{CodeBox::ABANDONED_AFTER.inspect}."
+      act(SandboxAction::ADOPT, ProviderSandbox::KIND_BOX, blocked, said) do
+        Integrations::SandboxInventory.adopt!(box.provider, box.ref, workspace: box.claim.workspace, key: box.claim.key, since: box.claim.since, size: box.size)
       end
     end
 

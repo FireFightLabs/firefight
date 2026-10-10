@@ -62,6 +62,34 @@ module Integrations
         assert_equal [ "abc123", "halon-box-1", "exited", ProviderSandbox::PHASE_STOPPED ], [ held.ref, held.name, held.state, held.phase ]
       end
 
+      test "a box is labelled with the workspace and run it was started for, and the labels are read back" do
+        owner = Owner.new(workspace_id: "0b6f6c1e-58d4-4a8e-9a43-1f1f2b0c9d11", key: "investigation-5d1e2f30-9c4b-4d0e-8f7a-2b3c4d5e6f70")
+        sent = []
+        Docker.any_instance.stubs(:request).with { |_verb, _path, payload = nil| sent << payload }
+              .returns({ "Id" => "abc123" }, {}, { "NetworkSettings" => { "Ports" => { "8080/tcp" => [ { "HostIp" => "127.0.0.1", "HostPort" => "49153" } ] } } })
+
+        Docker.new.start(name: "halon-box-1", owner: owner)
+
+        labels = sent.first[:Labels]
+        assert_equal({ "firefight.sandbox" => "1", "firefight.workspace" => owner.workspace_id, "firefight.box-key" => owner.key }, labels)
+        Docker.any_instance.stubs(:request).returns([
+          { "Id" => "abc123", "Names" => [ "/halon-box-1" ], "State" => "running", "Created" => 1_790_000_000, "Labels" => labels },
+          { "Id" => "def456", "Names" => [ "/halon-box-2" ], "State" => "running", "Created" => 1_790_000_000, "Labels" => { "firefight.sandbox" => "1" } }
+        ])
+        assert_equal [ owner, nil ], Docker.new.inventory.map(&:owner)
+      end
+
+      test "a box is handed back with the key in its own configuration" do
+        Docker.any_instance.stubs(:request).with(Net::HTTP::Get, "/containers/abc123/json").returns(
+          { "Name" => "/halon-box-1", "Config" => { "Env" => [ "PATH=/usr/bin", "SANDBOX_KEY=k-lost" ] },
+            "NetworkSettings" => { "Ports" => { "8080/tcp" => [ { "HostIp" => "127.0.0.1", "HostPort" => "49153" } ] } } }
+        )
+
+        box = Docker.new.reclaim("abc123")
+
+        assert_equal [ "k-lost", "http://127.0.0.1:49153" ], [ box.key, box.address ]
+      end
+
       test "a daemon that cannot be reached says where it looked" do
         ENV.stubs(:[]).with("DOCKER_HOST").returns("unix:///nowhere/docker.sock")
 
