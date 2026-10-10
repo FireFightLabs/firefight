@@ -387,7 +387,7 @@ class Conversation::Runner
     asker = @turn.asker
     Chat::Helpers::Share.new(
       purse: purse, max_spend_cents: conversation.max_spend_cents, since: @marked, canceled: chat.method(:stop_requested?),
-      moved: -> { Conversation::LiveDelivery.helpers_moved(conversation) },
+      moved: Chat::Helpers.teller(delivery, chat),
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: asker&.class&.find(asker.id), reads_only: true) },
       choose: ->(deep) { deep ? responder.ai_model : Chat::Helpers.side_model(conversation.workspace, main: responder.ai_model) },
       inferable: conversation.subject, member: asker

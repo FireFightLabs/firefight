@@ -60,6 +60,45 @@ class AgentHelpersTest < ApplicationSystemTestCase
     assert_text "Reading the brief"
   end
 
+  test "a run's page draws each helper as a group of its steps, folded with its report in view, and opens it for a citation" do
+    incident = incidents(:active_critical_ws1)
+    run = @workspace.investigations.create!(
+      subject: incident, trigger_source: Investigation::TRIGGER_COMMAND, triggered_by: workspace_memberships(:alice_workspace_one),
+      max_turns: 10, max_spend_cents: 400, status: Investigation::STATUS_SUCCEEDED, started_at: 2.minutes.ago, completed_at: Time.current,
+      brief: { Investigation::Brief::KEY_SYMPTOM => "checkout is slow since 14:00" }
+    )
+    run.note_started!
+    chat = run.chat_record(FirefightAi::ModelChoice.new(model: "gpt-4o"))
+    run.steps.create!(position: 1, tool_name: "get_incident", label: "Get incident", action_key: "incidents.read",
+                      status: Investigation::Step::STATUS_SUCCEEDED, started_at: 100.seconds.ago, completed_at: 99.seconds.ago, compacted_result: "INC-7")
+    logs, deploys = Chat::Helper.start!(chat: chat, tool_call_id: "call_9", since: 2.minutes.ago, checks: [
+      Chat::Helpers::Check.new(title: "Logs of checkout", brief: "Read checkout's error logs", deep: false),
+      Chat::Helpers::Check.new(title: "Recent deploys", brief: "List deploys", deep: false)
+    ])
+    logs.update_columns(started_at: 90.seconds.ago)
+    deploys.update_columns(started_at: 90.seconds.ago)
+    [ [ 2, logs, "Search logs · checkout" ], [ 3, logs, "Search logs · orders-db" ], [ 4, deploys, "Recent deploys · web" ] ].each do |position, helper, label|
+      run.steps.create!(position: position, tool_name: "search_logs", label: label, action_key: "logs.read", helper: helper,
+                        status: Investigation::Step::STATUS_SUCCEEDED, started_at: (85 - position).seconds.ago, compacted_result: "40 timeouts")
+    end
+    logs.finish!(Chat::Helper::STATUS_REPORTED, report: "40 timeouts to orders-db since 14:02, none before (steps 2, 3).")
+    deploys.finish!(Chat::Helper::STATUS_REPORTED, report: "web deploy 4f2a1c went out at 13:58 (step 4).")
+    run.note_answered!(run.conclude!(summary: "Checkout slowed after the 13:58 deploy of web.",
+                                     evidence: [ { claim: "Timeouts to orders-db began at 14:02", steps: [ 3 ] } ]))
+
+    visit incident_path(incident, Investigation::QUERY_PARAM => run.id)
+
+    within("[role=dialog]") do
+      assert_text "2 checks at once"
+      assert_text "Reported · Steps 2, 3"
+      assert_text "40 timeouts to orders-db since 14:02, none before (steps 2, 3)."
+      assert_no_selector "li#step-3"
+      first("a[href='#step-3']").click
+      assert_selector "li#step-3"
+      assert_text "Search logs · orders-db"
+    end
+  end
+
   private
 
   def read!(helper, id, tool, arguments, said)

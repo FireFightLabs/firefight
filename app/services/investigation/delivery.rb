@@ -34,6 +34,21 @@ class Investigation::Delivery
     )
   end
 
+  # Each helper a run_helpers step started, as a line of its own right under that step, redrawn in place as it reads and
+  # once it reports, no more often than the platform allows. The run's page reads them on its next look.
+  def helpers(key:, helpers:)
+    return unless thread_id
+
+    helpers.map { |helper| Chat::Helpers.line(helper) }.each do |line|
+      next unless helper_pace.due?(line.key, line)
+
+      adapter.report_agent_step(
+        channel_id: channel_id, answer_id: @answer_id, key: line.key, title: line.title, status: line.status,
+        outcome: line.outcome, details: line.details
+      )
+    end
+  end
+
   def answered!(finding)
     @investigation.note_answered!(finding)
     tell_chat
@@ -87,6 +102,8 @@ class Investigation::Delivery
 
     ConversationChannel.broadcast_to(conversation, type: Conversation::LiveDelivery::EVENT_INVESTIGATION, investigation_id: @investigation.id)
   end
+
+  def helper_pace = @helper_pace ||= Chat::CodeFixProgress::Pace.new(every: adapter.agent_step_update_interval)
 
   def adapter = @adapter ||= WorkspaceAdapter.for(@investigation.workspace)
 

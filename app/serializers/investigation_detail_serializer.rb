@@ -95,6 +95,11 @@ class InvestigationDetailSerializer < BaseSerializer
     investigation.chat&.compactions || []
   end
 
+  # Checks the run handed to helpers. Each helper's steps are among the steps, and name it.
+  has_many :helpers, serializer: InvestigationHelperSerializer do
+    investigation.chat&.helpers || []
+  end
+
   has_many :steps, serializer: InvestigationStepSerializer do
     investigation.steps.where.not(position: nil).includes(:invocation)
   end

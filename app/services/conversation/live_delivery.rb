@@ -79,10 +79,6 @@ class Conversation::LiveDelivery
     ConversationChannel.broadcast_to(conversation, type: EVENT_MEMORY)
   end
 
-  def self.helpers_moved(conversation)
-    ConversationChannel.broadcast_to(conversation, type: EVENT_HELPERS)
-  end
-
   def self.secret_entry_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_SECRET_ENTRY)
   end
@@ -125,6 +121,11 @@ class Conversation::LiveDelivery
       type: EVENT_STEP, key: key, title: step.title, headline: step.headline, asked: step.asked,
       status: STATUS_RUNNING, kind: kind, seconds: 0, card: nil, outcome: nil, progress: progress.to_h
     )
+  end
+
+  # The page reads the helpers from the chat, so the event only says to look.
+  def helpers(key:, helpers:)
+    broadcast(type: EVENT_HELPERS, key: key) if helpers.any?
   end
 
   OUTCOME_STATUSES = {

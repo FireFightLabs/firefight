@@ -78,6 +78,19 @@ class Conversation::Delivery
     )
   end
 
+  # Each helper a run_helpers step started, as a line of its own right under that step, redrawn in place as it reads and
+  # once it reports, no more often than the platform allows.
+  def helpers(key:, helpers:)
+    helpers.map { |helper| Chat::Helpers.line(helper) }.each do |line|
+      next unless helper_pace.due?(line.key, line)
+
+      adapter.report_agent_step(
+        channel_id: @conversation.channel_id, answer_id: @answer_id, key: line.key, title: line.title, status: line.status,
+        outcome: line.outcome, details: line.details
+      )
+    end
+  end
+
   # Making room is the dashboard's to show, so a thread says nothing about it.
   def made_room(_compaction) = nil
 
@@ -136,6 +149,8 @@ class Conversation::Delivery
   private
 
   def progress_pace = @progress_pace ||= Chat::CodeFixProgress::Pace.new(every: adapter.agent_step_update_interval)
+
+  def helper_pace = @helper_pace ||= Chat::CodeFixProgress::Pace.new(every: adapter.agent_step_update_interval)
 
   def cards = @cards ||= []
 

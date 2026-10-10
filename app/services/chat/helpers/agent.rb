@@ -32,5 +32,6 @@ class Chat::Helpers::Agent
 
   def mark_step_failed!(position, kind) = @parent.mark_step_failed!(position, kind)
 
-  def tool_call(...) = @parent.tool_call(...)
+  # A run keeps which helper made each step, and a chat's turn has nothing to keep it on.
+  def tool_call(**arguments, &) = @parent.tool_call(**arguments, helper: @helper, &)
 end

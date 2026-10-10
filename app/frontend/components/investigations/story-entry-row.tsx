@@ -6,13 +6,15 @@ import {
   IconLoader2,
   IconMessageQuestion,
   IconMessagePlus,
+  IconUsersGroup,
 } from "@tabler/icons-react"
 
-import { HYPOTHESIS_STATUS, INVESTIGATION_STEP_STATUS, STEP_OUTCOME_KINDS } from "@/lib/generated/constants"
+import { HELPER_STATUSES, HYPOTHESIS_STATUS, INVESTIGATION_STEP_STATUS, STEP_OUTCOME_KINDS } from "@/lib/generated/constants"
 import { outcomeLabel } from "@/lib/step-outcome"
 import { MetricChart } from "@/components/charts/metric-chart"
 import { formatSeconds } from "@/components/investigations/format"
 import { SETTLED_LABELS, isKeyOf, labelFor } from "@/components/investigations/labels"
+import { HelperGroups } from "@/components/investigations/helper-groups"
 import { NoteFiles } from "@/components/investigations/note-files"
 import { StepDetails } from "@/components/investigations/step-row"
 import { StepLinks } from "@/components/investigations/step-links"
@@ -151,6 +153,18 @@ export function StoryEntryRow({ entry, investigation, connected }: { entry: Stor
           at={entry.compaction.at}
           connected={connected}
         />
+      )
+    case "helpers":
+      return (
+        <StoryRow
+          marker={<StoryIconMarker icon={IconUsersGroup} />}
+          tone={entry.groups.some((group) => group.helper.status === HELPER_STATUSES.RUNNING) ? "active" : "neutral"}
+          title={<span className="font-medium text-fg-primary">{entry.groups.length === 1 ? "One check by a helper" : `${entry.groups.length} checks at once`}</span>}
+          at={entry.groups[0]?.helper.startedAt}
+          connected={connected}
+        >
+          <HelperGroups groups={entry.groups} investigation={investigation} />
+        </StoryRow>
       )
     case "end":
       return <StoryEndRow investigation={investigation} />

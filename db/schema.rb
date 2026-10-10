@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_121000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -479,6 +479,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
     t.index ["decided_by_id"], name: "index_chat_held_calls_on_decided_by_id"
   end
 
+  create_table "chat_helpers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "tool_call_id", null: false
+    t.integer "position", null: false
+    t.string "title", null: false
+    t.text "brief", null: false
+    t.boolean "deep", default: false, null: false
+    t.string "status", default: "running", null: false
+    t.string "model"
+    t.integer "turns_used", default: 0, null: false
+    t.bigint "spent_micros", default: 0, null: false
+    t.text "report"
+    t.text "ended_because"
+    t.datetime "started_at", null: false
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "tool_call_id", "position"], name: "index_chat_helpers_on_chat_id_and_tool_call_id_and_position", unique: true
+    t.index ["workspace_id", "status"], name: "index_chat_helpers_on_workspace_id_and_status"
+  end
+
   create_table "chat_instructions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "added_by_id"
     t.datetime "created_at", null: false
@@ -639,8 +661,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
     t.index ["chat_id", "tool_call_id"], name: "index_chat_owner_asks_on_chat_id_and_tool_call_id", unique: true
     t.index ["chat_id"], name: "index_chat_owner_asks_on_chat_id"
     t.index ["confirmed_by_id"], name: "index_chat_owner_asks_on_confirmed_by_id"
-    t.index ["plan_id"], name: "index_chat_owner_asks_on_plan_id"
     t.index ["owner_id"], name: "index_chat_owner_asks_on_owner_id"
+    t.index ["plan_id"], name: "index_chat_owner_asks_on_plan_id"
     t.index ["workspace_id"], name: "index_chat_owner_asks_on_workspace_id"
   end
 
@@ -1822,6 +1844,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
     t.string "tool_name"
     t.datetime "updated_at", null: false
     t.string "failure_kind"
+    t.uuid "chat_helper_id"
+    t.index ["chat_helper_id"], name: "index_investigation_steps_on_chat_helper_id"
     t.index ["hypothesis_id"], name: "index_investigation_steps_on_hypothesis_id"
     t.index ["investigation_id", "created_at"], name: "index_investigation_steps_on_investigation_id_and_created_at"
     t.index ["investigation_id", "position"], name: "index_investigation_steps_on_investigation_id_and_position", unique: true, where: "(\"position\" IS NOT NULL)"
@@ -2826,6 +2850,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
   add_foreign_key "chat_held_calls", "ability_approvals", column: "approval_id"
   add_foreign_key "chat_held_calls", "chats"
   add_foreign_key "chat_held_calls", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
+  add_foreign_key "chat_helpers", "chats", on_delete: :cascade
+  add_foreign_key "chat_helpers", "workspaces", on_delete: :cascade
   add_foreign_key "chat_instructions", "chat_instructions", column: "superseded_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspace_memberships", column: "added_by_id", on_delete: :nullify
   add_foreign_key "chat_instructions", "workspaces"
@@ -2968,6 +2994,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120800) do
   add_foreign_key "investigation_remediation_steps", "ability_invocations", column: "invocation_id", on_delete: :nullify
   add_foreign_key "investigation_remediation_steps", "investigation_remediation_plans", column: "plan_id", on_delete: :cascade
   add_foreign_key "investigation_remediation_steps", "workspace_memberships", column: "done_by_id", on_delete: :nullify
+  add_foreign_key "investigation_steps", "chat_helpers", on_delete: :nullify
   add_foreign_key "investigation_steps", "investigation_hypotheses", column: "hypothesis_id"
   add_foreign_key "investigation_steps", "investigations"
   add_foreign_key "investigation_verdicts", "investigation_findings", column: "finding_id"

@@ -7,7 +7,8 @@ module Chat::Helpers
 
   # What the asking turn or run lends its helpers. purse is its loop's (FirefightAi::AgentLoop::Purse) and max_spend_cents
   # the cap that loop stops at. since is when the question began, which the per question limit counts from. canceled
-  # says whether a person stopped it, moved tells a page watching the chat that a helper moved, and fresh_parent builds a
+  # says whether a person stopped it, moved is called with the run_helpers call's id whenever one of its helpers moved
+  # (see teller), and fresh_parent builds a
   # copy of the asking turn or run for a helper's own thread, since a record is never shared between threads. choose
   # answers the model a check runs on, given whether it is deep, and is asked only once a check is handed off.
   # inferable and member are what the ledger names.
@@ -15,6 +16,42 @@ module Chat::Helpers
 
   # What the asking loop reads, and whether nothing came of it, which marks the call failed.
   Result = Data.define(:text, :failed)
+
+  # One helper as a thread shows it, a line of its own under the step that started it, such as "Logs of checkout" with
+  # "2 steps, reported". signature and finished? let a Chat::CodeFixProgress::Pace decide when it is redrawn.
+  Line = Data.define(:key, :title, :status, :outcome, :details) do
+    def signature = [ status, outcome, details ]
+
+    def finished? = status == FirefightAi::AgentLoop::STEP_DONE
+  end
+
+  ENDED_WORDS = {
+    Chat::Helper::STATUS_RUNNING => "reading", Chat::Helper::STATUS_REPORTED => "reported",
+    Chat::Helper::STATUS_FAILED => "no report", Chat::Helper::STATUS_STOPPED => "stopped"
+  }.freeze
+
+  def self.line(helper)
+    taken = helper.own_chat ? helper.own_chat.tool_calls.where.not(name: Chat::Tools.internal_names).count : 0
+    Line.new(
+      key: "#{helper.tool_call_id}-helper-#{helper.position}", title: helper.title,
+      status: helper.running? ? FirefightAi::AgentLoop::STEP_RUNNING : FirefightAi::AgentLoop::STEP_DONE,
+      outcome: (Chat::StepOutcome::KIND_FAILED if helper.status == Chat::Helper::STATUS_FAILED),
+      details: "#{taken == 1 ? '1 step' : "#{taken} steps"}, #{ENDED_WORDS.fetch(helper.status)}"
+    )
+  end
+
+  # What a share's moved calls, from any helper's thread. The helpers of that call are read again and handed to the
+  # delivery, one call at a time, since a delivery speaks to one platform thread in order.
+  def self.teller(delivery, chat)
+    lock = Mutex.new
+    lambda do |tool_call_id|
+      lock.synchronize do
+        delivery.helpers(key: tool_call_id, helpers: Chat::Helper.where(chat_id: chat.id, tool_call_id: tool_call_id).in_order.includes(:own_chat).to_a)
+      end
+    rescue StandardError => error
+      Rails.logger.warn({ event: "chat_helper.not_told", chat_id: chat.id, error: error.class.name }.to_json)
+    end
+  end
 
   # Below this a helper could not pay for a turn on most models, so the loop reads it itself instead.
   MIN_SHARE_CENTS = 1
@@ -40,12 +77,12 @@ module Chat::Helpers
     started = Chat::Helper.start!(chat: chat, tool_call_id: tool_call_id, checks: checks, since: share.since)
     return Result.new(text: started, failed: true) if started.is_a?(String)
 
-    share.moved.call
+    share.moved.call(tool_call_id)
     # Chosen here, before any thread starts, since choosing reads the workspace's accounts.
     models = started.map(&:deep).uniq.index_with { |deep| share.choose.call(deep) }
     run_together(started, share: share, max_spend_cents: cents, models: models)
     started.each(&:reload)
-    share.moved.call
+    share.moved.call(tool_call_id)
     Result.new(text: reports(started), failed: started.none?(&:reported?))
   end
 

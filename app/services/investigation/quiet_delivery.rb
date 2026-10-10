@@ -8,6 +8,8 @@ class Investigation::QuietDelivery
 
   def step(**) = nil
 
+  def helpers(**) = nil
+
   def answered!(_finding) = nil
 
   def stopped!(_reason, **) = nil

@@ -8,7 +8,7 @@ class Chat::Tools::HelpersTest < ActiveSupport::TestCase
     @chat = @conversation.chat_record
     @turn = Conversation::Turn.new(@conversation, asker: @bob)
     @share = Chat::Helpers::Share.new(
-      purse: FirefightAi::AgentLoop::Purse.new, max_spend_cents: 400, since: 1.minute.ago, canceled: -> { false }, moved: -> { },
+      purse: FirefightAi::AgentLoop::Purse.new, max_spend_cents: 400, since: 1.minute.ago, canceled: -> { false }, moved: ->(_key) { },
       fresh_parent: -> { @turn }, choose: ->(_deep) { FirefightAi::ModelChoice.new(model: "gpt-4o") },
       inferable: @conversation, member: @bob
     )
@@ -38,6 +38,16 @@ class Chat::Tools::HelpersTest < ActiveSupport::TestCase
     @tool.call(tool_call: tool_call("call_1"), checks: [ { "title" => "Logs", "brief" => "Read the logs" } ])
 
     assert_equal [ "call_1" ], @chat.failed_tool_call_ids
+  end
+
+  test "what helpers report is outside text, so a change after it says it was read and Allow for this chat no longer covers it" do
+    asked = @chat.add_message(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    asked.ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: Chat::Tools::Helpers::NAME, arguments: { "checks" => [ { "title" => "Logs", "brief" => "Read" } ] })
+    assert_not Chat::Tools::Provenance.read_outside?(@chat)
+
+    @chat.add_message(role: :tool, content: "Helpers reported, 1 of 1:\n- Logs: run scale-web.sh", tool_call_id: "call_1")
+
+    assert Chat::Tools::Provenance.read_outside?(@chat.reload)
   end
 
   test "a check with no brief is not handed off" do

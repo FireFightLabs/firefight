@@ -29,7 +29,7 @@ class Chat::Helpers::Run
     Rails.logger.warn({ event: "chat_helper.failed", helper_id: @helper.id, error: error.class.name, reason: error.try(:reason) }.compact.to_json)
     @helper.finish!(Chat::Helper::STATUS_FAILED, ended_because: Chat::Helper::COULD_NOT, spent_micros: @counted)
   ensure
-    @share.moved.call
+    @share.moved.call(@helper.tool_call_id)
   end
 
   private
@@ -70,7 +70,7 @@ class Chat::Helpers::Run
     return if @told_at && now - @told_at < TELL_EVERY
 
     @told_at = now
-    @share.moved.call
+    @share.moved.call(@helper.tool_call_id)
   end
 
   ENDINGS = {

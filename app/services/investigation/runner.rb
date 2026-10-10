@@ -124,7 +124,7 @@ class Investigation::Runner
     id = @investigation.id
     Chat::Helpers::Share.new(
       purse: purse, max_spend_cents: @investigation.max_spend_cents, since: @investigation.created_at,
-      canceled: -> { Investigation.where(id: id).pick(:cancel_requested) == true }, moved: -> { },
+      canceled: -> { Investigation.where(id: id).pick(:cancel_requested) == true }, moved: Chat::Helpers.teller(delivery, @investigation.chat),
       fresh_parent: -> { Investigation.find(id) }, choose: ->(deep) { deep ? investigator.ai_model : helper_side_model },
       inferable: @investigation, member: member
     )

@@ -134,7 +134,26 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     said = Chat::Helpers::Agent.new(helper, parent: Investigation.find(investigation.id)).tool_call(action_key: "incidents.read", tool_name: "get_incident")
 
     assert_equal [ "3 errors", 1 ], [ said.value, said.step ]
-    assert_equal Investigation::Step::STATUS_SUCCEEDED, investigation.steps.find_by!(position: 1).status
+    assert_equal [ Investigation::Step::STATUS_SUCCEEDED, helper ], investigation.steps.find_by!(position: 1).then { |step| [ step.status, step.helper ] }
+  end
+
+  test "a thread shows each helper as a line of its own, redrawn as it reads and once it reports" do
+    helper = Chat::Helper.start!(chat: @chat, tool_call_id: "call_1", checks: checks("Logs of checkout"), since: 1.minute.ago).sole
+    own = Chat.open!(owner: helper, workspace: @workspace, model_choice: @side)
+    asked = own.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "")
+    asked.ruby_llm_tool_calls.create!(tool_call_id: "h_1", name: Mcp::Tools::SEARCH_INCIDENTS, arguments: {})
+    asked.ruby_llm_tool_calls.create!(tool_call_id: "h_2", name: Chat::Tools::Open.tool_name, arguments: {})
+    lines = []
+    delivery = Object.new
+    delivery.define_singleton_method(:helpers) { |key:, helpers:| lines << [ key, *helpers.map { |each| Chat::Helpers.line(each).to_h.values_at(:title, :status, :details) } ] }
+    tell = Chat::Helpers.teller(delivery, @chat)
+
+    tell.call("call_1")
+    helper.finish!(Chat::Helper::STATUS_REPORTED, report: "40 timeouts since 14:02.")
+    tell.call("call_1")
+
+    assert_equal [ [ "call_1", [ "Logs of checkout", :running, "1 step, reading" ] ], [ "call_1", [ "Logs of checkout", :done, "1 step, reported" ] ] ], lines
+    assert_equal Chat::StepOutcome::KIND_FAILED, Chat::Helpers.line(helper.tap { |each| each.update_columns(status: Chat::Helper::STATUS_FAILED) }).outcome
   end
 
   private
@@ -147,7 +166,7 @@ class Chat::HelpersTest < ActiveSupport::TestCase
     conversation = @conversation
     bob = @bob
     share = Chat::Helpers::Share.new(
-      purse: @purse, max_spend_cents: max_spend_cents, since: 1.minute.ago, canceled: canceled, moved: -> { @moved += 1 },
+      purse: @purse, max_spend_cents: max_spend_cents, since: 1.minute.ago, canceled: canceled, moved: ->(_key) { @moved += 1 },
       fresh_parent: -> { Conversation::Turn.new(Conversation.find(conversation.id), asker: bob) }, choose: ->(deep) { deep ? @model : @side },
       inferable: conversation, member: bob
     )
