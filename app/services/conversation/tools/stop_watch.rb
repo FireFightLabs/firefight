@@ -20,6 +20,6 @@ class Conversation::Tools::StopWatch < RubyLLM::Tool
     return "No watch #{given["watch"]} in this chat. list_watches names them." unless watch
 
     blocked = Conversation::Watches.stop!(watch, by: @turn.asker)
-    blocked || "Stopped watching #{watch.title}. Tell the person in a few words."
+    blocked || "Stopped #{Chat::Watch::Shown.named(watch)}. Tell the person in a few words."
   end
 end

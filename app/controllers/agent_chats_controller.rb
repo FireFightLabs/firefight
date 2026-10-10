@@ -172,7 +172,7 @@ class AgentChatsController < InertiaController
     blocked = Conversation::Watches.stop!(watch, by: current_membership)
     return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
 
-    redirect_to agent_chat_path(conversation), notice: "Stopped watching #{watch.title}."
+    redirect_to agent_chat_path(conversation), notice: %(Stopped watching "#{watch.title}".)
   end
 
   # Fix it on a pull request Halon opened from this chat: the code change runs on its branch as whoever asked for it.

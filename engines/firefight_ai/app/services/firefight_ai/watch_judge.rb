@@ -1,12 +1,15 @@
 module FirefightAi
-  # What a watch asks a model, only when a reading changed and no rule the watch was given decides it: whether the new
-  # reading shows it not started, running, done or failed, with each job or step it lists, and once something failed,
-  # why, from the logs a watch read.
+  # What a watch asks a model when no rule the watch was given decides a reading. It judges whether the reading shows the
+  # thing not started, running, done or failed against the condition in plain words, or not at all, with each job or
+  # step it lists and the link to its page. Once something failed, it says why from the logs a watch read.
   # One call with no tools, on the workspace's quick model. The app reads and keeps everything, this only judges text.
   class WatchJudge
     FEATURE = "watch".freeze
-    # state is nil when the model gave none it knows, so nothing moves. parts are [name, state] pairs.
-    Reading = Data.define(:state, :said, :parts)
+    # state is nil when the model gave none it knows, so nothing moves. parts are [name, state] pairs. link is only an
+    # address the reading itself holds, never one the model made up.
+    Reading = Data.define(:state, :said, :parts, :link) do
+      def initialize(state:, said:, parts:, link: nil) = super
+    end
 
     def initialize(workspace, inferable: nil, member: nil)
       @workspace = workspace
@@ -14,16 +17,19 @@ module FirefightAi
       @member = member
     end
 
-    # so_far is where the watch last had it, not started or running.
-    def reading(goal:, before:, now:, so_far:)
+    # so_far is where the watch last had it, not started or running. steady is how long the reading has stayed the same,
+    # in words, for a condition that names a time.
+    def reading(goal:, before:, now:, so_far:, steady: nil)
       content = ask(READING_PROMPT, Schemas::WatchReading,
-                    "## The goal\n#{goal}\n\n## Where it was so far\n#{so_far}\n\n## The reading before\n#{before.presence || '(none)'}\n\n## The reading now\n#{now}")
+                    "## The condition\n#{goal}\n\n## Where it was so far\n#{so_far}\n\n## How long the reading has stayed the same\n#{steady.presence || 'It just changed.'}" \
+                    "\n\n## The reading before\n#{before.presence || '(none)'}\n\n## The reading now\n#{now}")
       parts = Array(content[:parts]).filter_map do |part|
         part = part.to_h.with_indifferent_access
         state = part[:state].presence_in(Schemas::WatchReading::PART_STATES)
         [ part[:name].to_s.strip, state ] if part[:name].present? && state
       end
-      Reading.new(state: content[:state].presence_in(Schemas::WatchReading::STATES), said: content[:said].to_s.strip, parts: parts)
+      Reading.new(state: content[:state].presence_in(Schemas::WatchReading::STATES), said: content[:said].to_s.strip, parts: parts,
+                  link: link_in(content[:link], now))
     end
 
     # One or two sentences saying why it failed, from what was read, or nil when the evidence does not say.
@@ -50,10 +56,12 @@ module FirefightAi
     UNKNOWN = "unknown".freeze
 
     READING_PROMPT = <<~PROMPT.freeze
-      A person asked to be told when something in a production system is done. You get the goal, where it was so far, the last reading and the new one. Say whether the new reading shows it not begun (not_started), begun and not over (running), the goal reached (done), or something gone wrong such as a failed or crashed state (failed). List each job or step the reading shows with its state.
+      A person asked to be told when something in a production system is done, and Halon keeps reading it until a condition in plain words holds. You get the condition, where it was so far, how long the reading has stayed the same, the last reading and the new one. Say whether the new reading shows it not begun (not_started), begun and not over (running), the condition met (done), something gone wrong such as a failed or crashed state (failed), or that this reading does not show the thing at all (nothing), such as an empty list, a different run or something else entirely. List each job or step the reading shows with its state, and copy the address of its page when the reading holds one.
 
       - Judge only from the reading. Never guess at what is not in it.
       - A run that exists, is in progress, or has a job or step that started or finished has begun, so it is running unless it is over.
+      - A condition that names a time, such as healthy for ten minutes, is met only once the reading has stayed that way that long.
+      - Queued or pending is not_started, not nothing. Use nothing only when the reading could not show the thing however it stood.
       - When unsure, keep where it was so far.
       - #{Copy::RULE}
     PROMPT
@@ -83,6 +91,12 @@ module FirefightAi
     TEMPLATES = { READING_PROMPT => "watch_reading", WHY_PROMPT => "watch_why", STANDING_PROMPT => "watch_standing" }.freeze
 
     private
+
+    # Only a web address the reading holds word for word, so a link is never one the model pieced together.
+    def link_in(given, text)
+      link = given.to_s.strip
+      link if link.match?(%r{\Ahttps?://\S+\z}) && text.to_s.include?(link)
+    end
 
     def ask(prompt, schema, text)
       response, = FirefightAi.generate(model_choice, purpose: AiPurpose::SUMMARY, inference: inference_context(prompt)) do |chat|

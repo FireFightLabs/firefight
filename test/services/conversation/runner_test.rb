@@ -59,7 +59,7 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     Conversation::Runner.new(@conversation, asker: @conversation.started_by, handed_back: step).run
 
     note = @conversation.chat.messages.where(nudge: true).reorder(:created_at).last
-    assert_match "could not follow Northflank release", note.content
+    assert_match "found nothing to follow for its step Northflank release", note.content
     assert_match "It was started for: ship main", note.content
     assert_equal 1, responder.calls.size
   end
@@ -87,9 +87,34 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     @conversation.ask!("thanks")
     fake(reply: "You're welcome.").tap { Conversation::Runner.new(@conversation, asker: @conversation.started_by).run }
 
-    notes = @conversation.chat.messages.where(nudge: true).map(&:content).grep(/could not follow Northflank release/)
+    notes = @conversation.chat.messages.where(nudge: true).map(&:content).grep(/found nothing to follow for its step Northflank release/)
     assert_equal 1, notes.size
     assert step.reload.hand_back_noted_at
+  end
+
+  test "a reading the turn takes is handed to the chat's watches, and what they disagreed on reaches Halon before its next model call" do
+    personal_chat
+    chat = @conversation.chat_record
+    Chat::Watch.create!(chat: chat, workspace: @workspace, asker: @conversation.started_by, title: "Release finished",
+                        expires_at: 1.hour.from_now, limit_basis: Chat::Watch::BASIS_DEFAULT)
+    arguments = { "method" => "GET", "path" => "workflows/release/runs/46" }
+    Conversation::Watches.expects(:observe!).with { |given_chat, tool, given, text| given_chat == chat && tool == "northflank_api_request" && given == arguments && text == "status failure" }
+                         .returns("The watch had it running, the reading shows failed.")
+    seen = nil
+    during = lambda do |options|
+      asking = chat.add_message(role: :assistant, content: "")
+      result = chat.add_message(role: :tool, content: FirefightAi::Evidence.frame("northflank_api_request", "status failure"))
+      RubyLLM::ActiveRecord::ToolCall.create!(message: asking, tool_call_id: "call_read", name: "northflank_api_request", arguments: arguments, result: result)
+      options[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_read", tool: "northflank_api_request", status: :running, arguments: arguments))
+      options[:on_step].call(FirefightAi::AgentLoop::Step.new(key: "call_read", tool: nil, status: :done, arguments: nil))
+      options[:take_messages].call
+      seen = chat.messages.where(nudge: true).reorder(:created_at).last
+    end
+    fake(reply: "It failed.", during: during)
+
+    ask(@conversation, "how is the release going?")
+
+    assert_equal "The watch had it running, the reading shows failed.", seen&.content
   end
 
   # Seen in a real chat, told "you do have access", Halon made the same wrong call and gave the same refusal.

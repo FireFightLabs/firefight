@@ -75,7 +75,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
 
     assert_equal "Release run #46 succeeded after 17 minutes.", watch.updates.reload.second.text
     assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
-    assert_match "Done: release run #46", watch.outcome
+    assert_match "Watch \"release run #46\" is done.", watch.outcome
     assert_equal 3, watch.updates.count
   end
 
@@ -92,7 +92,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     check!(watch)
 
     assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
-    assert_equal "Release run #46 failed after 6 minutes, so I stopped watching release run #46. The user model test failed: expected 2 got 3. " \
+    assert_equal "Release run #46 failed after 6 minutes, so I stopped the watch \"release run #46\". The user model test failed: expected 2 got 3. " \
                  "https://github.com/acme/firefight/actions/runs/46", watch.outcome
     assert_equal [ Chat::Watch::Update::KIND_ENDED ], watch.updates.map(&:kind)
     assert Ability::Invocation.where(workspace: @workspace, action_key: "github.job_log").exists?
@@ -122,7 +122,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     end
 
     assert_equal Chat::Watch::STATUS_TIMED_OUT, watch.reload.status
-    assert_match "the time limit. Last I saw: Release run #46: - #46 release: running", watch.outcome
+    assert_match "its time limit. Last I saw: Release run #46: - #46 release: running", watch.outcome
   end
 
   test "stopping says so once, and in a personal chat only whoever asked may" do
@@ -135,7 +135,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::NOTHING_TO_STOP, Conversation::Watches.stop!(watch, by: @alice)
 
     assert_equal [ Chat::Watch::STATUS_STOPPED, @alice ], [ watch.reload.status, watch.stopped_by ]
-    assert_equal [ "#{@alice.display_name} stopped the watch on release run #46." ], watch.updates.map(&:text)
+    assert_equal [ "#{@alice.display_name} stopped the watch \"release run #46\"." ], watch.updates.map(&:text)
   end
 
   test "anyone in the channel or thread a watch reports to may stop it" do
@@ -163,7 +163,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     grant = Ability::Grant.create!(workspace: @workspace, principal: key, action: tool(@github, "ci_runs").ability_action)
     bust!(key)
     started = Conversation::Watches.start(turn, watch_of([ release_step ]))
-    assert_match "Started watching", started
+    assert_match "Started Watch", started
     watch = Chat::Watch.find_by!(asker: key)
 
     grant.destroy!
@@ -194,7 +194,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     watch = @conversation.chat.watches.sole
     extend_watch = Conversation::Tools::ExtendWatch.new(@turn)
 
-    assert_match "now watched for up to 1 hr 30 min", extend_watch.call(**{ "watch" => watch.id, "minutes" => 90 })
+    assert_match "now runs for up to 1 hr 30 min", extend_watch.call(**{ "watch" => watch.id, "minutes" => 90 })
     assert_equal [ watch.created_at + 90.minutes, Chat::Watch::BASIS_ASKED ], [ watch.reload.expires_at, watch.limit_basis ]
     assert_equal "Say how many minutes, more than the 90 it has now.", extend_watch.call(**{ "watch" => watch.id, "minutes" => 30 })
     assert_equal watch.created_at + 90.minutes, watch.reload.expires_at
@@ -209,7 +209,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     start_release_watch
     watch = @conversation.chat.watches.sole
 
-    assert_match "Stopped watching", Conversation::Tools::StopWatch.new(@turn).call(**{ "watch" => watch.id })
+    assert_match "Stopped the watch", Conversation::Tools::StopWatch.new(@turn).call(**{ "watch" => watch.id })
     assert_equal Chat::Watch::STATUS_STOPPED, watch.reload.status
   end
 
@@ -268,7 +268,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     watch = @conversation.chat.watches.sole
     Conversation::Watches.tell!(watch, Chat::Watch::Update::KIND_MILESTONE, "Release run #46 started.")
 
-    assert_match "release run #46: Release run #46 started.", Conversation::Watches.untold_note(@conversation.chat)
+    assert_match "Watch \"release run #46\": Release run #46 started.", Conversation::Watches.untold_note(@conversation.chat)
     assert_nil Conversation::Watches.untold_note(@conversation.chat)
   end
 
@@ -366,7 +366,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_match "only reads, so its method must be GET", refused
 
     Investigation.stubs(:unavailable_reason).returns("unavailable")
-    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ step ], title: "the release workflow", purpose: "ship main"))
+    assert_match "Started Watch", Conversation::Watches.start(@turn, watch_of([ step ], title: "the release workflow", purpose: "ship main"))
     watch = @conversation.chat.watches.sole
     assert_equal [ Chat::Watch::Step::READ_TOOL, "northflank_api_request" ], [ watch.steps.sole.capability, watch.steps.sole.tool_name ]
     check!(watch)
@@ -463,7 +463,7 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
     assert_equal Chat::Watch::STATUS_SUCCEEDED, watch.reload.status
   end
 
-  test "a run that never shows up in its history is handed back to Halon to re-plan, once, while a step before it still goes it waits" do
+  test "a run that never shows up in its history is handed back to Halon to repair, once, while a step before it still goes it waits" do
     answers("ci_runs" => History.result(finished_runs("release", 7.minutes), what: "repo"),
             "deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
     Investigation.stubs(:unavailable_reason).returns("unavailable")
@@ -489,10 +489,12 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
       assert_no_enqueued_jobs(only: ConversationReplyJob) { check!(watch) }
     end
 
-    assert_equal Chat::Watch::Step::STATUS_UNFOLLOWABLE, deploy.reload.status
-    assert_includes watch.updates.reload.map(&:text), "I could not find a run of Web deploy in its history after 4 minutes, so I am finding another way to follow it."
+    assert_equal Chat::Watch::Step::STATUS_REPAIRING, deploy.reload.status
+    assert_equal Chat::Watch::STATUS_ACTIVE, watch.reload.status, "a step being repaired keeps the watch going"
+    assert_includes watch.updates.reload.map(&:text), "I could not find a run of Web deploy in its history after 4 minutes. I am finding a better way to follow Web deploy."
     note = Conversation::Watches.hand_back_note(deploy)
     assert_match "It was started for: release main", note
+    assert_match "call repair_watch with this watch and step", note
     assert_match "Change nothing in this turn", note
   end
 
@@ -510,16 +512,187 @@ class Conversation::WatchesTest < ActiveSupport::TestCase
              "done_when" => '"count":"2"' }
     Investigation.stubs(:unavailable_reason).returns("unavailable")
 
-    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ step ], title: "primary"))
+    assert_match "Started Watch", Conversation::Watches.start(@turn, watch_of([ step ], title: "primary"))
     check!(@conversation.chat.watches.find_by!(title: "primary"))
     replica = step.merge("arguments" => { "query" => "select 2", "use_replica" => true })
-    assert_match "Started watching", Conversation::Watches.start(@turn, watch_of([ replica ], title: "replica"))
+    assert_match "Started Watch", Conversation::Watches.start(@turn, watch_of([ replica ], title: "replica"))
     check!(@conversation.chat.watches.find_by!(title: "replica"))
 
     assert sent.any?
     assert(sent.all? { |arguments| arguments.key?("use_replica") })
     assert_equal [ false ], sent.select { |arguments| arguments["query"].include?("workspaces") }.map { |arguments| arguments["use_replica"] }.uniq
     assert_equal [ true ], sent.select { |arguments| arguments["query"] == "select 2" }.map { |arguments| arguments["use_replica"] }.uniq
+  end
+
+  test "Halon repairs a step in place with a better read, the same watch says what changed and follows the new read" do
+    answers("deploy_history" => History.result(finished_runs("deploy", 4.minutes), what: "web"))
+    Conversation::Watches.start(@turn, watch_of([ deploy_step ], title: "Deploy finished"))
+    watch = @conversation.chat.watches.sole
+    step = watch.steps.sole
+    assert step.repair_asked!("I could not find a run of Web deploy in its history after 3 minutes.")
+    northflank_api!
+    answers("api_request" => northflank_run("running"))
+    repair = Conversation::Tools::RepairWatch.new(@turn)
+
+    said = repair.call(**{ "watch" => watch.id, "step" => "web deploy", "tool" => "northflank_api_request",
+                           "arguments" => { "method" => "GET", "path" => "workflows/release/runs/release-v0-0-15" },
+                           "goal" => "the release run finished", "why" => "Run history only lists builds, not workflow runs." })
+
+    assert_match "Repaired Web deploy", said
+    step.reload
+    assert_equal [ Chat::Watch::Step::STATUS_WAITING, Chat::Watch::Step::READ_TOOL, "northflank_api_request", 1 ],
+                 [ step.status, step.capability, step.tool_name, step.repairs ]
+    assert_equal [ watch.id ], @conversation.chat.watches.pluck(:id), "the same watch, never a second one"
+    assert_equal "Changed how I follow Web deploy: I now read northflank_api_request GET workflows/release/runs/release-v0-0-15 instead of " \
+                 "Run history of web. Run history only lists builds, not workflow runs.",
+                 watch.updates.find_by!(kind: Chat::Watch::Update::KIND_REPAIRED).text
+    assert_match "has no step", repair.call(**{ "watch" => watch.id, "step" => "nope", "why" => "x" })
+  end
+
+  test "a first reading that shows nothing to follow is handed back to repair, and a step repaired too often is let go" do
+    northflank_api!
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    answers("api_request" => { "content" => [ { "type" => "text", "text" => '{"data":[]}' } ] })
+    step = { "label" => "Release run", "tool" => "northflank_api_request", "goal" => "the release run finished",
+             "arguments" => { "method" => "GET", "path" => "workflows/release/runs" } }
+    Conversation::Watches.start(@turn, watch_of([ step ], title: "Release finished"))
+    watch = @conversation.chat.watches.sole
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::NOTHING, said: "The list of runs is empty.", parts: [])
+    )
+
+    assert_enqueued_with(job: ConversationReplyJob) { check!(watch) }
+
+    followed = watch.steps.sole
+    assert_equal Chat::Watch::Step::STATUS_REPAIRING, followed.status
+    assert_equal "The first reading of Release run showed nothing to follow. The list of runs is empty. I am finding a better way to follow Release run.",
+                 watch.updates.sole.text
+    assert_equal "Finding a better way to follow it. The first reading of Release run showed nothing to follow. The list of runs is empty.",
+                 Chat::Watch::Shown.step_state(followed)
+
+    followed.update_columns(repairs: Chat::Watch::Step::MAX_REPAIRS, status: Chat::Watch::Step::STATUS_WAITING, handed_back_at: nil, judged_at: nil)
+    assert_no_enqueued_jobs(only: ConversationReplyJob) { check!(watch) }
+    assert_equal Chat::Watch::Step::STATUS_UNFOLLOWABLE, followed.reload.status
+    assert_equal Chat::Watch::STATUS_STOPPED, watch.reload.status
+  end
+
+  test "a step left unrepaired for too long is no longer followed" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    watch.steps.sole.repair_asked!("Nothing showed.")
+
+    travel Chat::Watch::Step::REPAIR_WITHIN + 1.minute do
+      check!(watch)
+    end
+
+    assert_equal Chat::Watch::Step::STATUS_UNFOLLOWABLE, watch.steps.sole.status
+    assert_includes watch.updates.reload.map(&:text), "I stopped following Release run #46. No better read was found for it within 15 minutes."
+  end
+
+  test "a watch keeps to its ceiling on reads, spacing its checks and waiting for the next hour once it is spent, said once" do
+    answers("ci_runs" => History.result(finished_runs("release", 18.minutes), what: "acme/firefight"))
+    said = Conversation::Watches.start(@turn, watch_of([ release_step ], reads_per_hour: 6, minutes: 120))
+    watch = @conversation.chat.watches.sole
+    assert_match "It reads at most 6 times an hour", said
+    assert_equal [ 6, 1 ], [ watch.reads_per_hour, watch.reads_total ]
+    assert_in_delta 10.minutes.from_now, watch.next_check_at, 5.seconds
+    assert_not Chat::Watch.due.exists?(id: watch.id), "the sweep leaves it until its next check"
+
+    answers("ci_runs" => History.result([ run_of("46", History::RUNNING, Time.current) ], what: "repo"))
+    6.times { check!(watch) }
+
+    assert_equal 6, watch.reload.reads_this_hour
+    ceiling = watch.updates.where(kind: Chat::Watch::Update::KIND_CEILING)
+    assert_equal 1, ceiling.count
+    assert_match 'Watch "release run #46" made the 6 reads it allows itself an hour, so it reads again in', ceiling.sole.text
+    assert_in_delta watch.hour_ends_at, watch.next_check_at, 1.second
+    assert_equal "Reads at most 6 times an hour. 6 reads so far.", Chat::Watch::Shown.reads(watch)
+
+    travel 61.minutes do
+      check!(watch)
+      watch.reload
+      assert watch.reads_this_hour.positive?, "a new hour reads again"
+      assert_equal 6 + watch.reads_this_hour, watch.reads_total
+    end
+  end
+
+  test "the ceiling defaults to twice a read a minute for each step, within its bounds" do
+    assert_equal 240, Chat::Watch.ceiling_for(nil, 2)
+    assert_equal Chat::Watch::MOST_READS, Chat::Watch.ceiling_for(5000, 1)
+    assert_equal Chat::Watch::FEWEST_READS, Chat::Watch.ceiling_for(1, 1)
+  end
+
+  test "a reading Halon takes in the chat with a watch's own read overrides what the watch had, and Halon is told they disagree" do
+    northflank_api!
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    arguments = { "method" => "GET", "path" => "workflows/release/runs/release-v0-0-15" }
+    step = { "label" => "Release run", "tool" => "northflank_api_request", "arguments" => arguments, "goal" => "the release run finished" }
+    answers("api_request" => northflank_run("queued"))
+    Conversation::Watches.start(@turn, watch_of([ step ], title: "Release finished"))
+    watch = @conversation.chat.watches.sole
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::NOT_STARTED, said: "Queued.", parts: [])
+    )
+    check!(watch)
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).returns(
+      FirefightAi::WatchJudge::Reading.new(state: FirefightAi::Schemas::WatchReading::FAILED, said: "The run failed at build-images.", parts: [],
+                                           link: "https://app.northflank.com/t/acme/project/p/workflows/release/runs/release-v0-0-15")
+    )
+
+    assert_nil Conversation::Watches.observe!(@conversation.chat, "northflank_api_request", arguments.merge("path" => "workflows/other"), "anything")
+    Integrations::NativeExecutor.expects(:call).never
+    note = Conversation::Watches.observe!(@conversation.chat, "northflank_api_request", arguments.merge("intent" => "Check the run"),
+                                          northflank_run("failure")["content"].first["text"])
+
+    assert_match 'Watch "Release finished" had Release run as: Waiting for it to start.', note
+    assert_match "The fresh reading wins", note
+    assert_equal Chat::Watch::STATUS_FAILED, watch.reload.status
+    corrected = watch.updates.find_by!(kind: Chat::Watch::Update::KIND_CORRECTED)
+    assert_equal 'A fresh reading in the chat shows Release run failed, where the watch "Release finished" still had it not started. It now goes by the fresh reading.',
+                 corrected.text
+    assert corrected.told_at, "Halon already heard it, so its next turn does not hear it again"
+    assert_equal "https://app.northflank.com/t/acme/project/p/workflows/release/runs/release-v0-0-15", watch.steps.sole.run_url
+  end
+
+  test "a judge's link is kept only when the reading holds it word for word" do
+    judge = FirefightAi::WatchJudge.new(@workspace)
+    judge.stubs(:ask).returns({ state: "running", said: "Running.", parts: [], link: "https://made.up/run" }.with_indifferent_access)
+    assert_nil judge.reading(goal: "done", before: nil, now: "status running", so_far: "not started").link
+
+    judge.stubs(:ask).returns({ state: "running", said: "Running.", parts: [], link: "https://ci.test/runs/1" }.with_indifferent_access)
+    assert_equal "https://ci.test/runs/1", judge.reading(goal: "done", before: nil, now: "run https://ci.test/runs/1 running", so_far: "not started").link
+  end
+
+  test "a reading that stays the same is judged again every few minutes, with how long it has stayed so" do
+    answers("describe_resource" => { "content" => [ { "type" => "text", "text" => "web error rate 0.2%" } ] })
+    Conversation::Watches.start(@turn, watch_of([ { "label" => "web steady", "capability" => "resource_status", "resource" => "web",
+                                                     "goal" => "the error rate stays under 1% for ten minutes" } ], title: "Web steady"))
+    watch = @conversation.chat.watches.sole
+    Investigation.stubs(:unavailable_reason).returns(nil)
+    told = []
+    FirefightAi::WatchJudge.any_instance.stubs(:reading).with { |steady: nil, **| told << steady }
+                           .returns(FirefightAi::WatchJudge::Reading.new(state: "running", said: "Under 1%.", parts: []))
+
+    check!(watch)
+    travel(2.minutes) { check!(watch) }
+    travel(6.minutes) { check!(watch) }
+
+    assert_equal 2, told.size, "an unchanged reading is not judged again within five minutes"
+    assert_nil told.first
+    assert_equal "The reading has stayed the same for 6 minutes.", told.last
+  end
+
+  test "list_watches reads each watch that still goes again first, so it answers from a fresh reading" do
+    start_release_watch
+    watch = @conversation.chat.watches.sole
+    Chat::Watch.where(id: watch.id).update_all(checked_at: Time.current, next_check_at: 10.minutes.from_now)
+    answers("ci_runs" => History.result([ run_of("46", History::RUNNING, Time.current) ], what: "repo"))
+
+    listed = JSON.parse(Conversation::Tools::ListWatches.new(@turn).call)
+
+    assert_equal "running", listed.sole["steps"].sole["status"]
+    assert listed.sole["steps"].sole["last_read"]
+    assert_equal 'Watch "release run #46"', listed.sole["name"]
   end
 
   private

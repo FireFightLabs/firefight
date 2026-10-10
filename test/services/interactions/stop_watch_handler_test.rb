@@ -18,7 +18,7 @@ class Interactions::StopWatchHandlerTest < ActiveSupport::TestCase
   end
 
   test "anyone in the channel stops the watch from its message, the end is said where it reports, and the message loses Stop" do
-    @adapter.expects(:post_watch_update).with { |update:, **| update.text == "#{@bob.display_name} stopped the watch on release run #46." && !update.live }
+    @adapter.expects(:post_watch_update).with { |update:, **| update.text == "#{@bob.display_name} stopped the watch \"release run #46\"." && !update.live }
     @adapter.expects(:update_watch_update).with { |channel_id:, message_id:, update:, **| channel_id == "C9" && message_id == "5.7" && update.id == @update.id && !update.live }
     @adapter.expects(:post_ephemeral).never
 
