@@ -74,15 +74,19 @@ module Chat::Tools
 
   # target is what the call reaches, worked out from the tool when it was asked (Chat::Tools::Target), and call what the
   # tool does, such as "Api request". Both are nil for Firefight's own tools and for calls asked before targets were kept.
-  # read is what was read from outside before the call was asked (Chat::Tools::Provenance), nil when nothing was, in which
-  # case it may be allowed for the rest of the chat.
-  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read) do
-    def initialize(read: nil, **) = super
+  # read is what was read from outside before the call was asked (Chat::Tools::Provenance), nil when nothing was.
+  # safeguards are rows saying what the call will touch beyond its arguments (Chat::Safeguards): the rows a statement
+  # changes, who started what it stops, when a change customers feel is undone. expires lists the times a change
+  # customers feel may be undone after, with the default first, and is empty for any other call. for_chat is false for
+  # a statement that writes rows, which is asked about on its own each time. waiting_on names the owner a confirmed call
+  # waits for. A call may be allowed for the rest of the chat only when nothing was read from outside and for_chat holds.
+  Confirmation = Data.define(:tool_call_id, :question, :intent, :asked, :status, :target, :call, :read, :safeguards, :expires, :for_chat, :waiting_on) do
+    def initialize(read: nil, safeguards: [], expires: [], for_chat: true, waiting_on: nil, **) = super
 
     # The question as a label, which the dashboard shows above the agent's own sentence about the call.
     def tool_label = question.delete_suffix("?")
 
-    def allowable? = read.nil?
+    def allowable? = read.nil? && for_chat
 
     # One sentence leading what was read, in the words both the dashboard and Slack show.
     def read_lead
@@ -101,6 +105,9 @@ module Chat::Tools
     end
   end
   READ_EARLIER = "Read earlier in this chat".freeze
+
+  # One time a change customers feel may be undone after: value is what the answer sends back, minutes or keep.
+  Expiry = Data.define(:value, :label)
 
   # A call that waits for the person's decision carries one sentence saying what it will do, written by the agent for
   # whoever approves it. It is taken off before the call is made, so the tool never sees it.
@@ -121,7 +128,7 @@ module Chat::Tools
   def self.intent_of(arguments) = arguments.to_h.stringify_keys[INTENT_ARG].to_s.strip.presence
   CONFIRMATION_STATUSES = {
     Chat::APPROVAL_REQUESTED => :awaiting, Chat::APPROVAL_APPROVED => :confirmed, Chat::APPROVAL_DENIED => :cancelled,
-    Chat::APPROVAL_WITHDRAWN => :withdrawn
+    Chat::APPROVAL_WITHDRAWN => :withdrawn, Chat::APPROVAL_OWNER_ASKED => :owner_asked
   }.freeze
 
   # A run that only measures Halon reads memory and never changes it, so nothing it does reaches the Memory page.
@@ -211,11 +218,27 @@ module Chat::Tools
     step = step(tool_call.name, tool_call.arguments)
     target = tool_call.try(:target).presence
     call = (call_title(tool_call) if target)
+    chat = tool_call.try(:message)&.chat
+    repair = Chat::DataRepair.for_call(chat, tool_call.tool_call_id)
+    owner = Chat::OwnerAsk.for_call(chat, tool_call.tool_call_id)
+    mitigation = Chat::Mitigation.for_call(chat, tool_call.tool_call_id)
     Confirmation.new(
       tool_call_id: tool_call.tool_call_id, question: target ? "#{call} on #{target}?" : "#{step&.title || tool_call.name.humanize}?",
       intent: intent_of(tool_call.arguments), asked: (step&.asked || []) + planned(tool_call), status: CONFIRMATION_STATUSES.fetch(tool_call.approval, :awaiting),
-      target: target, call: call, read: Provenance.stored(tool_call)
+      target: target, call: call, read: Provenance.stored(tool_call), safeguards: [ *repair&.confirmation_rows, owner&.confirmation_row ].compact,
+      expires: expiries(mitigation), for_chat: repair.nil?, waiting_on: (owner.owner_name if tool_call.approval == Chat::APPROVAL_OWNER_ASKED && owner)
     )
+  end
+
+  # The times a change customers feel may be undone after, the one chosen so far first, then keeping it. Empty for a
+  # call that is not one.
+  def self.expiries(mitigation)
+    return [] unless mitigation&.proposed?
+
+    chosen = mitigation.duration_minutes
+    minutes = [ chosen, *Chat::Mitigation::DURATIONS ].compact.uniq
+    [ *minutes.map { |each| Expiry.new(value: each.to_s, label: "Undo after #{Chat::Mitigation.duration_words(each)}") },
+      Expiry.new(value: Chat::Mitigation::KEEP, label: "Keep it") ].then { |all| chosen.nil? ? all.rotate(-1) : all }
   end
 
   # What the tool does, by its own name rather than the connection's, such as "Api request".

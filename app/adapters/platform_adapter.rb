@@ -662,6 +662,38 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A line about a temporary change Halon made, such as the reminder before Firefight undoes it, in the chat's thread.
+  # notice is a Conversation::Mitigations::Notice.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_mitigation_notice(channel_id:, thread_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # The same line to whoever asked for the change, offering to open the chat when it is on the dashboard.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_mitigation_notice_to_user(user_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws a line about a temporary change where it was posted, such as once it was kept or undone.
+  # @return [Hash] { success: true }
+  def update_mitigation_notice(channel_id:, message_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Asks whoever started something, in their direct messages, whether Halon may stop it. ask is a
+  # Conversation::OwnerAsks::Shown.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_owner_ask(user_id:, ask:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
+  # Redraws the ask once it was answered or is no longer needed.
+  # @return [Hash] { success: true }
+  def update_owner_ask(channel_id:, message_id:, ask:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A pull request Halon opened that needs attention, with why and Fix it, in the thread of the chat or run it came
   # from. notice is a CodeAgentSession::Notice.
   # @return [Hash] { message_id:, channel_id: }

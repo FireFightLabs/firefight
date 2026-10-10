@@ -23,6 +23,7 @@ module Slack
       # leads with the agent's sentence when it wrote one, and the tool and what it was given follow.
       def self.question_blocks(conversation_id, confirmation)
         details = confirmation.asked.map { |name, value| "#{name}: #{Slack::Mrkdwn.escape(value)}" }
+        guarded = confirmation.safeguards.map { |name, value| "*#{Slack::Mrkdwn.escape(name)}:* #{Slack::Mrkdwn.escape(value)}" }
         if confirmation.target
           details.unshift(Slack::Mrkdwn.escape(confirmation.intent)) if confirmation.intent
           text = "*#{Slack::Mrkdwn.escape(confirmation.target)}*\n#{Slack::Mrkdwn.escape(confirmation.call)}"
@@ -32,6 +33,9 @@ module Slack
         end
         blocks = [ { type: "section", text: { type: "mrkdwn", text: text } } ]
         blocks << { type: "context", elements: [ { type: "mrkdwn", text: details.join("  ·  ") } ] } if details.any?
+        if guarded.any?
+          blocks << { type: "section", text: { type: "mrkdwn", text: guarded.join("\n").truncate(Formatting::SECTION_TEXT_LIMIT) } }
+        end
         blocks.concat(read_blocks(confirmation))
         blocks << answer_block(conversation_id, confirmation)
       end
@@ -45,19 +49,33 @@ module Slack
         [ { type: "context", elements: [ { type: "mrkdwn", text: ":warning: #{confirmation.read_lead}\n#{rows.join("\n")}" } ] } ]
       end
 
+      # A change customers feel offers when it is undone, chosen before Confirm and kept as soon as it is picked. Allow for
+      # the rest of the chat is offered only where it may be (Confirmation#allowable?).
       def self.answer_block(conversation_id, confirmation)
+        if confirmation.status == :owner_asked
+          return { type: "context", elements: [ { type: "mrkdwn", text: ":hourglass: Confirmed. Waiting for #{Slack::Mrkdwn.escape(confirmation.waiting_on)} to agree." } ] }
+        end
         status_line = STATUS_LINES[confirmation.status]
         return { type: "context", elements: [ { type: "mrkdwn", text: status_line } ] } if status_line
 
         value = "#{conversation_id}:#{confirmation.tool_call_id}"
-        allow = { type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT, text: { type: "plain_text", text: "Allow for this chat" }, value: value }
-        { type: "actions", elements: [
+        elements = [
           { type: "button", style: "primary", action_id: Identifiers::AGENT_CONFIRM,
             text: { type: "plain_text", text: "Confirm" }, value: value },
-          (allow if confirmation.allowable?),
+          ({ type: "button", action_id: Identifiers::AGENT_ALLOW_FOR_CHAT,
+             text: { type: "plain_text", text: "Allow for this chat" }, value: value } if confirmation.allowable?),
           { type: "button", action_id: Identifiers::AGENT_CANCEL,
-            text: { type: "plain_text", text: "Cancel" }, value: value }
-        ].compact }
+            text: { type: "plain_text", text: "Cancel" }, value: value },
+          expiry_select(value, confirmation.expires)
+        ].compact
+        { type: "actions", elements: elements }
+      end
+
+      def self.expiry_select(value, expires)
+        return if expires.empty?
+
+        options = expires.map { |expiry| { text: { type: "plain_text", text: expiry.label }, value: "#{value}:#{expiry.value}" } }
+        { type: "static_select", action_id: Identifiers::AGENT_EXPIRY, initial_option: options.first, options: options }
       end
     end
   end

@@ -2,8 +2,9 @@ import { router } from "@inertiajs/react"
 
 import { AGENT_CHAT_PROPS, CHAT_MESSAGE_ROLES, INVESTIGATION_QUERY_PARAM } from "@/lib/generated/constants"
 import {
-  agentChatAskPath, agentChatConfirmPath, agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath,
-  agentChatStopPath, agentChatsPath, agentChatWatchStopPath, investigationStopPath,
+  agentChatAskPath, agentChatConfirmPath, agentChatMitigationExtendPath, agentChatMitigationKeepPath, agentChatMitigationUndoPath,
+  agentChatPackRefusalAskPath, agentChatPath, agentChatPullRequestFixPath, agentChatSecretEntryFillPath, agentChatStopPath, agentChatsPath,
+  agentChatWatchStopPath, investigationStopPath,
 } from "@/lib/routes"
 import type { AgentPageProps } from "@/pages/agent/types"
 import type { AgentChat, AgentChatAttachment } from "@/types/serializers"
@@ -17,7 +18,8 @@ const OPEN_CHAT = [
   AGENT_CHAT_PROPS.INVESTIGATIONS, AGENT_CHAT_PROPS.OPEN_INVESTIGATION, AGENT_CHAT_PROPS.CHARTS,
   AGENT_CHAT_PROPS.WAITING_MESSAGES, AGENT_CHAT_PROPS.ATTACHMENT_RULES, AGENT_CHAT_PROPS.COMPACTIONS, AGENT_CHAT_PROPS.HELD_CALLS,
   AGENT_CHAT_PROPS.PACK_REFUSALS, AGENT_CHAT_PROPS.SECRET_ENTRIES, AGENT_CHAT_PROPS.SETUP_GUIDE, AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES,
-  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS, AGENT_CHAT_PROPS.PLANS,
+  AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES, AGENT_CHAT_PROPS.MEMORY_QUESTIONS, AGENT_CHAT_PROPS.PLANS, AGENT_CHAT_PROPS.DATA_REPAIRS,
+  AGENT_CHAT_PROPS.MITIGATIONS, AGENT_CHAT_PROPS.OWNER_ASKS,
 ]
 const CHARTS = [ AGENT_CHAT_PROPS.CHARTS ]
 // A held call moves on when someone approves it, Halon checks it, it runs or it expires, so the chat is told to look.
@@ -30,6 +32,9 @@ const SECRET_ENTRIES = [ AGENT_CHAT_PROPS.SECRET_ENTRIES ]
 const WATCHES = [ AGENT_CHAT_PROPS.WATCHES, AGENT_CHAT_PROPS.WATCH_UPDATES ]
 // A pull request Halon opened needs attention long after the answer, or Fix it was pressed, so the chat is told to look.
 const PULL_REQUEST_NOTICES = [ AGENT_CHAT_PROPS.PULL_REQUEST_NOTICES ]
+// Rows a statement changed are counted and copied, a temporary change starts, is kept or undone, and an owner is asked
+// or answers, often long after the answer, so the chat is told to look. A confirmation waiting on an owner moves too.
+const SAFEGUARDS = [ AGENT_CHAT_PROPS.DATA_REPAIRS, AGENT_CHAT_PROPS.MITIGATIONS, AGENT_CHAT_PROPS.OWNER_ASKS, AGENT_CHAT_PROPS.CONFIRMATIONS ]
 // Something contradicted a memory while Halon worked, so the chat asks which is right.
 const MEMORY_QUESTIONS = [ AGENT_CHAT_PROPS.MEMORY_QUESTIONS ]
 // A plan moves with every step Halon takes, and Retry or Undo start a turn, so the chat looks again.
@@ -94,14 +99,18 @@ export function stopRun(investigationId: string) {
   router.post(investigationStopPath(investigationId), {}, { ...IN_PLACE, only: RUNS })
 }
 
+// expires is when a change customers feel is undone, as its confirmation offered it, or null for any other call.
 export interface ConfirmationAnswer {
   toolCallId: string
   approved: boolean
   forChat: boolean
+  expires: string | null
 }
 
 export function answerConfirmations(conversationId: string, answers: ConfirmationAnswer[]) {
-  const decisions = answers.map((answer) => ({ tool_call_id: answer.toolCallId, approved: answer.approved, for_chat: answer.forChat }))
+  const decisions = answers.map((answer) => ({
+    tool_call_id: answer.toolCallId, approved: answer.approved, for_chat: answer.forChat, expires: answer.expires,
+  }))
   router.post(agentChatConfirmPath(conversationId), { decisions }, { ...IN_PLACE, only: OPEN_CHAT })
 }
 
@@ -147,6 +156,19 @@ export function stopWatch(conversationId: string, watchId: string, callbacks: Ca
   router.post(agentChatWatchStopPath(conversationId, watchId), {}, { ...IN_PLACE, only: WATCHES, ...callbacks })
 }
 
+// Keep, One more hour and Undo now on a temporary change each post to their own path.
+export function keepMitigation(conversationId: string, mitigationId: string, callbacks: CardCallbacks) {
+  router.post(agentChatMitigationKeepPath(conversationId, mitigationId), {}, { ...IN_PLACE, only: SAFEGUARDS, ...callbacks })
+}
+
+export function extendMitigation(conversationId: string, mitigationId: string, callbacks: CardCallbacks) {
+  router.post(agentChatMitigationExtendPath(conversationId, mitigationId), {}, { ...IN_PLACE, only: SAFEGUARDS, ...callbacks })
+}
+
+export function undoMitigation(conversationId: string, mitigationId: string, callbacks: CardCallbacks) {
+  router.post(agentChatMitigationUndoPath(conversationId, mitigationId), {}, { ...IN_PLACE, only: SAFEGUARDS, ...callbacks })
+}
+
 // A coding agent's question and pause sit in a step's saved message, so answering one reloads the messages.
 export const CODE_AGENT_RELOADS = [ AGENT_CHAT_PROPS.MESSAGES ]
 
@@ -181,6 +203,10 @@ export function refreshPlans() {
 
 export function refreshPullRequestNotices() {
   router.reload({ only: PULL_REQUEST_NOTICES })
+}
+
+export function refreshSafeguards() {
+  router.reload({ only: SAFEGUARDS })
 }
 
 export function refreshMemoryQuestions() {

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_120600) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -419,6 +419,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120600) do
     t.index ["chat_id"], name: "index_chat_compactions_on_chat_id"
   end
 
+  create_table "chat_data_repairs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "asker_type"
+    t.uuid "asker_id"
+    t.string "tool_call_id", null: false
+    t.string "tool_name", null: false
+    t.string "action_key", null: false
+    t.uuid "environment_id"
+    t.string "statement_kind", null: false
+    t.string "table_name"
+    t.text "statement"
+    t.text "check_query"
+    t.string "status", default: "proposed", null: false
+    t.integer "rows_counted"
+    t.text "sample"
+    t.integer "wrong_before"
+    t.datetime "counted_at"
+    t.text "refusal"
+    t.integer "rows_copied"
+    t.text "rows_copy"
+    t.datetime "copied_at"
+    t.datetime "copy_expires_at"
+    t.datetime "copy_cleared_at"
+    t.integer "wrong_after"
+    t.datetime "checked_at"
+    t.text "check_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asker_type", "asker_id"], name: "index_chat_data_repairs_on_asker"
+    t.index ["chat_id", "tool_call_id"], name: "index_chat_data_repairs_on_chat_id_and_tool_call_id", unique: true
+    t.index ["chat_id"], name: "index_chat_data_repairs_on_chat_id"
+    t.index ["copy_expires_at"], name: "index_chat_data_repairs_on_copy_expires_at", where: "(rows_copy IS NOT NULL)"
+    t.index ["workspace_id"], name: "index_chat_data_repairs_on_workspace_id"
+  end
+
   create_table "chat_held_calls", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "chat_id", null: false
     t.uuid "approval_id", null: false
@@ -539,6 +575,71 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120600) do
     t.text "thinking_text"
     t.datetime "updated_at", null: false
     t.index ["chat_id", "created_at"], name: "index_chat_messages_on_chat_id_and_created_at"
+  end
+
+  create_table "chat_mitigations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "asker_type"
+    t.uuid "asker_id"
+    t.string "tool_call_id", null: false
+    t.string "tool_name", null: false
+    t.string "action_key", null: false
+    t.uuid "environment_id"
+    t.jsonb "arguments", default: {}, null: false
+    t.string "target"
+    t.text "intent"
+    t.text "result"
+    t.integer "duration_minutes"
+    t.string "status", default: "proposed", null: false
+    t.datetime "started_at"
+    t.datetime "expires_at"
+    t.datetime "reminded_at"
+    t.datetime "claimed_at"
+    t.string "undo_state", default: "none", null: false
+    t.jsonb "undo_steps", default: [], null: false
+    t.text "undo_note"
+    t.datetime "ended_at"
+    t.uuid "ended_by_id"
+    t.uuid "plan_step_id"
+    t.text "outcome"
+    t.datetime "told_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asker_type", "asker_id"], name: "index_chat_mitigations_on_asker"
+    t.index ["chat_id", "tool_call_id"], name: "index_chat_mitigations_on_chat_id_and_tool_call_id", unique: true
+    t.index ["chat_id"], name: "index_chat_mitigations_on_chat_id"
+    t.index ["ended_by_id"], name: "index_chat_mitigations_on_ended_by_id"
+    t.index ["plan_step_id"], name: "index_chat_mitigations_on_plan_step_id"
+    t.index ["status", "expires_at"], name: "index_chat_mitigations_on_status_and_expires_at"
+    t.index ["workspace_id"], name: "index_chat_mitigations_on_workspace_id"
+  end
+
+  create_table "chat_owner_asks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "chat_id", null: false
+    t.uuid "workspace_id", null: false
+    t.string "tool_call_id", null: false
+    t.string "tool_name", null: false
+    t.uuid "owner_id"
+    t.string "owner_name", null: false
+    t.string "owner_role", null: false
+    t.string "what", null: false
+    t.string "status", default: "pending", null: false
+    t.uuid "confirmed_by_id"
+    t.datetime "asked_at"
+    t.datetime "answered_at"
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.datetime "told_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_id", "tool_call_id"], name: "index_chat_owner_asks_on_chat_id_and_tool_call_id", unique: true
+    t.index ["chat_id"], name: "index_chat_owner_asks_on_chat_id"
+    t.index ["confirmed_by_id"], name: "index_chat_owner_asks_on_confirmed_by_id"
+    t.index ["owner_id"], name: "index_chat_owner_asks_on_owner_id"
+    t.index ["workspace_id"], name: "index_chat_owner_asks_on_workspace_id"
   end
 
   create_table "chat_pack_refusals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2699,6 +2800,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120600) do
   add_foreign_key "chat_attachments", "workspaces"
   add_foreign_key "chat_charts", "chats", on_delete: :cascade
   add_foreign_key "chat_compactions", "chats"
+  add_foreign_key "chat_data_repairs", "chats", on_delete: :cascade
+  add_foreign_key "chat_data_repairs", "workspaces", on_delete: :cascade
   add_foreign_key "chat_held_calls", "ability_approvals", column: "approval_id"
   add_foreign_key "chat_held_calls", "chats"
   add_foreign_key "chat_held_calls", "workspace_memberships", column: "decided_by_id", on_delete: :nullify
@@ -2718,6 +2821,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120600) do
   add_foreign_key "chat_memory_posts", "workspaces"
   add_foreign_key "chat_memory_uses", "chat_memories", column: "memory_id", on_delete: :cascade
   add_foreign_key "chat_messages", "chats"
+  add_foreign_key "chat_mitigations", "chat_plan_steps", column: "plan_step_id", on_delete: :nullify
+  add_foreign_key "chat_mitigations", "chats", on_delete: :cascade
+  add_foreign_key "chat_mitigations", "workspace_memberships", column: "ended_by_id", on_delete: :nullify
+  add_foreign_key "chat_mitigations", "workspaces", on_delete: :cascade
+  add_foreign_key "chat_owner_asks", "chats", on_delete: :cascade
+  add_foreign_key "chat_owner_asks", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
+  add_foreign_key "chat_owner_asks", "workspace_memberships", column: "owner_id", on_delete: :nullify
+  add_foreign_key "chat_owner_asks", "workspaces", on_delete: :cascade
   add_foreign_key "chat_pack_refusals", "ability_pack_requests", column: "pack_request_id", on_delete: :cascade
   add_foreign_key "chat_pack_refusals", "chats", on_delete: :cascade
   add_foreign_key "chat_plan_steps", "chat_plans", column: "plan_id", on_delete: :cascade

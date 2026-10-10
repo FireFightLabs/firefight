@@ -6,18 +6,24 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @tool = tool
   end
 
-  # RubyLLM pauses the turn before a call that needs the person's decision.
-  def requires_approval? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name)
+  # RubyLLM pauses the turn before a call that needs the person's decision. A tool that writes rows or stops something is
+  # always put through the resolver, which settles each call on its own whatever was allowed for the chat.
+  def requires_approval? = confirms_as_usual? || data_writes? || stops?
 
   # A call shown to read runs without asking, since reads never wait. A call whose words name another connection is
-  # refused rather than put to the person (Chat::Tools::Target).
-  def approval_resolver = Chat::Tools::Target.resolver(@agent_run) { |given| reads?(given) || misdirection(given).present? }
+  # refused rather than put to the person (Chat::Tools::Target), and so is a write Firefight cannot count first.
+  def approval_resolver
+    Chat::Tools::Target.resolver(@agent_run) do |given, tool_call|
+      reads?(given) || misdirection(given).present? || (data_writes? && runs_unasked?(given, tool_call)) || (stops? && stops_unasked?(given, tool_call))
+    end
+  end
 
   def name = @tool.model_facing_name
 
   # Another system's words, so only text reaches the model and a runaway description is capped.
   def description
     said = Chat::Tools.clean(@tool.described_for_agents, Chat::Tools::FULL_DESCRIPTION)
+    said = "#{said} #{Chat::DataRepairs::DESCRIPTION}" if data_writes?
     reading_schema ? "#{said} #{guard::DESCRIPTION}" : said
   end
 
@@ -27,6 +33,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
   def parameters_schema
     schema = reading_schema || Integrations::Replicas.offered(@tool, @tool.offered_schema)
     schema = Chat::Tools::TrackedIssues.with_kind(schema) if tracks_issues?
+    schema = Chat::DataRepairs.with_check(schema) if data_writes?
     requires_approval? ? Chat::Tools.with_intent(schema) : schema
   end
 
@@ -39,7 +46,7 @@ class Chat::Tools::Connection < RubyLLM::Tool
     return failed(tool_call&.id, refused) if refused
 
     @issue_kind = given[Chat::Tools::TrackedIssues::KIND_ARG]
-    invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG), tool_call_id: tool_call&.id)
+    invoke(given.except(Chat::Tools::INTENT_ARG, Chat::Tools::TrackedIssues::KIND_ARG, Chat::DataRepairs::CHECK_ARG), tool_call_id: tool_call&.id)
   end
 
   private
@@ -70,6 +77,42 @@ class Chat::Tools::Connection < RubyLLM::Tool
   end
 
   def tracks_issues? = @agent_run.incident.present? && Integrations::Issues.opens?(@tool)
+
+  def data_writes? = Chat::DataRepairs.applies?(@agent_run, @tool)
+
+  # Whether the call would ask as any change does, allowed for the chat (until something outside was read) and a
+  # scheduled plan's approved tools included.
+  def confirms_as_usual? = @agent_run.confirms?(@tool.ability_action, allowed: Chat::Tools::Provenance.allowed?(@agent_run, name), tool_name: name)
+
+  # A scheduled plan's tool, approved ahead by the person, since nobody may be there to answer.
+  def approved_ahead? = @agent_run.respond_to?(:approved_ahead?) && @agent_run.approved_ahead?(name)
+
+  # A call that stops something someone else started pauses so they can be asked, even when the tool was allowed for the
+  # rest of the chat. Investigations and watches only read, so they never reach it.
+  def stops? = !@agent_run.reads_only? && @agent_run.chat.present? && @tool.ability_action&.effect?(Ability::Action::EFFECT_STOPS)
+
+  # Who started it is read before anyone is asked. With nobody else to ask or name, the call runs unasked when it would
+  # have anyway.
+  def stops_unasked?(given, tool_call)
+    entry = @tool.integration.environment_entry_for(given[Integration::Tool::ENVIRONMENT_ARG])
+    ask = Conversation::OwnerAsks.look_up!(@agent_run, call_id: tool_call.id, tool: @tool, environment_entry: entry,
+                                                       arguments: Chat::DataRepairs.provider_arguments(@tool, entry, given))
+    ask.nil? && !confirms_as_usual?
+  rescue Integration::UnknownEnvironment
+    true
+  end
+
+  # Counted before anyone is asked. A write that cannot be counted runs at once so its refusal reaches the agent, and a
+  # read runs unasked when it would not have been asked anyway. A counted write is asked about on its own, unless a
+  # scheduled plan the person approved ahead runs it, which still counts, copies and checks it.
+  def runs_unasked?(given, tool_call)
+    case Chat::DataRepairs.settle(@agent_run, @tool, tool_call.id, given)
+    when Chat::DataRepairs::REFUSED then true
+    when Chat::DataRepairs::READS then !confirms_as_usual?
+    when Chat::DataRepairs::COUNTED then approved_ahead?
+    else false
+    end
+  end
 
   # A call a read guard refuses still goes through the gateway, so it is a numbered step and the activity log records it
   # as refused, like any other refusal by one of Firefight's own rules.
@@ -108,7 +151,10 @@ class Chat::Tools::Connection < RubyLLM::Tool
   # target is what the call reaches as a person reads it, the resource and connection for a capability, and the
   # connection alone otherwise.
   # refusal is the reason one of Firefight's own rules already refused the call for, so it is ledgered without running.
-  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil)
+  # call_id is the call the person confirmed, when it differs from tool_call_id, as for a held call run once approved,
+  # which has no tool call of its own. Its safeguards (Chat::Safeguards) run around the call.
+  def run(arguments, environment_entry:, tool_call_id:, shown_as: name, present: nil, approval_id: nil, alone: true, target: nil, refusal: nil,
+          call_id: tool_call_id)
     @alone = alone
     @failed = false
     @waiting = false
@@ -122,6 +168,8 @@ class Chat::Tools::Connection < RubyLLM::Tool
     arguments = Integrations::Replicas.primary_first(@tool, arguments)
     result = nil
     environment_row = nil
+    safeguards = Chat::Safeguards.around(@agent_run, @tool, call_id, environment_entry: environment_entry, arguments: arguments) if refusal.nil?
+    refusal ||= safeguards&.before
     said = @agent_run.tool_call(
       action_key: @tool.action_key, params: arguments, scope: scope, tool_name: shown_as,
       label: Chat::Tools.label(shown_as, arguments, workspace: @agent_run.workspace), holdable: refusal.nil?, **{ approval_id: approval_id }.compact
@@ -147,12 +195,13 @@ class Chat::Tools::Connection < RubyLLM::Tool
     @agent_run.mark_step_failed!(said.step, @answered_failure) if @answered_failure && said.step
     return FirefightAi::Evidence.refused(shown_as, @refusal, step: said.step) if @refusal
 
+    guarded = safeguards&.after(ok: !@failed, result: result)
     keep_charts(tool_call_id, result, said.step)
     tracked = present.nil? && Chat::Tools::TrackedIssues.after(
       @agent_run, tool: @tool, environment_row: environment_row, scope: scope, arguments: arguments, result: result, kind: @issue_kind
     )
     reminder = Chat::Tools::SkillReminder.for(@agent_run, source: @tool.integration.provider, handle: @tool.name, tool_call_id: tool_call_id)
-    [ Chat::Tools.hand_over(@agent_run, shown_as, said), tracked.presence, reminder ].compact.join("\n\n")
+    [ Chat::Tools.hand_over(@agent_run, shown_as, said), guarded.presence, tracked.presence, reminder ].compact.join("\n\n")
   rescue AbilityGateway::Denied
     @agent_run.pack_refused!(@tool.action_key, tool_call_id)
     failed(tool_call_id, @agent_run.refusal(@tool.action_key) + Mcp::ConnectionToolFactory.environment_hint(@tool))

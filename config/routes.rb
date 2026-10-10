@@ -387,6 +387,10 @@ Rails.application.routes.draw do
     post "/agent/:id/secret_entries/:secret_entry_id/fill", to: "agent_chats#fill_secret", as: :agent_chat_secret_entry_fill
     post "/agent/:id/secret_entries/:secret_entry_id/reveal", to: "agent_chats#reveal_secret", as: :agent_chat_secret_entry_reveal
     post "/agent/:id/watches/:watch_id/stop", to: "agent_chats#stop_watch", as: :agent_chat_watch_stop
+    post "/agent/:id/mitigations/:mitigation_id/keep", to: "agent_chats#keep_mitigation", as: :agent_chat_mitigation_keep
+    post "/agent/:id/mitigations/:mitigation_id/extend", to: "agent_chats#extend_mitigation", as: :agent_chat_mitigation_extend
+    post "/agent/:id/mitigations/:mitigation_id/undo", to: "agent_chats#undo_mitigation", as: :agent_chat_mitigation_undo
+    get "/agent/:id/data-repairs/:data_repair_id/copy", to: "agent_chats#data_repair_copy", as: :agent_chat_data_repair_copy
     post "/agent/:id/pull-requests/:notice_id/fix", to: "agent_chats#fix_pull_request", as: :agent_chat_pull_request_fix
     post "/agent/:id/plans/:plan_id/schedule", to: "agent_chats#schedule_plan", as: :agent_chat_plan_schedule
     post "/agent/:id/plans/:plan_id/cancel", to: "agent_chats#cancel_plan", as: :agent_chat_plan_cancel

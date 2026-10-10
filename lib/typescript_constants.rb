@@ -50,6 +50,9 @@ module TypescriptConstants
         "ASKED_AGAIN" => Chat::HeldCall::STATUS_ASKED_AGAIN
       }, nil),
       Export.new("WATCH_STATUSES", Chat::Watch::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("MITIGATION_STATUSES", Chat::Mitigation::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("OWNER_ASK_STATUSES", Chat::OwnerAsk::STATUSES.to_h { |status| [ status.upcase, status ] }, nil),
+      Export.new("DATA_WRITE_KINDS", Integrations::DataWrites::Statement::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("SECRET_ENTRY_KINDS", Chat::SecretEntry::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
       Export.new("RUNBOOK_CHOICE_PROPS", SettingsController::RUNBOOK_CHOICE_PROPS, nil),
       Export.new("RUNBOOK_FIELD_KINDS", Chat::Tools::Choices::KINDS.to_h { |kind| [ kind.upcase, kind ] }, nil),
@@ -129,7 +132,8 @@ module TypescriptConstants
         "HELD_CALL" => Conversation::LiveDelivery::EVENT_HELD_CALL, "PACK_REFUSAL" => Conversation::LiveDelivery::EVENT_PACK_REFUSAL,
         "WATCH" => Conversation::LiveDelivery::EVENT_WATCH, "SECRET_ENTRY" => Conversation::LiveDelivery::EVENT_SECRET_ENTRY,
         "PULL_REQUEST" => Conversation::LiveDelivery::EVENT_PULL_REQUEST, "CODE_FIX" => Conversation::LiveDelivery::EVENT_CODE_FIX,
-        "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY, "PLAN" => Conversation::LiveDelivery::EVENT_PLAN
+        "MEMORY" => Conversation::LiveDelivery::EVENT_MEMORY, "PLAN" => Conversation::LiveDelivery::EVENT_PLAN,
+        "SAFEGUARD" => Conversation::LiveDelivery::EVENT_SAFEGUARD
       }, nil),
       Export.new("AGENT_STEP_STATUSES", {
         "RUNNING" => Conversation::LiveDelivery::STATUS_RUNNING, "DONE" => Conversation::LiveDelivery::STATUS_DONE,

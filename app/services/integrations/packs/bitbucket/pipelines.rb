@@ -243,6 +243,17 @@ module Integrations
                            "and every step that has not finished. #{FOLLOW}.", link: pipeline_link(repo, pipeline))
         end
 
+        # Whoever started the pipeline, by the name Bitbucket shows. Bitbucket gives no address for them, so they are named
+        # for the person to check with rather than asked.
+        def owner_of(tool_name, environment_row:, arguments:)
+          return super unless tool_name == "cancel_pipeline"
+
+          repo = repo_argument(arguments)
+          pipeline = api(environment_row).get("#{BitbucketApi.repository(repo)}/pipelines/#{uuid_argument(arguments, 'pipeline')}")
+          name = pipeline.dig("creator", "display_name").presence
+          name && Owner.new(name: name, role: Owner::ROLE_STARTED, what: "pipeline #{pipeline['build_number']} in #{repo}")
+        end
+
         private
 
         # A change Bitbucket refused is said with the scope it needs, so a person knows which token to give.

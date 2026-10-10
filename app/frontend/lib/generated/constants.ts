@@ -143,6 +143,36 @@ export const WATCH_STATUSES = {
   "STOPPED": "stopped"
 } as const
 
+export const MITIGATION_STATUSES = {
+  "PROPOSED": "proposed",
+  "ACTIVE": "active",
+  "KEPT": "kept",
+  "UNDOING": "undoing",
+  "UNDONE": "undone",
+  "UNDO_FAILED": "undo_failed",
+  "UNDO_HELD": "undo_held",
+  "DUE_BY_HAND": "due_by_hand",
+  "CANCELLED": "cancelled",
+  "WITH_PLAN": "with_plan"
+} as const
+
+export const OWNER_ASK_STATUSES = {
+  "PENDING": "pending",
+  "UNREACHABLE": "unreachable",
+  "ASKED": "asked",
+  "AGREED": "agreed",
+  "DECLINED": "declined",
+  "WITHDRAWN": "withdrawn"
+} as const
+
+export const DATA_WRITE_KINDS = {
+  "READ": "read",
+  "UPDATE": "update",
+  "DELETE": "delete",
+  "INSERT": "insert",
+  "SCHEMA": "schema"
+} as const
+
 export const SECRET_ENTRY_KINDS = {
   "ENTER": "enter",
   "REVEAL": "reveal"
@@ -741,7 +771,8 @@ export const AGENT_STREAM_EVENTS = {
   "PULL_REQUEST": "pull_request",
   "CODE_FIX": "code_fix",
   "MEMORY": "memory",
-  "PLAN": "plan"
+  "PLAN": "plan",
+  "SAFEGUARD": "safeguard"
 } as const
 
 export const AGENT_STEP_STATUSES = {
@@ -838,7 +869,10 @@ export const AGENT_CHAT_PROPS = {
   "WATCH_UPDATES": "watchUpdates",
   "PULL_REQUEST_NOTICES": "pullRequestNotices",
   "MEMORY_QUESTIONS": "memoryQuestions",
-  "PLANS": "plans"
+  "PLANS": "plans",
+  "DATA_REPAIRS": "dataRepairs",
+  "MITIGATIONS": "mitigations",
+  "OWNER_ASKS": "ownerAsks"
 } as const
 
 export const SETUP_STEPS = {

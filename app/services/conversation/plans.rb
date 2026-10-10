@@ -115,6 +115,7 @@ module Conversation::Plans
       plan.update_columns(undo_requested_at: nil)
       return "Halon could not make the undo. #{refused.message}"
     end
+    Conversation::Mitigations.handed_to_plan!(plan)
     # A stopped plan being undone is over, so Halon never carries it on beside its undo.
     plan.cancel!(reason: "#{by.display_name} pressed Undo.") if plan.stopped?
     hand_to_halon(undo, by, MOVE_UNDO)

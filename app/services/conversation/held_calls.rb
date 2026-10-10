@@ -127,7 +127,7 @@ module Conversation::HeldCalls
     if tool
       environment_entry = held.workspace.catalog_entries.find_by(id: approval.scope["environment"]) if approval.scope["environment"]
       return Chat::Tools::Connection.new(turn, tool).run(approval.params, environment_entry: environment_entry, tool_call_id: nil,
-                                                                         shown_as: held.tool_name, approval_id: approval.id)
+                                                                         shown_as: held.tool_name, approval_id: approval.id, call_id: held.tool_call_id)
     end
 
     tool_class = Mcp::Tools.all.find { |each| each.name_value.to_s == held.tool_name }

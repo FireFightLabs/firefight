@@ -6,6 +6,8 @@ module Chat::UnfinishedCalls
   INTERRUPTED = "Interrupted before it finished, so this call did not complete and nothing came back. Whether a change " \
                 "it was making took effect is unknown.".freeze
   NOT_CONFIRMED = "Not run. The person asked something else instead of confirming it. Ask them again only if it is still needed.".freeze
+  NOT_AGREED = "Not run. The person asked something else while whoever started what it stops was asked to agree. Ask again only " \
+               "if it is still needed.".freeze
 
   # Results are placed by time just after the call, and the database keeps microseconds.
   TICK = Rational(1, 1_000_000)
@@ -30,12 +32,15 @@ module Chat::UnfinishedCalls
 
   private
 
+  # Calls waiting on someone's answer, withdrawn rather than marked failed when the person moves on.
+  def waiting_words = { Chat::APPROVAL_REQUESTED => NOT_CONFIRMED, Chat::APPROVAL_OWNER_ASKED => NOT_AGREED }
+
   def close_calls_of(message, after:, moved_on:, before:)
     open = message.ruby_llm_tool_calls.select { |call| call.result_id.nil? && (before.nil? || call.created_at < before) }.sort_by(&:created_at)
     open.select { |call| moved_on || call.approval.nil? }.each_with_index.map do |call, index|
-      waiting = call.approval == Chat::APPROVAL_REQUESTED
+      waiting = waiting_words.key?(call.approval)
       result = messages.create!(
-        role: Chat::Message::ROLE_TOOL, content: waiting ? NOT_CONFIRMED : INTERRUPTED,
+        role: Chat::Message::ROLE_TOOL, content: waiting_words.fetch(call.approval, INTERRUPTED),
         created_at: after.created_at + ((index + 1) * TICK)
       )
       call.update!(result: result, **(waiting ? { approval: Chat::APPROVAL_WITHDRAWN } : { failed: true, failure_kind: Chat::StepOutcome::FAILURE_ERROR }))

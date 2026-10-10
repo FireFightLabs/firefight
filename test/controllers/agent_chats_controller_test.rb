@@ -536,6 +536,74 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal Chat::HeldCall::STATUS_RUNNING, held.reload.status
   end
 
+  test "keeping, extending and undoing a temporary change each say so, and a refusal says why" do
+    Slack::WorkspaceAdapter.any_instance.stubs(:post_mitigation_notice_to_user).returns({ channel_id: "D1", message_id: "1.1" })
+    conversation = start_chat
+    mitigation = temporary_change!(conversation)
+
+    post agent_chat_mitigation_extend_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "Feature flag disable on PostHog has 1 hour more.", flash[:notice]
+
+    post agent_chat_mitigation_keep_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "Feature flag disable on PostHog is kept.", flash[:notice]
+    assert mitigation.reload.kept?
+
+    post agent_chat_mitigation_keep_url(conversation, mitigation_id: mitigation.id)
+    assert_equal "It is already kept.", flash[:alert]
+
+    mitigation.update!(undo_state: Chat::Mitigation::UNDO_READY)
+    assert_enqueued_with(job: MitigationUndoRunJob) { post agent_chat_mitigation_undo_url(conversation, mitigation_id: mitigation.id) }
+    assert_equal "Undoing Feature flag disable on PostHog.", flash[:notice]
+  end
+
+  test "an open chat arrives with its temporary changes and what each viewer may do with them" do
+    conversation = start_chat
+    temporary_change!(conversation)
+
+    get agent_chat_url(conversation), headers: inertia_headers
+
+    shown = inertia_props["mitigations"].sole
+    assert_equal "active", shown["status"]
+    assert_nil shown["keepBlockedReason"]
+    assert_equal "Halon is still writing how to undo this. Try again in a moment.", shown["undoBlockedReason"]
+  end
+
+  test "the rows a statement touched download for someone who may read that database, recorded in the activity log" do
+    conversation = start_chat
+    planetscale = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", slug: "planetscale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    planetscale.integration_environments.create!
+    write = planetscale.tools.create!(name: "execute_write_query", description: "Write", enabled: true, read_only: false, params_schema: {})
+    read = planetscale.tools.create!(name: "execute_read_query", description: "Read", enabled: true, read_only: true, params_schema: {})
+    repair = Chat::DataRepair.create!(chat: conversation.chat_record, workspace: @workspace, asker: @member, tool_call_id: "call_1",
+                                      tool_name: write.model_facing_name, action_key: write.action_key, table_name: "orders", rows_counted: 2,
+                                      statement_kind: Integrations::DataWrites::Statement::KIND_DELETE, status: Chat::DataRepair::STATUS_RAN,
+                                      rows_copy: "id\n1\n2", rows_copied: 2, copied_at: Time.current, copy_expires_at: 30.days.from_now)
+
+    get agent_chat_data_repair_copy_url(conversation, data_repair_id: repair.id)
+
+    assert_response :success
+    assert_equal "id\n1\n2", response.body
+    assert_match "attachment", response.headers["Content-Disposition"]
+    assert Ability::Invocation.exists?(workspace: @workspace, action_key: read.action_key, source: AbilityGateway::SOURCE_WEB)
+
+    repair.update!(rows_copy: nil, copy_cleared_at: Time.current)
+    get agent_chat_data_repair_copy_url(conversation, data_repair_id: repair.id)
+    assert_equal "The copy of these rows was dropped once kept for 30 days.", flash[:alert]
+  end
+
+  test "confirming a temporary change keeps when it is undone" do
+    conversation = start_chat
+    chat = conversation.chat_record
+    chat.messages.create!(role: Chat::Message::ROLE_ASSISTANT, content: "").ruby_llm_tool_calls.create!(tool_call_id: "call_1", name: "posthog_feature_flag_disable", arguments: {})
+    chat.request_decisions!([ "call_1" ])
+    mitigation = temporary_change!(conversation, status: Chat::Mitigation::STATUS_PROPOSED)
+
+    post agent_chat_confirm_url(conversation), params: { decisions: [ { tool_call_id: "call_1", approved: true, expires: "1440" } ] }
+
+    assert_equal 1_440, mitigation.reload.duration_minutes
+  end
+
   private
 
   def held_call_in(conversation, status:)
@@ -558,5 +626,15 @@ class AgentChatsControllerTest < ActionDispatch::IntegrationTest
 
   def start_chat
     Conversation.start_personal!(workspace: @workspace, member: @member)
+  end
+
+  def temporary_change!(conversation, status: Chat::Mitigation::STATUS_ACTIVE)
+    posthog = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "posthog", name: "PostHog", slug: "posthog",
+                                              settings: { "server_url" => "https://mcp.posthog.com/mcp?mode=tools" })
+    posthog.integration_environments.create!
+    posthog.tools.create!(name: "feature_flag_disable", description: "Disable a flag", enabled: true, read_only: false, params_schema: {})
+    Chat::Mitigation.create!(chat: conversation.chat_record, workspace: @workspace, asker: @member, tool_call_id: "call_1", tool_name: "posthog_feature_flag_disable",
+                             action_key: "posthog.feature_flag_disable", target: "PostHog", duration_minutes: 60, status: status,
+                             expires_at: (30.minutes.from_now unless status == Chat::Mitigation::STATUS_PROPOSED), undo_state: Chat::Mitigation::UNDO_WRITING)
   end
 end

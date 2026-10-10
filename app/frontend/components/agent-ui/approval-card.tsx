@@ -166,8 +166,8 @@ export default function ApprovalCard({
   labels?: Partial<ApprovalLabels>;
   onSubmitted?: (answers: Record<number, number[]>) => void;
   onAnswerChange?: (questionIndex: number, answer: number[]) => void;
-  /** the other questions a pick answers too, such as allowing a tool for every question asked about it */
-  answerAlike?: (questionIndex: number, optionIndex: number) => number[];
+  /** the other questions a pick answers too, each with the option it picks there, such as allowing a tool for every question asked about it */
+  answerAlike?: (questionIndex: number, optionIndex: number) => ReadonlyArray<readonly [number, number]>;
   resettable?: boolean;
   /** the "Something else" row, off where only the given options make sense */
   allowCustom?: boolean;
@@ -282,7 +282,7 @@ export default function ApprovalCard({
         ? picked.filter((item) => item !== index)
         : [...picked, index];
     const alike = type === "radio" ? answerAlike?.(qi, index) ?? [] : [];
-    const nextAnswers = { ...answers, [qi]: next, ...Object.fromEntries(alike.map((other) => [other, [index]])) };
+    const nextAnswers = { ...answers, [qi]: next, ...Object.fromEntries(alike.map(([other, option]) => [other, [option]])) };
     onAnswerChange?.(qi, next);
     setAnswers(nextAnswers);
     if (type === "radio" && single) {

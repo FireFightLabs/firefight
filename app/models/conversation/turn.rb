@@ -16,6 +16,9 @@ class Conversation::Turn
 
   def acting_principal = asker
 
+  # A tool of a scheduled plan whose changes the person approved ahead, run without asking since nobody may be there.
+  def approved_ahead?(tool_name) = @approved_tools.include?(tool_name.to_s)
+
   # A chat may change things, each one confirmed by the person who asked.
   def reads_only? = @reads_only
 

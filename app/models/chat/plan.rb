@@ -303,6 +303,10 @@ class Chat::Plan < ApplicationRecord
     return "This is already the undo of a plan." if undo?
     return "Undo is offered once the plan has stopped or finished." unless ENDED.include?(status)
     return "Nothing in this plan changed anything, so there is nothing to undo." unless steps.any? { |step| step.change? && step.done? }
+    undone = Chat::Mitigation.undone_steps(self)
+    if steps.none? { |step| step.change? && step.done? && undone.exclude?(step.id) }
+      return "Firefight already put back every change in this plan when its time ran out, so there is nothing left to undo."
+    end
     return "Its undo is already under way." if undo_requested_at || undo_plan
     return only_who_may unless may_act?(member)
 
@@ -341,8 +345,10 @@ class Chat::Plan < ApplicationRecord
   end
 
   # The undo, from the undo each change was written with before it ran, newest first, then a check that it is back.
+  # A change Firefight already undid when its time ran out (Chat::Mitigation) is left out, so it is put back once.
   def undo_steps
-    changed = steps.select { |step| step.change? && step.done? }.sort_by(&:position).reverse
+    undone = Chat::Mitigation.undone_steps(self)
+    changed = steps.select { |step| step.change? && step.done? && undone.exclude?(step.id) }.sort_by(&:position).reverse
     rows = changed.map do |step|
       { "kind" => Chat::Plan::Step::KIND_CHANGE, "description" => "Put back step #{step.position}: #{step.undo}", "place" => step.place,
         "undo" => "Do step #{step.position} again: #{step.description}" }

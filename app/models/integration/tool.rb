@@ -30,6 +30,15 @@ class Integration::Tool < ApplicationRecord
     recorded!(SystemAgent.map_sweep, AbilityGateway::SOURCE_MAP_SWEEP, arguments, reads, &)
   end
 
+  # A read Halon makes as someone before it asks them to confirm a call through this tool, such as who started what it
+  # would stop. Recorded under the conversation with what it read. Returns the block's result.
+  def read_before_asking!(principal, arguments, reads, incident_id: nil, &)
+    AbilityGateway.record_unattended!(
+      principal: principal, action_key: action_key, workspace: integration.workspace, params: arguments.to_h.merge("reads" => reads),
+      context: { source: AbilityGateway::SOURCE_CONVERSATION, incident_id: incident_id }.compact, &
+    )
+  end
+
   # A call the health check makes to see that a connection reaches the account behind its server. Like the sweep it
   # calls only tools that are switched on, and each call is recorded under the health check.
   def checked!(arguments, reads = nil, &)
@@ -119,6 +128,9 @@ class Integration::Tool < ApplicationRecord
   def remote_name
     spec["tool_name"].presence || name
   end
+
+  # What its change does beyond its risk, which its action answers (Ability::Action#effects).
+  def effects = @effects ||= Integrations::Effects.of(self)
 
   # The tool its provider names as the one that writes a code change, which is handed who asked and what they said.
   def writes_code? = !read_only? && IntegrationProvider.find(integration.provider)&.code_fix_tool == name

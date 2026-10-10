@@ -25,6 +25,9 @@ class Conversation::LiveDelivery
   EVENT_MEMORY = "memory"
   # A plan Halon keeps in this chat was made, moved a step, or someone pressed something on it, so its card looks again.
   EVENT_PLAN = "plan"
+  # A statement's rows were counted or copied, a temporary change started, was kept or undone, or an owner was asked or
+  # answered, so those cards look again.
+  EVENT_SAFEGUARD = "safeguard"
 
   STATUS_RUNNING = "running"
   STATUS_DONE = "done"
@@ -52,6 +55,10 @@ class Conversation::LiveDelivery
 
   def self.watch_moved(conversation)
     ConversationChannel.broadcast_to(conversation, type: EVENT_WATCH)
+  end
+
+  def self.safeguard_moved(conversation)
+    ConversationChannel.broadcast_to(conversation, type: EVENT_SAFEGUARD)
   end
 
   def self.pack_refused(conversation)

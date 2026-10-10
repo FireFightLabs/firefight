@@ -634,6 +634,31 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_mitigation_notice(channel_id:, thread_id:, notice:)
+    post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
+                          text: Slack::Messages::MitigationNotice.fallback(notice), blocks: Slack::Messages::MitigationNotice.build(notice))
+  end
+
+  def post_mitigation_notice_to_user(user_id:, notice:)
+    post_message(channel_id: user_id, text: Slack::Messages::MitigationNotice.fallback(notice),
+                 blocks: Slack::Messages::MitigationNotice.build(notice, direct: true))
+  end
+
+  def update_mitigation_notice(channel_id:, message_id:, notice:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::MitigationNotice.fallback(notice),
+                   blocks: Slack::Messages::MitigationNotice.build(notice, direct: direct_conversation?(channel_id: channel_id)))
+    { success: true }
+  end
+
+  def post_owner_ask(user_id:, ask:)
+    post_message(channel_id: user_id, text: Slack::Messages::OwnerAsk.fallback(ask), blocks: Slack::Messages::OwnerAsk.build(ask))
+  end
+
+  def update_owner_ask(channel_id:, message_id:, ask:)
+    update_message(channel_id: channel_id, message_id: message_id, text: Slack::Messages::OwnerAsk.fallback(ask), blocks: Slack::Messages::OwnerAsk.build(ask))
+    { success: true }
+  end
+
   def post_pull_request_notice(channel_id:, thread_id:, notice:)
     post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
                           text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice))

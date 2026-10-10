@@ -266,6 +266,21 @@ module Integrations
                            "condition holds, such as always(), keeps running, and GitHub stops the rest within 5 minutes. #{FOLLOW}.", link: actions_link(run["html_url"]))
         end
 
+        # Whoever triggered the run, matched to a member by the public address GitHub shows for them. A run a bot started
+        # has nobody to ask.
+        def owner_of(tool_name, environment_row:, arguments:)
+          return super unless tool_name == "cancel_workflow"
+
+          repo = repo_argument(arguments)
+          token = GithubApp.installation_token(environment_row)
+          run = GithubApp.get("/repos/#{repo}/actions/runs/#{run_id_argument(arguments)}", token: token)
+          login = (run["triggering_actor"] || run["actor"]).to_h["login"].to_s
+          return if login.empty? || login.end_with?("[bot]")
+
+          Owner.new(name: login, email: GithubApp.get("/users/#{Http.segment(login)}", token: token)["email"], role: Owner::ROLE_STARTED,
+                    what: run_name(run, repo))
+        end
+
         private
 
         # A change GitHub refused for the permission it needs is said with the permission, so a person knows what to grant.

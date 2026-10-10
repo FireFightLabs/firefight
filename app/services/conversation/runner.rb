@@ -111,7 +111,10 @@ class Conversation::Runner
   # A confirmation the person moved past is redrawn where it was asked, so its buttons are gone.
   def withdraw(closed)
     withdrawn = closed.select { |call| call.approval == Chat::APPROVAL_WITHDRAWN }
-    delivery.withdrawn!(withdrawn) if withdrawn.any?
+    return if withdrawn.empty?
+
+    delivery.withdrawn!(withdrawn)
+    Conversation::OwnerAsks.withdraw!(@conversation.chat, withdrawn.map(&:tool_call_id))
   end
 
   def answered?(outcome) = outcome.status == FirefightAi::AgentLoop::STATUS_ANSWERED
@@ -149,6 +152,8 @@ class Conversation::Runner
     chat.nudge!(note) if note
     watched = Conversation::Watches.untold_note(chat)
     chat.nudge!(watched) if watched
+    mitigated = Conversation::Mitigations.untold_note(chat)
+    chat.nudge!(mitigated) if mitigated
     noticed = PullRequestFollowing.untold_note(@conversation)
     chat.nudge!(noticed) if noticed
     stale = Chat::StaleRefusals.note(chat)
@@ -233,6 +238,7 @@ class Conversation::Runner
     chat.request_decisions!(chat.to_llm.pending_approvals.map(&:id))
     Chat::Tools::Target.record!(@turn, chat.awaiting_decision.where(target: nil).to_a)
     Chat::Tools::Provenance.record!(@turn, chat.awaiting_decision.where(provenance: nil).to_a)
+    Chat::Safeguards.prepare!(@turn, chat.awaiting_decision.to_a)
     @conversation.reply_delivered!
     chat.clear_stop!
     delivery.confirm!(chat.awaiting_decision.to_a)

@@ -64,6 +64,18 @@ class AgentChatConfirmationSerializer < BaseSerializer
     confirmation.read_rows
   end
 
+  # What the call touches beyond its arguments, such as the rows a statement changes or who started what it stops.
+  type "string[][]"
+  def safeguards
+    confirmation.safeguards
+  end
+
+  # When a change customers feel may be undone, the default first. Empty for any other call.
+  type "{ value: string; label: string }[]"
+  def expires
+    confirmation.expires.map(&:to_h)
+  end
+
   private
 
   def confirmation = memo.fetch(:confirmation) { Chat::Tools.confirmation(tool_call) }
