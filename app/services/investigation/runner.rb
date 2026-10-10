@@ -53,7 +53,7 @@ class Investigation::Runner
 
   private
 
-  def delivery = @delivery ||= (@investigation.rehearsal? ? Investigation::QuietDelivery : Investigation::Delivery).new(@investigation)
+  def delivery = @delivery ||= Investigation::Delivery.for(@investigation)
 
   def deliver(result)
     if @investigation.reload.finding
@@ -108,10 +108,13 @@ class Investigation::Runner
     true
   end
 
+  # A scheduled check reasons with its own prompts, in the same loop.
   def investigator
-    @investigator ||= FirefightAi::Investigator.new(
-      @investigation.workspace, inferable: @investigation, member: member, model: @investigation.ai_model
-    )
+    @investigator ||= if @investigation.scheduled?
+      FirefightAi::Monitor.new(@investigation.workspace, inferable: @investigation, model: @investigation.ai_model)
+    else
+      FirefightAi::Investigator.new(@investigation.workspace, inferable: @investigation, member: member, model: @investigation.ai_model)
+    end
   end
 
   # Inference rows name a person only when a person asked.

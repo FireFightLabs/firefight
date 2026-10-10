@@ -40,6 +40,13 @@ module Integrations
       RESOURCE = { "type" => "string", "description" => "A project in the team, by name or id, as list_resources shows it" }.freeze
       DEPLOYMENT = { "type" => "string", "description" => "A deployment of the project, by its id (dpl_...) or its URL, as list_deployments shows it" }.freeze
 
+      COST_DAYS = 30
+      COST_DAYS_MAX = 365
+      COST_MONTHS = 3
+      COST_MONTHS_MAX = 12
+      # A year by day is a few thousand rows for most teams, and a larger one is cut rather than read for minutes.
+      COST_ROWS = 50_000
+
       tool :list_resources,
            description: "The projects in the Vercel team for this environment, with their framework and the state of their " \
                         "production deployment. Use it first to find the name to pass to the other tools",
@@ -135,6 +142,20 @@ module Integrations
                         "page: pass limit, and the pagination's next as until for the next page. Only reads, so it never " \
                         "changes anything. Environment variables, drains and tokens come back as their names",
            params_schema: ApiReads.path_schema("/v9/projects/<project id or name>/domains"),
+           read_only: true
+
+      tool :billing_charges,
+           description: "What the Vercel team was charged, by day or by month, with each period's total, the services that cost most and " \
+                        "the projects behind them. Use it to watch spend and find what grew and since when. The token's role on the team " \
+                        "has to see billing",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "by" => { "type" => "string", "enum" => Spend::GRANULARITIES, "description" => "day or month (optional, day)" },
+               "days" => { "type" => "integer", "description" => "For by day, how many days back from today (optional, #{COST_DAYS}, at most #{COST_DAYS_MAX})" },
+               "months" => { "type" => "integer", "description" => "For by month, how many months before this one (optional, #{COST_MONTHS}, at most #{COST_MONTHS_MAX})" }
+             }
+           },
            read_only: true
 
       def self.credential_fields
@@ -451,6 +472,24 @@ module Integrations
 
       # Lists a project in each team the connection reaches, or in the token's own account when it names none, so a team
       # the token can no longer reach is said on the connection.
+      def billing_charges(environment_row:, arguments:)
+        by = Spend.by(arguments)
+        started = Spend.since(arguments, days: COST_DAYS, days_most: COST_DAYS_MAX, months: COST_MONTHS, months_most: COST_MONTHS_MAX)
+        charges, cut = api(environment_row).billing_charges(from: started.to_time(:utc), to: Time.current.utc, limit: COST_ROWS)
+        rows = charges.filter_map do |charge|
+          start = Telemetry.parse_time(charge["ChargePeriodStart"])
+          next unless start
+
+          Spend::Row.new(period: Spend.period_of(start, by), service: charge["ServiceName"].to_s, amount: charge["BilledCost"].to_f,
+                         project: charge.dig("Tags", "ProjectName").presence)
+        end
+        currency = charges.first&.dig("BillingCurrency") || "USD"
+        note = "Vercel had more charges than Firefight read, so the newest are missing." if cut
+        Telemetry.result(Spend.text(rows, by: by, since: started.iso8601, currency: currency, cut: note), link: team_link(environment_row))
+      rescue VercelApi::Refused => error
+        fail! Sentence.join("Vercel refused to read the team's charges. The token's role on the team needs to see billing", error)
+      end
+
       def check_health!(environment_row)
         teams = ConnectionSettings.of(environment_row).scopes
         teams.empty? ? api(environment_row).check! : teams.each { |team| scoped(team).send(:api, environment_row).check! }

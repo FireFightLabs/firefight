@@ -15,6 +15,7 @@ module Integrations
     class Refused < Error; end
 
     API_ROOT = "https://api.vercel.com".freeze
+    BILLING_READ_TIMEOUT = 60
     TEAM_ID = /\Ateam_/
     PROVIDER = "Vercel".freeze
     PAYMENT_REQUIRED = 402
@@ -90,6 +91,41 @@ module Integrations
     end
 
     def user = get("/v2/user")["user"] || {}
+
+    # What the team was charged from from to before to, a day at a time (rest-api/billing, list-focus-billing-charges),
+    # streamed as JSON lines in the FOCUS format: BilledCost, BillingCurrency, ChargePeriodStart, ServiceName, and Tags
+    # naming the project. At most limit rows are kept, and cut says whether more were left.
+    def billing_charges(from:, to:, limit:)
+      uri = uri("/v1/billing/charges", "from" => from.utc.iso8601, "to" => to.utc.iso8601)
+      request = Net::HTTP::Get.new(uri)
+      authorize(request)
+      request["Accept"] = "application/jsonl"
+      rows = []
+      cut = false
+      catch(:enough) do
+        Http.request(uri, request, error_class: Error, read_timeout: BILLING_READ_TIMEOUT) do |response|
+          refuse(response.code, response.read_body) unless response.code.to_i.between?(200, 299)
+
+          buffer = +""
+          response.read_body do |chunk|
+            buffer << chunk
+            while (line = buffer.slice!(/\A[^\n]*\n/))
+              row = parse_row(line)
+              next unless row
+
+              rows << row
+              next if rows.size < limit
+
+              cut = true
+              throw :enough
+            end
+          end
+          last = parse_row(buffer) if buffer.present?
+          rows << last if last
+        end
+      end
+      [ rows, cut ]
+    end
 
     # What a deployment logs while it is watched, for at most seconds or limit rows. The endpoint streams live rows as
     # NDJSON and takes no time range (spec, getRuntimeLogs), so nothing from before the call comes back.

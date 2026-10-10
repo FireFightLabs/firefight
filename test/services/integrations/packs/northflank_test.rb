@@ -264,7 +264,7 @@ module Integrations
         NorthflankApi.any_instance.stubs(logs: [], metrics: {}, builds: [], deployments: [], containers: [], build_logs: [],
                                          service: { "deployment" => {}, "healthChecks" => [] },
                                          jobs: listed([ { "id" => "nightly", "name" => "Nightly", "jobType" => "cron" } ]), job_runs: [], request: {},
-                                         workflow: { "name" => "Release", "triggers" => [] }, update_workflow: {})
+                                         workflow: { "name" => "Release", "triggers" => [] }, update_workflow: {}, billing_usage: listed([]))
         arguments = { "resource" => "web", "job" => "nightly", "build" => "jovial-writer-6307", "method" => "POST", "path" => "services/web/restart",
                       "workflow" => "release", "ref" => "release-webhook" }
         links = Northflank.tool_definitions.to_h { |definition| [ definition.name.to_s, call(definition.name, arguments).lines.last ] }
@@ -280,6 +280,7 @@ module Integrations
         assert_match %r{/services/web\z}, links["describe_resource"]
         assert_match %r{/services/web\z}, links["api_request"]
         assert_match %r{/project/firefight\z}, links["add_workflow_webhook"]
+        assert_match %r{app.northflank.com\z}, links["billing_usage"]
       end
 
       test "a metric with more containers than a chart keeps says how many were left out" do
@@ -628,6 +629,27 @@ module Integrations
         assert_match "\"id\":\"cache\"", text
         assert_no_match "rediss://cache", text
         assert_no_match "k3y", text
+      end
+
+      test "billing usage reads each day's charges by category, and a refusal says the role needs billing" do
+        travel_to Time.utc(2026, 10, 10, 12) do
+          entries = [
+            { "timestamp" => Time.utc(2026, 10, 9).to_i, "currency" => "usd", "paas" => { "price" => { "cpu" => 3.5, "memory" => 1.5, "storage" => 0.25, "gpu" => 0 } },
+              "loadBalancer" => { "price" => { "total" => 0.5 } } },
+            { "timestamp" => Time.utc(2026, 10, 8).to_i, "currency" => "usd", "paas" => { "price" => { "cpu" => 2.0, "memory" => 1.0 } } }
+          ]
+          NorthflankApi.any_instance.expects(:billing_usage).with(start: Time.utc(2026, 9, 10), finish: Time.current.utc, granularity: "day")
+                       .returns(listed(entries))
+
+          text = @pack.call("billing_usage", environment_row: @row, arguments: {})["content"].map { |part| part["text"] }.join("\n")
+
+          assert_match "in USD:\n- 2026-10-09: 5.75, CPU 3.50, Memory 1.50, Load balancers 0.50, Storage 0.25\n- 2026-10-08: 3.00", text
+          assert_match "By service over the whole range:\n- CPU: 5.50", text
+        end
+
+        NorthflankApi.any_instance.stubs(:billing_usage).raises(NorthflankApi::Forbidden, "Northflank answered 403")
+        refused = assert_raises(Integrations::NativePack::Error) { @pack.call("billing_usage", environment_row: @row, arguments: {}) }
+        assert_match "Billing read", refused.message
       end
 
       private

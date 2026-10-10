@@ -32,6 +32,9 @@ class Workspace < ApplicationRecord
   has_many :alerts, dependent: :destroy
   has_many :alert_groups, dependent: :destroy
   has_many :investigations, dependent: :destroy
+  # After investigations, since a check refuses to go while it has runs.
+  has_many :investigation_checks, class_name: "Investigation::Check", dependent: :destroy
+  has_many :investigation_notices, class_name: "Investigation::Notice", dependent: :delete_all
   has_many :chats, dependent: :destroy
   # Uploads nobody sent yet belong to no chat, so the workspace lets go of them itself.
   has_many :chat_attachments, class_name: "Chat::Attachment", dependent: :destroy

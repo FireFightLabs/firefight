@@ -92,6 +92,25 @@ export const RESOURCE_MAP_KINDS = [
 ] as const
 export type ResourceMapKind = (typeof RESOURCE_MAP_KINDS)[number]
 
+export const CHECK_KINDS = {
+  "DISK": "disk",
+  "CERTIFICATES": "certificates",
+  "ERROR_BUDGET": "error_budget",
+  "COST": "cost",
+  "CUSTOM": "custom"
+} as const
+
+export const CHECK_CADENCES = {
+  "DAILY": "daily",
+  "WEEKLY": "weekly"
+} as const
+
+export const NOTICE_SEVERITIES = {
+  "LOW": "low",
+  "MEDIUM": "medium",
+  "HIGH": "high"
+} as const
+
 export const REMEDIATION_STEP_KINDS = [
   "pull_request",
   "action",
@@ -655,6 +674,7 @@ export const ABILITY_RESOURCES = [
   "chats",
   "memory",
   "map",
+  "monitoring",
   "integrations",
   "api_keys",
   "permissions",
@@ -681,7 +701,8 @@ export const ABILITY_GRANTABLE_RESOURCES = [
   "investigations",
   "chats",
   "memory",
-  "map"
+  "map",
+  "monitoring"
 ] as const
 export type AbilityGrantableResource = (typeof ABILITY_GRANTABLE_RESOURCES)[number]
 
@@ -703,6 +724,7 @@ export const ABILITY_RESOURCE_LABELS = {
   "chats": "Chats",
   "memory": "Memory",
   "map": "Resource Map",
+  "monitoring": "Monitoring",
   "webhooks": "Webhooks",
   "integrations": "Integrations",
   "api_keys": "API Keys",
@@ -824,6 +846,12 @@ export const ABILITY_RESOURCE_ACTIONS = {
   ],
   "map": [
     "read"
+  ],
+  "monitoring": [
+    "read",
+    "create",
+    "update",
+    "delete"
   ]
 } as const
 
@@ -1062,7 +1090,9 @@ export const INVESTIGATION_TRIGGERS = [
   "mcp",
   "dashboard",
   "rehearsal",
-  "alert"
+  "alert",
+  "schedule",
+  "security_event"
 ] as const
 export type InvestigationTrigger = (typeof INVESTIGATION_TRIGGERS)[number]
 

@@ -29,6 +29,7 @@ module Integrations
     # Microsoft Entra puts its reason in error_description, with a trace on the lines after it.
     OAUTH_REASON = ->(body) { Sentence.clean(body["error_description"]) || body["error"].presence }
     MANAGEMENT = :management
+    COST_VERSION = "2023-03-01".freeze
     LOG_ANALYTICS = :log_analytics
     TOKEN_CACHE_KEY = "azure_tokens".freeze
     TOKEN_REFRESH_MARGIN = 5.minutes
@@ -61,6 +62,10 @@ module Integrations
     # nextLink (Subscriptions, List, 2022-12-01, learn.microsoft.com/rest/api/resources/subscriptions/list). Reader on a
     # subscription is enough to see it. No subscription of its own is needed to ask.
     def subscriptions = list("/subscriptions", "2022-12-01")
+
+    # The subscription's cost, grouped and summed as the body asks (Cost Management, Query - Usage). A query is a POST
+    # that only reads, and it needs the Cost Management Reader role.
+    def cost_query(body) = post("/subscriptions/#{segment(@subscription)}/providers/Microsoft.CostManagement/query", COST_VERSION, body)
 
     # A Resource Manager read, by path from the root and the api-version that resource type takes.
     def get(path, api_version, query = {}) = arm(Net::HTTP::Get, path, api_version, nil, query)

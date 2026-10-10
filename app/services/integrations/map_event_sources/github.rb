@@ -20,6 +20,12 @@ module Integrations
       CHECK_SUITE = "check_suite".freeze
       CHECK_RUN = "check_run".freeze
       STATUS = "status".freeze
+      # A secret found in a repository, sent once the App subscribes to Secret scanning alerts and holds read access to
+      # them (Webhook events and payloads, secret_scanning_alert). created is a new alert and publicly_leaked one found
+      # public too. The alert is a secret scanning alert as the REST API gives it: number, secret_type_display_name,
+      # html_url, and never the secret itself.
+      SECRET_SCANNING_ALERT = "secret_scanning_alert".freeze
+      SECRET_RAISED = { "created" => false, "publicly_leaked" => true }.freeze
       # Sent to every GitHub App without subscribing (docs.github.com, Webhook events and payloads, installation_repositories).
       INSTALLATION_REPOSITORIES = "installation_repositories".freeze
       # Also sent to every GitHub App, for the installation itself (Webhook events and payloads, installation): deleted,
@@ -96,6 +102,21 @@ module Integrations
           return [] if numbers.empty? && branches.empty?
 
           [ Integrations::PullRequests::Nudge.new(repository: repository, numbers: numbers, branches: branches) ]
+        end
+
+        # What a delivery says leaked (Integrations::SecurityEvents), for the security module to look into.
+        def security_events(payload, headers:)
+          return [] unless headers[EVENT_HEADER].to_s == SECRET_SCANNING_ALERT && SECRET_RAISED.key?(payload["action"].to_s)
+
+          alert = payload["alert"].to_h
+          repository = payload.dig("repository", "full_name")
+          return [] if repository.blank? || alert["number"].blank?
+
+          [ SecurityEvents::Event.new(
+            kind: SecurityEvents::KIND_LEAKED_SECRET, provider: "GitHub", reference: "#{repository}##{alert['number']}", place: repository,
+            what: alert["secret_type_display_name"].presence || alert["secret_type"].presence || "secret", url: alert["html_url"],
+            public: SECRET_RAISED.fetch(payload["action"].to_s) || alert["publicly_leaked"] == true
+          ) ]
         end
 
         private

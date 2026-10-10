@@ -19,6 +19,8 @@ module Integrations
     class Refused < Error; end
     # The token's role may not do this, which a caller can name the permission for.
     class Forbidden < Refused; end
+    BILLING_MONTH = "month".freeze
+    BILLING_MONTH_PAGE = 12
     REFINED = { 400 => Refused, 403 => Forbidden, 404 => NotFound, 409 => Refused, 422 => Refused }.freeze
     VERBS = { "GET" => Net::HTTP::Get, "POST" => Net::HTTP::Post, "PATCH" => Net::HTTP::Patch, "PUT" => Net::HTTP::Put,
               "DELETE" => Net::HTTP::Delete }.freeze
@@ -118,6 +120,19 @@ module Integrations
     end
 
     def delete_notification(notification_id) = changing(Net::HTTP::Delete, "/integrations/notifications/#{segment(notification_id)}")
+
+    # What the account or team the token bills was charged, a bucket an entry (billing, get-usage): each entry's timestamp
+    # (its bucket's start, Unix), currency, total, and price by category under paas, byoc, egressIp and loadBalancer. It
+    # walks back from the newest bucket a page at a time, and a month is at most 12 a page.
+    def billing_usage(start:, finish:, granularity:)
+      per_page = granularity == BILLING_MONTH ? BILLING_MONTH_PAGE : PAGE_SIZE
+      Pages.read(max_pages: MAX_PAGES) do |cursor|
+        body = get("/billing/usage", { "startTime" => start.to_i, "endTime" => finish.to_i, "granularity" => granularity,
+                                       "perPage" => per_page, "cursor" => cursor }.compact)
+        pagination = body["pagination"] || {}
+        [ body.dig("data", "usage") || [], (pagination["cursor"] if pagination["hasNextPage"]) ]
+      end
+    end
 
     # Any call inside a project, as the api_request tool asks for it. The body goes as JSON and the query options encoded.
     def request(verb, project_id, path, body = nil, query = {})

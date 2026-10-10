@@ -709,6 +709,13 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # A problem Halon found on its own, from a scheduled check, said in the channel of the team that owns it. notice is an
+  # Investigation::Notice, said once and again only when it got worse.
+  # @return [Hash] { message_id:, channel_id: }
+  def post_monitoring_notice(channel_id:, notice:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # A pull request Halon opened that needs attention, with why and Fix it, in the thread of the chat or run it came
   # from. notice is a CodeAgentSession::Notice.
   # @return [Hash] { message_id:, channel_id: }

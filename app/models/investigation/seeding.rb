@@ -4,6 +4,7 @@ module Investigation::Seeding
   # One seeder per subject type. A new kind of subject adds a class and a line here.
   SEEDERS = {
     "Incident" => "Investigation::IncidentSeed",
+    "Investigation::Check" => "Investigation::CheckSeed",
     # A question asked before anyone declared an incident.
     nil => "Investigation::QuestionSeed"
   }.freeze
@@ -39,7 +40,9 @@ module Investigation::Seeding
     subjects = Chat::Memory.subjects_for(incident)
     memories = Chat::Memory.starting_with(workspace, subjects, principal: acting_principal)
     instructions = Chat::Instruction.for_subjects(workspace, subjects, principal: acting_principal).map(&:line)
-    update!(seed_pack: seeder.gather.merge(KEY_CLUES => Investigation::Clues.new(self).gather),
+    # A scheduled check has no symptom, start time or alert to take clues from.
+    clues = scheduled? ? {} : { KEY_CLUES => Investigation::Clues.new(self).gather }
+    update!(seed_pack: seeder.gather.merge(clues),
             seed_notes: Investigation::Seeding.notes(memories.map { |memory| { "id" => memory.id, "line" => memory.line } }, instructions))
     Chat::Memory.handed_to!(memories, self) if changes_memory?
     seed_pack

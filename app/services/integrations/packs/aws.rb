@@ -83,6 +83,16 @@ module Integrations
       BASELINE_PERIOD = 3600
 
       LOG_LIMIT = 200
+      # Cost Explorer's granularities (GetCostAndUsage, Granularity), its unblended cost, the one most bills show, and its
+      # endpoint, which answers for a whole partition from one region (AWS General Reference, AWS Cost Explorer endpoints).
+      COST_GRANULARITIES = { Spend::BY_DAY => "DAILY", Spend::BY_MONTH => "MONTHLY" }.freeze
+      COST_METRIC = "UnblendedCost".freeze
+      COST_REGIONS = { COMMERCIAL => "us-east-1", CHINA => "cn-northwest-1" }.freeze
+      COST_DAYS = 30
+      COST_DAYS_MAX = 365
+      COST_MONTHS = 3
+      COST_MONTHS_MAX = 12
+      COST_PAGES = 5
       QUERY_ROWS = 500
       QUERY_LIMIT = 10_000
       # Logs Insights runs a query in the background, so a call waits for it this long and gives up rather than hang.
@@ -295,10 +305,24 @@ module Integrations
            },
            read_only: true
 
+      tool :cost_and_usage,
+           description: "What the AWS account spent, from Cost Explorer, by day or by month, with each period's total and the services " \
+                        "that cost most. Use it to watch spend and find what grew and since when. AWS charges the account $0.01 for each " \
+                        "Cost Explorer request, and the last day or two are still estimates",
+           params_schema: {
+             "type" => "object",
+             "properties" => {
+               "by" => { "type" => "string", "enum" => COST_GRANULARITIES.keys, "description" => "day or month (optional, day)" },
+               "days" => { "type" => "integer", "description" => "For by day, how many days back from today (optional, #{COST_DAYS}, at most #{COST_DAYS_MAX})" },
+               "months" => { "type" => "integer", "description" => "For by month, how many months before this one (optional, #{COST_MONTHS}, at most #{COST_MONTHS_MAX})" }
+             }
+           },
+           read_only: true
+
       def self.credential_fields
         [
           CredentialField.new(key: ACCESS_KEY_ID, label: "Access key ID", secret: false, placeholder: "AKIA...",
-                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
+                              hint: "The access key of an IAM user that can read ECS, Lambda, EC2, RDS, CloudWatch metrics and CloudWatch Logs Insights, the tags of ECS services and Lambda functions (ecs:ListTagsForResource and lambda:ListTags), Cost Explorer's spend (ce:GetCostAndUsage), which lets Halon watch the bill, ECS task definitions (ecs:DescribeTaskDefinition), which say which database a service uses, and CloudTrail's event history (cloudtrail:LookupEvents), which lets the map follow changes every five minutes. For Halon to apply fixes, also allow it to update ECS services and Lambda aliases."),
           CredentialField.new(key: SECRET_ACCESS_KEY, label: "Secret access key", secret: true, placeholder: "",
                               hint: "The secret AWS shows once, when you create the access key.")
         ]
@@ -475,6 +499,21 @@ module Integrations
         end
         Telemetry.result("#{entry.name} is starting a new deployment on the task definition it runs, which replaces every task. " \
                          "Nothing to undo. Follow it with describe_resource.", link: resource_link(entry))
+      end
+
+      def cost_and_usage(environment_row:, arguments:)
+        region = COST_REGIONS[Aws.partition(regions(environment_row).first)]
+        fail!("AWS keeps the spend of a GovCloud account on the commercial account it is linked to. Connect that account to read it.") unless region
+
+        by = Spend.by(arguments)
+        today = Time.current.utc.to_date
+        started = Spend.since(arguments, days: COST_DAYS, days_most: COST_DAYS_MAX, months: COST_MONTHS, months_most: COST_MONTHS_MAX, today: today)
+        params = { time_period: { start: started.iso8601, end: (today + 1).iso8601 }, granularity: COST_GRANULARITIES.fetch(by),
+                   metrics: [ COST_METRIC ], group_by: [ { type: "DIMENSION", key: "SERVICE" } ] }
+        periods, more = api(environment_row).all(:costexplorer, region, :get_cost_and_usage, params, :results_by_time, max_pages: COST_PAGES)
+        Telemetry.result(cost_text(periods, by: by, started: started, more: more), link: console_link(region, "costmanagement/home", "/cost-explorer"))
+      rescue AwsApi::Denied => error
+        fail! Sentence.join("AWS refused to read the account's spend. The keys need ce:GetCostAndUsage", error)
       end
 
       def scale_service(environment_row:, arguments:)
@@ -1362,6 +1401,23 @@ module Integrations
       def metrics_link(entry)
         console_link(entry.region, "cloudwatch/home", "metricsV2:graph=~();namespace=~'#{NAMESPACES.fetch(entry.kind).sub('/', '*2f')}")
       end
+
+      # Cost Explorer's periods as Integrations::Spend rows, by the service that charged each amount.
+      def cost_text(periods, by:, started:, more:)
+        unit = nil
+        rows = periods.flat_map do |period|
+          Array(period[:groups]).map do |group|
+            metric = group.dig(:metrics, COST_METRIC.to_sym) || group.dig(:metrics, COST_METRIC) || {}
+            unit ||= metric[:unit]
+            Spend::Row.new(period: period_label(period, by), service: Array(group[:keys]).first.to_s, amount: metric[:amount].to_f)
+          end
+        end
+        estimated = periods.select { |period| period[:estimated] }.map { |period| period_label(period, by) }
+        cut = "Cost Explorer had more than Firefight read, so the oldest periods are missing." if more
+        "Unblended cost. #{Spend.text(rows, by: by, since: started.iso8601, currency: unit || 'USD', cut: cut, estimated: estimated)}"
+      end
+
+      def period_label(period, by) = by == Spend::BY_MONTH ? period.dig(:time_period, :start).to_s.first(7) : period.dig(:time_period, :start).to_s
 
       def console_link(region, path, fragment = nil)
         return nil unless region

@@ -265,6 +265,24 @@ module Integrations
         assert_equal "Trigger.dev answered 401: Invalid API key", error.message
       end
 
+      test "run costs add each run's compute and base cost by day and by task" do
+        travel_to Time.utc(2026, 10, 10, 12) do
+          runs = [
+            { "taskIdentifier" => "send-email", "createdAt" => "2026-10-09T10:00:00Z", "costInCents" => 120, "baseCostInCents" => 5 },
+            { "taskIdentifier" => "nightly-sync", "createdAt" => "2026-10-09T02:00:00Z", "costInCents" => 300, "baseCostInCents" => 0 },
+            { "taskIdentifier" => "send-email", "createdAt" => "2026-10-08T10:00:00Z", "costInCents" => 50, "baseCostInCents" => 5 }
+          ]
+          TriggerDevApi.any_instance.expects(:runs).with(
+            filter: { "createdAt" => { "from" => "2026-09-10T00:00:00Z", "to" => "2026-10-10T12:00:00Z" } }, limit: TriggerDev::COST_RUNS
+          ).returns(runs)
+
+          text = @pack.call("run_costs", environment_row: @row, arguments: {})["content"].map { |part| part["text"] }.join("\n")
+
+          assert_match "- 2026-10-09: 4.25, nightly-sync 3.00, send-email 1.25\n- 2026-10-08: 0.55, send-email 0.55", text
+          assert_no_match "were read", text
+        end
+      end
+
       private
 
       def call(tool, arguments = {})

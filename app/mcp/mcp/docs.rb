@@ -18,5 +18,6 @@ module Mcp
     APPROVALS = "#{BASE}/gateway/approvals.md".freeze
     ACTIVITY = "#{BASE}/gateway/activity.md".freeze
     ON_CALL = "#{BASE}/ai/on-call.md".freeze
+    MONITORING = "#{BASE}/ai/monitoring-and-security.md".freeze
   end
 end

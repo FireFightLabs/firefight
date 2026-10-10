@@ -266,6 +266,31 @@ module Integrations
         assert_equal [ "dpl_2" ], only.map(&:id)
       end
 
+      test "billing charges add up each day's FOCUS rows by service and by project, and a refusal says the role needs billing" do
+        travel_to Time.utc(2026, 10, 10, 12) do
+          charges = [
+            { "BilledCost" => 4.5, "BillingCurrency" => "USD", "ChargePeriodStart" => "2026-10-08T00:00:00Z", "ServiceName" => "Function Duration",
+              "Tags" => { "ProjectName" => "shop" } },
+            { "BilledCost" => 1.25, "BillingCurrency" => "USD", "ChargePeriodStart" => "2026-10-08T00:00:00Z", "ServiceName" => "Fast Data Transfer",
+              "Tags" => { "ProjectName" => "blog" } },
+            { "BilledCost" => 9.0, "BillingCurrency" => "USD", "ChargePeriodStart" => "2026-10-09T00:00:00Z", "ServiceName" => "Function Duration",
+              "Tags" => { "ProjectName" => "shop" } }
+          ]
+          VercelApi.any_instance.expects(:billing_charges).with do |from:, to:, limit:|
+            from == Time.utc(2026, 9, 10) && to == Time.current && limit == Vercel::COST_ROWS
+          end.returns([ charges, false ])
+
+          text = call(:billing_charges)
+
+          assert_match "in USD:\n- 2026-10-09: 9.00, Function Duration 9.00\n- 2026-10-08: 5.75", text
+          assert_match "By project over the whole range:\n- shop: 13.50\n- blog: 1.25", text
+        end
+
+        VercelApi.any_instance.stubs(:billing_charges).raises(VercelApi::Refused, "Vercel answered 403: Not authorized")
+        refused = assert_raises(Integrations::NativePack::Error) { call(:billing_charges) }
+        assert_match "needs to see billing", refused.message
+      end
+
       private
 
       def call(tool, arguments = {})

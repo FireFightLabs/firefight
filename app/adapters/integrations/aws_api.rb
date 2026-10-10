@@ -49,7 +49,8 @@ module Integrations
       secretsmanager: [ "aws-sdk-secretsmanager", "Aws::SecretsManager::Client" ],
       sns: [ "aws-sdk-sns", "Aws::SNS::Client" ],
       sqs: [ "aws-sdk-sqs", "Aws::SQS::Client" ],
-      ssm: [ "aws-sdk-ssm", "Aws::SSM::Client" ]
+      ssm: [ "aws-sdk-ssm", "Aws::SSM::Client" ],
+      costexplorer: [ "aws-sdk-costexplorer", "Aws::CostExplorer::Client" ]
     }.freeze
     SERVICES = CLIENTS.keys.map(&:to_s).freeze
     # The error codes AWS's services answer when the keys or their policy refuse a call, and when what was named is not

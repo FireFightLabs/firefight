@@ -378,6 +378,31 @@ module Integrations
         assert_nil @pack.map_refresh(@row, ResourceMap::Scope.everything)
       end
 
+      test "cost reads Cost Management by its columns, each day's total and what cost most, newest first" do
+        travel_to Time.utc(2026, 10, 10, 12) do
+          answer = { "properties" => {
+            "columns" => [ { "name" => "Cost" }, { "name" => "UsageDate" }, { "name" => "ServiceName" }, { "name" => "Currency" } ],
+            "rows" => [ [ 10.5, 20261008, "Virtual Machines", "EUR" ], [ 4.0, 20261008, "Storage", "EUR" ], [ 30.0, 20261009, "Virtual Machines", "EUR" ] ]
+          } }
+          AzureApi.any_instance.expects(:cost_query).with do |body|
+            body["timePeriod"] == { "from" => "2026-09-10T00:00:00Z", "to" => "2026-10-10T23:59:59Z" } && body.dig("dataset", "granularity") == "Daily"
+          end.returns(answer)
+
+          text = @pack.call("cost_query", environment_row: @row, arguments: {})["content"].map { |part| part["text"] }.join("\n")
+
+          assert_match "in EUR:\n- 2026-10-09: 30.00, Virtual Machines 30.00\n- 2026-10-08: 14.50, Virtual Machines 10.50, Storage 4.00", text
+          assert_match "- Virtual Machines: 40.50\n- Storage: 4.00", text
+        end
+      end
+
+      test "cost refused for want of the role names it" do
+        AzureApi.any_instance.stubs(:cost_query).raises(AzureApi::Error, "Azure answered 403: AuthorizationFailed")
+
+        refused = assert_raises(Integrations::NativePack::Error) { @pack.call("cost_query", environment_row: @row, arguments: {}) }
+
+        assert_match "Cost Management Reader", refused.message
+      end
+
       private
 
       def pages(items, complete: true) = Integrations::Pages::Read.new(items: items, complete: complete)

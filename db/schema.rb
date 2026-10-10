@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_121100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_121400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1697,6 +1697,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121100) do
     t.index ["workspace_id", "slug"], name: "index_integrations_on_active_slug", unique: true, where: "(deleted_at IS NULL)"
   end
 
+  create_table "investigation_checks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.string "name", null: false
+    t.string "kind", null: false
+    t.text "notes"
+    t.string "cadence", null: false
+    t.integer "hour", null: false
+    t.integer "weekday"
+    t.string "time_zone", null: false
+    t.datetime "next_run_at", null: false
+    t.datetime "last_run_at"
+    t.datetime "deleted_at"
+    t.uuid "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index "workspace_id, lower((name)::text)", name: "index_investigation_checks_on_workspace_and_name", unique: true
+    t.index ["created_by_id"], name: "index_investigation_checks_on_created_by_id"
+    t.index ["next_run_at"], name: "index_investigation_checks_due", where: "(deleted_at IS NULL)"
+    t.index ["workspace_id"], name: "index_investigation_checks_on_workspace_id"
+  end
+
   create_table "investigation_citations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "cited_by_id", null: false
     t.string "cited_by_type", null: false
@@ -1755,6 +1776,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121100) do
     t.index ["catalog_entry_id"], name: "index_investigation_hypotheses_on_catalog_entry_id"
     t.index ["investigation_id", "position"], name: "index_investigation_hypotheses_on_investigation_and_position", unique: true
     t.index ["investigation_id"], name: "index_investigation_hypotheses_on_investigation_id"
+  end
+
+  create_table "investigation_notices", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "check_id"
+    t.uuid "investigation_id"
+    t.uuid "resource_id"
+    t.string "key", null: false
+    t.string "signal", null: false
+    t.string "topic", null: false
+    t.text "summary", null: false
+    t.string "severity", null: false
+    t.date "due_on"
+    t.string "channel_id"
+    t.string "message_id"
+    t.integer "times_said", default: 0, null: false
+    t.boolean "unsaid", default: false, null: false
+    t.string "unsaid_reason"
+    t.datetime "first_said_at"
+    t.datetime "last_said_at"
+    t.datetime "last_seen_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["check_id"], name: "index_investigation_notices_on_check_id"
+    t.index ["investigation_id"], name: "index_investigation_notices_on_investigation_id"
+    t.index ["resource_id"], name: "index_investigation_notices_on_resource_id"
+    t.index ["workspace_id", "key"], name: "index_investigation_notices_on_workspace_id_and_key", unique: true
+    t.index ["workspace_id", "last_seen_at"], name: "index_investigation_notices_on_workspace_id_and_last_seen_at"
+    t.index ["workspace_id"], name: "index_investigation_notices_on_workspace_id"
   end
 
   create_table "investigation_regression_results", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -2824,6 +2874,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121100) do
     t.boolean "alert_investigations_enabled", default: false, null: false
     t.integer "alert_storm_ceiling_cents", default: 2000, null: false
     t.boolean "on_call_paging_enabled", default: false, null: false
+    t.string "halon_monitoring_channel"
+    t.boolean "halon_security_events_enabled", default: true, null: false
     t.index ["created_by_id"], name: "index_workspaces_on_created_by_id"
     t.index ["incidents_channel_id"], name: "index_workspaces_on_incidents_channel_id"
     t.index ["issue_webhook_token"], name: "index_workspaces_on_issue_webhook_token", unique: true
@@ -3012,12 +3064,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_121100) do
   add_foreign_key "integration_environments", "integrations"
   add_foreign_key "integration_tools", "integrations"
   add_foreign_key "integrations", "workspaces"
+  add_foreign_key "investigation_checks", "workspace_memberships", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "investigation_checks", "workspaces"
   add_foreign_key "investigation_evidence", "investigation_findings", column: "finding_id"
   add_foreign_key "investigation_findings", "investigation_hypotheses", column: "winning_hypothesis_id"
   add_foreign_key "investigation_findings", "investigations"
   add_foreign_key "investigation_findings", "workspace_memberships", column: "page_member_id", on_delete: :nullify
   add_foreign_key "investigation_hypotheses", "catalog_entries"
   add_foreign_key "investigation_hypotheses", "investigations"
+  add_foreign_key "investigation_notices", "investigation_checks", column: "check_id", on_delete: :nullify
+  add_foreign_key "investigation_notices", "investigations", on_delete: :nullify
+  add_foreign_key "investigation_notices", "resource_map_resources", column: "resource_id", on_delete: :nullify
+  add_foreign_key "investigation_notices", "workspaces"
   add_foreign_key "investigation_regression_results", "investigation_findings", column: "finding_id", on_delete: :cascade
   add_foreign_key "investigation_regression_results", "investigation_regression_runs", column: "regression_run_id", on_delete: :cascade
   add_foreign_key "investigation_regression_results", "investigations", column: "replay_id", on_delete: :nullify

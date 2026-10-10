@@ -671,6 +671,10 @@ module Slack::WorkspaceAdapter::IncidentMessaging
     { success: true }
   end
 
+  def post_monitoring_notice(channel_id:, notice:)
+    post_message(channel_id: channel_id, text: Slack::Messages::MonitoringNotice.fallback(notice), blocks: Slack::Messages::MonitoringNotice.build(notice))
+  end
+
   def post_pull_request_notice(channel_id:, thread_id:, notice:)
     post_threaded_message(channel_id: channel_id, parent_message_id: thread_id,
                           text: Slack::Messages::PullRequestNotice.fallback(notice), blocks: Slack::Messages::PullRequestNotice.build(notice))

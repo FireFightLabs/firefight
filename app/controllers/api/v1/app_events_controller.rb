@@ -27,6 +27,7 @@ class Api::V1::AppEventsController < ActionController::API
     events = rows.any? ? source.events(payload, headers: request.headers) : []
     rows.each { |row| Integrations::MapEvents.receive!(row, events) }
     Integrations::MapEvents.nudge_pull_requests!(rows, payload, headers: request.headers)
+    Integrations::MapEvents.report_security_events!(rows, payload, headers: request.headers)
     head :ok
   rescue JSON::ParserError
     head :bad_request

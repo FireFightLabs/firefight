@@ -298,6 +298,34 @@ module Integrations
         assert_equal [ [ "dep-3", "running", nil ], [ "dep-2", "succeeded", 360 ], [ "dep-1", "failed", 120 ] ], runs.map { |run| [ run.id, run.status, run.seconds ] }
       end
 
+      test "billing reads the month so far by product and the months before, and links the billing page" do
+        DigitaloceanApi.any_instance.stubs(:balance).returns("month_to_date_usage" => "412.10", "account_balance" => "0.00", "generated_at" => "2026-10-10T08:00:00Z")
+        DigitaloceanApi.any_instance.stubs(:invoices).with(limit: 3).returns(
+          "invoice_preview" => { "invoice_uuid" => "preview-1", "amount" => "412.10", "invoice_period" => "2026-10" },
+          "invoices" => [ { "invoice_uuid" => "inv-9", "amount" => "640.00", "invoice_period" => "2026-09" },
+                          { "invoice_uuid" => "inv-8", "amount" => "601.55", "invoice_period" => "2026-08" } ]
+        )
+        DigitaloceanApi.any_instance.stubs(:invoice_summary).with("preview-1").returns(
+          "product_charges" => { "items" => [ { "name" => "Droplets", "amount" => "120.00" }, { "name" => "Managed Databases", "amount" => "290.10" } ] }
+        )
+
+        result = @pack.call("billing", environment_row: @row, arguments: {})
+        text = result["content"].map { |part| part["text"] }.join("\n")
+
+        assert_match "Used this month so far: $412.10", text
+        assert_match "By product this month:\n- Managed Databases: $290.10\n- Droplets: $120.00", text
+        assert_match "- 2026-09: $640.00\n- 2026-08: $601.55", text
+        assert Digitalocean.tool_definitions.find { |tool| tool.name == "billing" }.read_only
+      end
+
+      test "billing refused for want of the scope says which scope to give" do
+        DigitaloceanApi.any_instance.stubs(:balance).raises(DigitaloceanApi::Error, "DigitalOcean answered 403: You are not authorized")
+
+        refused = assert_raises(Integrations::NativePack::Error) { @pack.call("billing", environment_row: @row, arguments: {}) }
+
+        assert_match "The token needs the billing:read scope", refused.message
+      end
+
       private
 
       def resource(kind, id, name, details = {})

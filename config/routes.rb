@@ -378,6 +378,15 @@ Rails.application.routes.draw do
     get "/halon/on-call", to: "halon_on_call#show", as: :halon_on_call
     patch "/halon/on-call", to: "halon_on_call#update"
     resources :unattended_rules, only: [ :create, :update, :destroy ], path: "halon/on-call/rules"
+    get "/halon/monitoring", to: "halon_monitoring#show", as: :halon_monitoring
+    patch "/halon/monitoring", to: "halon_monitoring#update"
+    resources :investigation_checks, only: [ :create, :update, :destroy ], path: "halon/monitoring/checks" do
+      member do
+        patch :disable
+        patch :enable
+        post :run
+      end
+    end
     get "/agent", to: "agent_chats#index", as: :agent_chats
     post "/agent", to: "agent_chats#create"
     get "/agent/search", to: "agent_chats#search", as: :agent_chats_search
