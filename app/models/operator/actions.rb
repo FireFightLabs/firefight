@@ -25,7 +25,11 @@ module Operator
     end
 
     def self.bench_blocked_reason
-      "A bench run is still going. Start another once it finishes." if Conversation::BenchRun.of_scenarios.exists?(status: Conversation::BenchRun::STATUS_RUNNING)
+      return "A bench run is still going. Start another once it finishes." if Conversation::BenchRun.of_scenarios.exists?(status: Conversation::BenchRun::STATUS_RUNNING)
+
+      return "The bench pays with its own model key, never the app's. Set a HALON_BENCH_<PROVIDER>_API_KEY to run it." unless Conversation::BenchKeys.any?
+
+      Conversation::BenchRun.busy_reason
     end
 
     def self.redelivery_blocked_reason(delivery)

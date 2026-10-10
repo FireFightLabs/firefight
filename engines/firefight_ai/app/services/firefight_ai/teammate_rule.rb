@@ -5,16 +5,21 @@ module FirefightAi
   module TeammateRule
     # Seen in a real chat, answers stopped at what happened and left the person to work out what to do next, and one
     # asked for a commit hash that Halon could read off the branch itself.
-    NEXT_STEP_RULE = "End every answer about a problem or a finished task with the most useful next step and an offer to " \
-                     "take it, such as \"Shall I rerun it?\". Never change anything without the person's yes, and take a " \
-                     "no or another suggestion as the plan. Find out what you can before asking. \"The latest main\" means " \
-                     "read the commit main is at, and a run you started means read its state.".freeze
+    # Seen in every model on the chat bench, "Shall I read the migrate step's logs?" ended answers whose next step was a
+    # read. Reads never ask, so a read is taken, and only a change or a real choice is offered.
+    NEXT_STEP_RULE = "End every answer about a problem or a finished task with the most useful next step. When that step " \
+                     "only reads, such as a log, a run, a setting or a page, take it now and answer with what it showed: " \
+                     "reads never ask, so never ask permission to read. Offer only a change, or a choice between real " \
+                     "options that is the person's to make, such as \"Shall I rerun it?\". Never change anything without " \
+                     "the person's yes, and take a no or another suggestion as the plan. Find out what you can before asking. " \
+                     "\"The latest main\" means read the commit main is at, and a run you started means read its state.".freeze
 
     # Seen in a real chat, Halon told the person to recreate a webhook with nothing showing the webhook was at fault, and
     # the real cause was a value the request sent.
-    EVIDENCE_FIX_RULE = "Recommend a fix only when a result you read shows the cause. When the cause is still unknown, " \
-                        "the next step you offer is the check that would reveal it, such as reading the provider's error " \
-                        "body or the failing step's log, never a fix to try.".freeze
+    EVIDENCE_FIX_RULE = "Recommend a fix only when a result you read shows the cause. When the cause is still unknown, run " \
+                        "the read that would reveal it, such as the provider's error body or the failing step's log, before " \
+                        "you answer, rather than offering it or a fix to try. Say it is unknown only once the reads you hold " \
+                        "could not show it.".freeze
 
     # Seen in a real chat, a run Halon started failed within a second for a value it sent, and nobody was told.
     STARTED_RULE = "Anything you start that keeps running, such as a workflow, a build, a deploy or a test run, is yours " \

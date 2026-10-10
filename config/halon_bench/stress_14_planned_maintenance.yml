@@ -14,25 +14,7 @@ tools:
   - open_tools
   - use_skill
   - northflank_api_request
-  - name: search_docs
-    description: Searches the documentation of the workspace's connected providers and returns the best matching sections with their address.
-    reads: true
-    parameters:
-      type: object
-      properties:
-        query: { type: string, description: What to look for }
-        provider: { type: string, description: A provider (optional) }
-      required: [ query ]
-  - name: schedule_plan
-    description: Schedules a plan of changes to run in a window, with a fresh check of how things stand when it starts.
-    confirms: true
-    parameters:
-      type: object
-      properties:
-        title: { type: string, description: What the plan does }
-        starts_at: { type: string, description: When it starts, in ISO 8601 }
-        steps: { type: array, items: { type: string }, description: The steps in order, each with how it is undone }
-      required: [ title, starts_at, steps ]
+  - search_docs
   - make_plan
   - update_plan
   - finish_plan
@@ -44,9 +26,6 @@ answers:
   - tool: search_docs
     result: |-
       Northflank, Upgrading a PostgreSQL addon: a major upgrade takes a backup, then runs pg_upgrade. The addon is unavailable for about 5 minutes per 50 GB. Extensions must have a build for the new version: pgvector 0.5.1 and later and pg_trgm are available on 16. https://northflank.com/docs/v1/application/databases-and-persistence/upgrade-a-database
-  - tool: schedule_plan
-    result: |-
-      Scheduled "Upgrade orders-db to PostgreSQL 16" for the chosen time, with a fresh check before it starts. https://app.firefight.app/plans/31
   - tool: northflank_api_request
     result: '{"status":"ok"}'
 expect:
@@ -56,6 +35,6 @@ expect:
     says so and proposes Monday after 08:00 or an exception from the person who can grant one.
   next_step: >-
     It lays out the plan with a backup first and how to undo it, asks once for the window that respects the freeze, and
-    schedules it with a fresh check at start.
+    makes the plan for that window with run_at, which reads how things stand when it starts.
   evidence: [ "upgrade-a-database" ]
-  max_cents: 30
+  reference_cents: 0.8

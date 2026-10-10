@@ -83,6 +83,12 @@ class Integrations::Capabilities::AwsTest < ActiveSupport::TestCase
     assert_match "Say what to roll back to", unroutable(Integrations::Capabilities::ROLLBACK, "resource" => "web")
   end
 
+  # Seen on the chat bench, models stopped at "no tool for that" while the provider's general read reached it.
+  test "a read no connection offers points at the general read, and a change never does" do
+    assert_match Integrations::Capabilities::GENERAL_READ_HINT, unroutable(Integrations::Capabilities::LOGS, "resource" => "bastion")
+    assert_no_match(/general read/, unroutable(Integrations::Capabilities::RESTART, "resource" => "checkout"))
+  end
+
   test "Halon is offered the capabilities in place of the tools they wrap, and keeps cloudwatch_metrics, which reads more" do
     assert Integrations::Capabilities.wrapped?(@tools["search_logs"])
     assert Integrations::Capabilities.wrapped?(@tools["rollback_deployment"])

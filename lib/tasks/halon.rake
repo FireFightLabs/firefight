@@ -57,13 +57,18 @@ namespace :halon do
   task :chat_bench, %i[model provider] => :environment do |_task, args|
     trigger = ENV["CI"].present? ? Conversation::BenchRun::TRIGGER_CI : Conversation::BenchRun::TRIGGER_TERMINAL
     keys = ENV["SCENARIOS"].to_s.split(",").map(&:strip).presence
+    # A small pool of its own, one connection per replay and one for the run, on a server others share.
+    ActiveRecord::Base.establish_connection(ActiveRecord::Base.connection_db_config.configuration_hash.except(:pool).merge(max_connections: Conversation::Bench::AT_ONCE + 1))
     run = Conversation::Bench.run!(trigger: trigger, model: args[:model], provider: args[:provider], label: ENV["LABEL"], keys: keys) do |result|
       puts bench_line.call(result)
       result.notes.each { |note| puts "  - #{note}" }
     end
     puts bench_summary.call(run)
     File.write(ENV["OUT"], JSON.pretty_generate(Conversation::BenchComparison.export(run))) if ENV["OUT"].present?
+    abort "\n#{run.stopped_reason}" if run.stopped?
     abort "Some scenarios could not finish, so this run cannot vouch for them." if run.results.where(status: Conversation::BenchResult::STATUS_ERRORED).exists?
+  rescue Conversation::Bench::Busy, Conversation::BenchKeys::Missing => refused
+    abort refused.message
   end
 
   # Each side is a run's id or a file halon:chat_bench wrote with OUT. Fails when the second side's total dropped by more
@@ -102,6 +107,8 @@ namespace :halon do
     result.notes.each { |note| puts "  - #{note}" }
     puts "  #{result.reason}" if result.reason.present?
     puts "\n#{result.answer}" if result.answer.present?
+  rescue Conversation::Bench::Busy, Conversation::BenchKeys::Missing => refused
+    abort refused.message
   end
 
   # Prints the chat as a scenario file. It holds the customer's words and data, so it is only a start. Replace them

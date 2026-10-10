@@ -16,7 +16,7 @@ Conversation::BenchScore = Data.define(:right, :moved_forward, :asked_when_neede
       right: right(verdict, transcript, expect),
       moved_forward: moved_forward(verdict, transcript, expect),
       asked_when_needed: asked_when_needed(verdict, transcript),
-      cost: cost(spent_micros, expect.max_cents)
+      cost: cost(spent_micros, expect.reference_cents)
     )
   end
 
@@ -63,11 +63,16 @@ Conversation::BenchScore = Data.define(:right, :moved_forward, :asked_when_neede
     ].compact
   end
 
-  # Within the scenario's ceiling is full marks, and twice the ceiling is half.
-  def self.cost(spent_micros, max_cents)
-    spent_cents = spent_micros / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f
-    return 1.0 if spent_cents <= max_cents
+  # How many times the reference spend costs the whole score. On a log scale, so a model ten times the reference is
+  # worth half and a hundred times nothing, which tells a cheap model from a dear one without one dear scenario
+  # sinking the total.
+  COST_SPREAD = 100.0
 
-    (max_cents / spent_cents).round(3)
+  # At or under the scenario's reference spend is full marks.
+  def self.cost(spent_micros, reference_cents)
+    spent_cents = spent_micros / FirefightAi::AgentLoop::MICROS_PER_CENT.to_f
+    return 1.0 if spent_cents <= reference_cents
+
+    (1.0 - (Math.log10(spent_cents / reference_cents) / Math.log10(COST_SPREAD))).clamp(0.0, 1.0).round(3)
   end
 end

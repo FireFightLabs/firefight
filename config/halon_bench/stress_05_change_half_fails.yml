@@ -43,4 +43,4 @@ expect:
     It reports done, failed and not started with the reason, then offers either to build 2.14.0 for amd64 and retry
     us-east and ap-south, or to undo eu-west back to 2.13.2, and asks once which.
   evidence: [ "runs/88" ]
-  max_cents: 25
+  reference_cents: 0.5

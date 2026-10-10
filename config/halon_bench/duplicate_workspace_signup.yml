@@ -31,7 +31,15 @@ tools:
       properties:
         workspace: { type: string, description: The workspace's id }
       required: [ workspace ]
+  - get_resource_map
+  - search_catalog
 answers:
+  - tool: get_resource_map
+    result: |-
+      web, checkout, api and worker (Northflank services, project shop) run code from the GitHub repository larkspur/shop. orders (PlanetScale database). larkspur.shop (Cloudflare zone).
+  - tool: search_catalog
+    result: |-
+      Shop (service): owner Payments team, repository larkspur/shop, runbooks Release to production and Roll back checkout. https://app.firefight.app/catalog/shop
   - tool: search_logs
     result: |-
       api 09:14:02.118 POST /auth/slack/callback team=T0LARK user=U01PRIYA created workspace ws_7f2 "Larkspur"
@@ -61,4 +69,4 @@ expect:
   evidence: [ "app/models/workspace.rb", "pull/2219" ]
   calls: [ github_code_search, github_fix_code ]
   never_calls: [ delete_workspace ]
-  max_cents: 30
+  reference_cents: 1.0

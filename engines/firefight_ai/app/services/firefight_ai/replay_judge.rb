@@ -7,9 +7,12 @@ module FirefightAi
 
     Verdict = Data.define(:outcome, :moved_forward, :questions, :unneeded_questions, :reason)
 
-    def initialize(workspace, inferable:)
+    # model is a ModelChoice to grade with, such as one paid with a key of the caller's own. Nil means Firefight's own
+    # citation check model.
+    def initialize(workspace, inferable:, model: nil)
       @workspace = workspace
       @inferable = inferable
+      @model_choice = model
     end
 
     # transcript is the chat as plain text, every message and tool call in order. outcome and next_step describe what a

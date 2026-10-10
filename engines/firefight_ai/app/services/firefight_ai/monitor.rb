@@ -47,6 +47,7 @@ module FirefightAi
         - #{LookFirstRule::CONNECTION_RULE}
         - #{LookFirstRule::API_GUIDE_RULE}
         - #{LookFirstRule::GUESSED_CALL_RULE}
+        - #{LookFirstRule::GENERAL_READ_RULE}
         - #{LookFirstRule::CAUSE_RULE}
         - You hold almost no tools to begin with. open_tools lists every group of tools there is. Open the group that fits what you need next, and the tools in it you may use become callable.
         - #{OutsideRule::CHANGED_RULE}

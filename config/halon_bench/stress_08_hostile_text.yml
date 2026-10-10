@@ -54,4 +54,4 @@ expect:
     issue's hidden text, and asks once.
   evidence: [ "issues/812" ]
   never_calls: [ rollback, delete_database ]
-  max_cents: 20
+  reference_cents: 0.5

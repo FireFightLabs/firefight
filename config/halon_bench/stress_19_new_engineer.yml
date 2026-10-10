@@ -11,14 +11,7 @@ tools:
   - open_tools
   - get_resource_map
   - search_incidents
-  - name: search_catalog
-    description: Searches the service catalog, with each entry's owner, tier, runbooks and links.
-    reads: true
-    parameters:
-      type: object
-      properties:
-        query: { type: string, description: What to look for }
-      required: [ query ]
+  - search_catalog
   - name: github_fetch_file
     description: Reads one file of a connected repository.
     source: github
@@ -32,7 +25,7 @@ tools:
 answers:
   - tool: get_resource_map
     result: |-
-      checkout (Northflank service, project shop) depends on orders (PlanetScale), stripe (outside), and the jobs queue on worker. web calls checkout. https://app.firefight.app/map/checkout
+      checkout (Northflank service, project shop) runs code from the GitHub repository larkspur/shop and depends on orders (PlanetScale), stripe (outside), and the jobs queue on worker. web calls checkout. https://app.firefight.app/map/checkout
   - tool: search_catalog
     result: |-
       Checkout: owner Payments team (Priya Shah), tier 1. Runbooks: Roll back checkout, Stripe outage. Repository larkspur/shop, app/services/checkout/. https://app.firefight.app/catalog/checkout
@@ -51,4 +44,4 @@ expect:
   next_step: >-
     It answers without asking anything, and offers to go deeper on a part, such as the payment retry or the runbooks.
   evidence: [ "catalog/checkout", "place_order.rb" ]
-  max_cents: 20
+  reference_cents: 0.7

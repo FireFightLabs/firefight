@@ -34,4 +34,4 @@ expect:
     It names the conflict, holds the rollback, and offers to ask Priya to decide, with the current error rate for both.
   evidence: [ "pull/2201" ]
   never_calls: [ rollback ]
-  max_cents: 20
+  reference_cents: 0.5

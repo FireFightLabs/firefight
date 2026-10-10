@@ -5,6 +5,8 @@ class OperatorHalonBenchTest < ApplicationSystemTestCase
     @operator = users(:alice)
     @previous = ENV[Operator::Credential::OPERATOR_IDS_ENV]
     ENV[Operator::Credential::OPERATOR_IDS_ENV] = @operator.id
+    @previous_key = ENV["HALON_BENCH_OPENAI_API_KEY"]
+    ENV["HALON_BENCH_OPENAI_API_KEY"] = "sk-bench"
     @workspace = workspaces(:slack_workspace_one)
     sign_in(@operator, @workspace)
     Operator::BaseController.any_instance.stubs(:operator_verified?).returns(true)
@@ -12,6 +14,7 @@ class OperatorHalonBenchTest < ApplicationSystemTestCase
 
   teardown do
     ENV[Operator::Credential::OPERATOR_IDS_ENV] = @previous
+    @previous_key.nil? ? ENV.delete("HALON_BENCH_OPENAI_API_KEY") : ENV["HALON_BENCH_OPENAI_API_KEY"] = @previous_key
   end
 
   test "an operator ticks two runs, compares them, and reads the scenario that dropped" do

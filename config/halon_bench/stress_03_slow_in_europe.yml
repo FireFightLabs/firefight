@@ -47,4 +47,4 @@ expect:
     It proposes finding why eu-origin's /healthz times out and bringing the pool back, and says the box checks from one
     region only.
   evidence: [ "load-balancing/pools" ]
-  max_cents: 30
+  reference_cents: 0.9

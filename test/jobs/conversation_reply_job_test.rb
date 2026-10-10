@@ -72,6 +72,24 @@ class ConversationReplyJobTest < ActiveSupport::TestCase
     assert_not conversation.answer_owed?
   end
 
+  # Seen live after the bench drained a key, OpenRouter's 403 for a key's spending limit reached the chat as "something
+  # went wrong on my side", twice.
+  test "OpenRouter's key limit reaches the chat as out of credit, and the chat answers again once credit is back" do
+    conversation = Conversation.start_personal!(workspace: @workspace, member: @member)
+    conversation.ask!("what changed today")
+    body = { "error" => { "message" => "Key limit exceeded (total limit). Manage it using https://openrouter.ai/settings/keys", "code" => 403 } }
+    refused = RubyLLM::ForbiddenError.new(body.dig("error", "message"), response: Struct.new(:status, :body, :headers).new(403, body, {}))
+    translated = assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise refused } }
+    Conversation::Runner.any_instance.stubs(:run).raises(translated)
+
+    ConversationReplyJob.perform_now(conversation.id)
+
+    assert_equal OUT_OF_CREDIT, conversation.reload.chat.messages.where(role: Chat::Message::ROLE_ASSISTANT).sole.content
+    assert_not conversation.answer_owed?
+    conversation.ask!("and now?")
+    assert conversation.reload.answer_owed?
+  end
+
   test "a Slack thread whose AI account ran out of credit is told the same" do
     conversation = @workspace.conversations.create!(
       kind: Conversation::KIND_CHANNEL, channel_id: "C_INCIDENT", thread_id: "1700000000.000100",

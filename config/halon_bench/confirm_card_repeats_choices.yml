@@ -11,14 +11,7 @@ turns:
 tools:
   - open_tools
   - use_skill
-  - name: get_form
-    description: Reads the fields of one of the workspace's incident forms, with the choices each one takes.
-    reads: true
-    parameters:
-      type: object
-      properties:
-        form: { type: string, description: The form, such as declare }
-      required: [ form ]
+  - get_form
   - name: declare_incident
     description: 'Declares an incident with the answers to the declare form, by field key. severity is one of: sev1, sev2, sev3. lead takes a person, or "me" for whoever asked.'
     confirms: true
@@ -28,14 +21,7 @@ tools:
         answers: { type: object, description: The answer to each field of the declare form, by its key }
       required: [ answers ]
   - post_incident_update
-  - name: invite_responders
-    description: Invites people to an incident's channel.
-    parameters:
-      type: object
-      properties:
-        incident: { type: string, description: The incident's identifier }
-        people: { type: array, items: { type: string }, description: People by name or email }
-      required: [ incident, people ]
+  - invite_responders
 answers:
   - tool: get_form
     result: |-
@@ -55,4 +41,4 @@ expect:
     as posting the first update or inviting responders.
   evidence: [ "INC-131" ]
   calls: [ declare_incident ]
-  max_cents: 20
+  reference_cents: 0.5

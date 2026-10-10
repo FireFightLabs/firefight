@@ -5,8 +5,14 @@ module FirefightAi
     PAYMENT_REQUIRED = 402
     # OpenAI says a spent balance with a 429 whose code is insufficient_quota, which is not a rate limit to wait out.
     QUOTA_CODES = %w[insufficient_quota].freeze
-    # Said only in words: Anthropic's balance too low (a 400) and Gemini's prepaid balance spent (a 429).
-    OUT_OF_CREDIT_WORDS = /credit balance is too low|prepayment credits are depleted/i
+    # Said only in words: Anthropic's balance too low or its usage limit reached (a 400), Gemini's prepaid balance spent
+    # (a 429), OpenRouter's key spending limit reached (a 403, "Key limit exceeded (total limit)") and its credits spent,
+    # and DeepSeek's balance spent. Seen live, OpenRouter's 403 reached a chat as "something went wrong".
+    OUT_OF_CREDIT_PHRASES = [
+      "credit balance is too low", "prepayment credits are depleted", "key limit exceeded", "insufficient credits",
+      "reached your specified api usage limits", "reached your specified workspace usage limits", "insufficient balance"
+    ].freeze
+    OUT_OF_CREDIT_WORDS = Regexp.new(OUT_OF_CREDIT_PHRASES.map { |phrase| Regexp.escape(phrase) }.join("|"), Regexp::IGNORECASE)
     # OpenRouter's 402 for too much spend in flight at once, which clears by itself and says when.
     IN_FLIGHT_SOURCE = "openrouter_in_flight_budget".freeze
     RETRY_AFTER = "retry-after".freeze

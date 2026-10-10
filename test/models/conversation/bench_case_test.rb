@@ -1,14 +1,16 @@
 require "test_helper"
 
 class Conversation::BenchCaseTest < ActiveSupport::TestCase
-  # The five failures that started the bench, and the nineteen scenarios of the stress test.
+  # The five failures that started the bench, the nineteen scenarios of the stress test, and the three habits the first
+  # real run found in every model.
   FAILURES = %w[release_watch_followed_nothing slow_query_investigation_timed_out sticks_with_no duplicate_workspace_signup confirm_card_repeats_choices].freeze
+  HABITS = %w[reads_without_asking general_read_when_no_tool repository_from_the_map].freeze
 
   test "every scenario reads, says what a good run reaches and what it does next, and names only tools it offers" do
     scenarios = Conversation::BenchCase.scenarios
 
-    assert_equal FAILURES.size + 19, scenarios.size
-    assert_empty FAILURES - scenarios.map(&:key)
+    assert_equal FAILURES.size + 19 + HABITS.size, scenarios.size
+    assert_empty (FAILURES + HABITS) - scenarios.map(&:key)
     assert_equal 19, scenarios.count { |scenario| scenario.key.start_with?("stress_") }
     scenarios.each do |scenario|
       assert scenario.expect.outcome.present?, "#{scenario.key} says nothing about the right outcome"
@@ -31,6 +33,29 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
       [ scenario.title, scenario.shape, scenario.expect.outcome, scenario.expect.next_step ].each do |text|
         refute_match(/[—;]/, text, "#{scenario.key}: #{text}")
       end
+    end
+  end
+
+  # A model asked which repository to look in when nothing in the scenario named it, and was marked down for it.
+  test "a scenario whose tools need a repository gives it the way a chat finds it, on the map or in the catalog" do
+    Conversation::BenchCase.scenarios.each do |scenario|
+      needs = scenario.tools.any? { |tool| tool.parameters.to_h.dig("properties", "repository") }
+      next unless needs
+
+      found = scenario.answers.any? do |answer|
+        %w[get_resource_map search_catalog search_handbook].include?(answer.tool) && answer.result.include?("larkspur/shop")
+      end
+      said = [ scenario.context, *scenario.turns.map(&:said) ].join(" ")
+      assert found || said.include?("larkspur/shop"), "#{scenario.key} needs a repository and nothing a chat reads names it"
+    end
+  end
+
+  test "every scenario's tools a chat opens are reached through open_tools, and its own tools are in hand from the start" do
+    Conversation::BenchCase.scenarios.each do |scenario|
+      next unless scenario.tool(Chat::Tools::Open.tool_name)
+
+      assert scenario.tool(Chat::Tools::Open.tool_name).base, "#{scenario.key} must hold open_tools from the start"
+      assert scenario.tools.any? { |tool| !tool.base }, "#{scenario.key} gives open_tools nothing to open"
     end
   end
 

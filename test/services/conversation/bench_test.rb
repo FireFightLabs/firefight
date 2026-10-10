@@ -3,9 +3,16 @@ require "test_helper"
 class Conversation::BenchTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
+  BENCH_ENV = { "HALON_BENCH_OPENAI_API_KEY" => "sk-bench", "HALON_BENCH_JUDGE_MODEL" => "gpt-4o", "HALON_BENCH_JUDGE_PROVIDER" => "openai" }.freeze
+
   setup do
-    RubyLLM.config.stubs(:openai_api_key).returns("sk-test")
+    @previous_env = BENCH_ENV.keys.index_with { |name| ENV[name] }
+    ENV.update(BENCH_ENV)
     FirefightAi.stubs(:deployment_model_for).with(AiPurpose::INVESTIGATION).returns(FirefightAi::ModelChoice.new(model: "gpt-4o"))
+  end
+
+  teardown do
+    @previous_env.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
   end
 
   test "a run queues every scenario in the bench's own workspace, on the deployment's model, and a second run finds the same workspace" do
@@ -62,6 +69,69 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     refute Conversation::BenchRun.exists?
   end
 
+  # The bench once drained the key live chats ran on.
+  test "a run refuses to start without the bench's own key, naming the variable, and never falls back to the app's" do
+    ENV.delete("HALON_BENCH_OPENAI_API_KEY")
+    RubyLLM.config.stubs(:openai_api_key).returns("sk-the-apps-own")
+
+    error = assert_raises(Conversation::BenchKeys::Missing) { Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_TERMINAL) }
+
+    assert_match "HALON_BENCH_OPENAI_API_KEY", error.message
+    refute Conversation::BenchRun.exists?
+  end
+
+  test "Halon and the judge run on the bench's key, on a configuration that holds none of the app's" do
+    RubyLLM.config.stubs(:anthropic_api_key).returns("sk-the-apps-own")
+
+    halon = Conversation::Bench.model_choice("gpt-4o", "openai")
+    judge = Conversation::BenchKeys.judge
+
+    [ halon, judge ].each do |choice|
+      assert_equal "sk-bench", choice.context.config.openai_api_key
+      assert_nil choice.context.config.anthropic_api_key
+      assert_nil choice.payer
+    end
+  end
+
+  test "a turn that ended on a confirmation stopped to ask, and is scored rather than called unfinished" do
+    result = one_scenario_run(tools: [ { "name" => "rollback", "description" => "Rolls back", "confirms" => true } ],
+                              answers: [ { "tool" => "rollback", "result" => "Rolled back." } ])
+    script(call("rollback", "intent" => "Roll checkout back"))
+    judged(outcome: FirefightAi::Schemas::ReplayVerdict::PARTLY, moved_forward: FirefightAi::Schemas::ReplayVerdict::YES)
+
+    Conversation::Bench.run_case!(result)
+    result.reload
+
+    assert_equal Conversation::BenchResult::STATUS_SCORED, result.status
+    assert_equal "Waiting for the person to confirm rollback.", result.answer
+    assert_equal 1, result.confirmations
+  end
+
+  test "an account that refuses the run stops it at once, and nothing more is replayed or judged" do
+    first = one_scenario_run
+    second = first.bench_run.results.create!(workspace: first.workspace, scenario: "other", title: "Other")
+    body = { "error" => { "message" => "Key limit exceeded (total limit). Manage it using https://openrouter.ai/settings/keys", "code" => 403 } }
+    refused = RubyLLM::ForbiddenError.new(body.dig("error", "message"), response: Struct.new(:status, :body, :headers).new(403, body, {}))
+    Conversation::Rehearsal.stubs(:replay!).raises(assert_raises(FirefightAi::OutOfCredit) { FirefightAi.translating_errors { raise refused } })
+
+    Conversation::Bench.run_case!(first)
+
+    assert_equal Conversation::Bench::ACCOUNT_REFUSED, first.bench_run.reload.stopped_reason
+    Conversation::Rehearsal.expects(:replay!).never
+    FirefightAi::ReplayJudge.any_instance.expects(:judge).never
+    Conversation::Bench.run_case!(second)
+    assert_equal [ Conversation::BenchResult::STATUS_ERRORED, Conversation::Bench::ACCOUNT_REFUSED ], [ second.reload.status, second.reason ]
+    assert_equal Conversation::BenchRun::STATUS_FINISHED, first.bench_run.reload.status
+  end
+
+  test "a further run waits while three are going, so the shared database is never run out of connections" do
+    3.times { Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: Conversation::BenchRun::TRIGGER_CI, prompt_version: "v", model: "gpt-4o") }
+
+    error = assert_raises(Conversation::Bench::Busy) { Conversation::Bench.run!(trigger: Conversation::BenchRun::TRIGGER_TERMINAL) }
+
+    assert_equal Conversation::BenchRun::BUSY, error.message
+  end
+
   test "a replay that raises could not finish, which says nothing either way" do
     result = one_scenario_run
     Conversation::Rehearsal.stubs(:replay!).raises(Timeout::Error)
@@ -115,11 +185,12 @@ class Conversation::BenchTest < ActiveSupport::TestCase
 
   private
 
-  def one_scenario_run
+  def one_scenario_run(tools: [ { "name" => "read_run", "description" => "Reads a run", "reads" => true } ],
+                       answers: [ { "tool" => "read_run", "result" => "Run 412 failed at migrate. https://example.test/runs/412" } ])
     bench_case = Conversation::BenchCase.from_hash({
       "title" => "Release", "context" => "You are acting for Sam.", "turns" => [ "how did the release go?" ],
-      "tools" => [ { "name" => "read_run", "description" => "Reads a run", "reads" => true } ],
-      "answers" => [ { "tool" => "read_run", "result" => "Run 412 failed at migrate. https://example.test/runs/412" } ],
+      "tools" => tools,
+      "answers" => answers,
       "expect" => { "outcome" => "Run 412 failed at migrate", "next_step" => "Offer a retry", "evidence" => [ "runs/412" ] }
     }, key: "release")
     Conversation::BenchCase.stubs(:scenarios).returns([ bench_case ])

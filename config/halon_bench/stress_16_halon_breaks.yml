@@ -33,4 +33,4 @@ expect:
     It says what it checked and where it stopped, and proposes the next step, such as trying the reads again shortly
     or checking the deploy's change, rather than guessing.
   evidence: [ "pull/2224" ]
-  max_cents: 20
+  reference_cents: 0.7

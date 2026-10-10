@@ -43,7 +43,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "sha" => { "type" => "string", "description" => "Commit SHA" }
              },
              "required" => [ "repo", "sha" ]
@@ -55,7 +55,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "deployment_environment" => { "type" => "string", "description" => "Limit to one deployment environment, e.g. production (optional)" },
                "limit" => { "type" => "integer", "description" => "At most this many (optional, #{DEPLOYMENT_LIMIT}, at most #{MAX_DEPLOYMENTS})" }
              },
@@ -104,7 +104,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "at" => { "type" => "string", "description" => "The time, as ISO 8601, usually when the incident started" },
                "deployment_environment" => { "type" => "string", "description" => "The deployment environment, e.g. production (optional, production when there is one)" }
              },
@@ -119,7 +119,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "base" => { "type" => "string", "description" => "The earlier commit SHA, branch or tag" },
                "head" => { "type" => "string", "description" => "The later commit SHA, branch or tag" }
              },
@@ -132,7 +132,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "since" => { "type" => "string", "description" => "Only pull requests merged at or after this time, as ISO 8601 (optional)" }
              },
              "required" => [ "repo" ]
@@ -144,7 +144,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "path" => { "type" => "string", "description" => "File path within the repository" },
                "ref" => { "type" => "string", "description" => "Commit SHA, branch or tag to read at, usually the running commit (optional, the default branch otherwise)" },
                "start_line" => { "type" => "integer", "description" => "First line of interest (optional; the slice includes context around it)" },
@@ -159,7 +159,7 @@ module Integrations
            params_schema: {
              "type" => "object",
              "properties" => {
-               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout" },
+               "repo" => { "type" => "string", "description" => "Repository in owner/name form, e.g. acme/checkout. Read it off the resource map or the catalog first, or list the repositories, and ask only when several fit" },
                "path" => { "type" => "string", "description" => "File path within the repository" },
                "ref" => { "type" => "string", "description" => "Commit SHA, branch or tag, usually the running commit (optional, the default branch otherwise)" },
                "start_line" => { "type" => "integer", "description" => "First line of the range" },

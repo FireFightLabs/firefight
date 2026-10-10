@@ -1,0 +1,50 @@
+title: The repository from the map
+source: The first real bench run, October 2026, across every model
+shape: >-
+  On the first real bench run almost every model asked which repository to look in, while the map and the catalog
+  named it. Halon works out the repository itself and asks only when two or more remain plausible.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: why did the last CI run on checkout fail?
+tools:
+  - open_tools
+  - get_resource_map
+  - search_catalog
+  - github_workflow_runs
+  - github_job_log
+  - name: github_list_repositories
+    description: Lists the repositories this GitHub connection can see.
+    source: github
+    reads: true
+    parameters: { type: object, properties: {} }
+answers:
+  - tool: get_resource_map
+    result: |-
+      checkout (Northflank service, project shop) runs code from the GitHub repository larkspur/shop, path app/services/checkout. https://app.firefight.app/map/checkout
+  - tool: search_catalog
+    result: |-
+      Checkout: owner Payments team, repository larkspur/shop. https://app.firefight.app/catalog/checkout
+  - tool: github_list_repositories
+    result: |-
+      larkspur/shop, larkspur/infra, larkspur/docs
+  - tool: github_workflow_runs
+    match: { repository: larkspur/shop }
+    result: |-
+      Runs of ci.yml on main, newest first: 9931 failed 11:42 (job 77120 "lint" failed) https://github.com/larkspur/shop/actions/runs/9931, 9930 succeeded.
+  - tool: github_workflow_runs
+    result: |-
+      No runs. The repository has no workflow runs this connection can see.
+  - tool: github_job_log
+    result: |-
+      rubocop: app/services/checkout/place_order.rb:44:5: Layout/IndentationWidth: Use 2 (not 4) spaces for indentation. 1 offense. https://github.com/larkspur/shop/actions/runs/9931/job/77120
+expect:
+  outcome: >-
+    CI run 9931 on main in larkspur/shop failed at its lint job: rubocop flagged one indentation offense in
+    app/services/checkout/place_order.rb line 44. Nothing failed in the tests.
+  next_step: >-
+    It works out the repository from the map or the catalog without asking, then offers to have the one line fixed in
+    a pull request.
+  evidence: [ "runs/9931" ]
+  calls: [ github_workflow_runs ]
+  reference_cents: 1.0

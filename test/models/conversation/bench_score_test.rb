@@ -46,9 +46,11 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
     assert_equal 0.5, score.asked_when_needed
   end
 
-  test "spending within the ceiling is full marks and twice it is half" do
-    assert_equal 1.0, Conversation::BenchScore.cost(250_000, 25)
-    assert_equal 0.5, Conversation::BenchScore.cost(500_000, 25)
+  test "spending at the reference is full marks, ten times it is half and a hundred times nothing" do
+    assert_equal 1.0, Conversation::BenchScore.cost(20_000, 2)
+    assert_equal 0.5, Conversation::BenchScore.cost(200_000, 2)
+    assert_equal 0.0, Conversation::BenchScore.cost(2_000_000, 2)
+    assert_operator Conversation::BenchScore.cost(110_000, 2), :<, Conversation::BenchScore.cost(21_000, 2)
   end
 
   test "notes say what took marks away without what any call was given" do
@@ -82,6 +84,6 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
   end
 
   def expect(outcome: "It fails", calls: [], never_calls: [], evidence: [])
-    Conversation::BenchCase::Expect.new(outcome: outcome, next_step: "Watch it", evidence: evidence, calls: calls, never_calls: never_calls, max_cents: 25)
+    Conversation::BenchCase::Expect.new(outcome: outcome, next_step: "Watch it", evidence: evidence, calls: calls, never_calls: never_calls, reference_cents: 25)
   end
 end

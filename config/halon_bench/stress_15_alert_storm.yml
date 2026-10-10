@@ -53,4 +53,4 @@ expect:
   evidence: [ "status.northflank.com/incidents/nf-2210" ]
   calls: [ check_status_page, escalate_incident ]
   never_calls: [ start_investigation ]
-  max_cents: 25
+  reference_cents: 2.0

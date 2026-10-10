@@ -5,14 +5,21 @@ class Conversation::Bench
   NO_ANSWER = "The replay ended without a reply.".freeze
   LOST = "The replay stopped without finishing, so its worker was lost.".freeze
   OUT_OF_CREDIT = "The replay could not finish, since the AI account is out of credit.".freeze
+  # Said on the run and on each scenario it never reached, once the account a run pays with refuses it.
+  ACCOUNT_REFUSED = "The run stopped, since the AI account it pays with refused it (out of credit, or the key was refused). " \
+                    "Nothing more was replayed or judged.".freeze
 
   # The scenarios have no customer behind them, so they run in a workspace of their own that nobody belongs to. It is
   # the one the bench made for its first run, found again through the scenarios that ran there.
   WORKSPACE_NAME = "Halon bench".freeze
   WORKSPACE_LOCK = 7_210_051
 
-  # Replays that run at once from the terminal, each a whole chat on the model.
-  AT_ONCE = 4
+  # Replays that run at once from the terminal, each a whole chat on the model. Each holds a database connection, and the
+  # terminal gives a run a pool of this many plus one.
+  AT_ONCE = 3
+
+  # Refuses a run while too many are going, since every run holds database connections on a server others share.
+  class Busy < StandardError; end
 
   class << self
     # Queues every scenario for the workers. Used by the console.
@@ -45,6 +52,9 @@ class Conversation::Bench
     # One real chat, replayed in its own workspace from its record. Its right outcome was never written down, so that
     # part is not scored.
     def replay_chat!(conversation, trigger:, model: nil, provider: nil, label: nil)
+      busy = Conversation::BenchRun.busy_reason
+      raise Busy, busy if busy
+
       choice = model_choice(model, provider)
       run = Conversation::BenchRun.transaction do
         Conversation::BenchRun.create!(
@@ -60,14 +70,26 @@ class Conversation::Bench
 
     def run_case!(result)
       return unless result.claim!
+      return result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: ACCOUNT_REFUSED) if result.bench_run.reload.stopped?
 
       score(result)
     rescue StandardError => error
       Rails.logger.warn({ event: "halon_bench.case_errored", result_id: result.id, error: error.class.name }.to_json)
-      reason = AiCredit.out?(error) ? OUT_OF_CREDIT : "The replay could not finish (#{error.class.name})."
+      refused = account_refused?(error)
+      result.bench_run.stop!(ACCOUNT_REFUSED) if refused
+      reason = refused ? ACCOUNT_REFUSED : "The replay could not finish (#{error.class.name})."
       result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: reason, spent_micros: spent(result))
     ensure
       result.bench_run.finish_if_done!
+    end
+
+    # The account refused the run rather than one call: out of credit, or its key refused. Every later call would be
+    # refused the same way, so the run stops.
+    def account_refused?(error)
+      [ error, error.cause ].compact.any? do |raised|
+        AiCredit.out?(raised) || AiPayer.gives_way?(raised) || raised.is_a?(RubyLLM::PaymentRequiredError) ||
+          (raised.is_a?(FirefightAi::Error) && raised.reason == RubyLLM::PaymentRequiredError.name.demodulize)
+      end
     end
 
     # A scenario whose worker died is settled, so its run can finish.
@@ -81,12 +103,13 @@ class Conversation::Bench
       result.bench_run.finish_if_done!
     end
 
-    # The bench always runs on the deployment's own account, never a workspace's, so a score says how Halon did and not
-    # whose key it had. Nil model means the model Halon runs on by default.
+    # The bench runs on its own key, never the app's or a workspace's (Conversation::BenchKeys), so a score says how Halon
+    # did and a run can never spend what live chats run on. Nil model means the model Halon runs on by default.
     def model_choice(model, provider)
-      return FirefightAi::ModelChoice.new(model: model, provider: provider.presence) if model.present?
+      return Conversation::BenchKeys.choice(model: model, provider: provider) if model.present?
 
-      FirefightAi.deployment_model_for(AiPurpose::INVESTIGATION)
+      deployed = FirefightAi.deployment_model_for(AiPurpose::INVESTIGATION)
+      Conversation::BenchKeys.choice(model: deployed.model, provider: deployed.provider_name)
     end
 
     # Made in the same transaction as the run that first needs it, so a run that fails to start leaves no workspace.
@@ -101,6 +124,9 @@ class Conversation::Bench
     private
 
     def create_run!(trigger:, model:, provider:, label:, by: nil, keys: nil)
+      busy = Conversation::BenchRun.busy_reason
+      raise Busy, busy if busy
+
       scenarios = Conversation::BenchCase.scenarios
       scenarios = scenarios.select { |scenario| keys.include?(scenario.key) } if keys.present?
       raise Conversation::BenchCase::Invalid, "No scenario is called #{(keys - scenarios.map(&:key)).to_sentence}." if keys.present? && scenarios.size < keys.size
@@ -134,11 +160,12 @@ class Conversation::Bench
       halon_spent = spent(result)
       columns = { spent_micros: halon_spent, turns: replay.turns_used, calls: transcript.calls.size, not_recorded: transcript.not_recorded,
                   confirmations: transcript.confirmations.size }
-      if transcript.replies.empty?
+      # A turn that ended on a confirmation stopped to ask, which is scored. Only a chat that said nothing at all is not.
+      if transcript.replies.empty? && transcript.waiting.empty?
         return result.settle!(status: Conversation::BenchResult::STATUS_ERRORED, reason: NO_ANSWER, **columns)
       end
 
-      verdict = FirefightAi::ReplayJudge.new(result.workspace, inferable: result)
+      verdict = FirefightAi::ReplayJudge.new(result.workspace, inferable: result, model: Conversation::BenchKeys.judge)
                                         .judge(transcript: transcript.to_text, outcome: bench_case.expect.outcome, next_step: bench_case.expect.next_step)
       scored = Conversation::BenchScore.of(transcript: transcript, verdict: verdict, expect: bench_case.expect, spent_micros: halon_spent)
       result.settle!(

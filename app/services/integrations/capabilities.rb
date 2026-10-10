@@ -229,6 +229,11 @@ module Integrations
       spec && adapter_for(provider)&.tool_for(spec.key)
     end
 
+    # Said where no connection answers a read for a resource, since the provider that holds it may still reach it with the
+    # general read its connection offers.
+    GENERAL_READ_HINT = " The connection that holds it may still read it with its general read (api_read, or a GET through " \
+                        "api_request or execute): find the call in the provider's API reference with use_skill or search_docs.".freeze
+
     # Names the capabilities and the reads built on them take, so no connection tool is offered under the same name.
     def self.tool_names = [ *SPECS.values.map(&:tool_name), KEY_QUERY_TOOL, LOG_PATTERNS_TOOL ]
 
@@ -272,7 +277,7 @@ module Integrations
       spec = spec(key)
       candidates = holders([ resource ], spec, ResourceMap::Resource.present.where(workspace_id: workspace.id))
       candidates += observers(workspace, candidates, [ resource ], spec, tools)
-      raise Unroutable, "#{resource.name} is on the map, but no connection offers #{spec.what} for it." if candidates.empty?
+      raise Unroutable, "#{resource.name} is on the map, but no connection offers #{spec.what} for it.#{GENERAL_READ_HINT unless spec.writes}" if candidates.empty?
 
       routed(workspace, spec, candidates, given.merge(RESOURCE_ARG => resource.id), resource.name, tools)
     end
@@ -372,7 +377,7 @@ module Integrations
 
       candidates = holders(named, spec, visible)
       candidates += observers(workspace, candidates, named, spec, tools)
-      raise Unroutable, "#{reference} is on the map, but no connection offers #{spec.what} for it." if candidates.empty?
+      raise Unroutable, "#{reference} is on the map, but no connection offers #{spec.what} for it.#{GENERAL_READ_HINT unless spec.writes}" if candidates.empty?
 
       [ candidates, reference ]
     end

@@ -49,4 +49,4 @@ expect:
     it did.
   evidence: [ "billing", "ml-sandbox" ]
   calls: [ send_message ]
-  max_cents: 25
+  reference_cents: 2.3

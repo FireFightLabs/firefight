@@ -61,14 +61,15 @@ jobs:
     env:
       RAILS_ENV: test
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/halon_bench
-      # Halon's model and the judge's, set as repository variables so every run is graded the same way.
-      INVESTIGATION_AI_MODEL: ${{ vars.HALON_BENCH_MODEL }}
-      INVESTIGATION_AI_PROVIDER: ${{ vars.HALON_BENCH_PROVIDER }}
-      CITATION_CHECK_AI_MODEL: ${{ vars.HALON_BENCH_JUDGE_MODEL }}
-      CITATION_CHECK_AI_PROVIDER: ${{ vars.HALON_BENCH_JUDGE_PROVIDER }}
-      ANTHROPIC_API_KEY: ${{ secrets.HALON_BENCH_ANTHROPIC_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.HALON_BENCH_OPENAI_API_KEY }}
-      OPENROUTER_API_KEY: ${{ secrets.HALON_BENCH_OPENROUTER_API_KEY }}
+      # Halon's model and the judge's, set as repository variables so every run is graded the same way. The bench pays
+      # only with its own HALON_BENCH_ keys (Conversation::BenchKeys), never a key the app runs on.
+      HALON_BENCH_MODEL: ${{ vars.HALON_BENCH_MODEL }}
+      HALON_BENCH_PROVIDER: ${{ vars.HALON_BENCH_PROVIDER }}
+      HALON_BENCH_JUDGE_MODEL: ${{ vars.HALON_BENCH_JUDGE_MODEL }}
+      HALON_BENCH_JUDGE_PROVIDER: ${{ vars.HALON_BENCH_JUDGE_PROVIDER }}
+      HALON_BENCH_ANTHROPIC_API_KEY: ${{ secrets.HALON_BENCH_ANTHROPIC_API_KEY }}
+      HALON_BENCH_OPENAI_API_KEY: ${{ secrets.HALON_BENCH_OPENAI_API_KEY }}
+      HALON_BENCH_OPENROUTER_API_KEY: ${{ secrets.HALON_BENCH_OPENROUTER_API_KEY }}
 
     steps:
       # A pull request from a fork gets no secrets, so it cannot call a model. It is benched once it is on a branch here.
@@ -78,9 +79,9 @@ jobs:
         id: keys
         run: |
           missing=()
-          [ -n "$INVESTIGATION_AI_MODEL" ] || missing+=("the repository variable HALON_BENCH_MODEL (and HALON_BENCH_PROVIDER when the model needs one)")
-          [ -n "$CITATION_CHECK_AI_MODEL" ] || missing+=("the repository variable HALON_BENCH_JUDGE_MODEL (and HALON_BENCH_JUDGE_PROVIDER when the model needs one)")
-          [ -n "$ANTHROPIC_API_KEY$OPENAI_API_KEY$OPENROUTER_API_KEY" ] || missing+=("a repository secret HALON_BENCH_ANTHROPIC_API_KEY, HALON_BENCH_OPENAI_API_KEY or HALON_BENCH_OPENROUTER_API_KEY")
+          [ -n "$HALON_BENCH_MODEL" ] || missing+=("the repository variable HALON_BENCH_MODEL (and HALON_BENCH_PROVIDER when the model needs one)")
+          [ -n "$HALON_BENCH_JUDGE_MODEL" ] || missing+=("the repository variable HALON_BENCH_JUDGE_MODEL (and HALON_BENCH_JUDGE_PROVIDER when the model needs one)")
+          [ -n "$HALON_BENCH_ANTHROPIC_API_KEY$HALON_BENCH_OPENAI_API_KEY$HALON_BENCH_OPENROUTER_API_KEY" ] || missing+=("a repository secret HALON_BENCH_ANTHROPIC_API_KEY, HALON_BENCH_OPENAI_API_KEY or HALON_BENCH_OPENROUTER_API_KEY")
           fork="${{ github.event.pull_request.head.repo.full_name }}"
           if [ ${#missing[@]} -eq 0 ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -128,7 +129,7 @@ jobs:
         env:
           LABEL: ${{ github.event_name == 'pull_request' && format('pull request {0}', github.event.pull_request.number) || github.sha }}
           OUT: tmp/halon-bench.json
-        run: bin/rails halon:chat_bench
+        run: bin/rails "halon:chat_bench[$HALON_BENCH_MODEL,$HALON_BENCH_PROVIDER]"
 
       - name: Keep the scores
         if: steps.keys.outputs.run == 'true' && always()

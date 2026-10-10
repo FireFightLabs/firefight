@@ -1,18 +1,19 @@
 # The tools the bench's scenarios share, kept in step with what a chat is offered live. A shared tool marked live in
 # config/halon_bench/_tools.yml is one of Firefight's own tools, a capability or the chat's own, and its description,
-# parameters and whether it asks first are read from its definition here, so a tool change can never leave the bench
+# parameters, whether it asks first and whether a chat holds it from the start are read from its definition here, so a
+# tool change can never leave the bench
 # offering the old one. halon:bench_tools writes them back, and a test fails naming the tool when they differ.
 module Conversation::BenchTools
   # What is compared and refreshed. How a tool reads, whose it is and what it answers by default are the bench's own.
-  LIVE_FIELDS = %w[description parameters confirms].freeze
+  LIVE_FIELDS = %w[description parameters confirms base].freeze
 
   HEADER = <<~TEXT.freeze
     # Tools many bench scenarios offer, described once. A scenario lists one by name under tools, or describes its own.
     # Each answers only from the scenario's record, so nothing here reaches a real system. A tool marked live is one a
-    # chat is offered today: its description, parameters and whether it asks first are copied from its definition by
-    # bin/rails halon:bench_tools, and a test fails when they drift. The rest are written here: connection tools such
-    # as northflank_api_request, search_handbook, and open_tools, whose list of groups depends on the workspace and on
-    # who asks. See Conversation::BenchCase for each field.
+    # chat is offered today: its description, parameters, whether it asks first and whether a chat holds it from the
+    # start (base) are copied from its definition by bin/rails halon:bench_tools, and a test fails when they drift. The
+    # rest are written here: connection tools such as northflank_api_request, and open_tools, which a replay offers
+    # with the scenario's own groups. See Conversation::BenchCase for each field.
 
   TEXT
 
@@ -24,7 +25,9 @@ module Conversation::BenchTools
     found = {}
     ActiveRecord::Base.transaction(requires_new: true) do
       turn = probe_turn
-      chat_tools(turn).each { |tool| found[tool.name.to_s] = definition(tool.description, tool.parameters_schema, tool.requires_approval?) }
+      chat_tools(turn).each do |tool|
+        found[tool.name.to_s] = definition(tool.description, tool.parameters_schema, tool.requires_approval?).merge("base" => true)
+      end
       Integrations::Capabilities::SPECS.each_value do |spec|
         found[spec.tool_name] = definition(spec.description, Integrations::Capabilities.schema(spec, []), spec.writes)
       end
@@ -67,7 +70,7 @@ module Conversation::BenchTools
   end
 
   def definition(description, parameters, confirms)
-    { "description" => description.to_s, "parameters" => cleaned(parameters), "confirms" => confirms ? true : nil }
+    { "description" => description.to_s, "parameters" => cleaned(parameters), "confirms" => confirms ? true : nil, "base" => nil }
   end
 
   # A schema as the bench offers it: no $schema line, and no intent, which the bench adds itself to a tool that asks.
@@ -79,7 +82,7 @@ module Conversation::BenchTools
   end
 
   def comparable(value, field)
-    field == "confirms" ? value == true : JSON.parse(value.to_json)
+    %w[confirms base].include?(field) ? value == true : JSON.parse(value.to_json)
   end
 
   def chat_tools(turn)

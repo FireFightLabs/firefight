@@ -43,6 +43,18 @@ module FirefightAi
                         "and never try one guessed path after another. When the reference does not list the operation, " \
                         "say plainly that the provider's API does not offer it and how a person can do it instead.".freeze
 
+    # Seen on the chat bench, models asked which repository to look in while the map and the catalog named it.
+    RESOLVE_RULE = "Work out which repository, service or resource a request means yourself: read the resource map, " \
+                   "the catalog and the code host's list of repositories first. Ask the person only when two or more " \
+                   "remain plausible after that, and name them in the question.".freeze
+
+    # Seen on the chat bench, models stopped at "no tool for that" while the provider's general read reached it.
+    GENERAL_READ_RULE = "When no dedicated tool covers what you need from a connected provider, read it through that " \
+                        "connection's general read: api_read, or api_request or execute with a read such as a GET. Find " \
+                        "the call in the provider's API reference first, through its API skill with use_skill or with " \
+                        "search_docs, then make it. A read never asks, so never stop at not having a tool while the " \
+                        "general read reaches it.".freeze
+
     CAUSE_RULE = "Never state why something failed or cannot be done, such as a missing permission, a routing fault or a " \
                  "missing parameter, unless a tool result said so. When you do not know why, say what you saw and that " \
                  "the cause is not known.".freeze
