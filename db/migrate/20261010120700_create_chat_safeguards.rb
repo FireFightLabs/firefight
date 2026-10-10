@@ -75,6 +75,7 @@ class CreateChatSafeguards < ActiveRecord::Migration[8.1]
       t.string :what, null: false
       t.string :status, null: false, default: "pending"
       t.references :confirmed_by, type: :uuid, foreign_key: { to_table: :workspace_memberships, on_delete: :nullify }
+      t.references :plan, type: :uuid, foreign_key: { to_table: :chat_plans, on_delete: :nullify }
       t.datetime :asked_at
       t.datetime :answered_at
       t.string :message_channel_id

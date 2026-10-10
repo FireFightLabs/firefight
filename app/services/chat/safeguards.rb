@@ -37,7 +37,7 @@ class Chat::Safeguards
                                                     arguments: found.arguments)
         # A scheduled plan's change was approved ahead and nobody is there to confirm it, so its owner is asked at once.
         if agent_run.respond_to?(:approved_ahead?) && agent_run.approved_ahead?(tool_call.name)
-          Conversation::OwnerAsks.ask!(agent_run.chat, tool_call.tool_call_id, by: agent_run.acting_principal)
+          Conversation::OwnerAsks.ask!(agent_run.chat, tool_call.tool_call_id, by: agent_run.acting_principal, plan: agent_run.approved_plan)
         end
       end
       next unless found.mitigation

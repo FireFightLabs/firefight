@@ -22,6 +22,8 @@ class Chat::OwnerAsk < ApplicationRecord
   belongs_to :workspace
   belongs_to :owner, class_name: "WorkspaceMembership", optional: true
   belongs_to :confirmed_by, class_name: "WorkspaceMembership", optional: true
+  # The scheduled plan whose run was asked from, which the owner's answer carries on with its approved-ahead tools.
+  belongs_to :plan, class_name: "Chat::Plan", optional: true
 
   validates :status, inclusion: { in: STATUSES }
   validates :owner_role, inclusion: { in: Integrations::Owner::ROLES }

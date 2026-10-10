@@ -65,14 +65,27 @@ class Conversation::OwnerAsksTest < ActiveSupport::TestCase
     assert_nil Chat::OwnerAsk.for_call(@chat, "call_1")
   end
 
-  test "a stop a scheduled plan approved ahead still asks the owner, at once, since nobody is there to confirm" do
-    turn = Conversation::Turn.new(@conversation, asker: @alice, approved_plan: Struct.new(:approved_tools).new([ @cancel.model_facing_name ]))
+  test "a stop a scheduled plan approved ahead still asks the owner at once, and their yes carries the plan on as approved" do
+    plan = Chat::Plan.make!(chat: @chat, made_by: @alice, goal: "Stop the bad deploy", steps: [
+      { "kind" => "change", "description" => "Cancel the deploy run", "tool" => @cancel.model_facing_name, "undo" => "Run the deploy again" },
+      { "kind" => "check", "description" => "Check checkout against normal" }
+    ])
+    plan.update_columns(run_at: 1.minute.ago, approved_by_id: @alice.id, approved_at: 1.hour.ago)
+    turn = Conversation::Turn.new(@conversation, asker: @alice, approved_plan: plan.reload)
     tool = Chat::Tools::Connection.new(turn, @cancel)
 
     assert_nil tool.approval_resolver.call(cancel_call), "the call pauses for the owner"
     assert_enqueued_with(job: OwnerAskJob) { Chat::Safeguards.prepare!(turn, [ pause! ]) }
-    assert_equal Chat::OwnerAsk::STATUS_ASKED, Chat::OwnerAsk.for_call(@chat, "call_1").status
+    ask = Chat::OwnerAsk.for_call(@chat, "call_1")
+    assert_equal Chat::OwnerAsk::STATUS_ASKED, ask.status
+    assert_equal plan, ask.plan
     assert_equal Chat::APPROVAL_OWNER_ASKED, @chat.tool_calls.find_by!(tool_call_id: "call_1").approval
+
+    assert_enqueued_with(job: ConversationReplyJob, args: [ @conversation.id, @alice.id, nil, nil, nil, nil, plan.id, Conversation::Plans::MOVE_RUN ]) do
+      assert_nil Conversation::OwnerAsks.answer!(ask, agreed: true, by: @bob)
+    end
+    resumed = Conversation::Runner.new(@conversation, asker: @alice, plan: plan, plan_move: Conversation::Plans::MOVE_RUN).instance_variable_get(:@turn)
+    assert resumed.approved_ahead?(@cancel.model_facing_name), "the resumed turn has the plan's approved tools, as the scheduled run had them"
   end
 
   test "an owner Firefight cannot match to a member is named for the person to check with" do

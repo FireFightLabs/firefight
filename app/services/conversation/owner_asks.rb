@@ -40,12 +40,13 @@ module Conversation::OwnerAsks
   private_class_method :read_owner
 
   # The person confirmed the call, so its owner is asked now and the call waits for them. Returns whether it waits.
-  def self.ask!(chat, tool_call_id, by:)
+  # plan is the scheduled plan whose run asked, carried on once the owner answers.
+  def self.ask!(chat, tool_call_id, by:, plan: nil)
     ask = Chat::OwnerAsk.for_call(chat, tool_call_id)
     return false unless ask&.pending?
     return false unless chat.await_owner!(tool_call_id)
 
-    ask.move!(from: Chat::OwnerAsk::STATUS_PENDING, to: Chat::OwnerAsk::STATUS_ASKED, confirmed_by_id: by&.id, asked_at: Time.current)
+    ask.move!(from: Chat::OwnerAsk::STATUS_PENDING, to: Chat::OwnerAsk::STATUS_ASKED, confirmed_by_id: by&.id, asked_at: Time.current, plan_id: plan&.id)
     OwnerAskJob.perform_later(ask.id)
     Conversation::LiveDelivery.safeguard_moved(ask.conversation)
     true
@@ -103,7 +104,13 @@ module Conversation::OwnerAsks
     return unless resumed && ask.confirmed_by
 
     conversation.expect_reply!
-    ConversationReplyJob.perform_later(conversation.id, ask.confirmed_by_id)
+    plan = ask.plan
+    # A scheduled plan's run carries on as it was, with the changes the person approved ahead.
+    if plan&.active?
+      ConversationReplyJob.perform_later(conversation.id, ask.confirmed_by_id, nil, nil, nil, nil, plan.id, Conversation::Plans::MOVE_RUN)
+    else
+      ConversationReplyJob.perform_later(conversation.id, ask.confirmed_by_id)
+    end
   end
   private_class_method :resume
 

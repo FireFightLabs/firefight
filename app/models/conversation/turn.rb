@@ -11,8 +11,12 @@ class Conversation::Turn
     @conversation = conversation
     @asker = asker
     @reads_only = reads_only
+    @approved_plan = approved_plan
     @approved_tools = approved_plan&.approved_tools.to_a
   end
+
+  # The scheduled plan this turn carries out with its approved-ahead tools, or nil.
+  attr_reader :approved_plan
 
   def acting_principal = asker
 

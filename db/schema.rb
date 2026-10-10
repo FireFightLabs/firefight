@@ -628,6 +628,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
     t.string "what", null: false
     t.string "status", default: "pending", null: false
     t.uuid "confirmed_by_id"
+    t.uuid "plan_id"
     t.datetime "asked_at"
     t.datetime "answered_at"
     t.string "message_channel_id"
@@ -638,6 +639,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
     t.index ["chat_id", "tool_call_id"], name: "index_chat_owner_asks_on_chat_id_and_tool_call_id", unique: true
     t.index ["chat_id"], name: "index_chat_owner_asks_on_chat_id"
     t.index ["confirmed_by_id"], name: "index_chat_owner_asks_on_confirmed_by_id"
+    t.index ["plan_id"], name: "index_chat_owner_asks_on_plan_id"
     t.index ["owner_id"], name: "index_chat_owner_asks_on_owner_id"
     t.index ["workspace_id"], name: "index_chat_owner_asks_on_workspace_id"
   end
@@ -2825,6 +2827,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_120700) do
   add_foreign_key "chat_mitigations", "chats", on_delete: :cascade
   add_foreign_key "chat_mitigations", "workspace_memberships", column: "ended_by_id", on_delete: :nullify
   add_foreign_key "chat_mitigations", "workspaces", on_delete: :cascade
+  add_foreign_key "chat_owner_asks", "chat_plans", column: "plan_id", on_delete: :nullify
   add_foreign_key "chat_owner_asks", "chats", on_delete: :cascade
   add_foreign_key "chat_owner_asks", "workspace_memberships", column: "confirmed_by_id", on_delete: :nullify
   add_foreign_key "chat_owner_asks", "workspace_memberships", column: "owner_id", on_delete: :nullify
