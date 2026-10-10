@@ -1,0 +1,160 @@
+name: Halon bench
+
+# Replays the chat bench's scenarios (config/halon_bench) on the deployment's model whenever Halon's prompt, tools or
+# loop change. A run on main is kept as the baseline, and a pull request fails when its total drops by more than the
+# noise between two replays (Conversation::BenchComparison::TOLERANCE). Every tool call is answered from the scenario's
+# record, so nothing outside Firefight is reached, and the only cost is the model calls.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "engines/firefight_ai/**"
+      - "app/services/chat/**"
+      - "app/services/conversation/**"
+      - "app/models/chat.rb"
+      - "app/models/chat/**"
+      - "app/models/conversation.rb"
+      - "app/models/conversation/**"
+      - "config/skills/**"
+      - "config/halon_bench/**"
+      - "lib/tasks/halon.rake"
+      - ".github/workflows/halon-bench.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "engines/firefight_ai/**"
+      - "app/services/chat/**"
+      - "app/services/conversation/**"
+      - "app/models/chat.rb"
+      - "app/models/chat/**"
+      - "app/models/conversation.rb"
+      - "app/models/conversation/**"
+      - "config/skills/**"
+      - "config/halon_bench/**"
+      - "lib/tasks/halon.rake"
+      - ".github/workflows/halon-bench.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+# One bench at a time per branch, since a newer push makes the older run's score moot.
+concurrency:
+  group: halon-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=1s --health-timeout=5s --health-retries=30
+
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/halon_bench
+      # Halon's model and the judge's, set as repository variables so every run is graded the same way.
+      INVESTIGATION_AI_MODEL: ${{ vars.HALON_BENCH_MODEL }}
+      INVESTIGATION_AI_PROVIDER: ${{ vars.HALON_BENCH_PROVIDER }}
+      CITATION_CHECK_AI_MODEL: ${{ vars.HALON_BENCH_JUDGE_MODEL }}
+      CITATION_CHECK_AI_PROVIDER: ${{ vars.HALON_BENCH_JUDGE_PROVIDER }}
+      ANTHROPIC_API_KEY: ${{ secrets.HALON_BENCH_ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.HALON_BENCH_OPENAI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.HALON_BENCH_OPENROUTER_API_KEY }}
+
+    steps:
+      # A pull request from a fork gets no secrets, so it cannot call a model. It is benched once it is on a branch here.
+      # Until the repository has the bench's variables and a key, the job passes with a warning naming what to add, so no
+      # other pull request is blocked. Once they exist it runs and compares with main.
+      - name: Check the bench is set up
+        id: keys
+        run: |
+          missing=()
+          [ -n "$INVESTIGATION_AI_MODEL" ] || missing+=("the repository variable HALON_BENCH_MODEL (and HALON_BENCH_PROVIDER when the model needs one)")
+          [ -n "$CITATION_CHECK_AI_MODEL" ] || missing+=("the repository variable HALON_BENCH_JUDGE_MODEL (and HALON_BENCH_JUDGE_PROVIDER when the model needs one)")
+          [ -n "$ANTHROPIC_API_KEY$OPENAI_API_KEY$OPENROUTER_API_KEY" ] || missing+=("a repository secret HALON_BENCH_ANTHROPIC_API_KEY, HALON_BENCH_OPENAI_API_KEY or HALON_BENCH_OPENROUTER_API_KEY")
+          fork="${{ github.event.pull_request.head.repo.full_name }}"
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$fork" ] && [ "$fork" != "${{ github.repository }}" ]; then
+            echo "::notice title=Halon bench did not run::A pull request from a fork has no model key, so the bench did not run."
+            echo "The Halon bench did not run, since a pull request from a fork has no model key." >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            joined=$(printf '%s, and ' "${missing[@]}")
+            echo "::notice title=Halon bench is not set up::The bench did not run. Add ${joined%, and }."
+            {
+              echo "## Halon bench did not run"
+              echo
+              echo "The repository is not set up for it yet. Add:"
+              for item in "${missing[@]}"; do echo "- $item"; done
+              echo
+              echo "Until then this job passes without benching. Once they exist it runs and compares with main."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout code
+        if: steps.keys.outputs.run == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up the runner
+        if: steps.keys.outputs.run == 'true'
+        uses: ./.github/actions/host-setup
+        with:
+          packages: "true"
+
+      # Replays save chats, whose messages are encrypted, so this run gets throwaway keys of its own.
+      - name: Prepare the database
+        if: steps.keys.outputs.run == 'true'
+        run: |
+          {
+            echo "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=$(openssl rand -hex 32)"
+            echo "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=$(openssl rand -hex 32)"
+            echo "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(openssl rand -hex 32)"
+          } >> "$GITHUB_ENV"
+          bin/rails db:create db:schema:load
+
+      - name: Run the bench
+        if: steps.keys.outputs.run == 'true'
+        env:
+          LABEL: ${{ github.event_name == 'pull_request' && format('pull request {0}', github.event.pull_request.number) || github.sha }}
+          OUT: tmp/halon-bench.json
+        run: bin/rails halon:chat_bench
+
+      - name: Keep the scores
+        if: steps.keys.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: halon-bench
+          path: tmp/halon-bench.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+      # The baseline is the latest bench that passed on main. With none yet, nothing is compared and the run on main
+      # after this change merges becomes the first.
+      - name: Fetch the baseline from main
+        id: baseline
+        if: steps.keys.outputs.run == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh run list --repo "${{ github.repository }}" --workflow halon-bench.yml --branch main --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run_id" ] || ! gh run download "$run_id" --repo "${{ github.repository }}" --name halon-bench --dir tmp/baseline; then
+            echo "::notice::No bench has passed on main yet, so this run is not compared with one."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare with main
+        if: steps.baseline.outputs.found == 'true'
+        run: bin/rails "halon:chat_bench_compare[tmp/baseline/halon-bench.json,tmp/halon-bench.json]"

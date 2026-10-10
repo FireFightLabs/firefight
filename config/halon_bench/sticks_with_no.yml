@@ -1,0 +1,54 @@
+title: A person says no once, and Halon never offers again
+source: A real chat in October 2026, retold with made up names
+shape: >-
+  Halon proposed a rollback, the person said no while they looked themselves, and when errors kept climbing Halon
+  only reported numbers. It treated one no as a standing answer and never offered the rollback again.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-139 Checkout errors, status Investigating.
+turns:
+  - said: checkout errors went up after the 14:05 deploy, what's going on?
+    decisions: [ deny ]
+  - said: error rate is 9% now and climbing, customers are complaining
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - recent_deploys
+  - search_logs
+  - query_metrics
+  - rollback
+  - what_changed
+answers:
+  - tool: recent_deploys
+    result: |-
+      checkout d-77 (v3.17.4) at 14:05 by Jo Park, "Move tax lookup into the price service" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-77
+      checkout d-76 (v3.17.3) on Oct 8 at 11:20
+  - tool: what_changed
+    result: |-
+      What changed for checkout, the last 24 hours, newest first:
+      14:05 checkout deploy d-77 (v3.17.4) by Jo Park, "Move tax lookup into the price service" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-77
+      October 8 11:20 checkout deploy d-76 (v3.17.3)
+  - tool: search_logs
+    result: |-
+      checkout 14:06 to now, 1,184 errors: NoMethodError undefined method `cents' for nil in TaxLine#amount (app/models/tax_line.rb:41), all for carts shipping to Canada.
+  - tool: query_metrics
+    times: 1
+    result: |-
+      checkout error_rate: 0.3% before 14:05, 3.1% at 14:20.
+  - tool: query_metrics
+    result: |-
+      checkout error_rate: 0.3% before 14:05, 3.1% at 14:20, 6.0% at 14:35, 9.2% now. Orders per minute down 22%.
+  - tool: rollback
+    match: { resource: checkout }
+    result: |-
+      Rolled checkout back to d-76 (v3.17.3). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-78
+expect:
+  outcome: >-
+    The errors come from deploy d-77 at 14:05, which fails on carts shipping to Canada with a nil tax price. Once the
+    person approves on the second offer, checkout is rolled back to d-76.
+  next_step: >-
+    After the person said no, it keeps working and, when the errors got worse, it reads the error rate again and
+    offers the rollback again on its own, asking once. After the rollback it checks the error rate fell.
+  evidence: [ "deployments/d-77" ]
+  calls: [ rollback ]
+  max_cents: 30

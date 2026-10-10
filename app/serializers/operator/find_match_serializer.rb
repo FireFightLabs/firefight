@@ -12,6 +12,7 @@ module Operator
       when Operator::Finder::KIND_RUN then routes.operator_halon_run_path(match.id, **span_param(match))
       when Operator::Finder::KIND_CHAT then routes.operator_halon_chat_path(match.id, **span_param(match))
       when Operator::Finder::KIND_WORKFLOW then routes.operator_workflow_path(match.id)
+      when Operator::Finder::KIND_BENCH then routes.operator_halon_bench_path(match.id)
       end
     end
 

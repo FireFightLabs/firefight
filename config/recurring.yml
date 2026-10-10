@@ -105,6 +105,10 @@ development:
     class: HalonRegressionWatchJob # replays the latest rated answers the first time a new version of Halon's prompt is deployed
     queue: background
     schedule: every hour
+  halon_bench_watch:
+    class: HalonBenchWatchJob # settles chat bench scenarios whose worker was lost, so their run can finish
+    queue: background
+    schedule: every hour
   skill_check:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
@@ -259,6 +263,10 @@ staging:
     class: HalonRegressionWatchJob # replays the latest rated answers the first time a new version of Halon's prompt is deployed
     queue: background
     schedule: every hour
+  halon_bench_watch:
+    class: HalonBenchWatchJob # settles chat bench scenarios whose worker was lost, so their run can finish
+    queue: background
+    schedule: every hour
   skill_check:
     class: SkillCheckJob # flags a provider skill that names a tool its provider no longer offers
     queue: background
@@ -411,6 +419,10 @@ production:
     schedule: every minute
   halon_regression_watch:
     class: HalonRegressionWatchJob # replays the latest rated answers the first time a new version of Halon's prompt is deployed
+    queue: background
+    schedule: every hour
+  halon_bench_watch:
+    class: HalonBenchWatchJob # settles chat bench scenarios whose worker was lost, so their run can finish
     queue: background
     schedule: every hour
   skill_check:

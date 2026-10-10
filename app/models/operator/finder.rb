@@ -6,7 +6,9 @@ module Operator
     KIND_RUN = "run".freeze
     KIND_CHAT = "chat".freeze
     KIND_WORKFLOW = "workflow".freeze
-    KINDS = [ KIND_INCIDENT, KIND_RUN, KIND_CHAT, KIND_WORKFLOW ].freeze
+    KIND_BENCH = "bench".freeze
+    KINDS = [ KIND_INCIDENT, KIND_RUN, KIND_CHAT, KIND_WORKFLOW, KIND_BENCH ].freeze
+    BENCH_PLACE = "Chat bench".freeze
 
     # Fewer characters than this would match too many records.
     SHORTEST_PREFIX = 6
@@ -52,6 +54,7 @@ module Operator
         *starting(Investigation.includes(:workspace, :subject)).map { |run| run_match(run) },
         *starting(Conversation.includes(:workspace)).map { |conversation| chat_match(conversation) },
         *WorkflowRuns.starting_with(@query, limit: LIMIT).map { |workflow| workflow_match(workflow) },
+        *starting(Conversation::BenchRun.of_scenarios).map { |run| bench_match(run) },
         *through_chats, *through_deliveries, *through_ledger, *through_model_calls, *through_messages, *through_steps
       ]
     end
@@ -64,6 +67,7 @@ module Operator
         case owner
         when Investigation then run_match(owner, via: via)
         when Conversation then chat_match(owner, via: via)
+        when Conversation::BenchResult then replay_match(owner, via: via)
         end
       end
     end
@@ -99,7 +103,11 @@ module Operator
       starting(Chat::Message.includes(chat: { owner: :workspace })).filter_map do |message|
         owner = owner_of(message.chat)
         via = "Chat message #{message.id}"
-        owner.is_a?(Investigation) ? run_match(owner, via: via) : chat_match(owner, via: via)
+        case owner
+        when Investigation then run_match(owner, via: via)
+        when Conversation::BenchResult then replay_match(owner, via: via)
+        else chat_match(owner, via: via)
+        end
       end
     end
 
@@ -130,6 +138,17 @@ module Operator
     def chat_match(conversation, via: nil, span: nil)
       Match.new(kind: KIND_CHAT, id: conversation.id, label: conversation.title.presence || Conversation::UNTITLED,
                 place: conversation.workspace.name, via: via, span: span)
+    end
+
+    def bench_match(run, via: nil)
+      Match.new(kind: KIND_BENCH, id: run.id, label: "Prompt #{run.prompt_version} on #{run.model}", place: BENCH_PLACE, via: via, span: nil)
+    end
+
+    # A bench replay's chat leads to its run, or for a real chat replayed, to the chat it replayed.
+    def replay_match(result, via:)
+      return bench_match(result.bench_run, via: via) if result.bench_run.kind == Conversation::BenchRun::KIND_SCENARIOS
+
+      chat_match(result.replay_of, via: via) if result.replay_of
     end
 
     def workflow_match(workflow)

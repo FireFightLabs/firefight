@@ -12,7 +12,7 @@ import { OperatorLayout } from "@/pages/operator/components/operator-layout"
 import { PageHeading } from "@/pages/operator/components/page-heading"
 import { modelName, startedBy } from "@/pages/operator/components/regression-status"
 import { Pager } from "@/pages/operator/components/pager"
-import { RegressionRunDialog } from "@/pages/operator/components/regression-run-dialog"
+import { ModelRunDialog } from "@/pages/operator/components/model-run-dialog"
 import { Stat } from "@/pages/operator/components/stat"
 import { count } from "@/pages/operator/lib/format"
 import type { OperatorPageProps } from "@/pages/operator/types"
@@ -28,6 +28,14 @@ interface RegressionProps extends OperatorPageProps {
   models?: OperatorHalonRegressionModel[]
   page: number
   more: boolean
+}
+
+function answers(cases: number): string {
+  return cases === 1 ? "rated answer" : `${cases} rated answers`
+}
+
+function investigations(cases: number): string {
+  return cases === 1 ? "one investigation" : `${cases} investigations`
 }
 
 function pageHref(target: number) {
@@ -111,7 +119,14 @@ export default function OperatorHalonRegression() {
         <Pager page={page} more={more} hrefFor={pageHref} />
       </Card>
 
-      <RegressionRunDialog open={running} onClose={closeRun} cases={cases} models={models} />
+      <ModelRunDialog
+        open={running}
+        onClose={closeRun}
+        title="Run the regression set"
+        description={`Replays the latest ${answers(cases)} on the model you choose. Each replay is a whole investigation on that model, so a run costs about what ${investigations(cases)} would.`}
+        action={operatorHalonRegressionsPath()}
+        models={models}
+      />
     </OperatorLayout>
   )
 }

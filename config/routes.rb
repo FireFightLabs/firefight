@@ -536,6 +536,9 @@ Rails.application.routes.draw do
     resources :halon_runs, path: "halon/runs", only: :show
     resources :halon_chats, path: "halon/chats", only: %i[index show]
     resources :halon_regressions, path: "halon/regression", only: %i[index show create]
+    resources :halon_benches, path: "halon/bench", only: %i[index show create] do
+      get :compare, on: :collection
+    end
   end
 
   # Targets for `config.exceptions_app`.

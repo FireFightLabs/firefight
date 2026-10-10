@@ -43,6 +43,26 @@ class Operator::FinderTest < ActiveSupport::TestCase
     assert_includes found(invocation.id), [ Operator::Finder::KIND_RUN, @run.id ]
   end
 
+  test "a bench run, or anything in a scenario's replay, leads to the run, and a real chat's replay to the chat it replayed" do
+    run = Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_SCENARIOS, trigger: Conversation::BenchRun::TRIGGER_CI, prompt_version: "v1", model: "gpt-4o")
+    result = run.results.create!(workspace: @workspace, scenario: "release", title: "Release")
+    chat = Chat.open!(owner: result, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o"))
+    message = chat.messages.create!(role: Chat::Message::ROLE_USER, content: "release to production")
+
+    assert_equal [ [ Operator::Finder::KIND_BENCH, run.id ] ], found(run.id)
+    assert_equal [ [ Operator::Finder::KIND_BENCH, run.id ] ], found(chat.id)
+    assert_equal [ [ Operator::Finder::KIND_BENCH, run.id ] ], found(message.id)
+    assert_equal "/operator/halon/bench/#{run.id}", Operator::FindMatchSerializer.path_for(Operator::Finder.new(run.id).matches.sole)
+
+    conversation = Conversation.start_personal!(workspace: @workspace, member: workspace_memberships(:alice_workspace_one))
+    replay = Conversation::BenchRun.create!(kind: Conversation::BenchRun::KIND_CHAT, trigger: Conversation::BenchRun::TRIGGER_TERMINAL, prompt_version: "v1", model: "gpt-4o")
+    replayed = replay.results.create!(workspace: @workspace, replay_of: conversation, scenario: "chat-#{conversation.id}", title: "Chat")
+    replay_chat = Chat.open!(owner: replayed, workspace: @workspace, model_choice: FirefightAi::ModelChoice.new(model: "gpt-4o"))
+
+    assert_equal [ [ Operator::Finder::KIND_CHAT, conversation.id ] ], found(replay_chat.id)
+    assert_empty found(replay.id)
+  end
+
   test "too short a start, or anything that is not an id, finds nothing" do
     assert_empty found(@run.id.first(4))
     assert_empty found("drop table incidents")

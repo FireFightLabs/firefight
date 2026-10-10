@@ -1,5 +1,5 @@
 import { router } from "@inertiajs/react"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import { SearchableSelect, type SearchableSelectOption } from "@/components/searchable-select"
 import { Button } from "@/components/ui/button"
@@ -7,17 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label"
 import { OPERATOR_REGRESSION_MODELS_PROP } from "@/pages/operator/generated/constants"
 import { whenClosed } from "@/lib/handlers"
-import { operatorHalonRegressionsPath } from "@/lib/routes"
 import { useAction } from "@/pages/operator/hooks/use-action"
 import type { OperatorHalonRegressionModel } from "@/types/serializers"
-
-function answers(cases: number): string {
-  return cases === 1 ? "rated answer" : `${cases} rated answers`
-}
-
-function investigations(cases: number): string {
-  return cases === 1 ? "one investigation" : `${cases} investigations`
-}
 
 function loadModels() {
   router.reload({ only: [OPERATOR_REGRESSION_MODELS_PROP] })
@@ -32,15 +23,21 @@ function modelOption(model: OperatorHalonRegressionModel): SearchableSelectOptio
   return { value: modelKey(model), label: `${model.name} (${model.provider})` }
 }
 
-export function RegressionRunDialog({
+// Starts a measuring run, the regression set or the chat bench, on a model the operator picks from the priced
+// registry, which loads when the picker opens. Left on Halon's model it tests the prompt as deployed.
+export function ModelRunDialog({
   open,
   onClose,
-  cases,
+  title,
+  description,
+  action,
   models,
 }: {
   open: boolean
   onClose: () => void
-  cases: number
+  title: string
+  description: ReactNode
+  action: string
   models?: OperatorHalonRegressionModel[]
 }) {
   const [chosenKey, setChosenKey] = useState<string | null>(null)
@@ -48,23 +45,20 @@ export function RegressionRunDialog({
   const chosen = (models ?? []).find((model) => modelKey(model) === chosenKey) ?? null
 
   function run() {
-    post(operatorHalonRegressionsPath(), { model: chosen?.id ?? null, provider: chosen?.provider ?? null })
+    post(action, { model: chosen?.id ?? null, provider: chosen?.provider ?? null })
   }
 
   return (
     <Dialog open={open} onOpenChange={whenClosed(onClose)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Run the regression set</DialogTitle>
-          <DialogDescription>
-            Replays the latest {answers(cases)} on the model you choose. Each replay is a whole investigation on that model,
-            so a run costs about what {investigations(cases)} would.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="regression-model">Model</Label>
+          <Label htmlFor="run-model">Model</Label>
           <SearchableSelect
-            id="regression-model"
+            id="run-model"
             value={chosenKey}
             onValueChange={setChosenKey}
             options={(models ?? []).map(modelOption)}

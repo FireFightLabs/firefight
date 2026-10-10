@@ -1,0 +1,56 @@
+title: An alert storm
+source: Stress test scenario 15, on-call
+shape: >-
+  Dozens of alerts arrive at once across services. They are already grouped onto one incident, and Halon works the
+  group as one problem, finding the shared cause, instead of starting one investigation per alert.
+context: |-
+  You are acting for Firefight's on-call agent, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-151 Health checks failing everywhere, status Investigating.
+  This chat was started by an alert group, not a person.
+turns:
+  - said: "Alert group AG-52 on INC-151: 48 alerts in 3 minutes from web, api, checkout and worker, all failing health checks."
+tools:
+  - open_tools
+  - search_alerts
+  - get_incident
+  - resource_status
+  - run_helpers
+  - check_status_page
+  - start_investigation
+  - escalate_incident
+answers:
+  - tool: search_alerts
+    result: |-
+      48 alerts from 14:02:10 to 14:05:02, all routed to INC-151: web 14, api 12, checkout 11, worker 11, each "health check failed". All four services run in Northflank region us-east.
+  - tool: get_incident
+    result: |-
+      INC-151 Health checks failing everywhere, SEV1, status Investigating, opened 14:02 by alert group AG-52. No incident lead yet. On call: Jo Park. https://app.firefight.app/incidents/INC-151
+  - tool: resource_status
+    result: |-
+      Running, but 0 of 3 instances pass their health check since 14:02. Region us-east.
+  - tool: run_helpers
+    result: |-
+      Status of web: 0 of 3 instances pass health checks since 14:02, region us-east.
+      Status of api: 0 of 2 pass since 14:02, region us-east.
+      Status of checkout: 0 of 3 pass since 14:02, region us-east.
+      Status of worker: running, health checks failing since 14:03, region us-east.
+  - tool: check_status_page
+    match: { provider: /northflank/ }
+    result: |-
+      Northflank: Partial outage in us-east since 14:01 UTC, "Networking issues affecting service health checks and ingress." https://status.northflank.com/incidents/nf-2210
+  - tool: check_status_page
+    result: All systems operational.
+  - tool: start_investigation
+    result: Started investigation 7731.
+  - tool: escalate_incident
+    result: Paged Jo Park for INC-151 with the reason.
+expect:
+  outcome: >-
+    All 48 alerts come from one cause, Northflank's partial outage in us-east since 14:01, where all four services run.
+  next_step: >-
+    It treats the group as one problem, pages on-call once with the cause and the status link, and proposes what can be
+    done while the provider recovers, without starting a run per alert.
+  evidence: [ "status.northflank.com/incidents/nf-2210" ]
+  calls: [ check_status_page, escalate_incident ]
+  never_calls: [ start_investigation ]
+  max_cents: 25

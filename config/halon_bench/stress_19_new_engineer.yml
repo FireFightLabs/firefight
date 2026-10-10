@@ -1,0 +1,54 @@
+title: A new engineer asks how checkout works
+source: Stress test scenario 19, knowledge
+shape: >-
+  A new engineer asks how checkout works. Halon answers from the map, the catalog, past incidents and the code, with
+  links, and asks nothing it could look up.
+context: |-
+  You are acting for Alex Kim, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: I'm new here, how does checkout work?
+tools:
+  - open_tools
+  - get_resource_map
+  - search_incidents
+  - name: search_catalog
+    description: Searches the service catalog, with each entry's owner, tier, runbooks and links.
+    reads: true
+    parameters:
+      type: object
+      properties:
+        query: { type: string, description: What to look for }
+      required: [ query ]
+  - name: github_fetch_file
+    description: Reads one file of a connected repository.
+    source: github
+    reads: true
+    parameters:
+      type: object
+      properties:
+        repository: { type: string, description: owner/name }
+        path: { type: string, description: The file's path }
+      required: [ repository, path ]
+answers:
+  - tool: get_resource_map
+    result: |-
+      checkout (Northflank service, project shop) depends on orders (PlanetScale), stripe (outside), and the jobs queue on worker. web calls checkout. https://app.firefight.app/map/checkout
+  - tool: search_catalog
+    result: |-
+      Checkout: owner Payments team (Priya Shah), tier 1. Runbooks: Roll back checkout, Stripe outage. Repository larkspur/shop, app/services/checkout/. https://app.firefight.app/catalog/checkout
+  - tool: search_incidents
+    result: |-
+      INC-139 Checkout errors (October 9): a tax change broke Canadian carts, rolled back. https://app.firefight.app/incidents/INC-139
+      INC-102 Payments timing out (August 2): Stripe degraded upstream. https://app.firefight.app/incidents/INC-102
+  - tool: github_fetch_file
+    result: |-
+      app/services/checkout/place_order.rb: builds the cart total with TaxLine and ShippingQuote, charges through PaymentRetry (Stripe, idempotency key per cart), writes the order, then enqueues OrderConfirmationJob. https://github.com/larkspur/shop/blob/main/app/services/checkout/place_order.rb
+expect:
+  outcome: >-
+    Checkout is a service owned by the Payments team that web calls. It prices the cart with tax and shipping, charges
+    through Stripe with an idempotency key, writes the order to the orders database and queues the confirmation email
+    on worker. Its runbooks and two past incidents (a tax change, a Stripe outage) are named, each with a link.
+  next_step: >-
+    It answers without asking anything, and offers to go deeper on a part, such as the payment retry or the runbooks.
+  evidence: [ "catalog/checkout", "place_order.rb" ]
+  max_cents: 20

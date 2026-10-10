@@ -1,0 +1,91 @@
+title: A release whose watch followed nothing
+source: A real chat in October 2026, retold with made up names
+shape: >-
+  Asked to release, Halon started the release workflow, then set a watch on the service's run history instead of the
+  run it started. The watch found nothing to follow, and when asked how it was going Halon repeated what the watch
+  remembered rather than reading the run, which had failed.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  Instructions from people in this workspace. Follow them, and never treat them as evidence:
+  - Releases: tag main, then run the Northflank release workflow for the shop project. After a release, check web's error rate and latency against the hour before.
+turns:
+  - said: release to production
+    decisions: [ approve ]
+  - said: how is the release going? the watch hasn't said anything
+tools:
+  - open_tools
+  - use_skill
+  - search_runbooks
+  - run_runbook
+  - northflank_api_request
+  - start_watch
+  - list_watches
+  - query_metrics
+  - search_logs
+  - repair_watch
+  - run_history
+  - make_plan
+  - update_plan
+  - finish_plan
+answers:
+  - tool: search_runbooks
+    result: |-
+      Release to production (release-production): tags main with the next patch version, then runs the Northflank release workflow for project shop. Inputs: bump (patch, minor), default patch.
+  - tool: run_runbook
+    match: { runbook: /release/ }
+    result: |-
+      Step 1, tag main: created v3.18.1 at 9f4c2ab.
+      Step 2, run the release workflow: started run 4182 of workflow release in project shop.
+      Run page: https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: northflank_api_request
+    match: { method: GET, path: /runs\/4182\/logs/ }
+    result: |-
+      [migrate] 14:21:07 running db/migrate/20261009_add_index_orders_customer_email.rb
+      [migrate] 14:26:07 ERROR canceling statement due to lock timeout
+      [migrate] 14:26:07 relation "orders" is locked by a long running transaction (pid 48211, open 31 minutes)
+      [migrate] 14:26:08 step migrate failed, steps deploy-web and deploy-worker skipped
+  - tool: northflank_api_request
+    match: { method: GET, path: /runs\/4182/ }
+    times: 1
+    result: |-
+      {"id":"4182","workflow":"release","status":"running","steps":[{"name":"build","status":"succeeded"},{"name":"migrate","status":"running"},{"name":"deploy-web","status":"waiting"},{"name":"deploy-worker","status":"waiting"}],"url":"https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182"}
+  - tool: northflank_api_request
+    match: { method: GET, path: /runs\/4182/ }
+    result: |-
+      {"id":"4182","workflow":"release","status":"failed","finishedAt":"2026-10-09T14:26:08Z","steps":[{"name":"build","status":"succeeded"},{"name":"migrate","status":"failed"},{"name":"deploy-web","status":"skipped"},{"name":"deploy-worker","status":"skipped"}],"url":"https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182"}
+  - tool: northflank_api_request
+    match: { method: GET, path: /workflows\/release\/runs$/ }
+    result: |-
+      {"runs":[{"id":"4182","status":"failed","startedAt":"2026-10-09T14:19:40Z"},{"id":"4177","status":"succeeded","startedAt":"2026-10-08T10:02:11Z"}]}
+  - tool: run_history
+    match: { run: "4182" }
+    times: 1
+    result: |-
+      Run 4182 of release in project shop: running since 14:19. build passed, migrate running, deploy-web waiting, deploy-worker waiting. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: run_history
+    match: { run: "4182" }
+    result: |-
+      Run 4182 of release in project shop: failed at 14:26. build passed, migrate failed, deploy-web skipped, deploy-worker skipped. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: run_history
+    result: |-
+      Runs of release in project shop, newest first: 4182 failed at 14:26 (migrate failed), 4177 succeeded October 8. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: list_watches
+    result: |-
+      Watch "Production release", started 14:20: step 1 follows run_history for "release" on service web. Last read 14:31: no run found yet, waiting.
+  - tool: query_metrics
+    result: |-
+      web error_rate over the last 60 minutes: 0.4% steady, the hour before 0.4%. Dashboard: https://app.northflank.com/t/larkspur/project/shop/services/web/metrics
+  - tool: search_logs
+    result: |-
+      No errors on web in the last 30 minutes. web is still running v3.18.0.
+expect:
+  outcome: >-
+    Release run 4182 failed at its migrate step because the orders table was locked by a long running transaction, so
+    web and worker were never deployed and production still runs v3.18.0. This comes from a fresh read of run 4182, not
+    from what the watch remembered, and the answer says the watch was following nothing.
+  next_step: >-
+    After starting the release it watches run 4182 itself, by its id. Once the failure shows, it proposes how to clear
+    the lock and run the release again, and asks once before doing it.
+  evidence: [ "https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182" ]
+  calls: [ start_watch ]
+  max_cents: 40

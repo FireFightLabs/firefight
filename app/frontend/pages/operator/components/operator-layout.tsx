@@ -8,6 +8,7 @@ import {
   IconLayoutDashboard,
   IconLogout,
   IconMessages,
+  IconScale,
   IconSparkles,
   IconTargetArrow,
   IconStack2,
@@ -21,6 +22,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   dashboardPath,
   logoutPath,
+  operatorHalonBenchesPath,
   operatorHalonChatsPath,
   operatorHalonPath,
   operatorHalonRegressionsPath,
@@ -61,9 +63,15 @@ const SECTIONS: NavSection[] = [
   {
     title: "Halon",
     items: [
-      { title: "Runs and health", href: operatorHalonPath(), icon: IconSparkles, except: [operatorHalonChatsPath(), operatorHalonRegressionsPath()] },
+      {
+        title: "Runs and health",
+        href: operatorHalonPath(),
+        icon: IconSparkles,
+        except: [operatorHalonChatsPath(), operatorHalonRegressionsPath(), operatorHalonBenchesPath()],
+      },
       { title: "Chats", href: operatorHalonChatsPath(), icon: IconMessages },
       { title: "Regression", href: operatorHalonRegressionsPath(), icon: IconTargetArrow },
+      { title: "Bench", href: operatorHalonBenchesPath(), icon: IconScale },
     ],
   },
 ]

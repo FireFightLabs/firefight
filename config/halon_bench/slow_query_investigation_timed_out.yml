@@ -1,0 +1,65 @@
+title: A slow database investigation that timed out
+source: A real chat in October 2026, retold with made up names
+shape: >-
+  Asked why checkout was slow, Halon reached for a count over the whole orders table, which timed out, then sent the
+  same heavy query again and again until the turn ran out, while the database's own query insights already named the
+  slow query.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-142 Checkout is slow, status Investigating.
+turns:
+  - said: checkout has been slow since this morning, is it the database?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - use_skill
+  - get_resource_map
+  - query_metrics
+  - planetscale_get_insights
+  - planetscale_execute_read_query
+  - recent_deploys
+  - github_fix_code
+answers:
+  - tool: get_resource_map
+    result: |-
+      checkout (Northflank service, project shop) depends on orders (PlanetScale database, branch main) and stripe (outside service).
+  - tool: query_metrics
+    match: { resource: checkout }
+    result: |-
+      checkout p95_latency over the last 6 hours: 2,940 ms since 08:10, 310 ms before. error_rate 0.2% steady.
+  - tool: planetscale_get_insights
+    result: |-
+      Slowest queries on orders/main over the last 6 hours:
+      1. SELECT * FROM orders WHERE customer_email = ? ORDER BY created_at DESC LIMIT ?  p50 2,610 ms, 41,200 calls, rows read per call 3.9 million, first seen 08:09
+      2. SELECT * FROM carts WHERE id = ?  p50 2 ms
+      Insights: https://app.planetscale.com/larkspur/orders/main/insights
+  - tool: planetscale_execute_read_query
+    match: { query: /^\s*explain/ }
+    result: |-
+      id 1, select_type SIMPLE, table orders, type ALL, possible_keys NULL, key NULL, rows 3,912,448, Extra: Using where; Using filesort
+  - tool: planetscale_execute_read_query
+    match: { query: /count\(/ }
+    failed: true
+    result: |-
+      planetscale_execute_read_query failed: query exceeded the 20 second limit and was cancelled
+  - tool: planetscale_execute_read_query
+    match: { query: /show (index|keys)/ }
+    result: |-
+      orders: PRIMARY (id), index_orders_on_created_at (created_at). No index on customer_email.
+  - tool: recent_deploys
+    result: |-
+      checkout v3.18.0 at 08:05 by Jo Park: "Look orders up by email on the account page" https://github.com/larkspur/shop/pull/2210
+  - tool: github_fix_code
+    result: |-
+      Opened https://github.com/larkspur/shop/pull/2214 "Index orders by customer_email" adding a migration that creates the index without locking (algorithm inplace, lock none).
+expect:
+  outcome: >-
+    Checkout is slow because the orders lookup by customer_email, added in the 08:05 deploy, scans the whole orders
+    table with no index, as query insights and EXPLAIN show. The fix is an index on customer_email. It does not keep
+    sending a query that timed out.
+  next_step: >-
+    It proposes the index as a code change, asks once, and once allowed has it written as a pull request, saying how
+    to check latency after it ships.
+  evidence: [ "https://app.planetscale.com/larkspur/orders/main/insights", "pull/2210", "pull/2214" ]
+  calls: [ planetscale_get_insights, github_fix_code ]
+  max_cents: 35

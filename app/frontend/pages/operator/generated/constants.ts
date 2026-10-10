@@ -66,6 +66,23 @@ export const OPERATOR_REGRESSION_RUN_STATUSES = {
   "FINISHED": "finished"
 } as const
 
+export const OPERATOR_BENCH_RUN_STATUSES = {
+  "RUNNING": "running",
+  "FINISHED": "finished"
+} as const
+
+export const OPERATOR_BENCH_TRIGGERS = {
+  "OPERATOR": "operator",
+  "TERMINAL": "terminal",
+  "CI": "ci"
+} as const
+
+export const OPERATOR_BENCH_SCENARIO_STATUSES = {
+  "PENDING": "pending",
+  "SCORED": "scored",
+  "ERRORED": "errored"
+} as const
+
 export const OPERATOR_TRACE_KINDS = {
   "JOB": "job",
   "FACTS": "facts",
@@ -87,7 +104,8 @@ export const OPERATOR_FIND_KINDS = {
   "INCIDENT": "incident",
   "RUN": "run",
   "CHAT": "chat",
-  "WORKFLOW": "workflow"
+  "WORKFLOW": "workflow",
+  "BENCH": "bench"
 } as const
 
 export const OPERATOR_WINDOWS = {

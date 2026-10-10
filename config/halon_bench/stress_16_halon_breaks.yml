@@ -1,0 +1,36 @@
+title: Halon cannot go on mid-incident
+source: Stress test scenario 16, resilience
+shape: >-
+  Mid-incident, the reads Halon needs keep failing. A replay cannot make the model itself fail, so this is the part it
+  can express: Halon says plainly what it checked, what failed and where it stopped, never guessing a cause.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-145 API errors, status Investigating.
+turns:
+  - said: api is throwing 500s, what's causing it?
+tools:
+  - open_tools
+  - recent_deploys
+  - search_logs
+  - query_metrics
+answers:
+  - tool: recent_deploys
+    result: |-
+      api v4.2.1 at 11:05 by Jo Park, "Upgrade the JSON library" https://github.com/larkspur/shop/pull/2224
+  - tool: search_logs
+    failed: true
+    result: |-
+      search_logs failed: 503 Service Unavailable from the log provider (upstream timeout)
+  - tool: query_metrics
+    failed: true
+    result: |-
+      query_metrics failed: 503 Service Unavailable from the metrics provider
+expect:
+  outcome: >-
+    It cannot say what causes the 500s: the logs and metrics both answered 503, so the only fact it has is the api
+    deploy at 11:05. It says that plainly, names the deploy as worth checking without calling it the cause.
+  next_step: >-
+    It says what it checked and where it stopped, and proposes the next step, such as trying the reads again shortly
+    or checking the deploy's change, rather than guessing.
+  evidence: [ "pull/2224" ]
+  max_cents: 20
