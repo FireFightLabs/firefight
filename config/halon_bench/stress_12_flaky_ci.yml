@@ -1,8 +1,8 @@
 title: Flaky CI blocks merges
 source: Stress test scenario 12, engineering
 shape: >-
-  CI fails on main often enough to block merges. Halon pulls a hundred runs into its box, groups the failures with a
-  script, finds the flaky test, and has the coding agent write the fix once allowed.
+  CI fails on main often enough to block merges. Halon pulls a hundred runs into its sandbox, groups the failures with
+  a script, finds the flaky test, and has the coding agent write the fix once allowed.
 context: |-
   You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
 turns:
@@ -17,7 +17,7 @@ tools:
 answers:
   - tool: github_workflow_runs
     result: |-
-      100 runs of ci.yml on main, saved to /work/runs/ci-main.json in the box (12 MB). 31 failed. Showing the latest 5:
+      100 runs of ci.yml on main, 31 failed. The whole answer is too large to show (12 MB), so it is saved as result_4, which run_command can read as a file with results ["result_4"] and read_result can search. The latest 5:
       9918 failed https://github.com/larkspur/shop/actions/runs/9918
       9917 succeeded
       9916 failed https://github.com/larkspur/shop/actions/runs/9916
@@ -31,7 +31,7 @@ answers:
          5  spec/system/cart_spec.rb:40 timed out waiting for #checkout-button, passed on rerun in 4 of 5
          3  different tests once each
   - tool: run_command
-    result: /work/runs/ci-main.json
+    result: results/result_4.txt
   - tool: github_job_log
     result: |-
       spec/checkout/tax_spec.rb:88 rounds tax for Canadian carts. Expected 13.00, got 12.99. Seed 40112. The spec uses Time.now to pick the tax rate table, which changes at midnight UTC.

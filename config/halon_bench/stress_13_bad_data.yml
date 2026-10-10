@@ -35,6 +35,9 @@ tools:
         branch: { type: string, description: The branch, usually main }
         query: { type: string, description: The statement }
       required: [ database, query ]
+  - make_plan
+  - update_plan
+  - finish_plan
 answers:
   - tool: planetscale_execute_read_query
     match: { query: /group by|count/ }

@@ -1,27 +1,21 @@
 title: A slow problem nobody asked about
 source: Stress test scenario 02, monitoring
 shape: >-
-  A scheduled check finds a disk filling for three weeks and a certificate expiring in nine days. It should say each
-  once with a date, and not repeat what it already said unless it got worse.
+  A disk has filled for three weeks and a certificate expires in nine days. Live, the daily monitoring check finds
+  these, and that is a run rather than a chat, so here a person asks. Halon should say each once with a date and the
+  reading, and say whether it got worse since it was last raised.
 context: |-
-  You are acting for Firefight's monitoring agent, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
-  This chat was started by the daily check, not a person. Today is October 10, 2026.
-  Said before in #ops by this check: October 3, orders-db disk at 74% and growing about 1% a day.
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+  Today is October 10, 2026.
+  What this workspace remembers. Each is a hunch to check, and only a confirmed one was vouched for by a person:
+  - October 3, orders-db disk at 74% and growing about 1% a day (said in #ops).
 turns:
-  - said: Daily check of disks and certificates.
+  - said: is anything slowly getting worse that we should know about? disks, certificates, that kind of thing
 tools:
   - open_tools
   - get_resource_map
   - resource_status
-  - run_command
-  - name: post_to_channel
-    description: Posts a message to a Slack channel.
-    parameters:
-      type: object
-      properties:
-        channel: { type: string, description: The channel, such as ops }
-        message: { type: string, description: The message }
-      required: [ channel, message ]
+  - check_from_outside
 answers:
   - tool: get_resource_map
     result: |-
@@ -33,27 +27,22 @@ answers:
   - tool: resource_status
     result: |-
       Running, nothing unusual.
-  - tool: run_command
-    match: { command: /api\.larkspur\.shop/ }
+  - tool: check_from_outside
+    match: { url: /api\.larkspur\.shop/ }
     result: |-
-      notAfter=Oct 19 23:59:59 2026 GMT
-      issuer=C = US, O = Let's Encrypt, CN = R11
-      subject=CN = api.larkspur.shop
-  - tool: run_command
-    match: { command: /larkspur\.shop/ }
+      https://api.larkspur.shop answered 200 in 182 ms. Certificate: issued by Let's Encrypt R11 for api.larkspur.shop, trusted, expires 2026-10-19 (9 days left).
+  - tool: check_from_outside
+    match: { url: /larkspur\.shop/ }
     result: |-
-      notAfter=Dec 30 23:59:59 2026 GMT
-      subject=CN = larkspur.shop
-  - tool: post_to_channel
-    result: Posted to #ops.
+      https://larkspur.shop answered 200 in 140 ms. Certificate: issued by Let's Encrypt R11 for larkspur.shop and www.larkspur.shop, trusted, expires 2026-12-30 (81 days left).
 expect:
   outcome: >-
     orders-db is at 81% and grows about 1.1% a day, so it fills around October 27, worse than the 74% said on October
     3. The certificate for api.larkspur.shop expires on October 19, nine days away, and larkspur.shop is fine until
     December 30. Each comes with the reading it rests on.
   next_step: >-
-    It says both once in #ops with the dates, proposes the fixes (grow the disk or clean it up, renew the certificate
-    and find why it did not renew), and does not repeat what is unchanged.
+    It says both once with the dates and the readings, says the disk got worse since October 3, proposes the fixes (grow
+    the disk or clean it up, renew the certificate and find why it did not renew), and offers to keep checking.
   evidence: [ "addons/orders-db" ]
-  calls: [ post_to_channel ]
+  calls: [ check_from_outside ]
   max_cents: 25

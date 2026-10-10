@@ -13,10 +13,7 @@ tools:
   - recent_deploys
   - planetscale_execute_read_query
   - list_integrations
-  - name: list_connected
-    description: Lists the systems this workspace has connected, by category.
-    reads: true
-    parameters: { type: object, properties: {} }
+  - blind_spots
 answers:
   - tool: search_logs
     result: |-
@@ -27,9 +24,9 @@ answers:
   - tool: planetscale_execute_read_query
     result: |-
       users: email dana@example.com, otp_enabled true, otp_channel email, locked false, last_login 2026-10-08 18:20
-  - tool: list_connected
+  - tool: blind_spots
     result: |-
-      Connected: Northflank (hosting), PlanetScale (database), GitHub (code), Cloudflare (edge). No email delivery provider is connected.
+      Not connected, by kind: Email and messaging (no email delivery provider, such as Resend, Postmark or SendGrid, so whether a message was sent or delivered cannot be read). Observability: connected through Northflank logs only. Connect one from Settings, Integrations.
   - tool: list_integrations
     result: Shown to the person as a table they can connect from.
 expect:

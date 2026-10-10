@@ -14,6 +14,9 @@ tools:
   - search_runbooks
   - run_runbook
   - northflank_api_request
+  - make_plan
+  - update_plan
+  - finish_plan
 answers:
   - tool: search_runbooks
     result: |-

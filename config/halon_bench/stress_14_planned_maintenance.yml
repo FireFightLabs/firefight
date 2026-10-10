@@ -33,6 +33,9 @@ tools:
         starts_at: { type: string, description: When it starts, in ISO 8601 }
         steps: { type: array, items: { type: string }, description: The steps in order, each with how it is undone }
       required: [ title, starts_at, steps ]
+  - make_plan
+  - update_plan
+  - finish_plan
 answers:
   - tool: northflank_api_request
     match: { method: GET, path: /addons/ }

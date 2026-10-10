@@ -22,6 +22,11 @@ tools:
   - list_watches
   - query_metrics
   - search_logs
+  - repair_watch
+  - run_history
+  - make_plan
+  - update_plan
+  - finish_plan
 answers:
   - tool: search_runbooks
     result: |-
@@ -52,6 +57,18 @@ answers:
     match: { method: GET, path: /workflows\/release\/runs$/ }
     result: |-
       {"runs":[{"id":"4182","status":"failed","startedAt":"2026-10-09T14:19:40Z"},{"id":"4177","status":"succeeded","startedAt":"2026-10-08T10:02:11Z"}]}
+  - tool: run_history
+    match: { run: "4182" }
+    times: 1
+    result: |-
+      Run 4182 of release in project shop: running since 14:19. build passed, migrate running, deploy-web waiting, deploy-worker waiting. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: run_history
+    match: { run: "4182" }
+    result: |-
+      Run 4182 of release in project shop: failed at 14:26. build passed, migrate failed, deploy-web skipped, deploy-worker skipped. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
+  - tool: run_history
+    result: |-
+      Runs of release in project shop, newest first: 4182 failed at 14:26 (migrate failed), 4177 succeeded October 8. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
   - tool: list_watches
     result: |-
       Watch "Production release", started 14:20: step 1 follows run_history for "release" on service web. Last read 14:31: no run found yet, waiting.

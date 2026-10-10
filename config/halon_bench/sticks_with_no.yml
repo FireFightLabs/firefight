@@ -17,11 +17,17 @@ tools:
   - search_logs
   - query_metrics
   - rollback
+  - what_changed
 answers:
   - tool: recent_deploys
     result: |-
       checkout d-77 (v3.17.4) at 14:05 by Jo Park, "Move tax lookup into the price service" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-77
       checkout d-76 (v3.17.3) on Oct 8 at 11:20
+  - tool: what_changed
+    result: |-
+      What changed for checkout, the last 24 hours, newest first:
+      14:05 checkout deploy d-77 (v3.17.4) by Jo Park, "Move tax lookup into the price service" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-77
+      October 8 11:20 checkout deploy d-76 (v3.17.3)
   - tool: search_logs
     result: |-
       checkout 14:06 to now, 1,184 errors: NoMethodError undefined method `cents' for nil in TaxLine#amount (app/models/tax_line.rb:41), all for carts shipping to Canada.

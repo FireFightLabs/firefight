@@ -14,22 +14,29 @@ tools:
   - search_logs
   - query_metrics
   - recent_deploys
-  - provider_status
+  - what_changed
+  - check_status_page
   - post_incident_update
 answers:
   - tool: search_logs
     result: |-
       checkout since 10:14: 912 Stripe::APIConnectionError "Timed out connecting to api.stripe.com" from PaymentsController#create. No other errors.
+
+      Failing lines here name api.stripe.com, which is Stripe's. Its status page, read now:
+      Stripe: Degraded performance on the API since 10:12 UTC. "We are investigating elevated latency and timeouts for API requests in some regions." https://status.stripe.com/incidents/x7k2p9
   - tool: query_metrics
     result: |-
       checkout p95 latency 30,100 ms on /payments since 10:14, other endpoints normal. Payment success 61%, normally 98%.
   - tool: recent_deploys
     result: No deploy to checkout or api since yesterday at 16:40.
-  - tool: provider_status
+  - tool: what_changed
+    result: |-
+      What changed for checkout, the last 24 hours: nothing deployed since yesterday 16:40 (checkout d-90 by Sam Rivera). No settings changed.
+  - tool: check_status_page
     match: { provider: /stripe/ }
     result: |-
       Stripe: Degraded performance on the API since 10:12 UTC. "We are investigating elevated latency and timeouts for API requests in some regions." https://status.stripe.com/incidents/x7k2p9
-  - tool: provider_status
+  - tool: check_status_page
     result: All systems operational.
   - tool: post_incident_update
     result: Posted to INC-144 and the status page.
@@ -41,5 +48,4 @@ expect:
     It proposes a fallback such as queueing payments to retry, drafts a customer update, asks once to post it, and
     offers to watch Stripe's status.
   evidence: [ "status.stripe.com/incidents/x7k2p9" ]
-  calls: [ provider_status ]
   max_cents: 25

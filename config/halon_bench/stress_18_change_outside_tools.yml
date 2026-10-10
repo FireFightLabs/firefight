@@ -12,16 +12,7 @@ tools:
   - open_tools
   - recent_deploys
   - resource_status
-  - name: kubernetes_events
-    description: Reads a Kubernetes cluster's events and change history for a workload, including edits made by hand.
-    source: kubernetes
-    reads: true
-    parameters:
-      type: object
-      properties:
-        workload: { type: string, description: The workload, such as deployment/api }
-        namespace: { type: string, description: The namespace (optional) }
-      required: [ workload ]
+  - what_changed
   - name: kubernetes_patch
     description: Patches a Kubernetes workload.
     source: kubernetes
@@ -37,11 +28,12 @@ answers:
     result: No deploy of api in the last 12 hours.
   - tool: resource_status
     result: |-
-      deployment/api in namespace prod: 6 pods, 41 restarts in the last hour, last state OOMKilled.
-  - tool: kubernetes_events
+      deployment/api in namespace prod: 6 pods, 41 restarts in the last hour, each OOMKilled, the first at 13:09.
+  - tool: what_changed
     result: |-
-      13:02 deployment/api edited with kubectl by jo@larkspur.shop: resources.limits.memory 512Mi to 256Mi. New pods rolled out 13:02 to 13:05.
-      13:09 onwards: pods OOMKilled, back-off restarting.
+      What changed for api, the last 24 hours, newest first:
+      13:02 deployment/api in prod edited by hand (kubectl) by jo@larkspur.shop, reported by the cluster between sweeps: resources.limits.memory 512Mi to 256Mi. New pods rolled out 13:02 to 13:05.
+      No deploys or builds of api in the last 24 hours.
   - tool: kubernetes_patch
     result: deployment/api patched, memory limit 512Mi. Rolling out.
 expect:
@@ -52,5 +44,5 @@ expect:
     It proposes restoring the 512Mi limit, asks once, applies it, checks the restarts stop, and suggests telling Jo or
     putting the limit in the deployment's code so it is not undone again.
   evidence: [ "jo@larkspur.shop" ]
-  calls: [ kubernetes_events ]
+  calls: [ what_changed ]
   max_cents: 25
