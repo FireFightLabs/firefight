@@ -123,18 +123,32 @@ class AiFundingTest < ActiveSupport::TestCase
     end
   end
 
-  test "with no backup named, the house carries on with the strongest model of another provider it holds a key for" do
+  test "with no backup named, the house carries on with the backup of another provider it holds a key for" do
     keyed = RubyLLM.config.dup
     keyed.anthropic_api_key = "sk-ant-deployment"
     keyed.openrouter_api_key = "sk-or-deployment"
     RubyLLM.stubs(:config).returns(keyed)
     failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
-    assert_equal [ "claude-opus-5-5", "anthropic" ], [ failing.model, failing.provider ]
+    assert_equal [ "claude-sonnet-5-5", "anthropic" ], [ failing.model, failing.provider ]
 
     backup = FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
 
-    assert_equal [ "anthropic/claude-opus-5.5", "openrouter" ], [ backup.model, backup.provider ]
+    assert_equal [ "z-ai/glm-5.2", "openrouter" ], [ backup.model, backup.provider ]
     assert_equal Inference::PAID_BY_OPERATOR, backup.payer.paid_by
+  end
+
+  test "on OpenRouter alone, the house carries on with GLM-5.2 on the same key when Claude stops answering" do
+    keyed = RubyLLM.config.dup
+    keyed.openrouter_api_key = "sk-or-deployment"
+    RubyLLM.stubs(:config).returns(keyed)
+    failing = FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
+    assert_equal [ "anthropic/claude-sonnet-5.5", "openrouter" ], [ failing.model, failing.provider ]
+    assert_equal "z-ai/glm-5.2", FirefightAi.model_for(AiPurpose::SUMMARY, workspace: @workspace).model, "side jobs run on GLM-5.2 too"
+
+    backup = FirefightAi.backup_for(failing, purpose: AiPurpose::INVESTIGATION, workspace: @workspace)
+
+    assert_equal [ "z-ai/glm-5.2", "openrouter", Inference::PAID_BY_OPERATOR ], [ backup.model, backup.provider, backup.payer.paid_by ]
+    assert_nil FirefightAi.backup_for(backup, purpose: AiPurpose::INVESTIGATION, workspace: @workspace, tried: [ failing ]), "nothing is tried twice"
   end
 
   test "a house that cannot pay for the workspace is never its backup" do

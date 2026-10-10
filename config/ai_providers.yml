@@ -4,13 +4,17 @@
 # not listed here is not offered. A local provider (RubyLLM's local?) is offered only where Entitlements allows private
 # AI endpoints, which an install someone runs themselves does and Firefight's cloud does not.
 #
-# main is the strongest model the provider offers, which Halon's own loop runs on: chats, investigations and what grows
-# from them. It may list several, strongest first. The first one the registry holds for the provider with a price and a
-# size is used, so a model newer than the catalog RubyLLM ships is picked up once the nightly refresh brings it in, and
-# its cost shows like any other. The last one must be one RubyLLM's catalog holds, with tool calling and a known size,
-# which test/models/ai_providers_test.rb checks, so there is always one to fall back to. fast is the quick model for side
-# jobs (summaries, milestones, mention replies, judging a watch or a memory). Providers whose models are named by whoever
-# runs them (an Azure deployment, a local Ollama or GPUStack) recommend none.
+# main is the model Halon's own loop runs on: chats, investigations and what grows from them. It may list several,
+# preferred first, and Claude Sonnet 5.5 leads where a provider runs it, since it did Halon's work best for the money.
+# The first one the registry holds for the provider with a price and a size is used, so a model newer than the catalog
+# RubyLLM ships is picked up once the nightly refresh brings it in, and its cost shows like any other. The last one must
+# be one RubyLLM's catalog holds, with tool calling and a known size, which test/models/ai_providers_test.rb checks, so
+# there is always one to fall back to. fast is the quick model for side jobs (summaries, milestones, mention replies,
+# judging a watch or a memory), GLM-5.2 where the provider runs it. Providers whose models are named by whoever runs
+# them (an Azure deployment, a local Ollama or GPUStack) recommend none.
+#
+# backup is what the deployment's own keys carry Halon's loop on when its model stops answering, GLM-5.2 where the
+# provider runs it. It may list several like main, and a provider with none carries on with its main model.
 #
 # The deployment's own keys follow the same picks when no env var names a model (FirefightAi.deployment_model_for).
 #
@@ -20,7 +24,7 @@
 # RubyLLM ships, since the nightly refresh is what brings it into the registry.
 anthropic:
   name: Anthropic
-  main: [ claude-opus-5-5, claude-opus-5 ]
+  main: [ claude-sonnet-5-5, claude-sonnet-5 ]
   fast: claude-haiku-4-5
   code_fix: claude-opus-5-5
 openai:
@@ -46,7 +50,7 @@ vertexai:
   fast: gemini-2.5-flash
 bedrock:
   name: Amazon Bedrock
-  main: [ anthropic.claude-opus-5-5, anthropic.claude-opus-5 ]
+  main: [ anthropic.claude-sonnet-5-5, anthropic.claude-sonnet-5 ]
   fast: anthropic.claude-haiku-4-5-20251001-v1:0
   labels:
     api_key: Access key ID
@@ -54,8 +58,9 @@ azure:
   name: Azure AI Foundry
 openrouter:
   name: OpenRouter
-  main: [ anthropic/claude-opus-5.5, anthropic/claude-opus-5 ]
-  fast: anthropic/claude-haiku-4.5
+  main: [ anthropic/claude-sonnet-5.5, anthropic/claude-sonnet-5 ]
+  fast: z-ai/glm-5.2
+  backup: z-ai/glm-5.2
   code_fix: anthropic/claude-opus-5.5
 deepseek:
   name: DeepSeek
@@ -64,7 +69,8 @@ deepseek:
 mistral:
   name: Mistral
   main: mistral-large-latest
-  fast: mistral-small-latest
+  fast: glm-5-2
+  backup: glm-5-2
 xai:
   name: xAI
   main: grok-4.6
