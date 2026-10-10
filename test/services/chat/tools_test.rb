@@ -803,6 +803,41 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     connection.call(method: "GET", path: "/zones")
   end
 
+  # Seen in a real chat, PlanetScale's server read from a replica by default and Halon's first read went there.
+  test "a database read goes to the primary unless the call asks for a replica, and the replica is offered only as a fallback" do
+    planetscale = @workspace.integrations.create!(kind: Integration::KIND_MCP, provider: "planetscale", name: "PlanetScale", slug: "planetscale",
+                                                  settings: { "server_url" => "https://mcp.pscale.dev/mcp/planetscale" })
+    planetscale.integration_environments.create!
+    read = planetscale.tools.create!(
+      name: "planetscale_execute_read_query", description: "Runs a read", read_only: true, enabled: true,
+      params_schema: { "type" => "object", "properties" => {
+        "query" => { "type" => "string" },
+        "use_replica" => { "type" => "boolean", "description" => "Route read queries to a read replica. Defaults to true." }
+      } }
+    )
+    grant!(read)
+    connection = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "planetscale_planetscale_execute_read_query" }.tool
+
+    assert_equal Integrations::Replicas::DESCRIPTION, connection.parameters_schema.dig("properties", "use_replica", "description")
+    sent = []
+    Integrations::McpExecutor.stubs(:call).with { |arguments:, **| sent << arguments }.returns("content" => [ { "type" => "text", "text" => "1" } ])
+
+    connection.call(query: "select 1")
+    connection.call(query: "select 2", use_replica: true)
+
+    assert_equal [ { "query" => "select 1", "use_replica" => false }, { "query" => "select 2", "use_replica" => true } ], sent
+    assert_equal({ "query" => "select 1", "use_replica" => false }, @investigation.steps.find_by!(position: 1).params)
+  end
+
+  test "a tool with no replica to choose is offered and called exactly as it was" do
+    grant!(@tool)
+    connection = Chat::Tools.catalog(@investigation).find { |entry| entry.name == "fake_echo_text" }.tool
+
+    assert_equal @tool.offered_schema["properties"], connection.parameters_schema["properties"]
+    assert_match "echo: hi", connection.call(text: "hi")
+    assert_equal({ "text" => "hi" }, @investigation.steps.find_by!(tool_name: "fake_echo_text").params)
+  end
+
   private
 
   # Past the critique, with a re-read that judges nothing unless a test says otherwise.

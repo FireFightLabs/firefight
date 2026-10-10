@@ -31,6 +31,9 @@ class IntegrationProvider
   HISTORIES = [ HISTORY_FIREFIGHT, HISTORY_NONE ].freeze
   HISTORY_EXPLAINED = [ HISTORY_NONE ].freeze
 
+  # The category of the providers that hold an application's data, whose reads a person waits on in a chat.
+  CATEGORY_DATABASES = "Databases".freeze
+
   # One place a provider runs its service, such as Datadog's EU1, for a provider that offers several. The connect dialog
   # offers the choice when there is more than one, and the connection keeps it. server_url is its MCP server, site the
   # address of the provider's app there, which links open, and authorization_endpoint and token_endpoint its OAuth
@@ -194,6 +197,8 @@ class IntegrationProvider
     end
 
     def connection_url? = connect_with == CONNECT_CONNECTION_URL
+
+    def database? = category == CATEGORY_DATABASES
 
     def api_token? = connect_with == CONNECT_API_TOKEN
 

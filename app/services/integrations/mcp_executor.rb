@@ -5,10 +5,31 @@ module Integrations
     # answers, so nobody hears progress from it. Nor does it write code in Firefight's sandbox, so it takes no request.
     def self.call(tool:, environment_row:, arguments:, box_key: nil, progress: nil, request: nil)
       SecretReads.refuse!(tool, arguments)
-      result = client_for(tool.integration, environment_row)
+      within = QUICK_READ if quick_read?(tool)
+      result = client_for(tool.integration, environment_row, within: within)
                .call_tool(name: tool.remote_name, arguments: arguments)
       kept = Redactions.apply(ToolResult.normalize(result), **Redactions.rules(tool.integration.provider))
       SourceLinks.attach(kept, settings: ConnectionSettings.of(environment_row), tool_name: tool.name, arguments: arguments)
+    rescue TimedOut
+      raise unless within
+
+      raise Error, slow(tool)
+    end
+
+    # Seen in a real chat, a database's server took 35 seconds to say nothing, twice, while the person waited. A read
+    # from a database provider's server is given QUICK_READ seconds in all, handshake included, as Firefight's own
+    # database pack gives a statement ten. A change keeps the longer wait, since one cut short may still have landed.
+    QUICK_READ = 15
+
+    def self.quick_read?(tool) = tool.read_only? && IntegrationProvider.find(tool.integration.provider)&.database? == true
+
+    # What the agent is told when a quick read runs out of time, which is to try once more, then another way, and say so.
+    def self.slow(tool)
+      name = IntegrationProvider.find(tool.integration.provider)&.name || tool.integration.name
+      "#{name} did not answer within #{QUICK_READ} seconds, so Firefight stopped waiting. Try the same read once more, " \
+        "narrowed if it reads a lot. If it is slow again, get what you need another way, such as the schema in the " \
+        "application's repository, another of #{name}'s tools, or a read replica where the tool offers one, and say " \
+        "in your answer that #{name} was slow and what you did instead."
     end
 
     # Names are sanitized into action-key-safe form, spec keeps the server's own name for the call.
@@ -91,9 +112,9 @@ module Integrations
       end
     end
 
-    def self.client_for(integration, environment_row)
-      McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row))
+    def self.client_for(integration, environment_row, within: nil)
+      McpClient.new(server_url: integration.server_url, headers: Credentials.headers_for(environment_row), within: within)
     end
-    private_class_method :client_for, :reader, :narrows?
+    private_class_method :client_for, :reader, :narrows?, :quick_read?, :slow
   end
 end

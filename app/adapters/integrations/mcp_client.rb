@@ -10,9 +10,11 @@ module Integrations
     # cursor cannot hold a refresh forever.
     MAX_TOOL_PAGES = 50
 
-    def initialize(server_url:, headers: {})
+    # within bounds a whole tool call, its handshake included, in seconds. Without it each request waits READ_TIMEOUT.
+    def initialize(server_url:, headers: {}, within: nil)
       @server_url = server_url
       @headers = headers
+      @within = within
       @session_id = nil
       @initialized = false
       @id = 0
@@ -37,6 +39,7 @@ module Integrations
     end
 
     def call_tool(name:, arguments:)
+      @deadline = now + @within if @within
       ensure_initialized
       request("tools/call", { name: name, arguments: arguments })
     end
@@ -85,8 +88,19 @@ module Integrations
       @headers.each { |key, value| req[key] = value }
       req.body = payload.to_json
 
-      Http.request(uri, req, error_class: Error, read_timeout: READ_TIMEOUT)
+      Http.request(uri, req, error_class: Error, read_timeout: read_timeout)
     end
+
+    def read_timeout
+      return READ_TIMEOUT unless @deadline
+
+      left = @deadline - now
+      raise Error.new("#{URI.parse(@server_url.to_s).host} did not answer within #{@within} seconds").extend(TimedOut) unless left.positive?
+
+      [ left, READ_TIMEOUT ].min
+    end
+
+    def now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     def capture_session(response)
       session = response["Mcp-Session-Id"]

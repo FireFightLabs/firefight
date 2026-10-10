@@ -62,6 +62,9 @@ module FirefightAi
         - #{LookFirstRule::CAUSE_RULE}
         - #{LookFirstRule::API_GUIDE_RULE}
         - #{LookFirstRule::GUESSED_CALL_RULE}
+        - #{DatabaseRule::SCHEMA_RULE}
+        - #{DatabaseRule::REPLICA_RULE}
+        - #{DatabaseRule::SLOW_RULE}
         - #{NormalRule::RULE}
         - #{MAP_START}
         - A responder may add something while you work. Their newest message decides what you check next.

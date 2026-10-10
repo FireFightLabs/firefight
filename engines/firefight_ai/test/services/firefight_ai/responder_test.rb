@@ -143,6 +143,26 @@ class FirefightAi::ResponderTest < ActiveSupport::TestCase
     assert_match "say plainly that the provider's API does not offer it", guessed
   end
 
+  # Seen in a real chat, Halon guessed a production database's table and column names query after query, read from a
+  # replica first, and said nothing of two reads that waited 35 seconds each.
+  test "a chat and a run read a database's schema from the repository first, the primary before a replica, and say when a provider was slow" do
+    schema = FirefightAi::DatabaseRule::SCHEMA_RULE
+    replica = FirefightAi::DatabaseRule::REPLICA_RULE
+    slow = FirefightAi::DatabaseRule::SLOW_RULE
+
+    assert_match "read their names and columns from the application's repository on the connected code host", schema
+    assert_match "db/schema.rb, db/structure.sql, prisma/schema.prisma, its models or its migrations", schema
+    assert_match "Never guess a table or column name", schema
+    assert_match "read the database's own schema for those tables first", schema
+    assert_match "Read from a replica only as a fallback, when the primary was slow or refused", replica
+    assert_match "say so in your answer, with what you did instead", slow
+    prompt = FirefightAi::Responder.new(nil, inferable: nil).send(:template_text)
+    [ schema, replica, slow ].each do |rule|
+      assert_includes prompt, rule
+      assert_includes FirefightAi::Investigator.system_prompt, rule
+    end
+  end
+
   # Seen in a real chat, Halon called a provider's webhook setup unverifiable while it held the tool that read it, then
   # answered a missing permission with paragraphs of apology before saying what was missing.
   test "Halon tries the read before calling something unverifiable, and leads with what is missing when it cannot do something" do

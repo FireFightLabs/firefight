@@ -100,6 +100,9 @@ module FirefightAi
         - #{LookFirstRule::CAUSE_RULE}
         - #{LookFirstRule::API_GUIDE_RULE}
         - #{LookFirstRule::GUESSED_CALL_RULE}
+        - #{DatabaseRule::SCHEMA_RULE}
+        - #{DatabaseRule::REPLICA_RULE}
+        - #{DatabaseRule::SLOW_RULE}
         - #{NormalRule::RULE}
         - Some changes wait for the person to confirm first. When a tool result says the user denied it, they cancelled it themselves, so say it was not done because they cancelled, never that they lack permission.
         - State nothing a tool result or the facts below do not support. Say what you do not know.

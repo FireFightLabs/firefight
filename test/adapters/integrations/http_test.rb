@@ -127,6 +127,19 @@ module Integrations
       end
     end
 
+    test "a host that does not answer in time is marked timed out, and a dropped connection is not" do
+      [ Net::ReadTimeout, Net::OpenTimeout ].each do |raised|
+        Net::HTTP.stubs(:start).raises(raised)
+
+        error = assert_raises(AcmeError) { Http.request(@uri, Net::HTTP::Get.new(@uri), error_class: AcmeError) }
+        assert_kind_of Integrations::TimedOut, error
+        assert_equal "could not reach api.acme.example (#{raised.name})", error.message
+      end
+
+      Net::HTTP.stubs(:start).raises(EOFError)
+      assert_not_kind_of Integrations::TimedOut, assert_raises(AcmeError) { Http.request(@uri, Net::HTTP::Get.new(@uri), error_class: AcmeError) }
+    end
+
     test "a path segment is escaped, so a name with a slash stays one segment" do
       assert_equal "a%2Fb%20c", Http.segment("a/b c")
     end
