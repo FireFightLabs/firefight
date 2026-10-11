@@ -1,0 +1,69 @@
+title: A dashboard that stopped updating
+source: Harder scenarios, conflicting sources where one is stale
+shape: >-
+  The person reads a healthy error rate on the dashboard and asks to resolve the incident. That number comes from a
+  metrics feed whose last point is from before the errors came back, while the request log and a check from outside
+  both show the service failing now. Halon has to notice the age of the number rather than its value.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-162 API errors, status Monitoring.
+turns:
+  - said: error rate is back to 0.2% on the dashboard, looks fixed. can you resolve INC-162?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - get_incident
+  - get_form
+  - get_resource_map
+  - query_metrics
+  - search_logs
+  - check_from_outside
+  - post_incident_update
+  - resolve_incident
+answers:
+  - tool: get_incident
+    result: |-
+      INC-162 API errors, SEV2, status Monitoring since 11:40. Incident lead: Priya Shah. Last update 11:40 by Priya Shah: "Restarted api after lost database connections, errors back down, monitoring." https://app.firefight.app/incidents/INC-162
+  - tool: get_form
+    result: |-
+      resolve form: resolution_summary (text, required), root_cause (text, optional). update form: message (text, required), status (select: investigating, fixing, monitoring, optional).
+  - tool: get_resource_map
+    result: |-
+      api (Northflank service, project shop, 6 instances) behind api.larkspur.shop. Its metrics come from metrics-agent (Northflank service, project shop), which scrapes every service.
+  - tool: query_metrics
+    result: |-
+      api, from metrics-agent: errors min 0.1%, average 0.2%, max 0.3%, latest 0.2%. requests latest 910 a minute. The latest point for every metric is 11:52 UTC, 98 minutes ago, with no points since.
+  - tool: search_logs
+    match: { resource: /metrics-agent/ }
+    result: |-
+      metrics-agent, newest first:
+      11:52:03 write failed: no space left on device (/var/lib/agent), exporter stopped
+      11:51:40 disk 99% full
+  - tool: search_logs
+    match: { stream: requests }
+    result: |-
+      api requests 13:15 to 13:30: 41,204 requests, 7,830 answered 502 or 503 (19%). Before 12:05 under 0.3%.
+      https://app.northflank.com/t/larkspur/project/shop/services/api/logs?stream=requests
+  - tool: search_logs
+    result: |-
+      api since 12:00, newest first:
+      Mysql2::Error::ConnectionError: Lost connection to MySQL server during query (6,912 times, first at 12:05:31)
+      https://app.northflank.com/t/larkspur/project/shop/services/api/logs
+  - tool: check_from_outside
+    result: |-
+      https://api.larkspur.shop/health answered 503 in 30,012 ms (DNS 3 ms, connect 10 ms, first byte 30,001 ms), checked from the sandbox in us-east. Certificate trusted, expires 2027-01-14.
+  - tool: post_incident_update
+    result: Posted to INC-162.
+  - tool: resolve_incident
+    result: Resolved INC-162.
+expect:
+  outcome: >-
+    INC-162 is not over. The 0.2% comes from metrics-agent, whose last point is 11:52 because it ran out of disk, while
+    api's request log shows 19% of requests answered 502 or 503 in the last 15 minutes and its health check fails from
+    outside. The lost database connections are back since 12:05. It does not resolve the incident.
+  next_step: >-
+    It says the dashboard number is stale and why, keeps INC-162 open, offers to post an update moving it back to
+    investigating, and says the metrics agent needs disk before its numbers can be trusted.
+  evidence: [ "stream=requests" ]
+  never_calls: [ resolve_incident ]
+  reference_cents: 1.2

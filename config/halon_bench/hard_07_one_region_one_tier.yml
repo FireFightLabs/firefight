@@ -1,0 +1,92 @@
+title: Uploads failing in one region for one plan
+source: Harder scenarios, a partial outage
+shape: >-
+  A few Enterprise customers say big uploads fail while every dashboard looks normal. The failures are a small share
+  of all traffic, all in one region and all over 25 MB, which only Enterprise plans may send. An ingress deploy in that
+  region picked up a new default upload limit, and the other regions still run the old image.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: a few enterprise customers say big file uploads fail, but the dashboards look normal. what's going on?
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - get_resource_map
+  - query_metrics
+  - search_logs
+  - what_changed
+  - recent_deploys
+  - planetscale_execute_read_query
+  - check_from_outside
+  - rollback
+answers:
+  - tool: get_resource_map
+    result: |-
+      files (Northflank service, project shop) runs in eu-west, us-east and ap-south, each behind its own ingress: ingress-eu, ingress-us and ingress-ap (Northflank services). Accounts and their plans live in accounts (PlanetScale database, branch main). Code in the GitHub repository larkspur/shop.
+  - tool: query_metrics
+    result: |-
+      files over the last 60 minutes, all regions together: errors 0.4% (normal 0.3%), http_4xx 1.1% (normal 0.9%), latency_p95 820 ms, requests 18,200. The provider keeps no breakdown by region.
+  - tool: search_logs
+    match: { resource: /ingress-ap/ }
+    result: |-
+      ingress-ap since 08:00, newest first:
+      413 Payload Too Large for POST /uploads (211 times since 08:42, every one over 25 MB)
+      08:41:10 config loaded: client_max_body_size 25m (default of image 1.11, the proxy-body-size setting is no longer read)
+      https://app.northflank.com/t/larkspur/project/shop/services/ingress-ap/logs
+  - tool: search_logs
+    match: { resource: /ingress/ }
+    result: |-
+      Since 08:00: no 413 answers. config loaded on September 20: client_max_body_size 100m.
+  - tool: search_logs
+    match: { stream: requests }
+    result: |-
+      files requests over the last 60 minutes: 18,220 requests. 211 POST /uploads answered 413 by the ingress before reaching files, all through files.ap.larkspur.shop, from accounts 4410, 5122, 6038 and 7015.
+  - tool: search_logs
+    result: |-
+      files over the last 60 minutes: no errors. Uploads that reached it all stored.
+  - tool: planetscale_execute_read_query
+    result: |-
+      id 4410 plan enterprise region ap-south upload_limit_mb 100
+      id 5122 plan enterprise region ap-south upload_limit_mb 100
+      id 6038 plan enterprise region ap-south upload_limit_mb 100
+      id 7015 plan enterprise region ap-south upload_limit_mb 100
+      Every other plan has upload_limit_mb 25.
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      08:40 ingress-ap deploy d-55 by Sam Rivera, "Bump ingress image to 1.11" https://app.northflank.com/t/larkspur/project/shop/services/ingress-ap/deployments/d-55
+      07:15 files deploy d-930 by Jo Park, "Show upload progress" https://app.northflank.com/t/larkspur/project/shop/services/files/deployments/d-930
+  - tool: recent_deploys
+    match: { resource: /ingress-ap/ }
+    result: |-
+      ingress-ap d-55 at 08:40 by Sam Rivera, "Bump ingress image to 1.11" https://app.northflank.com/t/larkspur/project/shop/services/ingress-ap/deployments/d-55
+      ingress-ap d-54 on September 20, image 1.10
+  - tool: recent_deploys
+    match: { resource: /ingress/ }
+    result: |-
+      d-54 on September 20, image 1.10. Nothing since.
+  - tool: recent_deploys
+    result: |-
+      files d-930 at 07:15 by Jo Park, "Show upload progress" https://app.northflank.com/t/larkspur/project/shop/services/files/deployments/d-930
+      files d-929 on October 8
+  - tool: check_from_outside
+    result: |-
+      https://files.larkspur.shop answered 200 in 140 ms, checked from the sandbox in us-east. Certificate trusted, expires 2027-02-02.
+  - tool: rollback
+    match: { resource: /ingress-ap/ }
+    result: |-
+      Rolled ingress-ap back to d-54 (image 1.10). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/ingress-ap/deployments/d-56
+  - tool: rollback
+    result: |-
+      Rolled files back to d-929. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/files/deployments/d-931
+expect:
+  outcome: >-
+    Only uploads over 25 MB through ap-south fail, answered 413 by ingress-ap before they reach files, so only
+    Enterprise accounts there are hit, since only their plan allows files over 25 MB. ingress-ap's 08:40 deploy d-55
+    moved it to image 1.11, which ignores the old setting and limits uploads to 25 MB. eu-west and us-east still run 1.10
+    and the overall error rate hides it.
+  next_step: >-
+    It proposes rolling ingress-ap back to d-54 or setting the 100 MB limit the way image 1.11 reads it, asks once,
+    checks the 413s stop, and warns that the other ingresses will break the same way if they move to 1.11 as they are.
+  evidence: [ "services/ingress-ap/logs", "ingress-ap/deployments/d-55" ]
+  reference_cents: 2.2

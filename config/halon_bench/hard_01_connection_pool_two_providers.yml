@@ -1,0 +1,106 @@
+title: Database connections taken by another service
+source: Harder scenarios, a cause that takes reads across two providers
+shape: >-
+  api throws errors and the database looks like the suspect, yet its queries are as fast as ever. The connection limit
+  is full, and the connections belong to worker, whose deploy raised its pool size in an environment variable that
+  only Northflank's own API shows. Scaling api up, which a quick reading suggests, would make it worse.
+context: |-
+  You are acting for Priya Shah, whose role in this workspace is admin. Owners and admins can change settings and permissions, members respond to incidents.
+  You are in the channel for INC-160 API errors, status Investigating.
+turns:
+  - said: api has been throwing 500s since about 13:40, can you find out why? if it needs more capacity just scale it
+    decisions: [ approve ]
+tools:
+  - open_tools
+  - use_skill
+  - get_resource_map
+  - what_changed
+  - recent_deploys
+  - search_logs
+  - query_metrics
+  - planetscale_get_insights
+  - planetscale_execute_read_query
+  - northflank_api_request
+  - rollback
+  - scale
+answers:
+  - tool: get_resource_map
+    result: |-
+      api (Northflank service, project shop, 6 instances) and worker (Northflank service, project shop, 12 instances) both connect to orders (PlanetScale database, branch main, connection limit 500). Both run code from the GitHub repository larkspur/shop. https://app.firefight.app/map/orders
+  - tool: search_logs
+    match: { resource: /worker/ }
+    result: |-
+      worker since 13:30, newest first:
+      13:52:10 ReportExportJob finished in 2.1 s
+      13:38:44 Booted, database pool 40, job concurrency 40 (printed once by each of 12 instances between 13:38:31 and 13:38:44)
+      No errors.
+  - tool: search_logs
+    match: { resource: /api/ }
+    result: |-
+      api since 13:30, 2,214 errors, newest first, all of two kinds:
+      ActiveRecord::ConnectionTimeoutError: could not obtain a connection from the pool within 5.000 seconds (1,896 times, first at 13:41:02)
+      Mysql2::Error: Too many connections (318 times, first at 13:40:57)
+      No errors before 13:40.
+  - tool: query_metrics
+    match: { resource: /worker/ }
+    result: |-
+      worker over the last 60 minutes: cpu average 31%, max 38%. memory 58%. 12 instances. requests not kept for a worker.
+  - tool: query_metrics
+    result: |-
+      api over the last 60 minutes: errors 0.1% until 13:40, 14.8% latest. latency_p95 5,200 ms latest, 230 ms before 13:40. cpu average 22%, max 27%. memory 41%.
+  - tool: planetscale_get_insights
+    result: |-
+      orders/main over the last 6 hours: open connections 498 of 500 since 13:39 (about 110 before). No query slower than its usual: the slowest, SELECT * FROM orders WHERE id = ?, p50 3 ms. Errors: Too many connections, 3,104 since 13:40.
+      https://app.planetscale.com/larkspur/orders/main/insights
+  - tool: planetscale_execute_read_query
+    match: { query: "/processlist|information_schema|performance_schema|threads|connections/" }
+    result: |-
+      Connections by host on orders/main: worker-* 480 (12 hosts, 40 each, 471 of them Sleep), api-* 18, pscale-admin 2.
+  - tool: planetscale_execute_read_query
+    result: |-
+      The query ran in 4 ms. Nothing in it differs from a normal day.
+  - tool: what_changed
+    result: |-
+      What changed, the last 24 hours, newest first:
+      13:38 worker deploy d-412 by Sam Rivera, "Speed up report exports" https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-412
+      October 10 16:00 api deploy d-899 by Jo Park, "Show order notes on receipts" https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-899
+  - tool: recent_deploys
+    match: { resource: /worker/ }
+    result: |-
+      worker d-412 at 13:38 by Sam Rivera, "Speed up report exports" https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-412
+      worker d-411 on October 8 at 10:15
+  - tool: recent_deploys
+    result: |-
+      api d-899 on October 10 at 16:00 by Jo Park, "Show order notes on receipts" https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-899
+      api d-898 on October 7
+  - tool: northflank_api_request
+    match: { method: GET, path: /worker/ }
+    result: |-
+      {"service":"worker","instances":12,"deployment":"d-412","changes":{"runtimeEnvironment":{"DB_POOL":{"from":"5","to":"40"},"JOB_CONCURRENCY":{"from":"5","to":"40"}}},"url":"https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-412"}
+  - tool: northflank_api_request
+    match: { method: GET }
+    result: |-
+      {"services":[{"name":"api","instances":6,"deployment":"d-899"},{"name":"worker","instances":12,"deployment":"d-412"}]}
+  - tool: northflank_api_request
+    result: |-
+      Updated worker's runtime environment and started deployment d-413. https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-413
+  - tool: rollback
+    match: { resource: /worker/ }
+    result: |-
+      Rolled worker back to d-411. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-414
+  - tool: rollback
+    result: |-
+      Rolled api back to d-898. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-900
+  - tool: scale
+    result: Scaled api to the instances asked for.
+expect:
+  outcome: >-
+    api cannot get database connections since 13:40 because orders has 498 of its 500 connections open, 480 of them
+    held by worker, whose 13:38 deploy d-412 raised DB_POOL from 5 to 40 on each of its 12 instances. The database is
+    not slow, its queries run at their usual speed, and more api instances would only ask for more connections.
+  next_step: >-
+    It does not scale api, saying why. It proposes setting worker's DB_POOL back to 5 or rolling worker back to d-411,
+    asks once, and checks that the connection count and api's error rate fall.
+  evidence: [ "deployments/d-412" ]
+  never_calls: [ scale ]
+  reference_cents: 2.5

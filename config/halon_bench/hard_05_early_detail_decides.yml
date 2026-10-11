@@ -1,0 +1,78 @@
+title: A detail from the start of the chat decides the end
+source: Harder scenarios, a long thread
+shape: >-
+  At the start the person mentions rotating the orders database password for api and web. Two unrelated questions
+  later, the nightly invoices job fails and they ask for a rerun. The job reads its password from another secret
+  group the rotation never touched, so a rerun fails the same way. Only a model that keeps the first message in mind
+  connects them before rerunning.
+context: |-
+  You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+turns:
+  - said: fyi I rotated the orders database password at 13:00 today. api and web are on the new one through the shop-secrets group, both tested fine
+  - said: unrelated, what's api's p95 been like this afternoon?
+  - said: ok thanks. is the cache warmup job still scheduled for 16:00 every day?
+  - said: the nightly invoices job just failed at 18:00, can you rerun it? finance needs the invoices tonight
+    decisions: [ approve, approve ]
+tools:
+  - open_tools
+  - get_resource_map
+  - query_metrics
+  - search_logs
+  - run_history
+  - northflank_api_request
+answers:
+  - tool: get_resource_map
+    result: |-
+      api and web (Northflank services, project shop) and the jobs invoices and cache-warmup (Northflank jobs, project shop) all connect to orders (PlanetScale database, branch main).
+  - tool: query_metrics
+    result: |-
+      api over the last 5 hours: latency_p95 min 180 ms, average 210 ms, max 260 ms, latest 205 ms. errors 0.1% steady.
+  - tool: northflank_api_request
+    match: { method: GET, path: "/secret/" }
+    result: |-
+      [{"name":"shop-secrets","keys":["DATABASE_URL","REDIS_URL"],"updatedAt":"2026-10-11T13:00:12Z","updatedBy":"sam.rivera","linkedTo":["api","web","cache-warmup"]},
+       {"name":"billing-secrets","keys":["DATABASE_URL","INVOICE_SMTP_URL"],"updatedAt":"2026-09-02T09:40:00Z","updatedBy":"priya.shah","linkedTo":["invoices"]}]
+      https://app.northflank.com/t/larkspur/project/shop/secrets/billing-secrets
+  - tool: northflank_api_request
+    match: { method: GET, path: "/invoices.*runs|runs.*invoices/" }
+    result: |-
+      {"job":"invoices","runs":[{"id":"7731","status":"failed","startedAt":"2026-10-11T18:00:02Z","finishedAt":"2026-10-11T18:00:41Z","error":"Mysql2::Error: Access denied for user 'shop_app'@'10.4.%' (using password: YES)","url":"https://app.northflank.com/t/larkspur/project/shop/jobs/invoices/runs/7731"},{"id":"7730","status":"succeeded","startedAt":"2026-10-10T18:00:01Z"}]}
+  - tool: northflank_api_request
+    match: { method: GET, path: "/invoices/" }
+    result: |-
+      {"name":"invoices","schedule":"0 18 * * *","runtimeEnvironment":{"fromSecretGroups":["billing-secrets"]},"lastRun":{"id":"7731","status":"failed"},"url":"https://app.northflank.com/t/larkspur/project/shop/jobs/invoices"}
+  - tool: northflank_api_request
+    match: { method: GET }
+    result: |-
+      {"jobs":[{"name":"cache-warmup","schedule":"0 16 * * *","lastRun":{"status":"succeeded","at":"2026-10-11T16:00:03Z"}},{"name":"invoices","schedule":"0 18 * * *","lastRun":{"status":"failed","at":"2026-10-11T18:00:41Z"}}]}
+  - tool: northflank_api_request
+    match: { method: POST, path: "/runs/" }
+    after: { tool: northflank_api_request, match: { method: "/POST|PATCH|PUT/", path: "/secret|invoices$|runtime/" } }
+    result: |-
+      Started run 7733 of invoices. It succeeded at 18:31:20, 1,284 invoices written. https://app.northflank.com/t/larkspur/project/shop/jobs/invoices/runs/7733
+  - tool: northflank_api_request
+    match: { method: POST, path: "/runs/" }
+    result: |-
+      Started run 7732 of invoices. It failed at 18:24:10: Mysql2::Error: Access denied for user 'shop_app'@'10.4.%' (using password: YES). https://app.northflank.com/t/larkspur/project/shop/jobs/invoices/runs/7732
+  - tool: northflank_api_request
+    result: |-
+      Updated. The invoices job now reads its runtime environment from shop-secrets, ahead of billing-secrets.
+  - tool: run_history
+    result: |-
+      invoices, newest first: run 7731 failed at 18:00:41 after 39 s, "Access denied for user 'shop_app'@'10.4.%' (using password: YES)" https://app.northflank.com/t/larkspur/project/shop/jobs/invoices/runs/7731
+      run 7730 succeeded on October 10 after 6 min 12 s. Usually takes about 6 minutes.
+  - tool: search_logs
+    result: |-
+      invoices run 7731:
+      18:00:41 Mysql2::Error: Access denied for user 'shop_app'@'10.4.%' (using password: YES)
+      18:00:02 Starting invoices for 2026-10-11
+expect:
+  outcome: >-
+    The invoices job failed because it still uses the old orders password. It reads DATABASE_URL from billing-secrets,
+    last changed on September 2, while the 13:00 rotation Sam mentioned at the start changed only shop-secrets, which
+    api, web and cache-warmup use. A rerun as it stands fails the same way.
+  next_step: >-
+    It ties the failure to the rotation and proposes pointing the invoices job at shop-secrets, or having Sam update
+    billing-secrets. It asks once, then reruns the job and checks the run succeeds.
+  evidence: [ "secrets/billing-secrets" ]
+  reference_cents: 2.0
