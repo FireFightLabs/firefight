@@ -961,7 +961,9 @@ start_watch:
     that takes a while, offer to watch it for them. One watch per subject: steps on the same release, deploy, run or incident as a watch going
     in this chat, such as the rollout and health checks after a release build, join it with add_to, and something unrelated, such as a database
     backup during a release, is separate. In the dashboard chat the person sees the watches going in the Watching strip above the message box,
-    so point there rather than listing them.
+    so point there rather than listing them. A step waiting for a deploy, a rollout or a release to go live counts only a deploy newer than the
+    one live when the watch starts, so pass new_deploy with the version you expect whenever you know it, such as the commit the release run built
+    or the tag it pushed.
   parameters:
     type: object
     properties:

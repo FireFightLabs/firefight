@@ -38,10 +38,10 @@ class Conversation::RolloutWatchTest < ActiveSupport::TestCase
 
   test "the previous release's finished rollout never ends the step, and the new release's rollout of another commit does" do
     northflank([ deployment("dep-old", OLD, @old_at, active: true) ], rollout: "COMPLETED", since: @old_at + 4.seconds, commit: OLD)
-    Conversation::Watches.start(@turn, "title" => "Firefight production release", "steps" => [
+    Conversation::Watches.start(@turn, { "title" => "Firefight production release", "steps" => [
       { "label" => "Production web rollout", "capability" => "resource_status", "resource" => "web", "connection" => "northflank",
         "goal" => "The latest production web rollout is completed and serving" }
-    ])
+    ] })
     watch = @conversation.chat.watches.sole
     step = watch.steps.sole
 
