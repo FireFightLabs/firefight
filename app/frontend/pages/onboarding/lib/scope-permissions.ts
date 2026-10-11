@@ -101,6 +101,12 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         explanation:
           "Lets Firefight respond when someone mentions the app in Slack during incident response.",
       },
+      {
+        name: "im:history",
+        explanation:
+          "Lets people write to Halon in Firefight's direct messages and get the answer there.",
+        boundary: "Only direct messages people send to Firefight itself.",
+      },
     ],
   },
   {

@@ -96,7 +96,7 @@ function askedNow(props: AgentPageProps, question: string, attachments: AgentCha
   const title = question || attachments.map((attachment) => attachment.name).join(", ")
   const conversation = props.conversation ?? {
     id: "", title, preview: question, archived: false, pinned: false, pinnedAt: null,
-    lastActiveAt: new Date().toISOString(), busy: true,
+    lastActiveAt: new Date().toISOString(), busy: true, askedIn: null, askedInUrl: null,
   }
 
   return { conversation: { ...conversation, busy: true }, messages: [ ...props.messages, asked ] }

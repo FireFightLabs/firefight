@@ -9,6 +9,11 @@ features:
   bot_user:
     display_name: Firefight
     always_online: true
+  # People write to Halon in the app's direct messages, so the Messages tab takes messages.
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
   shortcuts:
     - name: Create an incident
       type: global
@@ -57,6 +62,7 @@ oauth_config:
       - reactions:write   # Add emoji reactions to messages (AI acknowledgment)
       - channels:history  # Fetch message text from incident channels (conversations.history)
       - groups:history    # Read private incident channel messages/events
+      - im:history        # Receive what people write to Halon in the app's direct messages
       - files:read        # Download shared files for archival
       - files:write       # Post the charts Halon draws into its answers
       - app_mentions:read # Receive app_mention events when @Firefight is mentioned
@@ -71,6 +77,7 @@ settings:
       - member_joined_channel
       - message.channels
       - message.groups
+      - message.im # Someone wrote to Halon in the app's direct messages
       - pin_added
       - pin_removed
       - reaction_added

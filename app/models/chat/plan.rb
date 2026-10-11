@@ -263,13 +263,13 @@ class Chat::Plan < ApplicationRecord
     update!(state_now: report.state, state_change: report.change, state_checked_at: report.checked_at)
   end
 
-  # Whoever a dashboard chat belongs to may approve, cancel, retry or undo its plans, and so may anyone in the channel for
-  # a chat in one. A plan in another agent's chat has nobody to press anything.
+  # Whoever a dashboard or direct message chat belongs to may approve, cancel, retry or undo its plans, and so may anyone in
+  # the channel for a chat in one. A plan in another agent's chat has nobody to press anything.
   def may_act?(member)
     owner = conversation
     return false unless member.is_a?(WorkspaceMembership) && member.workspace_id == workspace_id && owner.is_a?(Conversation)
 
-    owner.personal? ? owner.started_by == member : owner.kind == Conversation::KIND_CHANNEL
+    owner.belongs_to_one_person? ? owner.started_by == member : owner.kind == Conversation::KIND_CHANNEL
   end
 
   def only_who_may = "Only #{conversation.try(:started_by).try(:display_name) || 'whoever this chat belongs to'} can do that."

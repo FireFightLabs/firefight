@@ -101,7 +101,7 @@ class AgentChatsController < InertiaController
 
   def show
     render inertia: "agent/index", props: base_props.merge(
-      PROP_CONVERSATION => AgentChatSerializer.one(conversation),
+      PROP_CONVERSATION => AgentChatSerializer.one(conversation, asked_in_url: asked_in_url),
       PROP_MESSAGES => AgentChatMessageSerializer.many(conversation.chat&.readable_messages&.includes(:attached_files, :ruby_llm_usages, ruby_llm_tool_calls: :result) || [],
                                                        member: current_membership),
       PROP_CONFIRMATIONS => AgentChatConfirmationSerializer.many(conversation.chat&.awaiting_decision || [], screenshot_path: screenshot_path),
@@ -175,6 +175,9 @@ class AgentChatsController < InertiaController
   end
 
   def ask
+    blocked = conversation.ask_blocked_reason
+    return redirect_to(agent_chat_path(conversation), alert: blocked) if blocked
+
     files = files_sent
     return redirect_to(agent_chat_path(conversation), alert: NOTHING_ASKED) if question.blank? && files.empty?
 
@@ -472,6 +475,10 @@ class AgentChatsController < InertiaController
     @conversation ||= own_chats.find(params[:id])
   end
 
+  def asked_in_url
+    WorkspaceAdapter.for(current_workspace).channel_url(channel_id: conversation.channel_id) if conversation.direct?
+  end
+
   def screenshot_path = ->(shot) { agent_chat_screenshot_path(conversation, shot) }
 
   def base_props
@@ -520,5 +527,5 @@ class AgentChatsController < InertiaController
     current_workspace.incidents.active.order(created_at: :desc).limit(MENTIONABLE)
   end
 
-  def own_chats = current_workspace.conversations.personal_for(current_membership)
+  def own_chats = current_workspace.conversations.own_for(current_membership)
 end

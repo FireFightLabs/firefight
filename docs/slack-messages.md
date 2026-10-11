@@ -257,6 +257,14 @@ whole, and one longer than a form takes has no Edit, since it is edited on the H
 `EditHandbookProposal`, which accepts with the person's wording. Once decided it is redrawn without the buttons or the
 old wording, with who decided in a context line. See docs/ai.md, Halon proposes handbook pages and edits.
 
+## Answering in direct messages
+
+When a person writes to Halon in the app's direct messages, the answer is a reply under their message, streamed like a
+thread chat's (`Conversation::Delivery`), because Slack streams only into a thread. Everything the chat posts after
+that (confirmations, held calls, plans, watch updates, handbook proposals) goes in the thread the person last wrote in,
+never as a new top-level DM. A reply under one of Firefight's own DMs is answered in that thread too, by the person's
+chat. A refusal is one plain line in the same thread. See docs/ai.md, Direct messages.
+
 ## Adding a message
 
 1. New module in `app/adapters/slack/messages/`, one per concept, class methods

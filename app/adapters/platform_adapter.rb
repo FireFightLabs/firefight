@@ -204,6 +204,19 @@ class PlatformAdapter
     raise NotImplemented.new(__method__, self.class)
   end
 
+  # What started a thread in a person's direct messages with the app.
+  THREAD_STARTED_BY_PERSON = :person
+  # One of the app's own messages, such as a watch update, an approval or a question for its owner.
+  THREAD_STARTED_BY_APP = :app
+  # A new chat the person opened in the platform's own view for talking to the app, which the platform starts for them.
+  THREAD_STARTED_AS_CHAT = :chat
+
+  # @return [Hash] { started:, text: }, started one of the THREAD_STARTED_* values and text what the first message says.
+  #   THREAD_STARTED_BY_PERSON with no text when the start cannot be read.
+  def direct_thread_root(channel_id:, thread_id:)
+    raise NotImplemented.new(__method__, self.class)
+  end
+
   # @return [Hash] { message_id: ... }
   def post_runbook_message(channel_id:, incident_runbook:)
     raise NotImplemented.new(__method__, self.class)

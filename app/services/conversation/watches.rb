@@ -880,7 +880,9 @@ module Conversation::Watches
     user_id = watch.asker.try(:platform_user_id)
     return update if user_id.blank? || (in_thread && adapter.direct_conversation?(channel_id: conversation.channel_id))
 
-    post(watch, update) { adapter.post_watch_update_to_user(user_id: user_id, update: said, conversation_id: (conversation.id if conversation.personal?)) }
+    posted = post(watch, update) { adapter.post_watch_update_to_user(user_id: user_id, update: said, conversation_id: (conversation.id if conversation.personal?)) }
+    # Kept so a reply to it in their direct messages is answered knowing which watch it came from.
+    update.update_columns(message_channel_id: posted[:channel_id], message_id: posted[:message_id]) if posted.is_a?(Hash) && posted[:message_id]
     update
   end
 

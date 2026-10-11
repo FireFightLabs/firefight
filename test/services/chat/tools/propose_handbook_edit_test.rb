@@ -23,6 +23,17 @@ class Chat::Tools::ProposeHandbookEditTest < ActiveSupport::TestCase
     assert_equal "Run the release pipeline", @releases.reload.text
   end
 
+  test "in a person's direct messages chat it is posted in their thread" do
+    direct = Conversation.start_direct!(workspace: @workspace, member: @member, channel_id: "D0ALICE", thread_id: "1.1")
+
+    Slack::Client.expects(:post_message).with { |arguments| arguments[:channel] == "D0ALICE" && arguments[:thread_ts] == "1.1" }
+                 .returns({ ok: true, ts: "1.2", channel: "D0ALICE" })
+
+    perform_enqueued_jobs(only: HandbookProposalPostJob) do
+      assert_match "A card in this chat asks the person", propose(Conversation::Turn.new(direct, asker: @member), page: "How we release")
+    end
+  end
+
   test "it proposes a new page with a title, as drafting the handbook does" do
     propose(@turn, title: "Who owns what", text: "Payments owns checkout.")
 

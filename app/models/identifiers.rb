@@ -223,6 +223,9 @@ module Identifiers
   MESSAGE_SUBTYPE_MESSAGE_CHANGED = "message_changed"
   MESSAGE_SUBTYPE_MESSAGE_DELETED = "message_deleted"
 
+  # Where a message event was sent (event["channel_type"]). A person's direct messages with the app.
+  CHANNEL_TYPE_DIRECT = "im"
+
   ACTION_ITEMS_LIST_KINDS = { INCIDENT_ACTIONS_MODAL => :action, INCIDENT_FOLLOWUPS_MODAL => :followup }.freeze
   ACTION_ITEMS_FORM_KINDS = { CREATE_ACTION_MODAL => :action, CREATE_FOLLOWUP_MODAL => :followup }.freeze
 

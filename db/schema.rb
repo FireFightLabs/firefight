@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_220001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1020,6 +1020,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_210000) do
     t.text "text", null: false
     t.datetime "told_at"
     t.datetime "created_at", null: false
+    t.string "message_channel_id"
+    t.string "message_id"
+    t.index ["message_channel_id", "message_id"], name: "index_chat_watch_updates_on_message_channel_id_and_message_id"
     t.index ["watch_id"], name: "index_chat_watch_updates_on_watch_id"
   end
 
@@ -1272,6 +1275,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_210000) do
     t.bigint "budget_micros"
     t.index ["kind", "created_at"], name: "index_conversation_bench_runs_on_kind_and_created_at"
     t.index ["started_by_id"], name: "index_conversation_bench_runs_on_started_by_id"
+  end
+
+  create_table "conversation_thread_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "workspace_id", null: false
+    t.uuid "conversation_id", null: false
+    t.string "channel_id", null: false
+    t.string "thread_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_conversation_thread_links_on_conversation_id"
+    t.index ["workspace_id", "channel_id", "thread_id"], name: "index_conversation_thread_links_on_thread", unique: true
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3277,6 +3291,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_210000) do
   add_foreign_key "conversation_bench_results", "conversations", column: "replay_of_id", on_delete: :nullify
   add_foreign_key "conversation_bench_results", "workspaces", on_delete: :cascade
   add_foreign_key "conversation_bench_runs", "users", column: "started_by_id", on_delete: :nullify
+  add_foreign_key "conversation_thread_links", "conversations"
+  add_foreign_key "conversation_thread_links", "workspaces"
   add_foreign_key "conversations", "workspaces"
   add_foreign_key "idempotency_keys", "workspaces"
   add_foreign_key "incident_action_updates", "incident_actions"

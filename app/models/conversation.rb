@@ -3,9 +3,15 @@
 class Conversation < ApplicationRecord
   KIND_CHANNEL = "channel"
   KIND_PERSONAL = "personal"
+  # A person writing to Halon in their direct messages, answered in the thread they wrote in.
+  KIND_DIRECT = "direct"
   # Another agent asking over MCP, one chat per principal, as that principal.
   KIND_MCP = "mcp"
-  KINDS = [ KIND_CHANNEL, KIND_PERSONAL, KIND_MCP ].freeze
+  KINDS = [ KIND_CHANNEL, KIND_PERSONAL, KIND_DIRECT, KIND_MCP ].freeze
+  # One person's own chats, listed on their dashboard wherever they were asked.
+  OWN_KINDS = [ KIND_PERSONAL, KIND_DIRECT ].freeze
+  # A direct message after a day without a word starts a new chat, since the old one is about something else by then.
+  DIRECT_QUIET_AFTER = 1.day
 
   TITLE_LIMIT = 80
   PREVIEW_LIMIT = 90
@@ -30,12 +36,14 @@ class Conversation < ApplicationRecord
   has_many :handbook_proposals, class_name: "Chat::HandbookProposal", dependent: :nullify
   # Pull request news for this chat. The notice belongs to its session and outlives the chat.
   has_many :pull_request_notices, class_name: "CodeAgentSession::Notice", dependent: :nullify, inverse_of: :conversation
+  # Every thread a direct message chat was asked in, so a reply in an earlier one still reaches it.
+  has_many :thread_links, class_name: "Conversation::ThreadLink", dependent: :delete_all
 
   validates :kind, inclusion: { in: KINDS }
   validates :max_turns, :max_spend_cents, numericality: { only_integer: true, greater_than: 0 }
 
   scope :personal, -> { where(kind: KIND_PERSONAL) }
-  scope :personal_for, ->(member) { personal.where(started_by: member) }
+  scope :own_for, ->(member) { where(kind: OWN_KINDS, started_by: member) }
   scope :archived, -> { where.not(archived_at: nil) }
   # Archived last, so a list that loads page by page reaches them at the end.
   scope :in_reading_order, -> { order(Arel.sql("archived_at IS NOT NULL, pinned_at DESC NULLS LAST, updated_at DESC")) }
@@ -63,6 +71,26 @@ class Conversation < ApplicationRecord
     )
   end
 
+  # The chat a platform thread belongs to, whether it started there or a direct message chat carried on in it.
+  def self.in_thread(workspace, channel_id, thread_id)
+    workspace.conversations.find_by(channel_id: channel_id, thread_id: thread_id) ||
+      workspace.conversations.joins(:thread_links).find_by(conversation_thread_links: { channel_id: channel_id, thread_id: thread_id })
+  end
+
+  # The direct message chat a new message from this person carries on, while it has not gone quiet or been put away.
+  def self.direct_carrying_on(member)
+    latest = member.workspace.conversations.where(kind: KIND_DIRECT, started_by: member, archived_at: nil).order(updated_at: :desc).first
+    latest if latest&.carries_on?
+  end
+
+  def self.start_direct!(workspace:, member:, channel_id:, thread_id:, subject: nil)
+    limits = workspace.conversation_limits
+    workspace.conversations.create!(
+      kind: KIND_DIRECT, started_by: member, subject: subject, channel_id: channel_id, thread_id: thread_id,
+      max_turns: limits.max_turns, max_spend_cents: limits.max_spend_cents
+    )
+  end
+
   # model is one the person picked before the first question, which the caller has checked is offered.
   def self.start_personal!(workspace:, member:, model: nil)
     limits = workspace.conversation_limits
@@ -84,7 +112,7 @@ class Conversation < ApplicationRecord
     wanted = text.to_s.strip.downcase
     return [] if wanted.empty?
 
-    personal_for(member).includes(chat: :last_readable_message).in_reading_order.to_a
+    own_for(member).includes(chat: :last_readable_message).in_reading_order.to_a
       .select { |conversation| "#{conversation.display_title} #{conversation.preview}".downcase.include?(wanted) }
       .first(limit)
   end
@@ -92,6 +120,30 @@ class Conversation < ApplicationRecord
   def personal? = kind == KIND_PERSONAL
 
   def mcp? = kind == KIND_MCP
+
+  def direct? = kind == KIND_DIRECT
+
+  def belongs_to_one_person? = OWN_KINDS.include?(kind)
+
+  # A turn still running counts as talking, so a message sent while Halon works always joins it.
+  def carries_on? = answer_owed? || updated_at > DIRECT_QUIET_AFTER.ago
+
+  # A direct message chat answers in the thread it was last asked in. A message sent while a turn runs joins that turn,
+  # whose answer is already being written in the thread it began in, so the chat moves only between turns.
+  def asked_in_thread!(asked_channel_id, asked_thread_id)
+    thread_links.create_or_find_by!(workspace: workspace, channel_id: asked_channel_id, thread_id: asked_thread_id)
+    moved = self.class.where(id: id).where("answer_owed_since IS NULL OR answer_owed_since <= ?", REPLY_CEILING.ago)
+                .update_all(channel_id: asked_channel_id, thread_id: asked_thread_id)
+    reload if moved == 1
+  end
+
+  # The platform a direct message chat lives in, as people know it. A dashboard chat lives on the dashboard.
+  def asked_in = (Platforms.display_name(workspace.platform) if direct?)
+
+  # The dashboard reads a chat from elsewhere but never asks in it, since the answer is written where it was asked.
+  def ask_blocked_reason
+    "This chat is in #{asked_in}, so carry on there." if direct?
+  end
 
   # What the person and the agent said to each other is the conversation, so it is never put away.
   # The work in between is, meaning the tool calls, their results and the agent's nudges to itself.
@@ -110,9 +162,15 @@ class Conversation < ApplicationRecord
   # Saved before the job runs, so the person sees it at once and a retried job asks only once. From here an answer is owed.
   # While a turn is running the question waits and joins that turn at the agent's next step, so the person can steer it.
   # Files go with the question, and a question may be files alone.
-  def ask!(question, asker: nil, files: [])
-    return chat_record.queue_message!(question, sender: asker, files: files) if asker.is_a?(WorkspaceMembership) && answer_owed?
+  # context is what Halon needs to read with the question and the person never wrote, such as the message they replied to.
+  # Between turns it goes before the question as a note the page does not show. A turn already running takes only whole
+  # messages between its steps, so there it heads the question.
+  def ask!(question, asker: nil, files: [], context: nil)
+    if asker.is_a?(WorkspaceMembership) && answer_owed?
+      return chat_record.queue_message!([ context, question.presence ].compact.join("\n\n"), sender: asker, files: files)
+    end
 
+    chat_record.nudge!(context) if context
     message = chat_record.add_person_message!(question, sender: asker)
     chat_record.attach_files!(message, files)
     named = question.presence || files.map(&:filename).to_sentence
@@ -183,7 +241,7 @@ class Conversation < ApplicationRecord
   end
 
   def watchable_by?(user)
-    personal? && started_by.is_a?(WorkspaceMembership) && started_by.user_id == user&.id && self.class.readable_by?(started_by)
+    belongs_to_one_person? && started_by.is_a?(WorkspaceMembership) && started_by.user_id == user&.id && self.class.readable_by?(started_by)
   end
 
   # Two questions asked at once share the chat that won the insert.

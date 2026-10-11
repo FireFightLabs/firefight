@@ -200,6 +200,14 @@ class Chat::PlanTest < ActiveSupport::TestCase
     assert_not plan.may_act?(workspace_memberships(:alice_workspace_two))
   end
 
+  test "a plan in a person's direct messages chat is theirs alone to press" do
+    plan = make
+    @conversation.update!(kind: Conversation::KIND_DIRECT, channel_id: "D0ALICE", thread_id: "1.1")
+
+    assert plan.reload.may_act?(@alice)
+    assert_not plan.may_act?(@bob)
+  end
+
   test "undo is offered once a plan that changed something stopped or finished, and never for an undo" do
     plan = make
     assert_equal "Undo is offered once the plan has stopped or finished.", plan.undo_blocked_reason(@alice)

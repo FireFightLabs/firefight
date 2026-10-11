@@ -674,6 +674,38 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
     assert_equal Chat::APPROVAL_WITHDRAWN, @conversation.chat.tool_calls.find_by!(tool_call_id: "call_r").approval
   end
 
+  test "a direct message chat streams its answer into the person's own thread, to them, and posts nothing to the dashboard" do
+    direct_chat
+    fake(reply: "The 14:02 deploy raised the pool size", pieces: [ "The 14:02 deploy ", "raised the pool size" ])
+    Slack::Client.expects(:start_stream).with do |arguments|
+      arguments[:channel] == "D0ALICE" && arguments[:thread_ts] == "1700000000.000700" && arguments[:recipient_user_id] == "U12345678"
+    end.returns({ ok: true, ts: "1700000000.000800" })
+    appended = []
+    Slack::Client.stubs(:append_stream).with { |arguments| appended << [ arguments[:channel], arguments[:ts], arguments[:chunks] ] }.returns({ ok: true })
+    Slack::Client.expects(:stop_stream).with { |arguments| arguments[:channel] == "D0ALICE" && arguments[:ts] == "1700000000.000800" }.returns({ ok: true, ts: "1" })
+
+    assert_no_broadcasts(ConversationChannel.broadcasting_for(@conversation)) { ask(@conversation, "what is going on") }
+
+    assert_equal [ [ "D0ALICE", "1700000000.000800", [ { type: "markdown_text", text: "The 14:02 deploy raised the pool size" } ] ] ], appended
+  end
+
+  test "a direct message chat asks its confirmation in the person's thread" do
+    direct_chat
+    pause = lambda do |_arguments|
+      asking = @conversation.chat.add_message(role: :assistant, content: "")
+      asking.ruby_llm_tool_calls.create!(tool_call_id: "call_r", name: "restart", arguments: {})
+    end
+    fake(outcome: FirefightAi::AgentLoop::STATUS_WAITING, during: pause)
+    Chat.any_instance.stubs(:to_llm).returns(stub(pending_approvals: [ stub(id: "call_r") ]))
+    Slack::Client.expects(:stop_stream).with do |arguments|
+      arguments[:channel] == "D0ALICE" && arguments[:blocks].to_json.include?(Identifiers::AGENT_CONFIRM)
+    end.returns({ ok: true, ts: "1700000000.000900" })
+
+    ask(@conversation, "restart web")
+
+    assert_equal "1700000000.000900", @conversation.reload.confirmation_message_id
+  end
+
   test "a stop ends the turn where it is, answers any tool it never ran, and says Stopped" do
     call_asked_for = lambda do |_arguments|
       reply = @conversation.chat.add_message(role: :assistant, content: "")
@@ -813,6 +845,12 @@ class Conversation::RunnerTest < ActiveSupport::TestCase
   def personal_chat
     @conversation = Conversation.start_personal!(
       workspace: @workspace, member: workspace_memberships(:alice_workspace_one)
+    )
+  end
+
+  def direct_chat
+    @conversation = Conversation.start_direct!(
+      workspace: @workspace, member: workspace_memberships(:alice_workspace_one), channel_id: "D0ALICE", thread_id: "1700000000.000700"
     )
   end
 

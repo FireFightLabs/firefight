@@ -126,6 +126,11 @@ class Investigation < ApplicationRecord
     workspace.investigations.live.seen.find_by(thread_id: thread_id)
   end
 
+  # The run a thread belongs to, finished or not. A reply there once it finished is a chat about what it found.
+  def self.posted_in_thread(workspace, thread_id)
+    workspace.investigations.seen.find_by(thread_id: thread_id)
+  end
+
   # Every way in asks this, so a refusal reads the same from the command, the button, the chat and MCP.
   def self.start_refusal(workspace, incident = nil)
     unavailable_reason(workspace) || incident&.investigation_blocked_reason

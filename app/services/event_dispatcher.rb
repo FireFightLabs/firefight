@@ -8,6 +8,10 @@ class EventDispatcher
     Identifiers::EVENT_MEMBER_JOINED => Events::MemberJoinedChannelHandler,
     Identifiers::EVENT_AGENT_SESSION_STOPPED => Events::AgentSessionStoppedHandler
   }.freeze
+  # A message in a person's direct messages with the app is written to Halon, never part of an incident channel.
+  DIRECT_HANDLERS = {
+    Identifiers::EVENT_MESSAGE => Events::DirectMessageHandler
+  }.freeze
 
   # Events carry no way to answer the user, so unknown and suspended workspaces are dropped.
   # An AdapterError ends the event since the client already retried. Anything else propagates so ProcessEventJob retries, handler writes are idempotent.
@@ -15,7 +19,7 @@ class EventDispatcher
     event = payload["event"]
     return unless event
 
-    handler = HANDLERS[event["type"]]
+    handler = (DIRECT_HANDLERS[event["type"]] if event["channel_type"] == Identifiers::CHANNEL_TYPE_DIRECT) || HANDLERS[event["type"]]
     unless handler
       Rails.logger.info({
         event: "event_dispatcher.unhandled_event",
