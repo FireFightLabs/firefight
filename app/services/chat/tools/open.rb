@@ -14,13 +14,13 @@ class Chat::Tools::Open < RubyLLM::Tool
 
   def self.tool_name = "open_tools"
 
-  # searched is whether the chat's provider searches tools itself (Chat::Tools.presented), so every tool whoever acts may
-  # call is already in hand or found by searching, and this lists what exists rather than being the way in.
-  def initialize(agent_run, offer:, searched: false)
+  # presented is how the chat was handed its tools (Chat::Tools.presented). Where its provider searches tools itself, or
+  # every tool whoever acts may call was held from the start, this lists what exists rather than being the way in.
+  def initialize(agent_run, offer:, presented: Chat::Tools::Presented.none)
     super()
     @agent_run = agent_run
     @offer = offer
-    @searched = searched
+    @presented = presented
   end
 
   def name = self.class.tool_name
@@ -28,11 +28,13 @@ class Chat::Tools::Open < RubyLLM::Tool
   OPENS = "Make a group of tools callable. You hold almost no tools until you open the group that fits what you need next.".freeze
   LISTS = "Every tool you may use is in your hands or found by searching for it, so search first. This lists every group of " \
           "tools there is, with those that exist but cannot be used, and opening a group loads its tools whole.".freeze
+  HOLDS = "Every tool you may use is already in your hands, so call it by name. This lists every group of tools there is, " \
+          "with those that exist but cannot be used, and opening a group only lists its tools again.".freeze
 
   # Built once, so the front of every request in a run stays the same.
   def description
     @description ||= <<~TEXT.strip
-      #{@searched ? LISTS : OPENS} The groups:
+      #{intro} The groups:
       #{views.map { |view| "#{view.title}: #{view.covers} (#{STATE_WORDS.fetch(view.state)})" }.join("\n")}
       A group that is not granted, has nothing connected or has no tools switched on cannot be used, and that is worth saying in your answer.
     TEXT
@@ -60,6 +62,12 @@ class Chat::Tools::Open < RubyLLM::Tool
   end
 
   private
+
+  def intro
+    return HOLDS if @presented.held
+
+    @presented.searched ? LISTS : OPENS
+  end
 
   def views = @views ||= Chat::Tools::Groups.for(@agent_run)
 

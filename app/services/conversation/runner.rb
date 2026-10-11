@@ -58,7 +58,7 @@ class Conversation::Runner
 
     outcome = responder.run(
       chat: chat,
-      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), searched: presented.searched) +
+      tools: Conversation::Tools.for(@turn, offer: Chat::Tools.offer_to(chat), helpers: helper_share(chat, purse), presented: presented) +
              presented.loaded + Chat::Tools.known(@turn, chat),
       deferred_tools: presented.deferred,
       context: context,

@@ -881,21 +881,59 @@ class Chat::ToolsTest < ActiveSupport::TestCase
     FirefightAi.stubs(:tool_search?).returns(true)
 
     presented = Chat::Tools.presented(@investigation, searching_choice)
-    opened = Chat::Tools::Open.new(@investigation, offer: ->(_tools) { }, searched: true)
+    opened = Chat::Tools::Open.new(@investigation, offer: ->(_tools) { }, presented: presented)
 
     assert_not_includes (presented.loaded + presented.deferred).map(&:name), "fake_echo_text"
     assert opened.description.start_with?(Chat::Tools::Open::LISTS)
     assert_match "fake_echo_text: Echoes text back (exists, but not granted", opened.call(group: Chat::Tools::Groups.of_connection(@integration))
   end
 
-  test "where the provider does not search, nothing more is handed over and the agent opens groups as before" do
+  # Opening groups changes the tool list, which comes first in what a provider caches, so each opening wrote the whole
+  # cached front again. Holding every tool from the start writes it once.
+  test "where the provider does not search and the tools fit the budget, every tool whoever acts may call is held from the start" do
     grant!(@tool)
+    grant_system!(Ability::Action::RESOURCE_INCIDENTS, Ability::Action::ACTION_READ)
     FirefightAi.stubs(:tool_search?).returns(false)
 
     presented = Chat::Tools.presented(@investigation, searching_choice)
 
-    assert_equal [ [], [], false ], [ presented.loaded, presented.deferred, presented.searched ]
+    assert presented.held
+    assert_not presented.searched
+    assert_empty presented.deferred
+    assert_equal Chat::Tools.catalog(@investigation).select(&:tool).map(&:name), presented.loaded.map(&:name)
+    assert_includes presented.loaded.map(&:name), "fake_echo_text"
+    assert Chat::Tools::Open.new(@investigation, offer: ->(_tools) { }, presented: presented).description.start_with?(Chat::Tools::Open::HOLDS)
+  end
+
+  test "where the provider does not search and the tools are past the budget, nothing more is handed over and the agent opens groups" do
+    grant!(@tool)
+    FirefightAi.stubs(:tool_search?).returns(false)
+    FirefightAi.configuration.stubs(:held_tools_budget).returns(10)
+
+    presented = Chat::Tools.presented(@investigation, searching_choice)
+
+    assert_equal [ [], [], false, false ], [ presented.loaded, presented.deferred, presented.searched, presented.held ]
     assert open_tool.description.start_with?(Chat::Tools::Open::OPENS)
+  end
+
+  # A held tool is the same tool open_tools would have loaded, so the grant, the read guard, the approval rule and the
+  # gateway decide each call as before, and what is not granted or only reads in an investigation stays out.
+  test "a held tool is exactly the tool open_tools would load, and what whoever acts may not call is never held" do
+    FirefightAi.stubs(:tool_search?).returns(false)
+    ungranted = Chat::Tools.presented(@investigation, searching_choice)
+    assert_not_includes ungranted.loaded.map(&:name), "fake_echo_text"
+
+    grant!(@tool)
+    loaded = Chat::Tools.presented(@investigation, searching_choice).loaded
+    held = loaded.find { |tool| tool.name == "fake_echo_text" }
+    offered = []
+    Chat::Tools::Open.new(@investigation, offer: ->(tools) { offered.concat(tools) }).call(group: Chat::Tools::Groups.of_connection(@integration))
+    opened = offered.find { |tool| tool.name == "fake_echo_text" }
+
+    assert_equal [ opened.class, opened.description, opened.parameters_schema, opened.requires_approval? ],
+                 [ held.class, held.description, held.parameters_schema, held.requires_approval? ]
+    assert_empty Chat::Tools.catalog(@investigation).reject(&:tool).map(&:name) & loaded.map(&:name)
+    assert_not_includes loaded.map(&:name), Mcp::Tools::DECLARE_INCIDENT
   end
 
   # Two steps that ran, each echoing its own text, so a claim can cite either.
