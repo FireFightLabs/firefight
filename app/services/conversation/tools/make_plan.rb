@@ -3,11 +3,15 @@
 class Conversation::Tools::MakePlan < Conversation::Tools::PlanTool
   NAME = "make_plan".freeze
 
-  description "Make a plan for a request that takes more than one step, before the first one, such as a release, a migration " \
-              "or a fix across systems. The person sees it as a checklist that moves as you update it. Each change carries its " \
-              "undo, written now. A plan that changes anything ends with a check step that reads health, error rate and latency " \
-              "against normal. Give run_at only when the person asked for it to happen at a later time: the plan then waits " \
-              "for them to approve it, and at that time Halon reads how things stand and runs it as them."
+  description "Make a plan for a request that takes more than one step or spans more than one system, before the first " \
+              "step, such as a release, a migration or a fix across systems. A clear request about one system that takes one " \
+              "step needs none, and a request that could mean more than one thing is settled with the person first. Give the " \
+              "goal in the person's words and a step per action naming where it happens, then say the plan back in two short " \
+              "lines and start, since each change asks the person when it runs. The person sees it as a checklist that moves " \
+              "as you update it. Each change carries its undo, written now. A plan that changes anything ends with a check " \
+              "step that reads health, error rate and latency against normal. Give run_at only when the person asked for it " \
+              "to happen at a later time: the plan then waits for them to approve it, and at that time Halon reads how things " \
+              "stand and runs it as them. A time inside a freeze is refused, so offer one after it."
 
   def name = NAME
 

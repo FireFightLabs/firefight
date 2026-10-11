@@ -44,7 +44,9 @@ class Conversation::Tools::StartWatch < RubyLLM::Tool
               "A read that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with " \
               "repair_watch. The time limit is learned from run history (twice the usual, at most 24 hours). Pass minutes only " \
               "when the person asked for a limit, and expected_minutes only from memory when run history has none. Say what it " \
-              "answers about the limit."
+              "answers about the limit. Anything you start that keeps running, such as a workflow, a build, a deploy or a " \
+              "test run, is yours to follow: start a watch on it in the same turn, with its purpose. When the person starts " \
+              "something that takes a while, offer to watch it for them."
 
   def self.tool_name = "start_watch"
 

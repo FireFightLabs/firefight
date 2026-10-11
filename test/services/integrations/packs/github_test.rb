@@ -295,6 +295,10 @@ module Integrations
         assert_no_match "hunter2", text
       end
 
+      test "a suspect commit is named with whether a deploy showed it running" do
+        assert_match "A merge is not proof of a deploy", Github.tool_definitions.find { |tool| tool.name == Github::CHANGES_BEFORE }.description
+      end
+
       test "the new tools are declared read only" do
         definitions = Github.tool_definitions.index_by(&:name)
 

@@ -17,7 +17,8 @@ module Conversation::Plans
     plans = chat.plans.open.includes(:steps, :approved_by).order(:created_at).to_a
     return nil if plans.empty?
 
-    "Your plans in this chat. Carry each to its goal, and update it with update_plan as each step starts and ends:\n" \
+    "Your plans in this chat. Carry each to its goal, update it with update_plan as each step starts and ends, and say " \
+      "where things stand against its goal in every report:\n" \
       "#{plans.map { |plan| described(plan) }.join("\n")}"
   end
 

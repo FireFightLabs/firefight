@@ -15,7 +15,9 @@ class Conversation::Tools::RunRunbook < RubyLLM::Tool
               "(search_runbooks says which are runnable). First tell the person what it will do and which inputs it uses, and " \
               "ask for any input it has no default for. The person confirms the whole run before anything happens. Each step " \
               "runs as them with their permissions, the run stops at the first step that is refused, waits for an approval or " \
-              "fails, and once every step went through its watch starts and reports back here."
+              "fails, and once every step went through its watch starts and reports back here. When a request matches a saved " \
+              "runbook, such as a release or a rollback, run it rather than doing its steps one by one. When the person has " \
+              "you do the same multi-step task again, offer to save it as a runbook they can ask for by name."
 
   def self.tool_name = NAME
 

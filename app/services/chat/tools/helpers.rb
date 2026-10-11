@@ -28,7 +28,11 @@ class Chat::Tools::Helpers < RubyLLM::Tool
   description "Hand reads that do not depend on each other to helpers that run at the same time, each with its own narrow " \
               "brief, and get back a short report from each. Helpers only read, with the same reach as whoever you act for, " \
               "and spend from this question's budget. Use it when two to #{Chat::Helper::MAX_AT_ONCE} reads would otherwise " \
-              "run one after another. At most #{Chat::Helper::MAX_PER_QUESTION} for one question."
+              "run one after another, such as the logs, the recent deploys and the error rate of one service. At most " \
+              "#{Chat::Helper::MAX_PER_QUESTION} for one question. Set deep only for a check that reasons across several " \
+              "results. Keep for yourself anything that changes something and any read that depends on another's answer. " \
+              "A report says what its helper read, so cite the steps it names, and run a check yourself before stating a " \
+              "cause that rests on a helper's words alone."
 
   def self.tool_name = NAME
 

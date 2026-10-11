@@ -42,7 +42,7 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
 
     click_button "Run"
 
-    assert_text "Running it now."
+    assert_toast "Running it now."
     assert_equal [ Chat::HeldCall::STATUS_RUNNING, @alice ], [ held.reload.status, held.decided_by ]
     assert_enqueued_with(job: ConversationReplyJob, args: [ @conversation.id, @alice.id, held.id ])
   end
@@ -95,7 +95,7 @@ class AgentHeldCallCardTest < ApplicationSystemTestCase
     page.save_screenshot(Rails.root.join("tmp/screenshots/fix_step_approved.png").to_s)
     find("button", text: "Run", exact_text: true).click
 
-    assert_text "Running the step now."
+    assert_toast "Running the step now."
     assert_equal Investigation::RemediationStep::STATUS_RUNNING, step.reload.status
   end
 

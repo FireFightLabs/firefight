@@ -7,6 +7,17 @@ module FirefightAi
     NOTE_TOOL = "note_problem".freeze
     FINISH_TOOL = "finish_check".freeze
 
+    ROLE = "You are Halon, the SRE on this team, running a scheduled check. Nobody asked a question this time. Look for " \
+           "slow problems nobody has noticed yet: something that is fine today and will break on a date if nobody acts, " \
+           "such as a disk filling, a certificate running out, an error budget being spent too fast or a bill growing.".freeze
+
+    # How a check is run and how it ends, which only a check has.
+    CHECKING = <<~TEXT.strip.freeze
+      How a check works:
+      - The facts say what this check looks at, the notes the team wrote for it, the skill that says how, and what you raised from it before. Load that skill with use_skill first. Where the notes and the skill differ, follow the notes, since the team wrote them for this workspace.
+      - #{NOTE_TOOL} records each problem that needs a person, and #{FINISH_TOOL} ends the run. Their descriptions say what each takes.
+    TEXT
+
     def initialize(workspace, inferable:, model: nil)
       @workspace = workspace
       @inferable = inferable
@@ -36,45 +47,23 @@ module FirefightAi
       @ai_model ||= FirefightAi.model_for(AiPurpose::INVESTIGATION, workspace: @workspace)
     end
 
-    def self.prompt_version = Prompt.version(system_prompt)
+    def self.prompt_version = Manual.version(system_prompt)
 
     def self.system_prompt
       <<~PROMPT
-        You are an SRE running a scheduled check for the team. Nobody asked a question this time. Look for slow problems nobody has noticed yet: something that is fine today and will break on a date if nobody acts, such as a disk filling, a certificate running out, an error budget being spent too fast or a bill growing.
+        #{ROLE}
 
-        How to work:
-        - The facts below say what this check looks at, the notes the team wrote for it, the skill that says how, and what you raised from it before. Load that skill with use_skill first. When the notes and the skill disagree, the notes win, since the team wrote them for this workspace.
-        - Read what is there now. A fresh reading always beats what you raised before, the workspace's memory or an instruction that says how things were.
-        - #{LookFirstRule::MAP_RULE}
-        - #{LookFirstRule::CONNECTION_RULE}
-        - #{LookFirstRule::API_GUIDE_RULE}
-        - #{LookFirstRule::GUESSED_CALL_RULE}
-        - #{LookFirstRule::GENERAL_READ_RULE}
-        - #{LookFirstRule::CAUSE_RULE}
-        - #{ToolFinding::RULE}
-        - #{OutsideRule::CHANGED_RULE}
-        - #{OutsideRule::STATUS_RULE}
-        - #{OutsideRule::BLIND_SPOT_RULE}
-        - #{Helper::RULE}
-        - When you hold check_from_outside, a certificate, a page or an address is checked as a user reaches it, which beats what a provider says it serves. It runs from one region, which its answer names.
-        - A trend needs more than one reading. Read the same measure over days or weeks, work out its rate, and from the rate the day it crosses the line that matters. Say how sure the date is when the rate is uneven.
-        - Look at everything the check covers, not only the first thing you find. A check of disks reads every disk it can reach.
-        - #{CannotRule::VERIFY_RULE}
-        - #{CannotRule::CAPABILITY_RULE}
-        - When something the check needs is not connected, or a provider does not report it, say which in finish_check, so the team knows what was not looked at. Never call something fine that you could not read.
-        - State nothing a tool result or the facts below do not support.
-        - #{Evidence::RULE}
-        - #{Evidence::REFUSAL_RULE}
+        #{CHECKING}
 
-        How to finish:
-        - Call #{NOTE_TOOL} once for each problem that needs a person, with the step numbers that show it. Give it the resource on the map when it is about one, and the day it becomes a problem when there is one. A problem you raised before keeps its topic and resource, and is noted again while it still holds, with today's reading, so Firefight can tell whether it got worse. Firefight decides what is said and where, and repeats nothing that has not got worse, so note every problem that still holds.
-        - Note nothing that is fine, nothing that needs no one to act, and no worry that no reading shows.
-        - Then call #{FINISH_TOOL} with what you looked at, what you found and what you could not read, in two or three sentences. Only #{FINISH_TOOL} ends the run.
-        - A reply without a tool call does nothing.
-        - #{MemoryRule::INSTRUCTIONS}
-        - #{MemoryRule::HANDBOOK_RULE}
-        - #{MemoryRule::RULE}
-        - #{Copy::RULE}
+        #{Manual::THINKING}
+
+        #{Manual::DONE}
+
+        #{Manual::RUN_TOOLS}
+
+        #{Manual::PLAYBOOKS}
+
+        #{Manual::WRITING}
       PROMPT
     end
 
@@ -93,17 +82,11 @@ module FirefightAi
         inferable: @inferable,
         member: nil,
         prompt_template: FEATURE,
-        prompt_version: Prompt.version(system_prompt),
-        prompt_text: system_prompt
+        prompt_version: self.class.prompt_version,
+        prompt_text: Manual.recorded(system_prompt)
       }
     end
 
-    def opening(seed_pack)
-      <<~PROMPT
-        Run this check. These are the facts Firefight already holds.
-
-        #{JSON.pretty_generate(seed_pack)}
-      PROMPT
-    end
+    def opening(seed_pack) = Facts.opening("Run this check. These are the facts Firefight already holds.", seed_pack)
   end
 end

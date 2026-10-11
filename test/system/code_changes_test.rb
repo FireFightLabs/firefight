@@ -29,7 +29,7 @@ class CodeChangesTest < ApplicationSystemTestCase
       click_on "Save"
     end
 
-    assert_text "Saved. Halon may not change .github/workflows/, infra/prod/**, and *.lock in GitHub's repositories."
+    assert_toast "Saved. Halon may not change .github/workflows/, infra/prod/**, and *.lock in GitHub's repositories."
     within("[role='dialog']") do
       assert_field "Paths Halon may not change", with: ".github/workflows/\ninfra/prod/**\n*.lock"
       assert_no_button "Save"
