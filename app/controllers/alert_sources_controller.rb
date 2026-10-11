@@ -46,7 +46,7 @@ class AlertSourcesController < InertiaController
   def address
     return head :not_found unless adapter::SECRET_IN_ADDRESS
 
-    render json: { path: "#{api_v1_alert_ingest_path(endpoint_path: @alert_source.endpoint_path)}/#{@alert_source.secret_token}" }
+    render json: { path: api_v1_alert_ingest_with_secret_path(endpoint_path: @alert_source.endpoint_path, address_secret: @alert_source.secret_token) }
   end
 
   def regenerate_address

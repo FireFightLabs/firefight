@@ -313,7 +313,7 @@ class Api::V1::AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "Example alert", source.alerts.sole.title
     payload = recorded.sole
-    assert_equal api_v1_alert_ingest_path(endpoint_path: source.endpoint_path), payload[:path]
+    assert_equal "#{api_v1_alert_ingest_path(endpoint_path: source.endpoint_path)}/#{PathSecret::MASK}", payload[:path]
     assert_not_includes payload.to_s, source.secret_token
     assert_not_includes request.filtered_path, source.secret_token
   end

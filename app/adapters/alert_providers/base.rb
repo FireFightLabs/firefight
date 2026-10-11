@@ -31,8 +31,8 @@ module AlertProviders
       ActiveSupport::SecurityUtils.secure_compare(provided, source.secret_token)
     end
 
-    # The secret taken out of the address before the request was logged (AlertAddressSecret).
-    def self.address_secret(headers) = headers[AlertAddressSecret::ENV_KEY].to_s.presence
+    # The secret taken out of the address before the request was logged (PathSecret).
+    def self.address_secret(headers) = headers[PathSecret::ENV_KEY].to_s.presence
 
     def self.bearer_token(headers)
       authorization = headers["Authorization"].to_s

@@ -12,8 +12,8 @@ class AlertProviders::LogfireTest < ActiveSupport::TestCase
   def fields(payload) = AlertProviders::Logfire.normalize(payload, source: @source).sole[:fields]
 
   test "accepts only the secret taken out of the address, never one sent as a header" do
-    assert AlertProviders::Logfire.verify(headers: { AlertAddressSecret::ENV_KEY => @source.secret_token }, raw_body: "{}", source: @source)
-    assert_not AlertProviders::Logfire.verify(headers: { AlertAddressSecret::ENV_KEY => "wrong" }, raw_body: "{}", source: @source)
+    assert AlertProviders::Logfire.verify(headers: { PathSecret::ENV_KEY => @source.secret_token }, raw_body: "{}", source: @source)
+    assert_not AlertProviders::Logfire.verify(headers: { PathSecret::ENV_KEY => "wrong" }, raw_body: "{}", source: @source)
     assert_not AlertProviders::Logfire.verify(headers: {}, raw_body: "{}", source: @source)
     assert_not AlertProviders::Logfire.verify(headers: { "Authorization" => "Bearer #{@source.secret_token}", "X-Firefight-Token" => @source.secret_token },
                                               raw_body: "{}", source: @source)

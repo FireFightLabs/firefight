@@ -38,6 +38,23 @@ class Api::V1::MapEventsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the connection's token in the address reaches no request log or parameter" do
+    body, headers = live_delivery([ change("e1", at: 1.minute.ago) ], secret: "whsec")
+    recorded = []
+    subscriber = ActiveSupport::Notifications.subscribe("process_action.action_controller") { |event| recorded << event.payload }
+
+    begin
+      post api_v1_map_events_path(@row.map_events_token), params: body, headers: headers
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    assert_response :ok
+    assert_equal "/api/v1/map_events/#{PathSecret::MASK}", recorded.sole[:path]
+    assert_not_includes recorded.sole.to_s, @row.map_events_token
+    assert_not_includes request.filtered_path, @row.map_events_token
+  end
+
   test "a delivery whose signature fails is refused, logged and kept nowhere" do
     body, headers = live_delivery([ change("e1", at: 1.minute.ago) ], secret: "someone else's")
     Rails.logger.expects(:warn).with { |line| line.include?("map_events.signature_refused") }

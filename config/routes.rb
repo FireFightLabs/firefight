@@ -17,7 +17,10 @@ Rails.application.routes.draw do
 
       # Authenticated by the source's own secret through its provider adapter.
       post "alerts/:endpoint_path", to: "alerts#create", as: :alert_ingest
-      # Authenticated by the workspace's issue tracker webhook secret, as the tracker signs it.
+      # A source whose secret is part of its address. PathSecret masks that segment before routing.
+      post "alerts/:endpoint_path/:address_secret", to: "alerts#create", as: :alert_ingest_with_secret
+      # Authenticated by the workspace's issue tracker webhook secret, as the tracker signs it. PathSecret masks the token
+      # in both addresses before routing, and the controllers read it from there.
       post "issue_events/:token", to: "issue_events#create", as: :issue_events
       post "map_events/:token", to: "map_events#create", as: :map_events
       post "app_events/:provider", to: "app_events#create", as: :app_events

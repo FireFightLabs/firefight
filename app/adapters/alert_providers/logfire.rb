@@ -16,6 +16,7 @@ module AlertProviders
       "it can send alerts here. Paste it nowhere else.",
       "Send a test alert, which Logfire needs to succeed before it creates the channel, then create it and tick it for " \
       "each alert that should reach Firefight.",
+      "The test arrives here as a real alert, so a routing rule that creates incidents opens one for it.",
       "Set Fire when to the query starts or stops having results, so the alert resolves here when the query stops " \
       "returning rows."
     ].freeze
