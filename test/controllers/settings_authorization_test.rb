@@ -8,10 +8,13 @@ class SettingsAuthorizationTest < ActionDispatch::IntegrationTest
   test "members are blocked from settings mutations across controllers" do
     sign_in(users(:bob), @workspace)
     source = @workspace.alert_sources.create!(name: "Guarded", provider: AlertSource::PROVIDER_GENERIC)
+    logfire = @workspace.alert_sources.create!(name: "Guarded Logfire", provider: AlertSource::PROVIDER_LOGFIRE)
 
     attempts = [
       -> { post alert_sources_url, params: { alert_source: { name: "X" } } },
       -> { post token_alert_source_url(source) },
+      -> { post address_alert_source_url(logfire) },
+      -> { post regenerate_address_alert_source_url(logfire) },
       -> { patch alert_routing_url, params: { policy: { enabled: false } } },
       -> { post alert_routing_send_test_url, params: { fields: {} }, as: :json },
       -> { post policy_rules_url, params: { rule: { conditions: [], outcome: {} } } },

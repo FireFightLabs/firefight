@@ -1,10 +1,12 @@
 import { useState } from "react"
-import { IconCheck, IconCopy } from "@tabler/icons-react"
+import { router } from "@inertiajs/react"
+import { IconCheck, IconCopy, IconRefresh } from "@tabler/icons-react"
 
 import type { AlertSourceSettings } from "@/types/serializers"
-import { tokenAlertSourcePath } from "@/lib/routes"
+import { regenerateAddressAlertSourcePath, tokenAlertSourcePath } from "@/lib/routes"
 import { postJson } from "@/lib/http"
-import type { AlertProviderSetup } from "@/pages/settings/lib/alerts"
+import { fetchSourceAddress, type AlertProviderSetup } from "@/pages/settings/lib/alerts"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,15 +29,36 @@ export function SourceSetup({
   onSecretChange: (value: string) => void
 }) {
   const [copied, setCopied] = useState<CopiedField | null>(null)
+  const [confirmingNewAddress, setConfirmingNewAddress] = useState(false)
   const ingestUrl = `${window.location.origin}${source.ingestPath}`
+  const secretInAddress = setup?.secretInAddress ?? false
 
   function markCopied(field: CopiedField) {
     setCopied(field)
     setTimeout(() => setCopied(null), COPIED_FOR_MS)
   }
 
-  function copyUrl() {
-    void navigator.clipboard.writeText(ingestUrl).then(() => markCopied("url"))
+  // A URL holding the source's secret is fetched whole only when copied, as the page holds it masked.
+  async function copyUrl() {
+    const url = secretInAddress ? await fetchSourceAddress(source.id) : ingestUrl
+    if (url) {
+      await navigator.clipboard.writeText(url)
+      markCopied("url")
+    }
+  }
+
+  function askForNewAddress() {
+    setConfirmingNewAddress(true)
+  }
+
+  function cancelNewAddress() {
+    setConfirmingNewAddress(false)
+  }
+
+  // State is kept so the dialog this sits in stays open with any edits in it.
+  function regenerateAddress() {
+    setConfirmingNewAddress(false)
+    router.post(regenerateAddressAlertSourcePath(source.id), {}, { preserveState: true, preserveScroll: true })
   }
 
   function copyTemplate() {
@@ -62,11 +85,17 @@ export function SourceSetup({
       <p className="font-medium text-foreground">Setup{setup ? ` for ${setup.label}` : ""}</p>
       <div className="flex flex-wrap items-center gap-2">
         <p className="w-full min-w-0 break-all font-mono sm:w-auto sm:flex-1">{ingestUrl}</p>
-        <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={copyUrl}>
+        <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => void copyUrl()}>
           {copied === "url" ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
           Copy URL
         </Button>
-        {!setup?.secretFromProvider && (
+        {secretInAddress && (
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={askForNewAddress}>
+            <IconRefresh className="size-3.5" />
+            Regenerate address
+          </Button>
+        )}
+        {!setup?.secretFromProvider && !secretInAddress && (
           <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => void copyToken()}>
             {copied === "token" ? <IconCheck className="size-3.5" /> : <IconCopy className="size-3.5" />}
             Copy token
@@ -108,6 +137,17 @@ export function SourceSetup({
           <p>{source.secretSummary ?? `No secret saved yet. Firefight refuses alerts from ${setup.label} until you save one.`}</p>
         </div>
       )}
+      {secretInAddress && (
+        <p>The URL holds this source's secret, so it shows masked here and is copied whole.</p>
+      )}
+      <ConfirmDeleteDialog
+        open={confirmingNewAddress}
+        title={`Regenerate the address of ${source.name}?`}
+        description={`The old address stops working at once. Paste the new one into ${setup?.label ?? "the tool"}, or its alerts are refused.`}
+        confirmLabel="Regenerate address"
+        onConfirm={regenerateAddress}
+        onCancel={cancelNewAddress}
+      />
     </div>
   )
 }

@@ -18,10 +18,12 @@ class AlertSource < ApplicationRecord
   PROVIDER_SIGNOZ = "signoz"
   PROVIDER_POSTHOG = "posthog"
   PROVIDER_MIXPANEL = "mixpanel"
+  PROVIDER_LOGFIRE = "logfire"
   PROVIDERS = [
     PROVIDER_GENERIC, PROVIDER_NORTHFLANK, PROVIDER_PAGERDUTY, PROVIDER_OPSGENIE, PROVIDER_SENTRY, PROVIDER_DATADOG,
     PROVIDER_GRAFANA, PROVIDER_ALERTMANAGER, PROVIDER_NEW_RELIC, PROVIDER_HONEYCOMB, PROVIDER_AXIOM, PROVIDER_BETTER_STACK,
-    PROVIDER_HONEYBADGER, PROVIDER_OPENSTATUS, PROVIDER_SIGNOZ, PROVIDER_POSTHOG, PROVIDER_MIXPANEL
+    PROVIDER_HONEYBADGER, PROVIDER_OPENSTATUS, PROVIDER_SIGNOZ, PROVIDER_POSTHOG, PROVIDER_MIXPANEL,
+    PROVIDER_LOGFIRE
   ].freeze
 
   DEFAULT_RATE_LIMIT_PER_MINUTE = 60
@@ -46,6 +48,8 @@ class AlertSource < ApplicationRecord
   validates :secret_token, presence: true, length: { maximum: SECRET_MAX_LENGTH }
 
   scope :enabled, -> { where(enabled: true) }
+
+  def self.new_secret = SecureRandom.hex(24)
 
   # The source's own policy wins, the workspace policy is the fallback. To
   # edit, use alert_routing_policy, never the inherited one.
@@ -79,6 +83,12 @@ class AlertSource < ApplicationRecord
     self.config = config.merge("secret_saved_at" => Time.current.iso8601)
   end
 
+  # A new token in place of the old, which stops working at once. For a source whose token is part of its address, this
+  # is a new address.
+  def regenerate_secret!
+    update!(secret_token: self.class.new_secret)
+  end
+
   # "Secret ending in 4f2a. Enter a new one to replace it.", or nil until a secret has been pasted in.
   def secret_summary
     return if config["secret_saved_at"].blank?
@@ -109,6 +119,6 @@ class AlertSource < ApplicationRecord
 
   def generate_credentials
     self.endpoint_path ||= SecureRandom.urlsafe_base64(18)
-    self.secret_token ||= SecureRandom.hex(24)
+    self.secret_token ||= self.class.new_secret
   end
 end

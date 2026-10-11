@@ -18,6 +18,10 @@ if ENV["OTEL_EXPORTER_OTLP_ENDPOINT"].present?
   end
 end
 
+# Put first after the tracer put itself first above, so neither a span nor a request log records a secret in a path.
+require Rails.root.join("app/middleware/path_secret")
+Rails.application.config.middleware.insert_before 0, PathSecret
+
 # One tracer for every hand-rolled span, so they share a source name in Tempo.
 module Firefight
   TRACER = OpenTelemetry.tracer_provider.tracer("firefight")

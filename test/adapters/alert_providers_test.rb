@@ -9,7 +9,7 @@ class AlertProvidersTest < ActiveSupport::TestCase
     catalog.each do |entry|
       assert entry[:label].present?, entry[:provider]
       assert entry[:steps].any? { |step| step.include?("this URL") }, "#{entry[:provider]} never says where the URL goes"
-      secret_step = entry[:secretFromProvider] ? "paste it below" : "token"
+      secret_step = if entry[:secretFromProvider] then "paste it below" elsif entry[:secretInAddress] then "secret" else "token" end
       assert entry[:steps].any? { |step| step.include?(secret_step) }, "#{entry[:provider]} never says where the secret goes"
     end
   end
@@ -20,6 +20,7 @@ class AlertProvidersTest < ActiveSupport::TestCase
     assert_includes pagerduty[:steps].join(" "), "incident.triggered, incident.reopened, incident.resolved, incident.acknowledged, incident.escalated and incident.annotated"
     assert_equal [ AlertSource::PROVIDER_GENERIC ], AlertProviders.catalog.select { |entry| entry[:fieldMapping] }.pluck(:provider)
     assert_equal [ AlertSource::PROVIDER_SENTRY ], AlertProviders.catalog.select { |entry| entry[:secretFromProvider] }.pluck(:provider)
+    assert_equal [ AlertSource::PROVIDER_LOGFIRE ], AlertProviders.catalog.select { |entry| entry[:secretInAddress] }.pluck(:provider)
   end
 
   test "copy shown to people holds no em dashes or semicolons" do
