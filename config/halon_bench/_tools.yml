@@ -42,6 +42,16 @@ use_skill:
     error_budget_burn: A scheduled check of error budgets, or anyone asking whether a service is failing more than its objective allows and when its budget runs out
     leaked_secret: A key, token, password or other secret was leaked, such as a secret scanning alert, a key posted in a public place, or someone asking what a leaked key could do
     suspicious_access: A login, key or token used from somewhere unusual, access nobody recognises, a new admin or permission nobody granted, or an alert about suspicious access to an account or system
+    firefight playbooks:
+    capacity: Something is slow or busy, someone asks to scale, a performance regression, a limit or quota close to its ceiling, or spend that moved
+    code: Reading code to learn how a system really behaves, tracing a failure to the line that raised it, reviewing a change with an operator's eye, or writing a fix
+    data: A database's health, connections, locks, replication or disk, a query against production data, a change to production rows, a migration, or backups and restores
+    deploying: Before, during or after a release or deploy, judging whether a release caused a problem, rolling one back or fixing forward, or following a pipeline to its end
+    incident_command: Something is broken for users now, judging impact and severity, deciding whether to declare, coordinating responders, paging, or keeping people informed during an incident
+    monitoring: Judging whether a service is healthy or an alert is real, comparing a signal with normal, finding blind spots or noisy alerts, or telling a provider's outage from your own
+    postmortems: Writing or reviewing a postmortem, reconstructing what happened in an incident, turning a lesson into an action or a check, or following up on action items
+    proactive_hygiene: Looking ahead for what will break, such as expiring certificates, keys or quotas, trends that will cross a limit, risky changes before they ship, stale runbooks or handbook pages, or repeated manual work
+    security: A leaked key, abuse, unusual access or traffic, a key or account that should not exist, or any problem where security may be the hidden cause, such as a slowdown, a spike or a bill jump
     firefight workspace setup:
     protected_paths: Someone asks to stop Halon or a coding agent changing a file or folder, to allow it again, what Halon may change in their code, or why a code change was refused for a path
     setup: Setting up Firefight, or changing its severities, statuses, types, roles or workspace settings
@@ -71,6 +81,15 @@ use_skill:
         - error_budget_burn
         - leaked_secret
         - suspicious_access
+        - capacity
+        - code
+        - data
+        - deploying
+        - incident_command
+        - monitoring
+        - postmortems
+        - proactive_hygiene
+        - security
         - protected_paths
         - setup
         description: The skill to load
@@ -628,7 +647,8 @@ check_from_outside:
   description: >-
     Check an address from outside, as a user reaches it: DNS records, the HTTP status, redirects and timing (DNS, connect, TLS, first byte, total),
     and the TLS certificate (issuer, expiry, days left, whether it is trusted and covers the host). Runs from the sandbox and says which region
-    that is. Use it to tell an outage from a problem on one path, a slow phase, or a certificate or DNS fault.
+    that is. Use it to tell an outage from a problem on one path, a slow phase, or a certificate or DNS fault. It sees what users are served,
+    so it wins over what a provider says it serves.
   reads: true
   parameters:
     type: object
@@ -689,7 +709,10 @@ run_helpers:
   description: >-
     Hand reads that do not depend on each other to helpers that run at the same time, each with its own narrow brief, and get back a short report
     from each. Helpers only read, with the same reach as whoever you act for, and spend from this question's budget. Use it when two to 4 reads
-    would otherwise run one after another. At most 8 for one question.
+    would otherwise run one after another, such as the logs, the recent deploys and the error rate of one service. At most 8 for one question.
+    Set deep only for a check that reasons across several results. Keep for yourself anything that changes something and any read that depends
+    on another's answer. A report says what its helper read, so cite the steps it names, and run a check yourself before stating a cause that
+    rests on a helper's words alone.
   reads: true
   parameters:
     type: object
@@ -725,10 +748,13 @@ run_helpers:
 make_plan:
   live: true
   description: >-
-    Make a plan for a request that takes more than one step, before the first one, such as a release, a migration or a fix across systems. The
-    person sees it as a checklist that moves as you update it. Each change carries its undo, written now. A plan that changes anything ends with
-    a check step that reads health, error rate and latency against normal. Give run_at only when the person asked for it to happen at a later
-    time: the plan then waits for them to approve it, and at that time Halon reads how things stand and runs it as them.
+    Make a plan for a request that takes more than one step or spans more than one system, before the first step, such as a release, a migration
+    or a fix across systems. A clear request about one system that takes one step needs none, and a request that could mean more than one thing
+    is settled with the person first. Give the goal in the person's words and a step per action naming where it happens, then say the plan back
+    in two short lines and start, since each change asks the person when it runs. The person sees it as a checklist that moves as you update it.
+    Each change carries its undo, written now. A plan that changes anything ends with a check step that reads health, error rate and latency against
+    normal. Give run_at only when the person asked for it to happen at a later time: the plan then waits for them to approve it, and at that time
+    Halon reads how things stand and runs it as them. A time inside a freeze is refused, so offer one after it.
   parameters:
     type: object
     properties:
@@ -780,9 +806,12 @@ update_plan:
   live: true
   description: >-
     Update a plan as you work: mark a step running before you start it, and done, failed or skipped once it ends, with what happened. A failed
-    step says why, quoting the provider. A done check says what you read against normal and whether the changes worked as verdict. A change that
-    fails, or a check that finds the changes did not work, stops the plan, and the person is offered Retry and Undo. Give revise to replace every
-    step not started yet when the plan has to change.
+    step says why, quoting the provider. A done check says what you read against normal and whether the changes worked as verdict. A check reads,
+    for the minutes since the change, how what it touched stands with resource_status and its error rate and p95 latency with run_key_query, which
+    compares each with normal, and is could_not_check, naming what is missing, when nothing connected can tell. A change that fails part way stops
+    there: say what is done, what failed and why, quoting the provider, and what has not started, and offer to retry or undo. A change that fails,
+    or a check that finds the changes did not work, stops the plan, and the person is offered Retry and Undo. Give revise to replace every step
+    not started yet when the plan has to change.
   parameters:
     type: object
     properties:
@@ -901,7 +930,9 @@ run_runbook:
     Run a saved runbook that has tool steps, such as Release Firefight, by its name, slug or another name it goes by (search_runbooks says which
     are runnable). First tell the person what it will do and which inputs it uses, and ask for any input it has no default for. The person confirms
     the whole run before anything happens. Each step runs as them with their permissions, the run stops at the first step that is refused, waits
-    for an approval or fails, and once every step went through its watch starts and reports back here.
+    for an approval or fails, and once every step went through its watch starts and reports back here. When a request matches a saved runbook,
+    such as a release or a rollback, run it rather than doing its steps one by one. When the person has you do the same multi-step task again,
+    offer to save it as a runbook they can ask for by name.
   confirms: true
   parameters:
     type: object
@@ -925,7 +956,9 @@ start_watch:
     direct messages, with the reason and what the logs show when something fails, and where it leaves the purpose. Give it the steps in order.
     A read that finds nothing to follow, such as a run that never shows up, is handed back to you to repair with repair_watch. The time limit
     is learned from run history (twice the usual, at most 24 hours). Pass minutes only when the person asked for a limit, and expected_minutes
-    only from memory when run history has none. Say what it answers about the limit.
+    only from memory when run history has none. Say what it answers about the limit. Anything you start that keeps running, such as a workflow,
+    a build, a deploy or a test run, is yours to follow: start a watch on it in the same turn, with its purpose. When the person starts something
+    that takes a while, offer to watch it for them.
   parameters:
     type: object
     properties:
@@ -1127,7 +1160,8 @@ start_investigation:
   description: >-
     Start an investigation, only when the person asks for one. It needs no incident. It runs on its own, posts what it finds here, and on an incident
     its steps are followed in the incident's channel. Hand over what the person told you: what is failing, roughly when it started, any names
-    and any error text. Ask once when it started if nobody has said, and accept not knowing as an answer.
+    and any error text. Ask once when it started if nobody has said, and accept not knowing as an answer. When an investigation finished without
+    checking something it can reach now, such as a tool granted since, offer to run it again and start it yourself once the person agrees.
   parameters:
     type: object
     properties:
@@ -1377,7 +1411,7 @@ list_integrations:
     What can be connected to Firefight and what already is, by category. Without a category, one line per category saying what is connected in
     it, so you can ask the person which they want. With a category, every provider in it and where it stands. The person is shown that as a table
     they connect from, so do not list the providers again in your reply. Connecting happens there, never in the chat: never ask for or accept
-    a key, token or password. Docs: https://firefight.app/docs/api/mcp-server.md
+    a key, token or password. When one is pasted, say it was not used and show this table. Docs: https://firefight.app/docs/api/mcp-server.md
   reads: true
   parameters:
     properties:

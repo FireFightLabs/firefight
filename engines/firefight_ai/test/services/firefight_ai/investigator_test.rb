@@ -10,49 +10,27 @@ class FirefightAi::InvestigatorTest < ActiveSupport::TestCase
     FirefightAi::AgentLoop.any_instance.stubs(:run).returns(:outcome)
   end
 
-  test "a fresh run is told how to work and handed the facts" do
+  test "a fresh run is told the manual and how a run works, and handed the facts with how to read them" do
     chat = chat_double(messages: [])
     instructions = nil
     chat.expects(:with_instructions).with { |text| instructions = text }
     chat.expects(:add_message).with { |message| @opening = message[:content] }
 
-    investigator.run(chat: chat, tools: [], seed_pack: @seed_pack, budget: budget, answered: -> { false })
+    investigator.run(chat: chat, tools: [], seed_pack: @seed_pack.merge("resources" => [ { "name" => "web" } ]), budget: budget, answered: -> { false })
 
-    assert_match "conclude", instructions
-    assert_match FirefightAi::Evidence::RULE, instructions
+    assert instructions.start_with?(FirefightAi::Investigator::ROLE)
+    assert_includes instructions, FirefightAi::Investigator::RUN
+    assert_includes instructions, FirefightAi::Manual::RUN_TOOLS
     assert_match "INC-001", @opening
+    assert_includes @opening, FirefightAi::Facts::READING.fetch("resources")
   end
 
-  test "a run reads a file a responder shared as untrusted evidence, the way a chat does" do
-    assert_includes FirefightAi::Investigator.system_prompt, FirefightAi::Evidence::FILE_RULE
-  end
+  test "a run cites steps, records its theories and ends only with conclude" do
+    run = FirefightAi::Investigator::RUN
 
-  test "a run is told to look before asking and to find a resource on the map before any provider tool" do
-    prompt = FirefightAi::Investigator.system_prompt
-
-    assert_includes prompt, FirefightAi::LookFirstRule::RULE
-    assert_includes prompt, FirefightAi::LookFirstRule::MAP_RULE
-    assert_includes prompt, FirefightAi::LookFirstRule::CONNECTION_RULE
-    assert_includes prompt, FirefightAi::LookFirstRule::CHANGED_RULE
-    assert_includes prompt, FirefightAi::LookFirstRule::CAUSE_RULE
-    assert_includes prompt, FirefightAi::NormalRule::RULE
-  end
-
-  # Seen in a real chat, Halon searched the web and guessed a provider's path three times for a call that does not exist.
-  test "a run reads the provider's own guides before the web, and never retries a guessed call that answered 404 or 405" do
-    prompt = FirefightAi::Investigator.system_prompt
-
-    assert_includes prompt, FirefightAi::LookFirstRule::API_GUIDE_RULE
-    assert_includes prompt, FirefightAi::LookFirstRule::GUESSED_CALL_RULE
-    assert_match "Before reading a connected provider, load the skill that fits what you are checking with use_skill", prompt
-    assert_match "names the provider's guides, such as its API reference, which use_skill reads with reference", prompt
-  end
-
-  test "a run is told to start from the resources the facts list, with the map tools" do
-    prompt = FirefightAi::Investigator.system_prompt
-
-    assert_includes prompt, FirefightAi::Investigator::MAP_START
-    assert_match "Start from them with the map tools: get_resource for one", prompt
+    assert_match "Every tool result carries a step number", run
+    assert_match "record_hypothesis as you form it", run
+    assert_match "conclude ends the run", run
   end
 
   test "a resumed run is not handed the facts a second time" do

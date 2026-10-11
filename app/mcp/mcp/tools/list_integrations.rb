@@ -9,7 +9,8 @@ module Mcp
                   "one line per category saying what is connected in it, so you can ask the person which they want. " \
                   "With a category, every provider in it and where it stands. The person is shown that as a table " \
                   "they connect from, so do not list the providers again in your reply. Connecting happens there, " \
-                  "never in the chat: never ask for or accept a key, token or password. Docs: #{Docs::MCP_SERVER}"
+                  "never in the chat: never ask for or accept a key, token or password. When one is pasted, say it was " \
+                  "not used and show this table. Docs: #{Docs::MCP_SERVER}"
       annotations(**READ_ONLY)
       own_words
       choice :category, from: ->(_workspace) { IntegrationProvider.category_list }
