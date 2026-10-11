@@ -15,16 +15,18 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     @previous_env.each { |name, value| value.nil? ? ENV.delete(name) : ENV[name] = value }
   end
 
-  test "a run queues every scenario in the bench's own workspace, on the deployment's model, and a second run finds the same workspace" do
+  test "a run queues every scenario three times in the bench's own workspace, on the deployment's model, and a second run finds the same workspace" do
     run = nil
-    assert_enqueued_jobs Conversation::BenchCase.scenarios.size, only: HalonBenchCaseJob do
+    assert_enqueued_jobs Conversation::BenchCase.scenarios.size * Conversation::BenchRun::DEFAULT_REPEATS, only: HalonBenchCaseJob do
       run = Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR, by: users(:alice))
     end
 
     workspace = run.results.first.workspace
     assert_equal Conversation::Bench::WORKSPACE_NAME, workspace.name
     assert_empty workspace.workspace_memberships
-    assert_equal Conversation::BenchCase.scenarios.map(&:key).sort, run.results.pluck(:scenario).sort
+    assert_equal Conversation::BenchCase.scenarios.map(&:key).sort, run.results.distinct.pluck(:scenario).sort
+    assert_equal [ 1, 2, 3 ], run.results.distinct.pluck(:attempt).sort
+    assert_equal [ Conversation::BenchRun::DEFAULT_REPEATS, Conversation::BenchRun::DEFAULT_BUDGET_MICROS ], [ run.repeats, run.budget_micros ]
     assert_equal [ "gpt-4o", users(:alice) ], [ run.model, run.started_by ]
     assert_equal FirefightAi::Responder.new(workspace, inferable: nil, model: FirefightAi::ModelChoice.new(model: "gpt-4o")).prompt_version, run.prompt_version
     assert_equal [ workspace.id ], Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR).results.distinct.pluck(:workspace_id)
@@ -39,8 +41,8 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     result.reload
 
     assert_equal Conversation::BenchResult::STATUS_SCORED, result.status
-    assert_equal [ 1.0, 0.5, 1.0, 1.0 ], [ result.right, result.moved_forward, result.asked_when_needed, result.cost ]
-    assert_equal 0.875, result.total
+    assert_equal [ 1.0, 0.5, 1.0, 1.0, 1.0 ], [ result.right, result.moved_forward, result.asked_when_needed, result.cost, result.cited ]
+    assert_equal [ 0.833, 0.875 ], [ result.quality, result.total ]
     assert_equal "Run 412 failed at its migrate step, see https://example.test/runs/412.", result.answer
     assert_equal "It found the failed step.", result.reason
     assert result.bench_run.reload.status == Conversation::BenchRun::STATUS_FINISHED
@@ -55,7 +57,7 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     judged(outcome: FirefightAi::Schemas::ReplayVerdict::REACHED, moved_forward: FirefightAi::Schemas::ReplayVerdict::YES)
     reported = []
 
-    run = Conversation::Bench.run!(trigger: Conversation::BenchRun::TRIGGER_CI, label: "abc123") { |result| reported << result.scenario }
+    run = Conversation::Bench.run!(trigger: Conversation::BenchRun::TRIGGER_CI, label: "abc123", repeats: 1) { |result| reported << result.scenario }
 
     assert_equal [ "release" ], reported
     assert_equal [ Conversation::BenchRun::STATUS_FINISHED, Conversation::BenchRun::TRIGGER_CI, "abc123" ], [ run.status, run.trigger, run.label ]
@@ -105,6 +107,56 @@ class Conversation::BenchTest < ActiveSupport::TestCase
     assert_equal Conversation::BenchResult::STATUS_SCORED, result.status
     assert_equal "Waiting for the person to confirm rollback.", result.answer
     assert_equal 1, result.confirmations
+  end
+
+  test "every scenario's first replay runs before any second, so a run stopped early still covers each scenario once" do
+    Conversation::BenchCase.stubs(:scenarios).returns(%w[b_case a_case].map { |key| bench_case(key) })
+
+    run = Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_OPERATOR, repeats: 2)
+    queued = enqueued_jobs.select { |job| job[:job] == HalonBenchCaseJob }.map { |job| Conversation::BenchResult.find(job[:args].first) }
+
+    assert_equal [ [ 1, "a_case" ], [ 1, "b_case" ], [ 2, "a_case" ], [ 2, "b_case" ] ], queued.map { |result| [ result.attempt, result.scenario ] }
+    assert_equal 4, run.results.count
+  end
+
+  test "a run that reaches its budget stops cleanly, settling the replays it never reached, and keeps what scored before" do
+    first = one_scenario_run
+    run = first.bench_run
+    run.update!(budget_micros: 10_000)
+    second = run.results.create!(workspace: first.workspace, scenario: "release", title: "Release", attempt: 2)
+    script(reply("Run 412 failed at its migrate step, see https://example.test/runs/412."))
+    judged(outcome: FirefightAi::Schemas::ReplayVerdict::REACHED, moved_forward: FirefightAi::Schemas::ReplayVerdict::YES)
+
+    Conversation::Bench.run_case!(first)
+    Inference.create!(workspace: first.workspace, feature: FirefightAi::ReplayJudge::FEATURE, provider: "openai", model: "gpt-4o",
+                      inferable: first, cost_micros: 10_000, status: Inference::STATUS_SUCCESS, paid_by: Inference::PAID_BY_OPERATOR)
+    Conversation::Rehearsal.expects(:replay!).never
+    Conversation::Bench.run_case!(second)
+
+    assert_equal Conversation::BenchResult::STATUS_SCORED, first.reload.status
+    assert_equal [ Conversation::BenchResult::STATUS_ERRORED, run.reload.budget_reason ], [ second.reload.status, second.reason ]
+    assert_equal "The run reached its budget of $0.01, so the replays after that point were not run or judged. What scored before it stands.", run.stopped_reason
+    assert_equal Conversation::BenchRun::STATUS_FINISHED, run.status
+  end
+
+  test "a replay never spends more than what is left of its run's budget" do
+    result = one_scenario_run
+    result.bench_run.update!(budget_micros: 1_000_000)
+    Conversation::Rehearsal.expects(:replay!).with { |_case, max_spend_cents:, **| max_spend_cents == 100 }.raises(Timeout::Error)
+
+    Conversation::Bench.run_case!(result)
+  end
+
+  test "a judge left unset grades with Sonnet through OpenRouter, on the bench's own key" do
+    ENV.delete("HALON_BENCH_JUDGE_MODEL")
+    ENV.delete("HALON_BENCH_JUDGE_PROVIDER")
+    ENV["HALON_BENCH_OPENROUTER_API_KEY"] = "sk-bench-openrouter"
+
+    judge = Conversation::BenchKeys.judge
+
+    assert_equal [ "anthropic/claude-sonnet-5.5", "openrouter" ], [ judge.model, judge.provider ]
+  ensure
+    ENV.delete("HALON_BENCH_OPENROUTER_API_KEY")
   end
 
   test "an account that refuses the run stops it at once, and nothing more is replayed or judged" do
@@ -187,14 +239,18 @@ class Conversation::BenchTest < ActiveSupport::TestCase
 
   def one_scenario_run(tools: [ { "name" => "read_run", "description" => "Reads a run", "reads" => true } ],
                        answers: [ { "tool" => "read_run", "result" => "Run 412 failed at migrate. https://example.test/runs/412" } ])
-    bench_case = Conversation::BenchCase.from_hash({
+    Conversation::BenchCase.stubs(:scenarios).returns([ bench_case("release", tools: tools, answers: answers) ])
+    Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_TERMINAL, repeats: 1).results.sole
+  end
+
+  def bench_case(key, tools: [ { "name" => "read_run", "description" => "Reads a run", "reads" => true } ],
+                 answers: [ { "tool" => "read_run", "result" => "Run 412 failed at migrate. https://example.test/runs/412" } ])
+    Conversation::BenchCase.from_hash({
       "title" => "Release", "context" => "You are acting for Sam.", "turns" => [ "how did the release go?" ],
       "tools" => tools,
       "answers" => answers,
       "expect" => { "outcome" => "Run 412 failed at migrate", "next_step" => "Offer a retry", "evidence" => [ "runs/412" ] }
-    }, key: "release")
-    Conversation::BenchCase.stubs(:scenarios).returns([ bench_case ])
-    Conversation::Bench.start!(trigger: Conversation::BenchRun::TRIGGER_TERMINAL).results.sole
+    }, key: key)
   end
 
   def chat_with_one_lookup

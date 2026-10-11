@@ -1,5 +1,6 @@
 module Operator
-  # A chat bench run with how many scenarios it scored and the mean of each score.
+  # A chat bench run with how many scenarios it scored, the mean of each score over them, quality and cost apart, and
+  # how far apart its repeats lay.
   class HalonBenchRunSerializer < BaseSerializer
     object_as :row
 
@@ -53,8 +54,41 @@ module Operator
     type :number, optional: true
     def cost = row.means[:cost]
 
+    type :number, optional: true
+    def cited = row.means[:cited]
+
+    # The mean of right, moved forward and asked when needed, quality apart from cost.
+    type :number, optional: true
+    def quality = row.quality
+
+    # How often each scenario is replayed.
+    type :number
+    def repeats = row.run.repeats
+
+    # How far apart the run's whole passes lay, nil with fewer than two.
+    type :number, optional: true
+    def spread = row.spread
+
+    # Scenarios whose repeats lay within the agreement of each other, of those replayed more than once.
+    type :number
+    def agreeing = row.agreeing
+
+    type :number
+    def repeated = row.repeated
+
+    type :number
+    def agreement = Conversation::BenchRun::AGREEMENT
+
+    # What Halon's own model calls cost.
     type :number
     def spent_micros = row.spent_micros
+
+    type :number
+    def judge_spent_micros = row.judge_spent_micros
+
+    # What the run may spend on Halon and the judge together, nil for a run with no cap.
+    type :number, optional: true
+    def budget_micros = row.run.budget_micros
 
     type :string
     def created_at = row.run.created_at.utc.iso8601

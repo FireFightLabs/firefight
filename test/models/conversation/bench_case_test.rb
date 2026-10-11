@@ -68,44 +68,105 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
     refute answer.matches?("other", { "method" => "GET", "path" => "/runs/41" })
   end
 
-  test "an answer used up gives way to the next, and one that waits on an earlier call answers only once it ran" do
-    bench_case = build(answers: [
-      { "tool" => "read", "match" => { "path" => "/tokens/" }, "after" => { "tool" => "change", "match" => { "method" => "POST" } }, "result" => "revoked" },
+  test "an answer used up gives way to the next, and one that holds in another state answers once a change moved the world there" do
+    bench_case = build(world: { "token" => "active" }, answers: [
+      { "tool" => "read", "match" => { "path" => "/tokens/" }, "state" => { "token" => "revoked" }, "result" => "revoked" },
       { "tool" => "read", "times" => 1, "result" => "running" },
-      { "tool" => "read", "result" => "failed" }
+      { "tool" => "read", "result" => "failed" },
+      { "tool" => "change", "match" => { "method" => "POST" }, "sets" => { "token" => "revoked" }, "result" => "Rotated." }
     ])
-    used = Hash.new(0)
+    world = Conversation::BenchCase::World.new(bench_case)
 
-    first, index = bench_case.answer_for("read", { "path" => "/runs/1" }, used)
-    used[index] += 1
-    assert_equal "running", first.result
-    assert_equal "failed", bench_case.answer_for("read", { "path" => "/runs/1" }, used).first.result
-    assert_equal "failed", bench_case.answer_for("read", { "path" => "/tokens/1" }, used, [ [ "change", { "method" => "GET" } ] ]).first.result
-    assert_equal "revoked", bench_case.answer_for("read", { "path" => "/tokens/1" }, used, [ [ "change", { "method" => "POST" } ] ]).first.result
+    assert_equal "running", world.answer!("read", { "path" => "/runs/1" }).result
+    assert_equal "failed", world.answer!("read", { "path" => "/runs/1" }).result
+    assert_equal "failed", world.answer!("read", { "path" => "/tokens/1" }).result
+    assert_equal "Rotated.", world.answer!("change", { "method" => "POST" }).result
+    assert_equal "revoked", world.peek("read", { "path" => "/tokens/1" }).result
+  end
+
+  # Seen on the diagnosis of the bench, a release run read as running through two tools, each with its own count, so
+  # Halon was told running twice.
+  test "two tools reading one run read one world, so the first read moves both on" do
+    release = Conversation::BenchCase.scenario("release_watch_followed_nothing")
+    world = Conversation::BenchCase::World.new(release)
+
+    assert_match "running", world.answer!("run_history", { "run" => "4182" }).result
+    assert_match "\"status\":\"failed\"", world.answer!("northflank_api_request", { "method" => "GET", "path" => "/v1/projects/shop/workflows/release/runs/4182" }).result
+    assert_match "failed at 14:26", world.answer!("run_history", { "run" => "4182" }).result
   end
 
   # The harder scenarios answer a change by what it left, so a model that acts before reading sees its mistake.
   test "a rerun fails until the job reads the rotated password, and a rollback past a migration breaks every order" do
     invoices = Conversation::BenchCase.scenario("hard_05_early_detail_decides")
     rerun = { "method" => "POST", "path" => "/v1/projects/shop/jobs/invoices/runs" }
+    world = Conversation::BenchCase::World.new(invoices)
 
-    assert_match "failed", invoices.answer_for("northflank_api_request", rerun, Hash.new(0)).first.result
-    relinked = [ [ "northflank_api_request", { "method" => "PATCH", "path" => "/v1/projects/shop/jobs/invoices/runtime-environment" } ] ]
-    assert_match "succeeded", invoices.answer_for("northflank_api_request", rerun, Hash.new(0), relinked).first.result
+    assert_match "failed", world.peek("northflank_api_request", rerun).result
+    world.answer!("northflank_api_request", { "method" => "PATCH", "path" => "/v1/projects/shop/jobs/invoices/runtime-environment" })
+    assert_match "succeeded", world.peek("northflank_api_request", rerun).result
 
     refunds = Conversation::BenchCase.scenario("hard_09_rollback_past_a_migration")
-    assert_match "refunds_controller.rb:58", refunds.answer_for("search_logs", { "resource" => "api" }, Hash.new(0)).first.result
-    rolled_back = [ [ "rollback", { "resource" => "api", "to" => "d-497" } ] ]
-    assert_match "Unknown column", refunds.answer_for("search_logs", { "resource" => "api" }, Hash.new(0), rolled_back).first.result
+    world = Conversation::BenchCase::World.new(refunds)
+    assert_match "refunds_controller.rb:58", world.peek("search_logs", { "resource" => "api" }).result
+    world.answer!("rollback", { "resource" => "api", "to" => "d-497" })
+    assert_match "Unknown column", world.peek("search_logs", { "resource" => "api" }).result
   end
 
   test "a tool's default answers what nothing recorded, and lists the tools it offers when asked to" do
     bench_case = build(tools: [ tool("open_tools", "default" => "Open already:\n%{tools}"), tool("read") ])
+    world = Conversation::BenchCase::World.new(bench_case)
 
-    said = bench_case.answer_for("open_tools", {}, Hash.new(0)).first.result
+    assert_match "- read: Reads it", world.peek("open_tools", {}).result
+    assert_nil world.peek("read", {})
+  end
 
-    assert_match "- read: Reads it", said
-    assert_nil bench_case.answer_for("read", {}, Hash.new(0))
+  test "a tool that reads like another answers what that one would, so two reads of the same deploys agree" do
+    bench_case = build(tools: [ tool("what_changed", "reads_like" => "recent_deploys", "default" => "Nothing changed."), tool("recent_deploys") ],
+                       answers: [ { "tool" => "recent_deploys", "match" => { "resource" => "checkout" }, "result" => "checkout d-77 at 14:05" } ])
+    world = Conversation::BenchCase::World.new(bench_case)
+
+    assert_equal "checkout d-77 at 14:05", world.peek("what_changed", { "resource" => "checkout" }).result
+    assert_equal "Nothing changed.", world.peek("what_changed", { "resource" => "api" }).result
+  end
+
+  # Seen on the diagnosis of the bench, a scenario answered any GET with the same list and any script with "Done.".
+  test "an answer to a general tool must say which requests it answers, and a call nothing answers finds nothing" do
+    general = tool("api", "reads" => false, "confirms" => true, "reads_when" => { "method" => [ "GET" ] }, "request" => "path")
+
+    error = assert_raises(Conversation::BenchCase::Invalid) { build(tools: [ general ], answers: [ { "tool" => "api", "match" => { "method" => "GET" }, "result" => "[]" } ]) }
+    assert_equal "An answer to api must match its path, so it never answers a request it was not written for.", error.message
+
+    bench_case = build(tools: [ general ], answers: [ { "tool" => "api", "match" => { "path" => "/runs/" }, "result" => "Run 4 failed." } ])
+    assert_equal Conversation::BenchCase::NOTHING_FOUND, bench_case.unscripted("api", { "method" => "GET", "path" => "/audit" })
+    assert_equal Conversation::BenchCase::NOTHING_CHANGED, bench_case.unscripted("api", { "method" => "POST", "path" => "/audit" })
+  end
+
+  test "every scenario's general tools have answers that each name the requests they answer" do
+    Conversation::BenchCase.scenarios.each do |scenario|
+      scenario.answers.each do |answer|
+        field = scenario.tool(answer.tool).request
+        assert answer.match.key?(field), "#{scenario.key} answers #{answer.tool} without matching its #{field}" if field
+      end
+    end
+  end
+
+  test "what the person wants, agrees to and turns down is read once for the chat and turn by turn" do
+    bench_case = build(person: { "approves" => [ "/pull request/" ], "answers" => [ { "asked" => "/repository/", "say" => "larkspur/shop" } ], "otherwise" => "No idea." },
+                       turns: [ { "said" => "go", "refuses" => [ "/roll ?back/" ], "sets" => { "errors" => "climbing" } } ])
+
+    assert_equal [ "/pull request/" ], bench_case.person.approves
+    assert_equal "larkspur/shop", bench_case.person.answers.sole.say
+    assert_equal [ "/roll ?back/" ], bench_case.turns.sole.refuses
+    assert_equal({ "errors" => "climbing" }, bench_case.turns.sole.sets)
+  end
+
+  # Every model read "workspace" as a Firefight workspace, so the scenario now says it is about the team's own app.
+  test "the signup scenario is about the team's own app, never a Firefight workspace" do
+    signup = Conversation::BenchCase.scenario("duplicate_workspace_signup")
+    said = [ signup.title, signup.context, *signup.turns.map(&:said), signup.expect.outcome ].join(" ")
+
+    assert_match "shop app", said
+    assert_no_match(/workspace/i, [ signup.title, *signup.turns.map(&:said), signup.expect.outcome ].join(" "))
   end
 
   test "a call is a read when its tool only reads or its arguments say so, and only a change waits for the person" do
@@ -124,12 +185,14 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
     assert_equal "A decision is approve or deny, not maybe.", error.message
   end
 
-  test "written back as a scenario it reads the same" do
-    bench_case = Conversation::BenchCase.scenario("sticks_with_no")
+  test "written back as a scenario it reads the same, its world and its person included" do
+    [ "sticks_with_no", "duplicate_workspace_signup" ].each do |key|
+      bench_case = Conversation::BenchCase.scenario(key)
 
-    again = Conversation::BenchCase.from_hash(bench_case.to_h, key: bench_case.key)
+      again = Conversation::BenchCase.from_hash(bench_case.to_h, key: bench_case.key)
 
-    assert_equal bench_case.to_h, again.to_h
+      assert_equal bench_case.to_h, again.to_h
+    end
   end
 
   private
@@ -138,7 +201,7 @@ class Conversation::BenchCaseTest < ActiveSupport::TestCase
     { "name" => name, "description" => "Reads it", "reads" => true }.merge(extra)
   end
 
-  def build(answers: [], tools: [ tool("read"), tool("change", "reads" => false, "confirms" => true) ], turns: [ "go" ])
-    Conversation::BenchCase.from_hash({ "title" => "Test", "turns" => turns, "tools" => tools, "answers" => answers }, key: "test")
+  def build(answers: [], tools: [ tool("read"), tool("change", "reads" => false, "confirms" => true) ], turns: [ "go" ], world: {}, person: {})
+    Conversation::BenchCase.from_hash({ "title" => "Test", "turns" => turns, "tools" => tools, "answers" => answers, "world" => world, "person" => person }, key: "test")
   end
 end

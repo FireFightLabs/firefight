@@ -3,16 +3,24 @@ import { TONE_CLASSES, type Tone } from "@/pages/operator/lib/tone"
 import type { OperatorHalonBenchRun, OperatorHalonBenchScenario } from "@/types/serializers"
 
 type ScenarioStatus = OperatorHalonBenchScenario["status"]
-type Dimension = "right" | "movedForward" | "askedWhenNeeded" | "cost"
+type Dimension = "right" | "movedForward" | "askedWhenNeeded" | "cost" | "cited"
 
-// The four things a bench replay is scored on, in the order the page shows them.
-// short is the column heading where a table has no room for the label.
+// What a bench replay is scored on, in the order the page shows them. The first three make up quality, and cost and
+// citing are apart. short is the column heading where a table has no room for the label.
 export const DIMENSIONS: { key: Dimension; label: string; short: string; note: string }[] = [
-  { key: "right", label: "Right", short: "Right", note: "the right outcome, with evidence it links" },
+  { key: "right", label: "Right", short: "Right", note: "the right answer, and nothing a right run never does" },
   { key: "movedForward", label: "Moved forward", short: "Forward", note: "proposed and took the next step unprompted" },
   { key: "askedWhenNeeded", label: "Asked when needed", short: "Asked", note: "confirmed changes only, asked nothing it could look up" },
   { key: "cost", label: "Cost", short: "Cost", note: "within the scenario's ceiling" },
+  { key: "cited", label: "Cited", short: "Cited", note: "linked the evidence that shows its answer" },
 ]
+
+export const QUALITY_NOTE = "right, moved forward and asked when needed"
+
+// How far apart a scenario's repeats, or a run's passes, landed. Nothing to compare with fewer than two.
+export function spreadText(spread: number | null | undefined): string {
+  return spread === null || spread === undefined ? "one replay" : `spread ${spread.toFixed(2)}`
+}
 
 const STATUS_LABELS: Record<ScenarioStatus, string> = {
   [OPERATOR_BENCH_SCENARIO_STATUSES.PENDING]: "Replaying",

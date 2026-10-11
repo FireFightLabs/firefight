@@ -1,5 +1,6 @@
-# One scenario, or one real chat, replayed in a bench run, with how it scored. It owns the replay's chat with the model,
-# which nobody in the workspace sees.
+# One replay of a scenario, or of one real chat, in a bench run, with how it scored. A run replays each scenario a few
+# times, each its own result numbered by attempt. It owns the replay's chat with the model, which nobody in the
+# workspace sees.
 class Conversation::BenchResult < ApplicationRecord
   self.table_name = "conversation_bench_results"
 
@@ -22,6 +23,7 @@ class Conversation::BenchResult < ApplicationRecord
 
   validates :status, inclusion: { in: STATUSES }
   validates :scenario, :title, presence: true
+  validates :attempt, numericality: { greater_than: 0 }
 
   scope :scored, -> { where(status: STATUS_SCORED) }
   scope :stale, lambda {
@@ -30,7 +32,7 @@ class Conversation::BenchResult < ApplicationRecord
   }
 
   def score
-    Conversation::BenchScore.new(right: right, moved_forward: moved_forward, asked_when_needed: asked_when_needed, cost: cost)
+    Conversation::BenchScore.new(right: right, moved_forward: moved_forward, asked_when_needed: asked_when_needed, cost: cost, cited: cited)
   end
 
   # Starts the replay once, so a retried job never runs and pays for the same scenario twice.

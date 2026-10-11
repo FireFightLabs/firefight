@@ -16,14 +16,34 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
     score = score_of(transcript(confirmations: [ :change ], called: [ "start_watch" ], replies: [ "Run https://example.test/runs/4 failed." ]),
                      verdict(questions: 1), expect(calls: [ "start_watch" ], evidence: [ "runs/4" ]), spent_cents: 10)
 
-    assert_equal [ 1.0, 1.0, 1.0, 1.0 ], score.to_h.values
-    assert_equal 1.0, score.total
+    assert_equal [ 1.0, 1.0, 1.0, 1.0, 1.0 ], score.to_h.values
+    assert_equal [ 1.0, 1.0 ], [ score.quality, score.total ]
   end
 
-  test "an outcome reached without citing what shows it is worth half" do
+  # On the diagnosis of the bench, 24 right answers were halved for a missing link.
+  test "a right answer without the link that shows it is still right, and citing is scored on its own" do
     score = score_of(transcript(replies: [ "It failed." ]), verdict, expect(evidence: [ "runs/4" ]))
 
-    assert_equal 0.5, score.right
+    assert_equal [ 1.0, 0.0 ], [ score.right, score.cited ]
+    assert_equal 1.0, score.total
+    assert_nil score_of(transcript, verdict, expect).cited
+  end
+
+  test "quality is right, moved forward and asked when needed, apart from cost, and the total keeps all four" do
+    score = score_of(transcript, verdict(moved_forward: FirefightAi::Schemas::ReplayVerdict::PARTLY), expect, spent_cents: 250)
+
+    assert_in_delta (1.0 + 0.5 + 1.0) / 3, score.quality, 0.001
+    assert_equal 0.5, score.cost
+    assert_equal 0.75, score.total
+  end
+
+  # Seen on the diagnosis of the bench, a model that rolled back a deploy that did not cause the outage was judged right.
+  test "a call the scenario says a right run never makes is never right, whatever the judge said" do
+    score = score_of(transcript(called: [ "rollback" ]), verdict, expect(never_calls: [ "rollback" ]))
+
+    assert_equal 0.0, score.right
+    assert_includes Conversation::BenchScore.notes(transcript: transcript(called: [ "rollback" ]), verdict: verdict, expect: expect(never_calls: [ "rollback" ])),
+                    "Called rollback, which this scenario should never reach, so it was not right."
   end
 
   test "right is not scored when nobody wrote down the outcome, and the total is the mean of the rest" do
@@ -31,6 +51,16 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
 
     assert_nil score.right
     assert_equal 1.0, score.total
+  end
+
+  test "several replays of one scenario are taken together score by score, leaving out a score none of them has" do
+    scores = [ [ 1.0, 0.5 ], [ 0.5, 1.0 ] ].map do |right, cost|
+      Conversation::BenchScore.new(right: right, moved_forward: 1.0, asked_when_needed: 1.0, cost: cost)
+    end
+
+    mean = Conversation::BenchScore.mean(scores)
+
+    assert_equal [ 0.75, 1.0, 1.0, 0.75, nil ], mean.to_h.values
   end
 
   test "moving forward counts the judge and the calls taking the next step means, and a call it should never reach" do
@@ -64,7 +94,7 @@ class Conversation::BenchScoreTest < ActiveSupport::TestCase
       "Asked 1 question it could have answered itself.",
       "Never called start_watch.",
       "Cited none of the evidence a right answer links to.",
-      "2 calls were not in the record, so the replay left it there."
+      "2 calls were not in the record, so nothing answered them."
     ], notes
     refute_match "/secret", notes.join
   end

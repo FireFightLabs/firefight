@@ -1,18 +1,18 @@
-# A tool in a replayed chat. It is offered exactly as the case describes it and answers from the case's record, so
+# A tool in a replayed chat. It is offered exactly as the case describes it and answers from the case's world, so
 # nothing outside Firefight is reached and only Halon's reasoning differs between two replays. A call that changes
 # something waits for the person as it would live, and a call that only reads never does. Firefight's own watch and plan
 # tools answer from the replay's state instead (Conversation::Rehearsal::State), so they show what Halon changed.
 class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
-  # used, ran and state are shared by every tool in the replay: how often each answer was given, each call made so far,
-  # and the watches and plans made in it.
-  def initialize(definition, bench_case:, chat:, used:, ran:, state:)
+  # world and state are shared by every tool in the replay, the scenario's world as the replay moved it and the watches
+  # and plans made in it. unscripted collects the ids of calls nothing in the case answered.
+  def initialize(definition, bench_case:, chat:, world:, state:, unscripted:)
     super()
     @definition = definition
     @bench_case = bench_case
     @chat = chat
-    @used = used
-    @ran = ran
+    @world = world
     @state = state
+    @unscripted = unscripted
   end
 
   def name = @definition.name
@@ -38,20 +38,24 @@ class Conversation::Rehearsal::RecordedTool < RubyLLM::Tool
 
   def call(tool_call: nil, **arguments)
     asked = Conversation::Rehearsal.asked(arguments)
-    if @state.handles?(name)
-      @ran << [ name, asked ]
-      return @state.call(name, asked)
-    end
+    return @state.call(name, asked) if @state.handles?(name)
 
-    found, index = @bench_case.answer_for(name, asked, @used, @ran)
-    @ran << [ name, asked ]
-    unless found
-      @chat.mark_failed!(tool_call.id) if tool_call
-      return Conversation::BenchCase::NOT_RECORDED
-    end
+    found = @world.answer!(name, asked)
+    return unscripted(tool_call, asked) unless found
 
-    @used[index] += 1 if index
     @chat.mark_failed!(tool_call.id) if found.failed && tool_call
     found.result
+  end
+
+  private
+
+  # A read that finds nothing is an answer, not a failure. A change nothing answers, or a call a real chat never made, failed.
+  def unscripted(tool_call, asked)
+    said = @bench_case.unscripted(name, asked)
+    if tool_call
+      @unscripted << tool_call.id
+      @chat.mark_failed!(tool_call.id) unless said == Conversation::BenchCase::NOTHING_FOUND
+    end
+    said
   end
 end

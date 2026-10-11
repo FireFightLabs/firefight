@@ -24,7 +24,8 @@ function modelOption(model: OperatorHalonRegressionModel): SearchableSelectOptio
 }
 
 // Starts a measuring run, the regression set or the chat bench, on a model the operator picks from the priced
-// registry, which loads when the picker opens. Left on Halon's model it tests the prompt as deployed.
+// registry, which loads when the picker opens. Left on Halon's model it tests the prompt as deployed. A run that takes
+// more than a model shows its own fields as children and sends their values in extra.
 export function ModelRunDialog({
   open,
   onClose,
@@ -32,6 +33,8 @@ export function ModelRunDialog({
   description,
   action,
   models,
+  extra,
+  children,
 }: {
   open: boolean
   onClose: () => void
@@ -39,13 +42,15 @@ export function ModelRunDialog({
   description: ReactNode
   action: string
   models?: OperatorHalonRegressionModel[]
+  extra?: Record<string, string | null>
+  children?: ReactNode
 }) {
   const [chosenKey, setChosenKey] = useState<string | null>(null)
   const { busy, post } = useAction()
   const chosen = (models ?? []).find((model) => modelKey(model) === chosenKey) ?? null
 
   function run() {
-    post(action, { model: chosen?.id ?? null, provider: chosen?.provider ?? null })
+    post(action, { ...extra, model: chosen?.id ?? null, provider: chosen?.provider ?? null })
   }
 
   return (
@@ -69,6 +74,7 @@ export function ModelRunDialog({
           />
           <p className="text-muted-foreground text-xs">Leave it on Halon&apos;s model to test the prompt as deployed.</p>
         </div>
+        {children}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel

@@ -27,6 +27,8 @@ tools:
   - make_plan
   - update_plan
   - finish_plan
+world:
+  run_4182: running
 answers:
   - tool: search_runbooks
     result: |-
@@ -46,7 +48,8 @@ answers:
       [migrate] 14:26:08 step migrate failed, steps deploy-web and deploy-worker skipped
   - tool: northflank_api_request
     match: { method: GET, path: /runs\/4182/ }
-    times: 1
+    state: { run_4182: running }
+    sets: { run_4182: failed }
     result: |-
       {"id":"4182","workflow":"release","status":"running","steps":[{"name":"build","status":"succeeded"},{"name":"migrate","status":"running"},{"name":"deploy-web","status":"waiting"},{"name":"deploy-worker","status":"waiting"}],"url":"https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182"}
   - tool: northflank_api_request
@@ -63,7 +66,8 @@ answers:
       No runs of release on web. Runs on web are its deploys only, the latest d-112 on October 8.
   - tool: run_history
     match: { run: "4182" }
-    times: 1
+    state: { run_4182: running }
+    sets: { run_4182: failed }
     result: |-
       Run 4182 of release in project shop: running since 14:19. build passed, migrate running, deploy-web waiting, deploy-worker waiting. https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4182
   - tool: run_history

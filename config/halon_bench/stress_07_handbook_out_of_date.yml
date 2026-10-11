@@ -31,7 +31,7 @@ answers:
     result: |-
       {"id":"4190","status":"running","steps":[{"name":"build","status":"running"}],"url":"https://app.northflank.com/t/larkspur/project/shop/workflows/release/runs/4190"}
   - tool: northflank_api_request
-    match: { method: GET }
+    match: { method: GET, path: "/workflows\\/release\\/runs\\/?$/" }
     result: |-
       {"runs":[{"id":"4177","status":"succeeded"},{"id":"4170","status":"succeeded"},{"id":"4163","status":"succeeded"}],"note":"release has run every release since 2026-10-01"}
   - tool: northflank_api_request

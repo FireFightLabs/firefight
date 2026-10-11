@@ -31,9 +31,10 @@ answers:
     result: |-
       gpu-batch-1 to gpu-batch-6: created 2026-10-06 09:12 by Jo Park from template "embedding-backfill". Each idle since 2026-10-07 02:30, 0% GPU. https://app.northflank.com/t/larkspur/project/ml-sandbox/services
   - tool: northflank_api_request
-    match: { method: POST }
+    match: { method: POST, path: "/ml-sandbox|gpu-batch|pause/" }
     result: Paused.
   - tool: northflank_api_request
+    match: { method: GET, path: "/projects\\/?$/" }
     result: |-
       {"projects":["shop","ml-sandbox"]}
   - tool: search_activity

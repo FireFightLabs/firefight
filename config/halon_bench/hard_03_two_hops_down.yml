@@ -20,6 +20,8 @@ tools:
   - query_metrics
   - northflank_api_request
   - rollback
+world:
+  search_cache: full
 answers:
   - tool: get_resource_map
     match: { resource: /search-cache/ }
@@ -36,6 +38,20 @@ answers:
   - tool: get_resource_map
     result: |-
       web (Northflank service) depends on search-api and checkout. search-api (Northflank service) depends on search-cache (Northflank Redis addon) and catalog (PlanetScale database). checkout depends on orders (PlanetScale database). Every service runs code from the GitHub repository larkspur/shop.
+  - tool: query_metrics
+    match: { resource: /search-cache/ }
+    state: { search_cache: relieved }
+    result: |-
+      search-cache since the change at 10:31: memory 640 MB of 1,024 MB, hit rate back to 93%, no commands rejected.
+  - tool: query_metrics
+    match: { resource: /search-api/ }
+    state: { search_cache: relieved }
+    result: |-
+      search-api since 10:31: latency_p95 130 ms, cpu 36%. requests steady at 2,300 a minute.
+  - tool: query_metrics
+    state: { search_cache: relieved }
+    result: |-
+      web since 10:31: latency_p95 on /search 220 ms. Other pages at their usual 180 ms.
   - tool: query_metrics
     match: { resource: /search-cache/ }
     result: |-
@@ -89,11 +105,18 @@ answers:
     result: |-
       {"name":"search-cache","type":"redis","version":"7.2","plan":"1GB","config":{"maxmemory-policy":"noeviction"},"memoryUsedPercent":100,"url":"https://app.northflank.com/t/larkspur/project/shop/addons/search-cache"}
   - tool: northflank_api_request
-    match: { method: GET }
+    match: { method: GET, path: "/services\\/?$|addons\\/?$|projects\\/shop\\/?$/" }
     result: |-
       {"services":[{"name":"web","deployment":"d-310"},{"name":"search-api","deployment":"d-77"}],"addons":[{"name":"search-cache","type":"redis"}]}
   - tool: northflank_api_request
+    match: { method: "/POST|PUT|PATCH/", path: "/search-cache|search-api/" }
+    sets: { search_cache: relieved }
     result: '{"status":"ok"}'
+  - tool: rollback
+    match: { resource: /search-api/ }
+    sets: { search_cache: relieved }
+    result: |-
+      Rolled search-api back to d-76. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/search-api/deployments/d-78
   - tool: rollback
     result: |-
       Rolled the service back to the deploy before. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/search-api/deployments/d-78

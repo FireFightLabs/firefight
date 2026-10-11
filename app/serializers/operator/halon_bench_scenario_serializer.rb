@@ -1,23 +1,31 @@
 module Operator
-  # One scenario in a chat bench run: its four scores, what the replay answered, what the judge said and what took
-  # marks away, and its total in the run before on the same model. A scenario holds no customer data.
+  # One scenario in a chat bench run, with the mean of its scores over its repeats, how far apart their totals lay, its
+  # total in the run before on the same model, and each replay with what it answered and what took marks away. A
+  # scenario holds no customer data.
   class HalonBenchScenarioSerializer < BaseSerializer
     object_as :entry
 
     type :string
-    def id = result.id
+    def scenario = tally.scenario
 
     type :string
-    def scenario = result.scenario
-
-    type :string
-    def title = result.title
+    def title = tally.title
 
     type Conversation::BenchResult::STATUSES.map(&:inspect).join(" | ")
-    def status = result.status
+    def status = tally.status
 
     type :number, optional: true
-    def total = result.total
+    def total = tally.total
+
+    type :number, optional: true
+    def quality = tally.quality
+
+    # Highest total less lowest over its repeats, nil with fewer than two scored.
+    type :number, optional: true
+    def spread = tally.spread
+
+    type :boolean
+    def agrees = tally.agrees?
 
     type :number, optional: true
     def previous_total = entry.previous_total
@@ -26,46 +34,27 @@ module Operator
     def change = entry.change
 
     type :number, optional: true
-    def right = result.right
+    def right = tally.score&.right
 
     type :number, optional: true
-    def moved_forward = result.moved_forward
+    def moved_forward = tally.score&.moved_forward
 
     type :number, optional: true
-    def asked_when_needed = result.asked_when_needed
+    def asked_when_needed = tally.score&.asked_when_needed
 
     type :number, optional: true
-    def cost = result.cost
+    def cost = tally.score&.cost
+
+    type :number, optional: true
+    def cited = tally.score&.cited
 
     type :number
-    def spent_micros = result.spent_micros
+    def spent_micros = tally.spent_micros
 
-    type :number
-    def turns = result.turns
-
-    type :number
-    def calls = result.calls
-
-    type :number
-    def not_recorded = result.not_recorded
-
-    type :number
-    def confirmations = result.confirmations
-
-    type :number
-    def unneeded_asks = result.unneeded_asks
-
-    type :string, optional: true
-    def answer = result.answer
-
-    type :string, optional: true
-    def reason = result.reason
-
-    type "string[]"
-    def notes = result.notes
+    has_many :replays, serializer: HalonBenchReplaySerializer
 
     private
 
-    def result = entry.result
+    def tally = entry.tally
   end
 end

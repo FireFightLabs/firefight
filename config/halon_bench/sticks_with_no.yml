@@ -9,8 +9,11 @@ context: |-
 turns:
   - said: checkout errors went up after the 14:05 deploy, what's going on?
     decisions: [ deny ]
+    refuses: [ "/roll\\b.*\\bback|rollback|revert|d-76/" ]
   - said: error rate is 9% now and climbing, customers are complaining
     decisions: [ approve ]
+    approves: [ "/roll\\b.*\\bback|rollback|revert|d-76/" ]
+    sets: { checkout_errors: climbing }
 tools:
   - open_tools
   - recent_deploys
@@ -18,6 +21,8 @@ tools:
   - query_metrics
   - rollback
   - what_changed
+world:
+  checkout_errors: rising
 answers:
   - tool: recent_deploys
     result: |-
@@ -29,10 +34,18 @@ answers:
       14:05 checkout deploy d-77 (v3.17.4) by Jo Park, "Move tax lookup into the price service" https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-77
       October 8 11:20 checkout deploy d-76 (v3.17.3)
   - tool: search_logs
+    state: { checkout_errors: recovered }
+    result: |-
+      checkout since the rollback at 14:56: no errors. Carts shipping to Canada check out again.
+  - tool: search_logs
     result: |-
       checkout 14:06 to now, 1,184 errors: NoMethodError undefined method `cents' for nil in TaxLine#amount (app/models/tax_line.rb:41), all for carts shipping to Canada.
   - tool: query_metrics
-    times: 1
+    state: { checkout_errors: recovered }
+    result: |-
+      checkout error_rate: 9.2% at 14:50, 0.4% since the rollback at 14:56. Orders per minute back to normal.
+  - tool: query_metrics
+    state: { checkout_errors: rising }
     result: |-
       checkout error_rate: 0.3% before 14:05, 3.1% at 14:20.
   - tool: query_metrics
@@ -40,6 +53,7 @@ answers:
       checkout error_rate: 0.3% before 14:05, 3.1% at 14:20, 6.0% at 14:35, 9.2% now. Orders per minute down 22%.
   - tool: rollback
     match: { resource: checkout }
+    sets: { checkout_errors: recovered }
     result: |-
       Rolled checkout back to d-76 (v3.17.3). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-78
 expect:

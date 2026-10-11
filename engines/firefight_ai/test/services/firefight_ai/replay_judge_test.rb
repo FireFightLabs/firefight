@@ -27,6 +27,21 @@ class FirefightAi::ReplayJudgeTest < ActiveSupport::TestCase
     assert_match "## The chat\nAgent called rollback", asked.first
   end
 
+  # Seen on the diagnosis of the bench, a model that rolled back an innocent deploy first was graded reached.
+  test "the judge is told which tools a right run never calls, and that a missing link is judged apart" do
+    FirefightAi.stubs(:model_for).returns(FirefightAi::ModelChoice.new(model: "gpt-5.6-luna", provider: "openai"))
+    asked = stub_model(outcome: "missed", moved_forward: "no", questions: 0, unneeded_questions: 0, reason: "It rolled back.")
+
+    @judge.judge(transcript: "Agent called rollback {} (a change)", outcome: "The firewall rule caused it", never: [ "rollback" ])
+    prompt = FirefightAi::ReplayJudge.new(nil, inferable: nil).send(:system_prompt)
+
+    assert_match "## Tools a right run never calls\nrollback", asked.first
+    assert_match "a call to a tool a right run never calls, is missed", prompt
+    assert_match "never mark an outcome down for a missing link", prompt
+    @judge.judge(transcript: "Person: hi")
+    assert_no_match "never calls", asked.last
+  end
+
   test "the judge is told a confirmation card is not a question and asking permission to read is one it did not need" do
     prompt = FirefightAi::ReplayJudge.new(nil, inferable: nil).send(:system_prompt)
 

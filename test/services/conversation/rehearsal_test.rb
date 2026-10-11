@@ -52,7 +52,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     assert_equal [ "Here is where things stand." ], replay.transcript.replies
   end
 
-  test "a read through a tool that confirms changes runs at once, and a call missing from the record is said to be" do
+  test "a read through a tool that confirms changes runs at once, and a call nothing scripted finds nothing and is counted" do
     script(
       call("northflank_api_request", "method" => "GET", "path" => "/v1/projects/web/workflows/release/runs"),
       call("northflank_api_request", "method" => "GET", "path" => "/v1/projects/web/services"),
@@ -64,9 +64,9 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
 
     assert_nil first.approval
     assert_match "migrate", first.result
-    assert_equal Conversation::BenchCase::NOT_RECORDED, second.result
+    assert_equal Conversation::BenchCase::NOTHING_FOUND, second.result
     assert_equal 1, replay.transcript.not_recorded
-    assert_equal [ second.name ], replay.chat.tool_calls.where(failed: true).pluck(:name)
+    assert_empty replay.chat.tool_calls.where(failed: true)
   end
 
   test "reading a connected system owes the answer a check before it goes out, as it does live" do
@@ -102,7 +102,7 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
     replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
     first, opened, second = replay.transcript.calls
 
-    assert_equal [ "open_tools" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
+    assert_equal [ "use_skill", "open_tools" ], JSON.parse(JSON.parse(first.result)["error"][/\[.*\]/])
     assert_match "read_run: Reads a run (ready to call)", opened.result
     assert_equal "Run 412 failed.", second.result
   end
@@ -139,13 +139,84 @@ class Conversation::RehearsalTest < ActiveSupport::TestCase
   end
 
   test "a plan Halon makes keeps the steps it marks" do
-    state = Conversation::Rehearsal::State.new(build, Hash.new(0), [])
+    state = Conversation::Rehearsal::State.new(Conversation::BenchCase::World.new(build))
 
     state.call("make_plan", "goal" => "Release", "steps" => [ { "description" => "Start it", "kind" => "change" }, { "description" => "Check it", "kind" => "check" } ])
     updated = state.call("update_plan", "step" => 1, "status" => "done", "note" => "Run 412 started.")
 
     assert_equal "Plan P1:\n1. Start it (done) Run 412 started.\n2. Check it (waiting)", updated
     assert_equal "Plan P1 finished: Released.", state.call("finish_plan", "outcome" => "Released.", "next_step" => "Shall I roll back?")
+  end
+
+  # Seen on the diagnosis of the bench, Halon asked "Shall I open the pull request?" and the scripted person never
+  # answered, so a scenario that needs a yes in words could not be finished.
+  test "a question in plain words is answered from what the person wants, and a turn that wants a no still hears one" do
+    bench_case = build("turns" => [ { "said" => "checkout is failing", "refuses" => [ "/roll ?back/" ] },
+                                    { "said" => "it is getting worse", "approves" => [ "/roll ?back/" ] } ],
+                       "tools" => [ { "name" => "rollback", "description" => "Rolls back", "confirms" => true } ],
+                       "answers" => [ { "tool" => "rollback", "result" => "Rolled back." } ])
+    script(
+      reply("Deploy d-77 broke it. Shall I roll back checkout?"), reply("Understood, I will keep watching."),
+      reply("Errors keep climbing. Shall I roll back checkout now?"), reply("Rolling back.")
+    )
+
+    replay = Conversation::Rehearsal.replay!(bench_case, result: @result, model: @model)
+    said = replay.chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).order(:created_at).pluck(:content)
+
+    assert_equal [ "checkout is failing", Conversation::BenchCase::Person::NO, "it is getting worse", Conversation::BenchCase::Person::YES ], said
+  end
+
+  test "a question nothing in the scenario answers ends the turn, as before" do
+    script(reply("Which region do you mean?"))
+
+    replay = Conversation::Rehearsal.replay!(build, result: @result, model: @model)
+
+    assert_equal [ "go" ], replay.chat.messages.where(role: Chat::Message::ROLE_USER, nudge: false).pluck(:content)
+  end
+
+  test "the person answers in the order the scenario says: the turn's own words, then the whole chat's, then the next decision" do
+    bench_case = build("person" => { "approves" => [ "/pull request/" ], "answers" => [ { "asked" => "/repository/", "say" => "larkspur/shop" } ],
+                                     "otherwise" => "Use your judgement." },
+                       "turns" => [ { "said" => "go", "decisions" => [ "deny" ], "answers" => [ { "asked" => "/region/", "say" => "Europe" } ] } ])
+    person = bench_case.person
+    turn = bench_case.turns.sole
+    ask = ->(reply) { person.answer(reply, turn: turn, decisions: turn.decisions) }
+
+    assert_equal "Europe", ask.call("Which region is slow?")
+    assert_equal "larkspur/shop", ask.call("Which repository holds it?")
+    assert_equal Conversation::BenchCase::Person::YES, ask.call("Shall I open the pull request?")
+    assert_equal Conversation::BenchCase::Person::NO, ask.call("Want me to restart it?")
+    assert_equal "Use your judgement.", ask.call("What do you think caused it?")
+    assert_nil ask.call("It failed at the migrate step.")
+  end
+
+  # Seen on the diagnosis of the bench, use_skill answered "No skill fits this" in every replay.
+  test "use_skill serves the real skills, a provider's once the scenario offers its tools, and opens the tools a skill names" do
+    opened = []
+    tools = Conversation::Rehearsal.as_offered(build("tools" => [
+      { "name" => "northflank_api_request", "description" => "Calls the API", "source" => "northflank", "confirms" => true },
+      { "name" => "search_activity", "description" => "Searches the activity log", "reads" => true }
+    ])).tools
+    skill = Conversation::Rehearsal::UseSkill.new(tools: tools, open: ->(names) { opened.concat(names) })
+
+    assert_match "leaked_secret:", skill.description
+    assert_match "northflank_", skill.description
+    assert_no_match(/cloudflare_/, skill.description)
+    steps = skill.call(skill: "leaked_secret")
+    assert_equal Chat::Skill.find("leaked_secret").steps.lines.first, steps.lines.first
+    assert_includes opened, "search_activity"
+  end
+
+  # Seen on the diagnosis of the bench, 73 calls opened tools the instructions name, such as what_changed, that the
+  # scenario left out, and were told no such tool exists.
+  test "a scenario holds the tools a live chat always has, and those a connected system brings once it connects one" do
+    plain = Conversation::Rehearsal.as_offered(build)
+    connected = Conversation::Rehearsal.as_offered(release_case(decisions: []))
+
+    assert_equal %w[read_run use_skill what_changed], plain.tools.map(&:name)
+    assert_includes connected.tools.map(&:name), "resource_status"
+    assert_includes connected.tools.map(&:name), "run_key_query"
+    assert_equal "Runbook release: tag, then run the Northflank release workflow.", Conversation::BenchCase::World.new(connected).peek("search_runbooks", {}).result
   end
 
   private
