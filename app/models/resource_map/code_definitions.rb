@@ -73,7 +73,7 @@ class ResourceMap::CodeDefinitions
 
   def lock!
     key = Zlib.crc32("resource_map_code_definitions:#{@workspace.id}")
-    ResourceMap::Link.connection.select_value(ResourceMap::Link.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ]))
+    ResourceMap::Link.with_connection { |connection| connection.select_value(ResourceMap::Link.sanitize_sql_array([ "SELECT pg_advisory_xact_lock(?)::text", key ])) }
   end
 
   # Each name a file gives as a value, with the lines it is on.

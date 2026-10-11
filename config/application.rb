@@ -23,6 +23,11 @@ module Firefight
     # must be longer than this, or the worker is killed before it hands anything back.
     config.solid_queue.shutdown_timeout = 25.seconds
 
+    # The workers that mostly wait run each job as a fiber (config/queue.yml), and Solid Queue refuses to start them unless
+    # Current, the database connection and the rest of Rails' per request state belong to a fiber rather than a thread. It
+    # holds for every process, Puma included, where each request still runs on a fiber of its own thread.
+    config.active_support.isolation_level = :fiber
+
     # Faylee bug reports, off unless a deployment sets both. A blank value counts as unset.
     config.x.faylee_verification_token = ENV["FAYLEE_VERIFICATION_TOKEN"].presence
     config.x.faylee_site_id = ENV["FAYLEE_SITE_ID"].presence

@@ -37,13 +37,16 @@ module Integrations
 
       def extension_named_by(missing) = missing["image"].present? ? "the CI's #{missing['image']} image" : "a setup command"
 
-      # Held for the length of one transaction, so a second worker waits and then finds what the first one made. A box
-      # adopted for a run's key takes the same lock, so it and the run never both make that key's box.
+      # Held while the block runs, so a second worker waits and then finds what the first one made. A box adopted for a
+      # run's key takes the same lock, so it and the run never both make that key's box. Starting a box and pushing a
+      # repository wait minutes on the network, so the lock lives on a connection of its own outside the pool, with no
+      # transaction open, and closing that connection lets go of it even when the worker dies.
       def locked(name)
-        CodeBox.transaction do
-          CodeBox.connection.execute(CodeBox.sanitize_sql([ "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", "code_box:#{name}" ]))
-          yield
-        end
+        holder = CodeBox.connection_pool.db_config.new_connection
+        holder.select_value(CodeBox.sanitize_sql([ "SELECT pg_advisory_lock(hashtextextended(?, 0))::text", "code_box:#{name}" ]))
+        yield
+      ensure
+        holder&.disconnect!
       end
 
       def close(key)

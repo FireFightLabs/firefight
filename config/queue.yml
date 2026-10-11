@@ -2,34 +2,41 @@ default: &default
   dispatchers:
     - polling_interval: 1
       batch_size: 500
+  # A worker with threads runs each job on a thread of its own. A worker with fibers runs every job as a fiber on one
+  # thread, which hands over to another job whenever one waits on the network or the database, so dozens of jobs that
+  # mostly wait share one process and a handful of database connections. A job that computes without waiting holds up
+  # every other job of its worker, so only the queues whose jobs mostly wait get fibers (docs/architecture.md, Queues).
   workers:
-    # Dedicated worker for workflows queue
+    # Steps that write incident state in order and start each other, short and database bound, so threads
     - queues: workflows
       threads: 5
       processes: <%= ENV.fetch("WORKFLOW_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.1
-    # Dedicated worker for events queue
+    # Domain events fanned out to handlers, short and database bound, so threads
     - queues: events
       threads: 3
       processes: <%= ENV.fetch("EVENT_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.1
-    # Dedicated worker for webhooks queue
+    # A delivery waits up to seconds on someone else's endpoint and does nothing in between
     - queues: webhooks
-      threads: 3
+      fibers: <%= ENV.fetch("WEBHOOK_JOB_FIBERS", 10) %>
       processes: <%= ENV.fetch("WEBHOOK_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.5
-    # Investigations run for minutes, so they have their own worker and nothing else picks them up
+    # Investigations run for minutes, so they have their own worker and nothing else picks them up. A run spends nearly
+    # all of that waiting on the model and on providers' tools
     - queues: investigations
-      threads: 3
+      fibers: <%= ENV.fetch("INVESTIGATION_JOB_FIBERS", 10) %>
       processes: <%= ENV.fetch("INVESTIGATION_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.5
-    # A person is waiting on a chat answer, so it never queues behind an investigation
+    # A person is waiting on a chat answer, so it never queues behind an investigation. A turn spends nearly all of its
+    # time waiting on the model's stream and on tools
     - queues: conversations
-      threads: 3
+      fibers: <%= ENV.fetch("CONVERSATION_JOB_FIBERS", 25) %>
       processes: <%= ENV.fetch("CONVERSATION_JOB_CONCURRENCY", 1) %>
       polling_interval: 0.1
     # Everything else, listed by name. A wildcard would also take the long running queues above,
-    # and test/config/queue_config_test.rb fails when a job asks for a queue that is not here
+    # and test/config/queue_config_test.rb fails when a job asks for a queue that is not here.
+    # It holds jobs that compute as well as wait, such as map sweeps, so threads
     - queues: [ default, background, solid_queue_recurring, events, webhooks, workflows ]
       threads: 3
       processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>

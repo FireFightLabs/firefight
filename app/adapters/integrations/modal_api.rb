@@ -90,8 +90,11 @@ module Integrations
     def call(method, request, response_class)
       metadata = base_metadata
       metadata["x-modal-auth-token"] = auth_token unless method == AUTH_TOKEN_GET
-      stub.request_response("#{SERVICE}/#{method}", request, request.class.method(:encode), response_class.method(:decode),
-                            metadata: metadata, deadline: Time.now + TIMEOUT)
+      # gRPC's C core waits without yielding, so a fiber worker would stall on it.
+      Blocking.call do
+        stub.request_response("#{SERVICE}/#{method}", request, request.class.method(:encode), response_class.method(:decode),
+                              metadata: metadata, deadline: Time.now + TIMEOUT)
+      end
     rescue GRPC::ResourceExhausted => error
       raise RateLimited, said(error)
     rescue GRPC::NotFound => error

@@ -44,9 +44,7 @@ module SolidWorkflow
       end
 
       def state_timestamps_merge_sql(state, timestamp)
-        state_value = self.class.connection.quote(state.to_s)
-        timestamp_value = self.class.connection.quote(timestamp.iso8601)
-        Arel.sql("coalesce(state_timestamps, '{}'::jsonb) || jsonb_build_object(#{state_value}, #{timestamp_value})")
+        Arel.sql(self.class.sanitize_sql_array([ "coalesce(state_timestamps, '{}'::jsonb) || jsonb_build_object(?, ?)", state.to_s, timestamp.iso8601 ]))
       end
 
       def completed?

@@ -65,8 +65,9 @@ class ResourceMap::Query
   # Fact links into a resource from present ones, along the relations a failure travels. Only dependents inside within
   # count, so a reader is never told how many resources it cannot see depend on one.
   def self.dependents_sql(resource_column, within: nil)
-    suggestions = ResourceMap::SUGGESTION_ORIGINS.map { |origin| ActiveRecord::Base.connection.quote(origin) }.join(", ")
-    relations = ResourceMap::RUNTIME_RELATIONS.map { |relation| ActiveRecord::Base.connection.quote(relation) }.join(", ")
+    suggestions, relations = ActiveRecord::Base.with_connection do |connection|
+      [ ResourceMap::SUGGESTION_ORIGINS, ResourceMap::RUNTIME_RELATIONS ].map { |values| values.map { |value| connection.quote(value) }.join(", ") }
+    end
     "(SELECT count(*) FROM resource_map_links dependent_links " \
       "JOIN resource_map_resources dependents ON dependents.id = dependent_links.from_resource_id AND dependents.removed_at IS NULL " \
       "WHERE dependent_links.to_resource_id = #{resource_column} AND dependent_links.dismissed_at IS NULL " \

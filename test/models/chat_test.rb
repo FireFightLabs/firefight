@@ -30,7 +30,7 @@ class ChatTest < ActiveSupport::TestCase
     @chat.add_message(thinking_turn(tool_call_id: "toolu_1"))
     @chat.add_message(role: :tool, content: "customer 4411 card declined", tool_call_id: "toolu_1")
 
-    stored = Chat::Message.connection.select_all(
+    stored = Chat::Message.lease_connection.select_all(
       "SELECT content, thinking_text, thinking_signature, raw_reasoning::text FROM chat_messages WHERE chat_id = $1",
       "stored", [ @chat.id ]
     ).rows.flatten.compact.join(" ")

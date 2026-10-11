@@ -29,6 +29,22 @@ class QueueConfigTest < ActiveSupport::TestCase
     assert_match(/^force_shutdown_after 25$/, Rails.root.join("config/puma.rb").read)
   end
 
+  # A job that computes without waiting holds up every other job of a fiber worker, so only these get fibers.
+  test "the workers whose jobs mostly wait run fibers, and every other worker runs threads" do
+    fibers, threads = production_workers.partition { |worker| worker.key?("fibers") }
+
+    assert_equal [ [ "conversations" ], [ "investigations" ], [ "webhooks" ] ], fibers.map { |worker| Array(worker["queues"]) }.sort
+    assert threads.all? { |worker| worker.key?("threads") }, "every other worker names its threads"
+  end
+
+  # Solid Queue refuses to start fiber workers without the async gem and fiber scoped Rails state.
+  test "Solid Queue accepts the workers as configured" do
+    configuration = SolidQueue::Configuration.new(config_file: Rails.root.join("config/queue.yml"))
+
+    assert configuration.valid?, configuration.errors.full_messages.to_sentence
+    assert_equal :fiber, ActiveSupport::IsolatedExecutionState.isolation_level
+  end
+
   test "a chat answer does not wait behind investigations" do
     assert_equal "conversations", ConversationReplyJob.new.queue_name
     assert_equal "investigations", InvestigationJob.new.queue_name

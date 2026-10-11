@@ -58,7 +58,7 @@ class Chat::HelperTest < ActiveSupport::TestCase
     helper = start(1).sole
     helper.finish!(Chat::Helper::STATUS_REPORTED, report: "db-1 holds 812 connections")
 
-    stored = Chat::Helper.connection.select_value("SELECT report FROM chat_helpers WHERE id = '#{helper.id}'")
+    stored = Chat::Helper.lease_connection.select_value("SELECT report FROM chat_helpers WHERE id = '#{helper.id}'")
     assert_not_includes stored, "812"
   end
 

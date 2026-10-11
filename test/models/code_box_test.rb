@@ -10,7 +10,7 @@ class CodeBoxTest < ActiveSupport::TestCase
   test "a token in a box's address is kept encrypted apart from it" do
     assert_equal "https://swift-otter-8080.on.boat.dev", @box.address
     assert_equal "https://swift-otter-8080.on.boat.dev?_token=gate", @box.reload.reach_address
-    stored = CodeBox.connection.select_value(CodeBox.where(id: @box.id).select(:address_query).to_sql)
+    stored = CodeBox.lease_connection.select_value(CodeBox.where(id: @box.id).select(:address_query).to_sql)
     assert_not_includes stored, "gate"
   end
 

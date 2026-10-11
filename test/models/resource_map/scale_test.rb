@@ -126,7 +126,7 @@ class ResourceMap::ScaleTest < ActiveSupport::TestCase
 
   def explain(sql) = connection.select_values("EXPLAIN #{sql}").join("\n")
 
-  def connection = ResourceMap::Resource.connection
+  def connection = ResourceMap::Resource.lease_connection
 
   # Resources named resource-000000 onwards, the first thousand databases and the rest services, across two providers,
   # a hundred accounts and three statuses, one in a hundred tagged. Linked, each one uses the one before it in chains

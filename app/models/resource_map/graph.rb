@@ -62,13 +62,13 @@ class ResourceMap::Graph
   # The nearest resources reached first, at most limit of them, each with the fewest links between it and the root.
   def nodes
     @nodes ||= begin
-      found = connection.select_rows(sanitized(NODES, limit: limit))
+      found = ResourceMap::Resource.with_connection { |connection| connection.select_rows(sanitized(NODES, limit: limit)) }
       resources = ResourceMap::Resource.where(id: found.map(&:first)).includes(integration_environment: %i[integration environment]).index_by(&:id)
       found.map { |id, hop| Node.new(resource: resources.fetch(id), hop: hop.to_i) }
     end
   end
 
-  def total = @total ||= connection.select_value(sanitized(TOTALS)).to_i
+  def total = @total ||= ResourceMap::Resource.with_connection { |connection| connection.select_value(sanitized(TOTALS)) }.to_i
 
   def truncated = total - nodes.size
 
@@ -86,8 +86,6 @@ class ResourceMap::Graph
   def reached_sql = sanitized(WALKS)
 
   private
-
-  def connection = ResourceMap::Resource.connection
 
   def sanitized(templates, **more) = ResourceMap::Resource.sanitize_sql_array([ templates.fetch(direction), binds.merge(more) ])
 

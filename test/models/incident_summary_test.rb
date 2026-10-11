@@ -21,7 +21,7 @@ class IncidentSummaryTest < ActiveSupport::TestCase
   test "raw DB column stores ciphertext, not plaintext" do
     summary = build_summary(content: "rolled back deploy 4f2a").tap(&:save!)
 
-    raw = IncidentSummary.connection.select_value(
+    raw = IncidentSummary.lease_connection.select_value(
       "SELECT content FROM incident_summaries WHERE id = '#{summary.id}'"
     )
 

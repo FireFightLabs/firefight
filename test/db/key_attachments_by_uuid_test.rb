@@ -51,7 +51,7 @@ class KeyAttachmentsByUuidTest < ActiveSupport::TestCase
 
   # The shape the tables had before the migration, rolled back with the test's transaction.
   def restore_bigint_owners
-    connection = ActiveRecord::Base.connection
+    connection = ActiveRecord::Base.lease_connection
     connection.remove_index :active_storage_attachments, name: KeyAttachmentsByUuid::UNIQUENESS_INDEX
     connection.remove_column :active_storage_attachments, :record_id
     connection.add_column :active_storage_attachments, :record_id, :bigint, null: false
@@ -78,7 +78,7 @@ class KeyAttachmentsByUuidTest < ActiveSupport::TestCase
   # What the bigint column kept of a uuid, its leading digits or zero.
   def attach_mangled(event, name)
     blob = ActiveStorage::Blob.create_and_upload!(io: StringIO.new(name), filename: name, content_type: "text/plain")
-    ActiveRecord::Base.connection.execute(<<~SQL.squish)
+    ActiveRecord::Base.lease_connection.execute(<<~SQL.squish)
       INSERT INTO active_storage_attachments (name, record_type, record_id, blob_id, created_at)
       VALUES ('artifact', 'IncidentEvent', #{event.id[/\A\d+/].to_i}, #{blob.id}, now())
     SQL

@@ -20,7 +20,7 @@ class ResourceMap::LogTemplateTest < ActiveSupport::TestCase
     kept = @web.log_templates.this_week.most_lines_first.to_a
     assert_equal [ [ "user <*> logged in", 1, 2 ], [ "ERROR db timeout after <NUM> ms", 1, 1 ] ], kept.map { |pattern| [ pattern.template, pattern.lines, pattern.samples ] }
     assert_equal "error", kept.last.level
-    raw = TEMPLATE.connection.select_value("SELECT template FROM resource_map_log_templates WHERE id = #{TEMPLATE.connection.quote(kept.first.id)}")
+    raw = TEMPLATE.lease_connection.select_value("SELECT template FROM resource_map_log_templates WHERE id = #{TEMPLATE.lease_connection.quote(kept.first.id)}")
     assert_not_includes raw, "logged in"
 
     TEMPLATE.record!(@row, @web, MINER.mine([ "user eve logged in" ]), at: Time.current + 5.days)

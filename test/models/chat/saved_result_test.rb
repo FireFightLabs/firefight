@@ -23,7 +23,7 @@ class Chat::SavedResultTest < ActiveSupport::TestCase
   test "what a tool said is the customer's data, so it is encrypted at rest" do
     saved = @chat.saved_results.keep!(tool_name: "log_query", text: "password=hunter2")
 
-    stored = Chat::SavedResult.connection.select_value("SELECT content FROM chat_saved_results WHERE id = '#{saved.id}'")
+    stored = Chat::SavedResult.lease_connection.select_value("SELECT content FROM chat_saved_results WHERE id = '#{saved.id}'")
     assert_no_match(/hunter2/, stored)
   end
 

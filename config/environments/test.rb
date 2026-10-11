@@ -24,4 +24,8 @@ Rails.application.configure do
   config.action_controller.raise_on_missing_callback_actions = true
 
   config.active_job.queue_adapter = :test
+
+  # Model.connection keeps a database connection until the job ends, so a fiber waiting on a model would hold one and
+  # the pool sized for fiber workers would run dry. with_connection gives it back after the query.
+  config.active_record.permanent_connection_checkout = :disallowed
 end

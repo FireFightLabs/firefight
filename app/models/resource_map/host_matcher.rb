@@ -33,7 +33,7 @@ class ResourceMap::HostMatcher
 
   def matches
     @matches ||= begin
-      rows = ResourceMap::Use.connection.select_rows(matches_sql)
+      rows = ResourceMap::Use.with_connection { |connection| connection.select_rows(matches_sql) }
       resources = ResourceMap::Resource.where(id: rows.flat_map { |row| [ row[1], row[3] ] }.uniq).index_by(&:id)
       found = rows.group_by(&:first).flat_map { |_, matched| classify(matched, resources) }
       merged = found.group_by { |match| [ match.user.id, match.store.id, match.certainty ] }.map do |_, same|

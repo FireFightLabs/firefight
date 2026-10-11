@@ -22,10 +22,12 @@ module Ability
       select(
         "#{table_name}.*",
         *holder_kinds.map do |column, holders|
-          types = holders.map { |holder| connection.quote(holder.name) }.join(", ")
-          "(SELECT COUNT(*) FROM ability_grants WHERE ability_grants.role_id = #{table_name}.id " \
-            "AND ability_grants.principal_type IN (#{types}) " \
-            "AND (ability_grants.scope ->> #{connection.quote(Ability::Scope::NO_ACCESS_KEY)}) IS DISTINCT FROM 'true') AS #{column}"
+          sanitize_sql_array([
+            "(SELECT COUNT(*) FROM ability_grants WHERE ability_grants.role_id = #{table_name}.id " \
+              "AND ability_grants.principal_type IN (?) " \
+              "AND (ability_grants.scope ->> ?) IS DISTINCT FROM 'true') AS #{column}",
+            holders.map(&:name), Ability::Scope::NO_ACCESS_KEY
+          ])
         end
       )
     }

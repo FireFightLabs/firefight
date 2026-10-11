@@ -93,6 +93,28 @@ module Integrations
       reading("investigation-owned").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
     end
 
+    test "a box's lock makes a second taker wait, and is held on a connection of its own rather than in a transaction of the job's" do
+      order = Queue.new
+      held_elsewhere = nil
+      first = Thread.new do
+        CodeReading.locked("run-1") do
+          held_elsewhere = CodeBox.lease_connection.select_value(
+            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND granted AND pid <> pg_backend_pid() " \
+            "AND ((classid::bigint << 32) | objid::bigint) = hashtextextended('code_box:run-1', 0)"
+          ).to_i
+          order << :first_in
+          sleep 0.2
+          order << :first_out
+        end
+      end
+      sleep 0.05 until order.size.positive?
+      CodeReading.locked("run-1") { order << :second_in }
+      first.join
+
+      assert_equal [ :first_in, :first_out, :second_in ], Array.new(3) { order.pop }
+      assert_equal 1, held_elsewhere
+    end
+
     test "two runs read in two boxes" do
       reading("investigation-1").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
       reading("conversation-2").exec("acme/app", argv: [ "log" ], where: Sandboxes::Client::IN_GIT)
