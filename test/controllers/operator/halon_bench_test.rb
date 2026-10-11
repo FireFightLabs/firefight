@@ -45,28 +45,43 @@ class Operator::HalonBenchTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "an operator runs every scenario on a model and is told how many are replaying" do
+  test "an operator runs every scenario on a model as often and up to the budget they chose, and is told so" do
     as_operator
     FirefightAi.stubs(:priced_chat_models).returns([ registry_model("claude-sonnet-5", "Claude Sonnet 5", "anthropic") ])
 
-    assert_enqueued_jobs Conversation::BenchCase.scenarios.size, only: HalonBenchCaseJob do
-      post operator_halon_benches_path, params: { model: "claude-sonnet-5", provider: "anthropic" }
+    assert_enqueued_jobs Conversation::BenchCase.scenarios.size * 2, only: HalonBenchCaseJob do
+      post operator_halon_benches_path, params: { model: "claude-sonnet-5", provider: "anthropic", repeats: 2, budget: "5.50" }
     end
 
     run = Conversation::BenchRun.find_by!(started_by: @operator)
     assert_redirected_to operator_halon_bench_path(run)
-    assert_equal "Replaying #{Conversation::BenchCase.scenarios.size} scenarios on Claude Sonnet 5.", flash[:notice]
+    assert_equal "Replaying #{Conversation::BenchCase.scenarios.size} scenarios 2 times each on Claude Sonnet 5, up to $5.50.", flash[:notice]
     assert_equal [ "claude-sonnet-5", "anthropic", Conversation::BenchRun::TRIGGER_OPERATOR ], [ run.model, run.provider, run.trigger ]
+    assert_equal [ 2, 5_500_000 ], [ run.repeats, run.budget_micros ]
   end
 
-  test "left on Halon's model the run uses the deployment's own" do
+  test "left on Halon's model the run uses the deployment's own, three times over and up to two dollars" do
     as_operator
 
+    get operator_halon_benches_path, headers: inertia_headers
+    assert_equal [ 3, 5, 2 ], inertia_props.values_at("defaultRepeats", "maxRepeats", "defaultBudget")
     post operator_halon_benches_path
 
     run = Conversation::BenchRun.find_by!(started_by: @operator)
     assert_equal "gpt-4o", run.model
-    assert_equal "Replaying #{Conversation::BenchCase.scenarios.size} scenarios on Halon's model.", flash[:notice]
+    assert_equal "Replaying #{Conversation::BenchCase.scenarios.size} scenarios 3 times each on Halon's model, up to $2.00.", flash[:notice]
+  end
+
+  test "a number of repeats or a budget the bench cannot take is refused with the reason, and nothing starts" do
+    as_operator
+
+    post operator_halon_benches_path, params: { repeats: 9 }
+    assert_redirected_to operator_halon_benches_path
+    assert_equal "Each scenario is replayed from 1 to 5 times.", flash[:alert]
+
+    post operator_halon_benches_path, params: { budget: "0" }
+    assert_equal "The budget must be more than nothing.", flash[:alert]
+    assert_not Conversation::BenchRun.exists?
   end
 
   test "a model Firefight cannot price is refused, and a second run waits until the one going has finished" do
@@ -97,7 +112,24 @@ class Operator::HalonBenchTest < ActionDispatch::IntegrationTest
     listed = inertia_props["runs"].sole
     assert_equal run.id, listed["id"]
     assert_equal [ 0.75, 0.5, 0.5, 2 ], [ listed["total"], listed["right"], listed["movedForward"], listed["scored"] ]
+    assert_equal [ 0.667, 1.0 ], [ listed["quality"], listed["cost"] ]
     assert_equal Conversation::BenchCase.scenarios.size, inertia_props["scenarioCount"]
+  end
+
+  test "a run replayed more than once shows each scenario's mean and spread, how many agree, and every replay" do
+    as_operator
+    run = finished_run(at: 1.hour.ago, totals: { "release" => [ 1.0, 1.0, 1.0, 1.0 ] })
+    run.update!(repeats: 2)
+    run.results.create!(workspace: @workspace, scenario: "release", title: "Release", attempt: 2, status: Conversation::BenchResult::STATUS_SCORED,
+                        right: 0.0, moved_forward: 1.0, asked_when_needed: 1.0, cost: 1.0, cited: 0.0, total: 0.75, notes: [ "Cited none of the evidence a right answer links to." ])
+
+    get operator_halon_bench_path(run), headers: inertia_headers
+
+    scenario = inertia_props["scenarios"].sole
+    assert_equal [ 0.875, 0.25, false ], scenario.values_at("total", "spread", "agrees")
+    assert_equal [ 1, 2 ], scenario["replays"].map { |replay| replay["attempt"] }
+    assert_equal [ "Cited none of the evidence a right answer links to." ], scenario["replays"].last["notes"]
+    assert_equal [ 2, 0, 1 ], inertia_props["run"].values_at("repeats", "agreeing", "repeated")
   end
 
   test "a run lists the scenario that dropped most since the run before on the same model first" do
@@ -109,7 +141,7 @@ class Operator::HalonBenchTest < ActionDispatch::IntegrationTest
 
     first = inertia_props["scenarios"].first
     assert_equal [ "flaky", 0.5, 1.0, -0.5 ], [ first["scenario"], first["total"], first["previousTotal"], first["change"] ]
-    assert_equal [ "Never called start_watch." ], first["notes"]
+    assert_equal [ "Never called start_watch." ], first["replays"].sole["notes"]
     assert inertia_props["previousId"].present?
   end
 

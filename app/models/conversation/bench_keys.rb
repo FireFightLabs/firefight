@@ -5,10 +5,12 @@
 module Conversation::BenchKeys
   PREFIX = "HALON_BENCH_".freeze
   SUFFIX = "_API_KEY".freeze
-  # The model the judge grades with, and its provider, when set. Without them the judge uses the model the app checks
-  # citations with, still on the bench's key.
+  # The model the judge grades with, and its provider, when set. Without them the judge is Sonnet through OpenRouter,
+  # about half of what Opus costs per run, still on the bench's key.
   JUDGE_MODEL = "HALON_BENCH_JUDGE_MODEL".freeze
   JUDGE_PROVIDER = "HALON_BENCH_JUDGE_PROVIDER".freeze
+  DEFAULT_JUDGE_MODEL = "anthropic/claude-sonnet-5.5".freeze
+  DEFAULT_JUDGE_PROVIDER = "openrouter".freeze
 
   class Missing < StandardError; end
 
@@ -37,7 +39,6 @@ module Conversation::BenchKeys
     model = ENV[JUDGE_MODEL].presence
     return choice(model: model, provider: ENV[JUDGE_PROVIDER].presence) if model
 
-    deployed = FirefightAi.deployment_model_for(AiPurpose::CITATION_CHECK)
-    choice(model: deployed.model, provider: deployed.provider_name)
+    choice(model: DEFAULT_JUDGE_MODEL, provider: DEFAULT_JUDGE_PROVIDER)
   end
 end

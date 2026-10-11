@@ -23,6 +23,8 @@ tools:
   - northflank_api_request
   - rollback
   - scale
+world:
+  worker_pool: "40"
 answers:
   - tool: get_resource_map
     result: |-
@@ -46,8 +48,17 @@ answers:
     result: |-
       worker over the last 60 minutes: cpu average 31%, max 38%. memory 58%. 12 instances. requests not kept for a worker.
   - tool: query_metrics
+    state: { worker_pool: "5" }
+    result: |-
+      api over the last 60 minutes: errors 14.8% until 14:03, 0.1% since. latency_p95 230 ms since 14:03. cpu average 22%, memory 41%.
+  - tool: query_metrics
     result: |-
       api over the last 60 minutes: errors 0.1% until 13:40, 14.8% latest. latency_p95 5,200 ms latest, 230 ms before 13:40. cpu average 22%, max 27%. memory 41%.
+  - tool: planetscale_get_insights
+    state: { worker_pool: "5" }
+    result: |-
+      orders/main over the last 6 hours: open connections 498 of 500 from 13:39 to 14:02, 118 since. Too many connections errors stopped at 14:02.
+      https://app.planetscale.com/larkspur/orders/main/insights
   - tool: planetscale_get_insights
     result: |-
       orders/main over the last 6 hours: open connections 498 of 500 since 13:39 (about 110 before). No query slower than its usual: the slowest, SELECT * FROM orders WHERE id = ?, p50 3 ms. Errors: Too many connections, 3,104 since 13:40.
@@ -78,14 +89,17 @@ answers:
     result: |-
       {"service":"worker","instances":12,"deployment":"d-412","changes":{"runtimeEnvironment":{"DB_POOL":{"from":"5","to":"40"},"JOB_CONCURRENCY":{"from":"5","to":"40"}}},"url":"https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-412"}
   - tool: northflank_api_request
-    match: { method: GET }
+    match: { method: GET, path: "/services\\/?$|projects\\/shop\\/?$/" }
     result: |-
       {"services":[{"name":"api","instances":6,"deployment":"d-899"},{"name":"worker","instances":12,"deployment":"d-412"}]}
   - tool: northflank_api_request
+    match: { method: "/POST|PUT|PATCH/", path: /worker/ }
+    sets: { worker_pool: "5" }
     result: |-
       Updated worker's runtime environment and started deployment d-413. https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-413
   - tool: rollback
     match: { resource: /worker/ }
+    sets: { worker_pool: "5" }
     result: |-
       Rolled worker back to d-411. Deployment: https://app.northflank.com/t/larkspur/project/shop/services/worker/deployments/d-414
   - tool: rollback

@@ -79,13 +79,14 @@ answers:
     result: |-
       https://larkspur.shop answered 200 in 182 ms (DNS 3 ms, connect 9 ms, first byte 160 ms), checked from the sandbox in us-east. Certificate trusted, expires 2026-12-30.
   - tool: cloudflare_execute
+    match: { code: "/\\b(POST|PUT|PATCH|DELETE)\\b/" }
+    result: Done.
+  - tool: cloudflare_execute
     match: { code: "/rulesets|firewall|waf|rules/" }
     reads: true
     result: |-
       [{"id":"9f2c41","description":"Block large form posts","expression":"http.request.method eq \"POST\" and http.request.body.size gt 8192","action":"block","enabled":true,"last_updated":"2026-10-11T14:02:10Z","updated_by":"sam.rivera"}]
       https://dash.cloudflare.com/7c1e/larkspur.shop/security/waf/custom-rules
-  - tool: cloudflare_execute
-    result: Done.
   - tool: rollback
     result: |-
       Rolled checkout back to d-119 (v3.20.4). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/checkout/deployments/d-121

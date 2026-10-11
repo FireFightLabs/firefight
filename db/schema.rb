@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -1208,7 +1208,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_150000) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["bench_run_id", "scenario"], name: "index_conversation_bench_results_on_bench_run_id_and_scenario", unique: true
+    t.integer "attempt", default: 1, null: false
+    t.float "cited"
+    t.float "quality"
+    t.index ["bench_run_id", "scenario", "attempt"], name: "index_conversation_bench_results_on_run_scenario_attempt", unique: true
     t.index ["bench_run_id"], name: "index_conversation_bench_results_on_bench_run_id"
     t.index ["replay_of_id"], name: "index_conversation_bench_results_on_replay_of_id"
     t.index ["workspace_id"], name: "index_conversation_bench_results_on_workspace_id"
@@ -1227,6 +1230,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_150000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "stopped_reason"
+    t.integer "repeats", default: 1, null: false
+    t.bigint "budget_micros"
     t.index ["kind", "created_at"], name: "index_conversation_bench_runs_on_kind_and_created_at"
     t.index ["started_by_id"], name: "index_conversation_bench_runs_on_started_by_id"
   end

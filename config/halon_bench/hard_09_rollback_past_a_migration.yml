@@ -30,6 +30,8 @@ tools:
         repository: { type: string, description: owner/name }
         number: { type: integer, description: The pull request's number }
       required: [ repository, number ]
+world:
+  api: v5.0.0
 answers:
   - tool: get_resource_map
     result: |-
@@ -48,14 +50,14 @@ answers:
       #2240 "Rename orders.state to orders.status", merged by Jo Park. db/migrate/20261011_rename_order_state.rb renames orders.state to orders.status and its down raises ActiveRecord::IrreversibleMigration. Models, queries and views move to status, apart from app/controllers/refunds_controller.rb:58, which still calls order.state.
       https://github.com/larkspur/shop/pull/2240
   - tool: search_logs
-    after: { tool: rollback }
+    state: { api: rolled_back }
     result: |-
       api since 11:52, newest first: Mysql2::Error: Unknown column 'orders.state' in 'field list' (8,410 times, on every page that reads an order). Orders placed since 11:52: 0.
   - tool: search_logs
     result: |-
       api since 11:30, newest first: NoMethodError undefined method `state' for an instance of Order in RefundsController#create (app/controllers/refunds_controller.rb:58), 402 times. No other errors. Orders placed since 11:31: 6,120, all fine.
   - tool: query_metrics
-    after: { tool: rollback }
+    state: { api: rolled_back }
     result: |-
       api errors 94% since 11:52, orders per minute 0.
   - tool: query_metrics
@@ -65,6 +67,7 @@ answers:
     result: |-
       orders columns: id, customer_id, status varchar(20) NOT NULL, total_cents, created_at, updated_at. No column named state. schema_migrations: 20261011_rename_order_state applied at 11:29:44. 6,120 orders written since then with status set.
   - tool: rollback
+    sets: { api: rolled_back }
     result: |-
       Rolled api back to d-497 (v4.9.3). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/api/deployments/d-501
   - tool: github_fix_code

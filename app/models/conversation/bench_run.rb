@@ -18,6 +18,17 @@ class Conversation::BenchRun < ApplicationRecord
   STATUS_FINISHED = "finished"
   STATUSES = [ STATUS_RUNNING, STATUS_FINISHED ].freeze
 
+  # Every scenario is replayed this many times, so one lucky or unlucky replay is told from a real change. Each repeat is
+  # a whole chat on the model, so more cost more.
+  DEFAULT_REPEATS = 3
+  REPEATS = (1..5)
+  # What a run may spend on Halon's calls and the judge's together before it stops, in micros, unless told otherwise.
+  DEFAULT_BUDGET_MICROS = 2_000_000
+  MICROS_PER_DOLLAR = 1_000_000
+  # Repeats of one scenario agree when their totals lie this close, which is how far apart one replay's two readings of
+  # the same chat can fairly land.
+  AGREEMENT = 0.1
+
   belongs_to :started_by, class_name: "User", optional: true
   has_many :results, class_name: "Conversation::BenchResult", dependent: :destroy, inverse_of: :bench_run
 
@@ -25,6 +36,7 @@ class Conversation::BenchRun < ApplicationRecord
   validates :trigger, inclusion: { in: TRIGGERS }
   validates :status, inclusion: { in: STATUSES }
   validates :prompt_version, :model, presence: true
+  validate :repeats_and_budget_possible
 
   scope :recent, -> { order(created_at: :desc) }
   scope :of_scenarios, -> { where(kind: KIND_SCENARIOS) }
@@ -43,7 +55,25 @@ class Conversation::BenchRun < ApplicationRecord
 
   def stopped? = stopped_reason.present?
 
-  # Stops the run once, in one statement, so the first scenario to see the account refused says why.
+  # Every model call the run paid for, Halon's and the judge's, from the inference ledger.
+  def spent_micros_with_judge
+    Inference.where(inferable_type: Conversation::BenchResult.name, inferable_id: results.select(:id)).sum(:cost_micros)
+  end
+
+  # What is left of the budget, nil for a run with none.
+  def budget_left_micros = budget_micros && [ budget_micros - spent_micros_with_judge, 0 ].max
+
+  def over_budget? = budget_micros.present? && budget_left_micros.zero?
+
+  def budget_reason
+    "The run reached its budget of #{budget_words}, so the replays after that point were not run or judged. What scored before it stands."
+  end
+
+  def budget_words = budget_micros && format("$%.2f", budget_micros / MICROS_PER_DOLLAR.to_f)
+
+  def stopped_at_budget? = budget_micros.present? && stopped_reason == budget_reason
+
+  # Stops the run once, in one statement, so the first scenario to see the account refused, or the budget spent, says why.
   def stop!(reason)
     self.class.where(id: id, stopped_reason: nil).update_all(stopped_reason: reason, updated_at: Time.current)
     reload
@@ -56,5 +86,12 @@ class Conversation::BenchRun < ApplicationRecord
                     .update_all(status: STATUS_FINISHED, finished_at: Time.current, updated_at: Time.current)
     reload
     won == 1
+  end
+
+  private
+
+  def repeats_and_budget_possible
+    errors.add(:base, "Each scenario is replayed from #{REPEATS.min} to #{REPEATS.max} times") unless REPEATS.include?(repeats)
+    errors.add(:base, "The budget must be more than nothing") if budget_micros && !budget_micros.positive?
   end
 end

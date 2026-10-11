@@ -26,8 +26,10 @@ class Conversation::BenchTranscript
 
   attr_reader :entries
 
-  def initialize(chat, bench_case)
+  # unscripted holds the ids of the calls nothing in the case answered.
+  def initialize(chat, bench_case, unscripted: Set.new)
     @case = bench_case
+    @unscripted = unscripted
     @entries = chat.messages.includes(ruby_llm_tool_calls: :result).flat_map { |message| entries_of(message) }
   end
 
@@ -82,7 +84,7 @@ class Conversation::BenchTranscript
     result = call.result&.content.to_s
     Call.new(
       name: call.name, arguments: arguments, reads: reads?(call.name, arguments), approval: call.approval,
-      recorded: result != Conversation::BenchCase::NOT_RECORDED, failed: call.failed, result: result
+      recorded: @unscripted.exclude?(call.tool_call_id), failed: call.failed, result: result
     )
   end
 

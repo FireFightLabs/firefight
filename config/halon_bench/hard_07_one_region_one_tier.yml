@@ -19,6 +19,8 @@ tools:
   - planetscale_execute_read_query
   - check_from_outside
   - rollback
+world:
+  ingress_ap: d-55
 answers:
   - tool: get_resource_map
     result: |-
@@ -26,6 +28,11 @@ answers:
   - tool: query_metrics
     result: |-
       files over the last 60 minutes, all regions together: errors 0.4% (normal 0.3%), http_4xx 1.1% (normal 0.9%), latency_p95 820 ms, requests 18,200. The provider keeps no breakdown by region.
+  - tool: search_logs
+    match: { resource: /ingress-ap/ }
+    state: { ingress_ap: d-54 }
+    result: |-
+      ingress-ap since the rollback at 09:12: no 413 answers. config loaded: client_max_body_size 100m. Uploads over 25 MB through files.ap.larkspur.shop pass again.
   - tool: search_logs
     match: { resource: /ingress-ap/ }
     result: |-
@@ -74,6 +81,7 @@ answers:
       https://files.larkspur.shop answered 200 in 140 ms, checked from the sandbox in us-east. Certificate trusted, expires 2027-02-02.
   - tool: rollback
     match: { resource: /ingress-ap/ }
+    sets: { ingress_ap: d-54 }
     result: |-
       Rolled ingress-ap back to d-54 (image 1.10). Deployment: https://app.northflank.com/t/larkspur/project/shop/services/ingress-ap/deployments/d-56
   - tool: rollback

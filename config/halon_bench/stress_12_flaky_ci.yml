@@ -5,6 +5,11 @@ shape: >-
   a script, finds the flaky test, and has the coding agent write the fix once allowed.
 context: |-
   You are acting for Sam Rivera, whose role in this workspace is member. Owners and admins can change settings and permissions, members respond to incidents.
+person:
+  approves: [ "/pull request|fix|freeze|patch/" ]
+  answers:
+    - asked: "/which (repo|repository)/"
+      say: larkspur/shop
 turns:
   - said: CI keeps failing on main and blocking merges, can you figure out what's flaky?
     decisions: [ approve ]
@@ -39,6 +44,7 @@ answers:
          5  spec/system/cart_spec.rb:40 timed out waiting for #checkout-button, passed on rerun in 4 of 5
          3  different tests once each
   - tool: run_command
+    match: { command: "/\\bls\\b|find/" }
     result: results/result_4.txt
   - tool: github_job_log
     result: |-

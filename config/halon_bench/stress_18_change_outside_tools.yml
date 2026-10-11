@@ -23,9 +23,15 @@ tools:
         workload: { type: string, description: The workload }
         patch: { type: object, description: A strategic merge patch }
       required: [ workload, patch ]
+world:
+  api_memory: 256Mi
 answers:
   - tool: recent_deploys
     result: No deploy of api in the last 12 hours.
+  - tool: resource_status
+    state: { api_memory: 512Mi }
+    result: |-
+      deployment/api in namespace prod: 6 pods, memory limit 512Mi, no restarts since the rollout finished at 13:34.
   - tool: resource_status
     result: |-
       deployment/api in namespace prod: 6 pods, 41 restarts in the last hour, each OOMKilled, the first at 13:09.
@@ -35,6 +41,7 @@ answers:
       13:02 deployment/api in prod edited by hand (kubectl) by jo@larkspur.shop, reported by the cluster between sweeps: resources.limits.memory 512Mi to 256Mi. New pods rolled out 13:02 to 13:05.
       No deploys or builds of api in the last 24 hours.
   - tool: kubernetes_patch
+    sets: { api_memory: 512Mi }
     result: deployment/api patched, memory limit 512Mi. Rolling out.
 expect:
   outcome: >-
