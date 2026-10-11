@@ -161,12 +161,15 @@ class Integration < ApplicationRecord
   MIN_TERM = 3
 
   # Saved row by row because enabling one mints its Ability::Action in an after_save that
-  # update_all would skip. reads_only turns the write tools off rather than adding anything.
+  # update_all would skip. The actions are filed in their packs together at the end. reads_only turns the write tools
+  # off rather than adding anything.
   def set_all_tools!(enabled, reads_only: false)
     transaction do
-      tools.available.each do |tool|
-        desired = enabled && (!reads_only || tool.read_only?) && (tool.enabled? || tool.namesake.nil?)
-        tool.update!(enabled: desired) if tool.enabled? != desired
+      Ability::Role.filing_together(self) do
+        tools.available.each do |tool|
+          desired = enabled && (!reads_only || tool.read_only?) && (tool.enabled? || tool.namesake.nil?)
+          tool.update!(enabled: desired) if tool.enabled? != desired
+        end
       end
     end
   end

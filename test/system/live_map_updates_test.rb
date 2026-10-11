@@ -31,7 +31,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     fill_in "map-events-secret-#{@row.id}", with: "whsec"
     click_button "Save secret"
 
-    assert_text "Signing secret saved. Changes Northflank sends now reach the map."
+    assert_toast "Signing secret saved. Changes Northflank sends now reach the map."
     assert_text "Live updates: on, no change received yet"
     assert_equal "whsec", @row.reload.map_events_secret
     page.scroll_to(find("#map-events-secret-#{@row.id}"), align: :center)
@@ -88,7 +88,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     end
     # The toast is hidden from view until the dialog has closed.
     assert_no_selector "[role='dialog']", text: "Turn on live updates?"
-    assert_text "Live updates are on. Changes Render sends now reach the map."
+    assert_toast "Live updates are on. Changes Render sends now reach the map."
     assert_text "Live updates: on, no change received yet"
     assert_equal({ "tea-1" => "whk-1" }, JSON.parse(render.reload.map_events_webhook_id))
 
@@ -98,7 +98,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     within(find("[role='dialog']", text: "Turn off live updates?")) { click_button "Turn off" }
     # The toast is hidden from view until the dialog has closed.
     assert_no_selector "[role='dialog']", text: "Turn off live updates?"
-    assert_text "Live updates are off. Firefight removed its webhook from Render."
+    assert_toast "Live updates are off. Firefight removed its webhook from Render."
     assert_text "Live updates were turned off, so the map updates at each sweep."
   end
 
@@ -117,11 +117,11 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
 
     fill_in "map-events-secret-#{row.id}", with: "first-database-secret"
     click_button "Add secret"
-    assert_text "Signing secret added. PlanetScale now has 1 signing secret saved, and a change signed with any one reaches the map."
+    assert_toast "Signing secret added. PlanetScale now has 1 signing secret saved, and a change signed with any one reaches the map."
     visit integrations_path(Integration::DETAILS_QUERY_PARAM => planetscale.id)
     fill_in "map-events-secret-#{row.id}", with: "second-database-secret"
     click_button "Add secret"
-    assert_text "Signing secret added. PlanetScale now has 2 signing secrets saved, and a change signed with any one reaches the map."
+    assert_toast "Signing secret added. PlanetScale now has 2 signing secrets saved, and a change signed with any one reaches the map."
     assert_text "Live updates: on, no change received yet"
     assert_selector "#map-events-secret-#{row.id}[placeholder='2 saved. Paste another to add it']"
     page.scroll_to(find("#map-events-secret-#{row.id}"), align: :center)
@@ -136,7 +136,7 @@ class LiveMapUpdatesTest < ApplicationSystemTestCase
     end
     # The toast is hidden from view until the dialog has closed.
     assert_no_selector "[role='dialog']", text: "Forget signing secrets?"
-    assert_text "Signing secrets forgotten. Changes PlanetScale sends no longer reach the map until you add a secret again."
+    assert_toast "Signing secrets forgotten. Changes PlanetScale sends no longer reach the map until you add a secret again."
     assert_text "Live updates: off"
     assert_empty row.reload.map_events_secrets
   end

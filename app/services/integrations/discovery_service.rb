@@ -5,7 +5,12 @@ module Integrations
   # before keeps whatever an admin chose for it. A tool reads when its server says so or the registry does, unless the
   # registry says it writes, or when an admin marked it as a read on a server Firefight cannot know.
   class DiscoveryService
+    # Each minted action joins its permission packs once every tool is saved.
     def self.sync!(integration)
+      Ability::Role.filing_together(integration) { discover!(integration) }
+    end
+
+    def self.discover!(integration)
       entry = IntegrationProvider.find(integration.provider)
       arrived = []
       seen = integration.executor.tool_definitions(integration).map do |definition|
@@ -35,6 +40,6 @@ module Integrations
       namesakes = Integration.find(integration.id).tool_namesakes
       arrived.each { |tool| tool.update!(enabled: true) unless namesakes.key?(tool.name) }
     end
-    private_class_method :switch_on
+    private_class_method :discover!, :switch_on
   end
 end
