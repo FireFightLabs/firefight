@@ -19,6 +19,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@inertiajs/react": "^3.0.3",
     "@rails/actioncable": "^8.0.501",
+    "@sentry/react": "^11.0.0",
     "@tabler/icons-react": "^3.40.0",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.19",

@@ -199,6 +199,8 @@ app/frontend/
   - Features with a single page (e.g. `pages/dashboard/`) keep the flat `components/` layout — no per-page subfolder needed.
 - The Inertia resolver does a string lookup against `import.meta.glob('../pages/**/*.tsx')` so co-located components (anything other than the file the controller names) are inert — they're imported into the bundle but never resolved as a page.
 
+**Browser error reporting loads only when it is set up.** `ApplicationController` shares `errorReporting` (`ErrorReporting.browser`, nil unless `SENTRY_FRONTEND_DSN` is set) with every page, the operator console included. `entrypoints/inertia.tsx` reads it from the first page and only then imports `lib/error-reporting.ts`, so Sentry is a chunk of its own that a page without a DSN never fetches. It sends errors only (no sessions, console breadcrumbs, tracing or replay), with every query string cut from the addresses it records and no headers but `User-Agent`.
+
 **Every table sits in a `Card`:**
 - The `Table` primitive draws no surface of its own. The container is always `Card` + `CardContent className="p-0"`, so the table runs edge to edge on the card background rather than on the page background.
 - Anything scoped to the table (title, description, search, filters, the primary action) goes in `CardHeader`. Settings tabs put a `CardTitle`/`CardDescription` there; `catalogue/type.tsx` puts the search input there because the page header already carries the title.

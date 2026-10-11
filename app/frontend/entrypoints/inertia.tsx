@@ -2,6 +2,19 @@ import { createInertiaApp, type ResolvedComponent } from '@inertiajs/react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import type { ErrorReportingSettings } from '@/types'
+
+// Sentry's code is fetched only when the deployment gave the page a DSN, so a page without one never loads it.
+function reportErrors(settings: ErrorReportingSettings | null | undefined) {
+  if (!settings) {
+    return
+  }
+
+  void import('@/lib/error-reporting').then(({ startErrorReporting }) => {
+    startErrorReporting(settings)
+  })
+}
+
 void createInertiaApp({
   resolve: (name) => {
     const pages = import.meta.glob<ResolvedComponent>('../pages/**/*.tsx', {
@@ -21,6 +34,7 @@ void createInertiaApp({
   },
 
   setup({ el, App, props }) {
+    reportErrors(props.initialPage.props.errorReporting)
     createRoot(el).render(
       <StrictMode>
         <App {...props} />
